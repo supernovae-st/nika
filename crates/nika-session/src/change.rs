@@ -1,14 +1,14 @@
 //! Project changes from the session (ADR-126): one typed change set,
-//! consumed by BOTH the preview and the apply so the two cannot diverge;
-//! witnesses against stale bytes; the engine's own audit of the exact
-//! bytes as the preview's effects; consent a session event, never a
-//! reasoner's tool.
+//! built from a compiler candidate by [`crate::review`] (or directly by
+//! a host) and consumed by BOTH the preview and the apply so the two
+//! cannot diverge; witnesses against stale bytes; the engine's own audit
+//! of the exact bytes as the preview's effects; consent a session event,
+//! never a reasoner's tool. No reply is ever read for a file here.
 
 use std::fmt::Write as _;
 use std::io::Read as _;
 use std::path::{Component, Path, PathBuf};
 
-use nika_cli_host::fix_ladder::{StopNotes, apply_prepass};
 use nika_cli_host::oracle::{AuditOptions, audit_source};
 use nika_fs::OwnedDir;
 
@@ -341,89 +341,51 @@ impl ApplyAttempt {
 }
 
 impl ProjectChangeSet {
-    /// Build the set from a reply: every fenced block that names a path
-    /// (`path=<p>` on the fence, or `# path: <p>` as its first line)
-    /// proposes the bytes at that path. `None` when the reply carries no
-    /// such block (prose stays prose). `named` are the files the human
-    /// named in the conversation: the only supporting files a set may
-    /// touch.
+    /// A workflow at a path under the root, from bytes the caller owns —
+    /// the compiler's candidate through [`crate::review`], or a host's.
+    /// The destination is contained (no `..`, no absolute path, a
+    /// canonical program name) and witnessed NOW with the no-follow
+    /// primitive the write uses: absent → a create; a regular file → an
+    /// update over its witness; a symlink, a directory or an unreadable
+    /// file → refused, and nothing outside the root is ever hashed. The
+    /// bytes are audited by the same facade `nika check` uses. No repair
+    /// pass touches them: the bytes previewed are the bytes written.
     ///
     /// # Errors
     ///
-    /// A path outside the root, or a path that is neither a workflow,
-    /// the project file nor a named file.
-    pub fn from_reply(
+    /// A path outside the root or not a workflow name, or a destination
+    /// that exists and cannot be witnessed.
+    pub fn workflow_at(
         root: &Path,
         goal: &str,
-        reply: &str,
-        named: &[String],
-        run: Option<RunRequest>,
-    ) -> Result<Option<Self>, ChangeError> {
-        let blocks = fenced_blocks(reply);
-        if blocks.is_empty() {
-            return Ok(None);
+        path: &str,
+        content: String,
+    ) -> Result<Self, ChangeError> {
+        let rel = relative_inside_root(path)?;
+        if !rel
+            .file_name()
+            .and_then(|n| n.to_str())
+            .is_some_and(nika_source::is_canonical_program_file_name)
+        {
+            return Err(ChangeError::Unnamed(path.to_owned()));
         }
-        let mut changes = Vec::new();
-        let mut repairs = Vec::new();
-        let mut audits = Vec::new();
-        for (path, body) in blocks {
-            let rel = relative_inside_root(&path)?;
-            let is_workflow = rel
-                .file_name()
-                .and_then(|n| n.to_str())
-                .is_some_and(nika_source::is_canonical_program_file_name);
-            let is_project = rel == Path::new(PROJECT_FILE);
-            let is_named = named.iter().any(|n| Path::new(n) == rel);
-            if !(is_workflow || is_project || is_named) {
-                return Err(ChangeError::Unnamed(path));
-            }
-            let mut content = body;
-            if is_workflow {
-                let mut notes = StopNotes(Vec::new());
-                let mut landed = Vec::new();
-                apply_prepass(&mut content, &mut landed, &mut notes);
-                repairs.extend(
-                    landed
-                        .iter()
-                        .filter(|r| r.applied)
-                        .map(|r| format!("{} → {} ({})", r.old, r.new, r.kind)),
-                );
-                audits.push(audit_bytes(&rel, &content));
-            }
-            let before = witness_now(root, &rel)?;
-            changes.push(match (is_workflow, is_project, before) {
-                (true, _, None) => ProjectChange::CreateWorkflow { path: rel, content },
-                (true, _, Some(before)) => ProjectChange::UpdateWorkflow {
-                    path: rel,
-                    before,
-                    content,
-                },
-                (_, true, None) => ProjectChange::CreateProjectFile { content },
-                (_, true, Some(before)) => ProjectChange::UpdateProjectFile { before, content },
-                (_, _, None) => ProjectChange::CreateSupportingFile { path: rel, content },
-                (_, _, Some(before)) => ProjectChange::UpdateSupportingFile {
-                    path: rel,
-                    before,
-                    content,
-                },
-            });
-        }
-        let run = run.map(|mut r| {
-            if r.workflow.as_os_str().is_empty()
-                && let Some(first) = changes.iter().find(|c| c.is_workflow())
-            {
-                r.workflow = first.path();
-            }
-            r
-        });
-        Ok(Some(Self {
+        let audits = vec![audit_bytes(&rel, &content)];
+        let change = match witness_now(root, &rel)? {
+            None => ProjectChange::CreateWorkflow { path: rel, content },
+            Some(before) => ProjectChange::UpdateWorkflow {
+                path: rel,
+                before,
+                content,
+            },
+        };
+        Ok(Self {
             root: root.to_path_buf(),
             goal: goal.to_owned(),
-            changes,
-            run,
-            repairs,
+            changes: vec![change],
+            run: None,
+            repairs: Vec::new(),
             audits,
-        }))
+        })
     }
 
     /// The preview: the exact bytes of every change, the repairs the
@@ -618,7 +580,7 @@ pub fn check_on_disk(root: &Path, path: &Path) -> WorkflowAudit {
 
 /// The facade's audit of exact bytes (the preview · child-blind), folded to
 /// the preview's rows.
-pub(crate) fn audit_bytes(path: &Path, source: &str) -> WorkflowAudit {
+fn audit_bytes(path: &Path, source: &str) -> WorkflowAudit {
     let logical = path.display().to_string();
     fold_audit(
         path,
@@ -731,83 +693,6 @@ fn effect_rows(report: &nika_check::CheckReport) -> Vec<String> {
     rows
 }
 
-/// The reply's prose with every fenced block removed (what the human
-/// reads above the preview), ending in a blank line when non-empty.
-#[must_use]
-pub fn prose_outside_blocks(reply: &str) -> String {
-    let mut out = Vec::new();
-    let mut inside = false;
-    for line in reply.lines() {
-        if line.trim_start().starts_with("```") {
-            inside = !inside;
-            continue;
-        }
-        let doubled_blank =
-            line.trim().is_empty() && out.last().is_some_and(|l: &&str| l.trim().is_empty());
-        if !(inside || doubled_blank) {
-            out.push(line);
-        }
-    }
-    let text = out.join("\n").trim().to_owned();
-    if text.is_empty() {
-        text
-    } else {
-        format!("{text}\n\n")
-    }
-}
-
-/// Every fenced block that names a path: `path=<p>` on the fence line
-/// or `# path: <p>` (or `# path=<p>`) as the block's first line.
-fn fenced_blocks(reply: &str) -> Vec<(String, String)> {
-    let mut blocks = Vec::new();
-    let mut open: Option<(Option<String>, Vec<String>)> = None;
-    for raw in reply.lines() {
-        let line = raw.trim_end();
-        if let Some(rest) = line.trim_start().strip_prefix("```") {
-            match open.take() {
-                Some((Some(path), body)) => {
-                    let mut content = body.join("\n");
-                    content.push('\n');
-                    blocks.push((path, content));
-                }
-                Some((None, _)) => {}
-                None => {
-                    let path = rest
-                        .split_whitespace()
-                        .find_map(|t| t.strip_prefix("path="))
-                        .map(|p| {
-                            p.trim_matches(|c| c == '"' || c == '\'' || c == '`')
-                                .to_owned()
-                        });
-                    open = Some((path, Vec::new()));
-                }
-            }
-            continue;
-        }
-        if let Some((path, body)) = &mut open {
-            if body.is_empty()
-                && path.is_none()
-                && let Some(p) = first_line_path(line)
-            {
-                *path = Some(p);
-                continue;
-            }
-            body.push(line.to_owned());
-        }
-    }
-    blocks
-}
-
-fn first_line_path(line: &str) -> Option<String> {
-    let rest = line.trim().strip_prefix('#')?.trim_start();
-    let rest = rest.strip_prefix("path")?.trim_start();
-    let rest = rest.strip_prefix(':').or_else(|| rest.strip_prefix('='))?;
-    let p = rest
-        .trim()
-        .trim_matches(|c| c == '"' || c == '\'' || c == '`');
-    (!p.is_empty()).then(|| p.to_owned())
-}
-
 /// A relative path with no `..`, no root, no empty component.
 fn relative_inside_root(path: &str) -> Result<PathBuf, ChangeError> {
     let p = Path::new(path.trim());
@@ -916,27 +801,19 @@ mod tests {
 
     const WORKFLOW: &str = "nika: daily\nmodel: mock/echo\npermits: { fs: { read: [\"./notes/**\"] }, tools: [\"nika:read\"] }\ntasks:\n  read:\n    invoke: { tool: \"nika:read\", args: { path: \"./notes/today.md\" } }\n  sum:\n    with: { text: \"${{ tasks.read.output }}\" }\n    infer: { prompt: \"Summarize: ${{ with.text }}\", max_tokens: 40 }\noutputs:\n  digest: ${{ tasks.sum.output }}\n";
 
-    fn reply_with(path: &str, body: &str) -> String {
-        format!(
-            "Here is the workflow.\n\n```yaml path={path}\n{body}```\n\nRun it with `nika run`."
-        )
-    }
-
     /// The preview prints the exact bytes the apply lands; the audit of
     /// those bytes rides the preview; the effect rows come from the
     /// report's own permits and requirements.
     #[test]
     fn preview_equals_apply_for_a_create() {
         let dir = tempfile::tempdir().expect("tmp");
-        let set = ProjectChangeSet::from_reply(
+        let set = ProjectChangeSet::workflow_at(
             dir.path(),
             "a daily digest",
-            &reply_with("daily.nika", WORKFLOW),
-            &[],
-            None,
+            "daily.nika",
+            WORKFLOW.to_owned(),
         )
-        .expect("legal")
-        .expect("a block");
+        .expect("legal");
         assert_eq!(set.changes.len(), 1);
         assert!(
             matches!(&set.changes[0], ProjectChange::CreateWorkflow { path, content } if path == Path::new("daily.nika") && content == WORKFLOW)
@@ -1018,15 +895,9 @@ mod tests {
     fn a_stale_witness_applies_nothing() {
         let dir = tempfile::tempdir().expect("tmp");
         std::fs::write(dir.path().join("daily.nika"), "nika: old\n").expect("seed");
-        let set = ProjectChangeSet::from_reply(
-            dir.path(),
-            "update",
-            &reply_with("daily.nika", WORKFLOW),
-            &[],
-            None,
-        )
-        .expect("legal")
-        .expect("a block");
+        let set =
+            ProjectChangeSet::workflow_at(dir.path(), "update", "daily.nika", WORKFLOW.to_owned())
+                .expect("legal");
         assert!(
             matches!(&set.changes[0], ProjectChange::UpdateWorkflow { before, .. } if *before == Witness::of(b"nika: old\n"))
         );
@@ -1044,116 +915,36 @@ mod tests {
         );
     }
 
-    /// A path that leaves the root, an absolute path, or a file the human
-    /// never named is refused before any preview.
+    /// A path that leaves the root, an absolute path, or a name that is
+    /// not a workflow's is refused before any preview; a contained
+    /// workflow name under a fresh parent lands.
     #[test]
-    fn paths_outside_the_root_and_unnamed_files_refuse() {
+    fn paths_outside_the_root_and_non_workflow_names_refuse() {
         let dir = tempfile::tempdir().expect("tmp");
-        let outside = ProjectChangeSet::from_reply(
-            dir.path(),
-            "g",
-            &reply_with("../evil.nika", "nika: x\n"),
-            &[],
-            None,
-        );
+        let outside =
+            ProjectChangeSet::workflow_at(dir.path(), "g", "../evil.nika", "nika: x\n".to_owned());
         assert!(matches!(outside, Err(ChangeError::OutsideRoot(_))));
-        let absolute = ProjectChangeSet::from_reply(
+        let absolute = ProjectChangeSet::workflow_at(
             dir.path(),
             "g",
-            &reply_with("/etc/nika.yaml", "nika: x\n"),
-            &[],
-            None,
+            "/etc/nika.yaml",
+            "nika: x\n".to_owned(),
         );
         assert!(matches!(absolute, Err(ChangeError::OutsideRoot(_))));
-        let unnamed = ProjectChangeSet::from_reply(
-            dir.path(),
-            "g",
-            &reply_with("notes/today.md", "hello\n"),
-            &[],
-            None,
-        );
-        assert!(matches!(unnamed, Err(ChangeError::Unnamed(_))));
-        let named = ProjectChangeSet::from_reply(
-            dir.path(),
-            "g",
-            &reply_with("notes/today.md", "hello\n"),
-            &["notes/today.md".to_owned()],
-            None,
-        )
-        .expect("legal")
-        .expect("a block");
+        let not_a_workflow =
+            ProjectChangeSet::workflow_at(dir.path(), "g", "notes/today.md", "hello\n".to_owned());
+        assert!(matches!(not_a_workflow, Err(ChangeError::Unnamed(_))));
+        let nested =
+            ProjectChangeSet::workflow_at(dir.path(), "g", "notes/daily.nika", WORKFLOW.to_owned())
+                .expect("legal");
         assert!(matches!(
-            &named.changes[0],
-            ProjectChange::CreateSupportingFile { .. }
+            &nested.changes[0],
+            ProjectChange::CreateWorkflow { path, .. } if path == Path::new("notes/daily.nika")
         ));
-        named.apply().expect("lands under a created parent");
+        nested.apply().expect("lands under a created parent");
         assert_eq!(
-            std::fs::read_to_string(dir.path().join("notes/today.md")).expect("landed"),
-            "hello\n"
-        );
-    }
-
-    /// The prose above the preview is the reply without its fences.
-    #[test]
-    fn the_prose_outside_the_blocks_is_kept() {
-        let reply = reply_with("daily.nika", WORKFLOW);
-        let prose = prose_outside_blocks(&reply);
-        assert_eq!(
-            prose,
-            "Here is the workflow.\n\nRun it with `nika run`.\n\n"
-        );
-        assert_eq!(prose_outside_blocks("```yaml\nnika: x\n```"), "");
-    }
-
-    /// Prose is prose: a reply without a path-bearing block proposes nothing;
-    /// a `# path:` first line names the block too.
-    #[test]
-    fn prose_proposes_nothing_and_the_first_line_may_name_the_path() {
-        let dir = tempfile::tempdir().expect("tmp");
-        assert!(
-            ProjectChangeSet::from_reply(
-                dir.path(),
-                "g",
-                "Use a `nika:write` task.\n```yaml\nnika: unnamed\n```\n",
-                &[],
-                None
-            )
-            .expect("legal")
-            .is_none()
-        );
-        let set = ProjectChangeSet::from_reply(dir.path(), "g", "```yaml\n# path: out/daily.nika\nnika: daily\nmodel: mock/echo\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10 }\n```\n", &[], None)
-            .expect("legal")
-            .expect("named on the first line");
-        assert_eq!(set.changes[0].path(), PathBuf::from("out/daily.nika"));
-        assert!(
-            !set.changes[0].content().contains("# path:"),
-            "the naming line is not part of the bytes"
-        );
-    }
-
-    /// The fix ladder's mechanical prepass repairs the reasoner's dead forms
-    /// before the preview, and the preview lists the repair.
-    #[test]
-    fn the_ladder_repairs_before_the_preview_and_says_so() {
-        let dir = tempfile::tempdir().expect("tmp");
-        let dead = "nika: d\nmodel: mock/echo\npermits: { exec: [\"echo\"] }\ntasks:\n  say:\n    exec: \"echo hi\"\n";
-        let set =
-            ProjectChangeSet::from_reply(dir.path(), "g", &reply_with("d.nika", dead), &[], None)
-                .expect("legal")
-                .expect("a block");
-        assert!(
-            !set.repairs.is_empty(),
-            "a repair landed: {:?}",
-            set.repairs
-        );
-        assert!(
-            set.preview().contains("repaired before this preview"),
-            "{}",
-            set.preview()
-        );
-        assert!(
-            !set.changes[0].content().contains("exec: \"echo hi\""),
-            "the dead form is gone"
+            std::fs::read_to_string(dir.path().join("notes/daily.nika")).expect("landed"),
+            WORKFLOW
         );
     }
 
@@ -1180,35 +971,6 @@ mod tests {
         assert!(
             PendingGate::from_trace(Path::new("gated.nika"), &trace).is_none(),
             "no pause, no gate"
-        );
-    }
-
-    /// A run request with no workflow named binds to the first workflow the
-    /// set lands; the preview announces the ceiling and the clean-check law.
-    #[test]
-    fn a_run_request_binds_to_the_first_workflow() {
-        let dir = tempfile::tempdir().expect("tmp");
-        let run = RunRequest {
-            workflow: PathBuf::new(),
-            vars: vec![],
-            max_cost_usd: 0.05,
-        };
-        let set = ProjectChangeSet::from_reply(
-            dir.path(),
-            "g",
-            &reply_with("daily.nika", WORKFLOW),
-            &[],
-            Some(run),
-        )
-        .expect("legal")
-        .expect("a block");
-        assert_eq!(
-            set.run.as_ref().map(|r| r.workflow.clone()),
-            Some(PathBuf::from("daily.nika"))
-        );
-        assert!(
-            set.preview()
-                .contains("run `daily.nika` once (--max-cost-usd 0.05 ·")
         );
     }
 
@@ -1280,14 +1042,9 @@ mod tests {
             note_coverage_limit(&why);
             return;
         }
-        let err = ProjectChangeSet::from_reply(
-            dir.path(),
-            "g",
-            &reply_with("secret.nika", WORKFLOW),
-            &[],
-            None,
-        )
-        .expect_err("an unreadable existing target is not a create");
+        let err =
+            ProjectChangeSet::workflow_at(dir.path(), "g", "secret.nika", WORKFLOW.to_owned())
+                .expect_err("an unreadable existing target is not a create");
         assert!(
             matches!(err, ChangeError::Io(..)),
             "the class is the file system's, not unnamed/stale: {err}"
@@ -1317,15 +1074,8 @@ mod tests {
         use std::os::unix::fs::PermissionsExt as _;
         const SECRET: &str = "nika: appeared-unreadable\n";
         let dir = tempfile::tempdir().expect("tmp");
-        let set = ProjectChangeSet::from_reply(
-            dir.path(),
-            "g",
-            &reply_with("daily.nika", WORKFLOW),
-            &[],
-            None,
-        )
-        .expect("legal")
-        .expect("a block");
+        let set = ProjectChangeSet::workflow_at(dir.path(), "g", "daily.nika", WORKFLOW.to_owned())
+            .expect("legal");
         assert!(matches!(
             &set.changes[0],
             ProjectChange::CreateWorkflow { .. }
@@ -1366,18 +1116,23 @@ mod tests {
         let dir = tempfile::tempdir().expect("tmp");
         let locked = dir.path().join("locked");
         std::fs::create_dir(&locked).expect("locked");
-        let set = ProjectChangeSet::from_reply(
-            dir.path(),
-            "two files",
-            &format!(
-                "{}\n```yaml path=locked/note.nika\n{WORKFLOW}```\n",
-                reply_with("brief.nika", WORKFLOW)
-            ),
-            &[],
-            None,
-        )
-        .expect("legal")
-        .expect("two blocks");
+        let set = ProjectChangeSet {
+            root: dir.path().to_path_buf(),
+            goal: "two files".to_owned(),
+            changes: vec![
+                ProjectChange::CreateWorkflow {
+                    path: PathBuf::from("brief.nika"),
+                    content: WORKFLOW.to_owned(),
+                },
+                ProjectChange::CreateWorkflow {
+                    path: PathBuf::from("locked/note.nika"),
+                    content: WORKFLOW.to_owned(),
+                },
+            ],
+            run: None,
+            repairs: Vec::new(),
+            audits: Vec::new(),
+        };
         assert_eq!(set.changes.len(), 2);
         assert!(set.changes.iter().all(|c| c.witness().is_none()));
         std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o555)).expect("ro");
