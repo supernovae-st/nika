@@ -82,7 +82,7 @@ struct ProposedStep {
     op: String,
     detail: String,
     evidence: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nullable_vec")]
     categories: Vec<String>,
 }
 #[derive(Deserialize)]
@@ -112,8 +112,18 @@ struct ProposedRegion {
 #[serde(deny_unknown_fields)]
 struct ProposedBypass {
     present: bool,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nullable_string")]
     evidence: String,
+}
+
+/// A provider's strict structured-output mode may turn an optional property into an explicit
+/// `null`; the decoder reads it as the absent default rather than refusing the plan.
+fn nullable_vec<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<String>, D::Error> {
+    Ok(Option::<Vec<String>>::deserialize(d)?.unwrap_or_default())
+}
+
+fn nullable_string<'de, D: serde::Deserializer<'de>>(d: D) -> Result<String, D::Error> {
+    Ok(Option::<String>::deserialize(d)?.unwrap_or_default())
 }
 
 const INSTRUCTIONS: &str = r"Interpret the ENTIRE user request, in whatever language, as a private semantic plan for a workflow compiler. Return only one JSON object with steps, effects, obligations, constraints, unknowns, regions, approval_bypass. Never produce YAML, source, tool calls, credentials, endpoints or permissions.

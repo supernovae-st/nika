@@ -1281,3 +1281,23 @@ async fn whitespace_folded_evidence_is_anchored_to_the_exact_excerpt() {
         "{out:#?}"
     );
 }
+
+/// A provider's strict structured-output mode answers `null` for optional properties
+/// (categories, the bypass evidence); the plan is still decoded and assembled.
+#[tokio::test]
+async fn explicit_nulls_from_a_strict_provider_are_absent_fields() {
+    let mut with_nulls = plan();
+    with_nulls["steps"][0]["categories"] = Value::Null;
+    with_nulls["steps"][1]["categories"] = Value::Null;
+    with_nulls["approval_bypass"] = json!({"present": false, "evidence": null});
+    with_nulls["obligations"] = json!([]);
+    let provider = Provider::new(with_nulls);
+    let out = compile_with_provider(&request(), &provider).await.unwrap();
+    assert!(
+        out.diagnostics
+            .iter()
+            .all(|d| !d.message.contains("not a valid closed semantic plan")),
+        "{out:#?}"
+    );
+    assert!(out.provenance.plan.is_some(), "{out:#?}");
+}
