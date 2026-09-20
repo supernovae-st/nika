@@ -47,6 +47,24 @@ async fn run_with_anchor(
     answer: Option<bool>,
     anchor: &str,
 ) -> (bool, Vec<String>, Vec<Value>) {
+    let outcome = run_case("c1", request, answer, anchor).await;
+    (outcome.ok, outcome.prompts, outcome.posts)
+}
+
+struct Outcome {
+    ok: bool,
+    prompts: Vec<String>,
+    posts: Vec<Value>,
+    /// Provider HTTP calls: zero means neither classification nor draft ran.
+    provider_calls: usize,
+}
+
+async fn run_case(
+    customer_id: &str,
+    request: Option<Value>,
+    answer: Option<bool>,
+    anchor: &str,
+) -> Outcome {
     let compiled = compile(
         &CompileRequest::create(
             "Look up the customer and draft a reply and ask me before any refund",
@@ -72,9 +90,9 @@ async fn run_with_anchor(
     .unwrap();
     let report = nika_check::check(&wf);
     let draft = json!({"body":"Hello Ada, we received your question.","facts_used":[{"claim":"Customer is Ada","anchor":anchor,"source":"customer"}]});
-    let provider_http = MockHttp::new().enqueue_ok(200, json!({"choices":[{"message":{"content":draft.to_string()},"finish_reason":"stop"}],"usage":{"prompt_tokens":20,"completion_tokens":30}}).to_string());
+    let provider_http = Arc::new(MockHttp::new().enqueue_ok(200, json!({"choices":[{"message":{"content":draft.to_string()},"finish_reason":"stop"}],"usage":{"prompt_tokens":20,"completion_tokens":30}}).to_string()));
     let registry = Arc::new(ProviderRegistry::new(
-        Arc::new(provider_http),
+        Arc::clone(&provider_http),
         ProvidersConfig::default().with_key("openai", Secret::new("injected-test-only")),
     ));
     let business = Arc::new(MockHttp::new().enqueue_ok(200, "{\"accepted\":true}"));
@@ -93,7 +111,7 @@ async fn run_with_anchor(
     let invoke = Arc::new(InvokeVerb::new(tools));
     let mut vars = BTreeMap::from([
         ("ticket".to_owned(), json!("Private ticket text")),
-        ("customer_id".to_owned(), json!("c1")),
+        ("customer_id".to_owned(), json!(customer_id)),
     ]);
     if let Some(request) = request {
         vars.insert("refund_request".to_owned(), request);
@@ -123,7 +141,12 @@ async fn run_with_anchor(
         .iter()
         .map(|r| serde_json::from_slice(r.body.as_ref().unwrap()).unwrap())
         .collect();
-    (result.ok, messages, bodies)
+    Outcome {
+        ok: result.ok,
+        prompts: messages,
+        posts: bodies,
+        provider_calls: provider_http.sent_requests().len(),
+    }
 }
 
 #[tokio::test]
@@ -181,4 +204,22 @@ async fn invented_anchor_refuses_before_human_or_refund() {
     assert!(!ok);
     assert!(prompts.is_empty());
     assert!(posts.is_empty());
+}
+
+#[tokio::test]
+async fn missing_customer_record_fails_before_any_model_prompt_or_refund() {
+    let outcome = run_case(
+        "ghost",
+        Some(json!({"amount":25,"currency":"EUR"})),
+        Some(true),
+        "Ada",
+    )
+    .await;
+    assert!(!outcome.ok);
+    assert_eq!(
+        outcome.provider_calls, 0,
+        "no classification or draft may run on a fabricated customer"
+    );
+    assert!(outcome.prompts.is_empty());
+    assert!(outcome.posts.is_empty());
 }
