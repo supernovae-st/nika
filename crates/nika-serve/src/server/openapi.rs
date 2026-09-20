@@ -481,7 +481,12 @@ fn schedule_put_schema() -> Value {
             "tolerance": {"type": "string"},
             "active": {"type": "boolean"},
             "pauseReason": {"type": "string", "maxLength": 1024},
-            "pauseUntil": {"type": "string", "format": "date"}
+            "pauseUntil": {"type": "string", "format": "date"},
+            "inputs": {
+                "type": "object",
+                "description": "Per-fire inputs bound on every resident fire (#1370): one scalar per key the workflow declares under `inputs:`, coerced by the declared type exactly as the CLI `--var` edge does, then judged by the same literal admission validator as POST /v1/jobs. Unknown keys, values the declared type refuses, missing required inputs and the `@env:` channel are refused at PUT and again at fire.",
+                "additionalProperties": {"oneOf": [{"type": "string"}, {"type": "number"}, {"type": "boolean"}]}
+            }
         }
     })
 }

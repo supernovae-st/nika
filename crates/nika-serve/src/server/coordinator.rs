@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::fmt;
 use std::time::{Duration, Instant};
 
@@ -155,7 +156,7 @@ impl ResidentExecutionCoordinator {
         admitted: AdmittedExecution,
         origin: JobOrigin,
     ) -> Result<PreparedScheduledRun, ServerError> {
-        self.prepare_scheduled_with_max_cost(admitted, origin, None)
+        self.prepare_scheduled_with_max_cost(admitted, origin, None, BTreeMap::new())
     }
 
     /// Prepare a scheduled run carrying its required per-fire spend ceiling.
@@ -171,6 +172,7 @@ impl ResidentExecutionCoordinator {
         admitted: AdmittedExecution,
         origin: JobOrigin,
         max_cost_usd: Option<f64>,
+        inputs: BTreeMap<String, serde_json::Value>,
     ) -> Result<PreparedScheduledRun, ServerError> {
         if max_cost_usd.is_some_and(|cost| !cost.is_finite() || cost <= 0.0) {
             return Err(ServerError::ScheduledAdmission);
@@ -202,6 +204,7 @@ impl ResidentExecutionCoordinator {
             execution_id,
             trace_id,
             snapshot_digest,
+            inputs,
             json!({
                 "kind": crate::JobEventKind::Prepared,
                 "origin": event_origin,

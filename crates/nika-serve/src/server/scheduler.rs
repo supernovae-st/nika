@@ -343,6 +343,12 @@ async fn prepare_claim(
                 Path::new(candidate.schedule.definition.workflow()),
             )
             .map_err(|_| ServerError::ScheduledAdmission)?;
+        // The declared inputs are bound on EVERY fire against the workflow
+        // as admitted now (#1370): the same coercion and admission law as
+        // `POST /v1/jobs`, judged after the file may have changed. A refusal
+        // is contained to the schedule like any fire-time admission failure.
+        let inputs = super::schedule_inputs::bind(&admitted, &candidate.schedule.definition)
+            .map_err(|_| ServerError::ScheduledAdmission)?;
         let generation = generation(&candidate.schedule.definition, &admitted);
         let fired_at = clock.now();
         let origin = JobOrigin::schedule(
@@ -359,6 +365,7 @@ async fn prepare_claim(
             admitted,
             origin,
             Some(candidate.schedule.definition.max_cost_usd()),
+            inputs,
         )?;
         let claim_now = clock.now();
         if !fire_is_still_due(&store, &candidate, &claim_now)? {

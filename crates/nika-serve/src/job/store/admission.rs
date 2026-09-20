@@ -211,6 +211,7 @@ impl JobStore {
         execution_id: String,
         trace_id: String,
         snapshot_digest: String,
+        inputs: std::collections::BTreeMap<String, Value>,
         event: &Value,
     ) -> Result<Admission, JobStoreError> {
         key.validate()?;
@@ -257,7 +258,7 @@ impl JobStore {
             origin,
             workflow,
             access_pin: None,
-            inputs: std::collections::BTreeMap::new(),
+            inputs,
             execution_id,
             trace_id,
             snapshot_digest,

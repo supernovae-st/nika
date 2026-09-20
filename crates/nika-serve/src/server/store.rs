@@ -170,6 +170,7 @@ enum RequestCommand {
         execution_id: String,
         trace_id: String,
         snapshot_digest: String,
+        inputs: BTreeMap<String, Value>,
         event: Value,
         reply: Reply<Admission>,
     },
@@ -297,6 +298,7 @@ impl StoreHandle {
         execution_id: String,
         trace_id: String,
         snapshot_digest: String,
+        inputs: BTreeMap<String, Value>,
         event: Value,
     ) -> Result<Admission, ServerError> {
         let (reply, answer) = oneshot::channel();
@@ -310,6 +312,7 @@ impl StoreHandle {
             execution_id,
             trace_id,
             snapshot_digest,
+            inputs,
             event,
             reply,
         })?;
@@ -680,6 +683,7 @@ fn dispatch_request(command: RequestCommand, store: &JobStore) {
             execution_id,
             trace_id,
             snapshot_digest,
+            inputs,
             event,
             reply,
         } => {
@@ -693,6 +697,7 @@ fn dispatch_request(command: RequestCommand, store: &JobStore) {
                 execution_id,
                 trace_id,
                 snapshot_digest,
+                inputs,
                 &event,
             );
             let _result = reply.send(result);

@@ -15,6 +15,7 @@ mod production;
 mod registry;
 mod route;
 mod schedule_http;
+mod schedule_inputs;
 mod scheduler;
 mod sse;
 mod store;

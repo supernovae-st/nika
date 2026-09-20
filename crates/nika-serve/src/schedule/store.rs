@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::fmt;
 use std::io::Read as _;
 use std::path::Path;
@@ -497,6 +498,12 @@ struct PersistedSchedule {
     active: bool,
     pause_reason: Option<String>,
     pause_until: Option<String>,
+    /// Per-fire inputs (#1370), one `--var` text per declared key. Absent
+    /// on every row written before the key existed and omitted when empty,
+    /// so a stored schedule without inputs keeps its exact bytes, integrity
+    /// and revision across the upgrade.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    inputs: BTreeMap<String, String>,
     revision: String,
     integrity: String,
     // Reserved explicitly for a later history schema. V1 writes and accepts
@@ -551,6 +558,10 @@ impl PersistedSchedule {
             active: definition.is_active(),
             pause_reason: definition.pause_reason().map(str::to_owned),
             pause_until: definition.pause_until().map(str::to_owned),
+            inputs: definition
+                .inputs()
+                .map(|(key, text)| (key.to_owned(), text.to_owned()))
+                .collect(),
             revision: definition.revision().as_str().to_owned(),
             integrity: String::new(),
             history: Vec::new(),
@@ -631,6 +642,7 @@ impl PersistedSchedule {
         draft.active = Some(self.active);
         draft.pause_reason.clone_from(&self.pause_reason);
         draft.pause_until.clone_from(&self.pause_until);
+        draft.inputs.clone_from(&self.inputs);
         draft.validate().map_err(|finding| {
             ScheduleStoreError::Corrupt(format!(
                 "stored schedule failed canonical validation: {finding}"
@@ -658,6 +670,7 @@ impl PersistedSchedule {
             active: self.active,
             pause_reason: self.pause_reason.as_deref(),
             pause_until: self.pause_until.as_deref(),
+            inputs: &self.inputs,
             revision: &self.revision,
             history: &self.history,
         };
@@ -698,6 +711,10 @@ struct IntegrityProjection<'a> {
     active: bool,
     pause_reason: Option<&'a str>,
     pause_until: Option<&'a str>,
+    // Only when bound: an empty map leaves the preimage byte-identical to
+    // every row written before the key existed.
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    inputs: &'a BTreeMap<String, String>,
     revision: &'a str,
     history: &'a [Value],
 }
