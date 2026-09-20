@@ -1301,3 +1301,99 @@ async fn explicit_nulls_from_a_strict_provider_are_absent_fields() {
     );
     assert!(out.provenance.plan.is_some(), "{out:#?}");
 }
+
+/// The second clean-shell gate: a proposal that kept "write a brief of at most 5 bullet
+/// points … to ./out/brief.md" as a write and produced no draft was assembled as a copy of
+/// the fetched page. Such a candidate is not feasible; the compiler asks instead.
+#[tokio::test]
+async fn a_proposal_that_keeps_the_write_and_drops_the_draft_is_not_feasible() {
+    let intent = "Fetch https://www.rfc-editor.org/rfc/rfc2324.txt and write a brief of at most 5 bullet points to ./out/brief.md explaining what the document specifies.";
+    let proposal = json!({
+        "steps": [{"op": "fetch", "detail": "https://www.rfc-editor.org/rfc/rfc2324.txt", "evidence": "Fetch https://www.rfc-editor.org/rfc/rfc2324.txt"}],
+        "effects": [{"verb": "write", "target": "./out/brief.md", "policy": "automatic", "evidence": "write a brief of at most 5 bullet points to ./out/brief.md explaining what the document specifies"}],
+        "obligations": [], "constraints": [], "unknowns": [],
+        "regions": [{"text": "Fetch https://www.rfc-editor.org/rfc/rfc2324.txt", "role": "operation"}, {"text": "write a brief of at most 5 bullet points to ./out/brief.md explaining what the document specifies.", "role": "effect"}],
+        "approval_bypass": {"present": false, "evidence": ""}
+    });
+    let provider = Provider::new(proposal);
+    let req = CompileRequest::create(intent)
+        .with_authoring_policy(policy())
+        .answer("model", r#""mock/echo""#);
+    let out = compile_with_provider(&req, &provider).await.unwrap();
+    assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert!(out.candidate.is_none(), "{out:#?}");
+    assert!(
+        out.diagnostics
+            .iter()
+            .any(|d| d.message.contains("names content no step produces")),
+        "{out:#?}"
+    );
+}
+
+/// The reader's refund guard is a word-level backstop; the proposal's accounting settles it.
+#[tokio::test]
+async fn the_refund_backstop_yields_to_the_proposals_accounting() {
+    // A status value in a filter, read as an operation region: no refund effect is missing.
+    let intent = "Read ./data/orders.csv, keep only the rows whose status is refunded and whose amount_eur is greater than 100, and write those rows to ./out/kept.csv with the same header.";
+    let proposal = json!({
+        "steps": [
+            {"op": "read", "detail": "./data/orders.csv", "evidence": "Read ./data/orders.csv"},
+            {"op": "compute", "detail": "rows whose status is refunded and whose amount_eur is greater than 100", "evidence": "keep only the rows whose status is refunded and whose amount_eur is greater than 100"}
+        ],
+        "effects": [{"verb": "write", "target": "./out/kept.csv", "policy": "automatic", "evidence": "write those rows to ./out/kept.csv with the same header"}],
+        "obligations": [], "constraints": [], "unknowns": [],
+        "regions": [
+            {"text": "Read ./data/orders.csv,", "role": "operation"},
+            {"text": "keep only the rows whose status is refunded and whose amount_eur is greater than 100,", "role": "operation"},
+            {"text": "and write those rows to ./out/kept.csv with the same header.", "role": "effect"}
+        ],
+        "approval_bypass": {"present": false, "evidence": ""}
+    });
+    let provider = Provider::new(proposal);
+    let req = CompileRequest::create(intent)
+        .with_authoring_policy(policy())
+        .answer("model", r#""mock/echo""#);
+    let out = compile_with_provider(&req, &provider).await.unwrap();
+    assert!(
+        out.diagnostics
+            .iter()
+            .all(|d| !d.message.contains("mentions a refund")),
+        "{out:#?}"
+    );
+    assert!(
+        out.provenance
+            .plan
+            .as_ref()
+            .is_some_and(|p| p["unknowns"].as_array().is_some_and(Vec::is_empty)),
+        "{out:#?}"
+    );
+    // A refund effect the proposal carries satisfies the guard outright.
+    let intent = "Look up the customer in ./crm/customers.json, draft a polite reply, and ask a human to approve before the refund is posted.";
+    let proposal = json!({
+        "steps": [
+            {"op": "lookup", "detail": "the customer", "evidence": "Look up the customer in ./crm/customers.json"},
+            {"op": "draft", "detail": "a polite reply", "evidence": "draft a polite reply"}
+        ],
+        "effects": [{"verb": "refund", "target": "the refund", "policy": "human_first", "evidence": "ask a human to approve before the refund is posted"}],
+        "obligations": [], "constraints": [], "unknowns": [],
+        "regions": [
+            {"text": "Look up the customer in ./crm/customers.json,", "role": "operation"},
+            {"text": "draft a polite reply,", "role": "operation"},
+            {"text": "and ask a human to approve before the refund is posted.", "role": "effect"}
+        ],
+        "approval_bypass": {"present": false, "evidence": ""}
+    });
+    let provider = Provider::new(proposal);
+    let out = compile_with_provider(
+        &CompileRequest::create(intent).with_authoring_policy(policy()),
+        &provider,
+    )
+    .await
+    .unwrap();
+    assert!(
+        out.diagnostics
+            .iter()
+            .all(|d| !d.message.contains("mentions a refund")),
+        "{out:#?}"
+    );
+}

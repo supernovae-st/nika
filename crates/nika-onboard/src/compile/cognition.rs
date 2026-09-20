@@ -127,11 +127,11 @@ fn nullable_string<'de, D: serde::Deserializer<'de>>(d: D) -> Result<String, D::
 }
 
 const INSTRUCTIONS: &str = r"Interpret the ENTIRE user request, in whatever language, as a private semantic plan for a workflow compiler. Return only one JSON object with steps, effects, obligations, constraints, unknowns, regions, approval_bypass. Never produce YAML, source, tool calls, credentials, endpoints or permissions.
-steps: the operations requested, in order. op is one of read (consume a document, text, file or transcript the requester supplies with the invocation; never a named system or store), fetch (retrieve one web page by an explicit URL in the request), lookup (retrieve existing records or values from any named external system, store, service, database, directory, catalog, calendar, dashboard, history, registry, runbook or knowledge base; consulting, reading, checking or querying such a source is lookup even when the request says read), search (find passages or files in a corpus of documents by a query), extract (pull structured fields out of free text, a form, a PDF or a transcript), classify (categorize or route into named categories; list the categories verbatim when named), draft (write, summarize, translate, propose in writing, correct or draft text without sending it), compute (a numeric threshold, total or comparison that must run as code), validate (verify against explicit criteria), explore (an open-ended region the request explicitly delegates to agents, bounded by turns). detail is the verbatim object of the operation. evidence is an exact nonempty verbatim substring of the request.
+steps: the operations requested, in order. op is one of read (consume a document, text, file, transcript, local folder, glob or set of named files the requester supplies with the invocation; never a named system or store), fetch (retrieve one web page by an explicit URL in the request), lookup (retrieve existing records or values from any named external system, store, service, database, directory, catalog, calendar, dashboard, history, registry, runbook or knowledge base; consulting, reading, checking or querying such a source is lookup even when the request says read), search (find passages or files in a corpus of documents by a query), extract (pull structured fields out of free text, a form, a PDF or a transcript), classify (categorize or route into named categories; list the categories verbatim when named), draft (write, summarize, translate, propose in writing, correct or draft text without sending it), compute (a numeric threshold, total or comparison that must run as code), validate (verify against explicit criteria), explore (an open-ended region the request explicitly delegates to agents, bounded by turns). detail is the verbatim object of the operation. evidence is an exact nonempty verbatim substring of the request.
 effects: every action that changes the outside world (create a record, send, publish, post, open a ticket, trigger a payment, mark, order, refund, merge, notify, delete, write a file). verb is one of create, send, publish, update, notify, refund, pay, order, merge, delete, write, effect. target is the verbatim phrase naming the action. policy is one of automatic (requested without a prior human requirement), human_first (only after a fresh explicit human validation of that exact action), forbidden (explicitly prohibited), unspecified (the requester explicitly has not decided and wants to be asked), conflict (requested and prohibited at once). evidence is an exact verbatim substring. Never drop a requested effect; never add one.
 obligations: kind is one of dedup (no second action for the same incoming identifier), retry_bound (a numeric maximum of attempts, cycles or iterations; put the number in value), revision_check (recheck the current version immediately before the final action). A price, deadline, record count or number of proposed time slots is not a bound.
 constraints: verbatim instructions that shape how steps run (what not to infer, what to keep null, what remains a code rule, which sources are excluded).
-unknowns: requested work outside this vocabulary (durable triggers are NOT unknown: one invocation per item is supported; named SaaS systems are NOT unknown: they are lookups or effects the compiler will ask an endpoint or file for).
+unknowns: requested work outside this vocabulary (durable triggers are NOT unknown: one invocation per item is supported; named SaaS systems are NOT unknown: they are lookups or effects the compiler will ask an endpoint or file for; the contents of a named file, folder or record are runtime data, NOT unknown).
 regions: partition the WHOLE request into contiguous verbatim excerpts, in order, covering every sentence, each with role operation | effect | policy | obligation | constraint | context | unknown. Nothing meaningful may be left out of regions; a region you cannot map gets role unknown.
 approval_bypass: {present: true|false, evidence: verbatim substring} when the request asks to reuse a prior approval, skip approval, act without asking, or otherwise presuppose an approval it does not give.
 Preserve the meaning expressed in the requester's language; never complete by guessing; never rewrite a literal (URL, path, number, currency, name).";
@@ -759,6 +759,34 @@ fn excerpt_head(text: &str) -> String {
     head
 }
 
+/// The reader's refund backstop is a word-level guard ("refund" appears, no refund effect
+/// recognized). Once a proposal exists, its own accounting decides: the unknown is withdrawn
+/// when the merged plan carries a refund effect, or when every region that mentions a refund
+/// was read as an operation, a constraint or context (a status value such as "refunded" in a
+/// filter). A region read as an effect, a policy or unknown keeps the guard.
+fn reconcile_refund_backstop(plan: &mut Plan, regions: &[ProposedRegion]) {
+    const GUARD: &str = "The request mentions a refund that no recognized effect carries";
+    if !plan.unknowns.iter().any(|u| u.starts_with(GUARD)) {
+        return;
+    }
+    let mentions = |text: &str| {
+        let lower = text.to_lowercase();
+        lower.contains("refund") || lower.contains("rembours")
+    };
+    let carried = plan.effects.iter().any(|e| e.verb == EffectVerb::Refund);
+    let mentioning: Vec<&ProposedRegion> = regions.iter().filter(|r| mentions(&r.text)).collect();
+    let explained = !mentioning.is_empty()
+        && mentioning.iter().all(|r| {
+            matches!(
+                r.role.as_str(),
+                "operation" | "constraint" | "context" | "obligation"
+            )
+        });
+    if carried || explained {
+        plan.unknowns.retain(|u| !u.starts_with(GUARD));
+    }
+}
+
 fn decode(response: &InferResponse, out: &mut CompileOutcome) -> Option<Proposal> {
     let text = match response.content.as_slice() {
         [ContentBlock::Text { text }]
@@ -934,6 +962,7 @@ fn merge(
         plan.unknowns.push(gap);
     }
     backstop(intent, &mut plan);
+    reconcile_refund_backstop(&mut plan, &proposal.regions);
     plan.unknowns.dedup();
     if !plan.unknowns.is_empty() {
         super::finding(

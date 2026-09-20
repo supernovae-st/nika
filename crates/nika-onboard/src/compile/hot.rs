@@ -9,7 +9,7 @@
 //! "understood", and the honest answer is to escalate.
 
 use super::lexicon::{self, Head, Reading};
-use super::plan::{EffectVerb, ObligationKind, Op};
+use super::plan::{EffectVerb, ObligationKind, Op, Plan};
 
 /// Why a reading may not be admitted as HOT, in addition to [`Reading::hot_rejections`].
 pub(super) fn rejections(intent: &str, reading: &Reading) -> Vec<String> {
@@ -17,7 +17,7 @@ pub(super) fn rejections(intent: &str, reading: &Reading) -> Vec<String> {
     let lower = lexicon::fold_apostrophes(intent).to_lowercase();
     cue_coverage(&lower, reading, &mut why);
     path_as_draft(reading, &mut why);
-    write_without_producer(reading, &mut why);
+    write_without_producer(&reading.plan, &mut why);
     why
 }
 
@@ -126,16 +126,64 @@ const WRITE_HEADS: &[&str] = &[
     "save",
     "store",
     "persist",
+    "escreve",
+    "escrever",
+    "escribe",
+    "escribir",
+    "guarda",
+    "guardar",
+    "scrivi",
+    "scrivere",
+    "schreibe",
+    "schreib",
+    "speichere",
+    "speichern",
 ];
-const TARGET_LINKS: &[&str] = &[
-    " to ", " into ", " in ", " dans ", " vers ", " sous ", " at ",
+/// Words that only link a write to its target; never content.
+const LINK_WORDS: &[&str] = &[
+    "to",
+    "into",
+    "in",
+    "at",
+    "dans",
+    "vers",
+    "sous",
+    "em",
+    "en",
+    "nel",
+    "nella",
+    "auf",
+    "nach",
+    "a",
+    "the",
+    "le",
+    "la",
+    "les",
+    "o",
+    "os",
+    "as",
+    "il",
+    "el",
+    "der",
+    "die",
+    "das",
+    "it",
+    "them",
+    "result",
+    "résultat",
+    "resultado",
+    "output",
+    "file",
+    "fichier",
+    "ficheiro",
+    "archivo",
 ];
 
-/// A write effect that names content ("write a brief of under 150 words … to ./out/x.md")
-/// needs a step that produces it; with nothing drafted, extracted or computed, the content
-/// would be invented by the assembler.
-fn write_without_producer(reading: &Reading, why: &mut Vec<String>) {
-    let plan = &reading.plan;
+/// A write effect that names content ("write a brief of under 150 words … to ./out/x.md",
+/// "escreve em ./out/x.md a lista dos produtos …") needs a step that produces it; with
+/// nothing drafted, extracted or computed, the content would be invented by the assembler.
+/// The target path and the words that only link the write to it never count as content.
+pub(super) fn write_without_producer(plan: &Plan, why: &mut Vec<String>) {
     let produces = plan.has(Op::Draft) || plan.has(Op::Extract) || plan.has(Op::Compute);
     if produces {
         return;
@@ -150,20 +198,19 @@ fn write_without_producer(reading: &Reading, why: &mut Vec<String>) {
             continue;
         };
         let target = effect.target.to_lowercase();
-        let mut content = after_head;
-        if let Some(at) = content.find(target.as_str()) {
-            content = &content[..at];
-        }
-        for link in TARGET_LINKS {
-            if let Some(at) = content.rfind(link) {
-                content = &content[..at];
-            }
-        }
-        let words = content.split_whitespace().count();
+        let content = if target.trim().is_empty() {
+            after_head.to_owned()
+        } else {
+            after_head.replace(target.trim(), " ")
+        };
+        let words = content
+            .split(|c: char| !c.is_alphanumeric() && c != '-' && c != '\'')
+            .filter(|w| !w.is_empty() && !LINK_WORDS.contains(w))
+            .count();
         if words >= 3 {
             why.push(format!(
                 "`write` names content no step produces: {}",
-                content.trim()
+                content.split_whitespace().collect::<Vec<_>>().join(" ")
             ));
         }
     }
@@ -194,6 +241,27 @@ mod tests {
         let intent = "Fetch https://example.com/rfc.txt and then write a plain brief of under 150 words explaining the protocol, as 5 bullets, to ./out/brief.md.";
         let reading = lexicon::read(intent);
         let why = rejections(intent, &reading);
+        assert!(
+            why.iter()
+                .any(|w| w.contains("names content no step produces")),
+            "{why:?}"
+        );
+        // Portuguese word order: the content follows the target.
+        let intent = "Lê ./data/estoque.csv e escreve em ./out/reposicao.md a lista dos produtos cuja quantidade está abaixo do mínimo.";
+        let reading = lexicon::read(intent);
+        let mut why = Vec::new();
+        let mut plan = reading.plan.clone();
+        plan.steps.retain(|s| s.op == Op::Read);
+        if !plan.effects.iter().any(|e| e.verb == EffectVerb::Write) {
+            plan.effects.push(super::super::plan::Effect {
+                verb: EffectVerb::Write,
+                target: "./out/reposicao.md".to_owned(),
+                evidence: "escreve em ./out/reposicao.md a lista dos produtos cuja quantidade está abaixo do mínimo".to_owned(),
+                policy: super::super::plan::EffectPolicy::Automatic,
+                policy_literal: None,
+            });
+        }
+        write_without_producer(&plan, &mut why);
         assert!(
             why.iter()
                 .any(|w| w.contains("names content no step produces")),

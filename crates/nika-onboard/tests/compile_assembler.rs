@@ -216,15 +216,33 @@ async fn a_per_item_request_without_material_keeps_its_incoming_item() {
     );
 }
 
-// ── D1 (assembler half) · a write with no drafted content binds the nearest output ──
+// ── D1 · a write whose named content nothing produces is never a copy of the page ────
+// The gate showed the raw RFC written as the "brief". A proposal that kept the write and
+// dropped the draft is not feasible: the compiler asks instead of inventing the content.
 #[tokio::test]
-async fn a_write_after_a_fetch_binds_the_fetched_page_never_an_invented_input() {
+async fn a_write_after_a_fetch_with_no_draft_is_a_question_not_a_copy() {
     let out = compile(RFC, &rfc_plan(), &[]).await;
+    assert!(out.candidate.is_none(), "{out:#?}");
+    assert!(keys(&out).contains(&"intent.clarification"), "{out:#?}");
+    assert!(
+        out.diagnostics
+            .iter()
+            .any(|d| d.message.contains("names content no step produces")),
+        "{out:#?}"
+    );
+    // With the brief drafted, the write binds the draft and never an incoming item.
+    let mut drafted = rfc_plan();
+    drafted["steps"].as_array_mut().unwrap().push(json!({
+        "op": "draft",
+        "detail": "a plain-English brief of under 150 words explaining what the protocol does and why it is a joke, as 5 bullets",
+        "evidence": "write a plain-English brief of under 150 words explaining what the protocol does and why it is a joke, as 5 bullets"
+    }));
+    let out = compile(RFC, &drafted, &[MODEL]).await;
     let doc = document(&out);
     assert!(doc.get("inputs").is_none(), "{doc:#}");
     assert_eq!(
         tasks(&doc)["write_output"]["with"]["content"],
-        "${{ tasks.fetch_source.output }}"
+        "${{ tasks.draft.output.body }}"
     );
     assert_eq!(doc["const"]["output_path"], "./out/rfc2324-brief.md");
     assert_eq!(doc["permits"]["net"]["http"], json!(["www.rfc-editor.org"]));

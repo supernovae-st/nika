@@ -213,6 +213,12 @@ impl Doc {
 
 /// An anchor law over the whole corpus: every string the step could copy from is a
 /// candidate; non-string facts are compared through their JSON text.
+/// Every language step the assembler seats carries an explicit deadline: the runtime's
+/// buffered default is thirty seconds for a cloud model, and a reasoning model answering a
+/// schema in a fresh sandbox routinely needs more. Five minutes is the documented ceiling
+/// a human is asked to wait for one step.
+const INFER_TIMEOUT: &str = "5m";
+
 fn anchor_law(key: &str, required: bool) -> String {
     let empty = if required {
         "($f.anchor | length) > 0 and"
@@ -523,7 +529,7 @@ fn emit_step(d: &mut Doc, plan: &Plan, b: &Bindings, guide: &str, step: &Step) {
                 guide,
                 d.prompt_tail()
             );
-            let node = json!({"infer": {"max_tokens": 400, "prompt": prompt, "schema": {"type": "object", "additionalProperties": false, "required": ["valid", "issues"], "properties": {"valid": {"type": "boolean"}, "issues": {"type": "array", "items": {"type": "string"}}}}}});
+            let node = json!({"timeout": INFER_TIMEOUT, "infer": {"max_tokens": 400, "prompt": prompt, "schema": {"type": "object", "additionalProperties": false, "required": ["valid", "issues"], "properties": {"valid": {"type": "boolean"}, "issues": {"type": "array", "items": {"type": "string"}}}}}});
             d.infer("validate", node);
             d.fact("validation", "${{ tasks.validate.output }}", Kind::Derived);
             d.root["outputs"]["validation"] = json!("${{ tasks.validate.output }}");
@@ -554,7 +560,7 @@ fn emit_extract(d: &mut Doc, plan: &Plan, guide: &str, step: &Step, retry: Optio
         guide,
         d.prompt_tail()
     );
-    let mut node = json!({"infer": {"max_tokens": 800, "prompt": prompt, "schema": {"type": "object", "additionalProperties": false, "required": ["fields"], "properties": {"fields": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["name", "value", "anchor"], "properties": {"name": {"type": "string", "minLength": 1}, "value": {"type": "string"}, "anchor": {"type": "string"}}}}}}}});
+    let mut node = json!({"timeout": INFER_TIMEOUT, "infer": {"max_tokens": 800, "prompt": prompt, "schema": {"type": "object", "additionalProperties": false, "required": ["fields"], "properties": {"fields": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["name", "value", "anchor"], "properties": {"name": {"type": "string", "minLength": 1}, "value": {"type": "string"}, "anchor": {"type": "string"}}}}}}}});
     if let Some(n) = retry
         && !plan.has(Op::Draft)
     {
@@ -599,7 +605,7 @@ fn emit_classify(d: &mut Doc, guide: &str, step: &Step) {
         guide,
         d.prompt_tail()
     );
-    let node = json!({"infer": {"max_tokens": 400, "prompt": prompt, "schema": {"type": "object", "additionalProperties": false, "required": ["category"], "properties": {"category": category}}}});
+    let node = json!({"timeout": INFER_TIMEOUT, "infer": {"max_tokens": 400, "prompt": prompt, "schema": {"type": "object", "additionalProperties": false, "required": ["category"], "properties": {"category": category}}}});
     d.infer("classify", node);
     d.fact(
         "category",
@@ -620,7 +626,7 @@ fn emit_draft(d: &mut Doc, guide: &str, step: &Step, retry: Option<u32>) {
         guide,
         d.prompt_tail()
     );
-    let mut node = json!({"infer": {"max_tokens": 1200, "prompt": prompt, "schema": {"type": "object", "additionalProperties": false, "required": ["body", "facts_used"], "properties": {"body": {"type": "string"}, "facts_used": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["claim", "anchor"], "properties": {"claim": {"type": "string", "minLength": 1}, "anchor": {"type": "string", "minLength": 1}}}}}}}});
+    let mut node = json!({"timeout": INFER_TIMEOUT, "infer": {"max_tokens": 1200, "prompt": prompt, "schema": {"type": "object", "additionalProperties": false, "required": ["body", "facts_used"], "properties": {"body": {"type": "string"}, "facts_used": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["claim", "anchor"], "properties": {"claim": {"type": "string", "minLength": 1}, "anchor": {"type": "string", "minLength": 1}}}}}}}});
     if let Some(n) = retry {
         node["retry"] = json!({"max_attempts": n});
     }

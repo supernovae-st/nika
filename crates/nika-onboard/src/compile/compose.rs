@@ -296,6 +296,9 @@ pub(super) fn feasibility(candidate: &Plan, floor: &Plan, intent: &str) -> Resul
         }
     }
     literals(candidate, floor, intent, &mut why);
+    // Rule 10: a write that names content needs a step that produces it (the HOT law, applied to
+    // every candidate: a proposal that kept the write and dropped the draft is not feasible).
+    super::hot::write_without_producer(candidate, &mut why);
     why.dedup();
     if why.is_empty() { Ok(()) } else { Err(why) }
 }
