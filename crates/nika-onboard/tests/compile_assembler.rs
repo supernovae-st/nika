@@ -845,6 +845,17 @@ async fn the_draft_law_reads_the_body_it_judges_and_folds_whitespace() {
         expression.contains(r#"gsub("\\s+"; " ")"#),
         "anchors are compared after folding runs of whitespace: {expression}"
     );
+    // The corpus carries each fact as the prompt renders it (`category: billing`) as well as
+    // its bare value, and JSON punctuation spacing folds on both sides: an anchor copied from
+    // the prompt line or from a re-serialized record is found (control 2026-09-21, case d).
+    assert!(
+        expression.contains(r"\(.key): \($v)"),
+        "the corpus must hold the `name: value` rendering the prompt shows: {expression}"
+    );
+    assert!(
+        expression.contains(r#"gsub("\\s*:\\s*"; ":")"#),
+        "spaces around JSON punctuation must fold on both sides: {expression}"
+    );
     let extract = tasks(&doc)["extract_anchors"]["invoke"]["args"]["expression"]
         .as_str()
         .unwrap();

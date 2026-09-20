@@ -242,15 +242,17 @@ const ROW_FACTS: [&str; 2] = ["computed", "records"];
 /// a human is asked to wait for one step.
 const INFER_TIMEOUT: &str = "5m";
 
-/// Runs of whitespace fold to one space on both sides before an anchor is compared: a
-/// model may wrap a line or drop a double space; it may not change a word.
-const FOLD: &str = r#"gsub("\\s+"; " ") | ascii_downcase"#;
+/// Both sides fold before an anchor is compared: runs of whitespace to one space, spaces
+/// around JSON punctuation away, case down. A model may wrap a line, drop a double space
+/// or re-serialize a record it was shown; it may not change a word.
+const FOLD: &str = r#"gsub("\\s*,\\s*"; ",") | gsub("\\s*:\\s*"; ":") | gsub("\\s*\\{\\s*"; "{") | gsub("\\s*\\}\\s*"; "}") | gsub("\\s*\\[\\s*"; "[") | gsub("\\s*\\]\\s*"; "]") | gsub("\\s+"; " ") | ascii_downcase"#;
 
-/// The corpus of a law: every string of the input except the judged keys, non-strings
-/// through their JSON text, whitespace folded.
+/// The corpus of a law: every fact of the input except the judged keys, as the value the
+/// prompt showed (a string as is, anything else as its JSON text) and as the `name: value`
+/// line the prompt renders it on, so an anchor copied from either form is found. Folded.
 fn corpus(excluded: &str) -> String {
     format!(
-        "[$root | del({excluded}) | .[] | if type == \"string\" then . else tojson end | {FOLD}] as $corpus"
+        "[$root | del({excluded}) | to_entries[] | (.value | if type == \"string\" then . else tojson end) as $v | ($v, \"\\(.key): \\($v)\") | {FOLD}] as $corpus"
     )
 }
 
@@ -1176,12 +1178,13 @@ mod tests {
         assert!(law.contains("del(.fields)"));
         assert!(
             law.contains(
-                r#"any($corpus[]; contains($f.anchor | gsub("\\s+"; " ") | ascii_downcase))"#
-            ),
+                r#"any($corpus[]; contains($f.anchor | gsub("\\s*,\\s*"; ",") | gsub("\\s*:\\s*"; ":")"#
+            ) && law.contains(r#"gsub("\\s+"; " ") | ascii_downcase))"#),
             "{law}"
         );
         assert!(
-            law.contains(r#"tojson end | gsub("\\s+"; " ") | ascii_downcase] as $corpus"#),
+            law.contains(r#"tojson end) as $v | ($v, "\(.key): \($v)") | gsub("#)
+                && law.contains("| ascii_downcase] as $corpus"),
             "{law}"
         );
         assert!(law.contains("== 0 or"));
