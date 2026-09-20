@@ -369,7 +369,14 @@ fn floor_effects(candidate: &Plan, floor: &Plan, why: &mut Vec<String>) {
 
 /// Rules 8 and 9: every bound literal carried, no literal invented.
 fn literals(candidate: &Plan, floor: &Plan, intent: &str, why: &mut Vec<String>) {
-    for binding in &floor.bindings {
+    // A money policy the reader bound is meaningful only beside an effect that moves money;
+    // a threshold in a filter ("total above 120") is not a payment rule to carry.
+    let money_effect = floor.effects.iter().any(|e| e.verb.moves_money());
+    for binding in floor
+        .bindings
+        .iter()
+        .filter(|b| b.role != "money_policy" || money_effect)
+    {
         if !carries(candidate, binding) {
             why.push(format!(
                 "the {} `{}` is no longer carried by any operation or effect",
@@ -388,7 +395,7 @@ fn literals(candidate: &Plan, floor: &Plan, intent: &str, why: &mut Vec<String>)
             let present = if token.bytes().all(|b| b.is_ascii_digit()) {
                 intent_runs.contains(&token)
             } else {
-                intent.contains(token.as_str())
+                intent.contains(token.as_str()) || derived_path(&token, intent)
             };
             if !present {
                 why.push(format!("the literal `{token}` is not in the request"));
@@ -454,6 +461,21 @@ fn literal_tokens(text: &str) -> Vec<String> {
         }
     }
     out
+}
+
+/// A path the request spells with a placeholder ("./catalog/<slug>.md" beside the slugs it
+/// lists) is derived, not invented: every component of the path appears verbatim in the
+/// request. URLs and emails never qualify.
+fn derived_path(token: &str, intent: &str) -> bool {
+    let is_path = token.starts_with("./") || (token.starts_with('/') && token.contains('.'));
+    if !is_path {
+        return false;
+    }
+    let mut components = token
+        .split(['/', '.'])
+        .filter(|part| !part.is_empty())
+        .peekable();
+    components.peek().is_some() && components.all(|part| intent.contains(part))
 }
 
 fn digit_runs(text: &str) -> Vec<String> {

@@ -58,6 +58,7 @@
 //! ```
 
 mod assemble;
+mod bindings;
 mod cognition;
 mod compose;
 pub mod decide;
@@ -66,6 +67,7 @@ mod edit_source;
 mod hot;
 mod lexicon;
 mod materialize;
+mod paths;
 pub(crate) mod pattern;
 mod plan;
 mod retrieve;
