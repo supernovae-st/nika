@@ -31,6 +31,11 @@ pub(super) struct Reading {
     pub unresolved: Vec<String>,
     /// Number of clauses the reader saw (for provenance).
     pub clauses: usize,
+    /// Every clause the reader saw, verbatim; HOT must account for each of them.
+    pub seen: Vec<String>,
+    /// Clauses kept as constraints only by the declarative heuristic: prose the reader could
+    /// not parse. They never make a request HOT.
+    pub soft_constraints: Vec<String>,
 }
 
 impl Reading {
@@ -73,6 +78,37 @@ impl Reading {
                     effect.verb.word(),
                     effect.target.trim()
                 ));
+            }
+        }
+        if !self.soft_constraints.is_empty() {
+            why.push(format!(
+                "{} prose clause(s) the reader cannot parse",
+                self.soft_constraints.len()
+            ));
+        }
+        // Accounting: a clause the reader saw must be the evidence of something it produced.
+        for clause in &self.seen {
+            let accounted = self.plan.steps.iter().any(|s| s.evidence == *clause)
+                || self
+                    .plan
+                    .effects
+                    .iter()
+                    .any(|e| e.evidence.contains(clause.as_str()))
+                || self.plan.obligations.iter().any(|o| o.evidence == *clause)
+                || self
+                    .plan
+                    .constraints
+                    .iter()
+                    .any(|c| c == clause || c.contains(clause.as_str()))
+                || self.unresolved.contains(clause)
+                || self.ambiguous.iter().any(|a| a.clause == *clause)
+                || self
+                    .plan
+                    .trigger
+                    .as_deref()
+                    .is_some_and(|t| clause.to_lowercase().starts_with(t));
+            if !accounted {
+                why.push(format!("unaccounted clause: {clause}"));
             }
         }
         why
@@ -973,9 +1009,12 @@ fn read_policy_or_clause(clause: &str, reading: &mut Reading, state: &mut ReadSt
     if (text.contains("pose-moi la question") || text.contains("ask me the question"))
         && !text.contains("pas encore décidé")
     {
+        // The companion of an explicit indecision: context, accounted for, never an operation.
+        reading.plan.constraints.push(clause.to_owned());
         return;
     }
-    if STOP_MARKERS.iter().any(|m| text.contains(m)) {
+    if let Some((pos, _)) = earliest(text, STOP_MARKERS) {
+        read_prefix(prefix_before(text, pos), clause, reading, state);
         reading.plan.constraints.push(clause.to_owned());
         return;
     }
@@ -1072,12 +1111,32 @@ fn read_policy_or_clause(clause: &str, reading: &mut Reading, state: &mut ReadSt
     ]
     .iter()
     .any(|m| text.starts_with(m));
-    if dedup_head
-        || text.contains("no second action for the same")
-        || text.contains("pas de seconde action")
-        || text.contains("évite les doublons")
-        || text.contains("avoid duplicates")
-    {
+    let dedup_markers = [
+        "no second action for the same",
+        "pas de seconde action",
+        "évite les doublons",
+        "évitez les doublons",
+        "avoid duplicates",
+        "déduplique",
+        "dédoublonne",
+        "deduplicate",
+        "de-duplicate",
+        "dedupe",
+        "remove duplicates",
+        "prevent duplicates",
+    ];
+    if !dedup_head && let Some((pos, _)) = earliest(text, &dedup_markers) {
+        read_prefix(prefix_before(text, pos), clause, reading, state);
+        push_obligation(
+            &mut reading.plan,
+            Obligation {
+                kind: ObligationKind::Dedup,
+                evidence: clause.to_owned(),
+            },
+        );
+        return;
+    }
+    if dedup_head {
         push_obligation(
             &mut reading.plan,
             Obligation {
@@ -1173,6 +1232,7 @@ fn read_policy_or_clause(clause: &str, reading: &mut Reading, state: &mut ReadSt
 }
 
 /// Deterministically read one intent (already folded by [`fold_apostrophes`]).
+#[allow(clippy::too_many_lines)] // one sentence walk; each policy family is one visible arm
 pub(super) fn read(intent: &str) -> Reading {
     let mut reading = Reading::default();
     let mut state = ReadState {
@@ -1249,6 +1309,7 @@ pub(super) fn read(intent: &str) -> Reading {
         };
         reading.clauses += clauses.len();
         for clause in clauses {
+            reading.seen.push(clause.to_owned());
             read_policy_or_clause(clause, &mut reading, &mut state);
         }
     }
@@ -1294,7 +1355,16 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
     if negated {
         let verbs = effect_words(text);
         if verbs.is_empty() {
-            reading.plan.constraints.push(original.to_owned());
+            // A negated clause that still carries an operation head ("n'extraire que …",
+            // "ne corrige pas …") restricts work the reader cannot read: cognition, not a constraint.
+            let carries_head = text
+                .split(|c: char| !c.is_alphanumeric() && c != '\'')
+                .any(|w| !w.is_empty() && head_of_exact(w).is_some());
+            if carries_head {
+                reading.unresolved.push(original.to_owned());
+            } else {
+                reading.plan.constraints.push(original.to_owned());
+            }
         } else {
             for verb in verbs {
                 push_effect(
@@ -1354,6 +1424,7 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
         .any(|m| text.contains(m));
         if declarative {
             reading.plan.constraints.push(original.to_owned());
+            reading.soft_constraints.push(original.to_owned());
         } else {
             reading.unresolved.push(original.to_owned());
         }
