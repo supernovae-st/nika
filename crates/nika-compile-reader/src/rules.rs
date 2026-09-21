@@ -14,14 +14,19 @@
 //! the grammar does not cover is `None`: the human is asked, nothing is guessed. Every
 //! expression shape emitted here was run on the engine's jq before it was written down.
 
-use super::shape::{ATTEMPT_UNITS, SIZE_UNITS, fold};
+use super::rule_tokens::{ATTEMPT_UNITS, Kind, SIZE_UNITS, Token, fold, number, phrase, tokenize};
 use serde_json::{Value, json};
 
-pub(super) use super::aggregate::{AggOp, Aggregation, ArithOp, Derived, Shape, Term};
+pub use super::aggregate::{AggOp, Aggregation, ArithOp, Derived, Shape, Term};
+use super::rule_cues::{
+    ARTICLES, COPULAS, CUE_WIDTH, EQUALITY_CUES, FILLERS, NEGATED_COPULAS, NEGATIONS, NUMERIC_CUES,
+    RELATIVES, SUMMARY_CORE, SUMMARY_WORDS, UNIT_PHRASES, UNIT_WORDS,
+};
 
 /// The six comparisons a rule may state.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum Comparator {
+#[non_exhaustive]
+pub enum Comparator {
     Gt,
     Ge,
     Lt,
@@ -32,7 +37,8 @@ pub(super) enum Comparator {
 
 impl Comparator {
     /// The comparator that holds exactly when this one does not.
-    pub(super) fn negated(self) -> Self {
+    #[must_use]
+    pub fn negated(self) -> Self {
         match self {
             Self::Gt => Self::Le,
             Self::Ge => Self::Lt,
@@ -44,7 +50,8 @@ impl Comparator {
     }
 
     /// A comparator named by a word or a symbol (`gt`, `>=`, `eq`, `<>`).
-    pub(super) fn from_word(word: &str) -> Option<Self> {
+    #[must_use]
+    pub fn from_word(word: &str) -> Option<Self> {
         match word.trim().to_ascii_lowercase().as_str() {
             ">" | "gt" | "greater" => Some(Self::Gt),
             ">=" | "≥" | "ge" | "gte" => Some(Self::Ge),
@@ -55,7 +62,8 @@ impl Comparator {
             _ => None,
         }
     }
-    pub(super) const fn symbol(self) -> &'static str {
+    #[must_use]
+    pub const fn symbol(self) -> &'static str {
         match self {
             Self::Gt => ">",
             Self::Ge => ">=",
@@ -70,292 +78,6 @@ impl Comparator {
     }
 }
 
-/// Comparison cues (EN · FR · ES · IT · PT · DE, diacritics folded, lowercase), one
-/// `|`-separated list per comparator. Matched as whole phrases, longest first, up to
-/// five words.
-const NUMERIC_CUES: &[(Comparator, &str)] = &[
-    (
-        Comparator::Gt,
-        "strictly greater than|strictly more than|strictly higher than|strictly above|\
-         greater than|more than|higher than|bigger than|larger than|above|over|exceeds|\
-         exceeding|\
-         strictement superieur a|strictement superieure a|strictement superieurs a|\
-         strictement superieures a|strictement plus grand que|strictement plus grande que|\
-         plus grand que|plus grande que|plus grands que|plus grandes que|plus eleve que|\
-         plus elevee que|superieur a|superieure a|superieurs a|superieures a|superieur au|\
-         superieure au|superieur aux|superieure aux|au-dessus de|au dessus de|plus de|\
-         depasse|depassant|\
-         estrictamente mayor que|estrictamente mayor a|mayor que|mayores que|mayor a|\
-         mayores a|mayor al|superior a|superiores a|superior al|por encima de|mas de|\
-         mas que|supera|superan|\
-         strettamente maggiore di|maggiore di|maggiori di|maggiore del|maggiore della|\
-         superiore a|superiori a|superiore al|superiore alla|superiore allo|al di sopra di|\
-         piu grande di|piu alto di|piu di|superano|\
-         estritamente maior que|maior do que|maior que|maiores que|superior ao|acima de|\
-         mais de|mais que|excede|excedem|\
-         strikt grosser als|echt grosser als|grosser als|hoher als|mehr als|oberhalb von|\
-         ubersteigt|ubersteigen|uber",
-    ),
-    (
-        Comparator::Ge,
-        "greater than or equal to|more than or equal to|not less than|not fewer than|\
-         no less than|no fewer than|at least|\
-         superieur ou egal a|superieure ou egale a|superieurs ou egaux a|\
-         superieures ou egales a|pas moins de|au moins|au minimum|\
-         mayor o igual que|mayor o igual a|mayores o iguales que|mayores o iguales a|\
-         no menos de|por lo menos|al menos|como minimo|\
-         maggiore o uguale a|maggiori o uguali a|non meno di|almeno|al minimo|\
-         maior ou igual a|maiores ou iguais a|nao menos de|pelo menos|ao menos|no minimo|\
-         grosser oder gleich|grosser gleich|nicht weniger als|mindestens|wenigstens",
-    ),
-    (
-        Comparator::Lt,
-        "strictly less than|strictly lower than|strictly fewer than|strictly below|\
-         less than|fewer than|lower than|smaller than|below|under|\
-         strictement inferieur a|strictement inferieure a|strictement inferieurs a|\
-         strictement inferieures a|strictement plus petit que|strictement plus petite que|\
-         plus petit que|plus petite que|plus petits que|plus petites que|plus bas que|\
-         plus basse que|inferieur a|inferieure a|inferieurs a|inferieures a|inferieur au|\
-         inferieure au|inferieur aux|inferieure aux|en dessous de|en-dessous de|\
-         au-dessous de|moins de|\
-         estrictamente menor que|estrictamente menor a|menor que|menores que|menor a|\
-         menores a|menor al|inferior a|inferiores a|inferior al|por debajo de|menos de|\
-         menos que|\
-         strettamente minore di|minore di|minori di|minore del|minore della|inferiore a|\
-         inferiori a|inferiore al|inferiore alla|inferiore allo|al di sotto di|\
-         piu piccolo di|piu basso di|meno di|\
-         estritamente menor que|menor do que|inferior ao|abaixo de|\
-         strikt kleiner als|echt kleiner als|kleiner als|niedriger als|weniger als|\
-         unterhalb von|unter",
-    ),
-    (
-        Comparator::Le,
-        "less than or equal to|fewer than or equal to|not more than|no more than|at most|\
-         inferieur ou egal a|inferieure ou egale a|inferieurs ou egaux a|\
-         inferieures ou egales a|pas plus de|au plus|au maximum|\
-         menor o igual que|menor o igual a|menores o iguales que|menores o iguales a|\
-         no mas de|como maximo|a lo sumo|\
-         minore o uguale a|minori o uguali a|non piu di|al massimo|\
-         menor ou igual a|menores ou iguais a|nao mais de|no maximo|\
-         kleiner oder gleich|kleiner gleich|nicht mehr als|hochstens|maximal",
-    ),
-];
-
-/// Equality and inequality cues that carry their own verb (a copula alone is equality).
-const EQUALITY_CUES: &[(Comparator, &str)] = &[
-    (
-        Comparator::Eq,
-        "equal to|equals to|equals|equal|egal a|egale a|egaux a|egales a|vaut|valent|\
-         igual a|iguales a|iguais a|vale|valen|uguale a|uguali a|gleich|entspricht",
-    ),
-    (
-        Comparator::Ne,
-        "not equal to|unequal to|differs from|different from|other than|different de|\
-         differente de|differents de|differentes de|distinto de|distinta de|distintos de|\
-         distintas de|diferente de|diferentes de|diverso da|diversa da|diversi da|\
-         diverse da|ungleich|anders als|verschieden von",
-    ),
-];
-
-/// The longest cue phrase, in words.
-const CUE_WIDTH: usize = 5;
-
-/// A copula: the field is the phrase before it, the comparison (or the equality value)
-/// follows it.
-const COPULAS: &[&str] = &[
-    "is", "are", "was", "were", "be", "being", "has", "have", "est", "sont", "n'est", "es", "son",
-    "esta", "estan", "e", "sao", "ist", "sind", "ha", "hanno", "tiene", "tienen", "tem", "hat",
-    "haben",
-];
-
-/// A copula that carries its own negation.
-const NEGATED_COPULAS: &[&str] = &["isn't", "aren't", "wasn't", "weren't", "n'est", "n'a"];
-
-/// A negation right before or right after a copula.
-const NEGATIONS: &[&str] = &["not", "pas", "no", "non", "nao", "ne", "nicht"];
-
-/// A relative pronoun or preposition that opens the noun phrase naming the field
-/// ("whose amount", "dont le montant", "cuya cantidad", "la cui quantita", "deren Betrag").
-const RELATIVES: &[&str] = &[
-    "whose",
-    "where",
-    "which",
-    "that",
-    "with",
-    "having",
-    "in which",
-    "for which",
-    "dont",
-    "avec",
-    "ayant",
-    "cuya",
-    "cuyo",
-    "cuyas",
-    "cuyos",
-    "donde",
-    "con",
-    "la cui",
-    "il cui",
-    "le cui",
-    "i cui",
-    "cui",
-    "cujo",
-    "cuja",
-    "cujos",
-    "cujas",
-    "deren",
-    "dessen",
-    "mit",
-    "wo",
-    "que",
-];
-
-/// Articles and possessives stripped from the head of a noun phrase.
-const ARTICLES: &[&str] = &[
-    "the", "a", "an", "its", "their", "le", "la", "les", "l'", "l", "un", "une", "des", "du", "de",
-    "sa", "son", "ses", "leur", "leurs", "el", "los", "las", "una", "unos", "unas", "su", "sus",
-    "il", "lo", "i", "gli", "uno", "suo", "sua", "suoi", "sue", "o", "os", "as", "um", "uma",
-    "seu", "seus", "suas", "der", "die", "das", "den", "dem", "ein", "eine", "einer", "einem",
-    "einen", "sein", "seine", "seiner", "ihr", "ihre", "ihrer", "ihren",
-];
-
-/// Words skipped between a comparator and its value.
-const FILLERS: &[&str] = &[
-    "than", "que", "als", "di", "de", "da", "a", "of", "to", "the", "le", "la", "les", "el", "los",
-    "las", "il", "lo", "der", "die", "das", "den", "dem", "del", "della", "dello", "dei", "degli",
-    "delle", "du", "des", "do", "dos", "ao", "au", "aux", "al", "alla", "allo", "ai", "agli",
-    "alle", "zu", "zum", "zur",
-];
-
-/// A unit or currency word that may trail a numeric value without changing the rule.
-const UNIT_WORDS: &[&str] = &[
-    "€",
-    "$",
-    "£",
-    "eur",
-    "euro",
-    "euros",
-    "usd",
-    "dollar",
-    "dollars",
-    "gbp",
-    "pound",
-    "pounds",
-    "chf",
-    "cent",
-    "cents",
-    "centimes",
-    "unit",
-    "units",
-    "unite",
-    "unites",
-    "unidad",
-    "unidades",
-    "unita",
-    "unidade",
-    "einheit",
-    "einheiten",
-    "stuck",
-    "stueck",
-    "piece",
-    "pieces",
-    "pieza",
-    "piezas",
-    "pezzo",
-    "pezzi",
-    "peca",
-    "pecas",
-    "item",
-    "items",
-    "article",
-    "articles",
-    "articulo",
-    "articulos",
-    "articolo",
-    "articoli",
-    "artikel",
-    "kg",
-    "g",
-    "grams",
-    "grammes",
-    "cm",
-    "mm",
-    "m",
-    "km",
-    "l",
-    "ml",
-    "percent",
-    "pourcent",
-    "porcento",
-    "prozent",
-    "day",
-    "days",
-    "jour",
-    "jours",
-    "dia",
-    "dias",
-    "giorno",
-    "giorni",
-    "tag",
-    "tage",
-    "hour",
-    "hours",
-    "heure",
-    "heures",
-    "hora",
-    "horas",
-    "ora",
-    "ore",
-    "stunde",
-    "stunden",
-    "minute",
-    "minutes",
-    "minutos",
-    "minuti",
-    "minuten",
-];
-
-/// A two-word unit phrase that may trail a numeric value.
-const UNIT_PHRASES: &[&str] = &[
-    "in stock",
-    "en stock",
-    "em estoque",
-    "auf lager",
-    "en inventario",
-    "in magazzino",
-    "on hand",
-];
-
-/// Words of a trailing count-or-total request ("how many rows were kept and the total of
-/// their amounts"): the claims the summary stage computes, so a rule that carries them
-/// is still a rule. `|`-separated, folded.
-const SUMMARY_WORDS: &str = "how|many|much|rows|row|records|record|lines|line|entries|entry|\
-    items|item|results|result|matches|match|were|was|are|is|be|been|kept|retained|\
-    remaining|remain|remains|left|selected|matched|matching|filtered|found|count|counted|\
-    counting|number|total|totals|totalling|totaling|sum|summed|of|their|the|a|an|its|them|\
-    those|these|that|it|value|values|amount|amounts|along|with|together|plus|also|as|well|\
-    combien|de|des|du|la|le|les|l|lignes|ligne|enregistrements|gardees|gardes|conservees|\
-    conserves|retenues|retenus|restantes|restants|nombre|totaux|somme|montant|montants|\
-    valeur|valeurs|leurs|leur|ainsi|que|ont|ete|sont|est|\
-    cuantas|cuantos|filas|fila|registros|registro|quedan|quedaron|conservadas|conservados|\
-    retenidas|seleccionadas|numero|suma|importe|importes|valor|valores|sus|su|fueron|son|\
-    han|sido|el|los|las|un|una|\
-    quante|quanti|righe|riga|restano|rimaste|rimasti|tenute|mantenute|selezionate|totale|\
-    somma|importo|importi|valore|valori|loro|il|i|gli|sono|state|stati|\
-    quantas|quantos|linhas|linha|registos|ficaram|mantidas|mantidos|retidas|soma|seus|\
-    suas|o|os|foram|sao|\
-    wie|viele|zeilen|zeile|datensatze|datensatz|blieben|bleiben|behalten|ubrig|anzahl|\
-    summe|gesamt|gesamtbetrag|gesamtsumme|betrag|betrage|wert|werte|ihrer|ihre|der|die|\
-    das|den|sowie|wurden|sind|\
-    compute|computed|calculate|calculated|report|reported|state|stating|stated|give|\
-    return|output|produce|calcule|calculer|calculez|indique|indiquer|donne|donner|calcula|\
-    calcular|indica|indicar|calcola|calcolare|berechne|berechnen|gib|angeben";
-
-/// The words that make such a residual a request for a count or a total, not noise.
-const SUMMARY_CORE: &str = "many|count|counted|number|total|totals|sum|combien|nombre|somme|\
-    cuantas|cuantos|numero|suma|quante|quanti|totale|somma|quantas|quantos|soma|viele|\
-    anzahl|summe|gesamtsumme|gesamtbetrag";
-
 fn listed(table: &str, word: &str) -> bool {
     table.split('|').any(|w| w == word)
 }
@@ -368,192 +90,13 @@ fn cue_in(table: &[(Comparator, &str)], phrase: &str) -> Option<Comparator> {
 }
 
 /// The comparator a folded phrase states as a numeric comparison, if any.
-pub(super) fn numeric_cue(phrase: &str) -> Option<Comparator> {
+#[must_use]
+pub fn numeric_cue(phrase: &str) -> Option<Comparator> {
     cue_in(NUMERIC_CUES, phrase)
 }
 
 fn equality_cue(phrase: &str) -> Option<Comparator> {
     cue_in(EQUALITY_CUES, phrase)
-}
-
-// ── tokens ───────────────────────────────────────────────────────────────────────
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-enum Kind {
-    Word,
-    /// A number with its canonical text (`100`, `1.5`, `-3`).
-    Number(String),
-    Symbol(Comparator),
-    /// The exact text between a pair of quotes.
-    Quoted,
-}
-
-#[derive(Clone, Debug)]
-struct Token {
-    /// The text as written (punctuation trimmed), for keys and values.
-    original: String,
-    /// Lowercase, diacritics folded, for the tables.
-    folded: String,
-    kind: Kind,
-}
-
-impl Token {
-    fn word(&self) -> Option<&str> {
-        matches!(self.kind, Kind::Word).then_some(self.folded.as_str())
-    }
-}
-
-/// Comparison symbols, longest first so `>=` is never read as `>` then `=`.
-const SYMBOLS: &[(&str, Comparator)] = &[
-    (">=", Comparator::Ge),
-    ("<=", Comparator::Le),
-    ("==", Comparator::Eq),
-    ("!=", Comparator::Ne),
-    ("<>", Comparator::Ne),
-    ("≥", Comparator::Ge),
-    ("≤", Comparator::Le),
-    ("≠", Comparator::Ne),
-    (">", Comparator::Gt),
-    ("<", Comparator::Lt),
-    ("=", Comparator::Eq),
-];
-
-fn quote_close(open: char) -> Option<char> {
-    match open {
-        '"' => Some('"'),
-        '\'' => Some('\''),
-        '`' => Some('`'),
-        '«' => Some('»'),
-        '“' => Some('”'),
-        '‘' => Some('’'),
-        _ => None,
-    }
-}
-
-fn is_punctuation(c: char) -> bool {
-    matches!(
-        c,
-        '.' | ',' | ';' | ':' | '(' | ')' | '[' | ']' | '{' | '}' | '!' | '?' | '"' | '«' | '»'
-    )
-}
-
-/// A number's canonical text: currency and percent signs dropped, a single decimal
-/// comma read as a point, thousands separators removed; anything else is not a number.
-fn number(word: &str) -> Option<String> {
-    let trimmed = word
-        .trim_start_matches(['€', '$', '£', '+'])
-        .trim_end_matches(['€', '$', '£', '%']);
-    let (sign, digits) = match trimmed.strip_prefix('-') {
-        Some(rest) => ("-", rest),
-        None => ("", trimmed),
-    };
-    if !digits.starts_with(|c: char| c.is_ascii_digit())
-        || !digits
-            .chars()
-            .all(|c| c.is_ascii_digit() || matches!(c, '.' | ','))
-    {
-        return None;
-    }
-    let canonical = if digits.contains(',') {
-        let groups: Vec<&str> = digits.split(',').collect();
-        let thousands = !digits.contains('.')
-            && groups.len() > 1
-            && groups.iter().skip(1).all(|g| g.len() == 3)
-            && groups.first().is_some_and(|g| (1..=3).contains(&g.len()));
-        if thousands {
-            digits.replace(',', "")
-        } else if groups.len() == 2 && !digits.contains('.') {
-            digits.replace(',', ".")
-        } else {
-            return None;
-        }
-    } else {
-        digits.to_owned()
-    };
-    let points = canonical.matches('.').count();
-    if points > 1 || canonical.ends_with('.') {
-        return None;
-    }
-    Some(format!("{sign}{canonical}"))
-}
-
-fn push_word(word: &str, out: &mut Vec<Token>) {
-    let word = word.trim_matches(is_punctuation);
-    if word.is_empty() {
-        return;
-    }
-    let symbol = SYMBOLS
-        .iter()
-        .filter_map(|(s, c)| word.find(s).map(|at| (at, *s, *c)))
-        .min_by_key(|(at, s, _)| (*at, std::cmp::Reverse(s.len())));
-    if let Some((at, symbol, comparator)) = symbol {
-        if let Some(before) = word.get(..at) {
-            push_word(before, out);
-        }
-        out.push(Token {
-            original: symbol.to_owned(),
-            folded: symbol.to_owned(),
-            kind: Kind::Symbol(comparator),
-        });
-        if let Some(after) = word.get(at + symbol.len()..) {
-            push_word(after, out);
-        }
-        return;
-    }
-    let kind = number(word).map_or(Kind::Word, Kind::Number);
-    out.push(Token {
-        original: word.to_owned(),
-        folded: fold(word),
-        kind,
-    });
-}
-
-/// Words, numbers, symbols and quoted spans. A quote opens only at the start of a token,
-/// so an apostrophe inside a word (`l'ordre`, `n'est`) stays in the word.
-fn tokenize(text: &str) -> Vec<Token> {
-    let mut out = Vec::new();
-    let mut rest = text.trim_start();
-    while !rest.is_empty() {
-        let Some(first) = rest.chars().next() else {
-            break;
-        };
-        if let Some(close) = quote_close(first)
-            && let Some(inner_from) = rest.get(first.len_utf8()..)
-            && let Some(end) = inner_from.find(close)
-            && let Some(inner) = inner_from.get(..end).map(str::trim)
-        {
-            out.push(Token {
-                original: inner.to_owned(),
-                folded: fold(inner),
-                kind: Kind::Quoted,
-            });
-            rest = inner_from
-                .get(end + close.len_utf8()..)
-                .unwrap_or_default()
-                .trim_start();
-            continue;
-        }
-        let end = rest.find(char::is_whitespace).unwrap_or(rest.len());
-        if let Some(word) = rest.get(..end) {
-            push_word(word, &mut out);
-        }
-        rest = rest.get(end..).unwrap_or_default().trim_start();
-    }
-    out
-}
-
-fn phrase(tokens: &[Token], at: usize, width: usize) -> Option<String> {
-    let slice = tokens.get(at..at + width)?;
-    if slice.iter().any(|t| t.word().is_none()) {
-        return None;
-    }
-    Some(
-        slice
-            .iter()
-            .map(|t| t.folded.as_str())
-            .collect::<Vec<_>>()
-            .join(" "),
-    )
 }
 
 /// The cue starting at `at`, longest first: the comparator and the width consumed.
@@ -568,7 +111,7 @@ fn cue_at(tokens: &[Token], at: usize) -> Option<(Comparator, usize)> {
 
 /// A column-shaped identifier: letters, digits and underscores, and more than a plain
 /// lowercase word (`total_eur`, `q1`, `unitPrice`).
-pub(super) fn identifier_shaped(word: &str) -> bool {
+pub(crate) fn identifier_shaped(word: &str) -> bool {
     let mut chars = word.chars();
     let starts = chars.next().is_some_and(|c| c.is_alphabetic() || c == '_');
     let joined = word.chars().all(|c| c.is_alphanumeric() || c == '_');
@@ -603,7 +146,8 @@ fn column_named(token: &Token, columns: &[String]) -> Option<String> {
 
 /// What a field is compared to.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) enum Operand {
+#[non_exhaustive]
+pub enum Operand {
     /// A number in canonical text, compared after `tonumber`.
     Number(String),
     /// An exact string, compared case-sensitively.
@@ -615,14 +159,28 @@ pub(super) enum Operand {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct Clause {
+#[non_exhaustive]
+pub struct Clause {
     pub field: String,
     pub comparator: Comparator,
     pub value: Operand,
 }
 
+impl Clause {
+    /// One clause of a typed rule: the column, the comparison and what it is compared to.
+    #[must_use]
+    pub fn new(field: impl Into<String>, comparator: Comparator, value: Operand) -> Self {
+        Self {
+            field: field.into(),
+            comparator,
+            value,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum Junction {
+#[non_exhaustive]
+pub enum Junction {
     And,
     Or,
 }
@@ -639,7 +197,8 @@ impl Junction {
 /// A rule synthesized from the request: its clauses, how they join, and the text it
 /// came from.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct Rule {
+#[non_exhaustive]
+pub struct Rule {
     text: String,
     clauses: Vec<Clause>,
     junction: Junction,
@@ -647,10 +206,13 @@ pub(super) struct Rule {
     summary: bool,
     /// What happens to the rows after the filter.
     shape: Shape,
+    /// The records are the lines of a text source, and the result is written back as
+    /// lines: a removal of duplicate lines over a `.txt` file.
+    lines: bool,
 }
 
 /// The jq path of one column: a bare identifier as `.name`, anything else bracketed.
-pub(super) fn key(field: &str) -> String {
+pub(crate) fn key(field: &str) -> String {
     let bare = field
         .chars()
         .next()
@@ -722,55 +284,89 @@ impl Clause {
 impl Rule {
     /// A rule the semantic frontend stated as a typed predicate over the request's own
     /// columns and literals, validated by the compiler; lowered exactly like a parsed one.
-    pub(super) fn typed(
-        text: &str,
-        clauses: Vec<Clause>,
-        junction: Junction,
-        shape: Shape,
-    ) -> Self {
+    #[must_use]
+    pub fn typed(text: &str, clauses: Vec<Clause>, junction: Junction, shape: Shape) -> Self {
         Self {
             text: text.to_owned(),
             clauses,
             junction,
             summary: false,
             shape,
+            lines: false,
         }
     }
     /// The columns the computation writes, in order, when it fixes them.
-    pub(super) fn output_columns(&self) -> Option<Vec<String>> {
+    #[must_use]
+    pub fn output_columns(&self) -> Option<Vec<String>> {
         self.shape.output_columns()
     }
     /// The output keys the computation renames (source name, stated name).
-    pub(super) fn renames(&self) -> &[(String, String)] {
+    #[must_use]
+    pub fn renames(&self) -> &[(String, String)] {
         &self.shape.renames
     }
     /// A ranking (« the top-selling », « les plus vendus », « die meistverkauften ») sorted
     /// descending without the count of rows to keep: the count is asked, never assumed.
-    pub(super) fn ranking_without_count(&self) -> bool {
+    #[must_use]
+    pub fn ranking_without_count(&self) -> bool {
         self.shape.limit.is_none()
             && self.shape.sort_by.as_ref().is_some_and(|(_, desc)| *desc)
             && super::aggregate::ranking_cue(&self.text)
     }
     /// The same computation keeping the first `n` rows after its sort.
-    pub(super) fn with_limit(mut self, n: u32) -> Self {
+    #[must_use]
+    pub fn with_limit(mut self, n: u32) -> Self {
         self.shape.limit = Some(n);
         self
     }
+    /// Whether the rule joins several parsed sources on a column: its records are then one
+    /// array per source, first source first.
+    #[must_use]
+    pub fn joins(&self) -> bool {
+        self.shape.join_on.is_some()
+    }
+    /// Whether the rule runs over the lines of a text source.
+    #[must_use]
+    pub const fn lines(&self) -> bool {
+        self.lines
+    }
+    /// The same rule over the lines of a text source, when its only work is the removal of
+    /// duplicates: a line has no columns to filter, group, sort or project. Anything else
+    /// over a text source is `None`: the human is asked.
+    #[must_use]
+    pub fn over_lines(&self) -> Option<Self> {
+        let s = &self.shape;
+        let only_distinct = s.distinct
+            && self.clauses.is_empty()
+            && s.join_on.is_none()
+            && s.group_by.is_none()
+            && s.aggregations.is_empty()
+            && s.sort_by.is_none()
+            && s.limit.is_none()
+            && s.columns.is_empty();
+        only_distinct.then(|| Self {
+            lines: true,
+            ..self.clone()
+        })
+    }
     /// The names of the totals, when the computation is totals over every row.
-    pub(super) fn totals_names(&self) -> Vec<String> {
+    #[must_use]
+    pub fn totals_names(&self) -> Vec<String> {
         self.shape.totals_names()
     }
     /// Whether the computation keeps or drops rows (a row filter), as opposed to a pure
     /// aggregation, sort or projection over every row.
-    pub(super) fn filters(&self) -> bool {
+    #[must_use]
+    pub fn filters(&self) -> bool {
         !self.clauses.is_empty()
     }
     /// The excerpt the rule was read from.
-    pub(super) fn text(&self) -> &str {
+    #[must_use]
+    pub fn text(&self) -> &str {
         &self.text
     }
     /// The inverse of [`Rule::to_json`], for a recorded plan replayed on an answer round.
-    pub(super) fn from_json(value: &Value) -> Option<Self> {
+    pub(crate) fn from_json(value: &Value) -> Option<Self> {
         let text = value.get("text")?.as_str()?.to_owned();
         let clauses = value
             .get("clauses")?
@@ -790,28 +386,34 @@ impl Rule {
             .get("summary")
             .and_then(Value::as_bool)
             .unwrap_or(false);
+        let lines = value.get("lines").and_then(Value::as_bool).unwrap_or(false);
         Some(Self {
             text,
             clauses,
             junction,
             summary,
             shape,
+            lines,
         })
     }
     /// Whether the text also asked for the count and totals the summary stage computes.
-    pub(super) const fn summary(&self) -> bool {
+    #[must_use]
+    pub const fn summary(&self) -> bool {
         self.summary
     }
-    /// Every source column the rule reads, first use first: the clauses, the group column,
-    /// the aggregated columns, a sort or a projection on a source column (a sort or a
-    /// projection on a produced name reads nothing from the source).
-    pub(super) fn fields(&self) -> Vec<String> {
+    /// Every source column the rule reads, first use first: the join key, the clauses, the
+    /// group column, the aggregated columns, a sort or a projection on a source column (a
+    /// sort or a projection on a produced name reads nothing from the source).
+    pub(crate) fn fields(&self) -> Vec<String> {
         let mut out: Vec<String> = Vec::new();
         let mut push = |name: &str| {
             if !out.iter().any(|f| f == name) {
                 out.push(name.to_owned());
             }
         };
+        if let Some(key) = &self.shape.join_on {
+            push(key);
+        }
         for clause in &self.clauses {
             push(&clause.field);
             if let Operand::Column(other) = &clause.value {
@@ -847,44 +449,82 @@ impl Rule {
             .collect::<Vec<_>>()
             .join(&format!(" {} ", self.junction.word()))
     }
-    /// The computation over the parsed records: the filter, then the shape's stages in
-    /// their fixed order.
-    pub(super) fn jq(&self) -> String {
+    /// The computation over the parsed records: the join of the sources when the rule joins,
+    /// the filter, then the shape's stages in their fixed order; over the lines of a text
+    /// source, the result is written back as lines with the file's final newline.
+    #[must_use]
+    pub fn jq(&self) -> String {
+        let base = match &self.shape.join_on {
+            Some(on) => format!(
+                ".records | reduce .[1:][] as $right (.[0]; [.[] as $a | $right[] | select({k} == ($a | {k})) | $a + .])",
+                k = key(on)
+            ),
+            None => ".records".to_owned(),
+        };
         let filtered = if self.clauses.is_empty() {
-            ".records".to_owned()
+            base
+        } else if self.shape.join_on.is_some() {
+            format!("{base} | [.[] | select({})]", self.predicate())
         } else {
             format!("[.records[] | select({})]", self.predicate())
         };
-        self.shape.lower(filtered)
+        let mut jq = self.shape.lower(filtered);
+        if self.lines {
+            jq.push_str(" | join(\"\\n\") | if length > 0 then . + \"\\n\" else . end");
+        }
+        jq
     }
     /// True when the records are an array whose first record carries every column the
     /// rule reads (an empty array passes): a wrong column fails loudly, never filters
-    /// everything in silence.
-    pub(super) fn guard(&self) -> String {
+    /// everything in silence. A join judges every source's first record; lines are strings.
+    #[must_use]
+    pub fn guard(&self) -> String {
+        if self.lines {
+            return "(.records | type) == \"array\" and all(.records[]; type == \"string\")"
+                .to_owned();
+        }
         let has = self
             .fields()
             .iter()
             .map(|f| format!(" and has({})", json!(f)))
             .collect::<Vec<_>>()
             .concat();
+        if self.joins() {
+            return format!(
+                "(.records | type) == \"array\" and (.records | length) >= 2 and all(.records[]; type == \"array\" and (length == 0 or (.[0] | type == \"object\"{has})))"
+            );
+        }
         format!(
             "(.records | type) == \"array\" and ((.records | length) == 0 or (.records[0] | type == \"object\"{has}))"
         )
     }
-    pub(super) fn guard_message(&self) -> String {
+    #[must_use]
+    pub fn guard_message(&self) -> String {
+        if self.lines {
+            return format!(
+                "The rule `{}` runs over the lines of the source, but the source was not read as lines.",
+                self.text
+            );
+        }
         let fields = self
             .fields()
             .iter()
             .map(|f| format!("`{f}`"))
             .collect::<Vec<_>>()
             .join(", ");
+        if self.joins() {
+            return format!(
+                "The rule `{}` joins the sources on {fields}, but a source is missing or its first parsed record has no such field; check every source header.",
+                self.text
+            );
+        }
         format!(
             "The rule `{}` reads the column(s) {fields}, but the first parsed record has no such field; check the source header.",
             self.text
         )
     }
     /// The provenance record: observational, never authority.
-    pub(super) fn to_json(&self) -> Value {
+    pub fn to_json(&self) -> Value {
         let mut record = json!({
             "text": self.text,
             "fields": self.fields(),
@@ -893,6 +533,7 @@ impl Rule {
             "synthesized": true,
             "summary": self.summary,
             "shape": self.shape.to_json(),
+            "lines": self.lines,
         });
         if let [only] = self.clauses.as_slice() {
             let clause = only.to_json();
@@ -1033,9 +674,94 @@ fn last_relative(region: &[Token]) -> Option<(usize, usize)> {
     found
 }
 
+/// A negation among the words that lead a clause ("do not keep the tickets whose status
+/// is closed", "never keep …", "ne garde pas …") inverts the whole clause; the grammar
+/// reads no polarity there, so it reads nothing. The French restriction "ne … que" is
+/// "only", never a negation.
+/// A verb that drops the rows it describes ("exclude the rows whose …", "filter out …",
+/// "supprime les lignes dont …"): the clauses name what leaves, and the grammar reads no
+/// polarity there. Reading them as a keep would run the complement of the request.
+const EXCLUSION_LEADS: &[&str] = &[
+    "exclude",
+    "excludes",
+    "excluding",
+    "drop",
+    "drops",
+    "remove",
+    "removes",
+    "delete",
+    "deletes",
+    "discard",
+    "discards",
+    "omit",
+    "omits",
+    "skip",
+    "skips",
+    "ignore",
+    "ignores",
+    "strip",
+    "out",
+    "exclus",
+    "exclure",
+    "excluez",
+    "supprime",
+    "supprimez",
+    "supprimer",
+    "retire",
+    "retirez",
+    "retirer",
+    "enleve",
+    "enlevez",
+    "enlever",
+    "elimine",
+    "eliminez",
+    "eliminer",
+    "ignorez",
+    "ecarte",
+    "ecartez",
+    "elimina",
+    "quita",
+    "descarta",
+    "excluye",
+    "omite",
+    "rimuovi",
+    "escludi",
+    "scarta",
+    "entferne",
+    "losche",
+    "verwerfe",
+];
+
+fn negated_lead(lead: &[Token]) -> bool {
+    let words: Vec<&str> = lead.iter().filter_map(Token::word).collect();
+    words.iter().enumerate().any(|(at, word)| {
+        if matches!(*word, "ne" | "n") {
+            return !words
+                .get(at + 1..(at + 4).min(words.len()))
+                .is_some_and(|window| window.contains(&"que"));
+        }
+        NEGATIONS.contains(word)
+            || EXCLUSION_LEADS.contains(word)
+            || matches!(
+                *word,
+                "never"
+                    | "jamais"
+                    | "nunca"
+                    | "mai"
+                    | "niemals"
+                    | "nie"
+                    | "don't"
+                    | "doesn't"
+                    | "won't"
+                    | "isn't"
+                    | "aren't"
+            )
+    })
+}
+
 /// The field named left of the comparison. `None` when the lead carries a number, a
-/// symbol or a quote the grammar did not consume; `Unnamed` when nothing there names a
-/// column.
+/// symbol, a quote or a negation the grammar did not consume; `Unnamed` when nothing
+/// there names a column.
 fn left_field(tokens: &[Token], from: usize, anchor: &Anchor, columns: &[String]) -> Option<Left> {
     let region = tokens.get(from..anchor.field_end).unwrap_or_default();
     let (lead, phrase, relative) = match last_relative(region) {
@@ -1049,7 +775,7 @@ fn left_field(tokens: &[Token], from: usize, anchor: &Anchor, columns: &[String]
             None => (region, region, false),
         },
     };
-    if lead.iter().any(|t| t.word().is_none()) {
+    if lead.iter().any(|t| t.word().is_none()) || negated_lead(lead) {
         return None;
     }
     let mut phrase = phrase;
@@ -1199,11 +925,13 @@ fn segments(text: &str) -> impl Iterator<Item = &str> {
 }
 
 /// The rule the text states, or `None` when any part is outside the grammar.
-pub(super) fn synthesize(text: &str, columns: &[String]) -> Option<Rule> {
+#[must_use]
+pub fn synthesize(text: &str, columns: &[String]) -> Option<Rule> {
     let text = text.trim();
     let mut clauses = Vec::new();
     let mut junction: Option<Junction> = None;
     let mut summary = false;
+    let mut shape = Shape::default();
     for segment in segments(text) {
         let tokens = tokenize(segment);
         if tokens.is_empty() {
@@ -1218,6 +946,15 @@ pub(super) fn synthesize(text: &str, columns: &[String]) -> Option<Rule> {
         let mut at = 0;
         loop {
             let Some((clause, next)) = parse_clause(&tokens, at, columns) else {
+                // A whole segment stating a stage (an aggregate over a column, a count per
+                // column, a sort, a top-N, a projection, a removal of duplicates, a join) is
+                // the shape's work: the filter (if any) runs first, the stages follow.
+                if at == 0
+                    && let Some(stage) = super::stages::stated(segment, columns)
+                {
+                    shape = shape.merge(stage)?;
+                    break;
+                }
                 // After a clause, a count-or-total request is the summary stage's work.
                 let trailing = (at > 0 || !clauses.is_empty()) && junction != Some(Junction::Or);
                 if trailing && summary_residual(&tokens, at, columns) {
@@ -1245,7 +982,7 @@ pub(super) fn synthesize(text: &str, columns: &[String]) -> Option<Rule> {
             }
         }
     }
-    if clauses.is_empty() {
+    if clauses.is_empty() && shape == Shape::default() {
         return None;
     }
     Some(Rule {
@@ -1253,7 +990,8 @@ pub(super) fn synthesize(text: &str, columns: &[String]) -> Option<Rule> {
         clauses,
         junction: junction.unwrap_or(Junction::And),
         summary,
-        shape: Shape::default(),
+        shape,
+        lines: false,
     })
 }
 

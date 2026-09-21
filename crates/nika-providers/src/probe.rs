@@ -951,17 +951,20 @@ mod tests {
 
     #[test]
     fn local_run_gate_reads_silence_muteness_and_liveness() {
-        // SILENT — the port answers nothing.
-        let dead = crate::ProvidersConfig::new()
-            .with_base_url("ollama", format!("http://127.0.0.1:{}", dead_port()));
-        let reg = ProviderRegistry::without_http(dead);
-        assert!(
+        // SILENT — the port answers nothing. A dropped ephemeral port can be
+        // re-bound by any process in the window before the probe (it was, once,
+        // under a full oracle run beside this suite): a fresh port is tried a
+        // few times and Silent must be observed at least once.
+        let silent = (0..5).any(|_| {
+            let dead = crate::ProvidersConfig::new()
+                .with_base_url("ollama", format!("http://127.0.0.1:{}", dead_port()));
+            let reg = ProviderRegistry::without_http(dead);
             matches!(
                 local_run_gate(&reg, "ollama/qwen3.5:4b"),
                 Some(LocalLiveness::Silent(_))
-            ),
-            "a dead port reads Silent"
-        );
+            )
+        });
+        assert!(silent, "a dead port reads Silent");
         // MUTE — the port accepts and never speaks (the gauntlet hang).
         let mute = crate::ProvidersConfig::new().with_base_url(
             "ollama",

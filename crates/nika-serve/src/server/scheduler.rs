@@ -67,6 +67,10 @@ pub(super) type FireRefusals = Arc<Mutex<BTreeMap<String, String>>>;
 /// vanished): named on the schedule, cleared on the next prepared fire.
 pub(super) const FIRE_ADMISSION_REFUSED: &str = "the workflow could not be admitted at fire time — the file changed or vanished since it was scheduled · the resident keeps running · the next slot re-tries once the file admits";
 
+/// A fire that found the execution queue full: back-pressure, never a
+/// resident death — the beat is deferred to the next scan and says so.
+pub(super) const FIRE_QUEUE_FULL: &str = "the execution queue or the job store is full at fire time — the resident keeps running · the beat fires at the next scan once a job settles";
+
 struct ProjectLoad {
     live: Vec<ResidentSchedule>,
     refused: Vec<RefusedProjectSchedule>,
@@ -136,6 +140,19 @@ pub(super) async fn run(
                         Err(ServerError::ScheduledAdmission) => {
                             record_fire_refusal(&state, &id, FIRE_ADMISSION_REFUSED);
                         }
+                        // A full queue is back-pressure: the beat is deferred
+                        // to the next scan, the resident keeps running.
+                        Err(
+                            ServerError::ExecutionQueueFull
+                            | ServerError::JobStore(crate::JobStoreError::CapacityExceeded),
+                        ) => {
+                            record_fire_refusal(&state, &id, FIRE_QUEUE_FULL);
+                        }
+                        // A closed queue is the authority stopping (its
+                        // receiver dropped at shutdown while this fire was in
+                        // flight): the scheduler ends clean, never with an
+                        // error the stop would report (main's Diamond red).
+                        Err(ServerError::Stopping) => return Ok(()),
                         Err(error) => return Err(error),
                     }
                 }

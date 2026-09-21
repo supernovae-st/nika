@@ -800,11 +800,13 @@ pub fn nika_check_analyzer::ThinkingFinding::__clone_box(&self, _: dyn_clone::se
 impl<T> nika_error::traits::AsAny for nika_check_analyzer::ThinkingFinding where T: 'static
 pub fn nika_check_analyzer::ThinkingFinding::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub const nika_check_analyzer::MIN_REASONING_MAX_TOKENS: u32
+pub const nika_check_analyzer::REASONING_COMFORT_MAX_TOKENS: u32
 pub fn nika_check_analyzer::analyze(wf: &nika_schema::raw::workflow::RawWorkflow) -> core::result::Result<nika_check_analyzer::AnalyzedWorkflow, alloc::vec::Vec<nika_schema::error::SchemaError>>
 pub fn nika_check_analyzer::bare_static_ref(expr: &str) -> core::option::Option<(&'static str, &str)>
 pub fn nika_check_analyzer::capacity_findings(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<nika_check_analyzer::CapacityFinding>
 pub fn nika_check_analyzer::catalog_knows(provider: &str, name: &str, judged: &str) -> bool
 pub fn nika_check_analyzer::lowered_returns(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
+pub fn nika_check_analyzer::reasoning_cap_hints(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<nika_check_analyzer::ThinkingFinding>
 pub fn nika_check_analyzer::returns_type(task: &nika_schema::raw::task::RawTask, wf: &nika_schema::raw::workflow::RawWorkflow) -> core::option::Option<nika_types::types::NikaType>
 pub fn nika_check_analyzer::role_of_field(field: core::option::Option<&str>) -> nika_check_analyzer::edges::EdgeKind
 pub fn nika_check_analyzer::static_literal_of<'w>(wf: &'w nika_schema::raw::workflow::RawWorkflow, expr: &str) -> core::option::Option<&'w serde_json::value::Value>

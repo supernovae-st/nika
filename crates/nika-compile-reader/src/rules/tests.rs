@@ -310,110 +310,137 @@ fn the_guard_names_every_column_and_the_record_is_observational() {
 }
 
 #[test]
-fn numbers_fold_currency_and_separators() {
-    assert_eq!(number("100").as_deref(), Some("100"));
-    assert_eq!(number("€100").as_deref(), Some("100"));
-    assert_eq!(number("100€").as_deref(), Some("100"));
-    assert_eq!(number("15%").as_deref(), Some("15"));
-    assert_eq!(number("-3").as_deref(), Some("-3"));
-    assert_eq!(number("1,5").as_deref(), Some("1.5"));
-    assert_eq!(number("1,000").as_deref(), Some("1000"));
-    assert_eq!(number("1,000,000").as_deref(), Some("1000000"));
-    assert_eq!(number("12.50").as_deref(), Some("12.50"));
-    for not in ["abc", "1.2.3", "1,2,3", "T-4471", "", "1.000,50"] {
-        assert_eq!(number(not), None, "{not}");
+fn a_stated_aggregate_is_the_shape_after_the_filter() {
+    assert_eq!(
+        jq("the total of the amount column"),
+        Some(".records | {\"total\": (map(.amount | tonumber) | add // 0)}".to_owned())
+    );
+    assert_eq!(
+        jq("the total of the amount column ; whose client is acme"),
+        Some(
+            "[.records[] | select(.client == \"acme\")] | {\"total\": (map(.amount | tonumber) | add // 0)}"
+                .to_owned()
+        )
+    );
+    let rule = synthesize("la moyenne de la colonne montant", &[]).expect("a rule");
+    assert_eq!(rule.totals_names(), ["moyenne"]);
+    assert_eq!(rule.fields(), ["montant"]);
+    assert!(!rule.summary());
+    // A grouping is a stage of the shape: one row per client with its total.
+    let grouped = synthesize("the total of the amount column per client", &[]).expect("a rule");
+    assert_eq!(
+        grouped.jq(),
+        ".records | group_by(.client) | map({\"client\": (.[0] | .client), \"total\": (map(.amount | tonumber) | add // 0)})"
+    );
+    assert_eq!(grouped.fields(), ["client", "amount"]);
+    assert_eq!(
+        grouped.output_columns(),
+        Some(vec!["client".to_owned(), "total".to_owned()])
+    );
+    assert!(grouped.totals_names().is_empty());
+}
+
+#[test]
+fn a_join_a_top_n_a_projection_and_a_dedup_lower_after_the_filter() {
+    let join = synthesize("merge them on the id column", &[]).expect("a join");
+    assert!(join.joins());
+    assert_eq!(join.fields(), ["id"]);
+    assert_eq!(
+        join.jq(),
+        ".records | reduce .[1:][] as $right (.[0]; [.[] as $a | $right[] | select(.id == ($a | .id)) | $a + .])"
+    );
+    assert_eq!(
+        join.guard(),
+        "(.records | type) == \"array\" and (.records | length) >= 2 and all(.records[]; type == \"array\" and (length == 0 or (.[0] | type == \"object\" and has(\"id\"))))"
+    );
+    assert!(join.guard_message().contains("joins the sources on `id`"));
+    // A filter after the join selects over the joined rows.
+    assert_eq!(
+        jq("merge them on the id column ; whose amount is above 100"),
+        Some(".records | reduce .[1:][] as $right (.[0]; [.[] as $a | $right[] | select(.id == ($a | .id)) | $a + .]) | [.[] | select((.amount | tonumber) > 100)]".to_owned())
+    );
+    assert_eq!(
+        jq("keep the 2 rows with the highest amount"),
+        Some(".records | sort_by(.amount | tonumber? // .) | reverse | .[:2]".to_owned())
+    );
+    assert_eq!(
+        jq("whose client is acme ; keep the 2 rows with the highest amount"),
+        Some("[.records[] | select(.client == \"acme\")] | sort_by(.amount | tonumber? // .) | reverse | .[:2]".to_owned())
+    );
+    let slim = synthesize("keep only the id and title of each ticket", &[]).expect("a projection");
+    assert_eq!(
+        slim.jq(),
+        ".records | map({\"id\": .id, \"title\": .title})"
+    );
+    assert_eq!(slim.fields(), ["id", "title"]);
+    assert_eq!(
+        slim.output_columns(),
+        Some(vec!["id".to_owned(), "title".to_owned()])
+    );
+    // A removal of duplicates over a text source runs over its lines and writes lines.
+    let distinct = synthesize("remove the duplicate lines", &[]).expect("a dedup");
+    assert!(!distinct.lines());
+    let lines = distinct.over_lines().expect("over lines");
+    assert!(lines.lines());
+    assert_eq!(
+        lines.jq(),
+        ".records | reduce .[] as $r ([]; if any(.[]; . == $r) then . else . + [$r] end) | join(\"\\n\") | if length > 0 then . + \"\\n\" else . end"
+    );
+    assert_eq!(
+        lines.guard(),
+        "(.records | type) == \"array\" and all(.records[]; type == \"string\")"
+    );
+    assert_eq!(Rule::from_json(&lines.to_json()), Some(lines));
+    // A filter, a sort or a projection has no meaning over lines: asked, never guessed.
+    for text in [
+        "whose status is open",
+        "sort the rows by amount",
+        "keep only the id and title of each ticket",
+        "count the rows per client",
+    ] {
+        assert_eq!(
+            synthesize(text, &[]).and_then(|r| r.over_lines()),
+            None,
+            "{text}"
+        );
     }
-}
-
-// wave28 v2-02: the seat compared a boolean column to the string "false" and jq kept no row;
-// the run was green on an empty file.
-#[test]
-fn a_truth_value_matches_the_boolean_and_its_spelling() {
-    let computation = serde_json::from_value::<crate::predicate::ProposedComputation>(json!({
-        "present": true, "polarity": "keep", "join": "and",
-        "clauses": [{"field": "explicito", "op": "==", "value": "false", "value_field": ""}],
-        "group_by": "", "aggregations": [], "sort_by": "duracao_s", "order": "desc",
-        "columns": ["id", "titulo"], "derived": []
-    }))
-    .unwrap();
-    let intent = "Lê ./musica/faixas.json (id, titulo, artista, duracao_s, explicito), guarda as faixas com explicito == false ordenadas por duracao_s decrescente e escreve id e titulo em ./out/limpa.json";
-    let rule = crate::predicate::typed_rule(
-        intent,
-        "guarda as faixas com explicito == false",
-        &computation,
-    )
-    .expect("a rule");
-    assert!(
-        rule.jq()
-            .contains("select((.explicito == false or .explicito == \"false\"))"),
-        "{}",
-        rule.jq()
-    );
-    let record = rule.to_json();
-    assert_eq!(record["clauses"][0]["value_kind"], "bool");
-    assert_eq!(record["clauses"][0]["value"], "false");
-    let back = Rule::from_json(&record).expect("round trip");
-    assert_eq!(back.jq(), rule.jq());
-    // « != vero » excludes the truth in both encodings; another comparator stays literal.
-    let clause = Clause {
-        field: "attivo".to_owned(),
-        comparator: Comparator::Ne,
-        value: Operand::Bool(true),
-    };
-    assert_eq!(clause.jq(), "(.attivo != true and .attivo != \"true\")");
-}
-
-// arc 3: a rename and a limit are typed stages of the computation; a ranking that states no
-// count is flagged so the binder asks for it (wave28 v2-53 compiled a full sort instead).
-#[test]
-fn a_rename_and_a_limit_are_typed_and_a_ranking_without_a_count_is_flagged() {
-    let proposed = |limit: &str| {
-        json!({
-            "present": true, "polarity": "keep", "join": "and", "clauses": [],
-            "group_by": "", "aggregations": [], "sort_by": "units", "order": "desc",
-            "columns": ["item", "units"], "derived": [], "limit": limit,
-            "renames": [{"from": "item", "to": "product"}]
-        })
-    };
-    let computation =
-        serde_json::from_value::<crate::predicate::ProposedComputation>(proposed("3")).unwrap();
-    let intent = "Read ./shop/sales.csv (columns item,units), keep the top 3 items by units, rename item to product and write ./out/top.csv";
-    let rule = crate::predicate::typed_rule(intent, "keep the top 3 items by units", &computation)
-        .expect("a rule");
+    // Two stages of the same kind, or a dedup beside a top-N, are not one computation.
     assert_eq!(
-        rule.jq(),
-        ".records | sort_by(.units) | reverse | .[:3] | map({\"item\": .item, \"units\": .units}) | map(with_entries(if .key == \"item\" then .key = \"product\" else . end))"
+        jq("sort the rows by amount ; sort the rows by client"),
+        None
     );
     assert_eq!(
-        rule.output_columns(),
-        Some(vec!["product".to_owned(), "units".to_owned()])
+        jq("remove the duplicate lines ; keep the 2 rows with the highest amount"),
+        None
     );
-    assert_eq!(rule.renames().len(), 1);
-    assert!(!rule.ranking_without_count());
-    let record = rule.to_json();
-    assert_eq!(record["shape"]["limit"], 3);
-    assert_eq!(record["shape"]["renames"][0]["to"], "product");
-    let back = Rule::from_json(&record).expect("round trip");
-    assert_eq!(back.jq(), rule.jq());
-    // A limit the request does not state is no rule; a count spelled as a word is stated.
-    let unstated =
-        serde_json::from_value::<crate::predicate::ProposedComputation>(proposed("5")).unwrap();
-    assert!(
-        crate::predicate::typed_rule(intent, "keep the top 3 items by units", &unstated).is_none()
+}
+
+#[test]
+fn a_negation_among_the_lead_words_is_read_as_nothing_never_inverted() {
+    for text in [
+        "do not keep the tickets whose status is closed",
+        "never keep the tickets whose status is closed",
+        "Read ./tickets.json, do not keep the tickets whose status is closed",
+        "ne garde pas les lignes dont amount dépasse 200",
+        "ne garde jamais les lignes dont amount dépasse 200",
+        "don't keep rows whose amount is above 100",
+        // An exclusion names what leaves: never read as a keep of those rows.
+        "exclude the rows whose amount is below 100 or whose status is refunded",
+        "drop the rows whose status is closed",
+        "filter out the rows whose amount is above 100",
+        "remove the rows whose status is closed",
+        "supprime les lignes dont le montant est plus grand que 100",
+    ] {
+        assert_eq!(synthesize(text, &[]), None, "{text}");
+    }
+    // The French restriction is "only": a filter, read as stated.
+    assert_eq!(
+        jq("ne garde que les lignes dont amount dépasse 200"),
+        Some("[.records[] | select((.amount | tonumber) > 200)]".to_owned())
     );
-    let spelled = "Read ./shop/sales.csv (columns item,units), keep the three best items by units, rename item to product and write ./out/top.csv";
-    assert!(
-        crate::predicate::typed_rule(spelled, "keep the three best items by units", &computation)
-            .is_some()
+    // A negation after the copula is the clause's own polarity, still read.
+    assert_eq!(
+        jq("whose status is not closed"),
+        Some("[.records[] | select(.status != \"closed\")]".to_owned())
     );
-    // No limit under a ranking word: the count is missing and must be asked.
-    let ranked =
-        serde_json::from_value::<crate::predicate::ProposedComputation>(proposed("")).unwrap();
-    let rule = crate::predicate::typed_rule(intent, "the top-selling items by units", &ranked)
-        .expect("a rule");
-    assert!(rule.ranking_without_count());
-    assert!(!rule.with_limit(3).ranking_without_count());
-    let plain = crate::predicate::typed_rule(intent, "sorted by units, descending", &ranked)
-        .expect("a rule");
-    assert!(!plain.ranking_without_count());
 }

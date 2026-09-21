@@ -16,7 +16,8 @@ use super::rules;
 
 /// Closed operation vocabulary. Names are private; the assembler owns their structure.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub(super) enum Op {
+#[non_exhaustive]
+pub enum Op {
     /// Consume the document supplied at invocation (never an external retrieval).
     Read,
     /// Retrieve one page by an explicit URL.
@@ -40,7 +41,7 @@ pub(super) enum Op {
 }
 
 impl Op {
-    pub(super) const ALL: [Self; 10] = [
+    pub const ALL: [Self; 10] = [
         Self::Read,
         Self::Fetch,
         Self::Lookup,
@@ -55,10 +56,12 @@ impl Op {
     /// Whether the operation can carry the request's constraints: a prompt-bearing step or
     /// a computation. A plain retrieval carries nothing; a plan of reads and writes with a
     /// constraint drops the constraint silently.
-    pub(super) const fn carries_constraints(self) -> bool {
+    #[must_use]
+    pub const fn carries_constraints(self) -> bool {
         !matches!(self, Self::Read | Self::Fetch | Self::Lookup | Self::Search)
     }
-    pub(super) const fn word(self) -> &'static str {
+    #[must_use]
+    pub const fn word(self) -> &'static str {
         match self {
             Self::Read => "read",
             Self::Fetch => "fetch",
@@ -72,11 +75,13 @@ impl Op {
             Self::Explore => "explore",
         }
     }
-    pub(super) fn parse(word: &str) -> Option<Self> {
+    #[must_use]
+    pub fn parse(word: &str) -> Option<Self> {
         Self::ALL.into_iter().find(|op| op.word() == word)
     }
     /// One-line definition used both in decision seats and generative instructions.
-    pub(super) const fn definition(self) -> &'static str {
+    #[must_use]
+    pub const fn definition(self) -> &'static str {
         match self {
             Self::Read => {
                 "read: consume the document or text supplied with each invocation; not an external retrieval"
@@ -108,7 +113,8 @@ impl Op {
 
 /// One requested operation with its verbatim evidence.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct Step {
+#[non_exhaustive]
+pub struct Step {
     pub op: Op,
     /// Exact substring of the intent that requested it.
     pub evidence: String,
@@ -118,9 +124,29 @@ pub(super) struct Step {
     pub categories: Vec<String>,
 }
 
+impl Step {
+    /// One requested operation with its verbatim evidence, its object and the categories
+    /// the intent names.
+    #[must_use]
+    pub fn new(
+        op: Op,
+        evidence: impl Into<String>,
+        detail: impl Into<String>,
+        categories: Vec<String>,
+    ) -> Self {
+        Self {
+            op,
+            evidence: evidence.into(),
+            detail: detail.into(),
+            categories,
+        }
+    }
+}
+
 /// How an external effect may reach the world.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum EffectPolicy {
+#[non_exhaustive]
+pub enum EffectPolicy {
     /// Requested without a prior human requirement.
     Automatic,
     /// Requested only after a fresh explicit human approval of that exact proposal.
@@ -134,7 +160,8 @@ pub(super) enum EffectPolicy {
 }
 
 impl EffectPolicy {
-    pub(super) const fn word(self) -> &'static str {
+    #[must_use]
+    pub const fn word(self) -> &'static str {
         match self {
             Self::Automatic => "automatic",
             Self::HumanFirst => "human_first",
@@ -143,7 +170,8 @@ impl EffectPolicy {
             Self::Conflict => "conflict",
         }
     }
-    pub(super) fn parse(word: &str) -> Option<Self> {
+    #[must_use]
+    pub fn parse(word: &str) -> Option<Self> {
         [
             Self::Automatic,
             Self::HumanFirst,
@@ -158,7 +186,8 @@ impl EffectPolicy {
 
 /// Closed effect verbs; `Other` keeps the verbatim target as its only identity.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum EffectVerb {
+#[non_exhaustive]
+pub enum EffectVerb {
     Create,
     Send,
     Publish,
@@ -175,7 +204,8 @@ pub(super) enum EffectVerb {
 }
 
 impl EffectVerb {
-    pub(super) const fn word(self) -> &'static str {
+    #[must_use]
+    pub const fn word(self) -> &'static str {
         match self {
             Self::Create => "create",
             Self::Send => "send",
@@ -191,7 +221,8 @@ impl EffectVerb {
             Self::Other => "effect",
         }
     }
-    pub(super) fn parse(word: &str) -> Option<Self> {
+    #[must_use]
+    pub fn parse(word: &str) -> Option<Self> {
         [
             Self::Create,
             Self::Send,
@@ -210,14 +241,16 @@ impl EffectVerb {
         .find(|verb| verb.word() == word)
     }
     /// Money-moving effects need explicit literal policy data before any gate.
-    pub(super) const fn moves_money(self) -> bool {
+    #[must_use]
+    pub const fn moves_money(self) -> bool {
         matches!(self, Self::Refund | Self::Pay | Self::Order)
     }
 }
 
 /// One external effect the intent names, with its policy.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct Effect {
+#[non_exhaustive]
+pub struct Effect {
     pub verb: EffectVerb,
     /// The verbatim target phrase ("créer une fiche prospect dans le CRM").
     pub target: String,
@@ -227,9 +260,29 @@ pub(super) struct Effect {
     pub policy_literal: Option<String>,
 }
 
+impl Effect {
+    /// One external effect with its policy and no policy literal yet.
+    #[must_use]
+    pub fn new(
+        verb: EffectVerb,
+        target: impl Into<String>,
+        evidence: impl Into<String>,
+        policy: EffectPolicy,
+    ) -> Self {
+        Self {
+            verb,
+            target: target.into(),
+            evidence: evidence.into(),
+            policy,
+            policy_literal: None,
+        }
+    }
+}
+
 /// Cross-cutting obligations the program must structurally honour.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) enum ObligationKind {
+#[non_exhaustive]
+pub enum ObligationKind {
     /// No second effect for the same incoming identifier.
     Dedup,
     /// A numeric maximum of attempts, cycles or iterations.
@@ -239,7 +292,8 @@ pub(super) enum ObligationKind {
 }
 
 impl ObligationKind {
-    pub(super) const fn word(&self) -> &'static str {
+    #[must_use]
+    pub const fn word(&self) -> &'static str {
         match self {
             Self::Dedup => "dedup",
             Self::RetryBound(_) => "retry_bound",
@@ -249,16 +303,40 @@ impl ObligationKind {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct Obligation {
+#[non_exhaustive]
+pub struct Obligation {
     pub kind: ObligationKind,
     pub evidence: String,
 }
 
+impl Obligation {
+    /// One obligation with the verbatim clause that states it.
+    #[must_use]
+    pub fn new(kind: ObligationKind, evidence: impl Into<String>) -> Self {
+        Self {
+            kind,
+            evidence: evidence.into(),
+        }
+    }
+}
+
 /// A literal copied from the intent, never reproduced by a model.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct Binding {
+#[non_exhaustive]
+pub struct Binding {
     pub role: &'static str,
     pub literal: String,
+}
+
+impl Binding {
+    /// One literal of the intent under the role the assembler matches it by.
+    #[must_use]
+    pub fn new(role: &'static str, literal: impl Into<String>) -> Self {
+        Self {
+            role,
+            literal: literal.into(),
+        }
+    }
 }
 
 /// The closed set of binding roles the reader and the composer emit. A recorded plan may
@@ -267,7 +345,8 @@ const BINDING_ROLES: [&str; 5] = ["url", "email", "path", "timezone", "money_pol
 
 /// The whole private plan.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub(super) struct Plan {
+#[non_exhaustive]
+pub struct Plan {
     pub steps: Vec<Step>,
     pub effects: Vec<Effect>,
     pub obligations: Vec<Obligation>,
@@ -284,23 +363,27 @@ pub(super) struct Plan {
 }
 
 impl Plan {
-    pub(super) fn has(&self, op: Op) -> bool {
+    #[must_use]
+    pub fn has(&self, op: Op) -> bool {
         self.steps.iter().any(|s| s.op == op)
     }
-    pub(super) fn step(&self, op: Op) -> Option<&Step> {
+    #[must_use]
+    pub fn step(&self, op: Op) -> Option<&Step> {
         self.steps.iter().find(|s| s.op == op)
     }
-    pub(super) fn retry_bound(&self) -> Option<u32> {
+    #[must_use]
+    pub fn retry_bound(&self) -> Option<u32> {
         self.obligations.iter().find_map(|o| match o.kind {
             ObligationKind::RetryBound(n) => Some(n),
             _ => None,
         })
     }
-    pub(super) fn obligation(&self, word: &str) -> bool {
+    #[must_use]
+    pub fn obligation(&self, word: &str) -> bool {
         self.obligations.iter().any(|o| o.kind.word() == word)
     }
     /// Merge a step; the same operation twice keeps the first evidence and joins details.
-    pub(super) fn push_step(&mut self, step: Step) {
+    pub fn push_step(&mut self, step: Step) {
         if let Some(existing) = self.steps.iter_mut().find(|s| s.op == step.op) {
             if !step.detail.is_empty() && !existing.detail.contains(&step.detail) {
                 if !existing.detail.is_empty() {
@@ -318,7 +401,7 @@ impl Plan {
         }
     }
     /// The provenance projection: private, observational, never authority.
-    pub(super) fn to_json(&self) -> Value {
+    pub fn to_json(&self) -> Value {
         json!({
             "operations": self.steps.iter().map(|s| json!({
                 "op": s.op.word(), "detail": s.detail, "evidence": s.evidence,
@@ -348,7 +431,7 @@ impl Plan {
     ///
     /// # Errors
     /// The path and reason the record cannot be read back.
-    pub(super) fn from_json(record: &Value) -> Result<Self, String> {
+    pub fn from_json(record: &Value) -> Result<Self, String> {
         let object = record
             .as_object()
             .ok_or_else(|| "the plan record is not an object".to_owned())?;
@@ -389,7 +472,8 @@ impl Plan {
         Ok(plan)
     }
     /// Every evidence excerpt must be a verbatim substring of the intent.
-    pub(super) fn anchored(&self, intent: &str) -> bool {
+    #[must_use]
+    pub fn anchored(&self, intent: &str) -> bool {
         self.steps
             .iter()
             .all(|s| !s.evidence.trim().is_empty() && intent.contains(&s.evidence))

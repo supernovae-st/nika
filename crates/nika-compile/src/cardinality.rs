@@ -7,11 +7,74 @@
 //! the request cannot be honoured as stated and is refused, never run on a prompt that
 //! silently obeys one of them.
 
-use super::cues::NUMBER_WORDS;
 use super::rules::{self, Comparator};
 use super::shape;
 
 /// One bound on the produced content.
+/// Number words in six languages, folded (« três » → « tres », « fünf » → « funf »).
+pub(super) const NUMBER_WORDS: &[(&str, u32)] = &[
+    ("un", 1),
+    ("une", 1),
+    ("one", 1),
+    ("deux", 2),
+    ("two", 2),
+    ("trois", 3),
+    ("three", 3),
+    ("quatre", 4),
+    ("four", 4),
+    ("cinq", 5),
+    ("five", 5),
+    ("six", 6),
+    ("sept", 7),
+    ("seven", 7),
+    ("huit", 8),
+    ("eight", 8),
+    ("neuf", 9),
+    ("nine", 9),
+    ("dix", 10),
+    ("ten", 10),
+    ("uno", 1),
+    ("una", 1),
+    ("dos", 2),
+    ("tres", 3),
+    ("cuatro", 4),
+    ("cinco", 5),
+    ("seis", 6),
+    ("siete", 7),
+    ("ocho", 8),
+    ("nueve", 9),
+    ("diez", 10),
+    ("due", 2),
+    ("tre", 3),
+    ("quattro", 4),
+    ("cinque", 5),
+    ("sei", 6),
+    ("sette", 7),
+    ("otto", 8),
+    ("nove", 9),
+    ("dieci", 10),
+    ("ein", 1),
+    ("eine", 1),
+    ("eins", 1),
+    ("zwei", 2),
+    ("drei", 3),
+    ("vier", 4),
+    ("funf", 5),
+    ("sechs", 6),
+    ("sieben", 7),
+    ("acht", 8),
+    ("neun", 9),
+    ("zehn", 10),
+    ("um", 1),
+    ("uma", 1),
+    ("dois", 2),
+    ("duas", 2),
+    ("quatro", 4),
+    ("sete", 7),
+    ("oito", 8),
+    ("dez", 10),
+];
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct Bound {
     /// The unit, folded and singular (`line`, `ligne`, `zeile`, `bullet`, `word`).
@@ -29,7 +92,7 @@ impl Bound {
             Comparator::Gt => Some((self.value.saturating_add(1), u64::MAX)),
             Comparator::Le => Some((0, self.value)),
             Comparator::Lt => Some((0, self.value.saturating_sub(1))),
-            Comparator::Ne => None,
+            _ => None,
         }
     }
     /// Whether both bounds can hold at once.

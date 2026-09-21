@@ -112,7 +112,7 @@ fn number_word_states(intent: &str, n: u32) -> bool {
     super::shape::fold(intent)
         .split(|c: char| !c.is_alphanumeric())
         .any(|w| {
-            super::cues::NUMBER_WORDS
+            super::cardinality::NUMBER_WORDS
                 .iter()
                 .any(|(word, value)| *value == n && *word == w)
         })
@@ -198,11 +198,7 @@ pub(super) fn typed_rule(
             }
             Operand::Column(other.to_owned())
         };
-        clauses.push(Clause {
-            field: clause.field.trim().to_owned(),
-            comparator,
-            value,
-        });
+        clauses.push(Clause::new(clause.field.trim(), comparator, value));
     }
     let mut junction = match computation.join.trim() {
         "or" => Junction::Or,
@@ -217,6 +213,7 @@ pub(super) fn typed_rule(
         junction = match junction {
             Junction::And => Junction::Or,
             Junction::Or => Junction::And,
+            other => other,
         };
     }
     // The shape after the filter: every column read is a column of the request, every
@@ -259,12 +256,7 @@ pub(super) fn typed_rule(
             }
             Some(n)
         };
-        aggregations.push(Aggregation {
-            field,
-            op,
-            name: name.to_owned(),
-            round,
-        });
+        aggregations.push(Aggregation::new(field, op, name, round));
     }
     if group_by.is_some() && aggregations.is_empty() {
         return None;
@@ -323,12 +315,7 @@ pub(super) fn typed_rule(
             None
         };
         let (left, right) = (term(&entry.left)?, term(&entry.right)?);
-        derived.push(Derived {
-            name: name.to_owned(),
-            op,
-            left,
-            right,
-        });
+        derived.push(Derived::new(name, op, left, right));
     }
     if !derived.is_empty() && aggregations.is_empty() {
         return None;
@@ -358,15 +345,14 @@ pub(super) fn typed_rule(
         }
         Some(n)
     };
-    let shape = Shape {
-        group_by,
-        aggregations,
-        sort_by,
-        columns,
-        derived,
-        limit,
-        renames,
-    };
+    let mut shape = Shape::default();
+    shape.group_by = group_by;
+    shape.aggregations = aggregations;
+    shape.sort_by = sort_by;
+    shape.columns = columns;
+    shape.derived = derived;
+    shape.limit = limit;
+    shape.renames = renames;
     if clauses.is_empty() && shape == Shape::default() {
         return None;
     }
@@ -396,4 +382,86 @@ pub(super) fn computation_schema() -> Value {
         "limit":{"type":"string"},
         "renames":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["from","to"],"properties":{
             "from":{"type":"string"},"to":{"type":"string"}}}}}})
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ProposedComputation, typed_rule};
+    use serde_json::json;
+
+    // wave28 v2-02: the seat compared a boolean column to the string "false" and jq kept no
+    // row; the run was green on an empty file.
+    #[test]
+    fn a_truth_value_matches_the_boolean_and_its_spelling() {
+        let computation = serde_json::from_value::<ProposedComputation>(json!({
+            "present": true, "polarity": "keep", "join": "and",
+            "clauses": [{"field": "explicito", "op": "==", "value": "false", "value_field": ""}],
+            "group_by": "", "aggregations": [], "sort_by": "duracao_s", "order": "desc",
+            "columns": ["id", "titulo"], "derived": []
+        }))
+        .unwrap();
+        let intent = "Lê ./musica/faixas.json (id, titulo, artista, duracao_s, explicito), guarda as faixas com explicito == false ordenadas por duracao_s decrescente e escreve id e titulo em ./out/limpa.json";
+        let rule = typed_rule(
+            intent,
+            "guarda as faixas com explicito == false",
+            &computation,
+        )
+        .expect("a rule");
+        assert!(
+            rule.jq()
+                .contains("select((.explicito == false or .explicito == \"false\"))"),
+            "{}",
+            rule.jq()
+        );
+        let record = rule.to_json();
+        assert_eq!(record["clauses"][0]["value_kind"], "bool");
+        assert_eq!(record["clauses"][0]["value"], "false");
+    }
+
+    // arc 3: a rename and a limit are typed stages of the computation; a ranking that states
+    // no count is flagged so the binder asks for it (wave28 v2-53 compiled a full sort).
+    #[test]
+    fn a_rename_and_a_limit_are_typed_and_a_ranking_without_a_count_is_flagged() {
+        let proposed = |limit: &str| {
+            json!({
+                "present": true, "polarity": "keep", "join": "and", "clauses": [],
+                "group_by": "", "aggregations": [], "sort_by": "units", "order": "desc",
+                "columns": ["item", "units"], "derived": [], "limit": limit,
+                "renames": [{"from": "item", "to": "product"}]
+            })
+        };
+        let computation = serde_json::from_value::<ProposedComputation>(proposed("3")).unwrap();
+        let intent = "Read ./shop/sales.csv (columns item,units), keep the top 3 items by units, rename item to product and write ./out/top.csv";
+        let rule =
+            typed_rule(intent, "keep the top 3 items by units", &computation).expect("a rule");
+        assert!(rule.jq().contains("| .[:3] |"), "{}", rule.jq());
+        assert!(
+            rule.jq().contains(
+                "map(with_entries(if .key == \"item\" then .key = \"product\" else . end))"
+            ),
+            "{}",
+            rule.jq()
+        );
+        assert_eq!(
+            rule.output_columns(),
+            Some(vec!["product".to_owned(), "units".to_owned()])
+        );
+        assert_eq!(rule.renames().len(), 1);
+        assert!(!rule.ranking_without_count());
+        let record = rule.to_json();
+        assert_eq!(record["shape"]["limit"], 3);
+        assert_eq!(record["shape"]["renames"][0]["to"], "product");
+        // A limit the request does not state is no rule; a count spelled as a word is stated.
+        let unstated = serde_json::from_value::<ProposedComputation>(proposed("5")).unwrap();
+        assert!(typed_rule(intent, "keep the top 3 items by units", &unstated).is_none());
+        let spelled = "Read ./shop/sales.csv (columns item,units), keep the three best items by units, rename item to product and write ./out/top.csv";
+        assert!(typed_rule(spelled, "keep the three best items by units", &computation).is_some());
+        // No limit under a ranking word: the count is missing and must be asked.
+        let ranked = serde_json::from_value::<ProposedComputation>(proposed("")).unwrap();
+        let rule = typed_rule(intent, "the top-selling items by units", &ranked).expect("a rule");
+        assert!(rule.ranking_without_count());
+        assert!(!rule.with_limit(3).ranking_without_count());
+        let plain = typed_rule(intent, "sorted by units, descending", &ranked).expect("a rule");
+        assert!(!plain.ranking_without_count());
+    }
 }

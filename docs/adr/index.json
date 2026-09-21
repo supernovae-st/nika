@@ -1565,7 +1565,23 @@
       "affects_layers": ["L4"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-110","ADR-115"],
+      "related": ["ADR-110","ADR-115","ADR-138"],
+      "requires": [],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-138",
+      "title": "nika-compile size-cap member split: the frozen reader descends to nika-compile-reader",
+      "status": "accepted",
+      "date": "2026-09-21",
+      "filename": "adr-138-nika-compile-member-split-nika-compile-reader.md",
+      "tags": ["architecture","crates","split","size-cap","compile"],
+      "affects_crates": ["nika-compile","nika-compile-reader"],
+      "affects_layers": ["L4"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-137"],
       "requires": [],
       "enables": []
     }

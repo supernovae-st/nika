@@ -427,35 +427,36 @@ pub async fn nika_runtime::compose::RegistryProvider<H>::infer(&self, request: n
 pub struct nika_runtime::compose::RunSeams
 pub nika_runtime::compose::RunSeams::clock: nika_clock::declared_clock::DeclaredClock
 pub nika_runtime::compose::RunSeams::jitter_seed: u64
-impl nika_runtime::compose::RunSeams
-pub fn nika_runtime::compose::RunSeams::of(decl: core::option::Option<&nika_vocab::run::RunDecl>) -> Self
-pub fn nika_runtime::compose::RunSeams::stamper(&self) -> alloc::boxed::Box<dyn nika_event::stamp::Stamper>
-impl<D> owo_colors::OwoColorize for nika_runtime::compose::RunSeams
-impl<T, U> core::convert::Into<U> for nika_runtime::compose::RunSeams where U: core::convert::From<T>
-pub fn nika_runtime::compose::RunSeams::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_runtime::compose::RunSeams where U: core::convert::Into<T>
-pub type nika_runtime::compose::RunSeams::Error = core::convert::Infallible
-pub fn nika_runtime::compose::RunSeams::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_runtime::compose::RunSeams where U: core::convert::TryFrom<T>
-pub type nika_runtime::compose::RunSeams::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_runtime::compose::RunSeams::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> core::any::Any for nika_runtime::compose::RunSeams where T: 'static + ?core::marker::Sized
-pub fn nika_runtime::compose::RunSeams::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_runtime::compose::RunSeams where T: ?core::marker::Sized
-pub fn nika_runtime::compose::RunSeams::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_runtime::compose::RunSeams where T: ?core::marker::Sized
-pub fn nika_runtime::compose::RunSeams::borrow_mut(&mut self) -> &mut T
-impl<T> core::convert::From<T> for nika_runtime::compose::RunSeams
-pub fn nika_runtime::compose::RunSeams::from(t: T) -> T
-impl<T> nika_error::traits::AsAny for nika_runtime::compose::RunSeams where T: 'static
-pub fn nika_runtime::compose::RunSeams::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::compose::RunSeams where T: ?core::marker::Sized
-pub fn nika_runtime::compose::RunSeams::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-pub fn nika_runtime::compose::RunSeams::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-impl<T> tracing::instrument::Instrument for nika_runtime::compose::RunSeams
-impl<T> tracing::instrument::WithSubscriber for nika_runtime::compose::RunSeams
-impl<T> typenum::type_operators::Same for nika_runtime::compose::RunSeams
-pub type nika_runtime::compose::RunSeams::Output = T
+impl nika_runtime::RunSeams
+pub fn nika_runtime::RunSeams::backoff(&self) -> alloc::sync::Arc<dyn nika_providers::retry::Backoff>
+pub fn nika_runtime::RunSeams::of(decl: core::option::Option<&nika_vocab::run::RunDecl>) -> Self
+pub fn nika_runtime::RunSeams::stamper(&self) -> alloc::boxed::Box<dyn nika_event::stamp::Stamper>
+impl<D> owo_colors::OwoColorize for nika_runtime::RunSeams
+impl<T, U> core::convert::Into<U> for nika_runtime::RunSeams where U: core::convert::From<T>
+pub fn nika_runtime::RunSeams::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_runtime::RunSeams where U: core::convert::Into<T>
+pub type nika_runtime::RunSeams::Error = core::convert::Infallible
+pub fn nika_runtime::RunSeams::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_runtime::RunSeams where U: core::convert::TryFrom<T>
+pub type nika_runtime::RunSeams::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_runtime::RunSeams::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_runtime::RunSeams where T: 'static + ?core::marker::Sized
+pub fn nika_runtime::RunSeams::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_runtime::RunSeams where T: ?core::marker::Sized
+pub fn nika_runtime::RunSeams::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_runtime::RunSeams where T: ?core::marker::Sized
+pub fn nika_runtime::RunSeams::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_runtime::RunSeams
+pub fn nika_runtime::RunSeams::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_runtime::RunSeams where T: 'static
+pub fn nika_runtime::RunSeams::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::RunSeams where T: ?core::marker::Sized
+pub fn nika_runtime::RunSeams::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::RunSeams::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::RunSeams
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::RunSeams
+impl<T> typenum::type_operators::Same for nika_runtime::RunSeams
+pub type nika_runtime::RunSeams::Output = T
 pub struct nika_runtime::compose::RuntimeCapabilities
 pub nika_runtime::compose::RuntimeCapabilities::exec_tasks: bool
 pub nika_runtime::compose::RuntimeCapabilities::fs: nika_builtin::permits::FsBoundary
@@ -946,35 +947,36 @@ pub type nika_runtime::RunOutcome::Output = T
 pub struct nika_runtime::RunSeams
 pub nika_runtime::RunSeams::clock: nika_clock::declared_clock::DeclaredClock
 pub nika_runtime::RunSeams::jitter_seed: u64
-impl nika_runtime::compose::RunSeams
-pub fn nika_runtime::compose::RunSeams::of(decl: core::option::Option<&nika_vocab::run::RunDecl>) -> Self
-pub fn nika_runtime::compose::RunSeams::stamper(&self) -> alloc::boxed::Box<dyn nika_event::stamp::Stamper>
-impl<D> owo_colors::OwoColorize for nika_runtime::compose::RunSeams
-impl<T, U> core::convert::Into<U> for nika_runtime::compose::RunSeams where U: core::convert::From<T>
-pub fn nika_runtime::compose::RunSeams::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_runtime::compose::RunSeams where U: core::convert::Into<T>
-pub type nika_runtime::compose::RunSeams::Error = core::convert::Infallible
-pub fn nika_runtime::compose::RunSeams::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_runtime::compose::RunSeams where U: core::convert::TryFrom<T>
-pub type nika_runtime::compose::RunSeams::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_runtime::compose::RunSeams::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> core::any::Any for nika_runtime::compose::RunSeams where T: 'static + ?core::marker::Sized
-pub fn nika_runtime::compose::RunSeams::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_runtime::compose::RunSeams where T: ?core::marker::Sized
-pub fn nika_runtime::compose::RunSeams::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_runtime::compose::RunSeams where T: ?core::marker::Sized
-pub fn nika_runtime::compose::RunSeams::borrow_mut(&mut self) -> &mut T
-impl<T> core::convert::From<T> for nika_runtime::compose::RunSeams
-pub fn nika_runtime::compose::RunSeams::from(t: T) -> T
-impl<T> nika_error::traits::AsAny for nika_runtime::compose::RunSeams where T: 'static
-pub fn nika_runtime::compose::RunSeams::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::compose::RunSeams where T: ?core::marker::Sized
-pub fn nika_runtime::compose::RunSeams::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-pub fn nika_runtime::compose::RunSeams::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-impl<T> tracing::instrument::Instrument for nika_runtime::compose::RunSeams
-impl<T> tracing::instrument::WithSubscriber for nika_runtime::compose::RunSeams
-impl<T> typenum::type_operators::Same for nika_runtime::compose::RunSeams
-pub type nika_runtime::compose::RunSeams::Output = T
+impl nika_runtime::RunSeams
+pub fn nika_runtime::RunSeams::backoff(&self) -> alloc::sync::Arc<dyn nika_providers::retry::Backoff>
+pub fn nika_runtime::RunSeams::of(decl: core::option::Option<&nika_vocab::run::RunDecl>) -> Self
+pub fn nika_runtime::RunSeams::stamper(&self) -> alloc::boxed::Box<dyn nika_event::stamp::Stamper>
+impl<D> owo_colors::OwoColorize for nika_runtime::RunSeams
+impl<T, U> core::convert::Into<U> for nika_runtime::RunSeams where U: core::convert::From<T>
+pub fn nika_runtime::RunSeams::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_runtime::RunSeams where U: core::convert::Into<T>
+pub type nika_runtime::RunSeams::Error = core::convert::Infallible
+pub fn nika_runtime::RunSeams::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_runtime::RunSeams where U: core::convert::TryFrom<T>
+pub type nika_runtime::RunSeams::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_runtime::RunSeams::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_runtime::RunSeams where T: 'static + ?core::marker::Sized
+pub fn nika_runtime::RunSeams::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_runtime::RunSeams where T: ?core::marker::Sized
+pub fn nika_runtime::RunSeams::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_runtime::RunSeams where T: ?core::marker::Sized
+pub fn nika_runtime::RunSeams::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_runtime::RunSeams
+pub fn nika_runtime::RunSeams::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_runtime::RunSeams where T: 'static
+pub fn nika_runtime::RunSeams::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::RunSeams where T: ?core::marker::Sized
+pub fn nika_runtime::RunSeams::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::RunSeams::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::RunSeams
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::RunSeams
+impl<T> typenum::type_operators::Same for nika_runtime::RunSeams
+pub type nika_runtime::RunSeams::Output = T
 pub struct nika_runtime::Runtime<S, T, H, P, D, C>
 impl<S, T, H, P, D, C> nika_runtime::Runtime<S, T, H, P, D, C> where S: nika_kernel_core::io::process::ShellRunDyn + core::marker::Sync, T: nika_kernel_runtime::tool_executor::ToolExecuteDyn, H: nika_kernel_core::io::http::HttpPostDyn + core::marker::Send + core::marker::Sync + 'static, P: nika_kernel_ai::provider::ProviderInferDyn + nika_kernel_ai::provider::ProviderMeta, D: nika_kernel_ai::tool_defs::ToolDefinitionProviderDyn, C: nika_kernel_core::io::clock::ClockDyn + core::marker::Sync
 pub async fn nika_runtime::Runtime<S, T, H, P, D, C>::run(&self, wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, stamper: &mut dyn nika_event::stamp::Stamper, sink: &mut dyn nika_event::stamp::EventSink) -> core::result::Result<nika_runtime::RunOutcome, nika_runtime_laws::errors::RuntimeError>

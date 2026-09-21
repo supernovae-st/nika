@@ -228,7 +228,7 @@ impl TestBackend {
         }
     }
 
-    fn hangs() -> Self {
+    pub(super) fn hangs() -> Self {
         Self {
             calls: AtomicUsize::new(0),
             disposition: ExecutionDisposition::Failed,

@@ -5,8 +5,8 @@
 //! `order_id,customer,amount,status`", "colonnes …", "`(sku,nome,quantidade,minimo)`"): the
 //! only place a plain word may be read as a column of the parsed records.
 
+use super::rule_tokens::fold;
 use super::rules::identifier_shaped;
-use super::shape::fold;
 
 /// Words that introduce a columns hint in the request.
 const COLUMN_WORDS: &[&str] = &[
@@ -81,7 +81,8 @@ fn parenthesized(text: &str) -> Option<Vec<String>> {
 /// The column names the request states ("columns `order_id,customer,amount,status`",
 /// "colonnes …", "(sku,nome,quantidade,minimo)"), in their own spelling; empty when the
 /// request states none.
-pub(super) fn columns_hint(text: &str) -> Vec<String> {
+#[must_use]
+pub fn columns_hint(text: &str) -> Vec<String> {
     let words: Vec<&str> = text.split_whitespace().collect();
     for (at, word) in words.iter().enumerate() {
         let folded = fold(word.trim_matches(|c: char| !c.is_alphanumeric()));

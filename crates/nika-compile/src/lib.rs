@@ -67,36 +67,34 @@
 
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
-mod aggregate;
 mod assemble;
 mod bindings;
 mod cardinality;
 mod cognition;
-mod columns;
 mod compose;
-mod cues;
 pub mod decide;
 mod edit;
 mod edit_source;
-mod gates;
-mod hot;
+mod laws;
 mod ledger;
-mod lexicon;
 mod materialize;
-mod objects;
-mod paths;
+mod network;
 pub(crate) mod pattern;
-mod plan;
 mod predicate;
+mod realize;
 mod retrieve;
-mod rules;
 mod shape;
 mod structure;
 mod support;
-pub mod text;
 mod trigger;
 mod types;
 mod wire;
+mod writes;
+
+// The frozen reader and the typed plan live in the second member of this unit (the
+// ADR-137 precedent); the composer, the assembler and the preview read them at their
+// historical module paths.
+use nika_compile_reader::{columns, gates, hot, lexicon, objects, paths, plan, rule_tokens, rules};
 
 use std::collections::BTreeSet;
 
@@ -108,6 +106,7 @@ pub use cognition::{
     Cognition, NoProvider, compile_with_cognition, compile_with_provider, intent_sha256,
 };
 pub use materialize::{MaterializeError, materialize_ready};
+pub use nika_compile_reader::text;
 pub use retrieve::{Hit, HitKind, retrieve, retrieve_by_ops};
 pub use types::{
     AuthoringCognition, AuthoringPolicy, AuthoringReceipt, CompileDiagnostic, CompileError,

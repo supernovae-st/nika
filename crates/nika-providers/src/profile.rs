@@ -135,6 +135,22 @@ impl Profile {
         self.id != "deepseek" && self.wire.supports_response_format()
     }
 
+    /// Whether THIS seat honours native `response_format: json_schema` —
+    /// the provider answer refined by the catalog's per-model `json_mode`
+    /// (`Object` and `Unavailable` say no; `Schema` or an absent fact keeps
+    /// the family answer). The OpenAI-compatible wire reshapes a
+    /// `JsonSchema` request by the same fact (`wire::json_mode`), so a
+    /// caller that asks here and a caller that never asks both end on a
+    /// request the seat accepts.
+    #[must_use]
+    pub fn supports_response_format_for(&self, wire_model: &str) -> bool {
+        self.supports_response_format()
+            && !matches!(
+                nika_catalog::model_capabilities(self.id, wire_model).json_mode,
+                Some(nika_catalog::JsonMode::Object | nika_catalog::JsonMode::Unavailable)
+            )
+    }
+
     /// The execution-access class this profile runs over TODAY
     /// (D-2026-08-04-N1 · `model:` picks the intelligence, access the
     /// path) — the ONE derivation, shared with the trace emitter via
@@ -412,6 +428,12 @@ fn unique_other_seat(canonical: &str, name: &str) -> Option<String> {
             .iter()
             .any(|m| m.id.eq_ignore_ascii_case(name) || m.model.eq_ignore_ascii_case(name))
     {
+        return None;
+    }
+    // A model this seat PRICES is this seat's model, whatever another
+    // row's short list says: `openai/gpt-4o` is priced under openai and
+    // was refused as azure's because only azure's row listed it.
+    if nika_catalog::find_pricing_scoped(canonical, name).is_some() {
         return None;
     }
     let pasteable = nika_catalog::pasteable_for(name)?;
@@ -725,6 +747,12 @@ mod tests {
             !bare.why.contains("groq"),
             "repair must not dump groq next to xai: {}",
             bare.why
+        );
+        // A model the seat prices is the seat's own, even when only another
+        // provider's short list names it (openai prices gpt-4o; azure lists it).
+        assert!(
+            resolve_refusal("openai/gpt-4o").is_none_or(|r| !r.why.contains("served by")),
+            "a priced model is never a wrong seat"
         );
         let groq_wrong = resolve_refusal("groq/grok-3").expect("wrong seat is a refusal");
         assert!(

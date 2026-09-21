@@ -3,10 +3,10 @@
 | | |
 |---|---|
 | Status | **MEMBER** (size-cap split of the admitted `nika-onboard` unit · ADR-137 · D-2026-07-09-N1 · 2026-09-21) |
-| Layer | L4 — a library surface; lateral L4→L4 edge `nika-onboard → nika-compile`, never back |
-| Design | the stateless Compile core: one `CompileRequest` in, one `CompileOutcome` out — the deterministic reader (frozen: a safety floor), the private typed semantic plan (operations · effects · obligations · constraints · typed computations), the finite composer and its feasibility rules, the deterministic assembler, the Check preview, the recorded-plan replay across answer rounds |
-| IMPL | measured by `scripts/crate-metrics.sh nika-compile` at each freeze; the crate carries what `nika-onboard::compile` carried on 2026-09-21 (about 12k prod LOC · 187 unit tests · 9 integration suites) |
-| LOC budget | ≤15k crate · ≤1500/file (`lexicon.rs` carries a `lookup-table` LOC-EXEMPT: the frozen reader's head, cue and marker tables) · ≤100/fn |
+| Layer | L4 — a library surface; lateral L4→L4 edges `nika-onboard → nika-compile` and `nika-compile → nika-compile-reader` (ADR-138), never back |
+| Design | the stateless Compile core: one `CompileRequest` in, one `CompileOutcome` out — the finite composer and its feasibility rules over the reader's typed plan, the deterministic assembler, the Check preview, the recorded-plan replay across answer rounds; the deterministic reader (frozen: a safety floor) and the private typed semantic plan (operations · effects · obligations · constraints · typed computations) live in `nika-compile-reader` since ADR-138 |
+| IMPL | measured by `scripts/crate-metrics.sh nika-compile` at each freeze; the crate carries what `nika-onboard::compile` carried on 2026-09-21 minus the reader and the plan, descended to `nika-compile-reader` the same day (ADR-138 · the gate's own counter: 9,778 prod LOC after the split · 52 unit tests · 15 integration suites) |
+| LOC budget | ≤15k crate · ≤1500/file · ≤100/fn (the frozen reader's tables and their `lookup-table` LOC-EXEMPT live in `nika-compile-reader` since ADR-138) |
 | Crate version | tracks workspace |
 | License | `AGPL-3.0-or-later` |
 | Edition | 2024 |
@@ -54,9 +54,12 @@ back on the surface.
 
 ## 4. Module map
 
-`lexicon` (reader) · `objects`, `gates`, `hot` (admission laws) · `cognition`, `predicate`
-(the typed proposal and its validation) · `plan`, `rules`, `aggregate`, `columns` (the typed
-plan and its computations) · `compose` (the finite candidate set and rules 1–14) ·
-`bindings`, `shape`, `paths`, `assemble` (the deterministic assembler) · `retrieve`
-(recall over the gallery, provenance only) · `decide` (the closed-choice seat) · `edit`,
-`edit_source`, `materialize`, `wire`, `support`, `types`, `text`.
+`cognition`, `predicate` (the typed proposal and its validation) · `compose` (the finite
+candidate set and rules 1–14) · `bindings`, `shape`, `network`, `laws`, `trigger`,
+`assemble` (the deterministic assembler) · `retrieve` (recall over the gallery, provenance
+only) · `decide` (the closed-choice seat) · `edit`, `edit_source`, `materialize`, `wire`,
+`support`, `types`, `pattern`. The reader (`lexicon`), the admission laws (`objects`,
+`gates`, `hot`, `paths`, `columns`), the typed plan and its computations (`plan`, `rules`,
+`aggregate`, `rule_tokens`, `rule_cues`, `stages`) and the shared `text` helpers are read
+from `nika-compile-reader` at these same module paths (ADR-138 ·
+`docs/crate-specs/nika-compile-reader.md`).

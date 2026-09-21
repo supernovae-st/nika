@@ -13,7 +13,8 @@ use super::lexicon::{self, Head, Reading};
 use super::plan::{EffectPolicy, EffectVerb, ObligationKind, Op, Plan};
 
 /// Why a reading may not be admitted as HOT, in addition to [`Reading::hot_rejections`].
-pub(super) fn rejections(intent: &str, reading: &Reading) -> Vec<String> {
+#[must_use]
+pub fn rejections(intent: &str, reading: &Reading) -> Vec<String> {
     let mut why = Vec::new();
     let lower = lexicon::fold_apostrophes(intent).to_lowercase();
     cue_coverage(&lower, reading, &mut why);
@@ -25,7 +26,9 @@ pub(super) fn rejections(intent: &str, reading: &Reading) -> Vec<String> {
 
 /// Every cue of the reader's table that occurs in the request must correspond to an element
 /// of the reading (a step of that operation, an effect of that verb, an obligation, a recorded
-/// ambiguity) or lie inside a clause the reader already reports as unresolved.
+/// ambiguity), or lie inside a clause the reader already reports as unresolved, or inside a
+/// rule the closed grammar parsed (there, `open` in `whose status is open` is a value the
+/// predicate compares, never a verb).
 fn cue_coverage(lower: &str, reading: &Reading, why: &mut Vec<String>) {
     let reported: Vec<String> = reading
         .unresolved
@@ -33,6 +36,7 @@ fn cue_coverage(lower: &str, reading: &Reading, why: &mut Vec<String>) {
         .chain(reading.ambiguous.iter().map(|a| &a.clause))
         .chain(reading.soft_constraints.iter())
         .map(|clause| clause.to_lowercase())
+        .chain(reading.plan.rules.iter().map(|r| r.text().to_lowercase()))
         .collect();
     let mut seen: Vec<&'static str> = Vec::new();
     let mut prev: Option<char> = None;
@@ -75,7 +79,14 @@ fn satisfied(head: &Head, reading: &Reading) -> bool {
                     .iter()
                     .any(|a| a.options.iter().any(|op| options.contains(op)))
         }
-        Head::Effect(verb) => plan.effects.iter().any(|e| e.verb == *verb),
+        // A save cue (`enregistre`, `salvalo`, `guárdalo`) reads as a create; with a path
+        // and a destination the reader turns it into the write effect it names. A gate
+        // naming the action by a kindred verb ("never send … without my approval" over a
+        // stated post) is the policy of that effect.
+        Head::Effect(verb) => plan.effects.iter().any(|e| {
+            lexicon::kindred(e.verb, *verb)
+                || (*verb == EffectVerb::Create && e.verb == EffectVerb::Write)
+        }),
         Head::Dedup => plan
             .obligations
             .iter()
@@ -116,7 +127,7 @@ fn looks_like_path(token: &str) -> bool {
             }))
 }
 
-const WRITE_HEADS: &[&str] = &[
+pub const WRITE_HEADS: &[&str] = &[
     "write",
     "writes",
     "écris",
@@ -182,8 +193,14 @@ const LINK_WORDS: &[&str] = &[
 ];
 
 /// Nouns that name content a step must produce before an effect can carry it (EN · FR ·
-/// ES · IT · PT · DE), in their diacritic-folded lowercase form.
-const PRODUCED_NOUNS: &[&str] = &[
+/// ES · IT · PT · DE), in their diacritic-folded lowercase form. The reader shares the
+/// table: a make head (`fais-moi`, `fammi`) drafts only one of these.
+pub(crate) const PRODUCED_NOUNS: &[&str] = &[
+    "bilan",
+    "compte-rendu",
+    "sintesi",
+    "sommario",
+    "sinopsis",
     "reply",
     "replies",
     "report",
@@ -312,7 +329,7 @@ const COPY_CUES: &[&str] = &[
 
 /// Lowercase with French, Spanish, Portuguese and German diacritics folded, so the
 /// noun and cue tables match one spelling.
-fn fold(text: &str) -> String {
+pub fn fold(text: &str) -> String {
     text.chars()
         .flat_map(char::to_lowercase)
         .map(|c| match c {
@@ -361,7 +378,7 @@ fn copy_cue(text: &str) -> bool {
 /// step whose material it carries unchanged. A prohibited or contradictory effect is never
 /// emitted, so it needs nothing; a target naming a local file is a write and follows the
 /// write law.
-pub(super) fn unproduced_content(plan: &Plan, why: &mut Vec<String>) {
+pub fn unproduced_content(plan: &Plan, why: &mut Vec<String>) {
     write_without_producer(plan, why);
     let produces = plan.has(Op::Draft) || plan.has(Op::Extract) || plan.has(Op::Compute);
     if produces {
@@ -390,6 +407,11 @@ pub(super) fn unproduced_content(plan: &Plan, why: &mut Vec<String>) {
         if copy_cue(&text) && sourced {
             continue;
         }
+        // "post the report to <url>" after "Read ./report.md": an object whose head recurs
+        // in a source's own words carries that material unchanged.
+        if sourced && super::objects::carried(&effect.target, plan) {
+            continue;
+        }
         why.push(format!(
             "`{}` names content no step produces: {noun} ({})",
             effect.verb.word(),
@@ -400,7 +422,7 @@ pub(super) fn unproduced_content(plan: &Plan, why: &mut Vec<String>) {
 
 /// A revision check rereads the record it looked up; without a lookup there is nothing
 /// retrievable to recheck.
-pub(super) fn unrecheckable_revision(plan: &Plan, why: &mut Vec<String>) {
+pub fn unrecheckable_revision(plan: &Plan, why: &mut Vec<String>) {
     if plan
         .obligations
         .iter()
@@ -446,6 +468,21 @@ fn write_without_producer(plan: &Plan, why: &mut Vec<String>) {
             }
             _ => after_head.to_owned(),
         };
+        // `write ./b.txt` with nothing produced before it: the path is the whole object, and
+        // nothing says what the file holds. The reader keeps it a write (after a computation
+        // it carries the result); with no producer the missing content is named here.
+        if content.trim().is_empty() {
+            why.push(format!(
+                "`write` object is a path, a write with no content: {}",
+                effect.target.trim()
+            ));
+            continue;
+        }
+        // After a fetch, a facet of the page ("the page title", "the article text") is the
+        // fetch's own mode carried as it is, never content a step must produce.
+        if plan.has(Op::Fetch) && super::objects::page_facet(&content).is_some() {
+            continue;
+        }
         let words = content
             .split(|c: char| !c.is_alphanumeric() && c != '-' && c != '\'')
             .filter(|w| !w.is_empty() && !LINK_WORDS.contains(w))
@@ -481,6 +518,20 @@ mod tests {
             why.iter().any(|w| w.contains("a write with no content")),
             "{why:?}"
         );
+        // The same bare path after a computation carries its result: nothing is missing.
+        let intent = "Read ./sales.csv, sort the rows by amount descending and write ./sorted.csv";
+        let reading = lexicon::read(intent);
+        assert!(
+            reading
+                .plan
+                .effects
+                .iter()
+                .any(|e| e.verb == EffectVerb::Write && e.target == "./sorted.csv"),
+            "{:?}",
+            reading.plan.effects
+        );
+        let why = rejections(intent, &reading);
+        assert!(why.is_empty(), "{why:?}");
         // The written object names new content: the reader now carries it as the draft the
         // write demands (the transformation never vanishes), and the deterministic door still
         // refuses it because that object is coordinated prose, not an explicit one.

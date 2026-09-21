@@ -51,6 +51,15 @@ pub trait SessionReasoner {
     /// When the path cannot answer — the runtime refuses the turn with
     /// the reason, never silently switches paths.
     fn reason(&mut self, prompt: &str) -> Result<Reply, ReasonError>;
+
+    /// The `<provider>/<model>` the compiler may author with under this
+    /// path — the same model the human chose to reason with, when the
+    /// path is a metered API or a local engine. A seat that reasons in
+    /// words only, and no path at all, name none: authoring then stays
+    /// deterministic ([`crate::authoring::AuthoringSeat`]).
+    fn authoring_model(&self) -> Option<String> {
+        None
+    }
 }
 
 /// The tests' reasoner: canned replies, and a record of every prompt it
@@ -150,6 +159,10 @@ pub struct ProviderReasoner {
 impl SessionReasoner for ProviderReasoner {
     fn name(&self) -> String {
         self.label.clone()
+    }
+
+    fn authoring_model(&self) -> Option<String> {
+        Some(self.model.clone())
     }
 
     fn reason(&mut self, prompt: &str) -> Result<Reply, ReasonError> {

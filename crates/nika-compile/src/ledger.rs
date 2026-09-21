@@ -194,7 +194,6 @@ impl Ledger {
         for effect in &plan.effects {
             let duty = Duty::new(DutyKind::Effect, &effect.evidence);
             match effect.policy {
-                EffectPolicy::Automatic => duties.push(duty),
                 EffectPolicy::HumanFirst => {
                     duties.push(duty);
                     duties.push(Duty::new(DutyKind::Gate, &effect.evidence));
@@ -210,6 +209,7 @@ impl Ledger {
                 EffectPolicy::Conflict => duties.push(
                     duty.with_state(DutyState::Contradicted, "requested and prohibited at once"),
                 ),
+                _ => duties.push(duty),
             }
         }
         for constraint in &plan.constraints {
@@ -326,22 +326,11 @@ mod tests {
     use crate::plan::{Effect, EffectVerb, Obligation, ObligationKind, Step};
 
     fn step(op: Op, evidence: &str) -> Step {
-        Step {
-            op,
-            evidence: evidence.to_owned(),
-            detail: evidence.to_owned(),
-            categories: Vec::new(),
-        }
+        Step::new(op, evidence, evidence, Vec::new())
     }
 
     fn effect(verb: EffectVerb, evidence: &str, policy: EffectPolicy) -> Effect {
-        Effect {
-            verb,
-            target: evidence.to_owned(),
-            evidence: evidence.to_owned(),
-            policy,
-            policy_literal: None,
-        }
+        Effect::new(verb, evidence, evidence, policy)
     }
 
     fn kinds(ledger: &Ledger) -> Vec<(DutyKind, DutyState)> {
@@ -350,27 +339,22 @@ mod tests {
 
     #[test]
     fn a_plan_states_its_duties_in_order_and_a_read_states_none() {
-        let plan = Plan {
-            steps: vec![
-                step(Op::Read, "Read ./notes/brief.md"),
-                step(Op::Draft, "write a 3-bullet summary"),
-            ],
-            effects: vec![effect(
-                EffectVerb::Write,
-                "write a 3-bullet summary to ./out/summary.md only after my approval",
-                EffectPolicy::HumanFirst,
-            )],
-            constraints: vec![
-                "3 bullets".to_owned(),
-                "in a warm tone".to_owned(),
-                "with one heading per file named after the file".to_owned(),
-            ],
-            obligations: vec![Obligation {
-                kind: ObligationKind::Dedup,
-                evidence: "never twice".to_owned(),
-            }],
-            ..Plan::default()
-        };
+        let mut plan = Plan::default();
+        plan.steps = vec![
+            step(Op::Read, "Read ./notes/brief.md"),
+            step(Op::Draft, "write a 3-bullet summary"),
+        ];
+        plan.effects = vec![effect(
+            EffectVerb::Write,
+            "write a 3-bullet summary to ./out/summary.md only after my approval",
+            EffectPolicy::HumanFirst,
+        )];
+        plan.constraints = vec![
+            "3 bullets".to_owned(),
+            "in a warm tone".to_owned(),
+            "with one heading per file named after the file".to_owned(),
+        ];
+        plan.obligations = vec![Obligation::new(ObligationKind::Dedup, "never twice")];
         let ledger = Ledger::extract(&plan);
         assert_eq!(
             kinds(&ledger),
@@ -408,25 +392,23 @@ mod tests {
 
     #[test]
     fn policies_and_unknowns_set_their_states_never_a_model() {
-        let plan = Plan {
-            effects: vec![
-                effect(EffectVerb::Send, "never send it", EffectPolicy::Forbidden),
-                effect(
-                    EffectVerb::Notify,
-                    "maybe notify ops",
-                    EffectPolicy::Undecided,
-                ),
-                effect(
-                    EffectVerb::Refund,
-                    "refund and never refund",
-                    EffectPolicy::Conflict,
-                ),
-                effect(EffectVerb::Write, "write ./x.md", EffectPolicy::Automatic),
-            ],
-            unknowns: vec!["the URL from last time".to_owned()],
-            trigger: Some("for each critical row".to_owned()),
-            ..Plan::default()
-        };
+        let mut plan = Plan::default();
+        plan.effects = vec![
+            effect(EffectVerb::Send, "never send it", EffectPolicy::Forbidden),
+            effect(
+                EffectVerb::Notify,
+                "maybe notify ops",
+                EffectPolicy::Undecided,
+            ),
+            effect(
+                EffectVerb::Refund,
+                "refund and never refund",
+                EffectPolicy::Conflict,
+            ),
+            effect(EffectVerb::Write, "write ./x.md", EffectPolicy::Automatic),
+        ];
+        plan.unknowns = vec!["the URL from last time".to_owned()];
+        plan.trigger = Some("for each critical row".to_owned());
         let ledger = Ledger::extract(&plan);
         assert_eq!(
             kinds(&ledger),
@@ -465,14 +447,12 @@ mod tests {
             &["status".to_owned()],
         )
         .expect("the closed grammar reads this rule");
-        let plan = Plan {
-            steps: vec![
-                step(Op::Read, "Read ./orders.csv"),
-                step(Op::Compute, "keep only the rows whose status is refunded"),
-            ],
-            rules: vec![rule],
-            ..Plan::default()
-        };
+        let mut plan = Plan::default();
+        plan.steps = vec![
+            step(Op::Read, "Read ./orders.csv"),
+            step(Op::Compute, "keep only the rows whose status is refunded"),
+        ];
+        plan.rules = vec![rule];
         assert_eq!(
             kinds(&Ledger::extract(&plan)),
             [
@@ -485,14 +465,12 @@ mod tests {
             "the number of tickets and the sum of amount_cents",
             &["ticket".to_owned(), "amount_cents".to_owned()],
         );
-        let plan = Plan {
-            steps: vec![step(
-                Op::Compute,
-                "the number of tickets and the sum of amount_cents",
-            )],
-            rules: totals.into_iter().collect(),
-            ..Plan::default()
-        };
+        let mut plan = Plan::default();
+        plan.steps = vec![step(
+            Op::Compute,
+            "the number of tickets and the sum of amount_cents",
+        )];
+        plan.rules = totals.into_iter().collect();
         assert!(
             Ledger::extract(&plan)
                 .duties
@@ -506,17 +484,11 @@ mod tests {
         let mut reading = Reading::default();
         reading.unresolved.push("do the thing".to_owned());
         reading.soft_constraints.push("pas de blabla".to_owned());
-        reading.ambiguous.push(super::super::lexicon::Ambiguity {
-            clause: "relis le texte".to_owned(),
-            detail: "le texte".to_owned(),
-            options: vec![Op::Validate, Op::Draft],
-        });
         let ledger = Ledger::extract_reading(&reading);
         assert_eq!(
             kinds(&ledger),
             [
                 (DutyKind::Work, DutyState::Unresolved),
-                (DutyKind::Work, DutyState::NeedsHuman),
                 (DutyKind::Format, DutyState::Unresolved),
             ]
         );
@@ -525,7 +497,6 @@ mod tests {
         assert_eq!(json[0]["state"], "unresolved");
         assert_eq!(json[0]["evidence"], "do the thing");
         assert!(json[0]["realized_by"].is_null());
-        assert_eq!(json[1]["state"], "needs_human");
     }
 
     #[test]
