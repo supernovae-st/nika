@@ -6,9 +6,10 @@
 //! across inference. Hash chaining detects accidental damage, not forgery
 //! by someone who can rewrite the private history directory.
 
-use std::fs::File;
+use std::fs::{File, TryLockError};
 use std::io::{self, Read as _};
 use std::path::Path;
+use std::time::Duration;
 
 use nika_fs::OwnedDir;
 use serde::{Deserialize, Serialize};
@@ -18,6 +19,12 @@ const MAX_LOG_BYTES: usize = 16 * 1024 * 1024;
 const MAX_RECORD_BYTES: usize = 1024 * 1024;
 const MAX_INPUT_BYTES: usize = 64 * 1024;
 const GENESIS: &str = "0000000000000000000000000000000000000000000000000000000000000000";
+/// How long a lease may look held before it is refused as foreign. A sibling
+/// thread spawning a child (a run, an exec) duplicates this process's
+/// descriptors until the child's exec closes them, and a BSD `flock` rides the
+/// duplicate for that window: a bounded wait tells that window from an owner.
+const LEASE_GRACE: Duration = Duration::from_millis(250);
+const LEASE_STEP: Duration = Duration::from_millis(5);
 
 pub(super) enum HistoryMode {
     Ephemeral,
@@ -145,11 +152,7 @@ impl History {
             dir = child;
         }
         let lease = dir.open_lock("session.lock")?;
-        lease.try_lock().map_err(|error| {
-            io::Error::other(format!(
-                "cannot exclusively open conversation history: {error}"
-            ))
-        })?;
+        acquire(&lease)?;
         let mut history = Self {
             dir,
             _lease: lease,
@@ -366,4 +369,25 @@ impl History {
 
 fn invalid(message: &str) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, message)
+}
+
+/// Take the project's writer lease, or refuse it as held by another opener.
+/// A lease that only looks held for a fork window is acquired within the
+/// grace; one held past it is a foreign owner, named as before.
+fn acquire(lease: &File) -> io::Result<()> {
+    let mut waited = Duration::ZERO;
+    loop {
+        match lease.try_lock() {
+            Ok(()) => return Ok(()),
+            Err(TryLockError::WouldBlock) if waited < LEASE_GRACE => {
+                std::thread::sleep(LEASE_STEP);
+                waited += LEASE_STEP;
+            }
+            Err(error) => {
+                return Err(io::Error::other(format!(
+                    "cannot exclusively open conversation history: {error}"
+                )));
+            }
+        }
+    }
 }
