@@ -513,7 +513,7 @@ fn push_obligation(plan: &mut Plan, obligation: Obligation) {
 
 /// The endpoint family: send, publish and notify all reach a stated destination. A gate
 /// phrase that names the action by a verb word alone ("ask me before sending", "don't
-/// publish until I approve") gates the stated effect of the family ("post it to <url>"),
+/// publish until I approve") gates the stated effect of the family ("post it to `<url>`"),
 /// never a phantom effect of its own verb with no destination.
 const ENDPOINT_FAMILY: [EffectVerb; 3] =
     [EffectVerb::Send, EffectVerb::Publish, EffectVerb::Notify];
