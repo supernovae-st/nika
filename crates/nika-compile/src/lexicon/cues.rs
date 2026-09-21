@@ -35,6 +35,20 @@ pub(super) const LOOKUP_CUES: &[&str] = &[
     "client",
     "entreprise",
     "compte",
+    "banca dati",
+    "base dati",
+    "base de datos",
+    "elenco",
+    "directorio",
+    "registro",
+    "storico",
+    "historial",
+    "calendario",
+    "conto",
+    "cuenta",
+    "azienda",
+    "empresa",
+    "listino",
 ];
 pub(super) const SEARCH_CUES: &[&str] = &[
     "pdf",
@@ -47,6 +61,19 @@ pub(super) const SEARCH_CUES: &[&str] = &[
     "guide",
     "passages",
     "corpus",
+    "cartella",
+    "carpeta",
+    "documenti",
+    "documentos",
+    "archivos",
+    "pagine",
+    "páginas",
+    "paginas",
+    "guida",
+    "guía",
+    "guia",
+    "passaggi",
+    "pasajes",
 ];
 pub(super) const READ_CUES: &[&str] = &[
     "fourni",
@@ -60,6 +87,22 @@ pub(super) const READ_CUES: &[&str] = &[
     "formulaire",
     "form ",
     "transcript",
+    "fornito",
+    "fornita",
+    "forniti",
+    "fornite",
+    "allegato",
+    "allegata",
+    "allegati",
+    "proporcionado",
+    "proporcionada",
+    "adjunto",
+    "adjunta",
+    "suministrado",
+    "formulario",
+    "trascrizione",
+    "transcripción",
+    "transcripcion",
 ];
 pub(super) const LEADING_FILLER: &[&str] = &[
     "ensuite ",
@@ -77,12 +120,29 @@ pub(super) const LEADING_FILLER: &[&str] = &[
     "only ",
     "always ",
     "toujours ",
+    "poi ",
+    "quindi ",
+    "per favore ",
+    "anche ",
+    "sempre ",
+    "soltanto ",
+    "luego ",
+    "después ",
+    "despues ",
+    "por favor ",
+    "también ",
+    "tambien ",
+    "siempre ",
 ];
 pub(super) const ARTICLES: &[&str] = &[
     "le", "la", "les", "l", "l'", "d", "qu", "n", "s", "c", "j", "un", "une", "des", "du", "de",
     "d'", "the", "a", "an", "my", "mon", "ma", "mes", "notre", "nos", "our", "son", "sa", "ses",
     "its", "their", "leur", "leurs", "ce", "cet", "cette", "ces", "chaque", "each", "every",
-    "tout", "toute", "tous", "toutes", "any", "all", "en", "ensuite",
+    "tout", "toute", "tous", "toutes", "any", "all", "en", "ensuite", "il", "lo", "gli", "i",
+    "uno", "una", "dei", "delle", "degli", "della", "dello", "del", "di", "ogni", "tutti", "tutte",
+    "questo", "questa", "questi", "queste", "mio", "mia", "miei", "mie", "nostro", "nostra", "suo",
+    "sua", "el", "los", "las", "unos", "unas", "al", "cada", "todo", "todos", "todas", "este",
+    "esta", "estos", "estas", "mi", "mis", "nuestro", "nuestra", "su", "sus",
 ];
 pub(super) const TRIGGER_PREFIXES: &[&str] = &[
     "pour la ",
@@ -107,6 +167,16 @@ pub(super) const TRIGGER_PREFIXES: &[&str] = &[
     "à partir de ",
     "from the ",
     "starting from ",
+    "per ogni ",
+    "per ciascun ",
+    "per ciascuna ",
+    "ogni ",
+    "quando ",
+    "a partire da ",
+    "para cada ",
+    "cada ",
+    "cuando ",
+    "a partir de ",
 ];
 
 pub(super) const NUMBER_WORDS: &[(&str, u32)] = &[
@@ -130,6 +200,24 @@ pub(super) const NUMBER_WORDS: &[(&str, u32)] = &[
     ("nine", 9),
     ("dix", 10),
     ("ten", 10),
+    ("uno", 1),
+    ("due", 2),
+    ("dos", 2),
+    ("tre", 3),
+    ("tres", 3),
+    ("quattro", 4),
+    ("cuatro", 4),
+    ("cinque", 5),
+    ("cinco", 5),
+    ("seis", 6),
+    ("sette", 7),
+    ("siete", 7),
+    ("otto", 8),
+    ("ocho", 8),
+    ("nove", 9),
+    ("nueve", 9),
+    ("dieci", 10),
+    ("diez", 10),
 ];
 pub(super) const ATTEMPT_NOUNS: &[&str] = &[
     "essai",
@@ -142,6 +230,12 @@ pub(super) const ATTEMPT_NOUNS: &[&str] = &[
     "tries",
     "try",
     "round",
+    "tentativ",
+    "intento",
+    "iterazion",
+    "iteración",
+    "iteracion",
+    "ciclo",
 ];
 pub(super) const BOUND_WORDS: &[&str] = &[
     "limite ",
@@ -153,6 +247,15 @@ pub(super) const BOUND_WORDS: &[&str] = &[
     "no more than",
     "at max",
     "max ",
+    "al massimo",
+    "massimo",
+    "non più di",
+    "como máximo",
+    "como maximo",
+    "máximo",
+    "maximo",
+    "no más de",
+    "no mas de",
 ];
 pub(super) const UNDECIDED_MARKERS: &[&str] = &[
     "je n'ai pas encore décidé si le workflow doit ",
@@ -190,6 +293,16 @@ pub(super) const FINAL_GATE_MARKERS: &[&str] = &[
     "but get my approval before",
     "get my approval before",
     "with my approval before",
+    "solo dopo la mia approvazione",
+    "dopo la mia approvazione",
+    "solo dopo il mio consenso",
+    "dopo il mio consenso",
+    "sólo después de mi aprobación",
+    "solo después de mi aprobación",
+    "después de mi aprobación",
+    "solo despues de mi aprobacion",
+    "despues de mi aprobacion",
+    "solo con mi aprobación",
 ];
 pub(super) const NAMED_GATE_MARKERS: &[&str] = &[
     "demande mon accord avant ",
@@ -204,6 +317,12 @@ pub(super) const NAMED_GATE_MARKERS: &[&str] = &[
     "hold every ",
     "attends ma validation avant ",
     "wait for my approval before ",
+    "chiedimi prima di ",
+    "chiedi la mia approvazione prima di ",
+    "pregúntame antes de ",
+    "preguntame antes de ",
+    "pide mi aprobación antes de ",
+    "pide mi aprobacion antes de ",
 ];
 pub(super) const FORBIDDEN_MARKERS: &[&str] = &[
     "il est aussi absolument interdit de ",
@@ -222,6 +341,13 @@ pub(super) const FORBIDDEN_MARKERS: &[&str] = &[
     "don't ",
     "nothing should be ",
     "ne jamais ",
+    "è vietato ",
+    "e vietato ",
+    "è assolutamente vietato ",
+    "está prohibido ",
+    "esta prohibido ",
+    "está absolutamente prohibido ",
+    "nunca ",
 ];
 pub(super) const STOP_MARKERS: &[&str] = &[
     "arrête-toi après",
@@ -234,11 +360,30 @@ pub(super) const STOP_MARKERS: &[&str] = &[
 /// Connectors that open a new clause whatever follows (a sequencing word must never
 /// swallow an unknown verb as the previous object).
 pub(super) const STRONG_CONNECTORS: &[&str] = &[
-    ", puis ", " puis ", ", then ", " then ", ", mais ", " mais ", ", but ", " but ",
+    ", puis ",
+    " puis ",
+    ", then ",
+    " then ",
+    ", mais ",
+    " mais ",
+    ", but ",
+    " but ",
+    ", poi ",
+    " poi ",
+    ", quindi ",
+    " quindi ",
+    ", luego ",
+    " luego ",
+    ", después ",
+    " después ",
+    ", despues ",
+    " despues ",
 ];
 
 /// Connectors that open a new clause only before a known head.
-pub(super) const WEAK_CONNECTORS: &[&str] = &[", et ", " et ", ", and ", " and ", ", "];
+pub(super) const WEAK_CONNECTORS: &[&str] = &[
+    ", et ", " et ", ", and ", " and ", ", e ", " e ", ", ed ", " ed ", ", y ", " y ", ", ",
+];
 
 /// One filler word after the first word of a clause (`passe ensuite la commande`).
 pub(super) const SECOND_WORD_FILLERS: &[&str] = &[
@@ -250,6 +395,14 @@ pub(super) const SECOND_WORD_FILLERS: &[&str] = &[
     "puis",
     "immédiatement",
     "immediately",
+    "poi",
+    "quindi",
+    "anche",
+    "luego",
+    "después",
+    "despues",
+    "también",
+    "tambien",
 ];
 
 /// Coordinating connectors inside an object: a coordinated object is never explicit.
@@ -266,14 +419,26 @@ pub(super) const OBJECT_CONNECTORS: &[&str] = &[
     " without ",
     " mais ",
     " but ",
+    " e ",
+    " ed ",
+    " y ",
+    " o ",
+    " poi ",
+    " quindi ",
+    " luego ",
+    " pero ",
+    " però ",
 ];
 
-/// Category markers of a classify object (`classe en A, B ou C`).
-pub(super) const CATEGORY_MARKERS: &[&str] = &[" en ", " into ", " as "];
+/// Category markers of a classify object (`classe en A, B ou C`, `classifica in A o B`).
+pub(super) const CATEGORY_MARKERS: &[&str] =
+    &[" en ", " into ", " as ", " in ", " come ", " como "];
 
-/// Clause openers that state a negation (a prohibition or a restriction).
-pub(super) const NEGATION_OPENERS: &[&str] =
-    &["ne ", "n'", "do not ", "don't ", "never ", "no ", "aucun"];
+/// Clause openers that state a negation (a prohibition or a restriction), per language.
+pub(super) const NEGATION_OPENERS: &[&str] = &[
+    "ne ", "n'", "do not ", "don't ", "never ", "no ", "aucun", "non ", "nunca ", "jamás ",
+    "jamas ",
+];
 
 /// Clause openers that state a condition or a preservation, kept as a constraint.
 pub(super) const CONSTRAINT_OPENERS: &[&str] = &[
@@ -288,4 +453,12 @@ pub(super) const CONSTRAINT_OPENERS: &[&str] = &[
     "conserve ",
     "garde ",
     "ignore ",
+    "se ",
+    "lascia ",
+    "mantieni ",
+    "conserva ",
+    "ignora ",
+    "deja ",
+    "mantén ",
+    "manten ",
 ];

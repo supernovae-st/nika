@@ -5,8 +5,9 @@
 //!
 //! Every table is closed. A head names one operation, a small finite choice of
 //! operations, an effect verb or the deduplication obligation; the reader never
-//! guesses a head it does not list. The longest matching phrase wins, and a match
-//! must end at a word boundary (`look up` before `look`, never `lookups`).
+//! guesses a head it does not list. English and French share one table; Italian
+//! and Spanish live in their own files. The longest matching phrase wins, and a
+//! match must end at a word boundary (`look up` before `look`, never `lookups`).
 
 use super::super::plan::{EffectVerb, Op};
 
@@ -18,12 +19,14 @@ pub(crate) enum Head {
 }
 
 /// Every head table, in lookup order (the longest phrase wins across all of them).
-pub(super) const TABLES: &[&[(&str, Head)]] = &[EN_FR];
+pub(super) const TABLES: &[&[(&str, Head)]] = &[EN_FR, super::it::HEADS, super::es::HEADS];
 
-/// Heads that write named content to a path (`écris … dans ./x.md`): with a path and
-/// a destination connector, the clause is a write effect.
+/// Heads that write named content to a path (`écris … dans ./x.md`, `salvalo in
+/// ./x.md`): with a path and a destination connector, the clause is a write effect.
 pub(super) fn writes_to_path(phrase: &str) -> bool {
     WRITE_HEADS.contains(&phrase)
+        || super::it::WRITE_HEADS.contains(&phrase)
+        || super::es::WRITE_HEADS.contains(&phrase)
 }
 
 const WRITE_HEADS: &[&str] = &[

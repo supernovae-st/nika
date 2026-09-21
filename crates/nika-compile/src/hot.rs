@@ -75,7 +75,11 @@ fn satisfied(head: &Head, reading: &Reading) -> bool {
                     .iter()
                     .any(|a| a.options.iter().any(|op| options.contains(op)))
         }
-        Head::Effect(verb) => plan.effects.iter().any(|e| e.verb == *verb),
+        // A save cue (`enregistre`, `salvalo`, `guárdalo`) reads as a create; with a path
+        // and a destination the reader turns it into the write effect it names.
+        Head::Effect(verb) => plan.effects.iter().any(|e| {
+            e.verb == *verb || (*verb == EffectVerb::Create && e.verb == EffectVerb::Write)
+        }),
         Head::Dedup => plan
             .obligations
             .iter()

@@ -25,6 +25,14 @@ pub(crate) fn slug(phrase: &str) -> String {
         " with ",
         " correspondant",
         " correspondante",
+        " di ",
+        " del ",
+        " della ",
+        " en ",
+        " sobre ",
+        " con ",
+        " per ",
+        " para ",
     ]
     .iter()
     .filter_map(|m| lower.find(m))
