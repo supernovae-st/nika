@@ -306,6 +306,58 @@ fn a_spanish_read_draft_and_save_is_read_without_a_seat() {
     assert_eq!(writes(&reading).len(), 1);
 }
 
+/// A question is a conversation: its relative-looking opener and its copula ("Which ending
+/// is gentler?") never make it a rule the grammar reads whole, in any of the reader's
+/// languages, with or without the mark. The compiler leaves it to the conversation (an
+/// honest incomplete with the clarification alone), so the session's reasoner answers it.
+/// The same words behind a head stay the request they are.
+#[test]
+fn a_question_is_a_conversation_never_a_rule_read_whole() {
+    for question in [
+        "Which ending is gentler?",
+        "Which ending is gentler",
+        "Is the total above 100?",
+        "is the total above 100",
+        "How many rows are open?",
+        "Quelle ligne est la plus chère ?",
+        "Quale riga è la più cara?",
+        "Cuál es la fila más cara?",
+    ] {
+        let reading = read(&super::fold_apostrophes(question));
+        assert!(
+            reading.plan.rules.is_empty(),
+            "{question}: {:?}",
+            reading.plan.rules
+        );
+        assert!(
+            steps(&reading).is_empty(),
+            "{question}: {:?}",
+            steps(&reading)
+        );
+        let out = compile(&CompileRequest::create(question)).expect("compile");
+        assert_eq!(
+            out.status,
+            CompileStatus::Incomplete,
+            "{question}: {out:#?}"
+        );
+        assert!(
+            out.questions
+                .iter()
+                .all(|q| q.key == "intent.clarification"),
+            "{question}: {:?}",
+            out.questions
+        );
+    }
+    for headed in [
+        "Read ./tickets.json, keep only the tickets whose status is open and write them to ./open.json?",
+        "Read ./sales.csv, count the rows per client and write the counts to ./per-client.json",
+        "Read ./notes/brief.md and write it to ./out/copy.md?",
+    ] {
+        let out = compile(&CompileRequest::create(headed)).expect("compile");
+        assert_eq!(out.status, CompileStatus::Ready, "{headed}: {out:#?}");
+    }
+}
+
 #[test]
 fn a_headless_clause_the_rule_grammar_reads_whole_is_a_computation() {
     let intent =
