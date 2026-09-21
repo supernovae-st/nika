@@ -186,8 +186,14 @@ const LINK_WORDS: &[&str] = &[
 ];
 
 /// Nouns that name content a step must produce before an effect can carry it (EN · FR ·
-/// ES · IT · PT · DE), in their diacritic-folded lowercase form.
-const PRODUCED_NOUNS: &[&str] = &[
+/// ES · IT · PT · DE), in their diacritic-folded lowercase form. The reader shares the
+/// table: a make head (`fais-moi`, `fammi`) drafts only one of these.
+pub(super) const PRODUCED_NOUNS: &[&str] = &[
+    "bilan",
+    "compte-rendu",
+    "sintesi",
+    "sommario",
+    "sinopsis",
     "reply",
     "replies",
     "report",
@@ -316,7 +322,7 @@ const COPY_CUES: &[&str] = &[
 
 /// Lowercase with French, Spanish, Portuguese and German diacritics folded, so the
 /// noun and cue tables match one spelling.
-fn fold(text: &str) -> String {
+pub(super) fn fold(text: &str) -> String {
     text.chars()
         .flat_map(char::to_lowercase)
         .map(|c| match c {
