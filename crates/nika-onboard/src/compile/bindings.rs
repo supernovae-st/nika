@@ -109,6 +109,9 @@ pub(super) struct WriteEffect {
     /// The one classify category the write's clause names ("the bugs to ./bugs.json"):
     /// the write carries the records routed to it.
     pub category: Option<String>,
+    /// The facet of the fetched page the write's clause names ("the page title to
+    /// ./title.txt"): the write carries the fetch's own mode, never a draft.
+    pub facet: Option<super::network::Facet>,
 }
 
 /// The settled bindings of one plan.
@@ -796,12 +799,17 @@ fn bind_effects(
                 category_named(&s.categories, &prose)
                     .or_else(|| category_named(&s.categories, &paths::stem(&path)))
             });
+            let facet = plan
+                .has(Op::Fetch)
+                .then(|| super::network::write_facet(&effect.evidence, &path))
+                .flatten();
             b.writes.push(WriteEffect {
                 stem: paths::stem(&path),
                 path,
                 gated,
                 target: effect.target.clone(),
                 category,
+                facet,
             });
             continue;
         }
@@ -997,6 +1005,7 @@ fn bind_named_outputs(
                 path,
                 gated: false,
                 category: None,
+                facet: None,
             }),
             Some(Value::Bool(false)) => super::finding(
                 out,

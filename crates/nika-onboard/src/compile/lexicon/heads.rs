@@ -40,6 +40,8 @@ pub(super) fn is_make(phrase: &str) -> bool {
 
 const WRITE_HEADS: &[&str] = &[
     "write",
+    "save",
+    "store",
     "écris",
     "écrivez",
     "écrire",
@@ -155,6 +157,8 @@ pub(super) const EN_FR: &[(&str, Head)] = &[
     ("draft", Head::Op(Op::Draft)),
     ("drafts", Head::Op(Op::Draft)),
     ("write", Head::Op(Op::Draft)),
+    ("save", Head::Op(Op::Draft)),
+    ("store", Head::Op(Op::Draft)),
     ("prepare", Head::Op(Op::Draft)),
     ("summarize", Head::Op(Op::Draft)),
     ("summarise", Head::Op(Op::Draft)),

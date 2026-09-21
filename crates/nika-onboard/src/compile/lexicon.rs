@@ -24,7 +24,7 @@ use super::paths::{self, Structured};
 use super::plan::{
     Binding, Effect, EffectPolicy, EffectVerb, Obligation, ObligationKind, Op, Plan, Step,
 };
-use super::{gates, hot, objects};
+use super::{gates, hot, network, objects};
 pub(super) use cues::{ARTICLES, OBJECT_CONNECTORS};
 use cues::{
     CONSTRAINT_OPENERS, FINAL_GATE_MARKERS, FORBIDDEN_MARKERS, LEADING_FILLER, LOOKUP_CUES,
@@ -245,7 +245,10 @@ fn written_object(
         .any(|s| matches!(s.op, Op::Draft | Op::Extract | Op::Compute | Op::Classify));
     // "the category" after a classify step is that classification.
     let classified = reading.plan.has(Op::Classify) && objects::names_classification(object_lower);
-    if refers_back || classified || (produced && objects::folds(object_lower)) {
+    // "the page title" after a fetch is a facet of the fetched page: the fetch's own
+    // extract mode, carried as it is, never a draft of it.
+    let fetched = reading.plan.has(Op::Fetch) && network::page_facet(object_lower).is_some();
+    if refers_back || classified || fetched || (produced && objects::folds(object_lower)) {
         return;
     }
     if Structured::of(path).is_some() {
@@ -473,6 +476,7 @@ fn effect_words(lower: &str) -> Vec<EffectVerb> {
         ("envoi", EffectVerb::Send),
         ("sending", EffectVerb::Send),
         ("writing", EffectVerb::Write),
+        ("saving", EffectVerb::Write),
         ("publishing", EffectVerb::Publish),
         ("publication", EffectVerb::Publish),
         ("paiement", EffectVerb::Pay),

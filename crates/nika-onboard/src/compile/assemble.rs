@@ -342,7 +342,7 @@ pub(super) fn assemble(
     }
     emit_lookup(&mut d, &b);
     emit_read(&mut d, plan, &b);
-    emit_search_fetch_dedup(&mut d, &b);
+    emit_search_fetch_dedup(&mut d, plan, &b);
     let guide = guidance(plan, &b.consumed);
     for step in &plan.steps {
         emit_step(&mut d, plan, &b, &guide, step);
@@ -722,7 +722,7 @@ fn emit_fan_out(d: &mut Doc, plan: &Plan, b: &Bindings, source: &Source) {
     d.fact("document", "${{ tasks.documents.output }}", Kind::Corpus);
 }
 
-fn emit_search_fetch_dedup(d: &mut Doc, b: &Bindings) {
+fn emit_search_fetch_dedup(d: &mut Doc, plan: &Plan, b: &Bindings) {
     if let Some(root) = b.search.bound() {
         d.root["const"]["search_root"] = root.clone();
         if let Some(root) = root.as_str() {
@@ -732,7 +732,7 @@ fn emit_search_fetch_dedup(d: &mut Doc, b: &Bindings) {
         d.tool("search_hits", "nika:grep", json!({"pattern": "${{ inputs.item }}", "path": "${{ const.search_root }}", "case_insensitive": true}), None, false);
         d.fact("hits", "${{ tasks.search_hits.output }}", Kind::Corpus);
     }
-    super::network::emit_fetch(d, b);
+    super::network::emit_fetch(d, plan, b);
     if let Some(state) = b.dedup.bound() {
         d.root["const"]["state_file"] = state.clone();
         d.reads.push(state.clone());
@@ -1209,6 +1209,11 @@ fn emit_writes(d: &mut Doc, writes: &[WriteEffect], out: &mut CompileOutcome) ->
                 format!("write_{}", effect.stem),
             )
         };
+        // "write the page title to ./title.txt": a facet of the fetched page is the fetch's
+        // own mode (a field of it through a projection), carried as it is.
+        if let Some(facet) = effect.facet {
+            content = super::network::facet_content(d, facet);
+        }
         // "write the total to ./total.txt": one total over every row, written to a prose
         // file, is the value itself, not the one-key object that carries it. A structured
         // destination keeps the object; several totals keep the object.
