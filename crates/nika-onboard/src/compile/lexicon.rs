@@ -11,11 +11,23 @@
 //! AMBIGUOUS and may be settled by a bounded decision seat. Nothing here invents
 //! an operation, an effect or a policy; every element keeps its verbatim clause.
 
+mod cues;
+mod heads;
+mod slugs;
+
 use super::paths::Structured;
 use super::plan::{
     Binding, Effect, EffectPolicy, EffectVerb, Obligation, ObligationKind, Op, Plan, Step,
 };
 use super::{gates, objects};
+use cues::{
+    ARTICLES, ATTEMPT_NOUNS, BOUND_WORDS, CATEGORY_MARKERS, CONSTRAINT_OPENERS, FINAL_GATE_MARKERS,
+    FORBIDDEN_MARKERS, LEADING_FILLER, LOOKUP_CUES, NAMED_GATE_MARKERS, NEGATION_OPENERS,
+    NUMBER_WORDS, OBJECT_CONNECTORS, READ_CUES, REVISION_MARKERS, SEARCH_CUES, SECOND_WORD_FILLERS,
+    STOP_MARKERS, STRONG_CONNECTORS, TRIGGER_PREFIXES, UNDECIDED_MARKERS, WEAK_CONNECTORS,
+};
+pub(crate) use heads::Head;
+pub(super) use slugs::slug;
 
 /// One clause the lexicon could not settle alone: a small feasible set, never a guess.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -141,308 +153,6 @@ impl Reading {
     }
 }
 
-pub(super) enum Head {
-    Op(Op),
-    Choice(&'static [Op]),
-    Effect(EffectVerb),
-    Dedup,
-}
-
-/// Longest phrase first. Lowercase, apostrophes normalized to `'`.
-const LEXICON: &[(&str, Head)] = &[
-    ("va chercher", Head::Op(Op::Lookup)),
-    ("allez chercher", Head::Op(Op::Lookup)),
-    ("look up", Head::Op(Op::Lookup)),
-    ("looks up", Head::Op(Op::Lookup)),
-    ("lookup", Head::Op(Op::Lookup)),
-    ("pull up", Head::Op(Op::Lookup)),
-    ("consulte", Head::Op(Op::Lookup)),
-    ("consultez", Head::Op(Op::Lookup)),
-    ("consulter", Head::Op(Op::Lookup)),
-    ("interroge", Head::Op(Op::Lookup)),
-    ("interrogez", Head::Op(Op::Lookup)),
-    ("interroger", Head::Op(Op::Lookup)),
-    ("récupère", Head::Op(Op::Lookup)),
-    ("récupérez", Head::Op(Op::Lookup)),
-    ("récupérer", Head::Op(Op::Lookup)),
-    ("retrieve", Head::Op(Op::Lookup)),
-    ("retrieves", Head::Op(Op::Lookup)),
-    ("query", Head::Op(Op::Lookup)),
-    ("retrouve", Head::Choice(&[Op::Lookup, Op::Search])),
-    ("retrouvez", Head::Choice(&[Op::Lookup, Op::Search])),
-    ("retrouver", Head::Choice(&[Op::Lookup, Op::Search])),
-    ("cherche", Head::Choice(&[Op::Search, Op::Lookup])),
-    ("cherchez", Head::Choice(&[Op::Search, Op::Lookup])),
-    ("chercher", Head::Choice(&[Op::Search, Op::Lookup])),
-    ("recherche", Head::Choice(&[Op::Search, Op::Lookup])),
-    ("recherchez", Head::Choice(&[Op::Search, Op::Lookup])),
-    ("rechercher", Head::Choice(&[Op::Search, Op::Lookup])),
-    ("search", Head::Choice(&[Op::Search, Op::Lookup])),
-    ("find", Head::Choice(&[Op::Search, Op::Lookup])),
-    ("lis", Head::Choice(&[Op::Read, Op::Lookup])),
-    ("lisez", Head::Choice(&[Op::Read, Op::Lookup])),
-    ("lire", Head::Choice(&[Op::Read, Op::Lookup])),
-    ("read", Head::Choice(&[Op::Read, Op::Lookup])),
-    ("fetch", Head::Op(Op::Fetch)),
-    ("download", Head::Op(Op::Fetch)),
-    ("télécharge", Head::Op(Op::Fetch)),
-    ("téléchargez", Head::Op(Op::Fetch)),
-    ("télécharger", Head::Op(Op::Fetch)),
-    ("extrais", Head::Op(Op::Extract)),
-    ("extrayez", Head::Op(Op::Extract)),
-    ("extraire", Head::Op(Op::Extract)),
-    ("extract", Head::Op(Op::Extract)),
-    ("extracts", Head::Op(Op::Extract)),
-    ("determine its department", Head::Op(Op::Classify)),
-    ("determine the department", Head::Op(Op::Classify)),
-    ("classe", Head::Op(Op::Classify)),
-    ("classez", Head::Op(Op::Classify)),
-    ("classer", Head::Op(Op::Classify)),
-    ("classifie", Head::Op(Op::Classify)),
-    ("classifiez", Head::Op(Op::Classify)),
-    ("classifier", Head::Op(Op::Classify)),
-    ("trie", Head::Op(Op::Classify)),
-    ("triez", Head::Op(Op::Classify)),
-    ("trier", Head::Op(Op::Classify)),
-    ("route", Head::Op(Op::Classify)),
-    ("routez", Head::Op(Op::Classify)),
-    ("router", Head::Op(Op::Classify)),
-    ("classify", Head::Op(Op::Classify)),
-    ("categorize", Head::Op(Op::Classify)),
-    ("categorise", Head::Op(Op::Classify)),
-    ("triage", Head::Op(Op::Classify)),
-    ("propose par écrit", Head::Op(Op::Draft)),
-    ("propose in writing", Head::Op(Op::Draft)),
-    ("prépare", Head::Op(Op::Draft)),
-    ("préparez", Head::Op(Op::Draft)),
-    ("préparer", Head::Op(Op::Draft)),
-    ("rédige", Head::Op(Op::Draft)),
-    ("rédigez", Head::Op(Op::Draft)),
-    ("rédiger", Head::Op(Op::Draft)),
-    ("résume", Head::Op(Op::Draft)),
-    ("résumez", Head::Op(Op::Draft)),
-    ("résumer", Head::Op(Op::Draft)),
-    ("traduis", Head::Op(Op::Draft)),
-    ("traduisez", Head::Op(Op::Draft)),
-    ("traduire", Head::Op(Op::Draft)),
-    ("écris", Head::Op(Op::Draft)),
-    ("écrivez", Head::Op(Op::Draft)),
-    ("écrire", Head::Op(Op::Draft)),
-    ("draft", Head::Op(Op::Draft)),
-    ("drafts", Head::Op(Op::Draft)),
-    ("write", Head::Op(Op::Draft)),
-    ("prepare", Head::Op(Op::Draft)),
-    ("summarize", Head::Op(Op::Draft)),
-    ("summarise", Head::Op(Op::Draft)),
-    ("translate", Head::Op(Op::Draft)),
-    ("compose", Head::Op(Op::Draft)),
-    ("calcule", Head::Op(Op::Compute)),
-    ("calculez", Head::Op(Op::Compute)),
-    ("calculer", Head::Op(Op::Compute)),
-    ("compute", Head::Op(Op::Compute)),
-    ("calculate", Head::Op(Op::Compute)),
-    ("repère", Head::Op(Op::Compute)),
-    ("repérez", Head::Op(Op::Compute)),
-    ("repérer", Head::Op(Op::Compute)),
-    ("compare", Head::Choice(&[Op::Compute, Op::Draft])),
-    ("comparez", Head::Choice(&[Op::Compute, Op::Draft])),
-    ("comparer", Head::Choice(&[Op::Compute, Op::Draft])),
-    (
-        "répartis leur révision entre plusieurs agents",
-        Head::Op(Op::Explore),
-    ),
-    ("répartis", Head::Op(Op::Explore)),
-    ("répartissez", Head::Op(Op::Explore)),
-    ("répartir", Head::Op(Op::Explore)),
-    ("distribute", Head::Op(Op::Explore)),
-    ("delegate", Head::Op(Op::Explore)),
-    ("délègue", Head::Op(Op::Explore)),
-    ("explore", Head::Op(Op::Explore)),
-    ("investigate", Head::Op(Op::Explore)),
-    ("corrige", Head::Op(Op::Draft)),
-    ("corrigez", Head::Op(Op::Draft)),
-    ("corriger", Head::Op(Op::Draft)),
-    ("correct", Head::Op(Op::Draft)),
-    ("revise", Head::Op(Op::Draft)),
-    ("fais relire", Head::Op(Op::Validate)),
-    ("faites relire", Head::Op(Op::Validate)),
-    ("relis", Head::Op(Op::Validate)),
-    ("relire", Head::Op(Op::Validate)),
-    ("review", Head::Op(Op::Validate)),
-    ("proofread", Head::Op(Op::Validate)),
-    ("valide", Head::Op(Op::Validate)),
-    ("validez", Head::Op(Op::Validate)),
-    ("valider", Head::Op(Op::Validate)),
-    ("validate", Head::Op(Op::Validate)),
-    ("verify", Head::Op(Op::Validate)),
-    ("dédoublonne", Head::Dedup),
-    ("dédoublonnez", Head::Dedup),
-    ("dédoublonner", Head::Dedup),
-    ("déduplique", Head::Dedup),
-    ("dédupliquez", Head::Dedup),
-    ("dédupliquer", Head::Dedup),
-    ("évite les doublons", Head::Dedup),
-    ("dedupe", Head::Dedup),
-    ("deduplicate", Head::Dedup),
-    ("remove duplicates", Head::Dedup),
-    ("prevent duplicates", Head::Dedup),
-    ("passe la commande", Head::Effect(EffectVerb::Order)),
-    ("passez la commande", Head::Effect(EffectVerb::Order)),
-    ("place the order", Head::Effect(EffectVerb::Order)),
-    ("issue store credits", Head::Effect(EffectVerb::Pay)),
-    ("issue a refund", Head::Effect(EffectVerb::Refund)),
-    ("issue refunds", Head::Effect(EffectVerb::Refund)),
-    ("issue any refund", Head::Effect(EffectVerb::Refund)),
-    ("mets à jour", Head::Effect(EffectVerb::Update)),
-    ("met à jour", Head::Effect(EffectVerb::Update)),
-    ("mettre à jour", Head::Effect(EffectVerb::Update)),
-    ("crée", Head::Effect(EffectVerb::Create)),
-    ("créez", Head::Effect(EffectVerb::Create)),
-    ("créer", Head::Effect(EffectVerb::Create)),
-    ("create", Head::Effect(EffectVerb::Create)),
-    ("ouvre", Head::Effect(EffectVerb::Create)),
-    ("ouvrez", Head::Effect(EffectVerb::Create)),
-    ("ouvrir", Head::Effect(EffectVerb::Create)),
-    ("open", Head::Effect(EffectVerb::Create)),
-    ("enregistre", Head::Effect(EffectVerb::Create)),
-    ("enregistrez", Head::Effect(EffectVerb::Create)),
-    ("enregistrer", Head::Effect(EffectVerb::Create)),
-    ("record", Head::Effect(EffectVerb::Create)),
-    ("envoie", Head::Effect(EffectVerb::Send)),
-    ("envoyez", Head::Effect(EffectVerb::Send)),
-    ("envoyer", Head::Effect(EffectVerb::Send)),
-    ("send", Head::Effect(EffectVerb::Send)),
-    ("email", Head::Effect(EffectVerb::Send)),
-    ("contacte", Head::Effect(EffectVerb::Send)),
-    ("contactez", Head::Effect(EffectVerb::Send)),
-    ("contacter", Head::Effect(EffectVerb::Send)),
-    ("contact", Head::Effect(EffectVerb::Send)),
-    ("publie", Head::Effect(EffectVerb::Publish)),
-    ("publiez", Head::Effect(EffectVerb::Publish)),
-    ("publier", Head::Effect(EffectVerb::Publish)),
-    ("publish", Head::Effect(EffectVerb::Publish)),
-    ("poste", Head::Effect(EffectVerb::Publish)),
-    ("postez", Head::Effect(EffectVerb::Publish)),
-    ("poster", Head::Effect(EffectVerb::Publish)),
-    ("post", Head::Effect(EffectVerb::Publish)),
-    ("marque", Head::Effect(EffectVerb::Update)),
-    ("marquez", Head::Effect(EffectVerb::Update)),
-    ("marquer", Head::Effect(EffectVerb::Update)),
-    ("mark", Head::Effect(EffectVerb::Update)),
-    ("update", Head::Effect(EffectVerb::Update)),
-    ("rembourse", Head::Effect(EffectVerb::Refund)),
-    ("remboursez", Head::Effect(EffectVerb::Refund)),
-    ("rembourser", Head::Effect(EffectVerb::Refund)),
-    ("refund", Head::Effect(EffectVerb::Refund)),
-    ("refunds", Head::Effect(EffectVerb::Refund)),
-    ("reimburse", Head::Effect(EffectVerb::Refund)),
-    ("crédite", Head::Effect(EffectVerb::Pay)),
-    ("créditez", Head::Effect(EffectVerb::Pay)),
-    ("credit", Head::Effect(EffectVerb::Pay)),
-    ("paie", Head::Effect(EffectVerb::Pay)),
-    ("payez", Head::Effect(EffectVerb::Pay)),
-    ("payer", Head::Effect(EffectVerb::Pay)),
-    ("pay", Head::Effect(EffectVerb::Pay)),
-    ("fusionne", Head::Effect(EffectVerb::Merge)),
-    ("fusionnez", Head::Effect(EffectVerb::Merge)),
-    ("fusionner", Head::Effect(EffectVerb::Merge)),
-    ("merge", Head::Effect(EffectVerb::Merge)),
-    ("supprime", Head::Effect(EffectVerb::Delete)),
-    ("supprimez", Head::Effect(EffectVerb::Delete)),
-    ("supprimer", Head::Effect(EffectVerb::Delete)),
-    ("delete", Head::Effect(EffectVerb::Delete)),
-    ("notifie", Head::Effect(EffectVerb::Notify)),
-    ("notifiez", Head::Effect(EffectVerb::Notify)),
-    ("notifier", Head::Effect(EffectVerb::Notify)),
-    ("notify", Head::Effect(EffectVerb::Notify)),
-    ("alert", Head::Effect(EffectVerb::Notify)),
-    ("déclenche", Head::Effect(EffectVerb::Other)),
-    ("déclenchez", Head::Effect(EffectVerb::Other)),
-    ("déclencher", Head::Effect(EffectVerb::Other)),
-    ("trigger", Head::Effect(EffectVerb::Other)),
-    ("execute", Head::Effect(EffectVerb::Other)),
-    ("exécute", Head::Effect(EffectVerb::Other)),
-];
-
-/// Cues that settle an ambiguous retrieval head deterministically.
-const LOOKUP_CUES: &[&str] = &[
-    "mongodb",
-    "base ",
-    "database",
-    "annuaire",
-    "directory",
-    "registre",
-    "registry",
-    "catalogue",
-    "catalog",
-    "historique",
-    "history",
-    "calendrier",
-    "calendar",
-    "crm",
-    "shopify",
-    "runbook",
-    "checklist",
-    "knowledge base",
-    "disponibilit",
-    "availabilit",
-    "agenda",
-    "base de connaissances",
-    "record",
-    "customer",
-    "client",
-    "entreprise",
-    "compte",
-];
-const SEARCH_CUES: &[&str] = &[
-    "pdf",
-    "dossier",
-    "fichiers",
-    "files",
-    "folder",
-    "pages",
-    "documents",
-    "guide",
-    "passages",
-    "corpus",
-];
-const READ_CUES: &[&str] = &[
-    "fourni",
-    "fournie",
-    "fournis",
-    "fournies",
-    "supplied",
-    "provided",
-    "attached",
-    "ci-joint",
-    "formulaire",
-    "form ",
-    "transcript",
-];
-const LEADING_FILLER: &[&str] = &[
-    "ensuite ",
-    "puis ",
-    "then ",
-    "also ",
-    "aussi ",
-    "please ",
-    "veuillez ",
-    "s'il te plaît ",
-    "s'il vous plaît ",
-    "automatically ",
-    "automatiquement ",
-    "seulement ",
-    "only ",
-    "always ",
-    "toujours ",
-];
-const ARTICLES: &[&str] = &[
-    "le", "la", "les", "l", "l'", "d", "qu", "n", "s", "c", "j", "un", "une", "des", "du", "de",
-    "d'", "the", "a", "an", "my", "mon", "ma", "mes", "notre", "nos", "our", "son", "sa", "ses",
-    "its", "their", "leur", "leurs", "ce", "cet", "cette", "ces", "chaque", "each", "every",
-    "tout", "toute", "tous", "toutes", "any", "all", "en", "ensuite",
-];
-
 /// Typographic apostrophes fold to `'` so byte offsets stay aligned between the
 /// lowercase matching copy and the evidence copy. Callers anchor against this form.
 pub(super) fn fold_apostrophes(intent: &str) -> String {
@@ -534,21 +244,7 @@ fn explicit_object(detail: &str) -> bool {
             || w.starts_with("asia/")
             || w.chars().all(|c| c.is_ascii_digit()) && !w.is_empty()
     });
-    let connectors = [
-        ", ",
-        " and ",
-        " et ",
-        " or ",
-        " ou ",
-        " puis ",
-        " then ",
-        ";",
-        " sans ",
-        " without ",
-        " mais ",
-        " but ",
-    ];
-    let coordinated = connectors.iter().any(|c| lower.contains(c));
+    let coordinated = OBJECT_CONNECTORS.iter().any(|c| lower.contains(c));
     let content = lower
         .split(|c: char| {
             !c.is_alphanumeric()
@@ -619,17 +315,7 @@ fn head_of(lower: &str) -> Option<(&'static str, &'static Head)> {
     let mut words = lower.splitn(3, ' ');
     let (first, second, rest) = (words.next(), words.next(), words.next());
     if let (Some(first), Some(second), Some(rest)) = (first, second, rest)
-        && matches!(
-            second,
-            "ensuite"
-                | "alors"
-                | "then"
-                | "also"
-                | "aussi"
-                | "puis"
-                | "immédiatement"
-                | "immediately"
-        )
+        && SECOND_WORD_FILLERS.contains(&second)
     {
         return head_of_exact(&format!("{first} {rest}"));
     }
@@ -638,7 +324,7 @@ fn head_of(lower: &str) -> Option<(&'static str, &'static Head)> {
 
 pub(super) fn head_of_exact(lower: &str) -> Option<(&'static str, &'static Head)> {
     let mut best: Option<(&'static str, &'static Head)> = None;
-    for (phrase, head) in LEXICON {
+    for (phrase, head) in heads::TABLES.iter().flat_map(|table| table.iter()) {
         if lower.starts_with(phrase) {
             let boundary = lower.get(phrase.len()..).is_none_or(|rest| {
                 rest.is_empty() || rest.starts_with(|c: char| !c.is_alphanumeric())
@@ -672,16 +358,12 @@ fn split_clauses(sentence: &str) -> Vec<&str> {
     // A sequencing connector always opens a new clause (an unknown verb after
     // `puis` must stay visible, never be swallowed as the previous object);
     // a coordinating comma or `et`/`and` opens one only before a known head.
-    const STRONG: &[&str] = &[
-        ", puis ", " puis ", ", then ", " then ", ", mais ", " mais ", ", but ", " but ",
-    ];
-    const WEAK: &[&str] = &[", et ", " et ", ", and ", " and ", ", "];
     let lower = normalize(sentence);
     if lower.len() != sentence.len() {
         return vec![sentence];
     }
     let mut cuts = Vec::new();
-    for (connectors, always) in [(STRONG, true), (WEAK, false)] {
+    for (connectors, always) in [(STRONG_CONNECTORS, true), (WEAK_CONNECTORS, false)] {
         for connector in connectors {
             let mut from = 0;
             while let Some(pos) = lower.get(from..).and_then(|s| s.find(connector)) {
@@ -712,77 +394,6 @@ fn split_clauses(sentence: &str) -> Vec<&str> {
     }
     out.into_iter().filter(|p| !p.is_empty()).collect()
 }
-
-const TRIGGER_PREFIXES: &[&str] = &[
-    "pour la ",
-    "pour le ",
-    "pour les ",
-    "pour chaque ",
-    "for the ",
-    "for every ",
-    "quand ",
-    "lorsque ",
-    "dès que ",
-    "tous les ",
-    "toutes les ",
-    "chaque fois ",
-    "après ",
-    "for each ",
-    "when ",
-    "whenever ",
-    "every ",
-    "after ",
-    "once ",
-    "à partir de ",
-    "from the ",
-    "starting from ",
-];
-
-const NUMBER_WORDS: &[(&str, u32)] = &[
-    ("un", 1),
-    ("une", 1),
-    ("one", 1),
-    ("deux", 2),
-    ("two", 2),
-    ("trois", 3),
-    ("three", 3),
-    ("quatre", 4),
-    ("four", 4),
-    ("cinq", 5),
-    ("five", 5),
-    ("six", 6),
-    ("sept", 7),
-    ("seven", 7),
-    ("huit", 8),
-    ("eight", 8),
-    ("neuf", 9),
-    ("nine", 9),
-    ("dix", 10),
-    ("ten", 10),
-];
-const ATTEMPT_NOUNS: &[&str] = &[
-    "essai",
-    "tentative",
-    "itération",
-    "iteration",
-    "cycle",
-    "attempt",
-    "retr",
-    "tries",
-    "try",
-    "round",
-];
-const BOUND_WORDS: &[&str] = &[
-    "limite ",
-    "limit ",
-    "au maximum",
-    "maximum",
-    "at most",
-    "up to",
-    "no more than",
-    "at max",
-    "max ",
-];
 
 fn retry_bound(lower: &str) -> Option<u32> {
     if !BOUND_WORDS.iter().any(|w| lower.contains(w)) {
@@ -850,7 +461,7 @@ fn money_literal(sentence: &str) -> bool {
 }
 
 fn categories_of(detail_lower: &str) -> Vec<String> {
-    for marker in [" en ", " into ", " as "] {
+    for marker in CATEGORY_MARKERS {
         if let Some(pos) = detail_lower.find(marker) {
             let tail = detail_lower.get(pos + marker.len()..).unwrap_or_default();
             let tail = tail.split([';', '.']).next().unwrap_or_default();
@@ -961,83 +572,6 @@ struct ReadState {
     final_gate: bool,
     money_sentences: Vec<String>,
 }
-
-const UNDECIDED_MARKERS: &[&str] = &[
-    "je n'ai pas encore décidé si le workflow doit ",
-    "je n'ai pas encore décidé si le workflow devait ",
-    "je n'ai pas encore décidé si ",
-    "i have not decided whether the workflow should ",
-    "i have not decided whether to ",
-    "i have not decided whether ",
-    "i haven't decided whether to ",
-    "i haven't decided whether ",
-];
-const REVISION_MARKERS: &[&str] = &[
-    "vérifie de nouveau la version",
-    "vérifie à nouveau la version",
-    "re-check the current",
-    "recheck the current",
-    "check the current version again",
-    "re-verify the current",
-];
-const FINAL_GATE_MARKERS: &[&str] = &[
-    "mais cette action finale exige la validation humaine",
-    "cette action finale exige la validation humaine",
-    "this final action requires human validation",
-    "this final action requires human approval",
-    "only after my approval",
-    "only after i approve",
-    "only once i approve",
-    "once i approve",
-    "after my approval",
-    "seulement après mon accord",
-    "après mon accord",
-    "après ma validation",
-    "après validation humaine",
-    "but ask me before",
-    "but get my approval before",
-    "get my approval before",
-    "with my approval before",
-];
-const NAMED_GATE_MARKERS: &[&str] = &[
-    "demande mon accord avant ",
-    "demandez mon accord avant ",
-    "demander mon accord avant ",
-    "demande un accord humain avant ",
-    "demande ma validation avant ",
-    "require my approval before ",
-    "ask me before ",
-    "ask for my approval before ",
-    "obtain my approval before ",
-    "hold every ",
-    "attends ma validation avant ",
-    "wait for my approval before ",
-];
-const FORBIDDEN_MARKERS: &[&str] = &[
-    "il est aussi absolument interdit de ",
-    "il est aussi absolument interdit d'",
-    "il est absolument interdit de ",
-    "il est absolument interdit d'",
-    "il est aussi interdit de ",
-    "il est aussi interdit d'",
-    "il est interdit de ",
-    "il est interdit d'",
-    "it is absolutely forbidden to ",
-    "it is also absolutely forbidden to ",
-    "it is forbidden to ",
-    "never ",
-    "do not ",
-    "don't ",
-    "nothing should be ",
-    "ne jamais ",
-];
-const STOP_MARKERS: &[&str] = &[
-    "arrête-toi après",
-    "aucune autre action n'est demandée",
-    "no other step",
-    "nothing else",
-    "no further action",
-];
 
 fn earliest<'a>(text: &str, markers: &'a [&'a str]) -> Option<(usize, &'a str)> {
     markers
@@ -1465,13 +999,7 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
     if text.is_empty() {
         return false;
     }
-    let negated = text.starts_with("ne ")
-        || text.starts_with("n'")
-        || text.starts_with("do not ")
-        || text.starts_with("don't ")
-        || text.starts_with("never ")
-        || text.starts_with("no ")
-        || text.starts_with("aucun");
+    let negated = NEGATION_OPENERS.iter().any(|m| text.starts_with(m));
     if negated {
         let verbs = effect_words(text);
         if verbs.is_empty() {
@@ -1501,18 +1029,7 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
         }
         return true;
     }
-    if text.starts_with("si ")
-        || text.starts_with("if ")
-        || text.starts_with("lorsque ")
-        || text.starts_with("unless ")
-        || text.starts_with("laisse ")
-        || text.starts_with("laissez ")
-        || text.starts_with("leave ")
-        || text.starts_with("keep ")
-        || text.starts_with("conserve ")
-        || text.starts_with("garde ")
-        || text.starts_with("ignore ")
-    {
+    if CONSTRAINT_OPENERS.iter().any(|m| text.starts_with(m)) {
         reading.plan.constraints.push(original.to_owned());
         return true;
     }
@@ -1585,17 +1102,7 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
     // A named local path settles the medium: writing TO a path is a file effect,
     // reading a path is the supplied-document read.
     if let Some(path) = &path {
-        let writes = matches!(
-            phrase,
-            "write"
-                | "écris"
-                | "écrivez"
-                | "écrire"
-                | "enregistre"
-                | "enregistrez"
-                | "enregistrer"
-                | "record"
-        );
+        let writes = heads::writes_to_path(phrase);
         let saves = detail_lower.contains(" to ")
             || detail_lower.contains(" dans ")
             || detail_lower.contains(" into ")
@@ -1841,62 +1348,5 @@ fn collect_bindings(intent: &str, plan: &mut Plan) {
                 literal: token.to_owned(),
             });
         }
-    }
-}
-
-/// Slug of a verbatim phrase for a constant name: ASCII letters, articles dropped, at most three tokens.
-pub(super) fn slug(phrase: &str) -> String {
-    let lower = normalize(phrase);
-    let cut = [
-        " dans ",
-        " in ",
-        " from ",
-        " depuis ",
-        " sur ",
-        " on ",
-        " to ",
-        " vers ",
-        " pour ",
-        " for ",
-        " avec ",
-        " with ",
-        " correspondant",
-        " correspondante",
-    ]
-    .iter()
-    .filter_map(|m| lower.find(m))
-    .min()
-    .unwrap_or(lower.len());
-    let head = lower.get(..cut).unwrap_or(&lower);
-    let tokens: Vec<String> = head
-        .split(|c: char| !c.is_alphanumeric() && c != '\'')
-        .flat_map(|t| t.split('\''))
-        .map(|t| {
-            t.chars()
-                .map(fold_ascii)
-                .filter(char::is_ascii_alphanumeric)
-                .collect::<String>()
-        })
-        .filter(|t| !t.is_empty() && !ARTICLES.contains(&t.as_str()))
-        .take(3)
-        .collect();
-    if tokens.is_empty() {
-        "record".to_owned()
-    } else {
-        tokens.join("_")
-    }
-}
-
-fn fold_ascii(c: char) -> char {
-    match c {
-        'à' | 'â' | 'ä' | 'á' => 'a',
-        'é' | 'è' | 'ê' | 'ë' => 'e',
-        'î' | 'ï' | 'í' => 'i',
-        'ô' | 'ö' | 'ó' => 'o',
-        'û' | 'ù' | 'ü' | 'ú' => 'u',
-        'ç' => 'c',
-        'ñ' => 'n',
-        c if c.is_ascii_alphanumeric() => c,
-        _ => '_',
     }
 }
