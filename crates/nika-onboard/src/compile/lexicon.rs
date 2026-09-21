@@ -24,11 +24,12 @@ use super::plan::{
     Binding, Effect, EffectPolicy, EffectVerb, Obligation, ObligationKind, Op, Plan, Step,
 };
 use super::{gates, hot, objects};
+pub(super) use cues::{ARTICLES, OBJECT_CONNECTORS};
 use cues::{
-    ARTICLES, ATTEMPT_NOUNS, BOUND_WORDS, CATEGORY_MARKERS, CONSTRAINT_OPENERS, FINAL_GATE_MARKERS,
+    ATTEMPT_NOUNS, BOUND_WORDS, CATEGORY_MARKERS, CONSTRAINT_OPENERS, FINAL_GATE_MARKERS,
     FORBIDDEN_MARKERS, LEADING_FILLER, LOOKUP_CUES, NAMED_GATE_MARKERS, NEGATION_OPENERS,
-    NUMBER_WORDS, OBJECT_CONNECTORS, READ_CUES, REVISION_MARKERS, SEARCH_CUES, SECOND_WORD_FILLERS,
-    STOP_MARKERS, STRONG_CONNECTORS, TRIGGER_PREFIXES, UNDECIDED_MARKERS, WEAK_CONNECTORS,
+    NUMBER_WORDS, READ_CUES, REVISION_MARKERS, SEARCH_CUES, SECOND_WORD_FILLERS, STOP_MARKERS,
+    STRONG_CONNECTORS, TRIGGER_PREFIXES, UNDECIDED_MARKERS, WEAK_CONNECTORS,
 };
 pub(crate) use heads::Head;
 pub(super) use slugs::slug;
@@ -87,12 +88,13 @@ impl Reading {
             // part is judged on its own.
             let ruled = step.op == Op::Compute
                 && step.detail.split(" ; ").all(|part| {
-                    explicit_object(part) || self.plan.rules.iter().any(|r| r.text() == part.trim())
+                    objects::explicit_object(part)
+                        || self.plan.rules.iter().any(|r| r.text() == part.trim())
                 });
             // An extract's object is the list of the fields to pull out: a list of short
             // noun phrases is explicit, whatever its length.
-            let listed = step.op == Op::Extract && explicit_field_list(&step.detail);
-            if !categorical && !ruled && !listed && !explicit_object(&step.detail) {
+            let listed = step.op == Op::Extract && objects::explicit_field_list(&step.detail);
+            if !categorical && !ruled && !listed && !objects::explicit_object(&step.detail) {
                 why.push(format!(
                     "`{}` object is not explicit: {}",
                     step.op.word(),
@@ -104,7 +106,7 @@ impl Reading {
             if matches!(
                 effect.policy,
                 EffectPolicy::Automatic | EffectPolicy::HumanFirst
-            ) && !explicit_object(&effect.target)
+            ) && !objects::explicit_object(&effect.target)
             {
                 why.push(format!(
                     "`{}` target is not explicit: {}",
@@ -250,72 +252,6 @@ fn nearest(
         (Some(a), Some(b)) => Some(if b.0 < a.0 { b } else { a }),
         (a, b) => a.or(b),
     }
-}
-
-/// A step object the reader may trust without a model: a typed literal (URL, path, email,
-/// timezone, number) or at most four content tokens with no coordinating connector.
-fn explicit_object(detail: &str) -> bool {
-    let lower = normalize(detail);
-    let literal = lower.split_whitespace().any(|w| {
-        let w = w.trim_end_matches(['.', ',', ';', ')', ':']);
-        w.starts_with("http://")
-            || w.starts_with("https://")
-            || w.starts_with("./")
-            || (w.starts_with('/') && w.contains('.'))
-            || (w.contains('@') && w.contains('.'))
-            || w.starts_with("europe/")
-            || w.starts_with("america/")
-            || w.starts_with("asia/")
-            || w.chars().all(|c| c.is_ascii_digit()) && !w.is_empty()
-    });
-    let coordinated = OBJECT_CONNECTORS.iter().any(|c| lower.contains(c));
-    let content = lower
-        .split(|c: char| {
-            !c.is_alphanumeric()
-                && c != '\''
-                && c != '/'
-                && c != '.'
-                && c != ':'
-                && c != '-'
-                && c != '_'
-        })
-        .filter(|t| !t.is_empty() && !ARTICLES.contains(t))
-        .count();
-    // A literal names the object only when nothing is coordinated beside it: "./orders.csv
-    // and keep the rows that matter" carries a second request the literal does not cover.
-    if literal {
-        return !coordinated && content <= 6;
-    }
-    !coordinated && content <= 4
-}
-
-/// A list of the fields an extract pulls out ("the supplier, the date and the amount of each
-/// one", "le fournisseur, la date et le montant"): at least two items separated by commas or
-/// a conjunction, each a short noun phrase (one to three content tokens), no path, an
-/// optional distributive scope at the end. Coordination here enumerates, it does not
-/// compose.
-fn explicit_field_list(detail: &str) -> bool {
-    let lower = normalize(super::shape::without_distributive_tail(detail));
-    let listed = lower
-        .replace(" and ", ", ")
-        .replace(" et ", ", ")
-        .replace(" y ", ", ")
-        .replace(" e ", ", ")
-        .replace(" und ", ", ")
-        .replace(" & ", ", ");
-    let items: Vec<&str> = listed
-        .split(',')
-        .map(str::trim)
-        .filter(|item| !item.is_empty())
-        .collect();
-    items.len() >= 2
-        && items.iter().all(|item| {
-            let content = item
-                .split(|c: char| !c.is_alphanumeric() && c != '\'' && c != '-' && c != '_')
-                .filter(|t| !t.is_empty() && !ARTICLES.contains(t))
-                .count();
-            (1..=3).contains(&content) && !item.contains("./") && !item.contains("://")
-        })
 }
 
 fn normalize(text: &str) -> String {

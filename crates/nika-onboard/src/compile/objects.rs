@@ -5,6 +5,12 @@
 //! structural laws (a path is a reliable clause boundary; a definite reference recurs; an
 //! indefinite object is new), not cue lists.
 
+use super::lexicon::{ARTICLES, OBJECT_CONNECTORS, fold_apostrophes};
+
+fn normalize(text: &str) -> String {
+    fold_apostrophes(text).to_lowercase()
+}
+
 /// What an object still says after its path literal, beyond one parenthetical hint attached
 /// to the path and trailing punctuation. A non-empty residue is a demand the path did not
 /// settle; the reader must not let it vanish with the path.
@@ -247,6 +253,13 @@ pub(super) fn names_classification(object_lower: &str) -> bool {
         .any(|w| CLASSIFICATION_WORDS.contains(&w))
 }
 
+/// A plural head refers back to its singular ("the bugs" after "bug or feature").
+fn singular(head: &str) -> &str {
+    head.strip_suffix('s')
+        .filter(|_| head.len() > 3 && !head.ends_with("ss"))
+        .unwrap_or(head)
+}
+
 /// Does the object of a write refer back to something already in the request, or does it
 /// name new content the write demands? A pronoun or a generic result word refers back; so
 /// does a head noun that recurs in an earlier clause (`the count` after `count the tickets`).
@@ -340,11 +353,7 @@ pub(super) fn refers_back<'a>(object_lower: &str, earlier: impl Iterator<Item = 
         .last()
         .copied()
         .unwrap_or(first);
-    // A plural head refers back to its singular ("the bugs" after "bug or feature").
-    let head = head
-        .strip_suffix('s')
-        .filter(|_| head.len() > 3 && !head.ends_with("ss"))
-        .unwrap_or(head);
+    let head = singular(head);
     let stem: String = head.chars().take(4).collect();
     if stem.chars().count() < 3 {
         return false;
@@ -356,6 +365,72 @@ pub(super) fn refers_back<'a>(object_lower: &str, earlier: impl Iterator<Item = 
             .split(|c: char| !c.is_alphanumeric())
             .any(|w| !w.is_empty() && w.starts_with(stem.as_str()))
     })
+}
+
+/// A step object the reader may trust without a model: a typed literal (URL, path, email,
+/// timezone, number) or at most four content tokens with no coordinating connector.
+pub(super) fn explicit_object(detail: &str) -> bool {
+    let lower = normalize(detail);
+    let literal = lower.split_whitespace().any(|w| {
+        let w = w.trim_end_matches(['.', ',', ';', ')', ':']);
+        w.starts_with("http://")
+            || w.starts_with("https://")
+            || w.starts_with("./")
+            || (w.starts_with('/') && w.contains('.'))
+            || (w.contains('@') && w.contains('.'))
+            || w.starts_with("europe/")
+            || w.starts_with("america/")
+            || w.starts_with("asia/")
+            || w.chars().all(|c| c.is_ascii_digit()) && !w.is_empty()
+    });
+    let coordinated = OBJECT_CONNECTORS.iter().any(|c| lower.contains(c));
+    let content = lower
+        .split(|c: char| {
+            !c.is_alphanumeric()
+                && c != '\''
+                && c != '/'
+                && c != '.'
+                && c != ':'
+                && c != '-'
+                && c != '_'
+        })
+        .filter(|t| !t.is_empty() && !ARTICLES.contains(t))
+        .count();
+    // A literal names the object only when nothing is coordinated beside it: "./orders.csv
+    // and keep the rows that matter" carries a second request the literal does not cover.
+    if literal {
+        return !coordinated && content <= 6;
+    }
+    !coordinated && content <= 4
+}
+
+/// A list of the fields an extract pulls out ("the supplier, the date and the amount of each
+/// one", "le fournisseur, la date et le montant"): at least two items separated by commas or
+/// a conjunction, each a short noun phrase (one to three content tokens), no path, an
+/// optional distributive scope at the end. Coordination here enumerates, it does not
+/// compose.
+pub(super) fn explicit_field_list(detail: &str) -> bool {
+    let lower = normalize(super::shape::without_distributive_tail(detail));
+    let listed = lower
+        .replace(" and ", ", ")
+        .replace(" et ", ", ")
+        .replace(" y ", ", ")
+        .replace(" e ", ", ")
+        .replace(" und ", ", ")
+        .replace(" & ", ", ");
+    let items: Vec<&str> = listed
+        .split(',')
+        .map(str::trim)
+        .filter(|item| !item.is_empty())
+        .collect();
+    items.len() >= 2
+        && items.iter().all(|item| {
+            let content = item
+                .split(|c: char| !c.is_alphanumeric() && c != '\'' && c != '-' && c != '_')
+                .filter(|t| !t.is_empty() && !ARTICLES.contains(t))
+                .count();
+            (1..=3).contains(&content) && !item.contains("./") && !item.contains("://")
+        })
 }
 
 #[cfg(test)]
