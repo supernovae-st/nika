@@ -1221,38 +1221,7 @@ fn emit_writes(d: &mut Doc, writes: &[WriteEffect], out: &mut CompileOutcome) ->
                 format!("write_{}", effect.stem),
             )
         };
-        // "write the page title to ./title.txt": a facet of the fetched page is the fetch's
-        // own mode (a field of it through a projection), carried as it is.
-        if let Some(facet) = effect.facet {
-            content = super::network::facet_content(d, facet);
-        }
-        // "write the total to ./total.txt": one total over every row, written to a prose
-        // file, is the value itself, not the one-key object that carries it. A structured
-        // destination keeps the object; several totals keep the object.
-        if name == "computed"
-            && Structured::of(&effect.path).is_none()
-            && let [only] = d.totals.as_slice()
-        {
-            content = format!("${{{{ tasks.compute.output.{only} }}}}");
-        }
-        // After a per-record classification, a write naming a category ("the bugs to
-        // ./bugs.json") carries the records routed to it; a write of the records carries
-        // every record with its category.
-        if let Some(records) = d.routed.clone()
-            && matches!(name, "records" | "categories")
-        {
-            let with = json!({"records": records, "categories": "${{ tasks.classify.output }}"});
-            let stage = if let Some(category) = &effect.category {
-                let stage = format!("route_{}", effect.stem);
-                d.tool(&stage, "nika:jq", json!({"input": {"records": "${{ with.records }}", "categories": "${{ with.categories }}", "category": category}, "expression": ROUTE}), Some(with), true);
-                stage
-            } else {
-                let stage = format!("{}_classified", effect.stem);
-                d.tool(&stage, "nika:jq", json!({"input": {"records": "${{ with.records }}", "categories": "${{ with.categories }}"}, "expression": ANNOTATE}), Some(with), true);
-                stage
-            };
-            content = format!("${{{{ tasks.{stage}.output }}}}");
-        }
+        content = written_content(d, effect, name, content);
         d.root["const"][&constant] = json!(effect.path);
         d.writes.push(json!(effect.path));
         if let Some(format @ (Structured::Csv | Structured::Yaml | Structured::Toml)) =
@@ -1304,6 +1273,40 @@ fn emit_writes(d: &mut Doc, writes: &[WriteEffect], out: &mut CompileOutcome) ->
         d.root["outputs"][status] = json!(format!("${{{{ tasks.{task}.status }}}}"));
     }
     true
+}
+
+/// The content a write carries, from the nearest upstream fact: a facet of a
+/// fetched page is the fetch's own mode; one total over every row written to a
+/// prose file is the value itself (a structured destination and several totals
+/// keep the object); after a per-record classification a write naming a
+/// category carries the records routed to it, a write of the records carries
+/// every record with its category.
+fn written_content(d: &mut Doc, effect: &WriteEffect, name: &str, mut content: String) -> String {
+    if let Some(facet) = effect.facet {
+        content = super::network::facet_content(d, facet);
+    }
+    if name == "computed"
+        && Structured::of(&effect.path).is_none()
+        && let [only] = d.totals.as_slice()
+    {
+        content = format!("${{{{ tasks.compute.output.{only} }}}}");
+    }
+    if let Some(records) = d.routed.clone()
+        && matches!(name, "records" | "categories")
+    {
+        let with = json!({"records": records, "categories": "${{ tasks.classify.output }}"});
+        let stage = if let Some(category) = &effect.category {
+            let stage = format!("route_{}", effect.stem);
+            d.tool(&stage, "nika:jq", json!({"input": {"records": "${{ with.records }}", "categories": "${{ with.categories }}", "category": category}, "expression": ROUTE}), Some(with), true);
+            stage
+        } else {
+            let stage = format!("{}_classified", effect.stem);
+            d.tool(&stage, "nika:jq", json!({"input": {"records": "${{ with.records }}", "categories": "${{ with.categories }}"}, "expression": ANNOTATE}), Some(with), true);
+            stage
+        };
+        content = format!("${{{{ tasks.{stage}.output }}}}");
+    }
+    content
 }
 
 /// Permits and emission: exactly what the tasks reach, then the literal round trip.
