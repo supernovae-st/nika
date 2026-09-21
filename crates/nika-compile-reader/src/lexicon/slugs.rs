@@ -8,7 +8,8 @@ use super::cues::ARTICLES;
 use super::normalize;
 
 /// Slug of a verbatim phrase for a constant name: ASCII letters, articles dropped, at most three tokens.
-pub(crate) fn slug(phrase: &str) -> String {
+#[must_use]
+pub fn slug(phrase: &str) -> String {
     let lower = normalize(phrase);
     let cut = [
         " dans ",

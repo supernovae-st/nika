@@ -14,11 +14,10 @@
 //! the grammar does not cover is `None`: the human is asked, nothing is guessed. Every
 //! expression shape emitted here was run on the engine's jq before it was written down.
 
-use super::rule_tokens::{Kind, Token, number, phrase, tokenize};
-use super::shape::{ATTEMPT_UNITS, SIZE_UNITS, fold};
+use super::rule_tokens::{ATTEMPT_UNITS, Kind, SIZE_UNITS, Token, fold, number, phrase, tokenize};
 use serde_json::{Value, json};
 
-pub(super) use super::aggregate::{AggOp, Aggregation, ArithOp, Derived, Shape, Term};
+pub use super::aggregate::{AggOp, Aggregation, ArithOp, Derived, Shape, Term};
 use super::rule_cues::{
     ARTICLES, COPULAS, CUE_WIDTH, EQUALITY_CUES, FILLERS, NEGATED_COPULAS, NEGATIONS, NUMERIC_CUES,
     RELATIVES, SUMMARY_CORE, SUMMARY_WORDS, UNIT_PHRASES, UNIT_WORDS,
@@ -26,7 +25,8 @@ use super::rule_cues::{
 
 /// The six comparisons a rule may state.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum Comparator {
+#[non_exhaustive]
+pub enum Comparator {
     Gt,
     Ge,
     Lt,
@@ -37,7 +37,8 @@ pub(super) enum Comparator {
 
 impl Comparator {
     /// The comparator that holds exactly when this one does not.
-    pub(super) fn negated(self) -> Self {
+    #[must_use]
+    pub fn negated(self) -> Self {
         match self {
             Self::Gt => Self::Le,
             Self::Ge => Self::Lt,
@@ -49,7 +50,8 @@ impl Comparator {
     }
 
     /// A comparator named by a word or a symbol (`gt`, `>=`, `eq`, `<>`).
-    pub(super) fn from_word(word: &str) -> Option<Self> {
+    #[must_use]
+    pub fn from_word(word: &str) -> Option<Self> {
         match word.trim().to_ascii_lowercase().as_str() {
             ">" | "gt" | "greater" => Some(Self::Gt),
             ">=" | "≥" | "ge" | "gte" => Some(Self::Ge),
@@ -60,7 +62,7 @@ impl Comparator {
             _ => None,
         }
     }
-    pub(super) const fn symbol(self) -> &'static str {
+    pub(crate) const fn symbol(self) -> &'static str {
         match self {
             Self::Gt => ">",
             Self::Ge => ">=",
@@ -87,7 +89,8 @@ fn cue_in(table: &[(Comparator, &str)], phrase: &str) -> Option<Comparator> {
 }
 
 /// The comparator a folded phrase states as a numeric comparison, if any.
-pub(super) fn numeric_cue(phrase: &str) -> Option<Comparator> {
+#[must_use]
+pub fn numeric_cue(phrase: &str) -> Option<Comparator> {
     cue_in(NUMERIC_CUES, phrase)
 }
 
@@ -107,7 +110,7 @@ fn cue_at(tokens: &[Token], at: usize) -> Option<(Comparator, usize)> {
 
 /// A column-shaped identifier: letters, digits and underscores, and more than a plain
 /// lowercase word (`total_eur`, `q1`, `unitPrice`).
-pub(super) fn identifier_shaped(word: &str) -> bool {
+pub(crate) fn identifier_shaped(word: &str) -> bool {
     let mut chars = word.chars();
     let starts = chars.next().is_some_and(|c| c.is_alphabetic() || c == '_');
     let joined = word.chars().all(|c| c.is_alphanumeric() || c == '_');
@@ -142,7 +145,8 @@ fn column_named(token: &Token, columns: &[String]) -> Option<String> {
 
 /// What a field is compared to.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) enum Operand {
+#[non_exhaustive]
+pub enum Operand {
     /// A number in canonical text, compared after `tonumber`.
     Number(String),
     /// An exact string, compared case-sensitively.
@@ -152,14 +156,28 @@ pub(super) enum Operand {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct Clause {
+#[non_exhaustive]
+pub struct Clause {
     pub field: String,
     pub comparator: Comparator,
     pub value: Operand,
 }
 
+impl Clause {
+    /// One clause of a typed rule: the column, the comparison and what it is compared to.
+    #[must_use]
+    pub fn new(field: impl Into<String>, comparator: Comparator, value: Operand) -> Self {
+        Self {
+            field: field.into(),
+            comparator,
+            value,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum Junction {
+#[non_exhaustive]
+pub enum Junction {
     And,
     Or,
 }
@@ -176,7 +194,8 @@ impl Junction {
 /// A rule synthesized from the request: its clauses, how they join, and the text it
 /// came from.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct Rule {
+#[non_exhaustive]
+pub struct Rule {
     text: String,
     clauses: Vec<Clause>,
     junction: Junction,
@@ -190,7 +209,7 @@ pub(super) struct Rule {
 }
 
 /// The jq path of one column: a bare identifier as `.name`, anything else bracketed.
-pub(super) fn key(field: &str) -> String {
+pub(crate) fn key(field: &str) -> String {
     let bare = field
         .chars()
         .next()
@@ -254,12 +273,8 @@ impl Clause {
 impl Rule {
     /// A rule the semantic frontend stated as a typed predicate over the request's own
     /// columns and literals, validated by the compiler; lowered exactly like a parsed one.
-    pub(super) fn typed(
-        text: &str,
-        clauses: Vec<Clause>,
-        junction: Junction,
-        shape: Shape,
-    ) -> Self {
+    #[must_use]
+    pub fn typed(text: &str, clauses: Vec<Clause>, junction: Junction, shape: Shape) -> Self {
         Self {
             text: text.to_owned(),
             clauses,
@@ -270,22 +285,26 @@ impl Rule {
         }
     }
     /// The columns the computation writes, in order, when it fixes them.
-    pub(super) fn output_columns(&self) -> Option<Vec<String>> {
+    #[must_use]
+    pub fn output_columns(&self) -> Option<Vec<String>> {
         self.shape.output_columns()
     }
     /// Whether the rule joins several parsed sources on a column: its records are then one
     /// array per source, first source first.
-    pub(super) fn joins(&self) -> bool {
+    #[must_use]
+    pub fn joins(&self) -> bool {
         self.shape.join_on.is_some()
     }
     /// Whether the rule runs over the lines of a text source.
-    pub(super) const fn lines(&self) -> bool {
+    #[must_use]
+    pub const fn lines(&self) -> bool {
         self.lines
     }
     /// The same rule over the lines of a text source, when its only work is the removal of
     /// duplicates: a line has no columns to filter, group, sort or project. Anything else
     /// over a text source is `None`: the human is asked.
-    pub(super) fn over_lines(&self) -> Option<Self> {
+    #[must_use]
+    pub fn over_lines(&self) -> Option<Self> {
         let s = &self.shape;
         let only_distinct = s.distinct
             && self.clauses.is_empty()
@@ -301,15 +320,17 @@ impl Rule {
         })
     }
     /// The names of the totals, when the computation is totals over every row.
-    pub(super) fn totals_names(&self) -> Vec<String> {
+    #[must_use]
+    pub fn totals_names(&self) -> Vec<String> {
         self.shape.totals_names()
     }
     /// The excerpt the rule was read from.
-    pub(super) fn text(&self) -> &str {
+    #[must_use]
+    pub fn text(&self) -> &str {
         &self.text
     }
     /// The inverse of [`Rule::to_json`], for a recorded plan replayed on an answer round.
-    pub(super) fn from_json(value: &Value) -> Option<Self> {
+    pub(crate) fn from_json(value: &Value) -> Option<Self> {
         let text = value.get("text")?.as_str()?.to_owned();
         let clauses = value
             .get("clauses")?
@@ -340,13 +361,14 @@ impl Rule {
         })
     }
     /// Whether the text also asked for the count and totals the summary stage computes.
-    pub(super) const fn summary(&self) -> bool {
+    #[must_use]
+    pub const fn summary(&self) -> bool {
         self.summary
     }
     /// Every source column the rule reads, first use first: the join key, the clauses, the
     /// group column, the aggregated columns, a sort or a projection on a source column (a
     /// sort or a projection on a produced name reads nothing from the source).
-    pub(super) fn fields(&self) -> Vec<String> {
+    pub(crate) fn fields(&self) -> Vec<String> {
         let mut out: Vec<String> = Vec::new();
         let mut push = |name: &str| {
             if !out.iter().any(|f| f == name) {
@@ -394,7 +416,8 @@ impl Rule {
     /// The computation over the parsed records: the join of the sources when the rule joins,
     /// the filter, then the shape's stages in their fixed order; over the lines of a text
     /// source, the result is written back as lines with the file's final newline.
-    pub(super) fn jq(&self) -> String {
+    #[must_use]
+    pub fn jq(&self) -> String {
         let base = match &self.shape.join_on {
             Some(on) => format!(
                 ".records | reduce .[1:][] as $right (.[0]; [.[] as $a | $right[] | select({k} == ($a | {k})) | $a + .])",
@@ -418,7 +441,8 @@ impl Rule {
     /// True when the records are an array whose first record carries every column the
     /// rule reads (an empty array passes): a wrong column fails loudly, never filters
     /// everything in silence. A join judges every source's first record; lines are strings.
-    pub(super) fn guard(&self) -> String {
+    #[must_use]
+    pub fn guard(&self) -> String {
         if self.lines {
             return "(.records | type) == \"array\" and all(.records[]; type == \"string\")"
                 .to_owned();
@@ -438,7 +462,8 @@ impl Rule {
             "(.records | type) == \"array\" and ((.records | length) == 0 or (.records[0] | type == \"object\"{has}))"
         )
     }
-    pub(super) fn guard_message(&self) -> String {
+    #[must_use]
+    pub fn guard_message(&self) -> String {
         if self.lines {
             return format!(
                 "The rule `{}` runs over the lines of the source, but the source was not read as lines.",
@@ -463,7 +488,7 @@ impl Rule {
         )
     }
     /// The provenance record: observational, never authority.
-    pub(super) fn to_json(&self) -> Value {
+    pub fn to_json(&self) -> Value {
         let mut record = json!({
             "text": self.text,
             "fields": self.fields(),
@@ -864,7 +889,8 @@ fn segments(text: &str) -> impl Iterator<Item = &str> {
 }
 
 /// The rule the text states, or `None` when any part is outside the grammar.
-pub(super) fn synthesize(text: &str, columns: &[String]) -> Option<Rule> {
+#[must_use]
+pub fn synthesize(text: &str, columns: &[String]) -> Option<Rule> {
     let text = text.trim();
     let mut clauses = Vec::new();
     let mut junction: Option<Junction> = None;

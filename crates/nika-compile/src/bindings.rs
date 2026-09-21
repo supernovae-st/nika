@@ -511,6 +511,7 @@ fn resolve_read(
             PathShape::Glob(p) => globs.push(p),
             PathShape::Directory(p) => directories.push(p),
             PathShape::Placeholder(p) => placeholders.push(p),
+            _ => {}
         }
     }
     if files.is_empty() && globs.is_empty() && directories.is_empty() && placeholders.is_empty() {
@@ -679,7 +680,8 @@ fn rule_label(plan: &Plan, b: &Bindings, detail: &str) -> String {
             Op::Validate => shape.push(("validation", "the {valid, issues} verdict".to_owned())),
             Op::Draft => shape.push(("draft", "the drafted text".to_owned())),
             Op::Explore => shape.push(("exploration", "the agent's final answer".to_owned())),
-            Op::Read | Op::Fetch | Op::Lookup | Op::Search => {}
+            // A retrieval (read · fetch · lookup · search) shapes nothing here.
+            _ => {}
         }
     }
     let names = shape
@@ -702,7 +704,8 @@ pub(super) fn parsed_about(path: &str, format: Structured) -> String {
     match format {
         Structured::Json => format!("{path} decoded from JSON"),
         Structured::Csv => format!("the rows of {path} as an array of objects keyed by header"),
-        Structured::Yaml | Structured::Toml => format!("{path} decoded as JSON"),
+        // YAML, TOML and any structured format this member learns later decode to JSON.
+        _ => format!("{path} decoded as JSON"),
     }
 }
 
@@ -760,6 +763,8 @@ fn wanted(
                 None => None,
             }
         }
+        // A policy this member does not know yet leaves the effect unresolved, never bound.
+        _ => None,
     }
 }
 

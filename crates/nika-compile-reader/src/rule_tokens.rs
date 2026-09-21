@@ -6,12 +6,120 @@
 //! they touch, and quoted spans kept whole. The grammar itself lives in `rules`.
 
 use super::rules::Comparator;
-use super::shape::fold;
+
+/// A number followed by a size unit bounds prose, not data.
+pub const SIZE_UNITS: &[&str] = &[
+    "word",
+    "words",
+    "mot",
+    "mots",
+    "line",
+    "lines",
+    "ligne",
+    "lignes",
+    "bullet",
+    "bullets",
+    "puce",
+    "puces",
+    "sentence",
+    "sentences",
+    "phrase",
+    "phrases",
+    "character",
+    "characters",
+    "chars",
+    "caractere",
+    "caracteres",
+    "paragraph",
+    "paragraphs",
+    "paragraphe",
+    "paragraphes",
+    "palabra",
+    "palabras",
+    "linea",
+    "lineas",
+    "oracion",
+    "oraciones",
+    "frase",
+    "frasi",
+    "parola",
+    "parole",
+    "riga",
+    "righe",
+    "caratteri",
+    "wort",
+    "worter",
+    "zeile",
+    "zeilen",
+    "satz",
+    "satze",
+    "zeichen",
+    "token",
+    "tokens",
+    "page",
+    "pages",
+];
+
+/// A number followed by an attempt or turn unit bounds a loop, not data.
+pub const ATTEMPT_UNITS: &[&str] = &[
+    "attempt",
+    "attempts",
+    "try",
+    "tries",
+    "retry",
+    "retries",
+    "turn",
+    "turns",
+    "time",
+    "times",
+    "fois",
+    "essai",
+    "essais",
+    "tentative",
+    "tentatives",
+    "tour",
+    "tours",
+    "iteration",
+    "iterations",
+    "round",
+    "rounds",
+    "cycle",
+    "cycles",
+    "intento",
+    "intentos",
+    "vuelta",
+    "vueltas",
+    "tentativo",
+    "tentativi",
+    "versuch",
+    "versuche",
+    "runde",
+    "runden",
+];
+
+/// Lowercase with Latin diacritics folded to ASCII, so every table matches one spelling.
+pub fn fold(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for c in text.chars().flat_map(char::to_lowercase) {
+        match c {
+            'à' | 'â' | 'ä' | 'á' | 'ã' => out.push('a'),
+            'ç' => out.push('c'),
+            'è' | 'é' | 'ê' | 'ë' => out.push('e'),
+            'î' | 'ï' | 'í' => out.push('i'),
+            'ô' | 'ö' | 'ó' | 'õ' => out.push('o'),
+            'ù' | 'û' | 'ü' | 'ú' => out.push('u'),
+            'ñ' => out.push('n'),
+            'ß' => out.push_str("ss"),
+            other => out.push(other),
+        }
+    }
+    out
+}
 
 // ── tokens ───────────────────────────────────────────────────────────────────────
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) enum Kind {
+pub(crate) enum Kind {
     Word,
     /// A number with its canonical text (`100`, `1.5`, `-3`).
     Number(String),
@@ -21,16 +129,16 @@ pub(super) enum Kind {
 }
 
 #[derive(Clone, Debug)]
-pub(super) struct Token {
+pub(crate) struct Token {
     /// The text as written (punctuation trimmed), for keys and values.
-    pub(super) original: String,
+    pub(crate) original: String,
     /// Lowercase, diacritics folded, for the tables.
-    pub(super) folded: String,
-    pub(super) kind: Kind,
+    pub(crate) folded: String,
+    pub(crate) kind: Kind,
 }
 
 impl Token {
-    pub(super) fn word(&self) -> Option<&str> {
+    pub(crate) fn word(&self) -> Option<&str> {
         matches!(self.kind, Kind::Word).then_some(self.folded.as_str())
     }
 }
@@ -71,7 +179,7 @@ fn is_punctuation(c: char) -> bool {
 
 /// A number's canonical text: currency and percent signs dropped, a single decimal
 /// comma read as a point, thousands separators removed; anything else is not a number.
-pub(super) fn number(word: &str) -> Option<String> {
+pub(crate) fn number(word: &str) -> Option<String> {
     let trimmed = word
         .trim_start_matches(['€', '$', '£', '+'])
         .trim_end_matches(['€', '$', '£', '%']);
@@ -142,7 +250,7 @@ fn push_word(word: &str, out: &mut Vec<Token>) {
 
 /// Words, numbers, symbols and quoted spans. A quote opens only at the start of a token,
 /// so an apostrophe inside a word (`l'ordre`, `n'est`) stays in the word.
-pub(super) fn tokenize(text: &str) -> Vec<Token> {
+pub(crate) fn tokenize(text: &str) -> Vec<Token> {
     let mut out = Vec::new();
     let mut rest = text.trim_start();
     while !rest.is_empty() {
@@ -174,7 +282,7 @@ pub(super) fn tokenize(text: &str) -> Vec<Token> {
     out
 }
 
-pub(super) fn phrase(tokens: &[Token], at: usize, width: usize) -> Option<String> {
+pub(crate) fn phrase(tokens: &[Token], at: usize, width: usize) -> Option<String> {
     let slice = tokens.get(at..at + width)?;
     if slice.iter().any(|t| t.word().is_none()) {
         return None;

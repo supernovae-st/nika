@@ -8,7 +8,8 @@ use super::rules::key;
 
 /// An aggregate over a group or over every row: sum, count, average, minimum, maximum.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum AggOp {
+#[non_exhaustive]
+pub enum AggOp {
     Sum,
     Count,
     Avg,
@@ -17,7 +18,8 @@ pub(super) enum AggOp {
 }
 
 impl AggOp {
-    pub(super) fn from_word(word: &str) -> Option<Self> {
+    #[must_use]
+    pub fn from_word(word: &str) -> Option<Self> {
         match word.trim().to_ascii_lowercase().as_str() {
             "sum" | "total" => Some(Self::Sum),
             "count" | "n" => Some(Self::Count),
@@ -41,7 +43,8 @@ impl AggOp {
 /// One aggregate: the source column it reads (none for a count), the output name the
 /// request states, and the decimals it rounds to when the request rounds.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct Aggregation {
+#[non_exhaustive]
+pub struct Aggregation {
     pub field: Option<String>,
     pub op: AggOp,
     pub name: String,
@@ -49,7 +52,23 @@ pub(super) struct Aggregation {
 }
 
 impl Aggregation {
-    pub(super) fn jq(&self) -> String {
+    /// One aggregate: the column it reads (none for a count), the output name and the
+    /// decimals it rounds to.
+    #[must_use]
+    pub fn new(
+        field: Option<String>,
+        op: AggOp,
+        name: impl Into<String>,
+        round: Option<u32>,
+    ) -> Self {
+        Self {
+            field,
+            op,
+            name: name.into(),
+            round,
+        }
+    }
+    pub(crate) fn jq(&self) -> String {
         let values = self
             .field
             .as_deref()
@@ -101,7 +120,8 @@ impl Aggregation {
 
 /// Arithmetic between two outputs (or an output and a literal of the request).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum ArithOp {
+#[non_exhaustive]
+pub enum ArithOp {
     Sub,
     Add,
     Mul,
@@ -109,7 +129,8 @@ pub(super) enum ArithOp {
 }
 
 impl ArithOp {
-    pub(super) fn from_word(word: &str) -> Option<Self> {
+    #[must_use]
+    pub fn from_word(word: &str) -> Option<Self> {
         match word.trim().to_ascii_lowercase().as_str() {
             "sub" | "minus" | "-" => Some(Self::Sub),
             "add" | "plus" | "+" => Some(Self::Add),
@@ -130,7 +151,8 @@ impl ArithOp {
 
 /// One side of a derived output: another output by name, or a number of the request.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) enum Term {
+#[non_exhaustive]
+pub enum Term {
     Name(String),
     Number(String),
 }
@@ -161,7 +183,8 @@ impl Term {
 
 /// An output the request defines as arithmetic over other outputs (`solde = credit - debit`).
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct Derived {
+#[non_exhaustive]
+pub struct Derived {
     pub name: String,
     pub op: ArithOp,
     pub left: Term,
@@ -169,6 +192,16 @@ pub(super) struct Derived {
 }
 
 impl Derived {
+    /// One derived output: its name and the arithmetic over two terms that defines it.
+    #[must_use]
+    pub fn new(name: impl Into<String>, op: ArithOp, left: Term, right: Term) -> Self {
+        Self {
+            name: name.into(),
+            op,
+            left,
+            right,
+        }
+    }
     fn jq(&self) -> String {
         let (l, r) = (self.left.jq(), self.right.jq());
         match self.op {
@@ -197,7 +230,8 @@ impl Derived {
 /// sources may be joined on one column. Every stage is typed and closed; the composition
 /// lowers in that fixed order.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub(super) struct Shape {
+#[non_exhaustive]
+pub struct Shape {
     /// The column several parsed sources are joined on: an inner join, first source first.
     pub join_on: Option<String>,
     pub group_by: Option<String>,
@@ -214,7 +248,7 @@ pub(super) struct Shape {
 }
 
 /// The removal of duplicates, first occurrence kept: `unique` would sort the rows.
-pub(super) const DISTINCT: &str =
+pub(crate) const DISTINCT: &str =
     "reduce .[] as $r ([]; if any(.[]; . == $r) then . else . + [$r] end)";
 
 impl Shape {
@@ -222,7 +256,7 @@ impl Shape {
     /// the 2 rows with the highest count"): each stage stated at most once, aggregates
     /// joined, a removal of duplicates never beside a top-N (the two orders disagree on what
     /// N rows are). Anything else is `None`: the human is asked.
-    pub(super) fn merge(mut self, other: Self) -> Option<Self> {
+    pub(crate) fn merge(mut self, other: Self) -> Option<Self> {
         /// The same stage stated twice.
         struct Twice;
         fn once<T>(a: Option<T>, b: Option<T>) -> Result<Option<T>, Twice> {
@@ -258,7 +292,7 @@ impl Shape {
         Some(self)
     }
     /// The names the shape produces: the group column and every aggregate.
-    pub(super) fn produced(&self) -> Vec<&str> {
+    pub(crate) fn produced(&self) -> Vec<&str> {
         self.group_by
             .iter()
             .map(String::as_str)
@@ -268,7 +302,7 @@ impl Shape {
     }
     /// The columns the shape writes, in order, when it fixes them: the projection, or the
     /// group column and the aggregates. Totals are one object, never columns.
-    pub(super) fn output_columns(&self) -> Option<Vec<String>> {
+    pub(crate) fn output_columns(&self) -> Option<Vec<String>> {
         if self.is_totals() {
             return None;
         }
@@ -281,7 +315,7 @@ impl Shape {
         None
     }
     /// The names of the totals, when the shape is totals over every row.
-    pub(super) fn totals_names(&self) -> Vec<String> {
+    pub(crate) fn totals_names(&self) -> Vec<String> {
         if self.is_totals() {
             self.aggregations
                 .iter()
@@ -297,7 +331,7 @@ impl Shape {
     /// then the projection, then the removal of duplicates. A sort on a source column
     /// compares numbers when the text holds one (a CSV cell is text, `"900" < "1000"` only
     /// as numbers) and the text itself otherwise; a produced name is already typed.
-    pub(super) fn lower(&self, filtered: String) -> String {
+    pub(crate) fn lower(&self, filtered: String) -> String {
         let mut jq = filtered;
         let entries = |aggregations: &[Aggregation]| {
             aggregations
@@ -362,10 +396,10 @@ impl Shape {
         jq
     }
     /// Totals over every row (aggregates without a group): one object, not rows.
-    pub(super) fn is_totals(&self) -> bool {
+    pub(crate) fn is_totals(&self) -> bool {
         self.group_by.is_none() && !self.aggregations.is_empty()
     }
-    pub(super) fn to_json(&self) -> Value {
+    pub(crate) fn to_json(&self) -> Value {
         json!({
             "join_on": self.join_on,
             "group_by": self.group_by,
@@ -378,7 +412,7 @@ impl Shape {
             "distinct": self.distinct,
         })
     }
-    pub(super) fn from_json(value: Option<&Value>) -> Option<Self> {
+    pub(crate) fn from_json(value: Option<&Value>) -> Option<Self> {
         let Some(value) = value else {
             return Some(Self::default());
         };
@@ -496,7 +530,7 @@ const DETERMINERS: &[&str] = &[
 ];
 
 /// A word that marks the name beside it as a column.
-pub(super) const COLUMN_WORDS: &[&str] = &[
+pub(crate) const COLUMN_WORDS: &[&str] = &[
     "column", "columns", "field", "fields", "colonne", "colonnes", "champ", "champs", "columna",
     "columnas", "campo", "campos", "colonna", "colonne", "campi", "spalte", "spalten", "feld",
     "felder",
@@ -507,7 +541,7 @@ const VALUE_WORDS: &[&str] = &["values", "valeurs", "valores", "valori", "werte"
 
 /// The generic nouns a count may range over: every row, never a subset the request would
 /// have to describe as a filter.
-pub(super) const ROW_WORDS: &[&str] = &[
+pub(crate) const ROW_WORDS: &[&str] = &[
     "rows",
     "row",
     "records",
@@ -537,7 +571,7 @@ pub(super) const ROW_WORDS: &[&str] = &[
 ];
 
 fn normalized(name: &str) -> String {
-    super::shape::fold(name).replace([' ', '-'], "_")
+    super::rule_tokens::fold(name).replace([' ', '-'], "_")
 }
 
 /// The hint column a name designates, in the hint's own spelling.
@@ -553,7 +587,7 @@ fn hinted(name: &str, columns: &[String]) -> Option<String> {
 /// may follow. A count ranges over every row only under a generic row noun: "the number of
 /// open tickets" describes a filter the grammar does not read, so it is no aggregate.
 /// Anything else is `None`: the human is asked, nothing is guessed.
-pub(super) fn stated(text: &str, columns: &[String]) -> Option<Aggregation> {
+pub(crate) fn stated(text: &str, columns: &[String]) -> Option<Aggregation> {
     let words: Vec<(String, String)> = text
         .split_whitespace()
         .map(|w| {
@@ -565,7 +599,7 @@ pub(super) fn stated(text: &str, columns: &[String]) -> Option<Aggregation> {
             })
         })
         .filter(|w| !w.is_empty())
-        .map(|w| (w.to_owned(), super::shape::fold(w).replace('\'', "")))
+        .map(|w| (w.to_owned(), super::rule_tokens::fold(w).replace('\'', "")))
         .collect();
     let folded = |at: usize| words.get(at).map(|(_, f)| f.as_str());
     let mut at = 0;

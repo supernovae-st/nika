@@ -6,6 +6,7 @@
 //! indefinite object is new), not cue lists.
 
 use super::lexicon::{ARTICLES, OBJECT_CONNECTORS, fold_apostrophes};
+use super::plan::Plan;
 
 fn normalize(text: &str) -> String {
     fold_apostrophes(text).to_lowercase()
@@ -14,7 +15,7 @@ fn normalize(text: &str) -> String {
 /// What an object still says after its path literal, beyond one parenthetical hint attached
 /// to the path and trailing punctuation. A non-empty residue is a demand the path did not
 /// settle; the reader must not let it vanish with the path.
-pub(super) fn residue_after_path(detail: &str, path: &str) -> String {
+pub(crate) fn residue_after_path(detail: &str, path: &str) -> String {
     let Some(at) = detail.find(path) else {
         return String::new();
     };
@@ -33,7 +34,8 @@ pub(super) fn residue_after_path(detail: &str, path: &str) -> String {
 
 /// A residue re-enters the reader as a clause once the connector that joined it to the path
 /// is gone: `, and keep the rows that matter` → `keep the rows that matter`.
-pub(super) fn as_clause(residue: &str) -> &str {
+#[must_use]
+pub fn as_clause(residue: &str) -> &str {
     const CONNECTORS: &[&str] = &[
         "and ", "et ", "then ", "puis ", "but ", "mais ", "or ", "ou ", "ensuite ", "e ", "ed ",
         "poi ", "quindi ", "y ", "luego ",
@@ -59,7 +61,8 @@ pub(super) fn as_clause(residue: &str) -> &str {
 /// locative (`in ./x.md`, `en ./x.md`, `nel ./x.md`) is a destination only when the path
 /// follows it immediately: `in 3 bullets to ./x.md` keeps its `to`. The connector may open
 /// the object (`salvalo in ./x.md` reads as `in ./x.md`): the position is then 0.
-pub(super) fn destination_at(detail_lower: &str, path_at: usize) -> Option<usize> {
+#[must_use]
+pub fn destination_at(detail_lower: &str, path_at: usize) -> Option<usize> {
     const ANYWHERE: &[&str] = &[" to ", " into ", " dans ", " sous ", " vers "];
     const ADJACENT: &[&str] = &[
         " in ", " en ", " nel ", " nella ", " su ", " sul ", " sulla ",
@@ -85,7 +88,7 @@ pub(super) fn destination_at(detail_lower: &str, path_at: usize) -> Option<usize
 
 /// The target an effect phrase names: its destination path when a connector introduces one
 /// (`writing it to ./final.md` → `./final.md`), else the phrase itself.
-pub(super) fn destination_target(text: &str) -> &str {
+pub(crate) fn destination_target(text: &str) -> &str {
     let path = text
         .split_whitespace()
         .map(|w| w.trim_end_matches(['.', ',', ';', ')', ':']))
@@ -106,7 +109,7 @@ pub(super) fn destination_target(text: &str) -> &str {
 /// to ./bugs.json and ./features.json") shares the object of the earlier one, and its
 /// excerpt is the whole span from that object. One destination, or a first destination
 /// with no object before it, is not a split.
-pub(super) fn write_segments(detail: &str) -> Vec<(String, String, String)> {
+pub(crate) fn write_segments(detail: &str) -> Vec<(String, String, String)> {
     let lower = detail.to_lowercase();
     if lower.len() != detail.len() {
         return Vec::new();
@@ -160,7 +163,7 @@ pub(super) fn write_segments(detail: &str) -> Vec<(String, String, String)> {
 /// A list of files joined by list connectors ("./a.csv and ./b.csv", "./a.md ; ./b.md",
 /// "./a.csv, ./b.csv"): every word a file literal or a connector, at least two files. Such
 /// an object is explicit by construction: the files are copied, in order, never guessed.
-pub(super) fn path_list(text: &str) -> Option<Vec<String>> {
+pub(crate) fn path_list(text: &str) -> Option<Vec<String>> {
     const LIST_WORDS: &[&str] = &["and", "et", "y", "e", "ed", "und", "&", ";", ","];
     let mut files = Vec::new();
     for word in text.split_whitespace() {
@@ -177,7 +180,8 @@ pub(super) fn path_list(text: &str) -> Option<Vec<String>> {
 }
 
 /// Whether a target carries a literal (a path, a URL or an address).
-pub(super) fn has_literal(target: &str) -> bool {
+#[must_use]
+pub fn has_literal(target: &str) -> bool {
     target.split_whitespace().any(|w| {
         w.starts_with("./")
             || w.starts_with("http://")
@@ -188,7 +192,7 @@ pub(super) fn has_literal(target: &str) -> bool {
 
 /// The text with every listed column blanked out, underscores kept, so a column that spells
 /// a verb (`credit_cents`, `email`) is never read as one.
-pub(super) fn mask_columns(lower: &str, columns: &[String]) -> String {
+pub(crate) fn mask_columns(lower: &str, columns: &[String]) -> String {
     if columns.is_empty() {
         return lower.to_owned();
     }
@@ -260,8 +264,8 @@ const FOLD_WORDS: &[&str] = &[
 ];
 
 /// Whether an object names a fold of pieces ("the combined brief").
-pub(super) fn folds(object_lower: &str) -> bool {
-    super::shape::fold(object_lower)
+pub(crate) fn folds(object_lower: &str) -> bool {
+    super::rule_tokens::fold(object_lower)
         .split(|c: char| !c.is_alphanumeric() && c != '-')
         .any(|w| FOLD_WORDS.contains(&w))
 }
@@ -293,8 +297,8 @@ const CLASSIFICATION_WORDS: &[&str] = &[
 ];
 
 /// Whether an object names the result of a classification ("the category").
-pub(super) fn names_classification(object_lower: &str) -> bool {
-    super::shape::fold(object_lower)
+pub(crate) fn names_classification(object_lower: &str) -> bool {
+    super::rule_tokens::fold(object_lower)
         .split(|c: char| !c.is_alphanumeric() && c != '-')
         .any(|w| CLASSIFICATION_WORDS.contains(&w))
 }
@@ -383,7 +387,7 @@ const OF_WORDS: &[&str] = &[
 /// name new content the write demands? A pronoun or a generic result word refers back; so
 /// does a head noun that recurs in an earlier clause (`the count` after `count the tickets`).
 /// Anything else (`a 3-bullet summary`, `the summary` with nothing summarized before) is new.
-pub(super) fn refers_back<'a>(object_lower: &str, earlier: impl Iterator<Item = &'a str>) -> bool {
+pub(crate) fn refers_back<'a>(object_lower: &str, earlier: impl Iterator<Item = &'a str>) -> bool {
     let tokens: Vec<&str> = object_lower
         .split(|c: char| !c.is_alphanumeric() && c != '\'' && c != '-')
         .map(|t| t.trim_matches('-'))
@@ -424,7 +428,7 @@ pub(super) fn refers_back<'a>(object_lower: &str, earlier: impl Iterator<Item = 
 
 /// A step object the reader may trust without a model: a typed literal (URL, path, email,
 /// timezone, number) or at most four content tokens with no coordinating connector.
-pub(super) fn explicit_object(detail: &str) -> bool {
+pub(crate) fn explicit_object(detail: &str) -> bool {
     if path_list(detail).is_some() {
         return true;
     }
@@ -467,8 +471,8 @@ pub(super) fn explicit_object(detail: &str) -> bool {
 /// a conjunction, each a short noun phrase (one to three content tokens), no path, an
 /// optional distributive scope at the end. Coordination here enumerates, it does not
 /// compose.
-pub(super) fn explicit_field_list(detail: &str) -> bool {
-    let lower = normalize(super::shape::without_distributive_tail(detail));
+pub(crate) fn explicit_field_list(detail: &str) -> bool {
+    let lower = normalize(without_distributive_tail(detail));
     let listed = lower
         .replace(" and ", ", ")
         .replace(" et ", ", ")
@@ -491,9 +495,313 @@ pub(super) fn explicit_field_list(detail: &str) -> bool {
         })
 }
 
+/// Phrases that open a distributive scope at the end of an object ("the supplier, the date
+/// and the amount of each one", "les champs de chaque facture"): ASCII, lowercase.
+const DISTRIBUTIVE_OPENERS: &[&str] = &[
+    " of each",
+    " of every",
+    " for each",
+    " for every",
+    " from each",
+    " in each",
+    " de chaque",
+    " de chacun",
+    " pour chaque",
+    " dans chaque",
+    " di ciascun",
+    " di ogni",
+    " de cada",
+];
+
+/// The object without its trailing distributive scope: "the supplier, the date and the
+/// amount of each one" → "the supplier, the date and the amount". The scope is the opener
+/// and at most two words after it, at the very end; anything else is not a scope.
+#[must_use]
+pub fn without_distributive_tail(text: &str) -> &str {
+    let text = text.trim().trim_end_matches(['.', ',', ';', ':']);
+    let lower = text.to_lowercase();
+    if lower.len() != text.len() {
+        return text;
+    }
+    let cut = DISTRIBUTIVE_OPENERS
+        .iter()
+        .filter_map(|opener| lower.rfind(opener).map(|at| (at, opener.len())))
+        .max_by_key(|(at, _)| *at);
+    match cut {
+        Some((at, len))
+            if lower
+                .get(at + len..)
+                .is_some_and(|tail| tail.split_whitespace().count() <= 2) =>
+        {
+            text.get(..at).unwrap_or(text).trim()
+        }
+        _ => text,
+    }
+}
+
+/// A facet of a fetched page a write carries as it is: the extract mode of `nika:fetch`
+/// that yields it and, for one field of the metadata object, that field.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Facet {
+    pub mode: &'static str,
+    pub field: Option<&'static str>,
+}
+
+impl Facet {
+    #[must_use]
+    pub const fn mode(mode: &'static str) -> Self {
+        Self { mode, field: None }
+    }
+    #[must_use]
+    pub const fn field(field: &'static str) -> Self {
+        Self {
+            mode: "metadata",
+            field: Some(field),
+        }
+    }
+}
+
+/// Words that name the page itself beside a facet ("the page title", "il titolo della
+/// pagina"), folded.
+const PAGE_WORDS: &[&str] = &[
+    "page", "pages", "pagina", "webpage", "web", "site", "website", "url", "seite", "webseite",
+];
+
+/// Words that name the article of a page: its readable body, `mode: article`.
+const ARTICLE_WORDS: &[&str] = &["article", "articles", "articolo", "articulo", "artikel"];
+
+/// `of` and its kin, and the connectors that join a facet to its destination or its form
+/// ("the page as markdown"): never content, folded.
+const LINK_WORDS: &[&str] = &[
+    "of", "de", "du", "des", "d", "della", "del", "dell", "di", "da", "von", "der", "from", "to",
+    "into", "in", "dans", "vers", "sous", "en", "nel", "nella", "su", "sul", "sulla", "as",
+    "comme", "come", "como", "als",
+];
+
+/// The facet one head noun names, folded (EN · FR · IT · ES · DE).
+fn facet_head(word: &str) -> Option<Facet> {
+    const TITLE: &[&str] = &["title", "titre", "titolo", "titulo", "titel"];
+    const DESCRIPTION: &[&str] = &["description", "descrizione", "descripcion", "beschreibung"];
+    const TEXT: &[&str] = &["text", "texte", "testo", "texto"];
+    const CONTENT: &[&str] = &[
+        "content",
+        "contents",
+        "contenu",
+        "contenido",
+        "contenuto",
+        "body",
+        "corps",
+        "inhalt",
+    ];
+    const HTML: &[&str] = &["html", "raw"];
+    const LINKS: &[&str] = &[
+        "links",
+        "link",
+        "liens",
+        "lien",
+        "enlaces",
+        "enlace",
+        "collegamenti",
+        "collegamento",
+    ];
+    const METADATA: &[&str] = &[
+        "metadata",
+        "metadonnees",
+        "metadati",
+        "metadatos",
+        "metadaten",
+    ];
+    if TITLE.contains(&word) {
+        Some(Facet::field("title"))
+    } else if DESCRIPTION.contains(&word) {
+        Some(Facet::field("description"))
+    } else if TEXT.contains(&word) {
+        Some(Facet::mode("text"))
+    } else if CONTENT.contains(&word) || word == "markdown" {
+        Some(Facet::mode("markdown"))
+    } else if HTML.contains(&word) {
+        Some(Facet::mode("raw"))
+    } else if LINKS.contains(&word) {
+        Some(Facet::mode("links"))
+    } else if METADATA.contains(&word) {
+        Some(Facet::mode("metadata"))
+    } else {
+        None
+    }
+}
+
+/// The facet of the fetched page an object names, when it names nothing else: "the page
+/// title", "le titre de la page", "the article text", "the links", "the page". Any word
+/// outside the page, facet, article and link tables ("a summary of the page", "the top 3
+/// links") is content the fetch does not yield as it is, so no facet is read.
+#[must_use]
+pub fn page_facet(object: &str) -> Option<Facet> {
+    let folded = super::hot::fold(&fold_apostrophes(object)).replace("'s", "");
+    let mut head: Option<Facet> = None;
+    let mut article = false;
+    let mut page = false;
+    for token in folded
+        .split(|c: char| !c.is_alphanumeric() && c != '-')
+        .filter(|t| !t.is_empty())
+    {
+        if ARTICLES.contains(&token) || LINK_WORDS.contains(&token) {
+            continue;
+        }
+        if PAGE_WORDS.contains(&token) {
+            page = true;
+            continue;
+        }
+        if ARTICLE_WORDS.contains(&token) {
+            article = true;
+            continue;
+        }
+        head = Some(facet_head(token)?);
+    }
+    match (head, article, page) {
+        // "the article text", "le contenu de l'article": the readable body.
+        (Some(facet), true, _) if matches!(facet.mode, "text" | "markdown") => {
+            Some(Facet::mode("article"))
+        }
+        (Some(facet), _, _) => Some(facet),
+        (None, true, _) => Some(Facet::mode("article")),
+        (None, false, true) => Some(Facet::mode("markdown")),
+        (None, false, false) => None,
+    }
+}
+
+/// Connectors that join an effect's object to its destination ("it to `<url>`", "le
+/// rapport à ops@x"), folded.
+const DESTINATION_CONNECTORS: &[&str] = &[
+    "to", "into", "at", "on", "onto", "vers", "a", "sur", "dans", "en", "su", "al", "an", "nach",
+];
+
+/// The object of an effect phrase before its destination literal and the connector that
+/// joins them: `it to https://x/notify` → `it`; `the report to ops@x` → `the report`.
+fn object_before_destination(target: &str) -> String {
+    let lower = super::hot::fold(&fold_apostrophes(target));
+    let cut = lower
+        .split_whitespace()
+        .find(|w| {
+            w.starts_with("http://")
+                || w.starts_with("https://")
+                || (w.contains('@') && w.contains('.'))
+        })
+        .and_then(|w| lower.find(w))
+        .unwrap_or(lower.len());
+    let words: Vec<&str> = lower
+        .get(..cut)
+        .unwrap_or_default()
+        .split_whitespace()
+        .collect();
+    let end = words.len().saturating_sub(usize::from(
+        words
+            .last()
+            .is_some_and(|w| DESTINATION_CONNECTORS.contains(w)),
+    ));
+    words.get(..end).unwrap_or_default().join(" ")
+}
+
+/// Whether an effect phrase carries material the plan already holds, unchanged: its object
+/// before the destination is a back-reference ("it", "the file") or names a source or a
+/// produced result by its own head ("the report" after `./report.md`, "the reply" after a
+/// drafted reply). Anything else ("a summary") is content a step must produce first.
+#[must_use]
+pub fn carried(target: &str, plan: &Plan) -> bool {
+    let object = object_before_destination(target);
+    refers_back(&object, plan.steps.iter().map(|s| s.detail.as_str()))
+}
+
 #[cfg(test)]
 mod tests {
+    use super::super::plan::{Op, Plan, Step};
     use super::*;
+
+    fn plan_with(details: &[(Op, &str)]) -> Plan {
+        let mut plan = Plan::default();
+        for (op, detail) in details {
+            plan.steps.push(Step {
+                op: *op,
+                evidence: (*detail).to_owned(),
+                detail: (*detail).to_owned(),
+                categories: Vec::new(),
+            });
+        }
+        plan
+    }
+
+    #[test]
+    fn a_carried_object_is_a_back_reference_or_a_head_that_recurs_in_a_source() {
+        let read = plan_with(&[(Op::Read, "./report.md")]);
+        assert_eq!(object_before_destination("it to https://x/notify"), "it");
+        assert_eq!(
+            object_before_destination("the report to ops@example.invalid"),
+            "the report"
+        );
+        assert_eq!(
+            object_before_destination("le rapport à ops@x.fr"),
+            "le rapport"
+        );
+        assert_eq!(object_before_destination("sending"), "sending");
+        for target in [
+            "it to https://x/notify",
+            "the report to https://x/notify",
+            "the file to https://x/notify",
+            "https://x/notify",
+        ] {
+            assert!(carried(target, &read), "{target}");
+        }
+        for target in ["a summary to https://x/notify", "a reply to ops@x"] {
+            assert!(!carried(target, &read), "{target}");
+        }
+        let drafted = plan_with(&[(Op::Read, "./inbox/a.md"), (Op::Draft, "a reply")]);
+        assert!(carried("the reply to ops@example.invalid", &drafted));
+    }
+
+    #[test]
+    fn a_facet_is_read_from_the_page_words_alone_in_five_languages() {
+        for (object, facet) in [
+            ("the page title", Facet::field("title")),
+            ("the title of the page", Facet::field("title")),
+            ("the page's title", Facet::field("title")),
+            ("le titre de la page", Facet::field("title")),
+            ("il titolo della pagina", Facet::field("title")),
+            ("el título de la página", Facet::field("title")),
+            ("der Titel der Seite", Facet::field("title")),
+            ("the page description", Facet::field("description")),
+            ("the article text", Facet::mode("article")),
+            ("the article", Facet::mode("article")),
+            ("le texte de l'article", Facet::mode("article")),
+            ("the page text", Facet::mode("text")),
+            ("the text", Facet::mode("text")),
+            ("the page", Facet::mode("markdown")),
+            ("the page content", Facet::mode("markdown")),
+            ("the page as markdown", Facet::mode("markdown")),
+            ("the raw html", Facet::mode("raw")),
+            ("the links", Facet::mode("links")),
+            ("les liens de la page", Facet::mode("links")),
+            ("the page metadata", Facet::mode("metadata")),
+        ] {
+            assert_eq!(page_facet(object), Some(facet), "{object}");
+        }
+    }
+
+    #[test]
+    fn content_the_fetch_does_not_yield_as_it_is_reads_no_facet() {
+        for object in [
+            "a summary of the page",
+            "the summary",
+            "the top 3 links",
+            "a short note about the page",
+            "the page title and the description",
+            "it",
+            "-le",
+            "",
+            "the main points",
+        ] {
+            assert_eq!(page_facet(object), None, "{object}");
+        }
+    }
 
     #[test]
     fn the_residue_is_what_the_path_did_not_settle() {

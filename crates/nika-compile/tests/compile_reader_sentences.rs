@@ -7,9 +7,10 @@
 //! sentence that merely resembles the one it was widened for.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use super::super::plan::{EffectPolicy, EffectVerb, Op};
-use super::super::{CompileOutcome, CompileRequest, CompileStatus, Strategy, compile, hot};
-use super::{Reading, read};
+use nika_compile::{CompileOutcome, CompileRequest, CompileStatus, Strategy, compile};
+use nika_compile_reader::hot;
+use nika_compile_reader::lexicon::{Reading, fold_apostrophes, read};
+use nika_compile_reader::plan::{EffectPolicy, EffectVerb, Op};
 use serde_json::Value;
 
 const DIGEST_FR: &str = "fais-moi un digest des notes dans ./notes et écris-le dans ./digest.md";
@@ -44,7 +45,7 @@ fn writes(reading: &Reading) -> Vec<(String, EffectPolicy)> {
 /// The strict admission verdict on a sentence: the reader's own rejections and the
 /// positive laws of the HOT door, together.
 fn admission(intent: &str) -> Vec<String> {
-    let folded = super::fold_apostrophes(intent);
+    let folded = fold_apostrophes(intent);
     let reading = read(&folded);
     let mut why = reading.hot_rejections();
     why.extend(hot::rejections(&folded, &reading));
@@ -323,7 +324,7 @@ fn a_question_is_a_conversation_never_a_rule_read_whole() {
         "Quale riga è la più cara?",
         "Cuál es la fila más cara?",
     ] {
-        let reading = read(&super::fold_apostrophes(question));
+        let reading = read(&fold_apostrophes(question));
         assert!(
             reading.plan.rules.is_empty(),
             "{question}: {:?}",

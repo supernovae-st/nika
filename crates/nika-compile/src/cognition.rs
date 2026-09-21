@@ -270,12 +270,12 @@ pub async fn compile_with_cognition<P: ProviderInferDyn>(
             match admitted {
                 Ok(choice) if choice != NONE_OPTION => {
                     if let Some(op) = Op::parse(&choice) {
-                        reading.plan.push_step(Step {
+                        reading.plan.push_step(Step::new(
                             op,
-                            evidence: ambiguity.clause.clone(),
-                            detail: ambiguity.detail.clone(),
-                            categories: Vec::new(),
-                        });
+                            ambiguity.clause.clone(),
+                            ambiguity.detail.clone(),
+                            Vec::new(),
+                        ));
                     }
                 }
                 Ok(_) => {
@@ -944,10 +944,8 @@ fn merge(
     // The deterministic reading contributes its POLICY floor (effects with their policy,
     // obligations, constraints, bindings, unknowns), never its operation guesses: a clause the
     // reader consumed is not understanding, and the model must account for every region.
-    let mut plan = Plan {
-        steps: Vec::new(),
-        ..reading.plan.clone()
-    };
+    let mut plan = reading.plan.clone();
+    plan.steps = Vec::new();
     for step in proposal.steps {
         let Some(op) = Op::parse(&step.op) else {
             reject(out, "unknown operation in the proposal");
@@ -979,12 +977,7 @@ fn merge(
         {
             plan.rules.push(rule);
         }
-        plan.push_step(Step {
-            op,
-            evidence,
-            detail: step.detail,
-            categories: step.categories,
-        });
+        plan.push_step(Step::new(op, evidence, step.detail, step.categories));
     }
     for effect in proposal.effects {
         let (Some(verb), Some(policy)) = (
@@ -1034,13 +1027,8 @@ fn merge(
                 ));
             }
         } else {
-            plan.effects.push(Effect {
-                verb,
-                target: effect.target,
-                evidence,
-                policy,
-                policy_literal: None,
-            });
+            plan.effects
+                .push(Effect::new(verb, effect.target, evidence, policy));
         }
     }
     for obligation in proposal.obligations {
@@ -1069,7 +1057,7 @@ fn merge(
             .iter()
             .any(|o| o.kind.word() == kind.word())
         {
-            plan.obligations.push(Obligation { kind, evidence });
+            plan.obligations.push(Obligation::new(kind, evidence));
         }
     }
     for constraint in proposal.constraints {

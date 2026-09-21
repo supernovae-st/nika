@@ -7,119 +7,12 @@
 //! deterministic text evidence over the plan's own elements and the request's verbatim
 //! words; nothing invents an element, and every promoted element keeps an exact excerpt.
 
+pub(super) use super::objects::without_distributive_tail;
 use super::plan::{Op, Plan, Step};
+pub(super) use super::rule_tokens::{ATTEMPT_UNITS, SIZE_UNITS, fold};
 
 /// Symbols that compare the number beside them.
 const COMPARISON_SYMBOLS: &[&str] = &[">=", "<=", "≥", "≤", ">", "<"];
-
-/// A number followed by a size unit bounds prose, not data.
-pub(super) const SIZE_UNITS: &[&str] = &[
-    "word",
-    "words",
-    "mot",
-    "mots",
-    "line",
-    "lines",
-    "ligne",
-    "lignes",
-    "bullet",
-    "bullets",
-    "puce",
-    "puces",
-    "sentence",
-    "sentences",
-    "phrase",
-    "phrases",
-    "character",
-    "characters",
-    "chars",
-    "caractere",
-    "caracteres",
-    "paragraph",
-    "paragraphs",
-    "paragraphe",
-    "paragraphes",
-    "palabra",
-    "palabras",
-    "linea",
-    "lineas",
-    "oracion",
-    "oraciones",
-    "frase",
-    "frasi",
-    "parola",
-    "parole",
-    "riga",
-    "righe",
-    "caratteri",
-    "wort",
-    "worter",
-    "zeile",
-    "zeilen",
-    "satz",
-    "satze",
-    "zeichen",
-    "token",
-    "tokens",
-    "page",
-    "pages",
-];
-
-/// A number followed by an attempt or turn unit bounds a loop, not data.
-pub(super) const ATTEMPT_UNITS: &[&str] = &[
-    "attempt",
-    "attempts",
-    "try",
-    "tries",
-    "retry",
-    "retries",
-    "turn",
-    "turns",
-    "time",
-    "times",
-    "fois",
-    "essai",
-    "essais",
-    "tentative",
-    "tentatives",
-    "tour",
-    "tours",
-    "iteration",
-    "iterations",
-    "round",
-    "rounds",
-    "cycle",
-    "cycles",
-    "intento",
-    "intentos",
-    "vuelta",
-    "vueltas",
-    "tentativo",
-    "tentativi",
-    "versuch",
-    "versuche",
-    "runde",
-    "runden",
-];
-
-/// Lowercase with Latin diacritics folded to ASCII, so every table matches one spelling.
-pub(super) fn fold(text: &str) -> String {
-    let mut out = String::with_capacity(text.len());
-    for c in text.chars().flat_map(char::to_lowercase) {
-        match c {
-            'à' | 'â' | 'ä' | 'á' | 'ã' => out.push('a'),
-            'ç' => out.push('c'),
-            'è' | 'é' | 'ê' | 'ë' => out.push('e'),
-            'î' | 'ï' | 'í' => out.push('i'),
-            'ô' | 'ö' | 'ó' | 'õ' => out.push('o'),
-            'ù' | 'û' | 'ü' | 'ú' => out.push('u'),
-            'ñ' => out.push('n'),
-            'ß' => out.push_str("ss"),
-            other => out.push(other),
-        }
-    }
-    out
-}
 
 /// One token of a folded constraint: a word, a number or a comparison symbol, with the
 /// surrounding punctuation dropped and a symbol glued to a number split off.
@@ -283,15 +176,8 @@ pub(super) fn promote_stated_rules(plan: &mut Plan, intent: &str) {
                     .iter()
                     .rposition(|s| matches!(s.op, Op::Read | Op::Fetch | Op::Lookup | Op::Search))
                     .map_or(0, |i| i + 1);
-                plan.steps.insert(
-                    at,
-                    Step {
-                        op: Op::Compute,
-                        evidence,
-                        detail,
-                        categories: Vec::new(),
-                    },
-                );
+                plan.steps
+                    .insert(at, Step::new(Op::Compute, evidence, detail, Vec::new()));
             }
             // The parsed rule is recorded for the step this promotion made or joined. A
             // step that already carried the rule may say more than it (a grouping the
@@ -472,49 +358,6 @@ pub(super) fn per_item(intent: &str, plan: &Plan) -> bool {
         .filter(|s| s.op == Op::Draft)
         .any(|s| led_by_quantifier(&s.evidence))
         || plan.trigger.as_deref().is_some_and(led_by_quantifier)
-}
-
-/// Phrases that open a distributive scope at the end of an object ("the supplier, the date
-/// and the amount of each one", "les champs de chaque facture"): ASCII, lowercase.
-const DISTRIBUTIVE_OPENERS: &[&str] = &[
-    " of each",
-    " of every",
-    " for each",
-    " for every",
-    " from each",
-    " in each",
-    " de chaque",
-    " de chacun",
-    " pour chaque",
-    " dans chaque",
-    " di ciascun",
-    " di ogni",
-    " de cada",
-];
-
-/// The object without its trailing distributive scope: "the supplier, the date and the
-/// amount of each one" → "the supplier, the date and the amount". The scope is the opener
-/// and at most two words after it, at the very end; anything else is not a scope.
-pub(super) fn without_distributive_tail(text: &str) -> &str {
-    let text = text.trim().trim_end_matches(['.', ',', ';', ':']);
-    let lower = text.to_lowercase();
-    if lower.len() != text.len() {
-        return text;
-    }
-    let cut = DISTRIBUTIVE_OPENERS
-        .iter()
-        .filter_map(|opener| lower.rfind(opener).map(|at| (at, opener.len())))
-        .max_by_key(|(at, _)| *at);
-    match cut {
-        Some((at, len))
-            if lower
-                .get(at + len..)
-                .is_some_and(|tail| tail.split_whitespace().count() <= 2) =>
-        {
-            text.get(..at).unwrap_or(text).trim()
-        }
-        _ => text,
-    }
 }
 
 /// Distributive words that lead an object ("each ticket", "chaque ligne", "every row").
@@ -754,42 +597,34 @@ mod tests {
         assert!(per_item(NOTES, &bare), "le nom du fichier en titre");
         // The French notes case: distributive words inside one draft's object, a single
         // file, a single length cap.
-        let one = Plan {
-            steps: vec![Step {
-                op: Op::Draft,
-                evidence: "resume moi tout les notes qui sont dans le dossier ./notes".to_owned(),
-                detail: "tout les notes … lessentiel de chaque note".to_owned(),
-                categories: Vec::new(),
-            }],
-            constraints: vec!["max 12 lignes".to_owned()],
-            ..Plan::default()
-        };
+        let mut one = Plan::default();
+        one.steps = vec![Step::new(
+            Op::Draft,
+            "resume moi tout les notes qui sont dans le dossier ./notes",
+            "tout les notes … lessentiel de chaque note",
+            Vec::new(),
+        )];
+        one.constraints = vec!["max 12 lignes".to_owned()];
         assert!(!per_item(ONE_FILE, &one));
         assert!(
             !per_item(ORDERS, &bare),
             "per country is a grouping, no heading"
         );
         // A draft evidence or a trigger led by the quantifier distributes the work.
-        let led = Plan {
-            steps: vec![Step {
-                op: Op::Draft,
-                evidence: "For each of the four files, write a two-sentence summary".to_owned(),
-                detail: "a two-sentence summary".to_owned(),
-                categories: Vec::new(),
-            }],
-            ..Plan::default()
-        };
+        let mut led = Plan::default();
+        led.steps = vec![Step::new(
+            Op::Draft,
+            "For each of the four files, write a two-sentence summary",
+            "a two-sentence summary",
+            Vec::new(),
+        )];
         assert!(per_item("write a two-sentence summary", &led));
-        let triggered = Plan {
-            trigger: Some("pour chaque fichier".to_owned()),
-            ..Plan::default()
-        };
+        let mut triggered = Plan::default();
+        triggered.trigger = Some("pour chaque fichier".to_owned());
         assert!(per_item("résume", &triggered));
         // A plan element carrying the heading cue counts even when the intent text is bare.
-        let constrained = Plan {
-            constraints: vec!["with one heading per file named after the file".to_owned()],
-            ..Plan::default()
-        };
+        let mut constrained = Plan::default();
+        constrained.constraints = vec!["with one heading per file named after the file".to_owned()];
         assert!(per_item("x", &constrained));
     }
 
@@ -873,12 +708,7 @@ mod tests {
     }
 
     fn step(op: Op, detail: &str, evidence: &str) -> Step {
-        Step {
-            op,
-            evidence: evidence.to_owned(),
-            detail: detail.to_owned(),
-            categories: Vec::new(),
-        }
+        Step::new(op, evidence, detail, Vec::new())
     }
 
     #[test]
@@ -925,18 +755,16 @@ mod tests {
     fn a_numeric_rule_constraint_becomes_a_compute_step_after_the_sources() {
         let intent = "Read ./data/orders.csv, keep only the rows whose amount is strictly greater than 100, and write ./out/summary.md with one line stating the total.";
         let rule = "keep only the rows whose amount is strictly greater than 100";
-        let mut plan = Plan {
-            steps: vec![
-                step(Op::Read, "./data/orders.csv", "Read ./data/orders.csv"),
-                step(
-                    Op::Draft,
-                    "one line stating the total",
-                    "one line stating the total",
-                ),
-            ],
-            constraints: vec![rule.to_owned(), "in a warm tone".to_owned()],
-            ..Plan::default()
-        };
+        let mut plan = Plan::default();
+        plan.steps = vec![
+            step(Op::Read, "./data/orders.csv", "Read ./data/orders.csv"),
+            step(
+                Op::Draft,
+                "one line stating the total",
+                "one line stating the total",
+            ),
+        ];
+        plan.constraints = vec![rule.to_owned(), "in a warm tone".to_owned()];
         promote_stated_rules(&mut plan, intent);
         let ops: Vec<Op> = plan.steps.iter().map(|s| s.op).collect();
         assert_eq!(ops, [Op::Read, Op::Compute, Op::Draft]);
@@ -948,50 +776,41 @@ mod tests {
         promote_stated_rules(&mut plan, intent);
         assert_eq!(plan, once);
         // A rule wrapped by the model is anchored through its folded excerpt.
-        let mut wrapped = Plan {
-            steps: vec![step(
-                Op::Read,
-                "./data/orders.csv",
-                "Read ./data/orders.csv",
-            )],
-            constraints: vec![
-                "keep only the rows whose  amount is strictly\ngreater than 100".to_owned(),
-            ],
-            ..Plan::default()
-        };
+        let mut wrapped = Plan::default();
+        wrapped.steps = vec![step(
+            Op::Read,
+            "./data/orders.csv",
+            "Read ./data/orders.csv",
+        )];
+        wrapped.constraints =
+            vec!["keep only the rows whose  amount is strictly\ngreater than 100".to_owned()];
         promote_stated_rules(&mut wrapped, intent);
         assert_eq!(wrapped.steps[1].evidence, rule);
         assert!(wrapped.constraints.is_empty());
         // A rule the request never spelled stays guidance: nothing is invented.
-        let mut foreign = Plan {
-            steps: vec![step(
-                Op::Read,
-                "./data/orders.csv",
-                "Read ./data/orders.csv",
-            )],
-            constraints: vec!["amount above 500".to_owned()],
-            ..Plan::default()
-        };
+        let mut foreign = Plan::default();
+        foreign.steps = vec![step(
+            Op::Read,
+            "./data/orders.csv",
+            "Read ./data/orders.csv",
+        )];
+        foreign.constraints = vec!["amount above 500".to_owned()];
         promote_stated_rules(&mut foreign, intent);
         assert_eq!(foreign.steps.len(), 1);
         assert_eq!(foreign.constraints, ["amount above 500"]);
         // No source step: the rule leads the plan.
-        let mut sourceless = Plan {
-            steps: vec![step(Op::Draft, "the total", "the total")],
-            constraints: vec![rule.to_owned()],
-            ..Plan::default()
-        };
+        let mut sourceless = Plan::default();
+        sourceless.steps = vec![step(Op::Draft, "the total", "the total")];
+        sourceless.constraints = vec![rule.to_owned()];
         promote_stated_rules(&mut sourceless, intent);
         assert_eq!(sourceless.steps[0].op, Op::Compute);
         // An existing compute step absorbs a second rule instead of a second step.
-        let mut two = Plan {
-            steps: vec![
-                step(Op::Read, "./data/orders.csv", "Read ./data/orders.csv"),
-                step(Op::Compute, "the total", "the total"),
-            ],
-            constraints: vec![rule.to_owned()],
-            ..Plan::default()
-        };
+        let mut two = Plan::default();
+        two.steps = vec![
+            step(Op::Read, "./data/orders.csv", "Read ./data/orders.csv"),
+            step(Op::Compute, "the total", "the total"),
+        ];
+        two.constraints = vec![rule.to_owned()];
         promote_stated_rules(&mut two, intent);
         assert_eq!(two.steps.len(), 2);
         assert_eq!(two.steps[1].detail, format!("the total ; {rule}"));
@@ -1001,11 +820,9 @@ mod tests {
     fn a_stated_filter_is_promoted_and_recorded_but_a_prohibition_stays_prose() {
         let intent = "Read ./tickets.json, keep only the tickets whose status is open, and write them to ./open.json";
         let rule = "keep only the tickets whose status is open";
-        let mut plan = Plan {
-            steps: vec![step(Op::Read, "./tickets.json", "Read ./tickets.json")],
-            constraints: vec![rule.to_owned()],
-            ..Plan::default()
-        };
+        let mut plan = Plan::default();
+        plan.steps = vec![step(Op::Read, "./tickets.json", "Read ./tickets.json")];
+        plan.constraints = vec![rule.to_owned()];
         promote_stated_rules(&mut plan, intent);
         let ops: Vec<Op> = plan.steps.iter().map(|s| s.op).collect();
         assert_eq!(ops, [Op::Read, Op::Compute]);
@@ -1019,11 +836,9 @@ mod tests {
         // The French restriction "ne … que" is "only", a filter; the negation "ne … pas"
         // is a prohibition, never promoted, never inverted.
         let intent = "Lis ./sales.csv, ne garde que les lignes dont amount dépasse 200 et écris-les dans ./big.csv";
-        let mut plan = Plan {
-            steps: vec![step(Op::Read, "./sales.csv", "Lis ./sales.csv")],
-            constraints: vec!["ne garde que les lignes dont amount dépasse 200".to_owned()],
-            ..Plan::default()
-        };
+        let mut plan = Plan::default();
+        plan.steps = vec![step(Op::Read, "./sales.csv", "Lis ./sales.csv")];
+        plan.constraints = vec!["ne garde que les lignes dont amount dépasse 200".to_owned()];
         promote_stated_rules(&mut plan, intent);
         assert_eq!(plan.steps.len(), 2, "{plan:?}");
         assert_eq!(
@@ -1034,11 +849,9 @@ mod tests {
             Some("[.records[] | select((.amount | tonumber) > 200)]")
         );
         let intent = "Lis ./sales.csv, ne garde pas les lignes dont amount dépasse 200 et écris-les dans ./big.csv";
-        let mut plan = Plan {
-            steps: vec![step(Op::Read, "./sales.csv", "Lis ./sales.csv")],
-            constraints: vec!["ne garde pas les lignes dont amount dépasse 200".to_owned()],
-            ..Plan::default()
-        };
+        let mut plan = Plan::default();
+        plan.steps = vec![step(Op::Read, "./sales.csv", "Lis ./sales.csv")];
+        plan.constraints = vec!["ne garde pas les lignes dont amount dépasse 200".to_owned()];
         promote_stated_rules(&mut plan, intent);
         assert_eq!(plan.steps.len(), 1, "{plan:?}");
         assert_eq!(plan.constraints.len(), 1);
@@ -1065,14 +878,12 @@ mod tests {
         // the part must not stand for the whole.
         let intent = "Read ./o.csv, keep only the rows whose amount is above 100 and count them per country, then write it to ./c.json";
         let detail = "keep only the rows whose amount is above 100 and count them per country";
-        let mut plan = Plan {
-            steps: vec![
-                step(Op::Read, "./o.csv", "Read ./o.csv"),
-                step(Op::Compute, detail, detail),
-            ],
-            constraints: vec!["keep only the rows whose amount is above 100".to_owned()],
-            ..Plan::default()
-        };
+        let mut plan = Plan::default();
+        plan.steps = vec![
+            step(Op::Read, "./o.csv", "Read ./o.csv"),
+            step(Op::Compute, detail, detail),
+        ];
+        plan.constraints = vec!["keep only the rows whose amount is above 100".to_owned()];
         promote_stated_rules(&mut plan, intent);
         assert_eq!(plan.steps.len(), 2);
         assert_eq!(plan.steps[1].detail, detail);

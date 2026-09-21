@@ -14,7 +14,7 @@
 
 use super::aggregate::{self, AggOp, Aggregation, COLUMN_WORDS, ROW_WORDS, Shape};
 use super::rule_cues::{COPULAS, NEGATIONS, RELATIVES};
-use super::shape::fold;
+use super::rule_tokens::fold;
 
 /// One word of a stated stage: as written, folded, and whether a comma followed it.
 struct Word {
@@ -785,7 +785,7 @@ fn join(words: &[Word], columns: &[String]) -> Option<Shape> {
 /// A join of the read sources that names no column ("merge them", "fusionne les deux
 /// fichiers"): the operation is clear, its key is not. The reader keeps such a clause
 /// unresolved (the human names the column) instead of an external merge effect.
-pub(super) fn join_without_key(text: &str) -> bool {
+pub(crate) fn join_without_key(text: &str) -> bool {
     let words = words(text);
     is(&words, 0, JOIN_VERBS)
         && words.len() >= 2
@@ -795,7 +795,7 @@ pub(super) fn join_without_key(text: &str) -> bool {
 }
 
 /// The stage one whole segment states, or `None` when no closed form reads it whole.
-pub(super) fn stated(text: &str, columns: &[String]) -> Option<Shape> {
+pub(crate) fn stated(text: &str, columns: &[String]) -> Option<Shape> {
     let words = words(text);
     if words.is_empty() {
         return None;

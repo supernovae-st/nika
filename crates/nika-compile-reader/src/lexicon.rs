@@ -18,15 +18,13 @@ mod heads;
 mod it;
 mod literals;
 mod slugs;
-#[cfg(test)]
-mod tests;
 
 use super::paths::{self, Structured};
 use super::plan::{
     Binding, Effect, EffectPolicy, EffectVerb, Obligation, ObligationKind, Op, Plan, Step,
 };
-use super::{gates, hot, network, objects};
-pub(super) use cues::{ARTICLES, OBJECT_CONNECTORS};
+use super::{gates, hot, objects};
+pub(crate) use cues::{ARTICLES, OBJECT_CONNECTORS};
 use cues::{
     CONSTRAINT_OPENERS, FINAL_GATE_MARKERS, FORBIDDEN_MARKERS, LEADING_FILLER, LOOKUP_CUES,
     NAMED_GATE_MARKERS, NEGATION_OPENERS, READ_CUES, REVISION_MARKERS, SEARCH_CUES,
@@ -34,11 +32,12 @@ use cues::{
     WEAK_CONNECTORS,
 };
 pub(crate) use heads::Head;
-pub(super) use slugs::slug;
+pub use slugs::slug;
 
 /// One clause the lexicon could not settle alone: a small feasible set, never a guess.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct Ambiguity {
+#[non_exhaustive]
+pub struct Ambiguity {
     pub clause: String,
     pub detail: String,
     pub options: Vec<Op>,
@@ -46,7 +45,8 @@ pub(super) struct Ambiguity {
 
 /// The deterministic reading of one intent.
 #[derive(Clone, Debug, Default)]
-pub(super) struct Reading {
+#[non_exhaustive]
+pub struct Reading {
     pub plan: Plan,
     pub ambiguous: Vec<Ambiguity>,
     pub unresolved: Vec<String>,
@@ -86,7 +86,8 @@ impl Reading {
     /// consumed is not evidence of understanding. A step is explicit when its object is a
     /// typed literal or a short noun phrase without coordinated residue; an effect when its
     /// target is short or literal; and nothing ambiguous, unresolved or unknown remains.
-    pub(super) fn hot_rejections(&self) -> Vec<String> {
+    #[must_use]
+    pub fn hot_rejections(&self) -> Vec<String> {
         let mut why = Vec::new();
         if !self.unresolved.is_empty() {
             why.push(format!("{} unresolved clause(s)", self.unresolved.len()));
@@ -182,7 +183,8 @@ impl Reading {
     }
 
     /// HOT is possible only when every clause was consumed and something was asked.
-    pub(super) fn complete(&self) -> bool {
+    #[must_use]
+    pub fn complete(&self) -> bool {
         self.unresolved.is_empty()
             && self.ambiguous.is_empty()
             && (!self.plan.steps.is_empty() || !self.plan.effects.is_empty())
@@ -191,7 +193,8 @@ impl Reading {
 
 /// Typographic apostrophes fold to `'` so byte offsets stay aligned between the
 /// lowercase matching copy and the evidence copy. Callers anchor against this form.
-pub(super) fn fold_apostrophes(intent: &str) -> String {
+#[must_use]
+pub fn fold_apostrophes(intent: &str) -> String {
     intent.replace(['’', '‘'], "'")
 }
 
@@ -249,7 +252,7 @@ fn written_object(
     let classified = reading.plan.has(Op::Classify) && objects::names_classification(object_lower);
     // "the page title" after a fetch is a facet of the fetched page: the fetch's own
     // extract mode, carried as it is, never a draft of it.
-    let fetched = reading.plan.has(Op::Fetch) && network::page_facet(object_lower).is_some();
+    let fetched = reading.plan.has(Op::Fetch) && objects::page_facet(object_lower).is_some();
     if refers_back || classified || fetched || (produced && objects::folds(object_lower)) {
         return;
     }
@@ -333,7 +336,7 @@ fn head_of(lower: &str) -> Option<(&'static str, &'static Head)> {
     None
 }
 
-pub(super) fn head_of_exact(lower: &str) -> Option<(&'static str, &'static Head)> {
+pub(crate) fn head_of_exact(lower: &str) -> Option<(&'static str, &'static Head)> {
     let mut best: Option<(&'static str, &'static Head)> = None;
     for (phrase, head) in heads::TABLES.iter().flat_map(|table| table.iter()) {
         if lower.starts_with(phrase) {
@@ -438,7 +441,8 @@ fn split_clauses(sentence: &str) -> Vec<&str> {
 
 /// The effect verbs a text names. A word the request lists as a column (`name, email e
 /// city`) is a column, never the verb it spells.
-pub(super) fn effect_words(lower: &str, columns: &[String]) -> Vec<EffectVerb> {
+#[must_use]
+pub fn effect_words(lower: &str, columns: &[String]) -> Vec<EffectVerb> {
     let masked = objects::mask_columns(lower, columns);
     let lower = masked.as_str();
     let mut verbs = Vec::new();
@@ -524,7 +528,7 @@ fn push_obligation(plan: &mut Plan, obligation: Obligation) {
 const ENDPOINT_FAMILY: [EffectVerb; 3] =
     [EffectVerb::Send, EffectVerb::Publish, EffectVerb::Notify];
 
-pub(super) fn kindred(a: EffectVerb, b: EffectVerb) -> bool {
+pub(crate) fn kindred(a: EffectVerb, b: EffectVerb) -> bool {
     a == b || (ENDPOINT_FAMILY.contains(&a) && ENDPOINT_FAMILY.contains(&b))
 }
 
@@ -926,7 +930,8 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
 
 /// Deterministically read one intent (already folded by [`fold_apostrophes`]).
 #[allow(clippy::too_many_lines)] // one sentence walk; each policy family is one visible arm
-pub(super) fn read(intent: &str) -> Reading {
+#[must_use]
+pub fn read(intent: &str) -> Reading {
     let mut reading = Reading {
         columns: super::columns::columns_hint(intent),
         ..Reading::default()

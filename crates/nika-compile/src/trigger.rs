@@ -324,10 +324,8 @@ mod tests {
     use super::*;
 
     fn read(phrase: &str, item: bool) -> TriggerRequirement {
-        let plan = Plan {
-            trigger: Some(phrase.to_owned()),
-            ..Plan::default()
-        };
+        let mut plan = Plan::default();
+        plan.trigger = Some(phrase.to_owned());
         requirement(&plan, item).expect("a trigger phrase")
     }
 

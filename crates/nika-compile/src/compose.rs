@@ -795,21 +795,10 @@ mod tests {
     const INTENT: &str = "Fetch https://example.com/pricing, classify the page, then draft a note. Ask me before any refund of 100 EUR; never retry more than 3 times.";
 
     fn step(op: Op, detail: &str, evidence: &str) -> Step {
-        Step {
-            op,
-            evidence: evidence.to_owned(),
-            detail: detail.to_owned(),
-            categories: Vec::new(),
-        }
+        Step::new(op, evidence, detail, Vec::new())
     }
     fn effect(verb: EffectVerb, target: &str, evidence: &str, policy: EffectPolicy) -> Effect {
-        Effect {
-            verb,
-            target: target.to_owned(),
-            evidence: evidence.to_owned(),
-            policy,
-            policy_literal: None,
-        }
+        Effect::new(verb, target, evidence, policy)
     }
     /// The deterministic reading's floor: a literal fetch, an explicit classify, a gated
     /// refund with its policy literal, a retry bound and the URL binding.
@@ -821,26 +810,22 @@ mod tests {
             EffectPolicy::HumanFirst,
         );
         refund.policy_literal = Some("100 EUR".to_owned());
-        Plan {
-            steps: vec![
-                step(
-                    Op::Fetch,
-                    "https://example.com/pricing",
-                    "Fetch https://example.com/pricing",
-                ),
-                step(Op::Classify, "the page", "classify the page"),
-            ],
-            effects: vec![refund],
-            obligations: vec![Obligation {
-                kind: ObligationKind::RetryBound(3),
-                evidence: "never retry more than 3 times".to_owned(),
-            }],
-            bindings: vec![Binding {
-                role: "url",
-                literal: "https://example.com/pricing".to_owned(),
-            }],
-            ..Plan::default()
-        }
+        let mut plan = Plan::default();
+        plan.steps = vec![
+            step(
+                Op::Fetch,
+                "https://example.com/pricing",
+                "Fetch https://example.com/pricing",
+            ),
+            step(Op::Classify, "the page", "classify the page"),
+        ];
+        plan.effects = vec![refund];
+        plan.obligations = vec![Obligation::new(
+            ObligationKind::RetryBound(3),
+            "never retry more than 3 times",
+        )];
+        plan.bindings = vec![Binding::new("url", "https://example.com/pricing")];
+        plan
     }
     /// A faithful candidate: the floor plus the draft the model read.
     fn base() -> Plan {
@@ -1033,10 +1018,9 @@ mod tests {
     }
 
     fn reading(plan: Plan) -> Reading {
-        Reading {
-            plan,
-            ..Reading::default()
-        }
+        let mut reading = Reading::default();
+        reading.plan = plan;
+        reading
     }
     fn hit(id: &str, patterns: &[&str]) -> Hit {
         Hit {
@@ -1080,10 +1064,10 @@ mod tests {
             .map(|i| {
                 let mut plan = base();
                 if i > 0 {
-                    plan.obligations.push(Obligation {
-                        kind: ObligationKind::RetryBound(u32::try_from(i).unwrap()),
-                        evidence: "never retry more than 3 times".to_owned(),
-                    });
+                    plan.obligations.push(Obligation::new(
+                        ObligationKind::RetryBound(u32::try_from(i).unwrap()),
+                        "never retry more than 3 times",
+                    ));
                     plan.steps[2].detail = format!("note {i}");
                 }
                 (i, plan)
@@ -1138,27 +1122,19 @@ mod tests {
         "Read ./inbox/a.md and forward the summary as is to ops@example.invalid.";
 
     fn send_floor(intent: &str, target: &str, evidence: &str) -> Plan {
-        Plan {
-            steps: vec![step(Op::Read, "./inbox/a.md", "Read ./inbox/a.md")],
-            effects: vec![effect(
-                EffectVerb::Send,
-                target,
-                evidence,
-                EffectPolicy::Automatic,
-            )],
-            bindings: vec![
-                Binding {
-                    role: "path",
-                    literal: "./inbox/a.md".to_owned(),
-                },
-                Binding {
-                    role: "email",
-                    literal: "ops@example.invalid".to_owned(),
-                },
-            ],
-            ..Plan::default()
-        }
-        .tap(|plan| assert!(plan.anchored(intent)))
+        let mut plan = Plan::default();
+        plan.steps = vec![step(Op::Read, "./inbox/a.md", "Read ./inbox/a.md")];
+        plan.effects = vec![effect(
+            EffectVerb::Send,
+            target,
+            evidence,
+            EffectPolicy::Automatic,
+        )];
+        plan.bindings = vec![
+            Binding::new("path", "./inbox/a.md"),
+            Binding::new("email", "ops@example.invalid"),
+        ];
+        plan.tap(|plan| assert!(plan.anchored(intent)))
     }
     trait Tap: Sized {
         fn tap(self, f: impl FnOnce(&Self)) -> Self {
@@ -1214,18 +1190,13 @@ mod tests {
 
     #[test]
     fn a_revision_check_without_a_lookup_is_infeasible() {
-        let mut floor = Plan {
-            steps: vec![step(Op::Read, "./inbox/a.md", "Read ./inbox/a.md")],
-            obligations: vec![Obligation {
-                kind: ObligationKind::RevisionCheck,
-                evidence: "recheck the current version before the end".to_owned(),
-            }],
-            bindings: vec![Binding {
-                role: "path",
-                literal: "./inbox/a.md".to_owned(),
-            }],
-            ..Plan::default()
-        };
+        let mut floor = Plan::default();
+        floor.steps = vec![step(Op::Read, "./inbox/a.md", "Read ./inbox/a.md")];
+        floor.obligations = vec![Obligation::new(
+            ObligationKind::RevisionCheck,
+            "recheck the current version before the end",
+        )];
+        floor.bindings = vec![Binding::new("path", "./inbox/a.md")];
         let why = feasibility(&floor, &floor, REVISION_INTENT).unwrap_err();
         assert_eq!(
             why,

@@ -13,7 +13,8 @@ use super::lexicon::{self, Head, Reading};
 use super::plan::{EffectPolicy, EffectVerb, ObligationKind, Op, Plan};
 
 /// Why a reading may not be admitted as HOT, in addition to [`Reading::hot_rejections`].
-pub(super) fn rejections(intent: &str, reading: &Reading) -> Vec<String> {
+#[must_use]
+pub fn rejections(intent: &str, reading: &Reading) -> Vec<String> {
     let mut why = Vec::new();
     let lower = lexicon::fold_apostrophes(intent).to_lowercase();
     cue_coverage(&lower, reading, &mut why);
@@ -126,7 +127,7 @@ fn looks_like_path(token: &str) -> bool {
             }))
 }
 
-pub(super) const WRITE_HEADS: &[&str] = &[
+pub const WRITE_HEADS: &[&str] = &[
     "write",
     "writes",
     "écris",
@@ -194,7 +195,7 @@ const LINK_WORDS: &[&str] = &[
 /// Nouns that name content a step must produce before an effect can carry it (EN · FR ·
 /// ES · IT · PT · DE), in their diacritic-folded lowercase form. The reader shares the
 /// table: a make head (`fais-moi`, `fammi`) drafts only one of these.
-pub(super) const PRODUCED_NOUNS: &[&str] = &[
+pub(crate) const PRODUCED_NOUNS: &[&str] = &[
     "bilan",
     "compte-rendu",
     "sintesi",
@@ -328,7 +329,7 @@ const COPY_CUES: &[&str] = &[
 
 /// Lowercase with French, Spanish, Portuguese and German diacritics folded, so the
 /// noun and cue tables match one spelling.
-pub(super) fn fold(text: &str) -> String {
+pub fn fold(text: &str) -> String {
     text.chars()
         .flat_map(char::to_lowercase)
         .map(|c| match c {
@@ -377,7 +378,7 @@ fn copy_cue(text: &str) -> bool {
 /// step whose material it carries unchanged. A prohibited or contradictory effect is never
 /// emitted, so it needs nothing; a target naming a local file is a write and follows the
 /// write law.
-pub(super) fn unproduced_content(plan: &Plan, why: &mut Vec<String>) {
+pub fn unproduced_content(plan: &Plan, why: &mut Vec<String>) {
     write_without_producer(plan, why);
     let produces = plan.has(Op::Draft) || plan.has(Op::Extract) || plan.has(Op::Compute);
     if produces {
@@ -408,7 +409,7 @@ pub(super) fn unproduced_content(plan: &Plan, why: &mut Vec<String>) {
         }
         // "post the report to <url>" after "Read ./report.md": an object whose head recurs
         // in a source's own words carries that material unchanged.
-        if sourced && super::network::carried(&effect.target, plan) {
+        if sourced && super::objects::carried(&effect.target, plan) {
             continue;
         }
         why.push(format!(
@@ -421,7 +422,7 @@ pub(super) fn unproduced_content(plan: &Plan, why: &mut Vec<String>) {
 
 /// A revision check rereads the record it looked up; without a lookup there is nothing
 /// retrievable to recheck.
-pub(super) fn unrecheckable_revision(plan: &Plan, why: &mut Vec<String>) {
+pub fn unrecheckable_revision(plan: &Plan, why: &mut Vec<String>) {
     if plan
         .obligations
         .iter()
@@ -479,7 +480,7 @@ fn write_without_producer(plan: &Plan, why: &mut Vec<String>) {
         }
         // After a fetch, a facet of the page ("the page title", "the article text") is the
         // fetch's own mode carried as it is, never content a step must produce.
-        if plan.has(Op::Fetch) && super::network::page_facet(&content).is_some() {
+        if plan.has(Op::Fetch) && super::objects::page_facet(&content).is_some() {
             continue;
         }
         let words = content

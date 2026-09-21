@@ -10,7 +10,7 @@ use super::rules::Comparator;
 /// Comparison cues (EN · FR · ES · IT · PT · DE, diacritics folded, lowercase), one
 /// `|`-separated list per comparator. Matched as whole phrases, longest first, up to
 /// five words.
-pub(super) const NUMERIC_CUES: &[(Comparator, &str)] = &[
+pub(crate) const NUMERIC_CUES: &[(Comparator, &str)] = &[
     (
         Comparator::Gt,
         "strictly greater than|strictly more than|strictly higher than|strictly above|\
@@ -79,7 +79,7 @@ pub(super) const NUMERIC_CUES: &[(Comparator, &str)] = &[
 ];
 
 /// Equality and inequality cues that carry their own verb (a copula alone is equality).
-pub(super) const EQUALITY_CUES: &[(Comparator, &str)] = &[
+pub(crate) const EQUALITY_CUES: &[(Comparator, &str)] = &[
     (
         Comparator::Eq,
         "equal to|equals to|equals|equal|egal a|egale a|egaux a|egales a|vaut|valent|\
@@ -95,26 +95,26 @@ pub(super) const EQUALITY_CUES: &[(Comparator, &str)] = &[
 ];
 
 /// The longest cue phrase, in words.
-pub(super) const CUE_WIDTH: usize = 5;
+pub(crate) const CUE_WIDTH: usize = 5;
 
 /// A copula: the field is the phrase before it, the comparison (or the equality value)
 /// follows it.
-pub(super) const COPULAS: &[&str] = &[
+pub(crate) const COPULAS: &[&str] = &[
     "is", "are", "was", "were", "be", "being", "has", "have", "est", "sont", "n'est", "es", "son",
     "esta", "estan", "e", "sao", "ist", "sind", "ha", "hanno", "tiene", "tienen", "tem", "hat",
     "haben",
 ];
 
 /// A copula that carries its own negation.
-pub(super) const NEGATED_COPULAS: &[&str] =
+pub(crate) const NEGATED_COPULAS: &[&str] =
     &["isn't", "aren't", "wasn't", "weren't", "n'est", "n'a"];
 
 /// A negation right before or right after a copula.
-pub(super) const NEGATIONS: &[&str] = &["not", "pas", "no", "non", "nao", "ne", "nicht"];
+pub(crate) const NEGATIONS: &[&str] = &["not", "pas", "no", "non", "nao", "ne", "nicht"];
 
 /// A relative pronoun or preposition that opens the noun phrase naming the field
 /// ("whose amount", "dont le montant", "cuya cantidad", "la cui quantita", "deren Betrag").
-pub(super) const RELATIVES: &[&str] = &[
+pub(crate) const RELATIVES: &[&str] = &[
     "whose",
     "where",
     "which",
@@ -149,7 +149,7 @@ pub(super) const RELATIVES: &[&str] = &[
 ];
 
 /// Articles and possessives stripped from the head of a noun phrase.
-pub(super) const ARTICLES: &[&str] = &[
+pub(crate) const ARTICLES: &[&str] = &[
     "the", "a", "an", "its", "their", "le", "la", "les", "l'", "l", "un", "une", "des", "du", "de",
     "sa", "son", "ses", "leur", "leurs", "el", "los", "las", "una", "unos", "unas", "su", "sus",
     "il", "lo", "i", "gli", "uno", "suo", "sua", "suoi", "sue", "o", "os", "as", "um", "uma",
@@ -158,7 +158,7 @@ pub(super) const ARTICLES: &[&str] = &[
 ];
 
 /// Words skipped between a comparator and its value.
-pub(super) const FILLERS: &[&str] = &[
+pub(crate) const FILLERS: &[&str] = &[
     "than", "que", "als", "di", "de", "da", "a", "of", "to", "the", "le", "la", "les", "el", "los",
     "las", "il", "lo", "der", "die", "das", "den", "dem", "del", "della", "dello", "dei", "degli",
     "delle", "du", "des", "do", "dos", "ao", "au", "aux", "al", "alla", "allo", "ai", "agli",
@@ -166,7 +166,7 @@ pub(super) const FILLERS: &[&str] = &[
 ];
 
 /// A unit or currency word that may trail a numeric value without changing the rule.
-pub(super) const UNIT_WORDS: &[&str] = &[
+pub(crate) const UNIT_WORDS: &[&str] = &[
     "€",
     "$",
     "£",
@@ -254,7 +254,7 @@ pub(super) const UNIT_WORDS: &[&str] = &[
 ];
 
 /// A two-word unit phrase that may trail a numeric value.
-pub(super) const UNIT_PHRASES: &[&str] = &[
+pub(crate) const UNIT_PHRASES: &[&str] = &[
     "in stock",
     "en stock",
     "em estoque",
@@ -267,7 +267,7 @@ pub(super) const UNIT_PHRASES: &[&str] = &[
 /// Words of a trailing count-or-total request ("how many rows were kept and the total of
 /// their amounts"): the claims the summary stage computes, so a rule that carries them
 /// is still a rule. `|`-separated, folded.
-pub(super) const SUMMARY_WORDS: &str = "how|many|much|rows|row|records|record|lines|line|entries|entry|\
+pub(crate) const SUMMARY_WORDS: &str = "how|many|much|rows|row|records|record|lines|line|entries|entry|\
     items|item|results|result|matches|match|were|was|are|is|be|been|kept|retained|\
     remaining|remain|remains|left|selected|matched|matching|filtered|found|count|counted|\
     counting|number|total|totals|totalling|totaling|sum|summed|of|their|the|a|an|its|them|\
@@ -290,6 +290,6 @@ pub(super) const SUMMARY_WORDS: &str = "how|many|much|rows|row|records|record|li
     calcular|indica|indicar|calcola|calcolare|berechne|berechnen|gib|angeben";
 
 /// The words that make such a residual a request for a count or a total, not noise.
-pub(super) const SUMMARY_CORE: &str = "many|count|counted|number|total|totals|sum|combien|nombre|somme|\
+pub(crate) const SUMMARY_CORE: &str = "many|count|counted|number|total|totals|sum|combien|nombre|somme|\
     cuantas|cuantos|numero|suma|quante|quanti|totale|somma|quantas|quantos|soma|viele|\
     anzahl|summe|gesamtsumme|gesamtbetrag";

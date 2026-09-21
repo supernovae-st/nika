@@ -716,7 +716,8 @@ fn emit_fan_out(d: &mut Doc, plan: &Plan, b: &Bindings, source: &Source) {
             Op::Draft => !b.draft_per_item(),
             Op::Extract => !b.extract_per_item(),
             Op::Classify | Op::Validate | Op::Explore | Op::Compute => true,
-            Op::Read | Op::Fetch | Op::Lookup | Op::Search => false,
+            // A retrieval (read · fetch · lookup · search) reads no corpus.
+            _ => false,
         });
         if !corpus_read {
             return;
@@ -810,7 +811,8 @@ fn emit_step(d: &mut Doc, plan: &Plan, b: &Bindings, guide: &str, step: &Step) {
             d.fact("exploration", "${{ tasks.explore.output }}", Kind::Derived);
             d.root["outputs"]["exploration"] = json!("${{ tasks.explore.output }}");
         }
-        Op::Read | Op::Fetch | Op::Lookup | Op::Search => {}
+        // A retrieval (read · fetch · lookup · search) is emitted by its binding, not here.
+        _ => {}
     }
 }
 
