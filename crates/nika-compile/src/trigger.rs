@@ -376,3 +376,365 @@ mod tests {
         );
     }
 }
+
+// ── the form of a trigger clause (season 2) ──────────────────────────────────────
+
+/// What form a trigger clause takes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum TriggerForm {
+    /// One unit of work per item of the material ("for each file", "pour chaque ligne").
+    Distributive,
+    /// An order between the program's own steps ("once all three are done", "after that").
+    Sequence,
+    /// A cadence the program runs on ("every morning", "tous les matins", "at 9:00").
+    Schedule,
+    /// An outside event the program runs on ("when Stripe sends …", "dès qu'un ticket arrive").
+    Event,
+}
+
+/// Heads that order the program's own work (EN · FR · ES · IT · DE · PT, folded).
+const SEQUENCE_HEADS: &[&str] = &[
+    "once ",
+    "after ",
+    "then ",
+    "apres ",
+    "puis ",
+    "ensuite ",
+    "une fois ",
+    "despues ",
+    "luego ",
+    "una vez ",
+    "dopo ",
+    "poi ",
+    "nach ",
+    "danach ",
+    "sobald alle ",
+    "depois ",
+];
+
+/// Heads that open an outside event (folded).
+const EVENT_HEADS: &[&str] = &[
+    "when ",
+    "whenever ",
+    "each time ",
+    "every time ",
+    "quand ",
+    "lorsque ",
+    "des que ",
+    "des qu'",
+    "chaque fois ",
+    "a chaque fois ",
+    "cuando ",
+    "cada vez ",
+    "quando ",
+    "ogni volta ",
+    "wenn ",
+    "sobald ",
+    "jedes mal ",
+    "sempre que ",
+    "toda vez ",
+];
+
+/// Words that say the program's own work is finished: a `when` over them is a sequence.
+const COMPLETION_WORDS: &[&str] = &[
+    "done",
+    "finished",
+    "complete",
+    "completed",
+    "termine",
+    "terminee",
+    "fini",
+    "finie",
+    "acheve",
+    "terminado",
+    "terminada",
+    "finalizado",
+    "completato",
+    "completata",
+    "finito",
+    "fertig",
+    "abgeschlossen",
+    "concluido",
+    "pronto",
+];
+
+/// Words that name a moment or a period of the calendar (folded): a quantifier over them
+/// is a cadence, not a distribution over items.
+const TIME_WORDS: &[&str] = &[
+    "morning",
+    "mornings",
+    "noon",
+    "afternoon",
+    "evening",
+    "evenings",
+    "night",
+    "nights",
+    "midnight",
+    "day",
+    "days",
+    "daily",
+    "weekday",
+    "weekdays",
+    "week",
+    "weeks",
+    "weekly",
+    "month",
+    "months",
+    "monthly",
+    "quarter",
+    "hour",
+    "hours",
+    "hourly",
+    "minute",
+    "minutes",
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+    "sunday",
+    "matin",
+    "matins",
+    "midi",
+    "soir",
+    "soirs",
+    "nuit",
+    "jour",
+    "jours",
+    "quotidien",
+    "semaine",
+    "semaines",
+    "hebdomadaire",
+    "mois",
+    "mensuel",
+    "heure",
+    "heures",
+    "lundi",
+    "mardi",
+    "mercredi",
+    "jeudi",
+    "vendredi",
+    "samedi",
+    "dimanche",
+    "manana",
+    "mananas",
+    "tarde",
+    "noche",
+    "dia",
+    "dias",
+    "diario",
+    "semana",
+    "semanas",
+    "semanal",
+    "mes",
+    "meses",
+    "mensual",
+    "hora",
+    "horas",
+    "lunes",
+    "martes",
+    "miercoles",
+    "jueves",
+    "viernes",
+    "sabado",
+    "domingo",
+    "mattina",
+    "mattino",
+    "sera",
+    "notte",
+    "giorno",
+    "giorni",
+    "giornaliero",
+    "settimana",
+    "settimane",
+    "settimanale",
+    "mese",
+    "mesi",
+    "mensile",
+    "ora",
+    "ore",
+    "lunedi",
+    "martedi",
+    "mercoledi",
+    "giovedi",
+    "venerdi",
+    "sabato",
+    "domenica",
+    "morgen",
+    "morgens",
+    "mittag",
+    "abend",
+    "abends",
+    "nacht",
+    "tag",
+    "tage",
+    "taglich",
+    "woche",
+    "wochen",
+    "wochentlich",
+    "monat",
+    "monate",
+    "monatlich",
+    "stunde",
+    "stunden",
+    "stundlich",
+    "montag",
+    "dienstag",
+    "mittwoch",
+    "donnerstag",
+    "freitag",
+    "samstag",
+    "sonntag",
+    "manha",
+    "manhas",
+    "noite",
+    "noites",
+    "diariamente",
+];
+
+/// The folded phrase, one space between words, a leading space for whole-word heads.
+fn padded(phrase: &str) -> String {
+    let folded = hot::fold(phrase);
+    let mut out = String::with_capacity(folded.len() + 2);
+    out.push(' ');
+    let mut space = false;
+    for c in folded.chars() {
+        if c.is_alphanumeric() || matches!(c, '\'' | ':' | '-') {
+            out.push(c);
+            space = false;
+        } else if !space {
+            out.push(' ');
+            space = true;
+        }
+    }
+    if !out.ends_with(' ') {
+        out.push(' ');
+    }
+    out
+}
+
+fn words(padded: &str) -> impl Iterator<Item = &str> {
+    padded.split(' ').filter(|w| !w.is_empty())
+}
+
+/// A clock time: `9:00`, `09:30`, `9h`, `9h30`, `14h`.
+fn clock_time(word: &str) -> bool {
+    let word = word.trim_matches(|c: char| !c.is_alphanumeric() && c != ':');
+    let (hours, rest) = match word.find([':', 'h']) {
+        Some(at) => (&word[..at], &word[at + 1..]),
+        None => return false,
+    };
+    !hours.is_empty()
+        && hours.len() <= 2
+        && hours.chars().all(|c| c.is_ascii_digit())
+        && (rest.is_empty() || (rest.len() == 2 && rest.chars().all(|c| c.is_ascii_digit())))
+}
+
+/// Words that mark an item as arriving with the invocation (an event stream, not a set that
+/// exists somewhere): « each incoming brief », « chaque nouveau ticket », « cada correo
+/// recibido », « ogni nuova richiesta », « jede eingehende Mail », « cada novo pedido ».
+const ARRIVAL_WORDS: &[&str] = &[
+    "incoming",
+    "new",
+    "arriving",
+    "received",
+    "submitted",
+    "entrant",
+    "entrante",
+    "entrants",
+    "entrantes",
+    "nouveau",
+    "nouvel",
+    "nouvelle",
+    "nouveaux",
+    "nouvelles",
+    "recu",
+    "recue",
+    "recus",
+    "recues",
+    "qui arrive",
+    "nuevo",
+    "nueva",
+    "nuevos",
+    "nuevas",
+    "recibido",
+    "recibida",
+    "recibidos",
+    "recibidas",
+    "nuovo",
+    "nuova",
+    "nuovi",
+    "nuove",
+    "in arrivo",
+    "ricevuto",
+    "ricevuta",
+    "ricevuti",
+    "ricevute",
+    "neu",
+    "neue",
+    "neuen",
+    "neues",
+    "neuer",
+    "eingehend",
+    "eingehende",
+    "eingehenden",
+    "eingegangen",
+    "eingegangene",
+    "novo",
+    "nova",
+    "novos",
+    "novas",
+    "recebido",
+    "recebida",
+    "recebidos",
+    "recebidas",
+    "a chegar",
+];
+
+/// Whether a distributive phrase quantifies over arriving items rather than a located set.
+pub(super) fn arriving(phrase: &str) -> bool {
+    let padded: String = format!(" {} ", super::hot::fold(phrase))
+        .chars()
+        .map(|c| {
+            if c.is_alphanumeric() || c == '\'' {
+                c
+            } else {
+                ' '
+            }
+        })
+        .collect();
+    ARRIVAL_WORDS
+        .iter()
+        .any(|w| padded.contains(&format!(" {w} ")))
+}
+
+/// Read the form of a trigger clause.
+pub(super) fn classify(phrase: &str) -> TriggerForm {
+    let padded = padded(phrase);
+    let mentions_time = words(&padded).any(|w| TIME_WORDS.contains(&w) || clock_time(w));
+    let completes = words(&padded).any(|w| COMPLETION_WORDS.contains(&w));
+    if SEQUENCE_HEADS
+        .iter()
+        .any(|h| padded.starts_with(&format!(" {h}")))
+    {
+        return TriggerForm::Sequence;
+    }
+    if EVENT_HEADS
+        .iter()
+        .any(|h| padded.starts_with(&format!(" {h}")))
+    {
+        return if completes {
+            TriggerForm::Sequence
+        } else {
+            TriggerForm::Event
+        };
+    }
+    if super::shape::led_by_quantifier(phrase) && !mentions_time {
+        return TriggerForm::Distributive;
+    }
+    if mentions_time {
+        return TriggerForm::Schedule;
+    }
+    TriggerForm::Distributive
+}

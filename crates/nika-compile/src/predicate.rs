@@ -33,6 +33,18 @@ pub(super) struct ProposedComputation {
     pub(super) columns: Vec<String>,
     #[serde(default, deserialize_with = "nullable_derived")]
     pub(super) derived: Vec<ProposedDerived>,
+    #[serde(default, deserialize_with = "super::cognition::nullable_string")]
+    pub(super) limit: String,
+    #[serde(default, deserialize_with = "nullable_renames")]
+    pub(super) renames: Vec<ProposedRename>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct ProposedRename {
+    #[serde(default, deserialize_with = "super::cognition::nullable_string")]
+    pub(super) from: String,
+    #[serde(default, deserialize_with = "super::cognition::nullable_string")]
+    pub(super) to: String,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -79,6 +91,11 @@ fn nullable_clauses<'de, D: serde::Deserializer<'de>>(
 ) -> Result<Vec<ProposedClause>, D::Error> {
     Ok(Option::<Vec<ProposedClause>>::deserialize(d)?.unwrap_or_default())
 }
+fn nullable_renames<'de, D: serde::Deserializer<'de>>(
+    d: D,
+) -> Result<Vec<ProposedRename>, D::Error> {
+    Ok(Option::<Vec<ProposedRename>>::deserialize(d)?.unwrap_or_default())
+}
 fn nullable_derived<'de, D: serde::Deserializer<'de>>(
     d: D,
 ) -> Result<Vec<ProposedDerived>, D::Error> {
@@ -88,6 +105,27 @@ fn nullable_aggregations<'de, D: serde::Deserializer<'de>>(
     d: D,
 ) -> Result<Vec<ProposedAggregation>, D::Error> {
     Ok(Option::<Vec<ProposedAggregation>>::deserialize(d)?.unwrap_or_default())
+}
+
+/// Whether the request spells the number as a word (« trois », « drei », « tre »).
+fn number_word_states(intent: &str, n: u32) -> bool {
+    super::shape::fold(intent)
+        .split(|c: char| !c.is_alphanumeric())
+        .any(|w| {
+            super::cardinality::NUMBER_WORDS
+                .iter()
+                .any(|(word, value)| *value == n && *word == w)
+        })
+}
+
+/// The truth value a word spells, in six languages; anything else is text.
+fn boolean_word(word: &str) -> Option<bool> {
+    match super::shape::fold(word).as_str() {
+        "true" | "vrai" | "vraie" | "verdadero" | "verdadera" | "vero" | "vera" | "wahr"
+        | "verdadeiro" | "verdadeira" => Some(true),
+        "false" | "faux" | "fausse" | "falso" | "falsa" | "falsch" => Some(false),
+        _ => None,
+    }
 }
 
 /// A typed computation the proposal stated, validated part by part against the request:
@@ -147,7 +185,12 @@ pub(super) fn typed_rule(
                 if unquoted.is_empty() || !lower.contains(&unquoted.to_lowercase()) {
                     return None;
                 }
-                Operand::Text(unquoted.to_owned())
+                // « explicito == false », « attivo = vero »: the truth value, whichever way
+                // the file encodes it (a boolean in JSON, its spelling in CSV).
+                match boolean_word(unquoted) {
+                    Some(truth) => Operand::Bool(truth),
+                    None => Operand::Text(unquoted.to_owned()),
+                }
             }
         } else {
             if !names_field(other) {
@@ -277,12 +320,39 @@ pub(super) fn typed_rule(
     if !derived.is_empty() && aggregations.is_empty() {
         return None;
     }
+    // A renamed key is a column the request names, renamed to a word of the request; a
+    // limit is a number the request states, as digits or as a word.
+    let mut renames = Vec::new();
+    for rename in &computation.renames {
+        let (from, to) = (rename.from.trim(), rename.to.trim());
+        if from.is_empty() || to.is_empty() || from == to || to.len() > 64 {
+            return None;
+        }
+        let known =
+            names_field(from) || produced.contains(&from) || columns.iter().any(|c| c == from);
+        if !known || !lower.contains(&to.to_lowercase()) {
+            return None;
+        }
+        renames.push((from.to_owned(), to.to_owned()));
+    }
+    let limit = computation.limit.trim();
+    let limit = if limit.is_empty() {
+        None
+    } else {
+        let n: u32 = limit.parse().ok()?;
+        if n == 0 || !(digit_runs.iter().any(|run| run == limit) || number_word_states(intent, n)) {
+            return None;
+        }
+        Some(n)
+    };
     let mut shape = Shape::default();
     shape.group_by = group_by;
     shape.aggregations = aggregations;
     shape.sort_by = sort_by;
     shape.columns = columns;
     shape.derived = derived;
+    shape.limit = limit;
+    shape.renames = renames;
     if clauses.is_empty() && shape == Shape::default() {
         return None;
     }
@@ -292,7 +362,7 @@ pub(super) fn typed_rule(
 /// The schema of a typed computation on a compute step: every key required (a strict
 /// schema needs no optional), empty strings and arrays meaning absent.
 pub(super) fn computation_schema() -> Value {
-    json!({"type":"object","additionalProperties":false,"required":["present","polarity","join","clauses","group_by","aggregations","sort_by","order","columns","derived"],"properties":{
+    json!({"type":"object","additionalProperties":false,"required":["present","polarity","join","clauses","group_by","aggregations","sort_by","order","columns","derived","limit","renames"],"properties":{
         "present":{"type":"boolean"},
         "polarity":{"type":"string","enum":["keep","drop"]},
         "join":{"type":"string","enum":["and","or"]},
@@ -308,5 +378,90 @@ pub(super) fn computation_schema() -> Value {
         "columns":{"type":"array","items":{"type":"string"}},
         "derived":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["as","op","left","right"],"properties":{
             "as":{"type":"string"},"op":{"type":"string","enum":["sub","add","mul","div"]},
-            "left":{"type":"string"},"right":{"type":"string"}}}}}})
+            "left":{"type":"string"},"right":{"type":"string"}}}},
+        "limit":{"type":"string"},
+        "renames":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["from","to"],"properties":{
+            "from":{"type":"string"},"to":{"type":"string"}}}}}})
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ProposedComputation, typed_rule};
+    use serde_json::json;
+
+    // wave28 v2-02: the seat compared a boolean column to the string "false" and jq kept no
+    // row; the run was green on an empty file.
+    #[test]
+    fn a_truth_value_matches_the_boolean_and_its_spelling() {
+        let computation = serde_json::from_value::<ProposedComputation>(json!({
+            "present": true, "polarity": "keep", "join": "and",
+            "clauses": [{"field": "explicito", "op": "==", "value": "false", "value_field": ""}],
+            "group_by": "", "aggregations": [], "sort_by": "duracao_s", "order": "desc",
+            "columns": ["id", "titulo"], "derived": []
+        }))
+        .unwrap();
+        let intent = "Lê ./musica/faixas.json (id, titulo, artista, duracao_s, explicito), guarda as faixas com explicito == false ordenadas por duracao_s decrescente e escreve id e titulo em ./out/limpa.json";
+        let rule = typed_rule(
+            intent,
+            "guarda as faixas com explicito == false",
+            &computation,
+        )
+        .expect("a rule");
+        assert!(
+            rule.jq()
+                .contains("select((.explicito == false or .explicito == \"false\"))"),
+            "{}",
+            rule.jq()
+        );
+        let record = rule.to_json();
+        assert_eq!(record["clauses"][0]["value_kind"], "bool");
+        assert_eq!(record["clauses"][0]["value"], "false");
+    }
+
+    // arc 3: a rename and a limit are typed stages of the computation; a ranking that states
+    // no count is flagged so the binder asks for it (wave28 v2-53 compiled a full sort).
+    #[test]
+    fn a_rename_and_a_limit_are_typed_and_a_ranking_without_a_count_is_flagged() {
+        let proposed = |limit: &str| {
+            json!({
+                "present": true, "polarity": "keep", "join": "and", "clauses": [],
+                "group_by": "", "aggregations": [], "sort_by": "units", "order": "desc",
+                "columns": ["item", "units"], "derived": [], "limit": limit,
+                "renames": [{"from": "item", "to": "product"}]
+            })
+        };
+        let computation = serde_json::from_value::<ProposedComputation>(proposed("3")).unwrap();
+        let intent = "Read ./shop/sales.csv (columns item,units), keep the top 3 items by units, rename item to product and write ./out/top.csv";
+        let rule =
+            typed_rule(intent, "keep the top 3 items by units", &computation).expect("a rule");
+        assert!(rule.jq().contains("| .[:3] |"), "{}", rule.jq());
+        assert!(
+            rule.jq().contains(
+                "map(with_entries(if .key == \"item\" then .key = \"product\" else . end))"
+            ),
+            "{}",
+            rule.jq()
+        );
+        assert_eq!(
+            rule.output_columns(),
+            Some(vec!["product".to_owned(), "units".to_owned()])
+        );
+        assert_eq!(rule.renames().len(), 1);
+        assert!(!rule.ranking_without_count());
+        let record = rule.to_json();
+        assert_eq!(record["shape"]["limit"], 3);
+        assert_eq!(record["shape"]["renames"][0]["to"], "product");
+        // A limit the request does not state is no rule; a count spelled as a word is stated.
+        let unstated = serde_json::from_value::<ProposedComputation>(proposed("5")).unwrap();
+        assert!(typed_rule(intent, "keep the top 3 items by units", &unstated).is_none());
+        let spelled = "Read ./shop/sales.csv (columns item,units), keep the three best items by units, rename item to product and write ./out/top.csv";
+        assert!(typed_rule(spelled, "keep the three best items by units", &computation).is_some());
+        // No limit under a ranking word: the count is missing and must be asked.
+        let ranked = serde_json::from_value::<ProposedComputation>(proposed("")).unwrap();
+        let rule = typed_rule(intent, "the top-selling items by units", &ranked).expect("a rule");
+        assert!(rule.ranking_without_count());
+        assert!(!rule.with_limit(3).ranking_without_count());
+        let plain = typed_rule(intent, "sorted by units, descending", &ranked).expect("a rule");
+        assert!(!plain.ranking_without_count());
+    }
 }

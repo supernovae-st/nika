@@ -57,6 +57,7 @@ pub fn effect_words(lower: &str, columns: &[String]) -> Vec<EffectVerb> {
         ("envoi", EffectVerb::Send),
         ("sending", EffectVerb::Send),
         ("writing", EffectVerb::Write),
+        ("written", EffectVerb::Write),
         ("saving", EffectVerb::Write),
         ("publishing", EffectVerb::Publish),
         ("publication", EffectVerb::Publish),

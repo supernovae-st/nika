@@ -32,6 +32,9 @@ use serde_json::{Value, json};
 
 mod instructions;
 use instructions::INSTRUCTIONS;
+mod backstops;
+pub(super) use backstops::starts_with_prohibition;
+use backstops::{gate_finds_its_effect, reconcile_refund_backstop};
 
 /// The explicit cognition a caller permits for one request. Absent seats are not consent.
 #[derive(Clone, Copy)]
@@ -430,12 +433,23 @@ pub fn intent_sha256(intent: &str) -> String {
 
 /// The provenance projection of a settled plan: the plan itself plus the strategy that
 /// settled it, so the record replays under the same name.
+/// The plan projection with its strategy word and the obligation ledger the plan states
+/// (every duty typed with its state), for provenance and for the answer-round replay.
 fn plan_record(plan: &Plan, strategy: Option<Strategy>) -> Value {
     let mut record = plan.to_json();
     if let Some(strategy) = strategy {
         record["strategy"] = json!(strategy.word());
     }
     record
+}
+
+/// Record the obligation ledger a plan states in the decision record (the assembler
+/// overwrites it with the realized one when it emits): the plan record itself stays the
+/// replayable identity of the plan, byte-identical across answer rounds.
+fn record_ledger(out: &mut CompileOutcome, ledger: &super::ledger::Ledger) {
+    let mut decision = out.provenance.decision.take().unwrap_or_else(|| json!({}));
+    decision["ledger"] = ledger.to_json();
+    out.provenance.decision = Some(decision);
 }
 
 /// Replay a recorded plan for the same intent: straight to the deterministic assembler,
@@ -496,6 +510,7 @@ pub(super) fn replay(
             "Supply a complete replacement request including all work still wanted. It explicitly replaces the earlier intent.",
             QuestionType::Text,
         );
+        record_ledger(out, &super::ledger::Ledger::extract(&plan));
         out.provenance.plan = Some(plan_record(&plan, strategy));
         return Ok(());
     }
@@ -616,6 +631,9 @@ fn unresolved(reading: &Reading, out: &mut CompileOutcome) {
             QuestionType::Text,
         );
     }
+    // The reading's own ledger: the plan's duties plus every clause the reader could not
+    // settle, so the unresolved work is typed beside the plan.
+    record_ledger(out, &super::ledger::Ledger::extract_reading(reading));
     out.provenance.plan = Some(reading.plan.to_json());
 }
 
@@ -633,7 +651,8 @@ fn settle(
             "authoring_plan",
             "Every operation, effect and obligation needs an exact nonempty source excerpt. Nothing invented is assembled.",
         );
-        out.provenance.plan = Some(plan.to_json());
+        record_ledger(&mut out, &super::ledger::Ledger::extract(plan));
+        out.provenance.plan = Some(plan_record(plan, None));
         return Ok(out);
     }
     let mut plan = plan.clone();
@@ -815,46 +834,6 @@ fn excerpt_head(text: &str) -> String {
     head
 }
 
-/// The reader's refund backstop is a word-level guard ("refund" appears, no refund effect
-/// recognized). Once a proposal exists, its own accounting decides: the unknown is withdrawn
-/// when the merged plan carries a refund effect, or when every region that mentions a refund
-/// was read as an operation, a constraint or context (a status value such as "refunded" in a
-/// filter). A region read as an effect, a policy or unknown keeps the guard.
-fn reconcile_refund_backstop(plan: &mut Plan, regions: &[ProposedRegion]) {
-    const GUARD: &str = "The request mentions a refund that no recognized effect carries";
-    if !plan.unknowns.iter().any(|u| u.starts_with(GUARD)) {
-        return;
-    }
-    let mentions = |text: &str| {
-        let lower = text.to_lowercase();
-        lower.contains("refund") || lower.contains("rembours")
-    };
-    let carried = plan.effects.iter().any(|e| e.verb == EffectVerb::Refund);
-    let mentioning: Vec<&ProposedRegion> = regions.iter().filter(|r| mentions(&r.text)).collect();
-    let explained = !mentioning.is_empty()
-        && mentioning.iter().all(|r| {
-            matches!(
-                r.role.as_str(),
-                "operation" | "constraint" | "context" | "obligation"
-            )
-        });
-    if carried || explained {
-        plan.unknowns.retain(|u| !u.starts_with(GUARD));
-    }
-}
-
-/// Words that open a prohibition in the languages the compiler meets.
-const PROHIBITION_CUES: &[&str] = &[
-    "do not ", "don't ", "never ", "ne ", "n'", "no ", "non ", "nicht ", "keine ", "sans ",
-    "jamais ", "nunca ", "mai ", "niemals ",
-];
-
-/// A prohibition ("Do not copy …", "Ne cite pas …", "No copies …") at the head of an excerpt.
-pub(super) fn starts_with_prohibition(text: &str) -> bool {
-    let lower = text.trim().to_lowercase();
-    PROHIBITION_CUES.iter().any(|cue| lower.starts_with(cue))
-}
-
 /// The model's own accounting, read back: a region it labelled as producing (operation,
 /// effect, obligation, constraint, policy) must overlap an element the merged plan carries
 /// (a step, an effect, an obligation, a constraint or a policy literal). A region consumed
@@ -1031,6 +1010,7 @@ fn merge(
                 .push(Effect::new(verb, effect.target, evidence, policy));
         }
     }
+    gate_finds_its_effect(&mut plan);
     for obligation in proposal.obligations {
         let Some(evidence) = exact_excerpt(intent, &obligation.evidence) else {
             reject(
@@ -1104,7 +1084,8 @@ fn merge(
             "Supply a complete replacement request including all work still wanted. It explicitly replaces the earlier intent.",
             QuestionType::Text,
         );
-        out.provenance.plan = Some(plan.to_json());
+        record_ledger(out, &super::ledger::Ledger::extract(&plan));
+        out.provenance.plan = Some(plan_record(&plan, None));
         return None;
     }
     if plan.steps.is_empty() && plan.effects.is_empty() {

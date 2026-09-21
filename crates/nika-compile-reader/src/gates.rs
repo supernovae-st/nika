@@ -22,6 +22,40 @@ const APPROVAL_NOUNS: &[&str] = &[
     "authorisation",
     "autorisation",
     "permission",
+    // ES · IT · DE · PT (accented and folded)
+    "aprobación",
+    "aprobacion",
+    "confirmación",
+    "confirmacion",
+    "validación",
+    "validacion",
+    "autorización",
+    "autorizacion",
+    "permiso",
+    "consentimiento",
+    "approvazione",
+    "conferma",
+    "validazione",
+    "autorizzazione",
+    "permesso",
+    "consenso",
+    "genehmigung",
+    "bestätigung",
+    "bestatigung",
+    "freigabe",
+    "zustimmung",
+    "erlaubnis",
+    "aprovação",
+    "aprovacao",
+    "confirmação",
+    "confirmacao",
+    "validação",
+    "validacao",
+    "autorização",
+    "autorizacao",
+    "permissão",
+    "permissao",
+    "consentimento",
 ];
 /// Approval verbs and answers: a gate only when a person performs them.
 const APPROVAL_VERBS: &[&str] = &[
@@ -48,6 +82,44 @@ const APPROVAL_VERBS: &[&str] = &[
     "oui",
     "ok",
     "okay",
+    // ES · IT · DE · PT
+    "apruebe",
+    "apruebo",
+    "aprueba",
+    "aprobado",
+    "confirme",
+    "confirmo",
+    "confirma",
+    "confirmado",
+    "valido",
+    "validado",
+    "sí",
+    "approvi",
+    "approvo",
+    "approva",
+    "approvato",
+    "confermi",
+    "confermo",
+    "conferma",
+    "confermato",
+    "validi",
+    "validato",
+    "genehmige",
+    "genehmigt",
+    "bestätige",
+    "bestatige",
+    "bestätigt",
+    "bestatigt",
+    "freigebe",
+    "freigegeben",
+    "ja",
+    "aprove",
+    "aprovo",
+    "aprova",
+    "aprovado",
+    "confirmado",
+    "validado",
+    "sim",
 ];
 const PERSONS: &[&str] = &[
     "i",
@@ -74,10 +146,59 @@ const PERSONS: &[&str] = &[
     "humain",
     "humaine",
     "quelqu'un",
+    // ES · IT · DE · PT
+    "yo",
+    "mi",
+    "mí",
+    "mío",
+    "mía",
+    "tú",
+    "usted",
+    "humano",
+    "humana",
+    "alguien",
+    "io",
+    "mio",
+    "mia",
+    "umano",
+    "umana",
+    "qualcuno",
+    "ich",
+    "mich",
+    "mir",
+    "mein",
+    "meine",
+    "meiner",
+    "du",
+    "dich",
+    "jemand",
+    "mensch",
+    "eu",
+    "meu",
+    "minha",
+    "você",
+    "voce",
+    "alguém",
+    "alguem",
+];
+/// Words that narrow a connector to the approval alone (`only after`, `seulement après`).
+const ONLY: &[&str] = &[
+    "only",
+    "seulement",
+    "uniquement",
+    "solo",
+    "sólo",
+    "solamente",
+    "soltanto",
+    "nur",
+    "só",
+    "apenas",
 ];
 /// Connectors that bind an effect to a later approval.
 const AFTER: &[&str] = &[
-    "after", "once", "upon", "if", "when", "après", "apres", "lorsque", "quand", "si",
+    "after", "once", "upon", "if", "when", "après", "apres", "lorsque", "quand", "si", "después",
+    "despues", "tras", "cuando", "dopo", "quando", "se", "nach", "sobald", "wenn", "falls",
+    "depois", "após", "apos",
 ];
 /// Requirement words: the subject before them is what needs the approval.
 const REQUIRE: &[&str] = &[
@@ -99,16 +220,105 @@ const REQUIRE: &[&str] = &[
     "requise",
     "nécessaire",
     "necessaire",
+    // ES · IT · DE · PT
+    "requiere",
+    "necesita",
+    "debe",
+    "richiede",
+    "necessita",
+    "deve",
+    "serve",
+    "erfordert",
+    "braucht",
+    "muss",
+    "benötigt",
+    "benotigt",
+    "requer",
+    "precisa",
+    "exige",
 ];
-/// Asking verbs: a request for approval addressed to a person.
+/// Asking verbs: a request for approval addressed to a person (a clitic person such as
+/// `demande-moi`, `pídeme` or `pergunte-me` counts as the verb and the person).
 const ASK: &[&str] = &[
-    "ask", "asks", "get", "obtain", "require", "wait", "await", "check", "demande", "demandez",
-    "demander", "attends", "attendez", "attendre", "obtiens", "obtenez",
+    "ask",
+    "asks",
+    "get",
+    "obtain",
+    "require",
+    "wait",
+    "await",
+    "check",
+    "demande",
+    "demandez",
+    "demander",
+    "attends",
+    "attendez",
+    "attendre",
+    "obtiens",
+    "obtenez",
+    "préviens",
+    "previens",
+    "prévenez",
+    "prevenez",
+    "avertis",
+    "pregunta",
+    "pregúntame",
+    "preguntame",
+    "pide",
+    "pídeme",
+    "pideme",
+    "espera",
+    "consulta",
+    "chiedi",
+    "chiedimi",
+    "domanda",
+    "aspetta",
+    "attendi",
+    "frag",
+    "frage",
+    "fragen",
+    "warte",
+    "hol",
+    "hole",
+    "pergunte",
+    "pergunta",
+    "peça",
+    "peca",
+    "pede",
+    "espere",
+    "aguarde",
 ];
 /// Connectors that bound a prohibition or an asking verb by an approval: `until`, `before`.
 const UNTIL: &[&str] = &[
     "until", "unless", "without", "before", "till", "sans", "avant", "jusqu'à", "jusqu'a", "tant",
+    "hasta", "sin", "antes", "finché", "finche", "senza", "prima", "bis", "ohne", "bevor",
+    "vorher", "até", "ate", "sem",
 ];
+
+/// A clitic person glued to a verb (`demande-moi`, `pergunte-me`, `chiedimi`): the verb and
+/// the person it addresses.
+fn clitic(word: &str) -> Option<(&str, &str)> {
+    if let Some((verb, person)) = word.rsplit_once('-')
+        && PERSONS.contains(&person)
+    {
+        return Some((verb, person));
+    }
+    // Italian and Spanish glue the person without a hyphen: `chiedimi`, `pídeme`.
+    for suffix in ["mi", "me"] {
+        if let Some(verb) = word.strip_suffix(suffix)
+            && verb.len() >= 4
+            && ASK.contains(&verb)
+        {
+            return Some((verb, suffix));
+        }
+    }
+    None
+}
+
+/// The asking verb a token carries, its clitic person set aside.
+fn asking(word: &str) -> bool {
+    ASK.contains(&word) || clitic(word).is_some_and(|(verb, _)| ASK.contains(&verb))
+}
 
 struct Token<'a> {
     word: &'a str,
@@ -161,7 +371,8 @@ fn is_approval(tokens: &[Token<'_>], k: usize) -> bool {
 /// `only after my explicit approval`, `once i approve`, `the write needs my approval first`,
 /// `human approval required`. Returns the byte span of the gate phrase; the span starts at
 /// the connector (or at the subject of a requirement) and ends after the approval word.
-pub(crate) fn final_gate(lower: &str) -> Option<(usize, usize)> {
+#[must_use]
+pub fn final_gate(lower: &str) -> Option<(usize, usize)> {
     let tokens = tokens(lower);
     for k in 0..tokens.len() {
         if !is_approval(&tokens, k) {
@@ -171,7 +382,7 @@ pub(crate) fn final_gate(lower: &str) -> Option<(usize, usize)> {
         // `after`/`once`/`if` … approval: the effect before the connector is gated.
         if let Some(c) = (from..k).find(|j| AFTER.contains(&tokens[*j].word)) {
             let mut start = tokens[c].start;
-            if c > 0 && tokens[c - 1].word == "only" {
+            if c > 0 && ONLY.contains(&tokens[c - 1].word) {
                 start = tokens[c - 1].start;
             }
             return Some((start, tokens[k].end));
@@ -196,24 +407,28 @@ pub(crate) fn final_gate(lower: &str) -> Option<(usize, usize)> {
 /// A gate that asks a person: `ask me to confirm before writing …`, `wait for my confirmation`,
 /// `demande mon accord avant d'écrire`. Returns the span of the asking phrase; what follows
 /// the span names the gated effect when a `before` connector closes the phrase.
-pub(crate) fn named_gate(lower: &str) -> Option<(usize, usize)> {
+#[must_use]
+pub fn named_gate(lower: &str) -> Option<(usize, usize)> {
     let tokens = tokens(lower);
     for (a, token) in tokens.iter().enumerate() {
-        if !ASK.contains(&token.word) {
+        if !asking(token.word) {
             continue;
         }
         let to = (a + 7).min(tokens.len());
         let approval = (a + 1..to).find(|k| is_approval(&tokens, *k));
         let before = (a + 1..to).find(|k| UNTIL.contains(&tokens[*k].word));
+        let addressed = clitic(token.word).is_some();
         match (approval, before) {
-            // `ask me to confirm before writing …` / `ask me before writing …` (a person is asked)
+            // `ask me to confirm before writing …` / `ask me before writing …` /
+            // `demande-moi avant d'écrire` (a person is asked)
             (_, Some(b))
-                if tokens[a + 1..b].iter().any(|t| PERSONS.contains(&t.word))
+                if addressed
+                    || tokens[a + 1..b].iter().any(|t| PERSONS.contains(&t.word))
                     || approval.is_some() =>
             {
                 // `avant de` / `avant d'écrire`: the preposition belongs to the connector.
                 let end = tokens.get(b + 1).map_or(tokens[b].end, |t| {
-                    if t.word == "de" {
+                    if matches!(t.word, "de" | "di") {
                         t.end
                     } else if t.word.starts_with("d'") {
                         t.start + 2
@@ -229,6 +444,31 @@ pub(crate) fn named_gate(lower: &str) -> Option<(usize, usize)> {
         }
     }
     None
+}
+
+/// How many approval phrases a text states, left to right without overlap: one phrase is one
+/// gate however many effects it covers; two phrases in two sentences are two gates.
+#[must_use]
+pub fn gate_phrases(lower: &str) -> usize {
+    let mut count = 0;
+    let mut from = 0;
+    while from < lower.len() {
+        let Some(rest) = lower.get(from..) else {
+            break;
+        };
+        let next = [final_gate(rest), named_gate(rest)]
+            .into_iter()
+            .flatten()
+            .min_by_key(|(start, _)| *start);
+        match next {
+            Some((start, end)) => {
+                count += 1;
+                from += end.max(start + 1);
+            }
+            None => break,
+        }
+    }
+    count
 }
 
 /// A prohibition bounded by an approval is a gate, not a prohibition: `don't write until i
@@ -297,6 +537,58 @@ mod tests {
         assert_eq!(span(t, named_gate(t)), "attends ma validation avant d'");
         assert_eq!(named_gate("ask the api for the current rate"), None);
         assert_eq!(named_gate("wait 30 seconds then retry"), None);
+    }
+
+    #[test]
+    fn a_gate_is_read_in_six_languages_including_a_clitic_person() {
+        let t = "mais demande-moi confirmation avant d'écrire";
+        assert_eq!(span(t, named_gate(t)), "demande-moi confirmation avant d'");
+        let t = "mais demande-moi avant d'envoyer";
+        assert_eq!(span(t, named_gate(t)), "demande-moi avant d'");
+        let t = "préviens-moi avant d'envoyer le mail";
+        assert_eq!(span(t, named_gate(t)), "préviens-moi avant d'");
+        let t = "pídeme confirmación antes de escribir";
+        assert_eq!(span(t, named_gate(t)), "pídeme confirmación antes de");
+        let t = "chiedimi conferma prima di scrivere";
+        assert_eq!(span(t, named_gate(t)), "chiedimi conferma prima di");
+        let t = "frag mich bevor du schreibst";
+        assert_eq!(span(t, named_gate(t)), "frag mich bevor");
+        let t = "pergunte-me antes de enviar";
+        assert_eq!(span(t, named_gate(t)), "pergunte-me antes de");
+        let t = "escríbelo solo después de mi aprobación";
+        assert_eq!(span(t, final_gate(t)), "solo después de mi aprobación");
+        let t = "scrivilo solo dopo la mia approvazione";
+        assert_eq!(span(t, final_gate(t)), "solo dopo la mia approvazione");
+        let t = "schreib es nur nach meiner genehmigung";
+        assert_eq!(span(t, final_gate(t)), "nur nach meiner genehmigung");
+        let t = "escreva só depois da minha aprovação";
+        assert_eq!(span(t, final_gate(t)), "só depois da minha aprovação");
+        assert!(approval_bound("no envíes nada sin mi aprobación"));
+        assert!(approval_bound("nichts senden ohne meine freigabe"));
+        // A verb that merely resembles a clitic is not one.
+        assert_eq!(named_gate("resume-le avant midi"), None);
+    }
+
+    #[test]
+    fn gate_phrases_are_counted_left_to_right_without_overlap() {
+        assert_eq!(
+            gate_phrases("read ./draft.md and write it to ./final.md"),
+            0
+        );
+        assert_eq!(
+            gate_phrases(
+                "ask me to confirm before you post it. only after i say yes: do the post, then write it."
+            ),
+            2
+        );
+        assert_eq!(
+            gate_phrases("ask me before writing it to ./a.md. ask me again before sending it."),
+            2
+        );
+        assert_eq!(
+            gate_phrases("write it to ./final.md only after my approval"),
+            1
+        );
     }
 
     #[test]

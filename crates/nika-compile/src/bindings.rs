@@ -71,6 +71,8 @@ pub(super) struct Wired {
     pub policy: Option<Value>,
     pub verb: EffectVerb,
     pub target: String,
+    /// The verbatim excerpt that requested the effect (a stated body shape lives there).
+    pub evidence: String,
     /// The effect carries material the plan already holds, unchanged ("post it to
     /// `<url>`", "send the report to `<url>`"): a webhook message, not an action payload.
     pub carry: bool,
@@ -98,6 +100,7 @@ pub(super) struct Lookup {
 
 /// The code rule of a compute step: the jq expression the human answered, or the rule
 /// synthesized from the words the request states over the parsed records.
+#[allow(clippy::large_enum_variant)] // a synthesized rule is the common case; a box buys nothing
 pub(super) enum RuleBinding {
     Answered(Value),
     Synthesized(rules::Rule),
@@ -109,6 +112,9 @@ pub(super) struct WriteEffect {
     pub path: String,
     pub gated: bool,
     pub target: String,
+    /// The verbatim excerpts of every plan effect this write realizes (a merge and a write
+    /// of one file are two excerpts, one task).
+    pub evidences: Vec<String>,
     /// The one classify category the write's clause names ("the bugs to ./bugs.json"):
     /// the write carries the records routed to it.
     pub category: Option<String>,
@@ -133,8 +139,8 @@ pub(super) struct Bindings {
     /// Constraints the structure consumed (a concurrency bound), kept out of prompts.
     pub consumed: Vec<String>,
     pub max_parallel: Option<u32>,
-    /// Whether `inputs.item` is declared: the request is invoked per item, or it
-    /// supplies no other material.
+    /// Whether `inputs.item` is declared: the request supplies no material of its own (no
+    /// read file, fan-out, fetched page or literal lookup), or a search needs its query.
     pub item: bool,
     /// The operations that run once per read item of a fan-out and fold back in item
     /// order: a draft the request distributes over the files, an extract whose fields it
@@ -161,6 +167,37 @@ impl Bindings {
     /// Whether at least one effect waits on a human gate.
     pub(super) fn gated(&self) -> bool {
         self.writes.iter().any(|w| w.gated) || self.wired.iter().any(|w| w.gated)
+    }
+    /// Whether the request supplies its own material: a read file or fan-out, a fetched
+    /// page, or a literal lookup (the record it selects). A trigger over that material
+    /// never declares an item.
+    pub(super) fn corpus(&self) -> bool {
+        matches!(
+            self.read,
+            Need::Bound(Source::File(_) | Source::Files(_) | Source::Glob(_))
+        ) || !matches!(self.fetch, Need::Absent)
+            || matches!(&self.lookup, Need::Bound(l) if l.by_id.is_some())
+    }
+    /// An outbound effect the request repeats once per item of the material it supplies:
+    /// stated inside the sentence a distributive trigger opens ("for each critical row,
+    /// send a POST …") over a read, fetched or looked-up corpus. The compiled workflow
+    /// performs an outbound effect once, so the effect is asked, never sent once in silence.
+    /// A write to one file folds the items into that file and is not repeated; an effect a
+    /// later sentence states applies to the whole result.
+    pub(super) fn repeated_effect<'a>(&self, plan: &'a Plan, intent: &str) -> Option<&'a Effect> {
+        let trigger = plan.trigger.as_deref()?;
+        if !self.corpus() || !shape::led_by_quantifier(trigger) {
+            return None;
+        }
+        let (start, end) = shape::triggered_span(intent, trigger)?;
+        plan.effects.iter().find(|effect| {
+            effect.policy != EffectPolicy::Forbidden
+                && effect.verb != EffectVerb::Write
+                && file_write(effect).is_none()
+                && intent
+                    .find(effect.evidence.trim())
+                    .is_some_and(|at| (start..end).contains(&at))
+        })
     }
     /// The rule the compiler synthesized from the request, when the compute step has one.
     fn synthesized(&self) -> Option<&rules::Rule> {
@@ -300,6 +337,34 @@ fn written_targets(plan: &Plan) -> Vec<String> {
         .collect()
 }
 
+/// The seat a plan that infers needs: asked, then admitted.
+fn bind_model(
+    plan: &Plan,
+    request: &CompileRequest,
+    out: &mut CompileOutcome,
+    recognized: &mut BTreeSet<String>,
+) -> Option<Value> {
+    if !uses_model(plan) {
+        return None;
+    }
+    recognized.insert("model".to_owned());
+    answer(request, out, "model", MODEL_LABEL, true).and_then(|m| admit_model(out, m))
+}
+
+/// The URL a fetch reads: the request's own literal, else asked.
+fn bind_url(
+    plan: &Plan,
+    request: &CompileRequest,
+    out: &mut CompileOutcome,
+    recognized: &mut BTreeSet<String>,
+) -> Option<Value> {
+    if let Some(url) = plan.bindings.iter().find(|b| b.role == "url") {
+        return Some(json!(url.literal));
+    }
+    recognized.insert("const.source_url".to_owned());
+    answer(request, out, "const.source_url", URL_LABEL, true)
+}
+
 /// Every binding the plan needs, answered or asked. Sources first, because the
 /// item and the rule's input shape depend on them.
 pub(super) fn bind(
@@ -309,12 +374,7 @@ pub(super) fn bind(
     out: &mut CompileOutcome,
     recognized: &mut BTreeSet<String>,
 ) -> Bindings {
-    let model = if uses_model(plan) {
-        recognized.insert("model".to_owned());
-        answer(request, out, "model", MODEL_LABEL, true).and_then(|m| admit_model(out, m))
-    } else {
-        None
-    };
+    let model = bind_model(plan, request, out, recognized);
     let lookup = Need::from_step(plan.step(Op::Lookup), |step| {
         resolve_lookup(step, request, out, recognized)
     });
@@ -323,17 +383,21 @@ pub(super) fn bind(
         answer(request, out, "const.search_root", SEARCH_LABEL, true)
     });
     let fetch = Need::from_step(plan.step(Op::Fetch), |_| {
-        if let Some(url) = plan.bindings.iter().find(|b| b.role == "url") {
-            Some(json!(url.literal))
-        } else {
-            recognized.insert("const.source_url".to_owned());
-            answer(request, out, "const.source_url", URL_LABEL, true)
-        }
+        bind_url(plan, request, out, recognized)
     });
     let written = written_targets(plan);
     let read = Need::from_step(plan.step(Op::Read), |step| {
         resolve_read(step, &written, request, out, recognized)
     });
+    let absent = matches!(lookup, Need::Absent) && matches!(fetch, Need::Absent);
+    let read = locate_items(
+        plan,
+        read,
+        !(absent && matches!(search, Need::Absent)),
+        request,
+        out,
+        recognized,
+    );
     let dedup = if plan.obligation("dedup") {
         recognized.insert("const.state_file".to_owned());
         answer(request, out, "const.state_file", STATE_LABEL, true)
@@ -348,10 +412,11 @@ pub(super) fn bind(
         || fan_out
         || !matches!(fetch, Need::Absent)
         || literal_lookup;
-    let item = !has_corpus
-        || matches!(read, Need::Bound(Source::Item))
-        || plan.has(Op::Search)
-        || (plan.trigger.is_some() && !fan_out);
+    // The item is the material of an invocation only when the request supplies none of its
+    // own. A trigger over a read, fetched or looked-up corpus ("for each critical row",
+    // "once all three are done") distributes or sequences work over THAT corpus; it never
+    // declares an input the run could not supply.
+    let item = !has_corpus || plan.has(Op::Search);
     let mut consumed = Vec::new();
     let mut max_parallel = None;
     if fan_out {
@@ -405,7 +470,7 @@ pub(super) fn bind(
         if !request.answers.contains_key("const.rule_expression")
             && let Some(rule) = synthesized_rule(plan, step, intent, &b)
         {
-            return Some(RuleBinding::Synthesized(rule));
+            return ranked(rule, request, out, recognized).map(RuleBinding::Synthesized);
         }
         recognized.insert("const.rule_expression".to_owned());
         let label = rule_label(plan, &b, &step.detail);
@@ -414,6 +479,14 @@ pub(super) fn bind(
     bind_effects(plan, distributed, request, out, recognized, &mut b);
     bind_named_outputs(plan, request, out, recognized, &mut b);
     b
+}
+
+/// A carry of held material (« post it to `<url>` »); a body whose keys the request states
+/// (`{digest}`) is a typed payload, never a carry.
+fn carried(effect: &Effect, plan: &Plan) -> bool {
+    super::network::carries(effect, plan)
+        && super::writes::payload_keys(&effect.target).is_none()
+        && super::writes::payload_keys(&effect.evidence).is_none()
 }
 
 /// A per-item request whose written target is a placeholder (`./out/<name>.md`) asks for
@@ -563,6 +636,72 @@ fn resolve_read(
     }
 }
 
+/// A request that quantifies over a set it never locates (« for each invoice », with no file,
+/// folder, URL, search or record named) asks where the items live; it never declares an
+/// input the run could not supply. An arriving item (« each incoming brief », « chaque
+/// nouveau ticket ») is the material of one invocation and stays the item.
+fn locate_items(
+    plan: &Plan,
+    read: Need<Source>,
+    located: bool,
+    request: &CompileRequest,
+    out: &mut CompileOutcome,
+    recognized: &mut BTreeSet<String>,
+) -> Need<Source> {
+    let Some(trigger) = plan.trigger.as_deref() else {
+        return read;
+    };
+    let quantified_set = matches!(
+        super::trigger::classify(trigger),
+        super::trigger::TriggerForm::Distributive
+    ) && shape::led_by_quantifier(trigger)
+        && !super::trigger::arriving(trigger);
+    // Data work over the set (an extraction, a computation, a classification) needs the set;
+    // a draft per request (« for each request, draft a digest ») drafts from the item.
+    let data_work = plan.steps.iter().any(|s| {
+        matches!(
+            s.op,
+            Op::Extract | Op::Compute | Op::Classify | Op::Validate
+        )
+    });
+    if located || !matches!(read, Need::Absent) || !quantified_set || !data_work {
+        return read;
+    }
+    resolve_items(trigger, request, out, recognized)
+}
+
+/// The items a request quantifies over without locating them: the human names the glob.
+fn resolve_items(
+    trigger: &str,
+    request: &CompileRequest,
+    out: &mut CompileOutcome,
+    recognized: &mut BTreeSet<String>,
+) -> Need<Source> {
+    let key = "const.source_glob";
+    recognized.insert(key.to_owned());
+    let label = format!(
+        "Where are the items of `{}`? Name the glob that selects them (for example ./items/*.md); each match is read as one document. The request names no file, folder, URL or record for them.",
+        trigger.trim()
+    );
+    let Some(value) = answer(request, out, key, &label, true) else {
+        return Need::Pending;
+    };
+    match value.as_str().and_then(paths::token) {
+        Some(PathShape::Glob(glob)) => Need::Bound(Source::Glob(glob)),
+        Some(PathShape::File(file)) => Need::Bound(Source::File(file)),
+        _ => {
+            reject(
+                out,
+                key,
+                &label,
+                true,
+                "Name a glob such as ./dir/*.md or one exact file; a bare directory or a placeholder is not readable.",
+            );
+            Need::Pending
+        }
+    }
+}
+
 /// A directory is never read as one file: the human names the glob under it.
 fn resolve_directory(
     directory: &str,
@@ -591,6 +730,42 @@ fn resolve_directory(
             None
         }
     }
+}
+
+/// A ranking without its count asks how many rows to keep (`const.top_n`); the answer bounds
+/// the sort. Any other computation binds as synthesized.
+fn ranked(
+    rule: rules::Rule,
+    request: &CompileRequest,
+    out: &mut CompileOutcome,
+    recognized: &mut BTreeSet<String>,
+) -> Option<rules::Rule> {
+    if !rule.ranking_without_count() {
+        return Some(rule);
+    }
+    let key = "const.top_n";
+    recognized.insert(key.to_owned());
+    let label = format!(
+        "How many rows does `{}` keep? The request ranks the rows but states no count; give a whole number (for example 3).",
+        rule.text()
+    );
+    let value = answer(request, out, key, &label, true)?;
+    let count = value
+        .as_u64()
+        .or_else(|| value.as_str().and_then(|s| s.trim().parse().ok()))
+        .filter(|n| (1..=10_000).contains(n))
+        .and_then(|n| u32::try_from(n).ok());
+    if let Some(n) = count {
+        return Some(rule.with_limit(n));
+    }
+    reject(
+        out,
+        key,
+        &label,
+        true,
+        "Give a whole number of rows between 1 and 10000.",
+    );
+    None
 }
 
 /// The rule a compute step states in words, when the corpus is what the rule can run over
@@ -805,6 +980,7 @@ fn bind_effects(
             };
             if let Some(existing) = b.writes.iter_mut().find(|w| w.path == path) {
                 existing.gated |= gated;
+                existing.evidences.push(effect.evidence.clone());
                 continue;
             }
             // The clause's prose names the category ("the bugs to ./bugs.json"), else the
@@ -829,6 +1005,7 @@ fn bind_effects(
                 path,
                 gated,
                 target: effect.target.clone(),
+                evidences: vec![effect.evidence.clone()],
                 category,
                 facet,
             });
@@ -843,7 +1020,8 @@ fn bind_effects(
                 policy,
                 verb: effect.verb,
                 target: effect.target.clone(),
-                carry: super::network::carries(effect, plan),
+                evidence: effect.evidence.clone(),
+                carry: carried(effect, plan),
             }),
             None => b.effects_pending = true,
         }
@@ -1026,6 +1204,7 @@ fn bind_named_outputs(
                 target: path.clone(),
                 path,
                 gated: false,
+                evidences: Vec::new(),
                 category: None,
                 facet: None,
             }),

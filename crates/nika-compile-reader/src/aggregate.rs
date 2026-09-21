@@ -245,6 +245,79 @@ pub struct Shape {
     pub derived: Vec<Derived>,
     /// Duplicates removed after the projection, the first occurrence kept in place.
     pub distinct: bool,
+    /// Output keys renamed, source name to stated name (« rename country to region »).
+    pub renames: Vec<(String, String)>,
+}
+
+/// Words that rank rows (« the top-selling », « les plus vendus », « die meistverkauften »):
+/// a descending sort under one of them keeps a count of rows the request must state.
+const RANKING_WORDS: &[&str] = &[
+    "top",
+    "most",
+    "best",
+    "highest",
+    "largest",
+    "biggest",
+    "best-selling",
+    "top-selling",
+    "les plus",
+    "le plus",
+    "la plus",
+    "meilleurs",
+    "meilleures",
+    "plus vendus",
+    "plus vendues",
+    "los mas",
+    "las mas",
+    "el mas",
+    "la mas",
+    "mejores",
+    "mas vendidos",
+    "mas vendidas",
+    "i piu",
+    "le piu",
+    "il piu",
+    "la piu",
+    "migliori",
+    "piu venduti",
+    "piu vendute",
+    "die meisten",
+    "meistverkauft",
+    "meistverkauften",
+    "meistverkaufte",
+    "besten",
+    "hochsten",
+    "grossten",
+    "os mais",
+    "as mais",
+    "o mais",
+    "a mais",
+    "melhores",
+    "mais vendidos",
+    "mais vendidas",
+    "maiores",
+];
+
+/// Whether a computation's text ranks the rows.
+#[must_use]
+pub fn ranking_cue(text: &str) -> bool {
+    let folded: String = super::hot::fold(text)
+        .chars()
+        .map(|c| {
+            if c.is_alphanumeric() || c == '-' {
+                c
+            } else {
+                ' '
+            }
+        })
+        .collect();
+    let padded = format!(
+        " {} ",
+        folded.split_whitespace().collect::<Vec<_>>().join(" ")
+    );
+    RANKING_WORDS
+        .iter()
+        .any(|w| padded.contains(&format!(" {w} ")))
 }
 
 /// The removal of duplicates, first occurrence kept: `unique` would sort the rows.
@@ -289,6 +362,12 @@ impl Shape {
         if self.distinct && self.limit.is_some() {
             return None;
         }
+        for rename in other.renames {
+            if self.renames.iter().any(|(from, _)| *from == rename.0) {
+                return None;
+            }
+            self.renames.push(rename);
+        }
         Some(self)
     }
     /// The names the shape produces: the group column and every aggregate.
@@ -306,11 +385,24 @@ impl Shape {
         if self.is_totals() {
             return None;
         }
+        let renamed = |names: Vec<String>| -> Vec<String> {
+            names
+                .into_iter()
+                .map(|name| {
+                    self.renames
+                        .iter()
+                        .find(|(from, _)| *from == name)
+                        .map_or(name, |(_, to)| to.clone())
+                })
+                .collect()
+        };
         if !self.columns.is_empty() {
-            return Some(self.columns.clone());
+            return Some(renamed(self.columns.clone()));
         }
         if self.group_by.is_some() {
-            return Some(self.produced().iter().map(|s| (*s).to_owned()).collect());
+            return Some(renamed(
+                self.produced().iter().map(|s| (*s).to_owned()).collect(),
+            ));
         }
         None
     }
@@ -390,6 +482,21 @@ impl Shape {
                 .join(", ");
             jq = format!("{jq} | map({{{projection}}})");
         }
+        if !self.renames.is_empty() && !self.is_totals() {
+            let arms = self
+                .renames
+                .iter()
+                .map(|(from, to)| {
+                    format!(
+                        "if .key == {} then .key = {} else . end",
+                        json!(from),
+                        json!(to)
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join(" | ");
+            jq = format!("{jq} | map(with_entries({arms}))");
+        }
         if self.distinct {
             jq = format!("{jq} | {DISTINCT}");
         }
@@ -410,6 +517,7 @@ impl Shape {
             "columns": self.columns,
             "derived": self.derived.iter().map(Derived::to_json).collect::<Vec<_>>(),
             "distinct": self.distinct,
+            "renames": self.renames.iter().map(|(from, to)| json!({"from": from, "to": to})).collect::<Vec<_>>(),
         })
     }
     pub(crate) fn from_json(value: Option<&Value>) -> Option<Self> {
@@ -469,6 +577,20 @@ impl Shape {
             .get("distinct")
             .and_then(Value::as_bool)
             .unwrap_or(false);
+        let renames = value.get("renames").and_then(Value::as_array).map_or_else(
+            || Some(Vec::new()),
+            |items| {
+                items
+                    .iter()
+                    .map(|r| {
+                        Some((
+                            r.get("from")?.as_str()?.to_owned(),
+                            r.get("to")?.as_str()?.to_owned(),
+                        ))
+                    })
+                    .collect::<Option<Vec<_>>>()
+            },
+        )?;
         Some(Self {
             join_on: text("join_on"),
             group_by: text("group_by"),
@@ -478,6 +600,7 @@ impl Shape {
             columns,
             derived,
             distinct,
+            renames,
         })
     }
 }

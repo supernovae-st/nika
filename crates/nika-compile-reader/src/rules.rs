@@ -62,7 +62,8 @@ impl Comparator {
             _ => None,
         }
     }
-    pub(crate) const fn symbol(self) -> &'static str {
+    #[must_use]
+    pub const fn symbol(self) -> &'static str {
         match self {
             Self::Gt => ">",
             Self::Ge => ">=",
@@ -151,6 +152,8 @@ pub enum Operand {
     Number(String),
     /// An exact string, compared case-sensitively.
     Text(String),
+    /// A truth value, matched whichever way the file encodes it (`false` or `"false"`).
+    Bool(bool),
     /// Another column of the same record.
     Column(String),
 }
@@ -240,13 +243,20 @@ impl Clause {
             (Operand::Text(text), _) => {
                 format!("{field} {} {}", self.comparator.symbol(), json!(text))
             }
+            // A JSON file holds the boolean, a CSV its spelling: both are the same truth.
+            (Operand::Bool(truth), _) => match self.comparator {
+                Comparator::Eq => format!("({field} == {truth} or {field} == \"{truth}\")"),
+                Comparator::Ne => format!("({field} != {truth} and {field} != \"{truth}\")"),
+                other => format!("{field} {} {truth}", other.symbol()),
+            },
         }
     }
     fn to_json(&self) -> Value {
         let (value, kind) = match &self.value {
-            Operand::Number(n) => (n, "number"),
-            Operand::Text(t) => (t, "text"),
-            Operand::Column(c) => (c, "column"),
+            Operand::Number(n) => (n.clone(), "number"),
+            Operand::Text(t) => (t.clone(), "text"),
+            Operand::Bool(b) => (b.to_string(), "bool"),
+            Operand::Column(c) => (c.clone(), "column"),
         };
         json!({"field": self.field, "comparator": self.comparator.symbol(), "value": value, "value_kind": kind})
     }
@@ -256,6 +266,7 @@ impl Clause {
         let literal = value.get("value")?.as_str()?.to_owned();
         let operand = match value.get("value_kind").and_then(Value::as_str) {
             Some("number") => Operand::Number(literal),
+            Some("bool") => Operand::Bool(literal == "true"),
             Some("column") => Operand::Column(literal),
             _ => Operand::Text(literal),
         };
@@ -288,6 +299,25 @@ impl Rule {
     #[must_use]
     pub fn output_columns(&self) -> Option<Vec<String>> {
         self.shape.output_columns()
+    }
+    /// The output keys the computation renames (source name, stated name).
+    #[must_use]
+    pub fn renames(&self) -> &[(String, String)] {
+        &self.shape.renames
+    }
+    /// A ranking (« the top-selling », « les plus vendus », « die meistverkauften ») sorted
+    /// descending without the count of rows to keep: the count is asked, never assumed.
+    #[must_use]
+    pub fn ranking_without_count(&self) -> bool {
+        self.shape.limit.is_none()
+            && self.shape.sort_by.as_ref().is_some_and(|(_, desc)| *desc)
+            && super::aggregate::ranking_cue(&self.text)
+    }
+    /// The same computation keeping the first `n` rows after its sort.
+    #[must_use]
+    pub fn with_limit(mut self, n: u32) -> Self {
+        self.shape.limit = Some(n);
+        self
     }
     /// Whether the rule joins several parsed sources on a column: its records are then one
     /// array per source, first source first.
@@ -323,6 +353,12 @@ impl Rule {
     #[must_use]
     pub fn totals_names(&self) -> Vec<String> {
         self.shape.totals_names()
+    }
+    /// Whether the computation keeps or drops rows (a row filter), as opposed to a pure
+    /// aggregation, sort or projection over every row.
+    #[must_use]
+    pub fn filters(&self) -> bool {
+        !self.clauses.is_empty()
     }
     /// The excerpt the rule was read from.
     #[must_use]

@@ -13,22 +13,28 @@
 //!
 //! The corpus is what the steps consume. A read file, a fetched page or a
 //! looked-up record is the material; an incoming `item` input exists only when
-//! the request is invoked per item (a trigger) or supplies no other material.
-//! Every anchor law checks against that whole corpus. Several files are a
+//! the request supplies no other material (a trigger over a corpus never declares
+//! one). Every anchor law checks against that whole corpus. Several files are a
 //! bounded fan-out folded into one document; a glob is expanded first; every
-//! write effect is its own task bound to the nearest upstream result.
+//! write effect is its own task bound to the nearest upstream result, and two
+//! destinations never receive the same produced content in silence.
 
-use super::bindings::{self, Bindings, Need, RuleBinding, Source, WriteEffect};
+use super::bindings::{self, Bindings, Need, RuleBinding, Source};
 use super::laws::{
-    ANNOTATE, FOLD_DOCUMENTS, FOLD_DRAFTS, FOLD_FIELDS, INFER_TIMEOUT, LINES, ROUTE,
-    SELECT_BY_FIELD, SELECT_BY_KEY, SOURCE_COLUMNS, SOURCE_COLUMNS_UNION, SUMMARY, ZIP, anchor_law,
-    bullet_layout, category_schema, draft_law, draft_schema, extract_schema, per_item_extract_law,
-    per_item_law, per_item_translation_law, translation, translation_law,
+    FOLD_DOCUMENTS, FOLD_DRAFTS, FOLD_FIELDS, INFER_TIMEOUT, LINES, SELECT_BY_FIELD, SELECT_BY_KEY,
+    SOURCE_COLUMNS, SOURCE_COLUMNS_UNION, SUMMARY, ZIP, anchor_law, bullet_layout, category_schema,
+    draft_law, draft_schema, extract_schema, per_item_extract_law, per_item_law,
+    per_item_translation_law, translation, translation_law,
 };
+use super::ledger::{DutyKind, Ledger};
 use super::paths::{self, Structured};
 use super::plan::{EffectPolicy, Op, Plan, Step};
-use super::shape::{self, Shape};
+use super::realize::{
+    record_ledger, refused_contradiction, repeated_effect_asked, settle_candidate, shared_approval,
+};
+use super::shape;
 use super::support::invoke;
+use super::writes::emit_writes;
 use super::{CompileError, CompileOutcome, CompileRequest, DiagnosticKind, QuestionType};
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
@@ -66,20 +72,36 @@ pub(super) struct Doc {
     /// Whether `inputs.item` is declared.
     pub item: bool,
     /// Whether `source_columns` (the CSV source's own header order) was emitted.
-    source_columns: bool,
+    pub(super) source_columns: bool,
     /// The columns a typed computation writes, when it fixes them (a grouping, a projection).
-    computed_columns: Option<Vec<String>>,
-    /// The names of the totals a computation produces over every row, when it is totals.
-    totals: Vec<String>,
+    pub(super) computed_columns: Option<Vec<String>>,
+    /// The keys a typed computation renamed (source name, stated name): when any, the source
+    /// header no longer describes the rows.
+    pub(super) renames: Vec<(String, String)>,
+    /// The names a typed computation produces as totals over every row (`tickets`,
+    /// `total_cents`): the keys an outbound payload may name.
+    pub(super) totals: Vec<String>,
+    /// Which emitted element carries which stated duty: (kind, evidence, task id).
+    pub(super) carriers: Vec<(DutyKind, String, String)>,
+    /// The stated bounds a run-time law over the drafted body verifies: (constraint, task).
+    pub(super) verified_bounds: Vec<(String, String)>,
+    /// One approval covers every gated effect: the review task, once emitted.
+    pub(super) shared_review: Option<String>,
+    /// Whether the request states one approval for several effects.
+    pub(super) share_gates: bool,
+    /// The gated actions a shared review lists, in emission order.
+    pub(super) gated_actions: Vec<String>,
+    /// The language tasks, in emission order: every one of them carries the prompt guidance.
+    pub(super) infer_tasks: Vec<String>,
     /// The task that zips a fan-out into `{path, text}` items, when the work is per item.
-    items: Option<String>,
+    pub(super) items: Option<String>,
     /// The parsed records a per-record classification ran over, when it did: a write
     /// naming a category carries the records routed to it.
-    routed: Option<String>,
+    pub(super) routed: Option<String>,
 }
 
 impl Doc {
-    fn new(id: &str, item: bool) -> Self {
+    pub(super) fn new(id: &str, item: bool) -> Self {
         let inputs = if item {
             json!({"item": {"type": "string", "required": true}})
         } else {
@@ -96,10 +118,22 @@ impl Doc {
             item,
             source_columns: false,
             computed_columns: None,
+            renames: Vec::new(),
             totals: Vec::new(),
+            carriers: Vec::new(),
+            verified_bounds: Vec::new(),
+            shared_review: None,
+            share_gates: false,
+            gated_actions: Vec::new(),
+            infer_tasks: Vec::new(),
             items: None,
             routed: None,
         }
+    }
+    /// Record that `task` carries the duty of `kind` stated by `evidence`.
+    pub(super) fn carry(&mut self, kind: DutyKind, evidence: &str, task: &str) {
+        self.carriers
+            .push((kind, evidence.trim().to_owned(), task.to_owned()));
     }
     /// A task id not yet taken: a second draft is `draft_2`, never a silent overwrite of the
     /// first (which bound the second to itself and cycled).
@@ -142,11 +176,11 @@ impl Doc {
             kind,
         });
     }
-    fn prompt_facts(&self) -> impl Iterator<Item = &Fact> {
+    pub(super) fn prompt_facts(&self) -> impl Iterator<Item = &Fact> {
         self.facts.iter().filter(|f| f.kind != Kind::Parsed)
     }
     /// `with:` bindings for the facts a prompt reads.
-    fn with_prompt(&self) -> Value {
+    pub(super) fn with_prompt(&self) -> Value {
         let mut with = json!({});
         for fact in self.prompt_facts() {
             with[fact.name] = json!(fact.template);
@@ -173,7 +207,7 @@ impl Doc {
         input
     }
     /// The material a prompt sees, named.
-    fn prompt_tail(&self) -> String {
+    pub(super) fn prompt_tail(&self) -> String {
         use std::fmt::Write as _;
         let mut text = String::new();
         if self.item {
@@ -186,7 +220,7 @@ impl Doc {
     }
     /// The input and bindings of an anchor law: the whole corpus a step could copy
     /// from (every prompt-visible fact and the item), plus the step's own output.
-    fn law_bindings(&self, key: &str, output: &str) -> (Value, Value) {
+    pub(super) fn law_bindings(&self, key: &str, output: &str) -> (Value, Value) {
         let mut input = json!({key: format!("${{{{ with.{key} }}}}")});
         let mut with = json!({key: output});
         if self.item {
@@ -198,11 +232,12 @@ impl Doc {
         }
         (input, with)
     }
-    fn infer(&mut self, id: &str, mut node: Value) {
+    pub(super) fn infer(&mut self, id: &str, mut node: Value) {
         let with = self.with_prompt();
         if with.as_object().is_some_and(|m| !m.is_empty()) {
             node["with"] = with;
         }
+        self.infer_tasks.push(id.to_owned());
         self.task(id, node, true);
     }
     /// The nearest upstream result for a written file: a structured target prefers
@@ -254,7 +289,7 @@ pub(super) const DATA_FACTS: [&str; 5] = ["computed", "fields", "validation", "r
 
 /// Facts that are the rows of the source (or a code rule over them): the only data a
 /// CSV source's column order applies to.
-const ROW_FACTS: [&str; 2] = ["computed", "records"];
+pub(super) const ROW_FACTS: [&str; 2] = ["computed", "records"];
 
 /// The output cap of a draft on a seat the catalog does not know to reason: room for a
 /// body and its anchored claims.
@@ -313,6 +348,13 @@ pub(super) fn assemble(
     if refused(plan, out) {
         return Ok(());
     }
+    // The stated ledger rides in the decision record from the first round; the realized
+    // one replaces it when the candidate is emitted.
+    let stated = Ledger::extract(plan);
+    record_ledger(out, &stated);
+    if refused_contradiction(&stated, out) {
+        return Ok(());
+    }
     let mut recognized: BTreeSet<String> = BTreeSet::new();
     let b = bindings::bind(plan, intent, request, out, &mut recognized);
     super::unknown_answers(
@@ -321,8 +363,15 @@ pub(super) fn assemble(
         out,
     );
     // A trigger the request names is deployment, not workflow: stated beside the candidate
-    // on every round, whether or not a question is still open.
-    if let Some(trigger) = super::trigger::requirement(plan, b.item) {
+    // on every round, whether or not a question is still open. A sequencing head (« once the
+    // brief is read ») orders the work the program already contains and states nothing.
+    let sequencing = plan.trigger.as_deref().is_some_and(|t| {
+        matches!(
+            super::trigger::classify(t),
+            super::trigger::TriggerForm::Sequence
+        )
+    });
+    if !sequencing && let Some(trigger) = super::trigger::requirement(plan, b.item) {
         super::finding(
             out,
             DiagnosticKind::Applied,
@@ -331,7 +380,7 @@ pub(super) fn assemble(
         );
         out.requested_trigger = Some(trigger);
     }
-    if !b.ready(plan) {
+    if repeated_effect_asked(plan, intent, &b, out) || !b.ready(plan) {
         return Ok(());
     }
     if plan.obligation("revision_check") && matches!(b.lookup, Need::Absent) {
@@ -359,6 +408,21 @@ pub(super) fn assemble(
         emit_step(&mut d, plan, &b, &guide, step);
     }
     emit_revision_check(&mut d, plan, &b);
+    // One approval clause covering several effects is one gate: the human answers once and
+    // every gated effect waits for that answer, instead of one prompt per effect.
+    d.gated_actions = b
+        .writes
+        .iter()
+        .filter(|w| w.gated)
+        .map(|w| format!("write {}", w.path))
+        .chain(
+            b.wired
+                .iter()
+                .filter(|w| w.gated)
+                .map(|w| format!("{} · {}", w.verb.word(), w.target.trim())),
+        )
+        .collect();
+    d.share_gates = d.gated_actions.len() >= 2 && shared_approval(intent, plan);
     if !emit_writes(&mut d, &b.writes, out) || !super::network::emit_endpoints(&mut d, &b, out) {
         return Ok(());
     }
@@ -366,21 +430,11 @@ pub(super) fn assemble(
         d.tool("dedup_next", "nika:jq", json!({"input": {"state": "${{ with.state }}", "id": "${{ inputs.event_id }}"}, "expression": ". as $r | (($r.state | fromjson) + [$r.id]) | tojson"}), Some(json!({"state": "${{ tasks.dedup_read.output }}"})), true);
         d.tool("dedup_record", "nika:write", json!({"path": "${{ const.state_file }}", "content": "${{ with.next }}", "overwrite": true, "create_dirs": true}), Some(json!({"next": "${{ tasks.dedup_next.output }}"})), false);
     }
-    // The realized topology, recorded beside the route: observational, never authority.
-    let shape = Shape {
-        fan_out: b.fan_out(),
-        per_item: !b.per_item.is_empty(),
-        outputs: b.writes.len() + b.wired.len(),
-        gated: b.gated(),
-    };
-    let mut decision = out.provenance.decision.take().unwrap_or_else(|| json!({}));
-    decision["shape"] = shape.to_json();
-    if let Some(RuleBinding::Synthesized(rule)) = b.rule.bound() {
-        decision["rule"] = rule.to_json();
-    }
-    out.provenance.decision = Some(decision);
-    emit(d, out)
+    settle_candidate(plan, &b, d, out)
 }
+
+/// The one review task every gated effect waits for when the request states one approval.
+pub(super) const SHARED_REVIEW: &str = "approval_review";
 
 /// Refusals and human-only regions come first: nothing below them is assembled.
 fn refused(plan: &Plan, out: &mut CompileOutcome) -> bool {
@@ -644,6 +698,25 @@ fn emit_parse(d: &mut Doc, format: Structured) {
     d.fact("records", "${{ tasks.parse_source.output }}", Kind::Parsed);
 }
 
+/// A corpus the request names is asserted non-empty: a glob that matches no file must fail
+/// loudly, never fold nothing into a green run.
+fn emit_glob_admit(d: &mut Doc) {
+    d.tool(
+        "glob_found",
+        "nika:jq",
+        json!({"input": "${{ with.paths }}", "expression": "length > 0"}),
+        Some(json!({"paths": "${{ tasks.glob_source.output }}"})),
+        false,
+    );
+    d.tool(
+        "glob_admit",
+        "nika:assert",
+        json!({"condition": "${{ with.found }}", "message": "The named corpus matched no file; nothing is produced from an empty corpus."}),
+        Some(json!({"found": "${{ tasks.glob_found.output }}"})),
+        false,
+    );
+}
+
 fn emit_fan_out(d: &mut Doc, plan: &Plan, b: &Bindings, source: &Source) {
     let mut fan = json!({"fail_fast": true});
     if let Some(n) = b.max_parallel {
@@ -674,6 +747,8 @@ fn emit_fan_out(d: &mut Doc, plan: &Plan, b: &Bindings, source: &Source) {
             None,
             false,
         );
+        emit_glob_admit(d);
+        node["after"] = json!({"glob_admit": "success"});
         fan["items"] = json!("${{ with.paths }}");
         node["with"] = json!({"paths": "${{ tasks.glob_source.output }}"});
         fold_with["paths"] = json!("${{ tasks.glob_source.output }}");
@@ -761,13 +836,24 @@ fn emit_search_fetch_dedup(d: &mut Doc, plan: &Plan, b: &Bindings) {
 /// One language or code step, reading every fact so far.
 fn emit_step(d: &mut Doc, plan: &Plan, b: &Bindings, guide: &str, step: &Step) {
     let retry = plan.retry_bound();
+    let evidence = super::ledger::step_evidence(step).to_owned();
     match step.op {
         Op::Extract if b.extract_per_item() => {
             emit_extract_per_item(d, plan, b, guide, step, retry);
+            d.carry(DutyKind::Transformation, &evidence, "extract");
         }
-        Op::Extract => emit_extract(d, plan, guide, step, retry),
-        Op::Classify if b.classify_per_record => emit_classify_per_record(d, guide, step),
-        Op::Classify => emit_classify(d, guide, step),
+        Op::Extract => {
+            emit_extract(d, plan, guide, step, retry);
+            d.carry(DutyKind::Transformation, &evidence, "extract");
+        }
+        Op::Classify if b.classify_per_record => {
+            emit_classify_per_record(d, guide, step);
+            d.carry(DutyKind::Transformation, &evidence, "classify");
+        }
+        Op::Classify => {
+            emit_classify(d, guide, step);
+            d.carry(DutyKind::Transformation, &evidence, "classify");
+        }
         Op::Compute => match b.rule.bound() {
             Some(RuleBinding::Answered(rule)) => {
                 d.root["const"]["rule_expression"] = rule.clone();
@@ -779,8 +865,14 @@ fn emit_step(d: &mut Doc, plan: &Plan, b: &Bindings, guide: &str, step: &Step) {
                     true,
                 );
                 emit_computed(d, plan, false);
+                d.carry(DutyKind::Transformation, &evidence, "compute");
+                d.carry(DutyKind::Filter, &evidence, "compute");
             }
-            Some(RuleBinding::Synthesized(rule)) => emit_synthesized_rule(d, plan, rule),
+            Some(RuleBinding::Synthesized(rule)) => {
+                emit_synthesized_rule(d, plan, rule);
+                d.carry(DutyKind::Transformation, &evidence, "compute");
+                d.carry(DutyKind::Filter, &evidence, "compute");
+            }
             None => {}
         },
         Op::Validate => {
@@ -794,9 +886,17 @@ fn emit_step(d: &mut Doc, plan: &Plan, b: &Bindings, guide: &str, step: &Step) {
             d.infer("validate", node);
             d.fact("validation", "${{ tasks.validate.output }}", Kind::Derived);
             d.root["outputs"]["validation"] = json!("${{ tasks.validate.output }}");
+            d.carry(DutyKind::Transformation, &evidence, "validate");
         }
-        Op::Draft if b.draft_per_item() => emit_draft_per_item(d, b, guide, step, retry),
-        Op::Draft => emit_draft(d, guide, step, retry),
+        Op::Draft if b.draft_per_item() => {
+            emit_draft_per_item(d, b, guide, step, retry);
+            d.carry(DutyKind::Transformation, &evidence, "draft");
+        }
+        Op::Draft => {
+            let law = super::cardinality::body_law(&plan.constraints);
+            let id = emit_draft(d, guide, step, retry, law);
+            d.carry(DutyKind::Transformation, &evidence, &id);
+        }
         Op::Explore => {
             let turns = retry.unwrap_or(3);
             let prompt = format!(
@@ -810,6 +910,7 @@ fn emit_step(d: &mut Doc, plan: &Plan, b: &Bindings, guide: &str, step: &Step) {
             d.infer("explore", node);
             d.fact("exploration", "${{ tasks.explore.output }}", Kind::Derived);
             d.root["outputs"]["exploration"] = json!("${{ tasks.explore.output }}");
+            d.carry(DutyKind::Transformation, &evidence, "explore");
         }
         // A retrieval (read · fetch · lookup · search) is emitted by its binding, not here.
         _ => {}
@@ -857,6 +958,8 @@ fn emit_synthesized_rule(d: &mut Doc, plan: &Plan, rule: &super::rules::Rule) {
         true,
     );
     d.computed_columns = rule.output_columns();
+    d.renames = rule.renames().to_vec();
+    d.totals = rule.totals_names();
     emit_computed(d, plan, rule.summary());
     // Totals over every row are the outputs the request named, one by one.
     d.totals = rule
@@ -1036,7 +1139,16 @@ fn emit_classify(d: &mut Doc, guide: &str, step: &Step) {
     d.root["outputs"]["category"] = json!("${{ tasks.classify.output.category }}");
 }
 
-fn emit_draft(d: &mut Doc, guide: &str, step: &Step, retry: Option<u32>) {
+/// Returns the id of the draft task (`draft`, or `draft_2` for a second draft).
+/// A measurable bound the request states on the text (N bullets, N lines max, under N
+/// words) is verified at run by a law over the drafted body, not only asked for in the prompt.
+fn emit_draft(
+    d: &mut Doc,
+    guide: &str,
+    step: &Step,
+    retry: Option<u32>,
+    bounds: Option<(String, Vec<String>)>,
+) -> String {
     let translated = translation(step);
     let object = if step.detail.trim().is_empty() {
         "a reply"
@@ -1096,6 +1208,27 @@ fn emit_draft(d: &mut Doc, guide: &str, step: &Step, retry: Option<u32>) {
     );
     d.fact("draft", &body, Kind::Derived);
     d.root["outputs"]["draft"] = json!(body);
+    if let Some((expression, covered)) = bounds {
+        let bounds = format!("{id}_bounds");
+        d.tool(
+            &bounds,
+            "nika:jq",
+            json!({"input": "${{ with.body }}", "expression": expression}),
+            Some(json!({"body": body})),
+            true,
+        );
+        d.tool(
+            &format!("{id}_bounds_admit"),
+            "nika:assert",
+            json!({"condition": "${{ with.valid }}", "message": format!("The drafted text must honour the stated bounds: {}.", covered.join("; "))}),
+            Some(json!({"valid": format!("${{{{ tasks.{bounds}.output }}}}")})),
+            false,
+        );
+        for constraint in covered {
+            d.verified_bounds.push((constraint, bounds.clone()));
+        }
+    }
+    id
 }
 
 /// A draft distributed over the read items: the prompt sees one item's text and nothing
@@ -1126,6 +1259,7 @@ fn emit_draft_per_item(d: &mut Doc, b: &Bindings, guide: &str, step: &Step, retr
     if let Some(n) = retry {
         node["retry"] = json!({"max_attempts": n});
     }
+    d.infer_tasks.push("draft".to_owned());
     d.task("draft", node, true);
     let pair =
         json!({"items": "${{ tasks.draft_items.output }}", "drafts": "${{ tasks.draft.output }}"});
@@ -1185,132 +1319,8 @@ fn emit_revision_check(d: &mut Doc, plan: &Plan, b: &Bindings) {
     }
 }
 
-/// Every write effect is its own task with its own content binding: the nearest
-/// upstream result. A CSV, YAML or TOML destination whose content is data gets a
-/// `nika:convert` stage (`<stem>_<ext>`) feeding the write; a JSON destination takes the
-/// data as JSON; a prose destination takes text. A write with nothing upstream is a
-/// finding, never an invented input. Returns false when a write could not be bound.
-fn emit_writes(d: &mut Doc, writes: &[WriteEffect], out: &mut CompileOutcome) -> bool {
-    for (index, effect) in writes.iter().enumerate() {
-        let Some((name, mut content)) = d
-            .content_fact(&effect.path)
-            .map(|f| (f.name, f.template.clone()))
-        else {
-            super::finding(
-                out,
-                DiagnosticKind::Unknown,
-                &format!("write_{}", effect.stem),
-                format!(
-                    "`{}` has nothing to write: no step reads, fetches, extracts, computes or drafts anything before it. Name the operation that produces its content.",
-                    effect.path
-                ),
-            );
-            super::question(
-                out,
-                "intent.clarification",
-                "Supply a complete replacement request that names what each written file must contain. It explicitly replaces the earlier intent.",
-                QuestionType::Text,
-            );
-            return false;
-        };
-        let (constant, task) = if index == 0 {
-            ("output_path".to_owned(), "write_output".to_owned())
-        } else {
-            (
-                format!("{}_path", effect.stem),
-                format!("write_{}", effect.stem),
-            )
-        };
-        content = written_content(d, effect, name, content);
-        d.root["const"][&constant] = json!(effect.path);
-        d.writes.push(json!(effect.path));
-        if let Some(format @ (Structured::Csv | Structured::Yaml | Structured::Toml)) =
-            Structured::of(&effect.path)
-            && DATA_FACTS.contains(&name)
-        {
-            let stage = format!("{}_{}", effect.stem, format.word());
-            let mut args =
-                json!({"input": "${{ with.data }}", "from": "json", "to": format.word()});
-            let mut with = json!({"data": content});
-            // Rows that derive from a CSV source are written back in the source's own
-            // column order; the header is sorted otherwise. A fact that is not the rows
-            // (extracted fields, a validation report) keeps the sorted header: the source
-            // columns would only pad it with empty ones.
-            if format == Structured::Csv
-                && name == "computed"
-                && let Some(columns) = &d.computed_columns
-            {
-                // A grouped or projected computation writes the columns it produced.
-                args["columns"] = json!(columns);
-            } else if format == Structured::Csv && d.source_columns && ROW_FACTS.contains(&name) {
-                args["columns"] = json!("${{ with.columns }}");
-                with["columns"] = json!("${{ tasks.source_columns.output }}");
-            }
-            d.tool(&stage, "nika:convert", args, Some(with), true);
-            content = format!("${{{{ tasks.{stage}.output }}}}");
-        }
-        let mut with = json!({"content": content});
-        if effect.gated {
-            let review = format!("{task}_review");
-            d.tool(&review, "nika:prompt", json!({"message": format!("Approve writing this exact content to {}? Content: ${{{{ with.content }}}}", effect.target.trim())}), Some(with.clone()), true);
-            with["approved"] = json!(format!("${{{{ tasks.{review}.output }}}}"));
-        }
-        let mut node = invoke(
-            "nika:write",
-            json!({"path": format!("${{{{ const.{constant} }}}}"), "content": "${{ with.content }}", "create_dirs": true, "overwrite": true}),
-        );
-        d.tools.insert("nika:write");
-        node["with"] = with;
-        if effect.gated {
-            node["when"] = json!("${{ with.approved == true }}");
-        }
-        d.task(&task, node, !effect.gated);
-        let status = if index == 0 {
-            "write_status".to_owned()
-        } else {
-            format!("{task}_status")
-        };
-        d.root["outputs"][status] = json!(format!("${{{{ tasks.{task}.status }}}}"));
-    }
-    true
-}
-
-/// The content a write carries, from the nearest upstream fact: a facet of a
-/// fetched page is the fetch's own mode; one total over every row written to a
-/// prose file is the value itself (a structured destination and several totals
-/// keep the object); after a per-record classification a write naming a
-/// category carries the records routed to it, a write of the records carries
-/// every record with its category.
-fn written_content(d: &mut Doc, effect: &WriteEffect, name: &str, mut content: String) -> String {
-    if let Some(facet) = effect.facet {
-        content = super::network::facet_content(d, facet);
-    }
-    if name == "computed"
-        && Structured::of(&effect.path).is_none()
-        && let [only] = d.totals.as_slice()
-    {
-        content = format!("${{{{ tasks.compute.output.{only} }}}}");
-    }
-    if let Some(records) = d.routed.clone()
-        && matches!(name, "records" | "categories")
-    {
-        let with = json!({"records": records, "categories": "${{ tasks.classify.output }}"});
-        let stage = if let Some(category) = &effect.category {
-            let stage = format!("route_{}", effect.stem);
-            d.tool(&stage, "nika:jq", json!({"input": {"records": "${{ with.records }}", "categories": "${{ with.categories }}", "category": category}, "expression": ROUTE}), Some(with), true);
-            stage
-        } else {
-            let stage = format!("{}_classified", effect.stem);
-            d.tool(&stage, "nika:jq", json!({"input": {"records": "${{ with.records }}", "categories": "${{ with.categories }}"}, "expression": ANNOTATE}), Some(with), true);
-            stage
-        };
-        content = format!("${{{{ tasks.{stage}.output }}}}");
-    }
-    content
-}
-
 /// Permits and emission: exactly what the tasks reach, then the literal round trip.
-fn emit(mut d: Doc, out: &mut CompileOutcome) -> Result<(), CompileError> {
+pub(super) fn emit(mut d: Doc, out: &mut CompileOutcome) -> Result<(), CompileError> {
     d.root["permits"]["tools"] = json!(d.tools.iter().copied().collect::<Vec<_>>());
     if !d.reads.is_empty() || !d.writes.is_empty() {
         let mut fs = json!({});

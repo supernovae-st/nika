@@ -296,7 +296,14 @@ fn remainder<'a>(original: &'a str, lower: &'a str, consumed: usize) -> &'a str 
     }
 }
 
-fn split_sentences(intent: &str) -> Vec<&str> {
+/// The unknown a deterministic reading raises when it saw a final human gate and no effect
+/// for it to guard; the cold merge lifts it once the proposal supplies the effect.
+pub const GATE_WITHOUT_EFFECT: &str =
+    "a final action requires human validation, but no final effect was recognized";
+
+/// Sentences of a request: `.`, `!`, `?` end one only before whitespace or the end (a dot
+/// inside `./out/sent.md` or `127.0.0.1` does not); `;` and a newline always do.
+pub fn split_sentences(intent: &str) -> Vec<&str> {
     let mut out = Vec::new();
     let mut start = 0;
     let bytes = intent.as_bytes();
@@ -885,10 +892,7 @@ pub fn read(intent: &str) -> Reading {
         {
             last.policy = EffectPolicy::HumanFirst;
         } else if reading.plan.effects.is_empty() {
-            reading.plan.unknowns.push(
-                "a final action requires human validation, but no final effect was recognized"
-                    .to_owned(),
-            );
+            reading.plan.unknowns.push(GATE_WITHOUT_EFFECT.to_owned());
         }
     }
     for effect in &mut reading.plan.effects {

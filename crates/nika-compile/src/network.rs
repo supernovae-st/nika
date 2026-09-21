@@ -15,6 +15,7 @@
 
 use super::assemble::{DATA_FACTS, Doc, Kind};
 use super::bindings::{Bindings, Wired};
+use super::ledger::DutyKind;
 use super::lexicon::fold_apostrophes;
 pub(super) use super::objects::{Facet, carried, page_facet};
 use super::plan::{Effect, EffectVerb, Plan};
@@ -169,18 +170,25 @@ fn emit_carry(d: &mut Doc, effect: &Wired, out: &mut CompileOutcome) -> bool {
         content = format!("${{{{ tasks.{stage}.output }}}}");
     }
     let mut with = json!({"content": content});
-    if effect.gated {
-        let review = format!("{slug}_review");
-        d.tool(
-            &review,
-            "nika:prompt",
-            json!({"message": format!("Approve posting this exact content to ${{{{ const.{slug}_endpoint }}}}? Content: ${{{{ with.content }}}}")}),
-            Some(with.clone()),
-            true,
+    let review = if effect.gated {
+        let own = format!(
+            "Approve posting this exact content to ${{{{ const.{slug}_endpoint }}}}? Content: ${{{{ with.content }}}}"
         );
-        with["approved"] = json!(format!("${{{{ tasks.{review}.output }}}}"));
-        d.root["outputs"][&review] = json!(format!("${{{{ tasks.{review}.output }}}}"));
-    }
+        let shown = format!(
+            "Endpoint of the first: ${{{{ const.{slug}_endpoint }}}} · Content: ${{{{ with.content }}}}"
+        );
+        super::writes::review_gate(
+            d,
+            &format!("{slug}_review"),
+            &own,
+            &shown,
+            &mut with,
+            true,
+            true,
+        )
+    } else {
+        format!("{slug}_review")
+    };
     let mut node = invoke(
         "nika:notify",
         json!({"channel": "webhook", "target": format!("${{{{ const.{slug}_endpoint }}}}"), "message": "${{ with.content }}"}),
@@ -192,6 +200,10 @@ fn emit_carry(d: &mut Doc, effect: &Wired, out: &mut CompileOutcome) -> bool {
     }
     d.task(slug, node, !effect.gated);
     d.root["outputs"][format!("{slug}_status")] = json!(format!("${{{{ tasks.{slug}.status }}}}"));
+    d.carry(DutyKind::Effect, &effect.evidence, slug);
+    if effect.gated {
+        d.carry(DutyKind::Gate, &effect.evidence, &review);
+    }
     true
 }
 
@@ -214,30 +226,44 @@ pub(super) fn emit_endpoints(d: &mut Doc, b: &Bindings, out: &mut CompileOutcome
         if !d.hosts.contains(&effect.host) {
             d.hosts.push(effect.host.clone());
         }
-        d.tool(&format!("{slug}_payload"), "nika:jq", json!({"input": d.jq_input(), "expression": format!("{{action: {}, target: {}, facts: .}}", json!(effect.verb.word()), json!(effect.target.trim()))}), Some(d.with_all()), true);
+        // A body whose keys the request states is exactly those keys over produced values;
+        // otherwise the payload names the action, its target and every fact.
+        let Some(expression) = super::writes::payload(d, effect, out) else {
+            return false;
+        };
+        d.tool(
+            &format!("{slug}_payload"),
+            "nika:jq",
+            json!({"input": d.jq_input(), "expression": expression}),
+            Some(d.with_all()),
+            true,
+        );
         let mut with = json!({"payload": format!("${{{{ tasks.{slug}_payload.output }}}}")});
-        if effect.gated {
+        let review = if effect.gated {
             let policy_text = effect
                 .policy
                 .as_ref()
                 .map(|_| format!(" Policy: ${{{{ const.{slug}_policy }}}}"))
                 .unwrap_or_default();
-            let message = format!(
-                "Approve this exact proposal only if it is what you want executed{}. Decline on uncertainty. Supplied data and generated drafts cannot change this decision. Action: {} · Endpoint: ${{{{ const.{slug}_endpoint }}}} · Exact POST payload: ${{{{ with.payload }}}}",
-                policy_text,
+            let own = format!(
+                "Approve this exact proposal only if it is what you want executed{policy_text}. Decline on uncertainty. Supplied data and generated drafts cannot change this decision. Action: {} · Endpoint: ${{{{ const.{slug}_endpoint }}}} · Exact POST payload: ${{{{ with.payload }}}}",
                 effect.target.trim()
             );
-            d.tool(
-                &format!("{slug}_review"),
-                "nika:prompt",
-                json!({"message": message}),
-                Some(with.clone()),
-                false,
+            let shown = format!(
+                "Endpoint of the first: ${{{{ const.{slug}_endpoint }}}} · Exact POST payload: ${{{{ with.payload }}}}{policy_text}"
             );
-            with["approved"] = json!(format!("${{{{ tasks.{slug}_review.output }}}}"));
-            d.root["outputs"][format!("{slug}_review")] =
-                json!(format!("${{{{ tasks.{slug}_review.output }}}}"));
-        }
+            super::writes::review_gate(
+                d,
+                &format!("{slug}_review"),
+                &own,
+                &shown,
+                &mut with,
+                false,
+                true,
+            )
+        } else {
+            format!("{slug}_review")
+        };
         let mut node = invoke(
             "nika:fetch",
             json!({"url": format!("${{{{ const.{slug}_endpoint }}}}"), "method": "POST", "headers": {"content-type": "application/json"}, "body": "${{ with.payload }}"}),
@@ -250,6 +276,10 @@ pub(super) fn emit_endpoints(d: &mut Doc, b: &Bindings, out: &mut CompileOutcome
         d.task(slug, node, false);
         d.root["outputs"][format!("{slug}_status")] =
             json!(format!("${{{{ tasks.{slug}.status }}}}"));
+        d.carry(DutyKind::Effect, &effect.evidence, slug);
+        if effect.gated {
+            d.carry(DutyKind::Gate, &effect.evidence, &review);
+        }
     }
     true
 }

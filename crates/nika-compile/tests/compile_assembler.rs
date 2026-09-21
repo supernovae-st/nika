@@ -672,6 +672,92 @@ fn a_per_item_request_with_placeholder_outputs_is_refused_not_lowered() {
     );
 }
 
+// ── a body whose keys the request states is exactly those keys over produced values ─
+// The sealed till seed computed `{tickets, total_cents}` correctly, then posted the generic
+// `{action, target, facts}` envelope: run green, wrong body. A brace list in the effect's
+// own words is the payload's shape; a key nothing produces is asked, never invented.
+const TILL: &str = "Compute the day's sales total from ./till.csv (columns ticket,time,amount_cents): the number of tickets and the sum of amount_cents. Send that summary in one POST to http://127.0.0.1:18471/hooks/till with the JSON body {tickets, total_cents} and write the same object to ./out/till.json.";
+const TILL_PLAIN: &str = "Compute the day's sales total from ./till.csv (columns ticket,time,amount_cents): the number of tickets and the sum of amount_cents. Send that summary in one POST to http://127.0.0.1:18471/hooks/till with the JSON body of the summary and write the same object to ./out/till.json.";
+const TILL_CASHIER: &str = "Compute the day's sales total from ./till.csv (columns ticket,time,amount_cents): the number of tickets and the sum of amount_cents. Send that summary in one POST to http://127.0.0.1:18471/hooks/till with the JSON body {tickets, cashier} and write the same object to ./out/till.json.";
+fn till_record(body: &str) -> Value {
+    let compute = "the number of tickets and the sum of amount_cents";
+    json!({"operations":[
+        {"op":"read","detail":"./till.csv","evidence":"Compute the day's sales total from ./till.csv (columns ticket,time,amount_cents)","categories":[]},
+        {"op":"compute","detail":compute,"evidence":compute,"categories":[]}],
+      "effects":[
+        {"verb":"send","target":format!("one POST to http://127.0.0.1:18471/hooks/till with the JSON body {body}"),"policy":"automatic","evidence":format!("Send that summary in one POST to http://127.0.0.1:18471/hooks/till with the JSON body {body}"),"policy_literal":null},
+        {"verb":"write","target":"./out/till.json","policy":"automatic","evidence":"write the same object to ./out/till.json","policy_literal":null}],
+      "obligations":[],"bindings":[{"role":"path","literal":"./till.csv"},{"role":"url","literal":"http://127.0.0.1:18471/hooks/till"},{"role":"path","literal":"./out/till.json"}],
+      "constraints":[],"unknowns":[],"trigger":null,"strategy":"cold",
+      "rules":[{"text":compute,"clauses":[],"junction":"and","summary":false,
+                "shape":{"group_by":null,
+                         "aggregations":[{"field":null,"op":"count","name":"tickets","round":null},
+                                         {"field":"amount_cents","op":"sum","name":"total_cents","round":null}],
+                         "sort_by":null,"descending":false,"columns":[],"derived":[]}}]})
+}
+
+#[test]
+fn a_body_whose_keys_the_request_states_is_those_keys_over_produced_values() {
+    let out = replay(TILL, &till_record("{tickets, total_cents}"), &[]);
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    let doc = document(&out);
+    assert!(doc.get("inputs").is_none(), "{doc:#}");
+    assert_eq!(
+        tasks(&doc)["send_payload"]["invoke"]["args"]["expression"],
+        r#"{"tickets": .computed["tickets"], "total_cents": .computed["total_cents"]}"#,
+        "{doc:#}"
+    );
+    assert_eq!(
+        tasks(&doc)["send_payload"]["with"]["computed"],
+        "${{ tasks.compute.output }}"
+    );
+    assert_eq!(
+        tasks(&doc)["write_output"]["with"]["content"],
+        "${{ tasks.compute.output }}"
+    );
+    assert_eq!(
+        doc["outputs"]["total_cents"],
+        "${{ tasks.compute.output.total_cents }}"
+    );
+    // No stated keys: the payload names the action, its target and every fact, as before.
+    let out = replay(TILL_PLAIN, &till_record("of the summary"), &[]);
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    let expression = document(&out)["tasks"]["send_payload"]["invoke"]["args"]["expression"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert!(
+        expression.starts_with(r#"{action: "send", target: "#) && expression.ends_with("facts: .}"),
+        "{expression}"
+    );
+    // A key nothing produces is asked, never filled with an invented value.
+    let out = replay(TILL_CASHIER, &till_record("{tickets, cashier}"), &[]);
+    assert!(out.candidate.is_none(), "{out:#?}");
+    assert!(keys(&out).contains(&"intent.clarification"), "{out:#?}");
+    assert!(
+        out.diagnostics
+            .iter()
+            .any(|d| d.kind == DiagnosticKind::Unknown
+                && d.target == "send"
+                && d.message.contains("`cashier`")),
+        "{out:#?}"
+    );
+    // One key left and one drafted text: the body the request named after its content.
+    let intent = "Make a one-paragraph digest of ./notes.md and POST it to http://127.0.0.1:18471/hooks/digest with the JSON body {digest}.";
+    let record = json!({"operations":[
+        {"op":"read","detail":"./notes.md","evidence":"Make a one-paragraph digest of ./notes.md","categories":[]},
+        {"op":"draft","detail":"a one-paragraph digest","evidence":"Make a one-paragraph digest of ./notes.md","categories":[]}],
+      "effects":[{"verb":"send","target":"POST it to http://127.0.0.1:18471/hooks/digest with the JSON body {digest}","policy":"automatic","evidence":"POST it to http://127.0.0.1:18471/hooks/digest with the JSON body {digest}","policy_literal":null}],
+      "obligations":[],"bindings":[{"role":"path","literal":"./notes.md"},{"role":"url","literal":"http://127.0.0.1:18471/hooks/digest"}],
+      "constraints":[],"unknowns":[],"trigger":null,"strategy":"cold"});
+    let out = replay(intent, &record, &[MODEL]);
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert_eq!(
+        document(&out)["tasks"]["send_payload"]["invoke"]["args"]["expression"],
+        r#"{"digest": .draft}"#
+    );
+}
+
 // ── a structured destination receives its format, not JSON ─────────────────────
 // The control (case a) wrote the computed JSON array into ./out/big_orders.csv. A .csv,
 // .yaml or .toml destination whose content is data gets a nika:convert stage feeding
@@ -1087,6 +1173,14 @@ async fn a_directory_is_never_read_as_one_file_it_asks_for_a_glob_then_fans_out(
     let read = &tasks(&doc)["read_source"];
     assert_eq!(read["with"]["paths"], "${{ tasks.glob_source.output }}");
     assert_eq!(read["for_each"]["items"], "${{ with.paths }}");
+    // An empty match fails loudly before anything is read or folded (wave27 v2-11: a glob
+    // that matched nothing wrote an empty summary in a green run).
+    assert_eq!(read["after"], json!({"glob_admit": "success"}));
+    assert_eq!(tasks(&doc)["glob_admit"]["invoke"]["tool"], "nika:assert");
+    assert_eq!(
+        tasks(&doc)["glob_found"]["invoke"]["args"]["expression"],
+        "length > 0"
+    );
     // "un resumé de chaque … avec le nom du fichier en titre": one summary per file.
     let items = &tasks(&doc)["draft_items"];
     assert_eq!(items["with"]["paths"], "${{ tasks.glob_source.output }}");
