@@ -245,7 +245,7 @@ pub(super) fn facet_content(d: &mut Doc, facet: Facet) -> String {
     format!("${{{{ tasks.{id}.output }}}}")
 }
 
-/// Connectors that join an effect's object to its destination ("it to <url>", "le
+/// Connectors that join an effect's object to its destination ("it to `<url>`", "le
 /// rapport à ops@x"), folded.
 const DESTINATION_CONNECTORS: &[&str] = &[
     "to", "into", "at", "on", "onto", "vers", "a", "sur", "dans", "en", "su", "al", "an", "nach",

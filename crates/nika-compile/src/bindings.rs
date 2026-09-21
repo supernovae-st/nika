@@ -72,7 +72,7 @@ pub(super) struct Wired {
     pub verb: EffectVerb,
     pub target: String,
     /// The effect carries material the plan already holds, unchanged ("post it to
-    /// <url>", "send the report to <url>"): a webhook message, not an action payload.
+    /// `<url>`", "send the report to `<url>`"): a webhook message, not an action payload.
     pub carry: bool,
 }
 

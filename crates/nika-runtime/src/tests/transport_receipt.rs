@@ -125,7 +125,7 @@ async fn a_retried_call_stamps_its_transport_on_the_frame_without_sleeping() {
         .enqueue_ok_with_headers(429, [("Retry-After", "2")], RATE_LIMITED)
         .enqueue_ok(200, OPENAI_OK);
     let sent = http.clone();
-    let start = Instant::now();
+    let start = Instant::now(); // seam-bypass-ok: test-only wall-clock measure proving the backoff rode the virtual clock and never slept
     let (outcome, events) = run_over(http).await;
     let wall = start.elapsed();
     assert!(outcome.ok, "the retried seat settles green: {outcome:?}");
