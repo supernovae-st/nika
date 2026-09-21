@@ -74,7 +74,7 @@ pub enum VerbInferError {
     /// re-asks the identical refusal. The fix is the schema or the seat,
     /// and the message names both.
     #[error(
-        "`{model}` rejected the structured request while the task `schema:` travelled as native {wire}: {source} — simplify the schema (drop formats, patterns, minLength) or seat a model the catalog lists with json_mode: schema (`nika catalog --json`); the reply was never sampled"
+        "`{model}` rejected the structured request while the task `schema:` travelled as native {wire}: {source} — either the schema (simplify it: drop formats, patterns, minLength; or seat a model the catalog lists with json_mode: schema, `nika catalog --json`) or the account (a provider answers an exhausted credit balance or quota with this same status: check its billing page); the reply was never sampled"
     )]
     #[diagnostic(code(nika::verb::infer_provider_call))]
     SchemaRefused {
@@ -317,7 +317,7 @@ mod tests {
         assert!(text.contains("`openai/gpt-4o-mini` rejected"), "{text}");
         assert!(text.contains("native json_schema"), "{text}");
         assert!(text.contains("HTTP 400"), "{text}");
-        assert!(text.contains("simplify the schema"), "{text}");
+        assert!(text.contains("either the schema"), "{text}");
         assert!(text.contains("json_mode: schema"), "{text}");
         assert!(text.contains("never sampled"), "{text}");
     }

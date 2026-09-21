@@ -566,7 +566,12 @@ fn provider_failure(
         SchemaWire::JsonMode => Some("json_object"),
         SchemaWire::None | SchemaWire::Instruction => None,
     };
+    // A refusal for billing or quota is the account's, not the schema's:
+    // it keeps the provider's own words (top up, or seat another model).
+    let quota =
+        matches!(&source, ProviderError::HttpResponse { details } if details.is_quota_exhausted());
     if let Some(wire) = native
+        && !quota
         && matches!(http_status(&source), Some(400 | 422))
     {
         return VerbInferError::SchemaRefused {
