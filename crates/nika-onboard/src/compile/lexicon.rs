@@ -1346,6 +1346,16 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
     }
     match head {
         Head::Op(op) => {
+            // "trie les lignes par montant décroissant": a head the reader knows as a
+            // classify whose whole clause the closed grammar reads (a sort by a stated
+            // column) is that computation; "classe les tickets en bugs et features" stays
+            // a classification, the grammar reads no shape in it.
+            if *op == Op::Classify
+                && let Some(rule) = super::rules::synthesize(original, &reading.columns)
+            {
+                push_rule(original, rule, reading);
+                return true;
+            }
             let categories = if *op == Op::Classify {
                 literals::categories_of(detail_lower)
             } else {
