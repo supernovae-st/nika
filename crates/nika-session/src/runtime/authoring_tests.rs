@@ -373,3 +373,61 @@ fn a_bare_greeting_is_the_conversations_never_the_hello_skeleton() {
     assert!(s.pending_proposal().is_none());
     assert!(workflows(root.path()).is_empty());
 }
+
+const NEEDS_INPUTS: &str = "nika: greet\ninputs:\n  name: { type: string, required: true }\n  tone: { type: string, required: true }\n  suffix: { type: string, default: \"!\" }\npermits:\n  fs: { write: [\"./hello.txt\"] }\n  tools: [\"nika:write\"]\ntasks:\n  write:\n    invoke: { tool: \"nika:write\", args: { path: \"./hello.txt\", content: \"${{ inputs.tone }} ${{ inputs.name }}${{ inputs.suffix }}\" } }\n";
+
+/// A workflow that declares required inputs is asked for them, one line
+/// each, before the run is requested; a default needs no question; an
+/// inline `name=value` on the run line already binds it.
+#[test]
+fn a_run_asks_the_declared_inputs_it_needs_before_it_runs() {
+    let root = world();
+    std::fs::write(root.path().join("greet.nika"), NEEDS_INPUTS).expect("workflow");
+    let mut s = open(root.path(), &[]);
+    let TurnOutcome::Question { key, question } = s.turn("run greet.nika") else {
+        panic!("a required input without a default is asked, not refused at launch");
+    };
+    assert_eq!(key, "input.name");
+    assert!(
+        question.contains("`greet.nika` declares an input"),
+        "{question}"
+    );
+    assert!(question.contains("(1 more after this one)"), "{question}");
+    assert_eq!(s.pending_input(), Some("name"));
+    assert!(
+        s.pending_question().is_none(),
+        "an input is not an authoring question"
+    );
+    let TurnOutcome::Refusal(why) = s.turn("  ") else {
+        panic!("an empty line is not a value");
+    };
+    assert_eq!(why.class, RefusalClass::EmptyAnswer);
+    let TurnOutcome::Question { key, .. } = s.turn("Thibaut") else {
+        panic!("the next input is asked");
+    };
+    assert_eq!(key, "input.tone");
+    let TurnOutcome::RunRequested { report, run } = s.turn("Bonjour") else {
+        panic!("every input bound: the run is requested");
+    };
+    assert!(
+        report.contains("inputs name=Thibaut · tone=Bonjour"),
+        "{report}"
+    );
+    assert_eq!(
+        run.vars,
+        vec!["name=Thibaut".to_owned(), "tone=Bonjour".to_owned()]
+    );
+    assert!(s.pending_input().is_none());
+    assert!(s.intent.unresolved.is_empty());
+    // inline binding on the run line
+    let TurnOutcome::Question { key, .. } = s.turn("run greet.nika with name=Nika") else {
+        panic!("only the unbound input is asked");
+    };
+    assert_eq!(key, "input.tone");
+    let TurnOutcome::Facts(text) = s.turn("cancel") else {
+        panic!("cancel drops the run request");
+    };
+    assert!(text.contains("run discarded"), "{text}");
+    assert!(s.pending_input().is_none());
+    assert!(!root.path().join("hello.txt").exists());
+}

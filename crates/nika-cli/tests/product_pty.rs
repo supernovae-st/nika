@@ -453,6 +453,38 @@ fn a_named_run_line_carries_its_own_ceiling() {
     );
 }
 
+/// H · a workflow with declared inputs: the product asks for each required
+/// value on its own prompt, then runs with them bound (no `--var`, no
+/// launch refusal).
+#[test]
+fn a_run_with_declared_inputs_is_asked_for_them_in_the_product() {
+    let (project, home) = rig("inputs");
+    std::fs::write(
+        project.path().join("greet.nika"),
+        "nika: greet\ninputs:\n  name: { type: string, required: true }\npermits:\n  fs: { write: [\"./hello.txt\"] }\n  tools: [\"nika:write\"]\ntasks:\n  write:\n    invoke: { tool: \"nika:write\", args: { path: \"./hello.txt\", content: \"hello ${{ inputs.name }}\" } }\n",
+    )
+    .expect("workflow");
+    let mut session = open_session(project.path(), home.path());
+    session.send_line("run greet.nika").expect("the run line");
+    session
+        .expect("declares an input it needs before it runs: `name`")
+        .expect("the input is asked in the product");
+    session.expect("reply ›").expect("the input's own prompt");
+    session.send_line("Thibaut").expect("the value");
+    session
+        .expect("running `greet.nika` once · ceiling $0.25")
+        .expect("the run starts with the input bound");
+    session.expect("run observed · exit 0").expect("succeeded");
+    session.expect("nika ›").expect("prompt");
+    session.send_line("/quit").expect("quit");
+    session.expect(Eof).expect("closes");
+    assert_eq!(exit_code(&mut session), 0);
+    assert_eq!(
+        std::fs::read_to_string(project.path().join("hello.txt")).expect("artefact"),
+        "hello Thibaut"
+    );
+}
+
 /// The `yes` invariant at the door: a bare `yes` with nothing pending
 /// applies nothing, and a question's answer never crosses into a consent.
 #[test]

@@ -167,6 +167,8 @@ pub struct SessionRuntime {
     /// Where a truthful progress line goes while the compiler works
     /// (presentation only: it never carries workflow meaning).
     progress: Option<ProgressHook>,
+    /// A run request waiting on the values of the workflow's declared inputs.
+    run_inputs: Option<authoring::RunInputs>,
 }
 
 /// A door's sink for progress lines (« Working through this workflow… »).
@@ -214,6 +216,7 @@ impl SessionRuntime {
             authoring: None,
             seat: AuthoringSeat::Deterministic { why: None },
             progress: None,
+            run_inputs: None,
         };
         session.refresh_seat();
         session
@@ -341,6 +344,10 @@ impl SessionRuntime {
         // fact, digit or model reads it (`./notes` answers « which folder »).
         if self.authoring.is_some() {
             return self.answer_question_unrecorded(input);
+        }
+        // A run waiting on a declared input owns the next line the same way.
+        if self.run_inputs.is_some() {
+            return self.answer_input_unrecorded(input);
         }
         if input.is_empty() {
             return TurnOutcome::Facts(String::new());
