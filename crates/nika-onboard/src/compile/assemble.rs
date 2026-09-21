@@ -209,6 +209,10 @@ impl Doc {
     /// data, a prose target prefers text (and the count-and-totals summary before the raw
     /// rows); nothing is invented when no fact exists.
     pub(super) fn content_fact(&self, path: &str) -> Option<&Fact> {
+        self.nearest_fact(Structured::of(path).is_some())
+    }
+    /// The nearest upstream result as data or as text.
+    pub(super) fn nearest_fact(&self, structured: bool) -> Option<&Fact> {
         const PROSE: [&str; 12] = [
             "draft",
             "exploration",
@@ -237,11 +241,7 @@ impl Doc {
             "document",
             "hits",
         ];
-        let order = if Structured::of(path).is_some() {
-            DATA
-        } else {
-            PROSE
-        };
+        let order = if structured { DATA } else { PROSE };
         order
             .iter()
             .find_map(|name| self.facts.iter().rev().find(|f| f.name == *name))
@@ -348,10 +348,9 @@ pub(super) fn assemble(
         emit_step(&mut d, plan, &b, &guide, step);
     }
     emit_revision_check(&mut d, plan, &b);
-    if !emit_writes(&mut d, &b.writes, out) {
+    if !emit_writes(&mut d, &b.writes, out) || !super::network::emit_endpoints(&mut d, &b, out) {
         return Ok(());
     }
-    super::network::emit_endpoints(&mut d, &b);
     if b.dedup.bound().is_some() {
         d.tool("dedup_next", "nika:jq", json!({"input": {"state": "${{ with.state }}", "id": "${{ inputs.event_id }}"}, "expression": ". as $r | (($r.state | fromjson) + [$r.id]) | tojson"}), Some(json!({"state": "${{ tasks.dedup_read.output }}"})), true);
         d.tool("dedup_record", "nika:write", json!({"path": "${{ const.state_file }}", "content": "${{ with.next }}", "overwrite": true, "create_dirs": true}), Some(json!({"next": "${{ tasks.dedup_next.output }}"})), false);

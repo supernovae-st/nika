@@ -511,18 +511,39 @@ fn push_obligation(plan: &mut Plan, obligation: Obligation) {
     }
 }
 
+/// The endpoint family: send, publish and notify all reach a stated destination. A gate
+/// phrase that names the action by a verb word alone ("ask me before sending", "don't
+/// publish until I approve") gates the stated effect of the family ("post it to <url>"),
+/// never a phantom effect of its own verb with no destination.
+const ENDPOINT_FAMILY: [EffectVerb; 3] =
+    [EffectVerb::Send, EffectVerb::Publish, EffectVerb::Notify];
+
+pub(super) fn kindred(a: EffectVerb, b: EffectVerb) -> bool {
+    a == b || (ENDPOINT_FAMILY.contains(&a) && ENDPOINT_FAMILY.contains(&b))
+}
+
+/// An effect a gate phrase named by its verb word alone: gated, with no destination.
+fn names_only_the_action(effect: &Effect) -> bool {
+    effect.policy == EffectPolicy::HumanFirst && !objects::has_literal(&effect.target)
+}
+
 fn push_effect(plan: &mut Plan, effect: Effect) {
-    // Two writes to two literal files are two effects; anything else merges by verb.
+    // Two writes to two literal files are two effects; anything else merges by verb, and a
+    // gate naming the action by a verb word merges with the kindred effect that has the
+    // destination.
     let other_file = |e: &Effect| {
         effect.verb == EffectVerb::Write
             && objects::has_literal(&effect.target)
             && objects::has_literal(&e.target)
             && e.target != effect.target
     };
+    let gate_of_kin = |e: &Effect| {
+        kindred(e.verb, effect.verb) && (names_only_the_action(e) || names_only_the_action(&effect))
+    };
     if let Some(existing) = plan
         .effects
         .iter_mut()
-        .find(|e| e.verb == effect.verb && !other_file(e))
+        .find(|e| (e.verb == effect.verb && !other_file(e)) || gate_of_kin(e))
     {
         match (existing.policy, effect.policy) {
             (EffectPolicy::Automatic | EffectPolicy::HumanFirst, EffectPolicy::Forbidden)
@@ -543,6 +564,12 @@ fn push_effect(plan: &mut Plan, effect: Effect) {
         }
         if !objects::has_literal(&existing.target) && objects::has_literal(&effect.target) {
             existing.target = effect.target;
+            // The stated effect owns its verb and its clause; the gate phrase that came
+            // first only set its policy.
+            if existing.verb != effect.verb {
+                existing.verb = effect.verb;
+                existing.evidence = effect.evidence;
+            }
         }
     } else {
         plan.effects.push(effect);
@@ -859,6 +886,11 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
         if verbs.is_empty() {
             reading.plan.constraints.push(clause.to_owned());
         } else {
+            if gates::approval_bound(target) {
+                // The clause is the policy of the effect it names, which may be stated
+                // elsewhere ("post it to <url>. Never send anything without my approval").
+                reading.policy_clauses.push(clause.to_owned());
+            }
             for verb in verbs {
                 let policy = if gates::approval_bound(target) {
                     // `don't write until i approve`: bounded by an approval, a prohibition
