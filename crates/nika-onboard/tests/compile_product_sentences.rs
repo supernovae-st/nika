@@ -247,6 +247,51 @@ fn a_draft_prompt_asks_verbatim_anchors_and_one_bullet_per_line() {
 }
 
 #[test]
+fn one_write_naming_two_files_after_a_classification_routes_each_by_its_own_name() {
+    // One write clause naming two files and no category ("write them to ./bugs.json and
+    // ./features.json"): each file's own name states where its records go.
+    let intent = "Read ./tickets.json, classify each ticket as bug or feature and write them to ./bugs.json and ./features.json";
+    let out = hot(intent);
+    assert_eq!(keys(&out), ["model"], "{out:#?}");
+    let doc = ready_with_model(intent);
+    assert_eq!(doc["const"]["output_path"], "./bugs.json");
+    assert_eq!(doc["const"]["features_path"], "./features.json");
+    assert_eq!(
+        doc["tasks"]["route_bugs"]["invoke"]["args"]["input"]["category"],
+        "bug"
+    );
+    assert_eq!(
+        doc["tasks"]["route_features"]["invoke"]["args"]["input"]["category"],
+        "feature"
+    );
+    assert_eq!(
+        doc["tasks"]["write_output"]["with"]["content"],
+        "${{ tasks.route_bugs.output }}"
+    );
+    assert_eq!(
+        doc["tasks"]["write_features"]["with"]["content"],
+        "${{ tasks.route_features.output }}"
+    );
+    assert_eq!(
+        doc["permits"]["fs"]["write"],
+        serde_json::json!(["./bugs.json", "./features.json"])
+    );
+    // A second file whose name states no category carries every record with its category;
+    // the first file's name riding the same excerpt never routes it.
+    let doc = ready_with_model(
+        "Read ./tickets.json, classify each ticket as bug or feature and write them to ./bugs.json and ./others.json",
+    );
+    assert_eq!(
+        doc["tasks"]["write_output"]["with"]["content"],
+        "${{ tasks.route_bugs.output }}"
+    );
+    assert_eq!(
+        doc["tasks"]["write_others"]["with"]["content"],
+        "${{ tasks.others_classified.output }}"
+    );
+}
+
+#[test]
 fn a_classification_of_each_record_routes_the_records_to_the_files_named_after_its_categories() {
     let intent = "Read ./tickets.json, classify each ticket as bug or feature, and write the bugs to ./bugs.json and the features to ./features.json";
     let out = hot(intent);

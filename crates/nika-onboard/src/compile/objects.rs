@@ -102,8 +102,10 @@ pub(super) fn destination_target(text: &str) -> &str {
 /// ./bugs.json and the features to ./features.json" → `("the bugs", "./bugs.json", "the
 /// bugs to ./bugs.json")` then `("the features", "./features.json", "the features to
 /// ./features.json")`. Every segment is a verbatim span of the detail: an object, a
-/// destination connector, one path. One destination, or a destination with no object before
-/// it, is not a split.
+/// destination connector, one path. A later path with nothing of its own before it ("them
+/// to ./bugs.json and ./features.json") shares the object of the earlier one, and its
+/// excerpt is the whole span from that object. One destination, or a first destination
+/// with no object before it, is not a split.
 pub(super) fn write_segments(detail: &str) -> Vec<(String, String, String)> {
     let lower = detail.to_lowercase();
     if lower.len() != detail.len() {
@@ -127,7 +129,7 @@ pub(super) fn write_segments(detail: &str) -> Vec<(String, String, String)> {
     if paths.len() < 2 {
         return Vec::new();
     }
-    let mut segments = Vec::new();
+    let mut segments: Vec<(String, String, String)> = Vec::new();
     let mut from = 0;
     for (start, end) in paths {
         let Some(span) = detail.get(from..end) else {
@@ -137,19 +139,19 @@ pub(super) fn write_segments(detail: &str) -> Vec<(String, String, String)> {
         let Some(segment_lower) = lower.get(end - segment.len()..end) else {
             return Vec::new();
         };
+        let path = detail.get(start..end).unwrap_or_default().to_owned();
         let path_at = segment.len() - (end - start);
-        let Some(pos) = destination_at(segment_lower, path_at) else {
-            return Vec::new();
-        };
-        let object = segment.get(..pos).unwrap_or_default().trim();
-        if object.is_empty() {
-            return Vec::new();
+        let object = destination_at(segment_lower, path_at)
+            .map(|pos| segment.get(..pos).unwrap_or_default().trim())
+            .filter(|object| !object.is_empty());
+        match (object, segments.last()) {
+            (Some(object), _) => segments.push((object.to_owned(), path, segment.to_owned())),
+            (None, Some((shared, _, _))) if segment == path => {
+                let excerpt = as_clause(detail.get(..end).unwrap_or_default());
+                segments.push((shared.clone(), path, excerpt.to_owned()));
+            }
+            (None, _) => return Vec::new(),
         }
-        segments.push((
-            object.to_owned(),
-            detail.get(start..end).unwrap_or_default().to_owned(),
-            segment.to_owned(),
-        ));
         from = end;
     }
     segments
@@ -494,6 +496,44 @@ mod tests {
         assert_eq!(destination_at(detail, detail.find("./").unwrap()), Some(18));
         let source = "./report.pdf to bob@example.invalid";
         assert_eq!(destination_at(source, 0), None);
+    }
+
+    #[test]
+    fn a_later_destination_with_no_object_of_its_own_shares_the_earlier_one() {
+        let two = |s: &[&str]| s.iter().map(|x| (*x).to_owned()).collect::<Vec<_>>();
+        assert_eq!(
+            write_segments("the bugs to ./bugs.json and the features to ./features.json"),
+            vec![
+                (two(&["the bugs", "./bugs.json", "the bugs to ./bugs.json"])),
+                (two(&[
+                    "the features",
+                    "./features.json",
+                    "the features to ./features.json"
+                ])),
+            ]
+            .into_iter()
+            .map(|v| (v[0].clone(), v[1].clone(), v[2].clone()))
+            .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            write_segments("them to ./bugs.json and ./features.json"),
+            vec![
+                (
+                    "them".to_owned(),
+                    "./bugs.json".to_owned(),
+                    "them to ./bugs.json".to_owned()
+                ),
+                (
+                    "them".to_owned(),
+                    "./features.json".to_owned(),
+                    "them to ./bugs.json and ./features.json".to_owned()
+                ),
+            ]
+        );
+        // A first destination with no object, or one destination, is not a split.
+        assert!(write_segments("./bugs.json and ./features.json").is_empty());
+        assert!(write_segments("them to ./bugs.json").is_empty());
+        assert!(write_segments("them to ./bugs.json and the rest").is_empty());
     }
 
     #[test]
