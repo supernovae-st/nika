@@ -232,20 +232,158 @@ impl SessionRuntime {
             }
             return Some(TurnOutcome::Facts(text));
         }
-        let run = RunRequest {
-            workflow: workflow.clone(),
-            vars: Vec::new(),
-            max_cost_usd: ceiling_in(input)
-                .or(self.snapshot.ceiling)
-                .unwrap_or(DEFAULT_CEILING_USD),
-        };
+        let max_cost_usd = ceiling_in(input)
+            .or(self.snapshot.ceiling)
+            .unwrap_or(DEFAULT_CEILING_USD);
         self.last_workflow = Some(workflow.clone());
+        // The workflow's own declared inputs: a required one with no
+        // default is asked, in the product, before the run is requested —
+        // the engine would refuse the launch (NIKA-1708) otherwise.
+        let given = inline_vars(input);
+        let needed: Vec<String> = required_inputs_of(&root, &workflow)
+            .into_iter()
+            .filter(|name| !given.iter().any(|v| v.starts_with(&format!("{name}="))))
+            .collect();
+        let inputs = RunInputs {
+            workflow: workflow.clone(),
+            max_cost_usd,
+            needed,
+            given,
+        };
         self.remember(input, "(run requested)");
-        Some(TurnOutcome::RunRequested {
-            report: format!("check · `{}` · clean ✔", workflow.display()),
-            run,
-        })
+        Some(self.request_or_ask(inputs))
     }
+
+    /// The run request when every declared input is bound; the next
+    /// input's question otherwise (the next line answers it).
+    fn request_or_ask(&mut self, mut inputs: RunInputs) -> TurnOutcome {
+        if let Some(name) = inputs.needed.first().cloned() {
+            let question = input_question(&inputs.workflow, &name, inputs.needed.len());
+            self.intent.unresolved =
+                vec![format!("input `{name}` of `{}`", inputs.workflow.display())];
+            self.run_inputs = Some(inputs);
+            return TurnOutcome::Question {
+                key: format!("input.{name}"),
+                question,
+            };
+        }
+        inputs.needed.clear();
+        let report = if inputs.given.is_empty() {
+            format!("check · `{}` · clean ✔", inputs.workflow.display())
+        } else {
+            format!(
+                "check · `{}` · clean ✔ · inputs {}",
+                inputs.workflow.display(),
+                inputs.given.join(" · ")
+            )
+        };
+        TurnOutcome::RunRequested {
+            report,
+            run: RunRequest {
+                workflow: inputs.workflow,
+                vars: inputs.given,
+                max_cost_usd: inputs.max_cost_usd,
+            },
+        }
+    }
+
+    /// The declared input the next line binds, when a run waits on one.
+    #[must_use]
+    pub fn pending_input(&self) -> Option<&str> {
+        self.run_inputs
+            .as_ref()
+            .and_then(|r| r.needed.first())
+            .map(String::as_str)
+    }
+
+    /// The human's line as the value of the input the run waits on; a
+    /// cancel word drops the run request; an empty line is not a value.
+    pub(super) fn answer_input_unrecorded(&mut self, line: &str) -> TurnOutcome {
+        let Some(mut inputs) = self.run_inputs.take() else {
+            return TurnOutcome::Refusal(Refusal::new(
+                RefusalClass::WrongState,
+                "no run waits on an input",
+            ));
+        };
+        if is_cancel(line) {
+            self.intent.unresolved.clear();
+            self.remember(line, "(run request discarded)");
+            return TurnOutcome::Facts(
+                "run discarded · nothing ran · say « run it » again when the inputs are ready"
+                    .to_owned(),
+            );
+        }
+        let value = line.trim();
+        if value.is_empty() {
+            self.run_inputs = Some(inputs);
+            return TurnOutcome::Refusal(Refusal::new(
+                RefusalClass::EmptyAnswer,
+                "the input needs a value — nothing answers for you (`cancel` drops the run)",
+            ));
+        }
+        let name = inputs.needed.remove(0);
+        inputs.given.push(format!("{name}={value}"));
+        self.intent.unresolved.clear();
+        self.remember(line, &format!("(input {name} bound)"));
+        self.request_or_ask(inputs)
+    }
+}
+
+/// A run request waiting for the values of the workflow's own declared
+/// inputs (required, no default): the next lines bind them, in order.
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct RunInputs {
+    workflow: PathBuf,
+    max_cost_usd: f64,
+    needed: Vec<String>,
+    given: Vec<String>,
+}
+
+/// The declared inputs the run must bind — from the engine's parser over
+/// the bytes on disk, the same list `nika check` warns about.
+fn required_inputs_of(root: &std::path::Path, workflow: &std::path::Path) -> Vec<String> {
+    let Ok(source) = std::fs::read_to_string(root.join(workflow)) else {
+        return Vec::new();
+    };
+    let Ok(wf) = nika_schema::parse(
+        &source,
+        nika_schema::FileId::new(0),
+        nika_schema::ParseMode::Strict,
+    ) else {
+        return Vec::new();
+    };
+    nika_cli_host::display::check_render::required_inputs(&wf)
+        .into_iter()
+        .map(str::to_owned)
+        .collect()
+}
+
+/// `name=value` pairs the human wrote on the run line itself.
+fn inline_vars(input: &str) -> Vec<String> {
+    input
+        .split_whitespace()
+        .filter(|token| {
+            token.split_once('=').is_some_and(|(k, v)| {
+                !k.is_empty()
+                    && !v.is_empty()
+                    && k.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+            })
+        })
+        .map(|token| token.trim_matches(|c| c == ',' || c == ';').to_owned())
+        .collect()
+}
+
+/// The question for one declared input, in the product's words.
+fn input_question(workflow: &std::path::Path, name: &str, remaining: usize) -> String {
+    let more = if remaining > 1 {
+        format!(" ({} more after this one)", remaining - 1)
+    } else {
+        String::new()
+    };
+    format!(
+        "`{}` declares an input it needs before it runs: `{name}`{more}\n  reply on the next line with its value (`input.{name}`) · `cancel` drops the run",
+        workflow.display()
+    )
 }
 
 /// The question as the human reads it: the compiler's label, why it
