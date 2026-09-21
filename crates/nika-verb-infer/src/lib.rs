@@ -31,8 +31,10 @@
 //! Streaming passthrough (`verb-agent`/engine surface) · CAS vision
 //! staging (`nika-media-*` · deferred; file/url refs ARE wired) ·
 //! `${{ }}` resolution (upstream binding) · transport retry/backoff
-//! (engine scheduler policy — only the schema-validation retry lives
-//! here).
+//! (the provider layer's bounded floor on a rate-limited or overloaded
+//! seat lives in `nika_providers::retry`; the authored `retry:` is the
+//! runtime's — only the schema-validation retry lives here, and the
+//! transport's own account rides [`InferOutput::transport`]).
 //!
 //! ## Example (mock · zero key · zero network)
 //!
@@ -60,11 +62,11 @@ use nika_types::cost::SpendOnFailure;
 use std::sync::Arc;
 
 use nika_kernel::ai::provider::{
-    ContentBlock, InferRequest, InferResponse, Message, ProviderError, ProviderInferDyn,
-    ProviderMeta, ResponseFormat, Role, StopReason, TokenUsage,
+    ContentBlock, InferRequest, InferResponse, Message, ProviderError, ProviderMeta,
+    ResponseFormat, Role, StopReason, TokenUsage,
 };
 use nika_kernel::http::HttpPostDyn;
-use nika_providers::ProviderRegistry;
+use nika_providers::{ProviderRegistry, TransportReport};
 
 pub use errors::VerbInferError;
 pub use vision::VisionPart;
@@ -149,6 +151,11 @@ pub struct InferOutput {
     /// events · cost · trace propagation). Its `usage` is that round-trip
     /// alone — the task total lives in `self.usage`.
     pub response: InferResponse,
+    /// What the transport did across EVERY round-trip of this task: the
+    /// round-trips sent, the backoff waited on a rate-limited or
+    /// overloaded seat, the statuses waited on — the receipt's account of
+    /// a call that answered only after the provider layer's bounded retry.
+    pub transport: TransportReport,
 }
 
 /// A subscription-seat result. It deliberately has no usage, price, or
@@ -192,7 +199,15 @@ impl InferOutput {
             usage,
             model_resolved,
             response,
+            transport: TransportReport::new(),
         }
+    }
+
+    /// Stamp the transport's account of the task (every round-trip summed).
+    #[must_use]
+    pub fn with_transport(mut self, transport: TransportReport) -> Self {
+        self.transport = transport;
+        self
     }
 }
 
@@ -315,7 +330,10 @@ where
     /// temperature, or a missing `vision:` file ·
     /// [`VerbInferError::ModelResolution`] when the model string resolves
     /// to no profile · [`VerbInferError::ProviderCall`]
-    /// when the provider round-trip fails ·
+    /// when the provider round-trip fails
+    /// ([`VerbInferError::ProviderCallExhausted`] when it failed after the
+    /// transport's bounded backoff · [`VerbInferError::SchemaRefused`] when
+    /// the seat refused a request carrying the `schema:` natively) ·
     /// [`VerbInferError::SchemaValidation`] when a `schema:` task exhausts
     /// the retry budget without a conforming reply ·
     /// [`VerbInferError::EmptyAnswer`] when the provider spent tokens yet
@@ -363,20 +381,28 @@ where
         // final response's usage under-billed retried tasks by up to
         // budget+1 × (the cost-undercount finding · deep review 2026-07-07).
         let mut usage_total = TokenUsage::default();
+        // The transport's account of the task — summed across the schema
+        // round-trips the same way usage is.
+        let mut transport_total = TransportReport::new();
         // Failure decoration — billed round-trips ride the error.
         let incurred =
             |u: &TokenUsage| Box::new(SpendOnFailure::new(u.clone(), None, Some(model.to_owned())));
         loop {
             attempts += 1;
             let request = build_request(&input, provider.name(), messages.clone(), wire);
-            let response =
-                provider
-                    .infer(request)
-                    .await
-                    .map_err(|source| VerbInferError::ProviderCall {
+            let (response, transport) = match provider.infer_reported(request).await {
+                Ok(pair) => pair,
+                Err((source, report)) => {
+                    return Err(provider_failure(
+                        model,
                         source,
-                        spend: incurred(&usage_total),
-                    })?;
+                        &report,
+                        wire,
+                        incurred(&usage_total),
+                    ));
+                }
+            };
+            transport_total.absorb(&transport);
             usage_total.absorb(&response.usage);
             // R3-F1 (2026-07-29 audit · run 3 · the agent loop's own
             // `NIKA-AGENT-005` sibling): the usage-absence gate.
@@ -385,7 +411,7 @@ where
 
             let (Some(schema), Some(validator)) = (input.schema.as_ref(), validator.as_ref())
             else {
-                return finish_text_lane(text, model, response, usage_total);
+                return finish_text_lane(text, model, response, usage_total, transport_total);
             };
 
             match structured::extract_and_validate(&text, validator, schema) {
@@ -395,7 +421,8 @@ where
                         model.to_owned(),
                         response,
                         usage_total,
-                    ));
+                    )
+                    .with_transport(transport_total));
                 }
                 structured::Validation::Invalid(errors) => {
                     let truncated = matches!(response.stop_reason, StopReason::MaxTokens);
@@ -502,14 +529,63 @@ fn finish_text_lane(
     model: &str,
     response: InferResponse,
     usage: TokenUsage,
+    transport: TransportReport,
 ) -> Result<InferOutput, VerbInferError> {
     refuse_blank_answer(&text, &usage, model)?;
-    Ok(InferOutput::new(
-        InferValue::Text(text),
-        model.to_owned(),
-        response,
-        usage,
-    ))
+    Ok(
+        InferOutput::new(InferValue::Text(text), model.to_owned(), response, usage)
+            .with_transport(transport),
+    )
+}
+
+/// The verb's reading of a failed provider call — three shapes, one spec
+/// code (`NIKA-INFER-001`): the transport's bounded backoff spent on a
+/// rate-limited or overloaded seat (the attempts and the wait ride the
+/// message; the transience survives for an authored `retry:`); the seat
+/// refusing a request that carried the task `schema:` natively (a 400 or
+/// 422 at the door — the fix is the schema or the seat, never a retry);
+/// every other failure as the provider named it.
+fn provider_failure(
+    model: &str,
+    source: ProviderError,
+    report: &TransportReport,
+    wire: SchemaWire,
+    spend: Box<SpendOnFailure>,
+) -> VerbInferError {
+    if report.retried() {
+        return VerbInferError::ProviderCallExhausted {
+            model: model.to_owned(),
+            attempts: report.attempts,
+            waited_ms: u64::try_from(report.waited.as_millis()).unwrap_or(u64::MAX),
+            source: Box::new(source),
+            spend,
+        };
+    }
+    let native = match wire {
+        SchemaWire::Strict => Some("json_schema"),
+        SchemaWire::JsonMode => Some("json_object"),
+        SchemaWire::None | SchemaWire::Instruction => None,
+    };
+    if let Some(wire) = native
+        && matches!(http_status(&source), Some(400 | 422))
+    {
+        return VerbInferError::SchemaRefused {
+            model: model.to_owned(),
+            wire,
+            source: Box::new(source),
+            spend,
+        };
+    }
+    VerbInferError::ProviderCall { source, spend }
+}
+
+/// The HTTP status a provider error carries, when it carries one.
+fn http_status(err: &ProviderError) -> Option<u16> {
+    match err {
+        ProviderError::HttpResponse { details } => Some(details.status()),
+        ProviderError::Api { status, .. } => Some(*status),
+        _ => None,
+    }
 }
 
 /// The #651 gate (OBS-E promoted from a runtime warn to a typed failure):
