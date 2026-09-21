@@ -340,21 +340,7 @@ where
     /// the visible answer is blank (NIKA-INFER-004 · #651).
     pub async fn run(&self, input: InferInput) -> Result<InferOutput, VerbInferError> {
         validate_params(&input)?;
-
-        // Compile the task schema ONCE, before any provider call — a schema
-        // that doesn't compile is a task-authoring error (NIKA-432), not a
-        // validation failure, and must not burn paid round-trips (review
-        // lenses 1+3 · P1).
-        let validator = match input.schema.as_ref() {
-            Some(schema) => Some(structured::compile_schema(schema).map_err(|detail| {
-                VerbInferError::InvalidParam {
-                    param: "schema",
-                    detail,
-                }
-            })?),
-            None => None,
-        };
-
+        let validator = compiled_schema(&input)?;
         let model = input.model.as_deref().unwrap_or(&self.default_model);
         let provider =
             self.registry
@@ -442,6 +428,21 @@ where
                 }
             }
         }
+    }
+}
+
+/// The task schema compiled ONCE, before any provider call — a schema that
+/// doesn't compile is a task-authoring error (NIKA-432), not a validation
+/// failure, and must not burn paid round-trips (review lenses 1+3 · P1).
+fn compiled_schema(input: &InferInput) -> Result<Option<jsonschema::Validator>, VerbInferError> {
+    match input.schema.as_ref() {
+        Some(schema) => structured::compile_schema(schema)
+            .map(Some)
+            .map_err(|detail| VerbInferError::InvalidParam {
+                param: "schema",
+                detail,
+            }),
+        None => Ok(None),
     }
 }
 
