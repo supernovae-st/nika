@@ -328,7 +328,20 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
     push_run_clock_hint(&mut hints, wf);
     push_assert_quarantine_hint(&mut hints, wf);
     push_unproven_law_hints(&mut hints, wf);
+    push_reasoning_cap_hints(&mut hints, wf);
     hints
+}
+
+/// A tight cap on a catalog-known reasoning seat (the envelope's, the
+/// task's, a templated seat's declared default, or a `--model` override
+/// already swapped into the envelope) — the analyzer's advisory sibling
+/// of its NIKA-INFER-004 floor, in this lane's hint shape.
+fn push_reasoning_cap_hints(hints: &mut Vec<Hint>, wf: &RawWorkflow) {
+    hints.extend(
+        crate::analyzer::reasoning_cap_hints(wf)
+            .into_iter()
+            .map(|f| hint("reasoning-cap", &f.task, f.why)),
+    );
 }
 
 /// The infer arm of [`scan_hints`] — cost cap · degenerate zero-cap ·
@@ -1441,6 +1454,8 @@ pub(crate) fn legal_zero_hint(
 
 mod catalog;
 mod jq_as_map;
+#[cfg(test)]
+mod reasoning_cap;
 pub use catalog::hint_help;
 use jq_as_map::push_jq_as_map_hint;
 
