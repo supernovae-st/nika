@@ -54,11 +54,16 @@ pub(crate) fn shape(req: &InferRequest, json_mode: Option<JsonMode>) -> Cow<'_, 
 /// The instruction a non-native seat needs: the schema, verbatim, on the
 /// last user turn (a new user turn when the conversation has none). The
 /// word JSON is load-bearing — `DeepSeek`'s `json_object` mode refuses a
-/// prompt that never says it.
+/// prompt that never says it. The enum sentence is load-bearing too:
+/// nothing enforces the schema on this seat, and without it
+/// deepseek-chat answered the compiler's step `op` with `write` (an effect
+/// verb) in 1 of 6 samples; with it, 0 of 6 (2026-09-21).
 fn append_schema_instruction(messages: &mut Vec<Message>, schema: &serde_json::Value) {
     let instruction = format!(
         "Reply with ONLY a JSON value that satisfies this JSON Schema, no prose, no code \
-         fences:\n{}",
+         fences. Every property that lists an enum takes exactly one of the listed values, \
+         spelled as listed; every required property is present; no property outside the \
+         schema:\n{}",
         render_schema(schema)
     );
     let Some(user) = messages.iter_mut().rev().find(|m| m.role == Role::User) else {
