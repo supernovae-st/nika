@@ -134,6 +134,22 @@ original `tui-textarea` is frozen at ratatui 0.29).
   are re-cut for the new face.
 - The workspace gains `ratatui`, `crossterm` and `ratatui-textarea` (all
   MIT), pinned in the workspace manifest.
+- UX-2 (same day): the live conversation `nika_tui::session::Live` puts the
+  real `SessionRuntime` behind the beats, reached by `nika --tui` on an
+  interactive terminal (the front door scans the flag beside `--json` and
+  `--plain`; a pipe keeps the concierge). The loop is synchronous: the
+  plain run path builds its own executor and one cannot start inside
+  another, so the shell blocks on one std channel and the signal watcher
+  keeps a small executor on its own thread. A run is a handoff: the reader
+  parks, the viewport rows are wiped without a cursor query, every mode is
+  restored, the run prints in the terminal's normal flow, and the shell
+  takes the terminal again with a fresh inline anchor below what the run
+  printed. Capturing the run's frames inside the renderer is UX-5. Proven
+  by `crates/nika-cli/tests/tui_pty.rs` on the real `nika` binary.
+- A harness fact for every PTY suite of this crate: the diff renderer (and
+  `insert_before`, drawn against a blank region) skips unchanged cells, so a
+  multi-word string never reaches the PTY contiguous; assertions target one
+  token without spaces.
 - Qualification of the wave = the PTY suite `crates/nika-tui/tests/pty_restore.rs`
   on the real binary: the normal close (inline · focus), two `Ctrl+C`, a
   panic inside the loop (restore BEFORE the message), `SIGTERM` (exit 143),

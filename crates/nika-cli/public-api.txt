@@ -75,6 +75,7 @@ impl<T> core::borrow::BorrowMut<T> for nika_cli::verbs::arm::args::ArmSub where 
 pub fn nika_cli::verbs::arm::args::ArmSub::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for nika_cli::verbs::arm::args::ArmSub
 pub fn nika_cli::verbs::arm::args::ArmSub::from(t: T) -> T
+impl<T> either::into_either::IntoEither for nika_cli::verbs::arm::args::ArmSub
 impl<T> nika_error::traits::AsAny for nika_cli::verbs::arm::args::ArmSub where T: 'static
 pub fn nika_cli::verbs::arm::args::ArmSub::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::arm::args::ArmSub where T: ?core::marker::Sized
@@ -128,6 +129,7 @@ impl<T> core::convert::From<T> for nika_cli::verbs::arm::args::EmitMode
 pub fn nika_cli::verbs::arm::args::EmitMode::from(t: T) -> T
 impl<T> dyn_clone::DynClone for nika_cli::verbs::arm::args::EmitMode where T: core::clone::Clone
 pub fn nika_cli::verbs::arm::args::EmitMode::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> either::into_either::IntoEither for nika_cli::verbs::arm::args::EmitMode
 impl<T> nika_error::traits::AsAny for nika_cli::verbs::arm::args::EmitMode where T: 'static
 pub fn nika_cli::verbs::arm::args::EmitMode::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_cli::verbs::arm::args::EmitMode where T: core::marker::Copy
@@ -183,6 +185,7 @@ impl<T> core::convert::From<T> for nika_cli::verbs::arm::args::EmitTarget
 pub fn nika_cli::verbs::arm::args::EmitTarget::from(t: T) -> T
 impl<T> dyn_clone::DynClone for nika_cli::verbs::arm::args::EmitTarget where T: core::clone::Clone
 pub fn nika_cli::verbs::arm::args::EmitTarget::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> either::into_either::IntoEither for nika_cli::verbs::arm::args::EmitTarget
 impl<T> nika_error::traits::AsAny for nika_cli::verbs::arm::args::EmitTarget where T: 'static
 pub fn nika_cli::verbs::arm::args::EmitTarget::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_cli::verbs::arm::args::EmitTarget where T: core::marker::Copy
@@ -230,6 +233,7 @@ impl<T> core::borrow::BorrowMut<T> for nika_cli::verbs::arm::args::ArmArgs where
 pub fn nika_cli::verbs::arm::args::ArmArgs::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for nika_cli::verbs::arm::args::ArmArgs
 pub fn nika_cli::verbs::arm::args::ArmArgs::from(t: T) -> T
+impl<T> either::into_either::IntoEither for nika_cli::verbs::arm::args::ArmArgs
 impl<T> nika_error::traits::AsAny for nika_cli::verbs::arm::args::ArmArgs where T: 'static
 pub fn nika_cli::verbs::arm::args::ArmArgs::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::arm::args::ArmArgs where T: ?core::marker::Sized
@@ -270,6 +274,7 @@ impl<T> core::borrow::BorrowMut<T> for nika_cli::verbs::arm::args::FireArgs wher
 pub fn nika_cli::verbs::arm::args::FireArgs::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for nika_cli::verbs::arm::args::FireArgs
 pub fn nika_cli::verbs::arm::args::FireArgs::from(t: T) -> T
+impl<T> either::into_either::IntoEither for nika_cli::verbs::arm::args::FireArgs
 impl<T> nika_error::traits::AsAny for nika_cli::verbs::arm::args::FireArgs where T: 'static
 pub fn nika_cli::verbs::arm::args::FireArgs::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::arm::args::FireArgs where T: ?core::marker::Sized
@@ -349,6 +354,7 @@ impl<T> core::convert::From<T> for nika_cli::verbs::check::Profile
 pub fn nika_cli::verbs::check::Profile::from(t: T) -> T
 impl<T> dyn_clone::DynClone for nika_cli::verbs::check::Profile where T: core::clone::Clone
 pub fn nika_cli::verbs::check::Profile::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> either::into_either::IntoEither for nika_cli::verbs::check::Profile
 impl<T> nika_error::traits::AsAny for nika_cli::verbs::check::Profile where T: 'static
 pub fn nika_cli::verbs::check::Profile::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_cli::verbs::check::Profile where T: core::marker::Copy
@@ -399,6 +405,7 @@ impl<T> core::borrow::BorrowMut<T> for nika_cli::verbs::check::CheckArgs where T
 pub fn nika_cli::verbs::check::CheckArgs::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for nika_cli::verbs::check::CheckArgs
 pub fn nika_cli::verbs::check::CheckArgs::from(t: T) -> T
+impl<T> either::into_either::IntoEither for nika_cli::verbs::check::CheckArgs
 impl<T> nika_error::traits::AsAny for nika_cli::verbs::check::CheckArgs where T: 'static
 pub fn nika_cli::verbs::check::CheckArgs::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::check::CheckArgs where T: ?core::marker::Sized
@@ -430,6 +437,7 @@ impl<T> core::borrow::BorrowMut<T> for nika_cli::verbs::check::CheckFlags where 
 pub fn nika_cli::verbs::check::CheckFlags::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for nika_cli::verbs::check::CheckFlags
 pub fn nika_cli::verbs::check::CheckFlags::from(t: T) -> T
+impl<T> either::into_either::IntoEither for nika_cli::verbs::check::CheckFlags
 impl<T> nika_error::traits::AsAny for nika_cli::verbs::check::CheckFlags where T: 'static
 pub fn nika_cli::verbs::check::CheckFlags::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::check::CheckFlags where T: ?core::marker::Sized
@@ -472,6 +480,7 @@ impl<T> core::convert::From<T> for nika_cli::verbs::check::CheckTarget
 pub fn nika_cli::verbs::check::CheckTarget::from(t: T) -> T
 impl<T> dyn_clone::DynClone for nika_cli::verbs::check::CheckTarget where T: core::clone::Clone
 pub fn nika_cli::verbs::check::CheckTarget::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> either::into_either::IntoEither for nika_cli::verbs::check::CheckTarget
 impl<T> nika_error::traits::AsAny for nika_cli::verbs::check::CheckTarget where T: 'static
 pub fn nika_cli::verbs::check::CheckTarget::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::check::CheckTarget where T: ?core::marker::Sized
@@ -550,6 +559,7 @@ impl<T> core::convert::From<T> for nika_cli::verbs::graph::GraphFormat
 pub fn nika_cli::verbs::graph::GraphFormat::from(t: T) -> T
 impl<T> dyn_clone::DynClone for nika_cli::verbs::graph::GraphFormat where T: core::clone::Clone
 pub fn nika_cli::verbs::graph::GraphFormat::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> either::into_either::IntoEither for nika_cli::verbs::graph::GraphFormat
 impl<T> nika_error::traits::AsAny for nika_cli::verbs::graph::GraphFormat where T: 'static
 pub fn nika_cli::verbs::graph::GraphFormat::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_cli::verbs::graph::GraphFormat where T: core::marker::Copy
@@ -609,6 +619,7 @@ impl<T> core::convert::From<T> for nika_cli::verbs::graph::GraphFormatArg
 pub fn nika_cli::verbs::graph::GraphFormatArg::from(t: T) -> T
 impl<T> dyn_clone::DynClone for nika_cli::verbs::graph::GraphFormatArg where T: core::clone::Clone
 pub fn nika_cli::verbs::graph::GraphFormatArg::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> either::into_either::IntoEither for nika_cli::verbs::graph::GraphFormatArg
 impl<T> nika_error::traits::AsAny for nika_cli::verbs::graph::GraphFormatArg where T: 'static
 pub fn nika_cli::verbs::graph::GraphFormatArg::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_cli::verbs::graph::GraphFormatArg where T: core::marker::Copy
@@ -676,6 +687,7 @@ impl<T> core::convert::From<T> for nika_cli::verbs::key::KeyAction
 pub fn nika_cli::verbs::key::KeyAction::from(t: T) -> T
 impl<T> dyn_clone::DynClone for nika_cli::verbs::key::KeyAction where T: core::clone::Clone
 pub fn nika_cli::verbs::key::KeyAction::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> either::into_either::IntoEither for nika_cli::verbs::key::KeyAction
 impl<T> nika_error::traits::AsAny for nika_cli::verbs::key::KeyAction where T: 'static
 pub fn nika_cli::verbs::key::KeyAction::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_cli::verbs::key::KeyAction where T: core::marker::Copy
@@ -730,6 +742,7 @@ impl<T> core::convert::From<T> for nika_cli::verbs::mcp_pins::McpAction
 pub fn nika_cli::verbs::mcp_pins::McpAction::from(t: T) -> T
 impl<T> dyn_clone::DynClone for nika_cli::verbs::mcp_pins::McpAction where T: core::clone::Clone
 pub fn nika_cli::verbs::mcp_pins::McpAction::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> either::into_either::IntoEither for nika_cli::verbs::mcp_pins::McpAction
 impl<T> nika_error::traits::AsAny for nika_cli::verbs::mcp_pins::McpAction where T: 'static
 pub fn nika_cli::verbs::mcp_pins::McpAction::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::mcp_pins::McpAction where T: ?core::marker::Sized
@@ -783,6 +796,7 @@ impl<T> core::convert::From<T> for nika_cli::verbs::mcp_pins::McpTransportArg
 pub fn nika_cli::verbs::mcp_pins::McpTransportArg::from(t: T) -> T
 impl<T> dyn_clone::DynClone for nika_cli::verbs::mcp_pins::McpTransportArg where T: core::clone::Clone
 pub fn nika_cli::verbs::mcp_pins::McpTransportArg::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> either::into_either::IntoEither for nika_cli::verbs::mcp_pins::McpTransportArg
 impl<T> nika_error::traits::AsAny for nika_cli::verbs::mcp_pins::McpTransportArg where T: 'static
 pub fn nika_cli::verbs::mcp_pins::McpTransportArg::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_cli::verbs::mcp_pins::McpTransportArg where T: core::marker::Copy
@@ -857,6 +871,7 @@ impl<T> core::convert::From<T> for nika_cli::verbs::run::RenderMode
 pub fn nika_cli::verbs::run::RenderMode::from(t: T) -> T
 impl<T> dyn_clone::DynClone for nika_cli::verbs::run::RenderMode where T: core::clone::Clone
 pub fn nika_cli::verbs::run::RenderMode::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> either::into_either::IntoEither for nika_cli::verbs::run::RenderMode
 impl<T> nika_error::traits::AsAny for nika_cli::verbs::run::RenderMode where T: 'static
 pub fn nika_cli::verbs::run::RenderMode::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_cli::verbs::run::RenderMode where T: core::marker::Copy
@@ -899,6 +914,7 @@ impl<T> core::borrow::BorrowMut<T> for nika_cli::verbs::run::FoldSink<W> where T
 pub fn nika_cli::verbs::run::FoldSink<W>::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for nika_cli::verbs::run::FoldSink<W>
 pub fn nika_cli::verbs::run::FoldSink<W>::from(t: T) -> T
+impl<T> either::into_either::IntoEither for nika_cli::verbs::run::FoldSink<W>
 impl<T> nika_error::traits::AsAny for nika_cli::verbs::run::FoldSink<W> where T: 'static
 pub fn nika_cli::verbs::run::FoldSink<W>::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::run::FoldSink<W> where T: ?core::marker::Sized
@@ -961,6 +977,7 @@ impl<T> core::convert::From<T> for nika_cli::verbs::serve::ServeArgs
 pub fn nika_cli::verbs::serve::ServeArgs::from(t: T) -> T
 impl<T> dyn_clone::DynClone for nika_cli::verbs::serve::ServeArgs where T: core::clone::Clone
 pub fn nika_cli::verbs::serve::ServeArgs::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> either::into_either::IntoEither for nika_cli::verbs::serve::ServeArgs
 impl<T> nika_error::traits::AsAny for nika_cli::verbs::serve::ServeArgs where T: 'static
 pub fn nika_cli::verbs::serve::ServeArgs::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::serve::ServeArgs where T: ?core::marker::Sized
@@ -973,6 +990,7 @@ pub type nika_cli::verbs::serve::ServeArgs::Output = T
 pub fn nika_cli::verbs::serve::run(args: &nika_cli::verbs::serve::ServeArgs) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli::verbs::session
 pub fn nika_cli::verbs::session::run(theme: nika_display::theme::Theme) -> u8
+pub fn nika_cli::verbs::session::run_tui(theme: nika_display::theme::Theme) -> u8
 pub mod nika_cli::verbs::sign
 pub struct nika_cli::verbs::sign::SignArgs
 pub nika_cli::verbs::sign::SignArgs::check: bool
@@ -1003,6 +1021,7 @@ impl<T> core::borrow::BorrowMut<T> for nika_cli::verbs::sign::SignArgs where T: 
 pub fn nika_cli::verbs::sign::SignArgs::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for nika_cli::verbs::sign::SignArgs
 pub fn nika_cli::verbs::sign::SignArgs::from(t: T) -> T
+impl<T> either::into_either::IntoEither for nika_cli::verbs::sign::SignArgs
 impl<T> nika_error::traits::AsAny for nika_cli::verbs::sign::SignArgs where T: 'static
 pub fn nika_cli::verbs::sign::SignArgs::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::sign::SignArgs where T: ?core::marker::Sized

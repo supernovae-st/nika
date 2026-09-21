@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The loop: one owner, one broker, one state, two presentations.
+//! The loop: one owner, one broker, one state, two presentations, one
+//! conversation.
 //!
 //! Inline: every block the session finishes goes ABOVE the viewport through
 //! `Terminal::insert_before`, into the terminal's own scrollback; the
@@ -10,17 +11,25 @@
 //! viewport with the draft intact and the blocks finished meanwhile pushed
 //! to the scrollback at that moment (they were never printed there).
 //!
+//! A handoff (a run through the plain path) hands the terminal back: the
+//! reader parks, the viewport is cleared, the cursor moves to its first
+//! row, every mode is restored, the conversation performs the work in the
+//! terminal's normal flow, and the shell takes the terminal again with a
+//! fresh viewport anchored below what the work printed.
+//!
 //! `Ctrl+C` is state-aware: with work active it interrupts and says so; idle,
 //! the first press arms and the second leaves. `SIGTERM` leaves at once.
 //! Every exit path restores the terminal through the one owner.
 
-use std::io;
+use std::io::{self, Write as _};
 
+use crossterm::cursor::MoveTo;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::terminal::{Clear, ClearType};
 
 use crate::composer::{Composer, ComposerAction};
 use crate::events::{Broker, Signal, UiEvent};
-use crate::model::{Beat, Committed, Kind, Presentation, Script, UiState};
+use crate::model::{Beat, Committed, Conversation, Handoff, Kind, Presentation, UiState};
 use crate::render;
 use crate::terminal::{self, Owner, Screen};
 
@@ -64,7 +73,7 @@ pub enum Exit {
     Interrupted,
     /// `SIGTERM`.
     Terminated,
-    /// The event stream closed.
+    /// The input reader closed.
     Closed,
 }
 
@@ -80,23 +89,23 @@ impl Exit {
     }
 }
 
-struct Shell {
+struct Shell<C: Conversation> {
     owner: Owner,
     screen: Screen,
     state: UiState,
     composer: Composer,
-    script: Script,
+    conversation: C,
     options: Options,
     submitted: usize,
 }
 
-/// Run the shell over a script until it ends. The terminal is restored
-/// before this returns, on every path.
+/// Run the shell over a conversation until it ends. The terminal is
+/// restored before this returns, on every path.
 ///
 /// # Errors
 ///
 /// The terminal could not be taken (not a TTY) or a draw failed.
-pub async fn run(script: Script, options: Options) -> io::Result<Exit> {
+pub fn run<C: Conversation>(conversation: C, options: Options) -> io::Result<Exit> {
     terminal::install_panic_hook();
     let (owner, screen) = terminal::enter(options.presentation, options.term.as_deref())?;
     let size = crossterm::terminal::size().unwrap_or((80, 24));
@@ -106,12 +115,12 @@ pub async fn run(script: Script, options: Options) -> io::Result<Exit> {
         screen,
         state,
         composer: Composer::new(),
-        script,
+        conversation,
         options,
         submitted: 0,
     };
     let broker = Broker::start();
-    let outcome = shell.drive(broker).await;
+    let outcome = shell.drive(broker);
     shell.owner.restore()?;
     outcome
 }
@@ -121,15 +130,16 @@ enum Step {
     Stay,
     Leave(Exit),
     Switch(Presentation),
+    Handoff(Handoff),
 }
 
-impl Shell {
-    async fn drive(&mut self, mut broker: Broker) -> io::Result<Exit> {
-        let opening = self.script.open();
+impl<C: Conversation> Shell<C> {
+    fn drive(&mut self, mut broker: Broker) -> io::Result<Exit> {
+        let opening = self.conversation.open();
         self.apply_all(opening)?;
         self.draw()?;
         loop {
-            let Some(event) = broker.next().await else {
+            let Some(event) = broker.recv() else {
                 broker.stop();
                 return Ok(Exit::Closed);
             };
@@ -165,6 +175,13 @@ impl Shell {
                     let switched = self.switch(to);
                     broker.resume();
                     switched?;
+                }
+                Step::Handoff(handoff) => {
+                    broker.pause();
+                    let handed = self.hand_over(&handoff);
+                    broker.resume();
+                    let beats = handed?;
+                    self.apply_all(beats)?;
                 }
                 Step::Stay => {}
             }
@@ -202,7 +219,11 @@ impl Shell {
         }
         self.state.interrupt_armed = false;
         match self.composer.handle(key) {
-            ComposerAction::Submit(line) => self.submit(&line)?,
+            ComposerAction::Submit(line) => {
+                if let Some(handoff) = self.submit(&line)? {
+                    return Ok(Step::Handoff(handoff));
+                }
+            }
             ComposerAction::Edited | ComposerAction::Ignored => {}
         }
         Ok(Step::Stay)
@@ -225,7 +246,9 @@ impl Shell {
         Ok(Step::Stay)
     }
 
-    fn submit(&mut self, line: &str) -> io::Result<()> {
+    /// The human sent a line: echo it, let the conversation answer, and
+    /// report the handoff it asks for, if any.
+    fn submit(&mut self, line: &str) -> io::Result<Option<Handoff>> {
         self.submitted += 1;
         let echo = format!("{}{}", self.state.waiting.prompt(), line.trim_end());
         self.state
@@ -240,12 +263,48 @@ impl Shell {
             "nika-tui-proto: panic requested after {} line(s)",
             self.submitted
         );
-        let beats = self.script.submit(line);
-        self.apply_all(beats)?;
+        // A turn is synchronous: the busy state is drawn BEFORE it runs, with
+        // the conversation's own name for the work, and the turn's first
+        // word clears it.
+        if let Some(label) = self.conversation.busy_label(line) {
+            self.state.busy = Some(label);
+            self.draw()?;
+        }
+        let turn = self.conversation.submit(line);
+        self.state.busy = None;
+        self.apply_all(turn.beats)?;
         if self.options.exit_after == Some(self.submitted) {
             self.state.quit = true;
         }
-        Ok(())
+        Ok(turn.handoff)
+    }
+
+    /// Hand the terminal back for one piece of work and take it again. The
+    /// reader is parked by the caller (the viewport's clear and the fresh
+    /// viewport both ask the terminal where the cursor is).
+    fn hand_over(&mut self, handoff: &Handoff) -> io::Result<Vec<Beat>> {
+        self.commit_inline()?;
+        if self.state.presentation == Presentation::Inline {
+            // The viewport's rows are wiped by hand (ratatui's `clear` would
+            // ask the terminal where the cursor is, one round-trip more than
+            // the fresh viewport below already needs).
+            let top = self.screen.get_frame().area().y;
+            let mut out = io::stdout();
+            crossterm::execute!(out, MoveTo(0, top), Clear(ClearType::FromCursorDown))?;
+            out.flush()?;
+        }
+        self.owner.restore()?;
+        let beats = self.conversation.perform(handoff);
+        let (owner, screen) =
+            terminal::enter(self.state.presentation, self.options.term.as_deref())?;
+        self.owner = owner;
+        self.screen = screen;
+        if self.state.presentation == Presentation::Inline {
+            // Everything the work printed is the terminal's now; the
+            // transcript blocks before it were committed already.
+            self.state.committed_inline = self.state.transcript.len();
+        }
+        Ok(beats)
     }
 
     fn apply_all(&mut self, beats: Vec<Beat>) -> io::Result<()> {

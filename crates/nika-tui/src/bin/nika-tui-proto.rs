@@ -61,8 +61,7 @@ fn term() -> Option<String> {
     std::env::var("TERM").ok()
 }
 
-#[tokio::main(flavor = "current_thread")]
-async fn main() -> ExitCode {
+fn main() -> ExitCode {
     let options = match parse(std::env::args().skip(1)) {
         Ok(options) => options,
         Err(message) => {
@@ -72,7 +71,7 @@ async fn main() -> ExitCode {
     };
     let mut options = options;
     options.term = term();
-    match app::run(Script::demo(), options).await {
+    match app::run(Script::demo(), options) {
         Ok(exit) => {
             if exit.code() == 0 {
                 let _ = writeln!(std::io::stdout(), "nika-tui-proto: left cleanly");

@@ -330,6 +330,63 @@ impl Script {
     }
 }
 
+/// Terminal work a turn needs done outside the renderer: the shell hands
+/// the terminal back to the plain path, the conversation performs the work
+/// through [`Conversation::perform`], and the shell takes the terminal
+/// again. The id ties the request to the work the conversation keeps.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Handoff {
+    /// The conversation's own id of the pending work.
+    pub id: u64,
+    /// What the human is told is happening (the report line).
+    pub label: String,
+}
+
+/// What a submitted line produced.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Turn {
+    /// The beats, in order.
+    pub beats: Vec<Beat>,
+    /// The terminal work the turn asks for, performed after the beats.
+    pub handoff: Option<Handoff>,
+}
+
+/// Whatever answers the composer: the live session runtime, or a fixture.
+pub trait Conversation {
+    /// The beats of the opening (banner, restored state, first prompt).
+    fn open(&mut self) -> Vec<Beat>;
+    /// The beats of one submitted line, and the handoff it asks for.
+    fn submit(&mut self, line: &str) -> Turn;
+    /// Perform the handed-off work with the terminal handed back; the beats
+    /// that follow it (the observation, the next prompt).
+    fn perform(&mut self, handoff: &Handoff) -> Vec<Beat>;
+    /// The work a submitted line starts, named before it runs, so the shell
+    /// shows the busy state while the turn is computed (a turn is
+    /// synchronous; nothing draws until it returns). `None` draws nothing.
+    fn busy_label(&self, _line: &str) -> Option<String> {
+        None
+    }
+}
+
+impl Conversation for Script {
+    fn open(&mut self) -> Vec<Beat> {
+        Script::open(self)
+    }
+
+    fn submit(&mut self, line: &str) -> Turn {
+        Turn {
+            beats: Script::submit(self, line),
+            handoff: None,
+        }
+    }
+
+    fn perform(&mut self, _handoff: &Handoff) -> Vec<Beat> {
+        Vec::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

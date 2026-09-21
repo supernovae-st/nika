@@ -26,6 +26,7 @@ crossterm        = { workspace = true }
 ratatui-textarea = { workspace = true }
 tokio            = { workspace = true, features = ["sync", "signal", "time", "rt", "macros"] }
 unicode-width    = "0.2"
+nika-session     = { path = "../nika-session", version = "0.120.3", default-features = false }   # the live conversation (UX-2): TurnOutcome → beats, L4 lateral like nika-cli
 
 [dev-dependencies]
 expectrl = { workspace = true }   # PTY proof · the terminal is restored on every exit path (unix)
