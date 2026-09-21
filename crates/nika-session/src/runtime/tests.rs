@@ -268,7 +268,7 @@ fn without_intelligence_the_facts_stay_free_text_is_refused_and_work_compiles() 
         panic!("no seat: the reasons are stated, nothing is invented");
     };
     assert!(
-        text.starts_with("I read this as work but cannot settle it"),
+        text.starts_with("I read this as work but cannot build it yet"),
         "{text}"
     );
     assert!(

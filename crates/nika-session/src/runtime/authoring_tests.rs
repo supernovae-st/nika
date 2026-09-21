@@ -110,9 +110,10 @@ fn work_reaches_the_compiler_and_its_question_owns_the_next_line() {
     );
     assert!(preview.contains("check of these bytes"), "{preview}");
     assert!(
-        preview.ends_with("nothing is written until you say yes)"),
+        preview.contains("nothing is written until you say yes)"),
         "{preview}"
     );
+    assert!(preview.contains("identity "), "{preview}");
     assert!(
         workflows(root.path()).is_empty(),
         "a proposal writes nothing"
@@ -267,7 +268,7 @@ fn an_intent_the_reader_cannot_settle_is_an_honest_incomplete_without_a_seat() {
         panic!("no seat: the deterministic reasons are stated, nothing is invented");
     };
     assert!(
-        text.starts_with("I read this as work but cannot settle it"),
+        text.starts_with("I read this as work but cannot build it yet"),
         "{text}"
     );
     assert!(text.contains("rephrase"), "{text}");
@@ -430,4 +431,116 @@ fn a_run_asks_the_declared_inputs_it_needs_before_it_runs() {
     assert!(text.contains("run discarded"), "{text}");
     assert!(s.pending_input().is_none());
     assert!(!root.path().join("hello.txt").exists());
+}
+
+/// A reasoner that reasons in words AND names the seat's model, as a
+/// metered API path does: the compiler may author with it, and the
+/// `model` question offers it as the default.
+struct SeatedReasoner(crate::reasoner::ScriptedReasoner);
+
+impl crate::reasoner::SessionReasoner for SeatedReasoner {
+    fn name(&self) -> String {
+        "mock API".to_owned()
+    }
+    fn reason(
+        &mut self,
+        prompt: &str,
+    ) -> Result<crate::reasoner::Reply, crate::reasoner::ReasonError> {
+        self.0.reason(prompt)
+    }
+    fn authoring_model(&self) -> Option<String> {
+        Some("mock/echo".to_owned())
+    }
+}
+
+fn open_seated(root: &Path) -> SessionRuntime {
+    let api = ResolvedSessionIntelligence {
+        kind: IntelligenceKind::Api {
+            provider: "mock".to_owned(),
+        },
+        model: Some("mock/echo".to_owned()),
+        locus: DataLocus::Local,
+        ready: true,
+        why: None,
+    };
+    SessionRuntime::open(
+        root,
+        api,
+        Box::new(SeatedReasoner(crate::reasoner::ScriptedReasoner::new(
+            Vec::new(),
+        ))),
+    )
+}
+
+/// The human already chose a seat: the `model` question offers it and an
+/// empty line takes it. Nothing else is answered for the human (an empty
+/// line to any other question still refuses), and the proposal that
+/// follows names the seat on its language step.
+#[test]
+fn an_empty_answer_to_the_model_question_takes_the_seat() {
+    let root = world();
+    let mut s = open_seated(root.path());
+    let TurnOutcome::Question { key, question } = s.turn(DRAFT) else {
+        panic!("a draft needs its model: the compiler asks");
+    };
+    assert_eq!(key, "model");
+    assert!(
+        question.contains("Enter takes your seat `mock/echo`"),
+        "{question}"
+    );
+    let TurnOutcome::Proposal { preview, .. } = s.turn("") else {
+        panic!("the empty line takes the offered default");
+    };
+    assert!(preview.contains("infer · mock/echo"), "{preview}");
+    // Without a seat the same empty line stays a refusal: nothing answers.
+    let mut bare = open(root.path(), &[]);
+    assert!(matches!(bare.turn(DRAFT), TurnOutcome::Question { .. }));
+    assert!(matches!(bare.turn(""), TurnOutcome::Refusal(_)));
+}
+
+/// A green run names what it produced: the files the workflow's own
+/// boundary lets it write and that exist now, with their sizes.
+#[test]
+fn a_green_run_names_the_files_it_produced() {
+    let root = world();
+    let mut s = open(root.path(), &[]);
+    assert!(matches!(s.turn(COPY), TurnOutcome::Proposal { .. }));
+    assert!(matches!(s.consent("yes"), TurnOutcome::Facts(_)));
+    std::fs::create_dir_all(root.path().join("out")).expect("out");
+    std::fs::write(
+        root.path().join("out/copy.md"),
+        "The launch moves to October.\n",
+    )
+    .expect("copy");
+    let TurnOutcome::Facts(line) = s.observe_run(0, None) else {
+        panic!("a green run is observed in words");
+    };
+    assert!(line.contains("produced · ./out/copy.md (29 B)"), "{line}");
+    // A red run claims nothing.
+    let TurnOutcome::Facts(red) = s.observe_run(1, None) else {
+        panic!("a red run is observed in words");
+    };
+    assert!(!red.contains("produced"), "{red}");
+}
+
+/// The compiler's machine sentences never reach the human: the plan's own
+/// vocabulary and an unmapped part with nothing after the colon are
+/// dropped, duplicates folded, the actionable reasons kept verbatim.
+#[test]
+fn an_honest_incomplete_keeps_only_the_reasons_a_human_can_act_on() {
+    let cleaned = crate::runtime::authoring::human_reasons(vec![
+        "The semantic plan contains unresolved requested work; no substitute workflow was emitted."
+            .to_owned(),
+        "specific documents to be summarized".to_owned(),
+        "The proposal could not map this part of the request: .".to_owned(),
+        "specific documents to be summarized".to_owned(),
+        "format of the digest".to_owned(),
+    ]);
+    assert_eq!(
+        cleaned,
+        [
+            "specific documents to be summarized",
+            "format of the digest"
+        ]
+    );
 }
