@@ -324,3 +324,47 @@ fn numbers_fold_currency_and_separators() {
         assert_eq!(number(not), None, "{not}");
     }
 }
+
+#[test]
+fn a_stated_aggregate_is_the_shape_after_the_filter() {
+    assert_eq!(
+        jq("the total of the amount column"),
+        Some(".records | {\"total\": (map(.amount | tonumber) | add // 0)}".to_owned())
+    );
+    assert_eq!(
+        jq("the total of the amount column ; whose client is acme"),
+        Some(
+            "[.records[] | select(.client == \"acme\")] | {\"total\": (map(.amount | tonumber) | add // 0)}"
+                .to_owned()
+        )
+    );
+    let rule = synthesize("la moyenne de la colonne montant", &[]).expect("a rule");
+    assert_eq!(rule.totals_names(), ["moyenne"]);
+    assert_eq!(rule.fields(), ["montant"]);
+    assert!(!rule.summary());
+    assert_eq!(jq("the total of the amount column per client"), None);
+}
+
+#[test]
+fn a_negation_among_the_lead_words_is_read_as_nothing_never_inverted() {
+    for text in [
+        "do not keep the tickets whose status is closed",
+        "never keep the tickets whose status is closed",
+        "Read ./tickets.json, do not keep the tickets whose status is closed",
+        "ne garde pas les lignes dont amount dépasse 200",
+        "ne garde jamais les lignes dont amount dépasse 200",
+        "don't keep rows whose amount is above 100",
+    ] {
+        assert_eq!(synthesize(text, &[]), None, "{text}");
+    }
+    // The French restriction is "only": a filter, read as stated.
+    assert_eq!(
+        jq("ne garde que les lignes dont amount dépasse 200"),
+        Some("[.records[] | select((.amount | tonumber) > 200)]".to_owned())
+    );
+    // A negation after the copula is the clause's own polarity, still read.
+    assert_eq!(
+        jq("whose status is not closed"),
+        Some("[.records[] | select(.status != \"closed\")]".to_owned())
+    );
+}

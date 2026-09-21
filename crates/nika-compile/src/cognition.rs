@@ -221,13 +221,18 @@ pub async fn compile_with_cognition<P: ProviderInferDyn>(
     record_retrieval(&mut out, &effective_intent, None);
     let mut reading = lexicon::read(&effective_intent);
     backstop(&effective_intent, &mut reading.plan);
-    match admit_hot(&effective_intent, &reading, request.hot) {
+    // The deterministic door judges the reading with its stated rules promoted: a rule
+    // carries its own constraint, and the words inside it are its literals. The reading
+    // itself keeps its constraints: they are the policy floor a seat's proposal inherits.
+    let mut admitted = reading.clone();
+    super::shape::promote_stated_rules(&mut admitted.plan, &effective_intent);
+    match admit_hot(&effective_intent, &admitted, request.hot) {
         Ok(()) => {
             route.push("hot".to_owned());
             record_route(&mut out, &route);
             return settle(
                 Strategy::Hot,
-                &reading.plan,
+                &admitted.plan,
                 &effective_intent,
                 &assembly_request,
                 out,
@@ -241,7 +246,7 @@ pub async fn compile_with_cognition<P: ProviderInferDyn>(
         && !reading.ambiguous.is_empty()
         && request.hot != HotPolicy::Off
         && let Some(seat) = cognition.seat
-        && lexical_rest_is_explicit(&effective_intent, &reading)
+        && lexical_rest_is_explicit(&effective_intent, &admitted)
     {
         out.provenance.cognition = AuthoringCognition::ExplicitDecision;
         let mut records = Vec::new();
@@ -503,7 +508,7 @@ pub(super) fn replay(
     }
     // A record from an earlier engine may still carry a numeric rule as guidance.
     let mut plan = plan;
-    super::shape::promote_numeric_rules(&mut plan, intent);
+    super::shape::promote_stated_rules(&mut plan, intent);
     super::assemble::assemble(&plan, intent, request, out)?;
     record_retrieval(out, intent, Some(&plan));
     out.provenance.strategy = strategy;
@@ -521,14 +526,17 @@ pub(super) fn hot(
     let intent = folded.as_str();
     let mut reading = lexicon::read(intent);
     backstop(intent, &mut reading.plan);
-    match admit_hot(intent, &reading, request.hot) {
+    // The deterministic door judges the reading with its stated rules promoted: a rule
+    // carries its own constraint, and the words inside it are its literals.
+    let mut admitted = reading.clone();
+    super::shape::promote_stated_rules(&mut admitted.plan, intent);
+    match admit_hot(intent, &admitted, request.hot) {
         Ok(()) => {
             record_route(out, &["hot".to_owned()]);
-            super::shape::promote_numeric_rules(&mut reading.plan, intent);
-            super::assemble::assemble(&reading.plan, intent, request, out)?;
-            record_retrieval(out, intent, Some(&reading.plan));
+            super::assemble::assemble(&admitted.plan, intent, request, out)?;
+            record_retrieval(out, intent, Some(&admitted.plan));
             out.provenance.strategy = Some(Strategy::Hot);
-            out.provenance.plan = Some(plan_record(&reading.plan, Some(Strategy::Hot)));
+            out.provenance.plan = Some(plan_record(&admitted.plan, Some(Strategy::Hot)));
             Ok(true)
         }
         Err(why) => {
@@ -630,7 +638,7 @@ fn settle(
         return Ok(out);
     }
     let mut plan = plan.clone();
-    super::shape::promote_numeric_rules(&mut plan, intent);
+    super::shape::promote_stated_rules(&mut plan, intent);
     super::assemble::assemble(&plan, intent, request, &mut out)?;
     record_retrieval(&mut out, intent, Some(&plan));
     out.provenance.strategy = Some(strategy);
@@ -1082,7 +1090,7 @@ fn merge(
     }
     // A numeric rule the model demoted to guidance is an operation: promoted here so the
     // composer's signature and feasibility see the compute step.
-    super::shape::promote_numeric_rules(&mut plan, intent);
+    super::shape::promote_stated_rules(&mut plan, intent);
     backstop(intent, &mut plan);
     reconcile_refund_backstop(&mut plan, &proposal.regions);
     plan.unknowns.dedup();

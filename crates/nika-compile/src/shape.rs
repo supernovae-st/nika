@@ -171,7 +171,7 @@ pub(super) fn numeric_rule(text: &str) -> bool {
     }
     // A prohibition ("Do not copy more than 10 consecutive words") is a rule the prose obeys,
     // never a computation the workflow runs.
-    if super::cognition::starts_with_prohibition(text) {
+    if prohibits(text) {
         return false;
     }
     let folded = fold(text);
@@ -202,19 +202,67 @@ pub(super) fn numeric_rule(text: &str) -> bool {
     false
 }
 
-/// Every numeric-rule constraint becomes a compute step anchored in the request, inserted
-/// right after the last source step so every later step sees the computed result, and
-/// leaves the prompt guidance. A constraint that is not a verbatim excerpt of the request
-/// stays a constraint (nothing is invented); a compute step that already carries the rule
-/// is not duplicated. Applying this twice changes nothing.
-pub(super) fn promote_numeric_rules(plan: &mut Plan, intent: &str) {
-    let rules: Vec<String> = plan
+/// A prohibition at the head of a clause ("never keep …", "ne garde pas …", "do not …") is
+/// a rule the prose obeys, never a computation: promoting it would run its complement. The
+/// reader may keep a whole clause as the constraint ("Read ./x.json, do not keep …"), so
+/// every comma- or connector-separated part is judged at its own head. The French
+/// restriction "ne … que" ("ne garde que les lignes …") is "only", not "never": a filter
+/// the workflow runs.
+pub(super) fn prohibits(text: &str) -> bool {
+    let joined = text
+        .replace(" and ", ", ")
+        .replace(" et ", ", ")
+        .replace(" then ", ", ")
+        .replace(" puis ", ", ")
+        .replace(" but ", ", ")
+        .replace(" mais ", ", ");
+    joined
+        .split([',', ';'])
+        .map(super::objects::as_clause)
+        .any(|part| super::cognition::starts_with_prohibition(part) && !restrictive_ne_que(part))
+}
+
+/// "ne garde que …", "n'écris que …", "ne conserve plus que …": the `que` within three
+/// words of the `ne`, and no negation word beside it.
+fn restrictive_ne_que(text: &str) -> bool {
+    let folded = fold(text);
+    let words: Vec<&str> = folded
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|w| !w.is_empty())
+        .collect();
+    matches!(words.first(), Some(&"ne" | &"n"))
+        && words
+            .get(1..4)
+            .is_some_and(|window| window.contains(&"que"))
+        && !words.iter().any(|w| {
+            matches!(
+                *w,
+                "pas" | "jamais" | "aucun" | "aucune" | "rien" | "personne"
+            )
+        })
+}
+
+/// Every constraint that states a rule becomes a compute step anchored in the request: a
+/// digit beside a comparison cue, or a filter the closed grammar reads whole ("keep only
+/// the tickets whose status is open", "ne garde que les lignes dont amount dépasse 200").
+/// The step is inserted right after the last source step so every later step sees the
+/// computed result, and the rule leaves the prompt guidance; a parsed rule is recorded on
+/// the plan so admission and binding read the same predicate. A constraint that is not a
+/// verbatim excerpt of the request stays a constraint (nothing is invented); a prohibition
+/// stays prose; a compute step that already carries the rule is not duplicated. Applying
+/// this twice changes nothing.
+pub(super) fn promote_stated_rules(plan: &mut Plan, intent: &str) {
+    let hint = super::columns::columns_hint(intent);
+    let rules: Vec<(String, Option<super::rules::Rule>)> = plan
         .constraints
         .iter()
-        .filter(|c| numeric_rule(c))
-        .cloned()
+        .filter(|c| !prohibits(c))
+        .filter_map(|c| {
+            let parsed = super::rules::synthesize(c, &hint);
+            (parsed.is_some() || numeric_rule(c)).then(|| (c.clone(), parsed))
+        })
         .collect();
-    for constraint in rules {
+    for (constraint, parsed) in rules {
         let detail = constraint.trim().to_owned();
         let carried = plan
             .steps
@@ -244,6 +292,14 @@ pub(super) fn promote_numeric_rules(plan: &mut Plan, intent: &str) {
                         categories: Vec::new(),
                     },
                 );
+            }
+            // The parsed rule is recorded for the step this promotion made or joined. A
+            // step that already carried the rule may say more than it (a grouping the
+            // grammar does not read): recording the part would let it stand for the whole.
+            if let Some(rule) = parsed
+                && !plan.rules.iter().any(|r| r.text() == rule.text())
+            {
+                plan.rules.push(rule);
             }
         }
         plan.constraints.retain(|c| c != &constraint);
@@ -739,7 +795,7 @@ mod tests {
             constraints: vec![rule.to_owned(), "in a warm tone".to_owned()],
             ..Plan::default()
         };
-        promote_numeric_rules(&mut plan, intent);
+        promote_stated_rules(&mut plan, intent);
         let ops: Vec<Op> = plan.steps.iter().map(|s| s.op).collect();
         assert_eq!(ops, [Op::Read, Op::Compute, Op::Draft]);
         assert_eq!(plan.steps[1].detail, rule);
@@ -747,7 +803,7 @@ mod tests {
         assert_eq!(plan.constraints, ["in a warm tone"]);
         // Idempotent.
         let once = plan.clone();
-        promote_numeric_rules(&mut plan, intent);
+        promote_stated_rules(&mut plan, intent);
         assert_eq!(plan, once);
         // A rule wrapped by the model is anchored through its folded excerpt.
         let mut wrapped = Plan {
@@ -761,7 +817,7 @@ mod tests {
             ],
             ..Plan::default()
         };
-        promote_numeric_rules(&mut wrapped, intent);
+        promote_stated_rules(&mut wrapped, intent);
         assert_eq!(wrapped.steps[1].evidence, rule);
         assert!(wrapped.constraints.is_empty());
         // A rule the request never spelled stays guidance: nothing is invented.
@@ -774,7 +830,7 @@ mod tests {
             constraints: vec!["amount above 500".to_owned()],
             ..Plan::default()
         };
-        promote_numeric_rules(&mut foreign, intent);
+        promote_stated_rules(&mut foreign, intent);
         assert_eq!(foreign.steps.len(), 1);
         assert_eq!(foreign.constraints, ["amount above 500"]);
         // No source step: the rule leads the plan.
@@ -783,7 +839,7 @@ mod tests {
             constraints: vec![rule.to_owned()],
             ..Plan::default()
         };
-        promote_numeric_rules(&mut sourceless, intent);
+        promote_stated_rules(&mut sourceless, intent);
         assert_eq!(sourceless.steps[0].op, Op::Compute);
         // An existing compute step absorbs a second rule instead of a second step.
         let mut two = Plan {
@@ -794,8 +850,91 @@ mod tests {
             constraints: vec![rule.to_owned()],
             ..Plan::default()
         };
-        promote_numeric_rules(&mut two, intent);
+        promote_stated_rules(&mut two, intent);
         assert_eq!(two.steps.len(), 2);
         assert_eq!(two.steps[1].detail, format!("the total ; {rule}"));
+    }
+
+    #[test]
+    fn a_stated_filter_is_promoted_and_recorded_but_a_prohibition_stays_prose() {
+        let intent = "Read ./tickets.json, keep only the tickets whose status is open, and write them to ./open.json";
+        let rule = "keep only the tickets whose status is open";
+        let mut plan = Plan {
+            steps: vec![step(Op::Read, "./tickets.json", "Read ./tickets.json")],
+            constraints: vec![rule.to_owned()],
+            ..Plan::default()
+        };
+        promote_stated_rules(&mut plan, intent);
+        let ops: Vec<Op> = plan.steps.iter().map(|s| s.op).collect();
+        assert_eq!(ops, [Op::Read, Op::Compute]);
+        assert!(plan.constraints.is_empty());
+        assert_eq!(plan.rules.len(), 1);
+        assert_eq!(plan.rules[0].text(), rule);
+        assert_eq!(
+            plan.rules[0].jq(),
+            "[.records[] | select(.status == \"open\")]"
+        );
+        // The French restriction "ne … que" is "only", a filter; the negation "ne … pas"
+        // is a prohibition, never promoted, never inverted.
+        let intent = "Lis ./sales.csv, ne garde que les lignes dont amount dépasse 200 et écris-les dans ./big.csv";
+        let mut plan = Plan {
+            steps: vec![step(Op::Read, "./sales.csv", "Lis ./sales.csv")],
+            constraints: vec!["ne garde que les lignes dont amount dépasse 200".to_owned()],
+            ..Plan::default()
+        };
+        promote_stated_rules(&mut plan, intent);
+        assert_eq!(plan.steps.len(), 2, "{plan:?}");
+        assert_eq!(
+            plan.rules
+                .first()
+                .map(super::super::rules::Rule::jq)
+                .as_deref(),
+            Some("[.records[] | select((.amount | tonumber) > 200)]")
+        );
+        let intent = "Lis ./sales.csv, ne garde pas les lignes dont amount dépasse 200 et écris-les dans ./big.csv";
+        let mut plan = Plan {
+            steps: vec![step(Op::Read, "./sales.csv", "Lis ./sales.csv")],
+            constraints: vec!["ne garde pas les lignes dont amount dépasse 200".to_owned()],
+            ..Plan::default()
+        };
+        promote_stated_rules(&mut plan, intent);
+        assert_eq!(plan.steps.len(), 1, "{plan:?}");
+        assert_eq!(plan.constraints.len(), 1);
+        assert!(plan.rules.is_empty());
+        for prohibition in [
+            "never keep closed tickets",
+            "do not keep the tickets whose status is closed",
+            "Read ./tickets.json, do not keep the tickets whose status is closed",
+            "Read ./tickets.json and never keep the tickets whose status is closed",
+            "ne garde pas les lignes dont amount dépasse 200",
+            "ne garde jamais les lignes dont amount dépasse 200",
+        ] {
+            assert!(prohibits(prohibition), "{prohibition}");
+        }
+        for restriction in [
+            "ne garde que les lignes",
+            "n'écris que les lignes",
+            "keep only the rows",
+        ] {
+            assert!(!prohibits(restriction), "{restriction}");
+        }
+        // A constraint an existing computation already carries is consumed without a
+        // recorded rule: the step may say more than the constraint (a grouping here), and
+        // the part must not stand for the whole.
+        let intent = "Read ./o.csv, keep only the rows whose amount is above 100 and count them per country, then write it to ./c.json";
+        let detail = "keep only the rows whose amount is above 100 and count them per country";
+        let mut plan = Plan {
+            steps: vec![
+                step(Op::Read, "./o.csv", "Read ./o.csv"),
+                step(Op::Compute, detail, detail),
+            ],
+            constraints: vec!["keep only the rows whose amount is above 100".to_owned()],
+            ..Plan::default()
+        };
+        promote_stated_rules(&mut plan, intent);
+        assert_eq!(plan.steps.len(), 2);
+        assert_eq!(plan.steps[1].detail, detail);
+        assert!(plan.constraints.is_empty());
+        assert!(plan.rules.is_empty(), "{:?}", plan.rules);
     }
 }

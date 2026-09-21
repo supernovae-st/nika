@@ -1002,9 +1002,39 @@ fn last_relative(region: &[Token]) -> Option<(usize, usize)> {
     found
 }
 
+/// A negation among the words that lead a clause ("do not keep the tickets whose status
+/// is closed", "never keep …", "ne garde pas …") inverts the whole clause; the grammar
+/// reads no polarity there, so it reads nothing. The French restriction "ne … que" is
+/// "only", never a negation.
+fn negated_lead(lead: &[Token]) -> bool {
+    let words: Vec<&str> = lead.iter().filter_map(Token::word).collect();
+    words.iter().enumerate().any(|(at, word)| {
+        if matches!(*word, "ne" | "n") {
+            return !words
+                .get(at + 1..(at + 4).min(words.len()))
+                .is_some_and(|window| window.contains(&"que"));
+        }
+        NEGATIONS.contains(word)
+            || matches!(
+                *word,
+                "never"
+                    | "jamais"
+                    | "nunca"
+                    | "mai"
+                    | "niemals"
+                    | "nie"
+                    | "don't"
+                    | "doesn't"
+                    | "won't"
+                    | "isn't"
+                    | "aren't"
+            )
+    })
+}
+
 /// The field named left of the comparison. `None` when the lead carries a number, a
-/// symbol or a quote the grammar did not consume; `Unnamed` when nothing there names a
-/// column.
+/// symbol, a quote or a negation the grammar did not consume; `Unnamed` when nothing
+/// there names a column.
 fn left_field(tokens: &[Token], from: usize, anchor: &Anchor, columns: &[String]) -> Option<Left> {
     let region = tokens.get(from..anchor.field_end).unwrap_or_default();
     let (lead, phrase, relative) = match last_relative(region) {
@@ -1018,7 +1048,7 @@ fn left_field(tokens: &[Token], from: usize, anchor: &Anchor, columns: &[String]
             None => (region, region, false),
         },
     };
-    if lead.iter().any(|t| t.word().is_none()) {
+    if lead.iter().any(|t| t.word().is_none()) || negated_lead(lead) {
         return None;
     }
     let mut phrase = phrase;
@@ -1173,6 +1203,7 @@ pub(super) fn synthesize(text: &str, columns: &[String]) -> Option<Rule> {
     let mut clauses = Vec::new();
     let mut junction: Option<Junction> = None;
     let mut summary = false;
+    let mut shape = Shape::default();
     for segment in segments(text) {
         let tokens = tokenize(segment);
         if tokens.is_empty() {
@@ -1187,6 +1218,16 @@ pub(super) fn synthesize(text: &str, columns: &[String]) -> Option<Rule> {
         let mut at = 0;
         loop {
             let Some((clause, next)) = parse_clause(&tokens, at, columns) else {
+                // A whole segment stating one aggregate over a column is the shape's work:
+                // the filter (if any) runs first, the totals follow.
+                if at == 0
+                    && let Some(aggregation) = super::aggregate::stated(segment, columns)
+                {
+                    if !shape.aggregations.contains(&aggregation) {
+                        shape.aggregations.push(aggregation);
+                    }
+                    break;
+                }
                 // After a clause, a count-or-total request is the summary stage's work.
                 let trailing = (at > 0 || !clauses.is_empty()) && junction != Some(Junction::Or);
                 if trailing && summary_residual(&tokens, at, columns) {
@@ -1214,7 +1255,7 @@ pub(super) fn synthesize(text: &str, columns: &[String]) -> Option<Rule> {
             }
         }
     }
-    if clauses.is_empty() {
+    if clauses.is_empty() && shape.aggregations.is_empty() {
         return None;
     }
     Some(Rule {
@@ -1222,7 +1263,7 @@ pub(super) fn synthesize(text: &str, columns: &[String]) -> Option<Rule> {
         clauses,
         junction: junction.unwrap_or(Junction::And),
         summary,
-        shape: Shape::default(),
+        shape,
     })
 }
 
