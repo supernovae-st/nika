@@ -2655,6 +2655,7 @@ dependencies = [
  "bytes",
  "futures-core",
  "nika-catalog",
+ "nika-clock",
  "nika-harness",
  "nika-kernel",
  "nika-types",
