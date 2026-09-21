@@ -33,6 +33,18 @@ pub(super) struct ProposedComputation {
     pub(super) columns: Vec<String>,
     #[serde(default, deserialize_with = "nullable_derived")]
     pub(super) derived: Vec<ProposedDerived>,
+    #[serde(default, deserialize_with = "super::cognition::nullable_string")]
+    pub(super) limit: String,
+    #[serde(default, deserialize_with = "nullable_renames")]
+    pub(super) renames: Vec<ProposedRename>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct ProposedRename {
+    #[serde(default, deserialize_with = "super::cognition::nullable_string")]
+    pub(super) from: String,
+    #[serde(default, deserialize_with = "super::cognition::nullable_string")]
+    pub(super) to: String,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -79,6 +91,11 @@ fn nullable_clauses<'de, D: serde::Deserializer<'de>>(
 ) -> Result<Vec<ProposedClause>, D::Error> {
     Ok(Option::<Vec<ProposedClause>>::deserialize(d)?.unwrap_or_default())
 }
+fn nullable_renames<'de, D: serde::Deserializer<'de>>(
+    d: D,
+) -> Result<Vec<ProposedRename>, D::Error> {
+    Ok(Option::<Vec<ProposedRename>>::deserialize(d)?.unwrap_or_default())
+}
 fn nullable_derived<'de, D: serde::Deserializer<'de>>(
     d: D,
 ) -> Result<Vec<ProposedDerived>, D::Error> {
@@ -88,6 +105,17 @@ fn nullable_aggregations<'de, D: serde::Deserializer<'de>>(
     d: D,
 ) -> Result<Vec<ProposedAggregation>, D::Error> {
     Ok(Option::<Vec<ProposedAggregation>>::deserialize(d)?.unwrap_or_default())
+}
+
+/// Whether the request spells the number as a word (« trois », « drei », « tre »).
+fn number_word_states(intent: &str, n: u32) -> bool {
+    super::shape::fold(intent)
+        .split(|c: char| !c.is_alphanumeric())
+        .any(|w| {
+            super::cues::NUMBER_WORDS
+                .iter()
+                .any(|(word, value)| *value == n && *word == w)
+        })
 }
 
 /// The truth value a word spells, in six languages; anything else is text.
@@ -305,12 +333,39 @@ pub(super) fn typed_rule(
     if !derived.is_empty() && aggregations.is_empty() {
         return None;
     }
+    // A renamed key is a column the request names, renamed to a word of the request; a
+    // limit is a number the request states, as digits or as a word.
+    let mut renames = Vec::new();
+    for rename in &computation.renames {
+        let (from, to) = (rename.from.trim(), rename.to.trim());
+        if from.is_empty() || to.is_empty() || from == to || to.len() > 64 {
+            return None;
+        }
+        let known =
+            names_field(from) || produced.contains(&from) || columns.iter().any(|c| c == from);
+        if !known || !lower.contains(&to.to_lowercase()) {
+            return None;
+        }
+        renames.push((from.to_owned(), to.to_owned()));
+    }
+    let limit = computation.limit.trim();
+    let limit = if limit.is_empty() {
+        None
+    } else {
+        let n: u32 = limit.parse().ok()?;
+        if n == 0 || !(digit_runs.iter().any(|run| run == limit) || number_word_states(intent, n)) {
+            return None;
+        }
+        Some(n)
+    };
     let shape = Shape {
         group_by,
         aggregations,
         sort_by,
         columns,
         derived,
+        limit,
+        renames,
     };
     if clauses.is_empty() && shape == Shape::default() {
         return None;
@@ -321,7 +376,7 @@ pub(super) fn typed_rule(
 /// The schema of a typed computation on a compute step: every key required (a strict
 /// schema needs no optional), empty strings and arrays meaning absent.
 pub(super) fn computation_schema() -> Value {
-    json!({"type":"object","additionalProperties":false,"required":["present","polarity","join","clauses","group_by","aggregations","sort_by","order","columns","derived"],"properties":{
+    json!({"type":"object","additionalProperties":false,"required":["present","polarity","join","clauses","group_by","aggregations","sort_by","order","columns","derived","limit","renames"],"properties":{
         "present":{"type":"boolean"},
         "polarity":{"type":"string","enum":["keep","drop"]},
         "join":{"type":"string","enum":["and","or"]},
@@ -337,5 +392,8 @@ pub(super) fn computation_schema() -> Value {
         "columns":{"type":"array","items":{"type":"string"}},
         "derived":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["as","op","left","right"],"properties":{
             "as":{"type":"string"},"op":{"type":"string","enum":["sub","add","mul","div"]},
-            "left":{"type":"string"},"right":{"type":"string"}}}}}})
+            "left":{"type":"string"},"right":{"type":"string"}}}},
+        "limit":{"type":"string"},
+        "renames":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["from","to"],"properties":{
+            "from":{"type":"string"},"to":{"type":"string"}}}}}})
 }

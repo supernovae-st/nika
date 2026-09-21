@@ -397,7 +397,7 @@ pub(super) fn bind(
         if !request.answers.contains_key("const.rule_expression")
             && let Some(rule) = synthesized_rule(plan, step, intent, &b)
         {
-            return Some(RuleBinding::Synthesized(rule));
+            return ranked(rule, request, out, recognized).map(RuleBinding::Synthesized);
         }
         recognized.insert("const.rule_expression".to_owned());
         let label = rule_label(plan, &b, &step.detail);
@@ -640,6 +640,42 @@ fn resolve_directory(
             None
         }
     }
+}
+
+/// A ranking without its count asks how many rows to keep (`const.top_n`); the answer bounds
+/// the sort. Any other computation binds as synthesized.
+fn ranked(
+    rule: rules::Rule,
+    request: &CompileRequest,
+    out: &mut CompileOutcome,
+    recognized: &mut BTreeSet<String>,
+) -> Option<rules::Rule> {
+    if !rule.ranking_without_count() {
+        return Some(rule);
+    }
+    let key = "const.top_n";
+    recognized.insert(key.to_owned());
+    let label = format!(
+        "How many rows does `{}` keep? The request ranks the rows but states no count; give a whole number (for example 3).",
+        rule.text()
+    );
+    let value = answer(request, out, key, &label, true)?;
+    let count = value
+        .as_u64()
+        .or_else(|| value.as_str().and_then(|s| s.trim().parse().ok()))
+        .filter(|n| (1..=10_000).contains(n))
+        .and_then(|n| u32::try_from(n).ok());
+    if let Some(n) = count {
+        return Some(rule.with_limit(n));
+    }
+    reject(
+        out,
+        key,
+        &label,
+        true,
+        "Give a whole number of rows between 1 and 10000.",
+    );
+    None
 }
 
 /// The rule a compute step states in words, when the corpus is one structured file whose

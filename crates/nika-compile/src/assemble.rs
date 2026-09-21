@@ -62,6 +62,9 @@ struct Doc {
     source_columns: bool,
     /// The columns a typed computation writes, when it fixes them (a grouping, a projection).
     computed_columns: Option<Vec<String>>,
+    /// The keys a typed computation renamed (source name, stated name): when any, the source
+    /// header no longer describes the rows.
+    renames: Vec<(String, String)>,
     /// The names a typed computation produces as totals over every row (`tickets`,
     /// `total_cents`): the keys an outbound payload may name.
     totals: Vec<String>,
@@ -97,6 +100,7 @@ impl Doc {
             item,
             source_columns: false,
             computed_columns: None,
+            renames: Vec::new(),
             totals: Vec::new(),
             carriers: Vec::new(),
             verified_bounds: Vec::new(),
@@ -1010,6 +1014,7 @@ fn emit_synthesized_rule(d: &mut Doc, plan: &Plan, rule: &super::rules::Rule) {
         true,
     );
     d.computed_columns = rule.output_columns();
+    d.renames = rule.renames().to_vec();
     d.totals = rule.totals_names();
     emit_computed(d, plan, rule.summary());
     // Totals over every row are the outputs the request named, one by one.
@@ -1293,7 +1298,11 @@ fn data_stage(
     {
         // A grouped or projected computation writes the columns it produced.
         args["columns"] = json!(columns);
-    } else if format == Structured::Csv && d.source_columns && ROW_FACTS.contains(&name) {
+    } else if format == Structured::Csv
+        && d.source_columns
+        && d.renames.is_empty()
+        && ROW_FACTS.contains(&name)
+    {
         args["columns"] = json!("${{ with.columns }}");
         with["columns"] = json!("${{ tasks.source_columns.output }}");
     }

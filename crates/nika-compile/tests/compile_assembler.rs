@@ -2075,3 +2075,29 @@ fn a_quantified_request_without_a_corpus_asks_where_the_items_live() {
     assert_eq!(tasks(&doc)["glob_source"]["invoke"]["tool"], "nika:glob");
     assert_eq!(doc["const"]["source_glob"], "./invoices/*.md");
 }
+
+// ── a ranking without its count asks how many rows to keep ───────────────────────
+// wave28 v2-53: « die meistverkauften Artikel » with no count compiled to a full descending
+// sort; the seed wanted the count asked. The answer bounds the sort.
+#[test]
+fn a_ranking_without_its_count_asks_how_many_rows_then_keeps_them() {
+    let intent = "Read ./shop/sales.csv (columns item,units) and write the top-selling items by units to ./out/top.csv.";
+    let record = json!({"operations":[
+        {"op":"read","detail":"./shop/sales.csv","evidence":"Read ./shop/sales.csv (columns item,units)","categories":[]},
+        {"op":"compute","detail":"the top-selling items by units","evidence":"the top-selling items by units","categories":[]}],
+      "effects":[{"verb":"write","target":"./out/top.csv","policy":"automatic","evidence":"write the top-selling items by units to ./out/top.csv","policy_literal":null}],
+      "obligations":[],"bindings":[{"role":"path","literal":"./shop/sales.csv"},{"role":"path","literal":"./out/top.csv"}],
+      "constraints":[],"unknowns":[],"trigger":null,"strategy":"cold",
+      "rules":[{"text":"the top-selling items by units","clauses":[],"junction":"and","summary":false,
+                "shape":{"group_by":null,"aggregations":[],"sort_by":"units","descending":true,"columns":["item","units"],"derived":[]}}]});
+    let asked = replay(intent, &record, &[]);
+    assert!(asked.candidate.is_none(), "{asked:#?}");
+    assert_eq!(keys(&asked), ["const.top_n"], "{asked:#?}");
+    assert!(label(&asked, "const.top_n").contains("top-selling"));
+    let out = replay(intent, &record, &[("const.top_n", r#""3""#)]);
+    let doc = document(&out);
+    let expression = tasks(&doc)["compute"]["invoke"]["args"]["expression"]
+        .as_str()
+        .unwrap();
+    assert!(expression.contains("| .[:3] |"), "{expression}");
+}

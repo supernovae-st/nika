@@ -362,3 +362,58 @@ fn a_truth_value_matches_the_boolean_and_its_spelling() {
     };
     assert_eq!(clause.jq(), "(.attivo != true and .attivo != \"true\")");
 }
+
+// arc 3: a rename and a limit are typed stages of the computation; a ranking that states no
+// count is flagged so the binder asks for it (wave28 v2-53 compiled a full sort instead).
+#[test]
+fn a_rename_and_a_limit_are_typed_and_a_ranking_without_a_count_is_flagged() {
+    let proposed = |limit: &str| {
+        json!({
+            "present": true, "polarity": "keep", "join": "and", "clauses": [],
+            "group_by": "", "aggregations": [], "sort_by": "units", "order": "desc",
+            "columns": ["item", "units"], "derived": [], "limit": limit,
+            "renames": [{"from": "item", "to": "product"}]
+        })
+    };
+    let computation =
+        serde_json::from_value::<crate::predicate::ProposedComputation>(proposed("3")).unwrap();
+    let intent = "Read ./shop/sales.csv (columns item,units), keep the top 3 items by units, rename item to product and write ./out/top.csv";
+    let rule = crate::predicate::typed_rule(intent, "keep the top 3 items by units", &computation)
+        .expect("a rule");
+    assert_eq!(
+        rule.jq(),
+        ".records | sort_by(.units) | reverse | .[:3] | map({\"item\": .item, \"units\": .units}) | map(with_entries(if .key == \"item\" then .key = \"product\" else . end))"
+    );
+    assert_eq!(
+        rule.output_columns(),
+        Some(vec!["product".to_owned(), "units".to_owned()])
+    );
+    assert_eq!(rule.renames().len(), 1);
+    assert!(!rule.ranking_without_count());
+    let record = rule.to_json();
+    assert_eq!(record["shape"]["limit"], 3);
+    assert_eq!(record["shape"]["renames"][0]["to"], "product");
+    let back = Rule::from_json(&record).expect("round trip");
+    assert_eq!(back.jq(), rule.jq());
+    // A limit the request does not state is no rule; a count spelled as a word is stated.
+    let unstated =
+        serde_json::from_value::<crate::predicate::ProposedComputation>(proposed("5")).unwrap();
+    assert!(
+        crate::predicate::typed_rule(intent, "keep the top 3 items by units", &unstated).is_none()
+    );
+    let spelled = "Read ./shop/sales.csv (columns item,units), keep the three best items by units, rename item to product and write ./out/top.csv";
+    assert!(
+        crate::predicate::typed_rule(spelled, "keep the three best items by units", &computation)
+            .is_some()
+    );
+    // No limit under a ranking word: the count is missing and must be asked.
+    let ranked =
+        serde_json::from_value::<crate::predicate::ProposedComputation>(proposed("")).unwrap();
+    let rule = crate::predicate::typed_rule(intent, "the top-selling items by units", &ranked)
+        .expect("a rule");
+    assert!(rule.ranking_without_count());
+    assert!(!rule.with_limit(3).ranking_without_count());
+    let plain = crate::predicate::typed_rule(intent, "sorted by units, descending", &ranked)
+        .expect("a rule");
+    assert!(!plain.ranking_without_count());
+}

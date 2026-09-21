@@ -740,6 +740,22 @@ impl Rule {
     pub(super) fn output_columns(&self) -> Option<Vec<String>> {
         self.shape.output_columns()
     }
+    /// The output keys the computation renames (source name, stated name).
+    pub(super) fn renames(&self) -> &[(String, String)] {
+        &self.shape.renames
+    }
+    /// A ranking (« the top-selling », « les plus vendus », « die meistverkauften ») sorted
+    /// descending without the count of rows to keep: the count is asked, never assumed.
+    pub(super) fn ranking_without_count(&self) -> bool {
+        self.shape.limit.is_none()
+            && self.shape.sort_by.as_ref().is_some_and(|(_, desc)| *desc)
+            && super::aggregate::ranking_cue(&self.text)
+    }
+    /// The same computation keeping the first `n` rows after its sort.
+    pub(super) fn with_limit(mut self, n: u32) -> Self {
+        self.shape.limit = Some(n);
+        self
+    }
     /// The names of the totals, when the computation is totals over every row.
     pub(super) fn totals_names(&self) -> Vec<String> {
         self.shape.totals_names()
