@@ -21,7 +21,11 @@
 // changes the run's verdict) — the same exemption the run verb carried.
 #![allow(clippy::disallowed_macros, clippy::print_stderr)]
 
+use std::fmt;
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
+use std::time::Duration;
 
 mod operator;
 mod secret_resolver;
@@ -38,9 +42,10 @@ use nika_exec_runner::TokioShell;
 use nika_fs::TokioFs;
 use nika_http::{HttpConfig, NetBoundary, ReqwestHttp, SsrfMode};
 use nika_kernel::ai::provider::ProviderInferDyn;
+use nika_kernel::clock::ClockDyn;
 use nika_kernel::provider::{InferRequest, InferResponse, ProviderError};
 use nika_kernel::secret::Secret;
-use nika_providers::{ProviderRegistry, ProvidersConfig};
+use nika_providers::{Backoff, ProviderRegistry, ProvidersConfig};
 use nika_schema::types::RunDecl;
 #[cfg(test)]
 use nika_schema::types::{SecretRef, SecretSource};
@@ -674,6 +679,42 @@ impl RunSeams {
             Box::new(crate::SystemStamper::new())
         }
     }
+
+    /// The transport backoff this resolution picks — the provider
+    /// layer's bounded retry on a rate-limited or overloaded seat (429 ·
+    /// 503 · 529 · `Retry-After`) sleeps on the run's ONE clock. A
+    /// `clock: virtual` run waits zero wall seconds (the wait is
+    /// recorded on the frame, never slept); the system clock sleeps for
+    /// real. The registry's own default is the system clock: a
+    /// composition that forgot this seam let a virtual-clock run sleep
+    /// real seconds on a 429 (the product-convergence war room · L4).
+    #[must_use]
+    pub fn backoff(&self) -> Arc<dyn Backoff> {
+        Arc::new(DeclaredBackoff(self.clock.clone()))
+    }
+}
+
+/// The run's declared clock as the transport backoff's sleep seam (the
+/// [`nika_providers::ClockBackoff`] shape over [`DeclaredClock`], which
+/// names its variant in `Debug` instead of deriving it).
+#[derive(Clone)]
+struct DeclaredBackoff(DeclaredClock);
+
+impl fmt::Debug for DeclaredBackoff {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let clock = if self.0.as_virtual().is_some() {
+            "virtual"
+        } else {
+            "system"
+        };
+        write!(f, "DeclaredBackoff({clock})")
+    }
+}
+
+impl Backoff for DeclaredBackoff {
+    fn sleep(&self, duration: Duration) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
+        Box::pin(self.0.sleep(duration))
+    }
 }
 
 /// Compose the production runtime for a workflow whose envelope default
@@ -838,8 +879,10 @@ fn production_runtime_with_emitter(
     let invoke = Arc::new(InvokeVerb::new(Arc::clone(&dispatcher)));
 
     // The provider registry (real http + env keys) drives infer directly
-    // and the agent via the per-call RegistryProvider bridge.
-    let registry = Arc::new(ProviderRegistry::new(provider_http, config));
+    // and the agent via the per-call RegistryProvider bridge. Its
+    // transport backoff sleeps on the run's declared clock.
+    let registry =
+        Arc::new(ProviderRegistry::new(provider_http, config).with_backoff(seams.backoff()));
     let agent_provider = Arc::new(RegistryProvider::new(Arc::clone(&registry), default_model));
     // A broken adapter refuses at composition (A-4). `nika test` never seats.
     let harness_seat = crate::harness_seat::seat_from_env()?;
@@ -973,7 +1016,9 @@ pub fn simulated_runtime(
     // The provider registry (real http + env keys) drives infer directly
     // and the agent via the per-call RegistryProvider bridge — under
     // `nika test` the default model is `mock/echo` (keyless · offline).
-    let registry = Arc::new(ProviderRegistry::new(provider_http, config));
+    // The same declared-clock backoff as production (shape parity).
+    let registry =
+        Arc::new(ProviderRegistry::new(provider_http, config).with_backoff(seams.backoff()));
     let agent_provider = Arc::new(RegistryProvider::new(Arc::clone(&registry), default_model));
 
     Ok(Runtime::new(
@@ -1171,6 +1216,40 @@ mod tests {
             runtime.is_ok(),
             "the simulated runtime composes (TLS init is the only failure)"
         );
+    }
+
+    // ── L4 · the declared clock governs the transport backoff ─────────
+
+    /// A `clock: virtual` run must not sleep on a rate-limited seat: the
+    /// backoff rides the declared clock, and the virtual one returns at
+    /// once — a 60 s wait costs no wall time (the frame records it).
+    #[tokio::test]
+    async fn the_virtual_clock_backoff_never_sleeps() {
+        let decl = RunDecl::new(None, Some(nika_schema::types::RunClock::Virtual));
+        let backoff = RunSeams::of(Some(&decl)).backoff();
+        let start = std::time::Instant::now();
+        backoff.sleep(Duration::from_secs(60)).await;
+        assert!(
+            start.elapsed() < Duration::from_secs(1),
+            "a virtual wait is instant, took {:?}",
+            start.elapsed()
+        );
+        assert_eq!(format!("{backoff:?}"), "DeclaredBackoff(virtual)");
+    }
+
+    /// …and the system clock — the status quo, the default of every run
+    /// without a `run:` block — really waits.
+    #[tokio::test]
+    async fn the_system_clock_backoff_really_waits() {
+        let backoff = RunSeams::of(None).backoff();
+        let start = std::time::Instant::now();
+        backoff.sleep(Duration::from_millis(30)).await;
+        assert!(
+            start.elapsed() >= Duration::from_millis(30),
+            "the system clock sleeps for real, took {:?}",
+            start.elapsed()
+        );
+        assert_eq!(format!("{backoff:?}"), "DeclaredBackoff(system)");
     }
 
     // ── F-P3 · the run: declaration resolves to its seams ────────────
