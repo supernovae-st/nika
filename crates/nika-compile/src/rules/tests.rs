@@ -324,3 +324,41 @@ fn numbers_fold_currency_and_separators() {
         assert_eq!(number(not), None, "{not}");
     }
 }
+
+// wave28 v2-02: the seat compared a boolean column to the string "false" and jq kept no row;
+// the run was green on an empty file.
+#[test]
+fn a_truth_value_matches_the_boolean_and_its_spelling() {
+    let computation = serde_json::from_value::<crate::predicate::ProposedComputation>(json!({
+        "present": true, "polarity": "keep", "join": "and",
+        "clauses": [{"field": "explicito", "op": "==", "value": "false", "value_field": ""}],
+        "group_by": "", "aggregations": [], "sort_by": "duracao_s", "order": "desc",
+        "columns": ["id", "titulo"], "derived": []
+    }))
+    .unwrap();
+    let intent = "Lê ./musica/faixas.json (id, titulo, artista, duracao_s, explicito), guarda as faixas com explicito == false ordenadas por duracao_s decrescente e escreve id e titulo em ./out/limpa.json";
+    let rule = crate::predicate::typed_rule(
+        intent,
+        "guarda as faixas com explicito == false",
+        &computation,
+    )
+    .expect("a rule");
+    assert!(
+        rule.jq()
+            .contains("select((.explicito == false or .explicito == \"false\"))"),
+        "{}",
+        rule.jq()
+    );
+    let record = rule.to_json();
+    assert_eq!(record["clauses"][0]["value_kind"], "bool");
+    assert_eq!(record["clauses"][0]["value"], "false");
+    let back = Rule::from_json(&record).expect("round trip");
+    assert_eq!(back.jq(), rule.jq());
+    // « != vero » excludes the truth in both encodings; another comparator stays literal.
+    let clause = Clause {
+        field: "attivo".to_owned(),
+        comparator: Comparator::Ne,
+        value: Operand::Bool(true),
+    };
+    assert_eq!(clause.jq(), "(.attivo != true and .attivo != \"true\")");
+}

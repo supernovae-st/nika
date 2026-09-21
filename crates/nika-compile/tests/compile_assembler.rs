@@ -2049,3 +2049,29 @@ fn a_no_model_law_refuses_a_drafting_plan_and_admits_a_typed_one() {
         ledger_duties(&out)
     );
 }
+
+// ── a quantified request without a corpus asks where the items live ───────────────
+// wave28 v2-52: « for each … » over items the request never locates compiled to a program
+// with a required `inputs.item` the run could not supply; the seed wanted the question.
+#[test]
+fn a_quantified_request_without_a_corpus_asks_where_the_items_live() {
+    let intent = "For each invoice, extract the vendor and the total and write the records to ./out/totals.json.";
+    let record = json!({"operations":[
+        {"op":"extract","detail":"the vendor and the total","evidence":"extract the vendor and the total","categories":[]}],
+      "effects":[{"verb":"write","target":"./out/totals.json","policy":"automatic","evidence":"write the records to ./out/totals.json","policy_literal":null}],
+      "obligations":[],"bindings":[{"role":"path","literal":"./out/totals.json"}],
+      "constraints":[],"unknowns":[],"trigger":"For each invoice","strategy":"cold"});
+    let asked = replay(intent, &record, &[MODEL]);
+    assert!(asked.candidate.is_none(), "{asked:#?}");
+    assert!(keys(&asked).contains(&"const.source_glob"), "{asked:#?}");
+    assert!(label(&asked, "const.source_glob").contains("For each invoice"));
+    let out = replay(
+        intent,
+        &record,
+        &[MODEL, ("const.source_glob", r#""./invoices/*.md""#)],
+    );
+    let doc = document(&out);
+    assert!(doc["inputs"].get("item").is_none(), "{doc:#}");
+    assert_eq!(tasks(&doc)["glob_source"]["invoke"]["tool"], "nika:glob");
+    assert_eq!(doc["const"]["source_glob"], "./invoices/*.md");
+}

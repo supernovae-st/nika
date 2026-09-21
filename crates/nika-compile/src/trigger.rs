@@ -265,6 +265,84 @@ fn clock_time(word: &str) -> bool {
         && (rest.is_empty() || (rest.len() == 2 && rest.chars().all(|c| c.is_ascii_digit())))
 }
 
+/// Words that mark an item as arriving with the invocation (an event stream, not a set that
+/// exists somewhere): « each incoming brief », « chaque nouveau ticket », « cada correo
+/// recibido », « ogni nuova richiesta », « jede eingehende Mail », « cada novo pedido ».
+const ARRIVAL_WORDS: &[&str] = &[
+    "incoming",
+    "new",
+    "arriving",
+    "received",
+    "submitted",
+    "entrant",
+    "entrante",
+    "entrants",
+    "entrantes",
+    "nouveau",
+    "nouvel",
+    "nouvelle",
+    "nouveaux",
+    "nouvelles",
+    "recu",
+    "recue",
+    "recus",
+    "recues",
+    "qui arrive",
+    "nuevo",
+    "nueva",
+    "nuevos",
+    "nuevas",
+    "recibido",
+    "recibida",
+    "recibidos",
+    "recibidas",
+    "nuovo",
+    "nuova",
+    "nuovi",
+    "nuove",
+    "in arrivo",
+    "ricevuto",
+    "ricevuta",
+    "ricevuti",
+    "ricevute",
+    "neu",
+    "neue",
+    "neuen",
+    "neues",
+    "neuer",
+    "eingehend",
+    "eingehende",
+    "eingehenden",
+    "eingegangen",
+    "eingegangene",
+    "novo",
+    "nova",
+    "novos",
+    "novas",
+    "recebido",
+    "recebida",
+    "recebidos",
+    "recebidas",
+    "a chegar",
+];
+
+/// Whether a distributive phrase quantifies over arriving items rather than a located set.
+pub(super) fn arriving(phrase: &str) -> bool {
+    let padded: String = format!(" {} ", super::shape::fold(phrase))
+        .chars()
+        .map(|c| {
+            if c.is_alphanumeric() || c == '\'' {
+                c
+            } else {
+                ' '
+            }
+        })
+        .collect();
+    ARRIVAL_WORDS
+        .iter()
+        .any(|w| padded.contains(&format!(" {w} ")))
+}
+
 /// Read the form of a trigger clause.
 pub(super) fn classify(phrase: &str) -> TriggerForm {
     let padded = padded(phrase);

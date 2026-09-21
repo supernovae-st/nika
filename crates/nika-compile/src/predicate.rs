@@ -90,6 +90,16 @@ fn nullable_aggregations<'de, D: serde::Deserializer<'de>>(
     Ok(Option::<Vec<ProposedAggregation>>::deserialize(d)?.unwrap_or_default())
 }
 
+/// The truth value a word spells, in six languages; anything else is text.
+fn boolean_word(word: &str) -> Option<bool> {
+    match super::shape::fold(word).as_str() {
+        "true" | "vrai" | "vraie" | "verdadero" | "verdadera" | "vero" | "vera" | "wahr"
+        | "verdadeiro" | "verdadeira" => Some(true),
+        "false" | "faux" | "fausse" | "falso" | "falsa" | "falsch" => Some(false),
+        _ => None,
+    }
+}
+
 /// A typed computation the proposal stated, validated part by part against the request:
 /// every field is a column the request names (a columns hint or a word of the text), every
 /// literal value occurs in the request, every comparator and aggregate is one of the closed
@@ -147,7 +157,12 @@ pub(super) fn typed_rule(
                 if unquoted.is_empty() || !lower.contains(&unquoted.to_lowercase()) {
                     return None;
                 }
-                Operand::Text(unquoted.to_owned())
+                // « explicito == false », « attivo = vero »: the truth value, whichever way
+                // the file encodes it (a boolean in JSON, its spelling in CSV).
+                match boolean_word(unquoted) {
+                    Some(truth) => Operand::Bool(truth),
+                    None => Operand::Text(unquoted.to_owned()),
+                }
             }
         } else {
             if !names_field(other) {

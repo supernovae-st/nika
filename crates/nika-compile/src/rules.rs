@@ -608,6 +608,8 @@ pub(super) enum Operand {
     Number(String),
     /// An exact string, compared case-sensitively.
     Text(String),
+    /// A truth value, matched whichever way the file encodes it (`false` or `"false"`).
+    Bool(bool),
     /// Another column of the same record.
     Column(String),
 }
@@ -679,13 +681,20 @@ impl Clause {
             (Operand::Text(text), _) => {
                 format!("{field} {} {}", self.comparator.symbol(), json!(text))
             }
+            // A JSON file holds the boolean, a CSV its spelling: both are the same truth.
+            (Operand::Bool(truth), _) => match self.comparator {
+                Comparator::Eq => format!("({field} == {truth} or {field} == \"{truth}\")"),
+                Comparator::Ne => format!("({field} != {truth} and {field} != \"{truth}\")"),
+                other => format!("{field} {} {truth}", other.symbol()),
+            },
         }
     }
     fn to_json(&self) -> Value {
         let (value, kind) = match &self.value {
-            Operand::Number(n) => (n, "number"),
-            Operand::Text(t) => (t, "text"),
-            Operand::Column(c) => (c, "column"),
+            Operand::Number(n) => (n.clone(), "number"),
+            Operand::Text(t) => (t.clone(), "text"),
+            Operand::Bool(b) => (b.to_string(), "bool"),
+            Operand::Column(c) => (c.clone(), "column"),
         };
         json!({"field": self.field, "comparator": self.comparator.symbol(), "value": value, "value_kind": kind})
     }
@@ -695,6 +704,7 @@ impl Clause {
         let literal = value.get("value")?.as_str()?.to_owned();
         let operand = match value.get("value_kind").and_then(Value::as_str) {
             Some("number") => Operand::Number(literal),
+            Some("bool") => Operand::Bool(literal == "true"),
             Some("column") => Operand::Column(literal),
             _ => Operand::Text(literal),
         };

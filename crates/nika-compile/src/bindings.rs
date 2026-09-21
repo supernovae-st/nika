@@ -330,6 +330,10 @@ pub(super) fn bind(
     let read = Need::from_step(plan.step(Op::Read), |step| {
         resolve_read(step, &written, request, out, recognized)
     });
+    let located = !matches!(lookup, Need::Absent)
+        || !matches!(fetch, Need::Absent)
+        || !matches!(search, Need::Absent);
+    let read = locate_items(plan, read, located, request, out, recognized);
     let dedup = if plan.obligation("dedup") {
         recognized.insert("const.state_file".to_owned());
         answer(request, out, "const.state_file", STATE_LABEL, true)
@@ -546,6 +550,64 @@ fn resolve_read(
                 "Answer a nonempty JSON array of exact file paths; a directory, a glob or a placeholder is not one file.",
             );
             None
+        }
+    }
+}
+
+/// A request that quantifies over a set it never locates (« for each invoice », with no file,
+/// folder, URL, search or record named) asks where the items live; it never declares an
+/// input the run could not supply. An arriving item (« each incoming brief », « chaque
+/// nouveau ticket ») is the material of one invocation and stays the item.
+fn locate_items(
+    plan: &Plan,
+    read: Need<Source>,
+    located: bool,
+    request: &CompileRequest,
+    out: &mut CompileOutcome,
+    recognized: &mut BTreeSet<String>,
+) -> Need<Source> {
+    let Some(trigger) = plan.trigger.as_deref() else {
+        return read;
+    };
+    let quantified_set = matches!(
+        super::trigger::classify(trigger),
+        super::trigger::TriggerForm::Distributive
+    ) && shape::led_by_quantifier(trigger)
+        && !super::trigger::arriving(trigger);
+    if located || !matches!(read, Need::Absent) || !quantified_set {
+        return read;
+    }
+    resolve_items(trigger, request, out, recognized)
+}
+
+/// The items a request quantifies over without locating them: the human names the glob.
+fn resolve_items(
+    trigger: &str,
+    request: &CompileRequest,
+    out: &mut CompileOutcome,
+    recognized: &mut BTreeSet<String>,
+) -> Need<Source> {
+    let key = "const.source_glob";
+    recognized.insert(key.to_owned());
+    let label = format!(
+        "Where are the items of `{}`? Name the glob that selects them (for example ./items/*.md); each match is read as one document. The request names no file, folder, URL or record for them.",
+        trigger.trim()
+    );
+    let Some(value) = answer(request, out, key, &label, true) else {
+        return Need::Pending;
+    };
+    match value.as_str().and_then(paths::token) {
+        Some(PathShape::Glob(glob)) => Need::Bound(Source::Glob(glob)),
+        Some(PathShape::File(file)) => Need::Bound(Source::File(file)),
+        _ => {
+            reject(
+                out,
+                key,
+                &label,
+                true,
+                "Name a glob such as ./dir/*.md or one exact file; a bare directory or a placeholder is not readable.",
+            );
+            Need::Pending
         }
     }
 }
