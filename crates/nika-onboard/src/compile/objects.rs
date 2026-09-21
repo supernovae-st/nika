@@ -29,7 +29,8 @@ pub(super) fn residue_after_path(detail: &str, path: &str) -> String {
 /// is gone: `, and keep the rows that matter` → `keep the rows that matter`.
 pub(super) fn as_clause(residue: &str) -> &str {
     const CONNECTORS: &[&str] = &[
-        "and ", "et ", "then ", "puis ", "but ", "mais ", "or ", "ou ", "ensuite ",
+        "and ", "et ", "then ", "puis ", "but ", "mais ", "or ", "ou ", "ensuite ", "e ", "ed ",
+        "poi ", "quindi ", "y ", "luego ",
     ];
     let mut text = residue.trim().trim_start_matches([',', ';']).trim();
     loop {
@@ -48,13 +49,32 @@ pub(super) fn as_clause(residue: &str) -> &str {
 }
 
 /// The byte position of the destination connector of a write (`… to ./out/x.md`), when the
-/// path follows it. A path before the connector is a source, not a destination.
+/// path follows it. A path before the connector is a source, not a destination. A
+/// locative (`in ./x.md`, `en ./x.md`, `nel ./x.md`) is a destination only when the path
+/// follows it immediately: `in 3 bullets to ./x.md` keeps its `to`. The connector may open
+/// the object (`salvalo in ./x.md` reads as `in ./x.md`): the position is then 0.
 pub(super) fn destination_at(detail_lower: &str, path_at: usize) -> Option<usize> {
-    [" to ", " into ", " dans ", " sous ", " vers "]
+    const ANYWHERE: &[&str] = &[" to ", " into ", " dans ", " sous ", " vers "];
+    const ADJACENT: &[&str] = &[
+        " in ", " en ", " nel ", " nella ", " su ", " sul ", " sulla ",
+    ];
+    let padded = format!(" {detail_lower}");
+    let path_at = path_at + 1;
+    let anywhere = ANYWHERE
         .iter()
-        .filter_map(|c| detail_lower.find(c))
+        .filter_map(|c| padded.find(c))
         .filter(|pos| *pos < path_at)
+        .min();
+    let adjacent = ADJACENT
+        .iter()
+        .filter_map(|c| padded.find(c).map(|pos| (pos, pos + c.len())))
+        .find(|(_, end)| *end == path_at)
+        .map(|(pos, _)| pos);
+    anywhere
+        .into_iter()
+        .chain(adjacent)
         .min()
+        .map(|pos| pos.saturating_sub(1))
 }
 
 /// The target an effect phrase names: its destination path when a connector introduces one
@@ -90,7 +110,10 @@ pub(super) fn refers_back<'a>(object_lower: &str, earlier: impl Iterator<Item = 
     const DETERMINERS: &[&str] = &[
         "a", "an", "the", "un", "une", "le", "la", "les", "l'", "des", "du", "de", "ce", "cet",
         "cette", "ces", "this", "that", "these", "those", "my", "mon", "ma", "mes", "its", "their",
-        "son", "sa", "ses", "all", "tout", "tous", "toutes", "only",
+        "son", "sa", "ses", "all", "tout", "tous", "toutes", "only", "il", "lo", "gli", "i", "uno",
+        "una", "questo", "questa", "questi", "queste", "mio", "mia", "miei", "mie", "el", "los",
+        "las", "este", "esta", "estos", "estas", "mi", "mis", "su", "sus", "tutti", "tutte",
+        "todo", "todos", "todas", "solo",
     ];
     const BACK_REFERENCES: &[&str] = &[
         "it",
@@ -124,8 +147,32 @@ pub(super) fn refers_back<'a>(object_lower: &str, earlier: impl Iterator<Item = 
         "texte",
         "document",
         "documents",
+        "lo",
+        "li",
+        "ciò",
+        "questo",
+        "risultato",
+        "risultati",
+        "contenuto",
+        "testo",
+        "documento",
+        "documenti",
+        "esto",
+        "eso",
+        "resultado",
+        "resultados",
+        "contenido",
+        "archivo",
+        "archivos",
+        "fichero",
+        "ficheros",
+        "texto",
+        "documentos",
     ];
-    const OF: &[&str] = &["of", "de", "du", "des", "d'", "from", "about", "sur"];
+    const OF: &[&str] = &[
+        "of", "de", "du", "des", "d'", "from", "about", "sur", "di", "del", "della", "dei",
+        "delle", "degli", "sobre",
+    ];
     let tokens: Vec<&str> = object_lower
         .split(|c: char| !c.is_alphanumeric() && c != '\'' && c != '-')
         .map(|t| t.trim_matches('-'))

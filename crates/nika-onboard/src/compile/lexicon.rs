@@ -12,8 +12,12 @@
 //! an operation, an effect or a policy; every element keeps its verbatim clause.
 
 mod cues;
+mod es;
 mod heads;
+mod it;
 mod slugs;
+#[cfg(test)]
+mod tests;
 
 use super::paths::Structured;
 use super::plan::{
@@ -499,11 +503,18 @@ fn effect_words(lower: &str) -> Vec<EffectVerb> {
     if (lower.contains("write")
         || lower.contains("écri")
         || lower.contains("enregistre")
-        || lower.contains("save"))
+        || lower.contains("save")
+        || lower.contains("scriv")
+        || lower.contains("salva")
+        || lower.contains("escrib")
+        || lower.contains("guarda"))
         && (lower.contains("disk")
             || lower.contains("disque")
+            || lower.contains("disco")
             || lower.contains("file")
             || lower.contains("fichier")
+            || lower.contains("archivo")
+            || lower.contains("fichero")
             || lower.contains("./"))
         && !verbs.contains(&EffectVerb::Write)
     {
@@ -522,6 +533,15 @@ fn effect_words(lower: &str) -> Vec<EffectVerb> {
         ("commande", EffectVerb::Order),
         ("crédit", EffectVerb::Pay),
         ("credits", EffectVerb::Pay),
+        ("rimborso", EffectVerb::Refund),
+        ("reembolso", EffectVerb::Refund),
+        ("invio", EffectVerb::Send),
+        ("envío", EffectVerb::Send),
+        ("pubblicazione", EffectVerb::Publish),
+        ("publicación", EffectVerb::Publish),
+        ("pagamento", EffectVerb::Pay),
+        ("pago", EffectVerb::Pay),
+        ("pedido", EffectVerb::Order),
     ] {
         if lower.contains(needle) && !verbs.contains(&verb) {
             verbs.push(verb);
@@ -593,6 +613,11 @@ fn prefix_before(text: &str, pos: usize) -> &str {
         .trim_end_matches(" mais")
         .trim_end_matches(" puis")
         .trim_end_matches(" then")
+        .trim_end_matches(" e")
+        .trim_end_matches(" ed")
+        .trim_end_matches(" poi")
+        .trim_end_matches(" y")
+        .trim_end_matches(" luego")
         .trim()
 }
 
@@ -748,6 +773,13 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
         "remove duplicates",
         "prevent duplicates",
         "de-duplicate",
+        "deduplica",
+        "elimina i duplicati",
+        "rimuovi i duplicati",
+        "evita i duplicati",
+        "elimina los duplicados",
+        "quita los duplicados",
+        "evita los duplicados",
     ]
     .iter()
     .any(|m| text.starts_with(m));
@@ -764,6 +796,13 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
         "dedupe",
         "remove duplicates",
         "prevent duplicates",
+        "deduplica",
+        "elimina i duplicati",
+        "rimuovi i duplicati",
+        "evita i duplicati",
+        "elimina los duplicados",
+        "quita los duplicados",
+        "evita los duplicados",
     ];
     if !dedup_head && let Some((pos, _)) = earliest(text, &dedup_markers) {
         read_prefix(prefix_before(text, pos), clause, reading, state);
@@ -921,6 +960,8 @@ pub(super) fn read(intent: &str) -> Reading {
         {
             let head = body_lower.get(..comma).unwrap_or_default().to_owned();
             if prefix.starts_with("à partir de")
+                || prefix.starts_with("a partire da")
+                || prefix.starts_with("a partir de")
                 || prefix.starts_with("from the")
                 || prefix.starts_with("starting from")
             {
@@ -955,7 +996,9 @@ pub(super) fn read(intent: &str) -> Reading {
         }
         let negated_sentence = FORBIDDEN_MARKERS.iter().any(|m| body_lower.starts_with(m))
             || body_lower.starts_with("ne ")
-            || body_lower.starts_with("n'");
+            || body_lower.starts_with("n'")
+            || body_lower.starts_with("non ")
+            || body_lower.starts_with("nunca ");
         let clauses = if negated_sentence {
             vec![body]
         } else {
@@ -1106,7 +1149,9 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
         let saves = detail_lower.contains(" to ")
             || detail_lower.contains(" dans ")
             || detail_lower.contains(" into ")
-            || detail_lower.contains(" sous ");
+            || detail_lower.contains(" sous ")
+            || objects::destination_at(detail_lower, detail.find(path.as_str()).unwrap_or(0))
+                .is_some();
         if writes && saves {
             reading.plan.bindings.push(Binding {
                 role: "path",
