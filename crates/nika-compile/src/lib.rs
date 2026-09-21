@@ -91,6 +91,7 @@ mod predicate;
 mod retrieve;
 mod rules;
 mod shape;
+mod structure;
 mod support;
 pub mod text;
 mod trigger;

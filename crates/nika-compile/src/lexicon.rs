@@ -95,19 +95,30 @@ impl Reading {
                 ));
             }
         }
-        if !self.soft_constraints.is_empty() {
+        // A context sentence or a structure law is read, binds no operation and is judged
+        // by the ledger; only the prose that is neither counts as unparsed.
+        let unparsed = self
+            .soft_constraints
+            .iter()
+            .filter(|c| !super::structure::binds_no_operation(c))
+            .count();
+        if unparsed > 0 {
             why.push(format!(
-                "{} prose clause(s) the reader cannot parse",
-                self.soft_constraints.len()
+                "{unparsed} prose clause(s) the reader cannot parse"
             ));
         }
         // A constraint needs an operation to carry it; reads and writes carry nothing.
-        if !self.plan.constraints.is_empty()
+        let carried_by_an_operation = self
+            .plan
+            .constraints
+            .iter()
+            .filter(|c| !super::structure::binds_no_operation(c))
+            .count();
+        if carried_by_an_operation > 0
             && !self.plan.steps.iter().any(|s| s.op.carries_constraints())
         {
             why.push(format!(
-                "{} constraint(s) with no operation to carry them",
-                self.plan.constraints.len()
+                "{carried_by_an_operation} constraint(s) with no operation to carry them"
             ));
         }
         // Accounting: a clause the reader saw must be the evidence of something it produced.
@@ -557,6 +568,7 @@ pub(super) fn effect_words(lower: &str, columns: &[String]) -> Vec<EffectVerb> {
         ("envoi", EffectVerb::Send),
         ("sending", EffectVerb::Send),
         ("writing", EffectVerb::Write),
+        ("written", EffectVerb::Write),
         ("publishing", EffectVerb::Publish),
         ("publication", EffectVerb::Publish),
         ("paiement", EffectVerb::Pay),

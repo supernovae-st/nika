@@ -440,23 +440,25 @@ fn settle_candidate(
     // candidate is not emitted. The ledger rides in provenance either way.
     let mut ledger = Ledger::extract(plan);
     realize(&mut ledger, plan, b, &d, out.requested_trigger.is_some());
-    let silent: Vec<(DutyKind, String)> = ledger
+    let silent: Vec<(DutyKind, String, Option<String>)> = ledger
         .silent()
-        .map(|duty| (duty.kind, duty.evidence.clone()))
+        .map(|duty| (duty.kind, duty.evidence.clone(), duty.note.clone()))
         .collect();
     decision["ledger"] = ledger.to_json();
     out.provenance.decision = Some(decision);
     if !silent.is_empty() {
-        for (kind, evidence) in &silent {
-            super::finding(
-                out,
-                DiagnosticKind::Unknown,
-                kind.word(),
-                format!(
+        for (kind, evidence, note) in &silent {
+            let message = match note {
+                Some(note) => format!(
+                    "The request states `{evidence}` ({}) and the compiled workflow breaks it: {note}; nothing is READY against a stated law.",
+                    kind.word()
+                ),
+                None => format!(
                     "The request states `{evidence}` ({}) and no element of the compiled workflow carries it; nothing is READY with a silent obligation.",
                     kind.word()
                 ),
-            );
+            };
+            super::finding(out, DiagnosticKind::Unknown, kind.word(), message);
         }
         super::question(
             out,
@@ -795,6 +797,23 @@ fn emit_fan_out(d: &mut Doc, plan: &Plan, b: &Bindings, source: &Source) {
             None,
             false,
         );
+        // A corpus the request names is asserted non-empty: a glob that matches no file must
+        // fail loudly, never fold nothing into a green run.
+        d.tool(
+            "glob_found",
+            "nika:jq",
+            json!({"input": "${{ with.paths }}", "expression": "length > 0"}),
+            Some(json!({"paths": "${{ tasks.glob_source.output }}"})),
+            false,
+        );
+        d.tool(
+            "glob_admit",
+            "nika:assert",
+            json!({"condition": "${{ with.found }}", "message": "The named corpus matched no file; nothing is produced from an empty corpus."}),
+            Some(json!({"found": "${{ tasks.glob_found.output }}"})),
+            false,
+        );
+        node["after"] = json!({"glob_admit": "success"});
         fan["items"] = json!("${{ with.paths }}");
         node["with"] = json!({"paths": "${{ tasks.glob_source.output }}"});
         fold_with["paths"] = json!("${{ tasks.glob_source.output }}");
@@ -1704,12 +1723,44 @@ fn realize(ledger: &mut Ledger, plan: &Plan, b: &Bindings, d: &Doc, trigger_stat
                     );
                 }
             }
+            DutyKind::Structure => realize_structure(duty, b, d),
             DutyKind::Transformation
             | DutyKind::Filter
             | DutyKind::Effect
             | DutyKind::Gate
-            | DutyKind::Work => {}
+            | DutyKind::Work
+            | DutyKind::Context => {}
         }
+    }
+}
+
+/// A structure law is realized by the emitted shape or left unresolved with the reason: a
+/// closure and « no other file » hold by construction (the compiler emits only the stated
+/// steps and destinations); « no language model » holds when no step infers; « a single
+/// request » holds when exactly one outbound effect is sent once.
+fn realize_structure(duty: &mut Duty, b: &Bindings, d: &Doc) {
+    use super::structure::Law;
+    let mut broken: Option<&str> = None;
+    for law in super::structure::laws(&duty.evidence) {
+        let breaks = match law {
+            Law::NoModel => !d.infer_tasks.is_empty(),
+            Law::SingleRequest => b.wired.len() != 1 || b.per_item,
+            Law::NothingElse | Law::NoOtherFile => false,
+        };
+        if breaks {
+            broken = Some(if law == Law::NoModel {
+                "the request forbids a language model, yet a step produces content only a model drafts"
+            } else {
+                "the request wants one outbound request, yet the workflow sends none or one per item"
+            });
+        }
+    }
+    match broken {
+        None => duty.realize(
+            "the emitted shape",
+            Some("by construction: only the stated steps, destinations and calls are emitted"),
+        ),
+        Some(note) => duty.note = Some(note.to_owned()),
     }
 }
 

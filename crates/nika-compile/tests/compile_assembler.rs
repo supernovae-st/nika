@@ -1718,6 +1718,14 @@ async fn a_directory_is_never_read_as_one_file_it_asks_for_a_glob_then_fans_out(
     let read = &tasks(&doc)["read_source"];
     assert_eq!(read["with"]["paths"], "${{ tasks.glob_source.output }}");
     assert_eq!(read["for_each"]["items"], "${{ with.paths }}");
+    // An empty match fails loudly before anything is read or folded (wave27 v2-11: a glob
+    // that matched nothing wrote an empty summary in a green run).
+    assert_eq!(read["after"], json!({"glob_admit": "success"}));
+    assert_eq!(tasks(&doc)["glob_admit"]["invoke"]["tool"], "nika:assert");
+    assert_eq!(
+        tasks(&doc)["glob_found"]["invoke"]["args"]["expression"],
+        "length > 0"
+    );
     // "un resumé de chaque … avec le nom du fichier en titre": one summary per file.
     let items = &tasks(&doc)["draft_items"];
     assert_eq!(items["with"]["paths"], "${{ tasks.glob_source.output }}");
@@ -1947,5 +1955,97 @@ async fn two_explicit_write_effects_are_two_write_tasks() {
     assert_eq!(
         doc["permits"]["fs"]["write"],
         json!(["./out/totals.json", "./out/note.md"])
+    );
+}
+
+// ── a context sentence and a structure law bind no operation ─────────────────────
+// Sealed lanes on wave27: « the file has the columns … » and « nothing else » became format
+// duties no read→write plan could carry; « no language model » was obeyed by luck or broken
+// in silence.
+fn ledger_duties(out: &CompileOutcome) -> Vec<(String, String, String)> {
+    let ledger = &out.provenance.decision.as_ref().unwrap()["ledger"];
+    ledger
+        .as_array()
+        .unwrap_or_else(|| panic!("no duties: {ledger:#}"))
+        .iter()
+        .map(|d| {
+            (
+                d["kind"].as_str().unwrap().to_owned(),
+                d["state"].as_str().unwrap().to_owned(),
+                d["realized_by"].as_str().unwrap_or("").to_owned(),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn a_context_sentence_and_a_closure_bind_no_operation_and_are_recorded() {
+    let intent = "Read ./people.json, which has the fields name and city, and write it to ./out/people-copy.json. Nothing else.";
+    let record = json!({"operations":[
+        {"op":"read","detail":"./people.json","evidence":"Read ./people.json","categories":[]}],
+      "effects":[{"verb":"write","target":"./out/people-copy.json","policy":"automatic","evidence":"write it to ./out/people-copy.json","policy_literal":null}],
+      "obligations":[],"bindings":[{"role":"path","literal":"./people.json"},{"role":"path","literal":"./out/people-copy.json"}],
+      "constraints":["which has the fields name and city","Nothing else."],"unknowns":[],"trigger":null,"strategy":"cold"});
+    let out = replay(intent, &record, &[]);
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    let duties = ledger_duties(&out);
+    assert!(
+        duties.contains(&("context".into(), "realized".into(), "the material".into())),
+        "{duties:?}"
+    );
+    assert!(
+        duties.contains(&(
+            "structure".into(),
+            "realized".into(),
+            "the emitted shape".into()
+        )),
+        "{duties:?}"
+    );
+    assert!(
+        !duties.iter().any(|(_, state, _)| state == "unresolved"),
+        "{duties:?}"
+    );
+}
+
+#[test]
+fn a_no_model_law_refuses_a_drafting_plan_and_admits_a_typed_one() {
+    let intent =
+        "Read ./brief.md and write a short summary to ./out/summary.md. No language model.";
+    let record = json!({"operations":[
+        {"op":"read","detail":"./brief.md","evidence":"Read ./brief.md","categories":[]},
+        {"op":"draft","detail":"a short summary","evidence":"write a short summary to ./out/summary.md","categories":[]}],
+      "effects":[{"verb":"write","target":"./out/summary.md","policy":"automatic","evidence":"write a short summary to ./out/summary.md","policy_literal":null}],
+      "obligations":[],"bindings":[{"role":"path","literal":"./brief.md"},{"role":"path","literal":"./out/summary.md"}],
+      "constraints":["No language model."],"unknowns":[],"trigger":null,"strategy":"cold"});
+    let out = replay(intent, &record, &[MODEL]);
+    assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert!(
+        out.diagnostics
+            .iter()
+            .any(|d| d.message.contains("forbids a language model")),
+        "{out:#?}"
+    );
+    let duties = ledger_duties(&out);
+    assert!(
+        duties.contains(&("structure".into(), "unresolved".into(), String::new())),
+        "{duties:?}"
+    );
+    // The same law over a plan that infers nothing holds by construction.
+    let intent = "Read ./brief.md and write it to ./out/copy.md. No language model.";
+    let record = json!({"operations":[
+        {"op":"read","detail":"./brief.md","evidence":"Read ./brief.md","categories":[]}],
+      "effects":[{"verb":"write","target":"./out/copy.md","policy":"automatic","evidence":"write it to ./out/copy.md","policy_literal":null}],
+      "obligations":[],"bindings":[{"role":"path","literal":"./brief.md"},{"role":"path","literal":"./out/copy.md"}],
+      "constraints":["No language model."],"unknowns":[],"trigger":null,"strategy":"cold"});
+    let out = replay(intent, &record, &[]);
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert!(
+        ledger_duties(&out).contains(&(
+            "structure".into(),
+            "realized".into(),
+            "the emitted shape".into()
+        )),
+        "{:?}",
+        ledger_duties(&out)
     );
 }

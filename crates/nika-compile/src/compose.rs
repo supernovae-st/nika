@@ -338,12 +338,15 @@ pub(super) fn feasibility(candidate: &Plan, floor: &Plan, intent: &str) -> Resul
     // Rule 12: a constraint needs an operation that carries it. Reads and writes carry no
     // prompt and no computation: a plan that keeps the constraint and drops every step that
     // could honour it drops the constraint silently.
-    if !candidate.constraints.is_empty()
-        && !candidate.steps.iter().any(|s| s.op.carries_constraints())
-    {
+    // A context sentence or a structure law binds no operation and is judged elsewhere.
+    let carried_by_an_operation = candidate
+        .constraints
+        .iter()
+        .filter(|c| !super::structure::binds_no_operation(c))
+        .count();
+    if carried_by_an_operation > 0 && !candidate.steps.iter().any(|s| s.op.carries_constraints()) {
         why.push(format!(
-            "{} constraint(s) have no operation to carry them",
-            candidate.constraints.len()
+            "{carried_by_an_operation} constraint(s) have no operation to carry them"
         ));
     }
     // Rule 14: an effect is asked by its excerpt. An excerpt that carries no word of the
@@ -500,7 +503,9 @@ fn literals(candidate: &Plan, floor: &Plan, intent: &str, why: &mut Vec<String>)
     {
         for token in literal_tokens(text) {
             let present = if token.bytes().all(|b| b.is_ascii_digit()) {
-                intent_runs.contains(&token) || stated_range_covers(intent, &token)
+                intent_runs.contains(&token)
+                    || stated_range_covers(intent, &token)
+                    || number_word_covers(intent, &token)
             } else {
                 intent.contains(token.as_str()) || derived_path(&token, intent)
             };
@@ -578,14 +583,35 @@ fn derived_path(token: &str, intent: &str) -> bool {
     if !is_path {
         return false;
     }
+    // A glob star is structure, never a literal: `./recettes/*.md` is derived from « les .md
+    // de ./recettes » once the folder and the extension both appear.
     let mut components = token
         .split(['/', '.', '-', '_'])
-        .filter(|part| !part.is_empty())
+        .filter(|part| !part.is_empty() && !part.bytes().all(|b| b == b'*'))
         .peekable();
     components.peek().is_some()
         && components.all(|part| {
             intent.contains(part)
                 || (part.bytes().all(|b| b.is_ascii_digit()) && stated_range_covers(intent, part))
+        })
+}
+
+/// A digit the request spells as a word (« trois puces », « drei Zeilen », « tre punti ») is
+/// derived from the request, not invented. One is never anchored this way: « un », « una »,
+/// « um » and « ein » are articles far more often than counts.
+fn number_word_covers(intent: &str, number: &str) -> bool {
+    let Ok(n) = number.parse::<u32>() else {
+        return false;
+    };
+    if n < 2 {
+        return false;
+    }
+    super::shape::fold(intent)
+        .split(|c: char| !c.is_alphanumeric())
+        .any(|w| {
+            super::cues::NUMBER_WORDS
+                .iter()
+                .any(|(word, value)| *value == n && *word == w)
         })
 }
 
@@ -990,6 +1016,22 @@ mod tests {
         assert!(derived_path("./fiches/fiche-03.md", intent));
         assert!(!derived_path("./fiches/fiche-09.md", intent));
         assert!(!stated_range_covers("write 150 words to ./out/a.md", "42"));
+    }
+
+    #[test]
+    fn a_glob_star_and_a_number_word_are_derived_not_invented() {
+        let intent =
+            "Prends tous les .md de ./recettes et écris trois puces par recette dans ./out/menu.md";
+        assert!(derived_path("./recettes/*.md", intent));
+        assert!(!derived_path("./plats/*.md", intent));
+        assert!(number_word_covers(intent, "3"));
+        assert!(!number_word_covers(intent, "4"));
+        // One is never anchored by an article.
+        assert!(!number_word_covers("write a note, un peu longue", "1"));
+        assert!(number_word_covers("schreib drei Zeilen", "3"));
+        assert!(number_word_covers("scrivi tre punti", "3"));
+        assert!(number_word_covers("escreve três linhas", "3"));
+        assert!(number_word_covers("escribe cinco viñetas", "5"));
     }
 
     #[test]

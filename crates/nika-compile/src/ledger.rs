@@ -41,6 +41,12 @@ pub(super) enum DutyKind {
     /// A cadence or an outside event the request wants to start on; stated beside the
     /// candidate as a requirement, never baked into the program bytes.
     Trigger,
+    /// A sentence that describes the material (what a file holds); realized by the material
+    /// itself, it binds no operation.
+    Context,
+    /// A bound on the shape of the workflow (nothing else, no other file, no language model,
+    /// one request); realized by the emitted shape, unresolved when the shape breaks it.
+    Structure,
 }
 
 impl DutyKind {
@@ -56,6 +62,8 @@ impl DutyKind {
             Self::Safeguard => "safeguard",
             Self::Work => "work",
             Self::Trigger => "trigger",
+            Self::Context => "context",
+            Self::Structure => "structure",
         }
     }
 }
@@ -135,6 +143,30 @@ impl Duty {
     }
 }
 
+/// The duty a constraint states: a structure law, a context sentence (realized by the
+/// material at once), an identity, a bound or a format instruction.
+fn constraint_duty(constraint: &str) -> Duty {
+    if !super::structure::laws(constraint).is_empty() {
+        return Duty::new(DutyKind::Structure, constraint);
+    }
+    if super::structure::context_statement(constraint) {
+        let mut duty = Duty::new(DutyKind::Context, constraint);
+        duty.realize(
+            "the material",
+            Some("describes what the material holds; shapes prompts, binds no operation"),
+        );
+        return duty;
+    }
+    let kind = if shape::structural(constraint) {
+        DutyKind::Identity
+    } else if bounded(constraint) {
+        DutyKind::Cardinality
+    } else {
+        DutyKind::Format
+    };
+    Duty::new(kind, constraint)
+}
+
 /// The ledger of one request.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct Ledger {
@@ -181,14 +213,7 @@ impl Ledger {
             }
         }
         for constraint in &plan.constraints {
-            let kind = if shape::structural(constraint) {
-                DutyKind::Identity
-            } else if bounded(constraint) {
-                DutyKind::Cardinality
-            } else {
-                DutyKind::Format
-            };
-            duties.push(Duty::new(kind, constraint));
+            duties.push(constraint_duty(constraint));
         }
         // Two bounds on one unit that cannot both hold: both duties are contradicted, and the
         // request is refused rather than run on a prompt that obeys one of them.
@@ -243,7 +268,16 @@ impl Ledger {
             ));
         }
         for prose in &reading.soft_constraints {
-            ledger.duties.push(Duty::new(DutyKind::Format, prose));
+            // The declarative reader files a clause both as a constraint and as prose; one duty.
+            if reading
+                .plan
+                .constraints
+                .iter()
+                .any(|c| c.trim() == prose.trim())
+            {
+                continue;
+            }
+            ledger.duties.push(constraint_duty(prose));
         }
         ledger
     }
