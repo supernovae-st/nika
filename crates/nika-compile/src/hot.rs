@@ -123,7 +123,7 @@ fn looks_like_path(token: &str) -> bool {
             }))
 }
 
-const WRITE_HEADS: &[&str] = &[
+pub(super) const WRITE_HEADS: &[&str] = &[
     "write",
     "writes",
     "écris",
@@ -467,6 +467,11 @@ fn write_without_producer(plan: &Plan, why: &mut Vec<String>) {
                 "`write` object is a path, a write with no content: {}",
                 effect.target.trim()
             ));
+            continue;
+        }
+        // After a fetch, a facet of the page ("the page title", "the article text") is the
+        // fetch's own mode carried as it is, never content a step must produce.
+        if plan.has(Op::Fetch) && super::network::page_facet(&content).is_some() {
             continue;
         }
         let words = content
