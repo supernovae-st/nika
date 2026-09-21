@@ -797,15 +797,6 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
 fn initial_hints(wf: &RawWorkflow, stated_miss: Option<String>) -> Vec<Hint> {
     let mut hints = hints::scan_hints(wf);
     hints.extend(native_first::scan(wf));
-    // A tight cap on a catalog-known reasoning seat (the envelope's, the
-    // task's, or a `--model` override already swapped into the envelope)
-    // — the analyzer's advisory sibling of its NIKA-INFER-004 floor.
-    hints.extend(analyzer::reasoning_cap_hints(wf).into_iter().map(|f| Hint {
-        kind: "reasoning-cap",
-        code: None,
-        task: f.task,
-        advice: f.why,
-    }));
     // H6 · the width-capped DAG read STATES its miss (the
     // verdict-coverage law: a law that did not judge says so, in the
     // report's own surface — the JSON `hints[]` and the console HINTS
@@ -999,45 +990,6 @@ tasks:
             !r.hints.iter().any(|h| h.kind == "permits"),
             "{:?}",
             r.hints
-        );
-    }
-
-    /// The analyzer's tight-cap hint reaches the report (the
-    /// zero-consumer law: a judge nobody folds is invisible): the
-    /// product matrix's `openai/gpt-5-mini` × `max_tokens: 1200` rides
-    /// `hints[]` as `reasoning-cap`, the file stays clean, and the
-    /// compiler's own 4096 carries no such hint.
-    #[test]
-    fn a_tight_cap_on_a_reasoning_seat_rides_hints_and_stays_clean() {
-        let tight = check_yaml(
-            "nika: w\nmodel: openai/gpt-5-mini\npermits: {}\ntasks:\n  draft:\n    infer:\n      \
-             prompt: hi\n      max_tokens: 1200\n",
-        );
-        assert!(tight.is_clean(), "a hint is never a refusal: {tight:?}");
-        let hint = tight
-            .hints
-            .iter()
-            .find(|h| h.kind == "reasoning-cap")
-            .expect("the reasoning-cap hint rides the report");
-        assert_eq!(hint.task, "draft");
-        assert!(
-            hint.advice.contains("openai/gpt-5-mini") && hint.advice.contains("4096"),
-            "{}",
-            hint.advice
-        );
-        assert!(
-            hint_help("reasoning-cap").is_some(),
-            "`nika explain reasoning-cap` has a row"
-        );
-
-        let comfortable = check_yaml(
-            "nika: w\nmodel: openai/gpt-5-mini\npermits: {}\ntasks:\n  draft:\n    infer:\n      \
-             prompt: hi\n      max_tokens: 4096\n",
-        );
-        assert!(
-            !comfortable.hints.iter().any(|h| h.kind == "reasoning-cap"),
-            "{:?}",
-            comfortable.hints
         );
     }
 
