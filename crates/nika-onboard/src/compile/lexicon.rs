@@ -82,7 +82,14 @@ impl Reading {
         }
         for step in &self.plan.steps {
             let categorical = step.op == Op::Classify && !step.categories.is_empty();
-            if !categorical && !explicit_object(&step.detail) {
+            // A rule the closed grammar parsed is a typed literal, explicit by construction;
+            // the plan joins a promoted rule to an existing computation with ` ; `, so each
+            // part is judged on its own.
+            let ruled = step.op == Op::Compute
+                && step.detail.split(" ; ").all(|part| {
+                    explicit_object(part) || self.plan.rules.iter().any(|r| r.text() == part.trim())
+                });
+            if !categorical && !ruled && !explicit_object(&step.detail) {
                 why.push(format!(
                     "`{}` object is not explicit: {}",
                     step.op.word(),
@@ -129,6 +136,7 @@ impl Reading {
             let accounted = self.plan.steps.iter().any(|s| within(&s.evidence))
                 || self.plan.effects.iter().any(|e| within(&e.evidence))
                 || self.plan.obligations.iter().any(|o| within(&o.evidence))
+                || self.plan.rules.iter().any(|r| within(r.text()))
                 || self.policy_clauses.iter().any(|c| within(c))
                 || self
                     .plan

@@ -60,6 +60,8 @@ struct Doc {
     source_columns: bool,
     /// The columns a typed computation writes, when it fixes them (a grouping, a projection).
     computed_columns: Option<Vec<String>>,
+    /// The names of the totals a computation produces over every row, when it is totals.
+    totals: Vec<String>,
 }
 
 impl Doc {
@@ -80,6 +82,7 @@ impl Doc {
             item,
             source_columns: false,
             computed_columns: None,
+            totals: Vec::new(),
         }
     }
     /// A task id not yet taken: a second draft is `draft_2`, never a silent overwrite of the
@@ -800,11 +803,13 @@ fn emit_synthesized_rule(d: &mut Doc, plan: &Plan, rule: &super::rules::Rule) {
     d.computed_columns = rule.output_columns();
     emit_computed(d, plan, rule.summary());
     // Totals over every row are the outputs the request named, one by one.
-    for name in rule.totals_names() {
-        let bare = name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
-        if bare {
-            d.root["outputs"][&name] = json!(format!("${{{{ tasks.compute.output.{name} }}}}"));
-        }
+    d.totals = rule
+        .totals_names()
+        .into_iter()
+        .filter(|name| name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'))
+        .collect();
+    for name in &d.totals {
+        d.root["outputs"][name] = json!(format!("${{{{ tasks.compute.output.{name} }}}}"));
     }
 }
 
@@ -1064,6 +1069,15 @@ fn emit_writes(d: &mut Doc, writes: &[WriteEffect], out: &mut CompileOutcome) ->
                 format!("write_{}", effect.stem),
             )
         };
+        // "write the total to ./total.txt": one total over every row, written to a prose
+        // file, is the value itself, not the one-key object that carries it. A structured
+        // destination keeps the object; several totals keep the object.
+        if name == "computed"
+            && Structured::of(&effect.path).is_none()
+            && let [only] = d.totals.as_slice()
+        {
+            content = format!("${{{{ tasks.compute.output.{only} }}}}");
+        }
         d.root["const"][&constant] = json!(effect.path);
         d.writes.push(json!(effect.path));
         if let Some(format @ (Structured::Csv | Structured::Yaml | Structured::Toml)) =

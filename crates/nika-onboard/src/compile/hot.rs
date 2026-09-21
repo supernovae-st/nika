@@ -25,7 +25,9 @@ pub(super) fn rejections(intent: &str, reading: &Reading) -> Vec<String> {
 
 /// Every cue of the reader's table that occurs in the request must correspond to an element
 /// of the reading (a step of that operation, an effect of that verb, an obligation, a recorded
-/// ambiguity) or lie inside a clause the reader already reports as unresolved.
+/// ambiguity), or lie inside a clause the reader already reports as unresolved, or inside a
+/// rule the closed grammar parsed (there, `open` in `whose status is open` is a value the
+/// predicate compares, never a verb).
 fn cue_coverage(lower: &str, reading: &Reading, why: &mut Vec<String>) {
     let reported: Vec<String> = reading
         .unresolved
@@ -33,6 +35,7 @@ fn cue_coverage(lower: &str, reading: &Reading, why: &mut Vec<String>) {
         .chain(reading.ambiguous.iter().map(|a| &a.clause))
         .chain(reading.soft_constraints.iter())
         .map(|clause| clause.to_lowercase())
+        .chain(reading.plan.rules.iter().map(|r| r.text().to_lowercase()))
         .collect();
     let mut seen: Vec<&'static str> = Vec::new();
     let mut prev: Option<char> = None;

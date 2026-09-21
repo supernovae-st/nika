@@ -244,3 +244,296 @@ impl Shape {
         })
     }
 }
+
+/// Words that state an aggregate in the request's own language (folded), each with the
+/// operation it names. The word as written is the output name.
+const AGG_WORDS: &[(&str, AggOp)] = &[
+    ("total", AggOp::Sum),
+    ("sum", AggOp::Sum),
+    ("somme", AggOp::Sum),
+    ("suma", AggOp::Sum),
+    ("totale", AggOp::Sum),
+    ("somma", AggOp::Sum),
+    ("summe", AggOp::Sum),
+    ("gesamtsumme", AggOp::Sum),
+    ("average", AggOp::Avg),
+    ("mean", AggOp::Avg),
+    ("avg", AggOp::Avg),
+    ("moyenne", AggOp::Avg),
+    ("media", AggOp::Avg),
+    ("promedio", AggOp::Avg),
+    ("durchschnitt", AggOp::Avg),
+    ("mittelwert", AggOp::Avg),
+    ("count", AggOp::Count),
+    ("number", AggOp::Count),
+    ("nombre", AggOp::Count),
+    ("numero", AggOp::Count),
+    ("anzahl", AggOp::Count),
+    ("conteo", AggOp::Count),
+    ("conteggio", AggOp::Count),
+    ("maximum", AggOp::Max),
+    ("max", AggOp::Max),
+    ("massimo", AggOp::Max),
+    ("maximo", AggOp::Max),
+    ("minimum", AggOp::Min),
+    ("min", AggOp::Min),
+    ("minimo", AggOp::Min),
+];
+
+/// The preposition between an aggregate and the column it reads.
+const OF_WORDS: &[&str] = &[
+    "of", "de", "des", "du", "d", "della", "del", "dei", "delle", "di", "da", "dos", "das", "der",
+    "von", "vom",
+];
+
+/// Articles skipped before an aggregate word or a column name.
+const DETERMINERS: &[&str] = &[
+    "the", "a", "an", "le", "la", "les", "l", "el", "los", "las", "il", "lo", "i", "gli", "o",
+    "os", "as", "die", "das", "dem", "den",
+];
+
+/// A word that marks the name beside it as a column.
+const COLUMN_WORDS: &[&str] = &[
+    "column", "field", "colonne", "champ", "columna", "campo", "colonna", "spalte", "feld",
+];
+
+/// A word that may trail a column name without changing the aggregate.
+const VALUE_WORDS: &[&str] = &["values", "valeurs", "valores", "valori", "werte"];
+
+/// The generic nouns a count may range over: every row, never a subset the request would
+/// have to describe as a filter.
+const ROW_WORDS: &[&str] = &[
+    "rows",
+    "row",
+    "records",
+    "record",
+    "lines",
+    "line",
+    "entries",
+    "entry",
+    "items",
+    "item",
+    "lignes",
+    "ligne",
+    "enregistrements",
+    "enregistrement",
+    "filas",
+    "fila",
+    "registros",
+    "registro",
+    "righe",
+    "riga",
+    "zeilen",
+    "zeile",
+    "datensatze",
+    "datensatz",
+    "eintrage",
+    "eintrag",
+];
+
+fn normalized(name: &str) -> String {
+    super::shape::fold(name).replace([' ', '-'], "_")
+}
+
+/// The hint column a name designates, in the hint's own spelling.
+fn hinted(name: &str, columns: &[String]) -> Option<String> {
+    let wanted = normalized(name);
+    columns.iter().find(|c| normalized(c) == wanted).cloned()
+}
+
+/// A single aggregate the request states over one column, in its own words: "the total
+/// of the amount column", "la moyenne de la colonne montant", "the sum of amount", "the
+/// number of rows". The aggregate word is the operation and the output name; the column
+/// is the one token beside the `of` (a columns hint fixes its spelling), and nothing else
+/// may follow. A count ranges over every row only under a generic row noun: "the number of
+/// open tickets" describes a filter the grammar does not read, so it is no aggregate.
+/// Anything else is `None`: the human is asked, nothing is guessed.
+pub(super) fn stated(text: &str, columns: &[String]) -> Option<Aggregation> {
+    let words: Vec<(String, String)> = text
+        .split_whitespace()
+        .map(|w| {
+            w.trim_matches(|c: char| {
+                matches!(
+                    c,
+                    '.' | ',' | ';' | ':' | '(' | ')' | '"' | '\'' | '`' | '«' | '»' | '!' | '?'
+                )
+            })
+        })
+        .filter(|w| !w.is_empty())
+        .map(|w| (w.to_owned(), super::shape::fold(w).replace('\'', "")))
+        .collect();
+    let folded = |at: usize| words.get(at).map(|(_, f)| f.as_str());
+    let mut at = 0;
+    while folded(at).is_some_and(|w| DETERMINERS.contains(&w)) {
+        at += 1;
+    }
+    let agg = folded(at)?;
+    let (name, op) = AGG_WORDS
+        .iter()
+        .find(|(word, _)| *word == agg)
+        .map(|(word, op)| ((*word).to_owned(), *op))?;
+    at += 1;
+    if !OF_WORDS.contains(&folded(at)?) {
+        return None;
+    }
+    at += 1;
+    while folded(at).is_some_and(|w| DETERMINERS.contains(&w)) {
+        at += 1;
+    }
+    if op == AggOp::Count {
+        let noun = folded(at)?;
+        if !ROW_WORDS.contains(&noun) || at + 1 != words.len() {
+            return None;
+        }
+        return Some(Aggregation {
+            field: None,
+            op,
+            name,
+            round: None,
+        });
+    }
+    // `the amount column` · `the column amount` · `amount values` · `amount`.
+    let (field_at, next) = if folded(at).is_some_and(|w| COLUMN_WORDS.contains(&w)) {
+        let mut name_at = at + 1;
+        while folded(name_at).is_some_and(|w| DETERMINERS.contains(&w)) {
+            name_at += 1;
+        }
+        (name_at, name_at + 1)
+    } else {
+        let trailing =
+            folded(at + 1).is_some_and(|w| COLUMN_WORDS.contains(&w) || VALUE_WORDS.contains(&w));
+        (at, if trailing { at + 2 } else { at + 1 })
+    };
+    if next != words.len() {
+        return None;
+    }
+    let (original, _) = words.get(field_at)?;
+    if !original.chars().next().is_some_and(char::is_alphabetic) {
+        return None;
+    }
+    let field = if columns.is_empty() {
+        original.clone()
+    } else {
+        hinted(original, columns)?
+    };
+    Some(Aggregation {
+        field: Some(field),
+        op,
+        name,
+        round: None,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn cols(names: &[&str]) -> Vec<String> {
+        names.iter().map(|n| (*n).to_owned()).collect()
+    }
+
+    fn agg(text: &str) -> Option<(Option<String>, AggOp, String)> {
+        stated(text, &[]).map(|a| (a.field, a.op, a.name))
+    }
+
+    #[test]
+    fn a_stated_aggregate_names_its_operation_its_column_and_its_output() {
+        let some =
+            |field: &str, op, name: &str| Some((Some(field.to_owned()), op, name.to_owned()));
+        assert_eq!(
+            agg("the total of the amount column"),
+            some("amount", AggOp::Sum, "total")
+        );
+        assert_eq!(
+            agg("the average of the amount column"),
+            some("amount", AggOp::Avg, "average")
+        );
+        assert_eq!(agg("the sum of amount"), some("amount", AggOp::Sum, "sum"));
+        assert_eq!(
+            agg("the mean of the `unit_price` values"),
+            some("unit_price", AggOp::Avg, "mean")
+        );
+        assert_eq!(
+            agg("the maximum of the Amount column"),
+            some("Amount", AggOp::Max, "maximum"),
+            "the column keeps its spelling"
+        );
+        assert_eq!(
+            agg("le total de la colonne montant"),
+            some("montant", AggOp::Sum, "total")
+        );
+        assert_eq!(
+            agg("la moyenne de la colonne amount"),
+            some("amount", AggOp::Avg, "moyenne")
+        );
+        assert_eq!(
+            agg("la somme du montant"),
+            some("montant", AggOp::Sum, "somme")
+        );
+        assert_eq!(
+            agg("il totale della colonna importo"),
+            some("importo", AggOp::Sum, "totale")
+        );
+        assert_eq!(
+            agg("die Summe der Spalte Betrag"),
+            some("Betrag", AggOp::Sum, "summe")
+        );
+        assert_eq!(
+            agg("the number of rows"),
+            Some((None, AggOp::Count, "number".to_owned()))
+        );
+        assert_eq!(
+            agg("le nombre de lignes"),
+            Some((None, AggOp::Count, "nombre".to_owned()))
+        );
+        // A columns hint fixes the spelling; a name outside the hint is no column.
+        let hint = cols(&["date", "Amount", "client"]);
+        assert_eq!(
+            stated("the total of the amount column", &hint).and_then(|a| a.field),
+            Some("Amount".to_owned())
+        );
+        assert_eq!(stated("the total of the price column", &hint), None);
+    }
+
+    #[test]
+    fn what_the_aggregate_grammar_does_not_cover_is_none() {
+        for text in [
+            "the total",
+            "the total amount",
+            "the total of",
+            "the total of the amount column per client",
+            "the total of the amount column and the average",
+            "the total of the amount column rounded to 2 decimals",
+            "the number of open tickets",
+            "the number of tickets",
+            "the count of the amount column",
+            "the total of 3",
+            "the highest amount",
+            "keep only the rows whose amount is above 100",
+            "",
+        ] {
+            assert_eq!(stated(text, &[]), None, "{text}");
+        }
+    }
+
+    #[test]
+    fn a_stated_aggregate_lowers_to_one_object_of_totals() {
+        let total = stated("the total of the amount column", &[]).map(|a| a.jq());
+        assert_eq!(
+            total.as_deref(),
+            Some("(map(.amount | tonumber) | add // 0)")
+        );
+        let shape = Shape {
+            aggregations: stated("the average of the amount column", &[])
+                .into_iter()
+                .collect(),
+            ..Shape::default()
+        };
+        assert!(shape.is_totals());
+        assert_eq!(shape.totals_names(), ["average"]);
+        assert_eq!(
+            shape.lower(".records".to_owned()),
+            ".records | {\"average\": (if length == 0 then 0 else ((map(.amount | tonumber) | add) / length) end)}"
+        );
+    }
+}

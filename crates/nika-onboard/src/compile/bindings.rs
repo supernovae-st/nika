@@ -538,14 +538,22 @@ fn resolve_directory(
 fn synthesized_rule(plan: &Plan, step: &Step, intent: &str, b: &Bindings) -> Option<rules::Rule> {
     match &b.read {
         Need::Bound(Source::File(path)) if Structured::of(path).is_some() => {
-            // The semantic frontend's validated predicate first (meaning before syntax), then
-            // the closed grammar over the step's own words.
+            // A validated rule stated for this very step first (the semantic frontend's
+            // typed predicate, or a promoted constraint: meaning before syntax), then the
+            // closed grammar over the whole detail. A detail the plan joined from several
+            // clauses (` ; `) must parse whole: one recorded rule for one of its parts
+            // would silently drop the others.
+            let detail = step.detail.trim();
             plan.rules
                 .iter()
-                .find(|rule| rule.text() == step.evidence)
-                .or_else(|| plan.rules.first())
+                .find(|rule| rule.text() == step.evidence || rule.text() == detail)
                 .cloned()
-                .or_else(|| rules::synthesize(&step.detail, &super::columns::columns_hint(intent)))
+                .or_else(|| rules::synthesize(detail, &super::columns::columns_hint(intent)))
+                .or_else(|| {
+                    (!detail.contains(" ; ") && plan.rules.len() == 1)
+                        .then(|| plan.rules.first().cloned())
+                        .flatten()
+                })
         }
         _ => None,
     }
