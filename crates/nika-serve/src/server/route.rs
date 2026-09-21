@@ -613,6 +613,7 @@ fn admission_error(error: &super::ServerError) -> Response<ResponseBody> {
         super::ServerError::JobStore(crate::JobStoreError::Busy)
         | super::ServerError::StoreQueueFull => store_busy(),
         super::ServerError::ExecutionQueueFull => queue_full(),
+        super::ServerError::Stopping => stopping(),
         _ => internal_error(),
     }
 }
@@ -970,6 +971,15 @@ pub(super) fn body_too_large() -> ApiError {
 
 fn internal_error() -> Response<ResponseBody> {
     ApiError::internal().into_response()
+}
+
+fn stopping() -> Response<ResponseBody> {
+    ApiError::new(
+        StatusCode::SERVICE_UNAVAILABLE,
+        "stopping",
+        "the resident is stopping; retry against a running resident",
+    )
+    .into_response()
 }
 
 fn queue_full() -> Response<ResponseBody> {

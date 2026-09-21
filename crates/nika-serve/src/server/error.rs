@@ -82,6 +82,11 @@ pub enum ServerError {
     /// The shared HTTP/ARM execution queue has no admission slot.
     #[error("resident execution queue is full")]
     ExecutionQueueFull,
+    /// The authority is stopping: its execution queue is closed. A fire or
+    /// an admission that meets it is not the caller's error and never a
+    /// full queue; the scheduler ends clean, HTTP answers « stopping ».
+    #[error("resident is stopping: the execution queue is closed")]
+    Stopping,
     /// A scheduled snapshot or provenance binding was not canonical.
     #[error("scheduled execution admission was refused")]
     ScheduledAdmission,
