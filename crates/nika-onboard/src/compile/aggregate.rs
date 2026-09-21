@@ -100,18 +100,64 @@ impl Aggregation {
 }
 
 /// What happens to the rows after the filter: one output row per distinct value of a
-/// column with its aggregates, or totals over every row, then a sort, then a projection.
-/// Every stage is typed and closed; the composition lowers in that fixed order.
+/// column with its aggregates, or totals over every row, then a sort, then the first N
+/// rows, then a projection, then the removal of duplicates. Before the filter, several
+/// sources may be joined on one column. Every stage is typed and closed; the composition
+/// lowers in that fixed order.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct Shape {
+    /// The column several parsed sources are joined on: an inner join, first source first.
+    pub join_on: Option<String>,
     pub group_by: Option<String>,
     pub aggregations: Vec<Aggregation>,
     /// The column sorted on and whether the order is descending.
     pub sort_by: Option<(String, bool)>,
+    /// The first N rows after the sort: a top-N the request states with its rank measure.
+    pub limit: Option<u32>,
     pub columns: Vec<String>,
+    /// Duplicates removed after the projection, the first occurrence kept in place.
+    pub distinct: bool,
 }
 
+/// The removal of duplicates, first occurrence kept: `unique` would sort the rows.
+pub(super) const DISTINCT: &str =
+    "reduce .[] as $r ([]; if any(.[]; . == $r) then . else . + [$r] end)";
+
 impl Shape {
+    /// The shape two segments of one rule state together ("count the rows per client ; keep
+    /// the 2 rows with the highest count"): each stage stated at most once, aggregates
+    /// joined, a removal of duplicates never beside a top-N (the two orders disagree on what
+    /// N rows are). Anything else is `None`: the human is asked.
+    pub(super) fn merge(mut self, other: Self) -> Option<Self> {
+        /// The same stage stated twice.
+        struct Twice;
+        fn once<T>(a: Option<T>, b: Option<T>) -> Result<Option<T>, Twice> {
+            match (a, b) {
+                (Some(_), Some(_)) => Err(Twice),
+                (a, b) => Ok(a.or(b)),
+            }
+        }
+        self.join_on = once(self.join_on, other.join_on).ok()?;
+        self.group_by = once(self.group_by, other.group_by).ok()?;
+        self.sort_by = once(self.sort_by, other.sort_by).ok()?;
+        self.limit = once(self.limit, other.limit).ok()?;
+        for aggregation in other.aggregations {
+            if !self.aggregations.contains(&aggregation) {
+                self.aggregations.push(aggregation);
+            }
+        }
+        if !self.columns.is_empty() && !other.columns.is_empty() {
+            return None;
+        }
+        if self.columns.is_empty() {
+            self.columns = other.columns;
+        }
+        self.distinct |= other.distinct;
+        if self.distinct && self.limit.is_some() {
+            return None;
+        }
+        Some(self)
+    }
     /// The names the shape produces: the group column and every aggregate.
     pub(super) fn produced(&self) -> Vec<&str> {
         self.group_by
@@ -143,7 +189,10 @@ impl Shape {
         }
     }
     /// The stages after the filter, lowered in a fixed order onto the filtered rows: the
-    /// grouping with its aggregates or the totals, then the sort, then the projection.
+    /// grouping with its aggregates or the totals, then the sort, then the first N rows,
+    /// then the projection, then the removal of duplicates. A sort on a source column
+    /// compares numbers when the text holds one (a CSV cell is text, `"900" < "1000"` only
+    /// as numbers) and the text itself otherwise; a produced name is already typed.
     pub(super) fn lower(&self, filtered: String) -> String {
         let mut jq = filtered;
         let entries = |aggregations: &[Aggregation]| {
@@ -168,10 +217,18 @@ impl Shape {
             jq = format!("{jq} | {{{}}}", entries(&self.aggregations));
         }
         if let Some((field, descending)) = &self.sort_by {
-            jq = format!("{jq} | sort_by({})", key(field));
+            let by = if self.produced().contains(&field.as_str()) {
+                key(field)
+            } else {
+                format!("{} | tonumber? // .", key(field))
+            };
+            jq = format!("{jq} | sort_by({by})");
             if *descending {
                 jq.push_str(" | reverse");
             }
+        }
+        if let Some(n) = self.limit {
+            jq = format!("{jq} | .[:{n}]");
         }
         if !self.columns.is_empty() && !self.is_totals() {
             let projection = self
@@ -182,6 +239,9 @@ impl Shape {
                 .join(", ");
             jq = format!("{jq} | map({{{projection}}})");
         }
+        if self.distinct {
+            jq = format!("{jq} | {DISTINCT}");
+        }
         jq
     }
     /// Totals over every row (aggregates without a group): one object, not rows.
@@ -190,11 +250,14 @@ impl Shape {
     }
     pub(super) fn to_json(&self) -> Value {
         json!({
+            "join_on": self.join_on,
             "group_by": self.group_by,
             "aggregations": self.aggregations.iter().map(Aggregation::to_json).collect::<Vec<_>>(),
             "sort_by": self.sort_by.as_ref().map(|(f, _)| f.clone()),
             "descending": self.sort_by.as_ref().is_some_and(|(_, d)| *d),
+            "limit": self.limit,
             "columns": self.columns,
+            "distinct": self.distinct,
         })
     }
     pub(super) fn from_json(value: Option<&Value>) -> Option<Self> {
@@ -236,11 +299,23 @@ impl Shape {
                     .collect()
             })
             .unwrap_or_default();
+        let limit = value
+            .get("limit")
+            .and_then(Value::as_u64)
+            .and_then(|n| u32::try_from(n).ok())
+            .filter(|n| *n > 0);
+        let distinct = value
+            .get("distinct")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
         Some(Self {
+            join_on: text("join_on"),
             group_by: text("group_by"),
             aggregations,
             sort_by: text("sort_by").map(|f| (f, descending)),
+            limit,
             columns,
+            distinct,
         })
     }
 }
@@ -293,8 +368,10 @@ const DETERMINERS: &[&str] = &[
 ];
 
 /// A word that marks the name beside it as a column.
-const COLUMN_WORDS: &[&str] = &[
-    "column", "field", "colonne", "champ", "columna", "campo", "colonna", "spalte", "feld",
+pub(super) const COLUMN_WORDS: &[&str] = &[
+    "column", "columns", "field", "fields", "colonne", "colonnes", "champ", "champs", "columna",
+    "columnas", "campo", "campos", "colonna", "colonne", "campi", "spalte", "spalten", "feld",
+    "felder",
 ];
 
 /// A word that may trail a column name without changing the aggregate.
@@ -302,7 +379,7 @@ const VALUE_WORDS: &[&str] = &["values", "valeurs", "valores", "valori", "werte"
 
 /// The generic nouns a count may range over: every row, never a subset the request would
 /// have to describe as a filter.
-const ROW_WORDS: &[&str] = &[
+pub(super) const ROW_WORDS: &[&str] = &[
     "rows",
     "row",
     "records",

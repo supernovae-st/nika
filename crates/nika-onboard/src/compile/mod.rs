@@ -81,6 +81,7 @@ mod rule_cues;
 mod rule_tokens;
 mod rules;
 mod shape;
+mod stages;
 mod support;
 mod types;
 mod wire;

@@ -156,6 +156,21 @@ impl Bindings {
     pub(super) fn gated(&self) -> bool {
         self.writes.iter().any(|w| w.gated) || self.wired.iter().any(|w| w.gated)
     }
+    /// The rule the compiler synthesized from the request, when the compute step has one.
+    fn synthesized(&self) -> Option<&rules::Rule> {
+        match &self.rule {
+            Need::Bound(RuleBinding::Synthesized(rule)) => Some(rule),
+            _ => None,
+        }
+    }
+    /// The rule joins several parsed sources on a column: each read file is parsed apart.
+    pub(super) fn joins(&self) -> bool {
+        self.synthesized().is_some_and(rules::Rule::joins)
+    }
+    /// The rule runs over the lines of a text source: the source is decoded into lines.
+    pub(super) fn rule_over_lines(&self) -> bool {
+        self.synthesized().is_some_and(rules::Rule::lines)
+    }
     /// Whether a structured source must be decoded for code: a code rule, an endpoint
     /// payload or a structured write consumes the parsed records; a prompt never does.
     pub(super) fn parses(&self) -> bool {
@@ -558,30 +573,50 @@ fn resolve_directory(
     }
 }
 
-/// The rule a compute step states in words, when the corpus is one structured file whose
-/// parsed records the rule can run over and every part of the detail is in the grammar.
+/// The rule a compute step states in words, when the corpus is what the rule can run over
+/// and every part of the detail is in the grammar: one structured file for a filter, an
+/// aggregate, a grouping, a sort, a top-N or a projection over its parsed records; one text
+/// file for a removal of duplicate lines; several structured files of one format for a join.
 fn synthesized_rule(plan: &Plan, step: &Step, intent: &str, b: &Bindings) -> Option<rules::Rule> {
+    // A validated rule stated for this very step first (the semantic frontend's typed
+    // predicate, or a promoted constraint: meaning before syntax), then the closed grammar
+    // over the whole detail. A detail the plan joined from several clauses (` ; `) must
+    // parse whole: one recorded rule for one of its parts would silently drop the others.
+    let detail = step.detail.trim();
+    let whole = !detail.contains(" ; ");
+    // A rule recorded for this very step stands for it when it is the only rule (the seat's
+    // paraphrase beside the promoted constraint of the same rule); two recorded rules on a
+    // joined detail are synthesized whole, so neither stands for the other.
+    let stated = plan
+        .rules
+        .iter()
+        .find(|rule| rule.text() == step.evidence || rule.text() == detail)
+        .filter(|_| whole || plan.rules.len() == 1)
+        .cloned()
+        .or_else(|| rules::synthesize(detail, &super::columns::columns_hint(intent)))
+        .or_else(|| {
+            (whole && plan.rules.len() == 1)
+                .then(|| plan.rules.first().cloned())
+                .flatten()
+        })?;
     match &b.read {
         Need::Bound(Source::File(path)) if Structured::of(path).is_some() => {
-            // A validated rule stated for this very step first (the semantic frontend's
-            // typed predicate, or a promoted constraint: meaning before syntax), then the
-            // closed grammar over the whole detail. A detail the plan joined from several
-            // clauses (` ; `) must parse whole: one recorded rule for one of its parts
-            // would silently drop the others.
-            let detail = step.detail.trim();
-            plan.rules
-                .iter()
-                .find(|rule| rule.text() == step.evidence || rule.text() == detail)
-                .cloned()
-                .or_else(|| rules::synthesize(detail, &super::columns::columns_hint(intent)))
-                .or_else(|| {
-                    (!detail.contains(" ; ") && plan.rules.len() == 1)
-                        .then(|| plan.rules.first().cloned())
-                        .flatten()
-                })
+            (!stated.joins()).then_some(stated)
+        }
+        Need::Bound(Source::File(_)) => stated.over_lines(),
+        Need::Bound(Source::Files(files)) if joined_format(files).is_some() => {
+            stated.joins().then_some(stated)
         }
         _ => None,
     }
+}
+
+/// The one structured format several read files share, when they do: what a join parses,
+/// one array of records per file.
+pub(super) fn joined_format(files: &[String]) -> Option<Structured> {
+    let mut formats = files.iter().map(|file| Structured::of(file));
+    let first = formats.next()??;
+    formats.all(|format| format == Some(first)).then_some(first)
 }
 
 /// The input object a code rule will receive, named fact by fact, so the question

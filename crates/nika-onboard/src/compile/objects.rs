@@ -155,6 +155,25 @@ pub(super) fn write_segments(detail: &str) -> Vec<(String, String, String)> {
     segments
 }
 
+/// A list of files joined by list connectors ("./a.csv and ./b.csv", "./a.md ; ./b.md",
+/// "./a.csv, ./b.csv"): every word a file literal or a connector, at least two files. Such
+/// an object is explicit by construction: the files are copied, in order, never guessed.
+pub(super) fn path_list(text: &str) -> Option<Vec<String>> {
+    const LIST_WORDS: &[&str] = &["and", "et", "y", "e", "ed", "und", "&", ";", ","];
+    let mut files = Vec::new();
+    for word in text.split_whitespace() {
+        let bare = word.trim_matches([',', ';']);
+        if bare.is_empty() || LIST_WORDS.contains(&bare.to_lowercase().as_str()) {
+            continue;
+        }
+        match super::paths::token(bare) {
+            Some(super::paths::PathShape::File(file)) => files.push(file),
+            _ => return None,
+        }
+    }
+    (files.len() >= 2).then_some(files)
+}
+
 /// Whether a target carries a literal (a path, a URL or an address).
 pub(super) fn has_literal(target: &str) -> bool {
     target.split_whitespace().any(|w| {
@@ -260,77 +279,84 @@ fn singular(head: &str) -> &str {
         .unwrap_or(head)
 }
 
+/// Determiners skipped at the head of a written object.
+const OBJECT_DETERMINERS: &[&str] = &[
+    "a", "an", "the", "un", "une", "le", "la", "les", "l'", "des", "du", "de", "ce", "cet",
+    "cette", "ces", "this", "that", "these", "those", "my", "mon", "ma", "mes", "its", "their",
+    "son", "sa", "ses", "all", "tout", "tous", "toutes", "only", "il", "lo", "gli", "i", "uno",
+    "una", "questo", "questa", "questi", "queste", "mio", "mia", "miei", "mie", "el", "los", "las",
+    "este", "esta", "estos", "estas", "mi", "mis", "su", "sus", "tutti", "tutte", "todo", "todos",
+    "todas", "solo",
+];
+
+/// Pronouns and generic result words: an object led or headed by one refers back.
+const BACK_REFERENCES: &[&str] = &[
+    "it",
+    "them",
+    "ones",
+    "this",
+    "that",
+    "these",
+    "those",
+    "le",
+    "la",
+    "les",
+    "ça",
+    "cela",
+    "ceci",
+    "everything",
+    "tout",
+    "result",
+    "results",
+    "résultat",
+    "résultats",
+    "output",
+    "sortie",
+    "outcome",
+    "content",
+    "contenu",
+    "file",
+    "fichier",
+    "files",
+    "fichiers",
+    "text",
+    "texte",
+    "document",
+    "documents",
+    "lo",
+    "li",
+    "ciò",
+    "questo",
+    "risultato",
+    "risultati",
+    "contenuto",
+    "testo",
+    "documento",
+    "documenti",
+    "esto",
+    "eso",
+    "resultado",
+    "resultados",
+    "contenido",
+    "archivo",
+    "archivos",
+    "fichero",
+    "ficheros",
+    "texto",
+    "documentos",
+];
+
+/// The preposition after which an object's head noun ends (`the count of the tickets`).
+const OF_WORDS: &[&str] = &[
+    "of", "de", "du", "des", "d'", "from", "about", "sur", "di", "del", "della", "dei", "delle",
+    "degli", "sobre",
+];
+
 /// Does the object of a write refer back to something already in the request, or does it
 /// name new content the write demands? A pronoun or a generic result word refers back; so
 /// does a head noun that recurs in an earlier clause (`the count` after `count the tickets`).
 /// Anything else (`a 3-bullet summary`, `the summary` with nothing summarized before) is new.
 pub(super) fn refers_back<'a>(object_lower: &str, earlier: impl Iterator<Item = &'a str>) -> bool {
-    const DETERMINERS: &[&str] = &[
-        "a", "an", "the", "un", "une", "le", "la", "les", "l'", "des", "du", "de", "ce", "cet",
-        "cette", "ces", "this", "that", "these", "those", "my", "mon", "ma", "mes", "its", "their",
-        "son", "sa", "ses", "all", "tout", "tous", "toutes", "only", "il", "lo", "gli", "i", "uno",
-        "una", "questo", "questa", "questi", "queste", "mio", "mia", "miei", "mie", "el", "los",
-        "las", "este", "esta", "estos", "estas", "mi", "mis", "su", "sus", "tutti", "tutte",
-        "todo", "todos", "todas", "solo",
-    ];
-    const BACK_REFERENCES: &[&str] = &[
-        "it",
-        "them",
-        "this",
-        "that",
-        "these",
-        "those",
-        "le",
-        "la",
-        "les",
-        "ça",
-        "cela",
-        "ceci",
-        "everything",
-        "tout",
-        "result",
-        "results",
-        "résultat",
-        "résultats",
-        "output",
-        "sortie",
-        "outcome",
-        "content",
-        "contenu",
-        "file",
-        "fichier",
-        "files",
-        "fichiers",
-        "text",
-        "texte",
-        "document",
-        "documents",
-        "lo",
-        "li",
-        "ciò",
-        "questo",
-        "risultato",
-        "risultati",
-        "contenuto",
-        "testo",
-        "documento",
-        "documenti",
-        "esto",
-        "eso",
-        "resultado",
-        "resultados",
-        "contenido",
-        "archivo",
-        "archivos",
-        "fichero",
-        "ficheros",
-        "texto",
-        "documentos",
-    ];
-    const OF: &[&str] = &[
-        "of", "de", "du", "des", "d'", "from", "about", "sur", "di", "del", "della", "dei",
-        "delle", "degli", "sobre",
-    ];
     let tokens: Vec<&str> = object_lower
         .split(|c: char| !c.is_alphanumeric() && c != '\'' && c != '-')
         .map(|t| t.trim_matches('-'))
@@ -338,21 +364,23 @@ pub(super) fn refers_back<'a>(object_lower: &str, earlier: impl Iterator<Item = 
         .collect();
     let content: Vec<&str> = tokens
         .iter()
-        .skip_while(|t| DETERMINERS.contains(t))
+        .skip_while(|t| OBJECT_DETERMINERS.contains(t))
         .copied()
         .collect();
     let Some(first) = content.first() else {
         return true;
     };
-    if BACK_REFERENCES.contains(first) {
-        return true;
-    }
     let head = content
         .iter()
-        .take_while(|t| !OF.contains(t))
+        .take_while(|t| !OF_WORDS.contains(t))
         .last()
         .copied()
         .unwrap_or(first);
+    // A pro-form as the head ("the unique ones", "the open ones") stands for the rows an
+    // earlier step produced, whatever adjective leads it.
+    if BACK_REFERENCES.contains(first) || BACK_REFERENCES.contains(&head) {
+        return true;
+    }
     let head = singular(head);
     let stem: String = head.chars().take(4).collect();
     if stem.chars().count() < 3 {
@@ -370,6 +398,9 @@ pub(super) fn refers_back<'a>(object_lower: &str, earlier: impl Iterator<Item = 
 /// A step object the reader may trust without a model: a typed literal (URL, path, email,
 /// timezone, number) or at most four content tokens with no coordinating connector.
 pub(super) fn explicit_object(detail: &str) -> bool {
+    if path_list(detail).is_some() {
+        return true;
+    }
     let lower = normalize(detail);
     let literal = lower.split_whitespace().any(|w| {
         let w = w.trim_end_matches(['.', ',', ';', ')', ':']);
@@ -463,6 +494,40 @@ mod tests {
         assert_eq!(destination_at(detail, detail.find("./").unwrap()), Some(18));
         let source = "./report.pdf to bob@example.invalid";
         assert_eq!(destination_at(source, 0), None);
+    }
+
+    #[test]
+    fn a_list_of_files_is_explicit_and_nothing_else_in_it_is() {
+        let files = |s: &[&str]| Some(s.iter().map(|x| (*x).to_owned()).collect::<Vec<_>>());
+        assert_eq!(
+            path_list("./a.csv and ./b.csv"),
+            files(&["./a.csv", "./b.csv"])
+        );
+        assert_eq!(
+            path_list("./a.csv ; ./b.csv"),
+            files(&["./a.csv", "./b.csv"])
+        );
+        assert_eq!(
+            path_list("./a.csv, ./b.csv and ./c.csv"),
+            files(&["./a.csv", "./b.csv", "./c.csv"])
+        );
+        for none in [
+            "./a.csv",
+            "./a.csv and the rest",
+            "./notes and ./b.csv",
+            "./a.csv and ./b/*.csv",
+            "the files ./a.csv and ./b.csv",
+        ] {
+            assert_eq!(path_list(none), None, "{none}");
+        }
+        assert!(explicit_object("./a.csv ; ./b.csv"));
+        assert!(!explicit_object(
+            "./orders.csv and keep the rows that matter"
+        ));
+        // A pro-form head refers back whatever adjective leads it.
+        let none: [&str; 0] = [];
+        assert!(refers_back("the unique ones", none.iter().copied()));
+        assert!(!refers_back("the unique rows", none.iter().copied()));
     }
 
     #[test]

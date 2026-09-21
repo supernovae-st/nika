@@ -230,6 +230,7 @@ pub(super) fn typed_rule(
         aggregations,
         sort_by,
         columns,
+        ..Shape::default()
     };
     if clauses.is_empty() && shape == Shape::default() {
         return None;

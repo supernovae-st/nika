@@ -145,6 +145,216 @@ fn a_filter_and_a_total_in_one_request_run_as_one_computation() {
 }
 
 #[test]
+fn a_stated_grouping_counts_the_rows_per_column() {
+    let grouped =
+        ".records | group_by(.client) | map({\"client\": (.[0] | .client), \"count\": length})";
+    let intent =
+        "Read ./sales.csv, count the rows per client and write the counts to ./per-client.json";
+    let (out, doc) = ready(intent);
+    assert_eq!(expression(&doc, "compute"), grouped);
+    assert_eq!(rule_jq(&out), expression(&doc, "compute"));
+    assert_eq!(
+        doc["tasks"]["parse_source"]["invoke"]["args"]["from"],
+        "csv"
+    );
+    // "the counts" refers back to the count: the write carries the grouped rows, no draft.
+    assert_eq!(
+        doc["tasks"]["write_output"]["with"]["content"],
+        "${{ tasks.compute.output }}"
+    );
+    assert!(doc["tasks"].get("draft").is_none(), "{doc:#}");
+    assert!(doc.get("model").is_none(), "{doc:#}");
+    assert!(
+        expression(&doc, "compute_guard").contains("has(\"client\")"),
+        "{doc:#}"
+    );
+    // The French twin.
+    let (_, doc) = ready(
+        "Lis ./sales.csv, compte les lignes par client et écris les comptes dans ./per-client.json",
+    );
+    assert_eq!(expression(&doc, "compute"), grouped);
+    // No key: a total count over every row, written to a prose file as the value itself.
+    let (_, doc) = ready("Read ./sales.csv, count the rows and write the count to ./count.txt");
+    assert_eq!(
+        expression(&doc, "compute"),
+        ".records | {\"count\": length}"
+    );
+    assert_eq!(
+        doc["tasks"]["write_output"]["with"]["content"],
+        "${{ tasks.compute.output.count }}"
+    );
+}
+
+#[test]
+fn a_stated_top_n_and_a_stated_sort_run_as_code_and_write_csv_in_header_order() {
+    let intent =
+        "Read ./sales.csv, keep the 2 rows with the highest amount and write them to ./top.csv";
+    let (out, doc) = ready(intent);
+    assert_eq!(
+        expression(&doc, "compute"),
+        ".records | sort_by(.amount | tonumber? // .) | reverse | .[:2]"
+    );
+    assert_eq!(rule_jq(&out), expression(&doc, "compute"));
+    assert_eq!(
+        doc["tasks"]["top_csv"]["invoke"]["args"]["columns"],
+        "${{ with.columns }}"
+    );
+    assert_eq!(
+        doc["tasks"]["write_output"]["with"]["content"],
+        "${{ tasks.top_csv.output }}"
+    );
+    assert!(doc.get("model").is_none(), "{doc:#}");
+    let (_, doc) = ready(
+        "Lis ./sales.csv, garde les 2 lignes au montant le plus élevé et écris-les dans ./top.csv",
+    );
+    assert_eq!(
+        expression(&doc, "compute"),
+        ".records | sort_by(.montant | tonumber? // .) | reverse | .[:2]"
+    );
+    // A sort, then a write whose whole object is the path: the write carries the sorted rows.
+    let intent = "Read ./sales.csv, sort the rows by amount descending and write ./sorted.csv";
+    let (_, doc) = ready(intent);
+    assert_eq!(
+        expression(&doc, "compute"),
+        ".records | sort_by(.amount | tonumber? // .) | reverse"
+    );
+    assert_eq!(doc["const"]["source_path"], "./sales.csv");
+    assert_eq!(doc["const"]["output_path"], "./sorted.csv");
+    assert_eq!(
+        doc["tasks"]["sorted_csv"]["with"]["data"],
+        "${{ tasks.compute.output }}"
+    );
+    assert_eq!(
+        doc["tasks"]["write_output"]["with"]["content"],
+        "${{ tasks.sorted_csv.output }}"
+    );
+    assert!(doc["tasks"].get("draft").is_none(), "{doc:#}");
+}
+
+#[test]
+fn a_stated_projection_keeps_only_the_named_fields() {
+    let intent = "Read ./tickets.json, keep only the id and title of each ticket and write them to ./slim.json";
+    let (out, doc) = ready(intent);
+    assert_eq!(
+        expression(&doc, "compute"),
+        ".records | map({\"id\": .id, \"title\": .title})"
+    );
+    assert_eq!(rule_jq(&out), expression(&doc, "compute"));
+    assert!(
+        expression(&doc, "compute_guard").contains("has(\"id\") and has(\"title\")"),
+        "{doc:#}"
+    );
+    assert_eq!(
+        doc["tasks"]["write_output"]["with"]["content"],
+        "${{ tasks.compute.output }}"
+    );
+    assert!(doc.get("model").is_none(), "{doc:#}");
+}
+
+#[test]
+fn a_stated_removal_of_duplicate_lines_runs_over_the_lines_of_a_text_file() {
+    let intent =
+        "Read ./emails.txt, remove the duplicate lines and write the unique ones to ./unique.txt";
+    let (out, doc) = ready(intent);
+    assert_eq!(
+        expression(&doc, "parse_source"),
+        "split(\"\\n\") | map(rtrimstr(\"\\r\")) | if .[-1] == \"\" then .[:-1] else . end"
+    );
+    assert_eq!(
+        expression(&doc, "compute"),
+        ".records | reduce .[] as $r ([]; if any(.[]; . == $r) then . else . + [$r] end) | join(\"\\n\") | if length > 0 then . + \"\\n\" else . end"
+    );
+    assert_eq!(rule_jq(&out), expression(&doc, "compute"));
+    assert_eq!(
+        expression(&doc, "compute_guard"),
+        "(.records | type) == \"array\" and all(.records[]; type == \"string\")"
+    );
+    // "the unique ones" are the lines the computation kept: no draft, no model.
+    assert_eq!(
+        doc["tasks"]["write_output"]["with"]["content"],
+        "${{ tasks.compute.output }}"
+    );
+    assert!(doc["tasks"].get("draft").is_none(), "{doc:#}");
+    assert!(doc.get("model").is_none(), "{doc:#}");
+}
+
+#[test]
+fn a_stated_join_of_two_csv_sources_parses_each_file_and_joins_on_the_column() {
+    let intent = "Read ./a.csv and ./b.csv, merge them on the id column and write the result to ./merged.csv";
+    let (out, doc) = ready(intent);
+    assert_eq!(
+        doc["const"]["source_paths"],
+        serde_json::json!(["./a.csv", "./b.csv"])
+    );
+    // Each file is parsed apart, in order; the join reads one array of records per file.
+    assert_eq!(
+        doc["tasks"]["parse_source"]["for_each"]["items"],
+        "${{ with.texts }}"
+    );
+    assert_eq!(
+        doc["tasks"]["parse_source"]["invoke"]["args"]["from"],
+        "csv"
+    );
+    assert_eq!(
+        expression(&doc, "compute"),
+        ".records | reduce .[1:][] as $right (.[0]; [.[] as $a | $right[] | select(.id == ($a | .id)) | $a + .])"
+    );
+    assert_eq!(rule_jq(&out), expression(&doc, "compute"));
+    assert!(
+        expression(&doc, "compute_guard").contains("all(.records[]; type == \"array\""),
+        "{doc:#}"
+    );
+    // The merged CSV's header is every source's header in turn.
+    assert!(
+        expression(&doc, "source_columns").starts_with("[.[] | split("),
+        "{doc:#}"
+    );
+    assert_eq!(
+        doc["tasks"]["merged_csv"]["invoke"]["args"]["columns"],
+        "${{ with.columns }}"
+    );
+    assert_eq!(
+        doc["tasks"]["write_output"]["with"]["content"],
+        "${{ tasks.merged_csv.output }}"
+    );
+    assert!(doc["tasks"].get("documents").is_none(), "{doc:#}");
+    assert!(doc.get("model").is_none(), "{doc:#}");
+    assert_eq!(
+        doc["permits"]["fs"]["read"],
+        serde_json::json!(["./a.csv", "./b.csv"])
+    );
+    assert!(
+        !doc["tasks"]
+            .as_object()
+            .unwrap()
+            .keys()
+            .any(|k| k.starts_with("merge_")),
+        "a data join is never an external merge effect: {doc:#}"
+    );
+}
+
+#[test]
+fn a_stage_the_request_does_not_state_whole_is_asked_never_guessed() {
+    for intent in [
+        // No key: on which column?
+        "Read ./a.csv and ./b.csv, merge them and write the result to ./merged.csv",
+        // No number and no measure.
+        "Read ./sales.csv, keep the best rows and write them to ./top.csv",
+        // No key.
+        "Read ./sales.csv, sort the rows and write ./sorted.csv",
+        // No field list.
+        "Read ./tickets.json, keep only the important fields and write them to ./slim.json",
+        // An exclusion is never read as a keep of the rows it names.
+        "Read ./sales.csv, exclude the rows whose amount is below 100 and write them to ./big.csv",
+    ] {
+        let out = compile(&CompileRequest::create(intent)).unwrap();
+        assert_ne!(out.status, CompileStatus::Ready, "{intent}: {out:#?}");
+        assert_eq!(keys(&out), ["intent.clarification"], "{intent}: {out:#?}");
+        assert!(out.candidate.is_none(), "{intent}: {out:#?}");
+    }
+}
+
+#[test]
 fn a_rule_the_request_does_not_state_is_asked_or_refused_never_guessed() {
     // No predicate: which tickets? The reader has no operation for the bare instruction.
     let out = compile(&CompileRequest::create(

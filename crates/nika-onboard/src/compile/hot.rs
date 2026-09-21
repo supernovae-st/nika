@@ -459,6 +459,16 @@ fn write_without_producer(plan: &Plan, why: &mut Vec<String>) {
             }
             _ => after_head.to_owned(),
         };
+        // `write ./b.txt` with nothing produced before it: the path is the whole object, and
+        // nothing says what the file holds. The reader keeps it a write (after a computation
+        // it carries the result); with no producer the missing content is named here.
+        if content.trim().is_empty() {
+            why.push(format!(
+                "`write` object is a path, a write with no content: {}",
+                effect.target.trim()
+            ));
+            continue;
+        }
         let words = content
             .split(|c: char| !c.is_alphanumeric() && c != '-' && c != '\'')
             .filter(|w| !w.is_empty() && !LINK_WORDS.contains(w))
@@ -494,6 +504,20 @@ mod tests {
             why.iter().any(|w| w.contains("a write with no content")),
             "{why:?}"
         );
+        // The same bare path after a computation carries its result: nothing is missing.
+        let intent = "Read ./sales.csv, sort the rows by amount descending and write ./sorted.csv";
+        let reading = lexicon::read(intent);
+        assert!(
+            reading
+                .plan
+                .effects
+                .iter()
+                .any(|e| e.verb == EffectVerb::Write && e.target == "./sorted.csv"),
+            "{:?}",
+            reading.plan.effects
+        );
+        let why = rejections(intent, &reading);
+        assert!(why.is_empty(), "{why:?}");
         // The written object names new content: the reader now carries it as the draft the
         // write demands (the transformation never vanishes), and the deterministic door still
         // refuses it because that object is coordinated prose, not an explicit one.
