@@ -1539,6 +1539,22 @@
     }
     ,
     {
+      "id": "ADR-136",
+      "title": "A Serve inbound event binding is a schedule with a second credential on one route family, admitted through the same job door",
+      "status": "proposed",
+      "date": "2026-09-20",
+      "filename": "adr-136-serve-inbound-event-binding.md",
+      "tags": ["architecture","serve","security","webhook","one-door"],
+      "affects_crates": ["nika-serve","nika-cadence","nika-vocab"],
+      "affects_layers": ["L0","L4"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-099","ADR-111","ADR-116","ADR-117","ADR-119","ADR-132"],
+      "requires": ["ADR-117","ADR-132"],
+      "enables": []
+    }
+    ,
+    {
       "id": "ADR-137",
       "title": "nika-onboard size-cap member split: the Compile core descends to nika-compile",
       "status": "accepted",
