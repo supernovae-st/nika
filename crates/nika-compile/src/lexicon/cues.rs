@@ -134,7 +134,7 @@ pub(super) const LEADING_FILLER: &[&str] = &[
     "tambien ",
     "siempre ",
 ];
-pub(super) const ARTICLES: &[&str] = &[
+pub(in crate::compile) const ARTICLES: &[&str] = &[
     "le", "la", "les", "l", "l'", "d", "qu", "n", "s", "c", "j", "un", "une", "des", "du", "de",
     "d'", "the", "a", "an", "my", "mon", "ma", "mes", "notre", "nos", "our", "son", "sa", "ses",
     "its", "their", "leur", "leurs", "ce", "cet", "cette", "ces", "chaque", "each", "every",
@@ -406,7 +406,7 @@ pub(super) const SECOND_WORD_FILLERS: &[&str] = &[
 ];
 
 /// Coordinating connectors inside an object: a coordinated object is never explicit.
-pub(super) const OBJECT_CONNECTORS: &[&str] = &[
+pub(in crate::compile) const OBJECT_CONNECTORS: &[&str] = &[
     ", ",
     " and ",
     " et ",
