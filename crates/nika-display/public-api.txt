@@ -737,6 +737,7 @@ pub type nika_display::state::RunView::NoneType = T
 pub fn nika_display::state::RunView::null_value() -> T
 pub struct nika_display::state::TaskRow
 pub nika_display::state::TaskRow::agent: core::option::Option<nika_display::state::AgentProgress>
+pub nika_display::state::TaskRow::attempts: core::option::Option<u64>
 pub nika_display::state::TaskRow::cached: bool
 pub nika_display::state::TaskRow::cost_usd: core::option::Option<f64>
 pub nika_display::state::TaskRow::def_hash: core::option::Option<alloc::string::String>
@@ -751,6 +752,7 @@ pub nika_display::state::TaskRow::model: core::option::Option<alloc::string::Str
 pub nika_display::state::TaskRow::note: alloc::string::String
 pub nika_display::state::TaskRow::output_json: core::option::Option<alloc::string::String>
 pub nika_display::state::TaskRow::recovered: bool
+pub nika_display::state::TaskRow::retried_on: core::option::Option<alloc::string::String>
 pub nika_display::state::TaskRow::started_ms: core::option::Option<i64>
 pub nika_display::state::TaskRow::started_note: core::option::Option<alloc::string::String>
 pub nika_display::state::TaskRow::state: nika_display::state::TaskState
@@ -760,6 +762,7 @@ pub nika_display::state::TaskRow::tokens_cache_write: core::option::Option<u64>
 pub nika_display::state::TaskRow::tokens_in: core::option::Option<u64>
 pub nika_display::state::TaskRow::tokens_out: core::option::Option<u64>
 pub nika_display::state::TaskRow::tokens_reasoning: core::option::Option<u64>
+pub nika_display::state::TaskRow::waited_ms: core::option::Option<u64>
 pub nika_display::state::TaskRow::warning: core::option::Option<alloc::string::String>
 impl nika_display::state::TaskRow
 pub fn nika_display::state::TaskRow::meters(&self) -> alloc::vec::Vec<(&'static str, u64)>
