@@ -320,6 +320,17 @@ pub(super) fn assemble(
         &recognized.iter().map(String::as_str).collect(),
         out,
     );
+    // A trigger the request names is deployment, not workflow: stated beside the candidate
+    // on every round, whether or not a question is still open.
+    if let Some(trigger) = super::trigger::requirement(plan, b.item) {
+        super::finding(
+            out,
+            DiagnosticKind::Applied,
+            "trigger",
+            super::trigger::note(&trigger),
+        );
+        out.requested_trigger = Some(trigger);
+    }
     if !b.ready(plan) {
         return Ok(());
     }
