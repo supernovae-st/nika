@@ -1,11 +1,11 @@
 pub mod nika_session
 pub mod nika_session::authoring
 #[non_exhaustive] pub enum nika_session::authoring::AuthoringError
-pub nika_session::authoring::AuthoringError::Compiler(nika_onboard::compile::types::CompileError)
+pub nika_session::authoring::AuthoringError::Compiler(nika_compile::types::CompileError)
 pub nika_session::authoring::AuthoringError::Runtime(alloc::string::String)
 pub nika_session::authoring::AuthoringError::Seat(alloc::string::String)
-impl core::convert::From<nika_onboard::compile::types::CompileError> for nika_session::authoring::AuthoringError
-pub fn nika_session::authoring::AuthoringError::from(source: nika_onboard::compile::types::CompileError) -> Self
+impl core::convert::From<nika_compile::types::CompileError> for nika_session::authoring::AuthoringError
+pub fn nika_session::authoring::AuthoringError::from(source: nika_compile::types::CompileError) -> Self
 impl core::error::Error for nika_session::authoring::AuthoringError
 pub fn nika_session::authoring::AuthoringError::source(&self) -> core::option::Option<&(dyn core::error::Error + 'static)>
 impl core::fmt::Debug for nika_session::authoring::AuthoringError
@@ -97,16 +97,16 @@ impl<T> tracing::instrument::WithSubscriber for nika_session::authoring::Authori
 impl<T> typenum::type_operators::Same for nika_session::authoring::AuthoringSeat
 pub type nika_session::authoring::AuthoringSeat::Output = T
 #[non_exhaustive] pub enum nika_session::authoring::Reading
-pub nika_session::authoring::Reading::BudgetExhausted(nika_onboard::compile::types::CompileOutcome)
-pub nika_session::authoring::Reading::NotWork(nika_onboard::compile::types::CompileOutcome)
-pub nika_session::authoring::Reading::ProviderFailed(nika_onboard::compile::types::CompileOutcome)
-pub nika_session::authoring::Reading::Questions(nika_onboard::compile::types::CompileOutcome)
-pub nika_session::authoring::Reading::Ready(nika_onboard::compile::types::CompileOutcome)
-pub nika_session::authoring::Reading::Refused(nika_onboard::compile::types::CompileOutcome)
-pub nika_session::authoring::Reading::Unsettled(nika_onboard::compile::types::CompileOutcome)
+pub nika_session::authoring::Reading::BudgetExhausted(nika_compile::types::CompileOutcome)
+pub nika_session::authoring::Reading::NotWork(nika_compile::types::CompileOutcome)
+pub nika_session::authoring::Reading::ProviderFailed(nika_compile::types::CompileOutcome)
+pub nika_session::authoring::Reading::Questions(nika_compile::types::CompileOutcome)
+pub nika_session::authoring::Reading::Ready(nika_compile::types::CompileOutcome)
+pub nika_session::authoring::Reading::Refused(nika_compile::types::CompileOutcome)
+pub nika_session::authoring::Reading::Unsettled(nika_compile::types::CompileOutcome)
 impl nika_session::authoring::Reading
-pub fn nika_session::authoring::Reading::of(out: nika_onboard::compile::types::CompileOutcome) -> Self
-pub fn nika_session::authoring::Reading::outcome(&self) -> &nika_onboard::compile::types::CompileOutcome
+pub fn nika_session::authoring::Reading::of(out: nika_compile::types::CompileOutcome) -> Self
+pub fn nika_session::authoring::Reading::outcome(&self) -> &nika_compile::types::CompileOutcome
 impl core::fmt::Debug for nika_session::authoring::Reading
 pub fn nika_session::authoring::Reading::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_session::authoring::Reading
@@ -139,14 +139,14 @@ pub struct nika_session::authoring::AuthoringRound
 pub nika_session::authoring::AuthoringRound::answers: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
 pub nika_session::authoring::AuthoringRound::continuation: core::option::Option<serde_json::value::Value>
 pub nika_session::authoring::AuthoringRound::intent: alloc::string::String
-pub nika_session::authoring::AuthoringRound::questions: alloc::vec::Vec<nika_onboard::compile::types::CompileQuestion>
+pub nika_session::authoring::AuthoringRound::questions: alloc::vec::Vec<nika_compile::types::CompileQuestion>
 pub nika_session::authoring::AuthoringRound::reasons: alloc::vec::Vec<alloc::string::String>
 impl nika_session::authoring::AuthoringRound
-pub fn nika_session::authoring::AuthoringRound::absorb(&mut self, out: &nika_onboard::compile::types::CompileOutcome)
+pub fn nika_session::authoring::AuthoringRound::absorb(&mut self, out: &nika_compile::types::CompileOutcome)
 pub fn nika_session::authoring::AuthoringRound::answer_current(&mut self, line: &str) -> core::option::Option<alloc::string::String>
-pub fn nika_session::authoring::AuthoringRound::current(&self) -> core::option::Option<&nika_onboard::compile::types::CompileQuestion>
+pub fn nika_session::authoring::AuthoringRound::current(&self) -> core::option::Option<&nika_compile::types::CompileQuestion>
 pub fn nika_session::authoring::AuthoringRound::new(intent: impl core::convert::Into<alloc::string::String>) -> Self
-pub fn nika_session::authoring::AuthoringRound::request(&self) -> nika_onboard::compile::types::CompileRequest
+pub fn nika_session::authoring::AuthoringRound::request(&self) -> nika_compile::types::CompileRequest
 impl core::clone::Clone for nika_session::authoring::AuthoringRound
 pub fn nika_session::authoring::AuthoringRound::clone(&self) -> nika_session::authoring::AuthoringRound
 impl core::cmp::PartialEq for nika_session::authoring::AuthoringRound
@@ -188,13 +188,13 @@ impl<T> tracing::instrument::Instrument for nika_session::authoring::AuthoringRo
 impl<T> tracing::instrument::WithSubscriber for nika_session::authoring::AuthoringRound
 impl<T> typenum::type_operators::Same for nika_session::authoring::AuthoringRound
 pub type nika_session::authoring::AuthoringRound::Output = T
-pub fn nika_session::authoring::compile_deterministic(request: &nika_onboard::compile::types::CompileRequest) -> core::result::Result<nika_onboard::compile::types::CompileOutcome, nika_session::authoring::AuthoringError>
-pub fn nika_session::authoring::compile_through(seat: &nika_session::authoring::AuthoringSeat, request: &nika_onboard::compile::types::CompileRequest) -> core::result::Result<nika_onboard::compile::types::CompileOutcome, nika_session::authoring::AuthoringError>
+pub fn nika_session::authoring::compile_deterministic(request: &nika_compile::types::CompileRequest) -> core::result::Result<nika_compile::types::CompileOutcome, nika_session::authoring::AuthoringError>
+pub fn nika_session::authoring::compile_through(seat: &nika_session::authoring::AuthoringSeat, request: &nika_compile::types::CompileRequest) -> core::result::Result<nika_compile::types::CompileOutcome, nika_session::authoring::AuthoringError>
 pub fn nika_session::authoring::is_cancel(line: &str) -> bool
 pub fn nika_session::authoring::is_greeting(input: &str) -> bool
-pub fn nika_session::authoring::literal_for(question: &nika_onboard::compile::types::CompileQuestion, line: &str) -> alloc::string::String
+pub fn nika_session::authoring::literal_for(question: &nika_compile::types::CompileQuestion, line: &str) -> alloc::string::String
 pub fn nika_session::authoring::looks_like_discussion(input: &str) -> bool
-pub fn nika_session::authoring::reasons(out: &nika_onboard::compile::types::CompileOutcome) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_session::authoring::reasons(out: &nika_compile::types::CompileOutcome) -> alloc::vec::Vec<alloc::string::String>
 pub mod nika_session::broker
 #[non_exhaustive] pub struct nika_session::broker::ContextBroker
 pub nika_session::broker::ContextBroker::max_snippet_bytes: usize
@@ -582,6 +582,7 @@ impl nika_session::change::ProjectChangeSet
 pub fn nika_session::change::ProjectChangeSet::apply(&self) -> core::result::Result<nika_session::change::Applied, nika_session::change::ChangeError>
 pub fn nika_session::change::ProjectChangeSet::effects_fact(&self) -> alloc::string::String
 pub fn nika_session::change::ProjectChangeSet::preview(&self) -> alloc::string::String
+pub fn nika_session::change::ProjectChangeSet::preview_condensed(&self) -> alloc::string::String
 pub fn nika_session::change::ProjectChangeSet::workflow_at(root: &std::path::Path, goal: &str, path: &str, content: alloc::string::String) -> core::result::Result<Self, nika_session::change::ChangeError>
 pub fn nika_session::change::ProjectChangeSet::workflows(&self) -> alloc::vec::Vec<std::path::PathBuf>
 impl core::clone::Clone for nika_session::change::ProjectChangeSet
@@ -773,6 +774,7 @@ impl<T> tracing::instrument::WithSubscriber for nika_session::change::WorkflowAu
 impl<T> typenum::type_operators::Same for nika_session::change::WorkflowAudit
 pub type nika_session::change::WorkflowAudit::Output = T
 pub fn nika_session::change::check_on_disk(root: &std::path::Path, path: &std::path::Path) -> nika_session::change::WorkflowAudit
+pub fn nika_session::change::compact_hints(hints: &[alloc::string::String], file: &str) -> core::option::Option<alloc::string::String>
 pub mod nika_session::consent
 #[non_exhaustive] pub enum nika_session::consent::ConsentDecision
 pub nika_session::consent::ConsentDecision::Applied
@@ -1898,8 +1900,9 @@ pub const nika_session::review::WORKFLOWS_DIR: &str
 pub fn nika_session::review::destination(root: &std::path::Path, candidate: &str) -> core::option::Option<std::path::PathBuf>
 pub fn nika_session::review::gate_tasks(candidate: &str) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_session::review::plan_lines(candidate: &str) -> alloc::vec::Vec<alloc::string::String>
-pub fn nika_session::review::propose(root: &std::path::Path, goal: &str, out: &nika_onboard::compile::types::CompileOutcome) -> core::result::Result<nika_session::change::ProjectChangeSet, nika_session::change::ChangeError>
-pub fn nika_session::review::render(set: &nika_session::change::ProjectChangeSet, out: &nika_onboard::compile::types::CompileOutcome, bytes: &str) -> alloc::string::String
+pub fn nika_session::review::plan_lines_in_order(candidate: &str, waves: &[alloc::vec::Vec<usize>]) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_session::review::propose(root: &std::path::Path, goal: &str, out: &nika_compile::types::CompileOutcome) -> core::result::Result<nika_session::change::ProjectChangeSet, nika_session::change::ChangeError>
+pub fn nika_session::review::render(set: &nika_session::change::ProjectChangeSet, out: &nika_compile::types::CompileOutcome, bytes: &str) -> alloc::string::String
 pub fn nika_session::review::workflow_id(candidate: &str) -> alloc::string::String
 pub mod nika_session::runtime
 #[non_exhaustive] pub enum nika_session::runtime::TurnOutcome
@@ -2021,6 +2024,9 @@ impl<T> tracing::instrument::Instrument for nika_session::runtime::IntentDraft
 impl<T> tracing::instrument::WithSubscriber for nika_session::runtime::IntentDraft
 impl<T> typenum::type_operators::Same for nika_session::runtime::IntentDraft
 pub type nika_session::runtime::IntentDraft::Output = T
+impl<T> zvariant::optional::NoneValue for nika_session::runtime::IntentDraft where T: core::default::Default
+pub type nika_session::runtime::IntentDraft::NoneType = T
+pub fn nika_session::runtime::IntentDraft::null_value() -> T
 pub struct nika_session::runtime::SessionRuntime
 pub nika_session::runtime::SessionRuntime::intelligence: nika_session::intelligence::ResolvedSessionIntelligence
 pub nika_session::runtime::SessionRuntime::intent: nika_session::runtime::IntentDraft
@@ -2045,7 +2051,7 @@ pub fn nika_session::runtime::SessionRuntime::waiting_gate(&self) -> core::optio
 impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::authoring_seat(&self) -> &nika_session::authoring::AuthoringSeat
 pub fn nika_session::runtime::SessionRuntime::pending_input(&self) -> core::option::Option<&str>
-pub fn nika_session::runtime::SessionRuntime::pending_question(&self) -> core::option::Option<&nika_onboard::compile::types::CompileQuestion>
+pub fn nika_session::runtime::SessionRuntime::pending_question(&self) -> core::option::Option<&nika_compile::types::CompileQuestion>
 impl core::fmt::Debug for nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_session::runtime::SessionRuntime
@@ -2759,16 +2765,16 @@ impl<T> tracing::instrument::WithSubscriber for nika_session::change::ProjectCha
 impl<T> typenum::type_operators::Same for nika_session::change::ProjectChange
 pub type nika_session::change::ProjectChange::Output = T
 #[non_exhaustive] pub enum nika_session::Reading
-pub nika_session::Reading::BudgetExhausted(nika_onboard::compile::types::CompileOutcome)
-pub nika_session::Reading::NotWork(nika_onboard::compile::types::CompileOutcome)
-pub nika_session::Reading::ProviderFailed(nika_onboard::compile::types::CompileOutcome)
-pub nika_session::Reading::Questions(nika_onboard::compile::types::CompileOutcome)
-pub nika_session::Reading::Ready(nika_onboard::compile::types::CompileOutcome)
-pub nika_session::Reading::Refused(nika_onboard::compile::types::CompileOutcome)
-pub nika_session::Reading::Unsettled(nika_onboard::compile::types::CompileOutcome)
+pub nika_session::Reading::BudgetExhausted(nika_compile::types::CompileOutcome)
+pub nika_session::Reading::NotWork(nika_compile::types::CompileOutcome)
+pub nika_session::Reading::ProviderFailed(nika_compile::types::CompileOutcome)
+pub nika_session::Reading::Questions(nika_compile::types::CompileOutcome)
+pub nika_session::Reading::Ready(nika_compile::types::CompileOutcome)
+pub nika_session::Reading::Refused(nika_compile::types::CompileOutcome)
+pub nika_session::Reading::Unsettled(nika_compile::types::CompileOutcome)
 impl nika_session::authoring::Reading
-pub fn nika_session::authoring::Reading::of(out: nika_onboard::compile::types::CompileOutcome) -> Self
-pub fn nika_session::authoring::Reading::outcome(&self) -> &nika_onboard::compile::types::CompileOutcome
+pub fn nika_session::authoring::Reading::of(out: nika_compile::types::CompileOutcome) -> Self
+pub fn nika_session::authoring::Reading::outcome(&self) -> &nika_compile::types::CompileOutcome
 impl core::fmt::Debug for nika_session::authoring::Reading
 pub fn nika_session::authoring::Reading::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_session::authoring::Reading
@@ -3019,14 +3025,14 @@ pub struct nika_session::AuthoringRound
 pub nika_session::AuthoringRound::answers: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
 pub nika_session::AuthoringRound::continuation: core::option::Option<serde_json::value::Value>
 pub nika_session::AuthoringRound::intent: alloc::string::String
-pub nika_session::AuthoringRound::questions: alloc::vec::Vec<nika_onboard::compile::types::CompileQuestion>
+pub nika_session::AuthoringRound::questions: alloc::vec::Vec<nika_compile::types::CompileQuestion>
 pub nika_session::AuthoringRound::reasons: alloc::vec::Vec<alloc::string::String>
 impl nika_session::authoring::AuthoringRound
-pub fn nika_session::authoring::AuthoringRound::absorb(&mut self, out: &nika_onboard::compile::types::CompileOutcome)
+pub fn nika_session::authoring::AuthoringRound::absorb(&mut self, out: &nika_compile::types::CompileOutcome)
 pub fn nika_session::authoring::AuthoringRound::answer_current(&mut self, line: &str) -> core::option::Option<alloc::string::String>
-pub fn nika_session::authoring::AuthoringRound::current(&self) -> core::option::Option<&nika_onboard::compile::types::CompileQuestion>
+pub fn nika_session::authoring::AuthoringRound::current(&self) -> core::option::Option<&nika_compile::types::CompileQuestion>
 pub fn nika_session::authoring::AuthoringRound::new(intent: impl core::convert::Into<alloc::string::String>) -> Self
-pub fn nika_session::authoring::AuthoringRound::request(&self) -> nika_onboard::compile::types::CompileRequest
+pub fn nika_session::authoring::AuthoringRound::request(&self) -> nika_compile::types::CompileRequest
 impl core::clone::Clone for nika_session::authoring::AuthoringRound
 pub fn nika_session::authoring::AuthoringRound::clone(&self) -> nika_session::authoring::AuthoringRound
 impl core::cmp::PartialEq for nika_session::authoring::AuthoringRound
@@ -3476,6 +3482,7 @@ impl nika_session::change::ProjectChangeSet
 pub fn nika_session::change::ProjectChangeSet::apply(&self) -> core::result::Result<nika_session::change::Applied, nika_session::change::ChangeError>
 pub fn nika_session::change::ProjectChangeSet::effects_fact(&self) -> alloc::string::String
 pub fn nika_session::change::ProjectChangeSet::preview(&self) -> alloc::string::String
+pub fn nika_session::change::ProjectChangeSet::preview_condensed(&self) -> alloc::string::String
 pub fn nika_session::change::ProjectChangeSet::workflow_at(root: &std::path::Path, goal: &str, path: &str, content: alloc::string::String) -> core::result::Result<Self, nika_session::change::ChangeError>
 pub fn nika_session::change::ProjectChangeSet::workflows(&self) -> alloc::vec::Vec<std::path::PathBuf>
 impl core::clone::Clone for nika_session::change::ProjectChangeSet
@@ -3951,7 +3958,7 @@ pub fn nika_session::runtime::SessionRuntime::waiting_gate(&self) -> core::optio
 impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::authoring_seat(&self) -> &nika_session::authoring::AuthoringSeat
 pub fn nika_session::runtime::SessionRuntime::pending_input(&self) -> core::option::Option<&str>
-pub fn nika_session::runtime::SessionRuntime::pending_question(&self) -> core::option::Option<&nika_onboard::compile::types::CompileQuestion>
+pub fn nika_session::runtime::SessionRuntime::pending_question(&self) -> core::option::Option<&nika_compile::types::CompileQuestion>
 impl core::fmt::Debug for nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_session::runtime::SessionRuntime
