@@ -19,6 +19,12 @@
 //! write effect is its own task bound to the nearest upstream result.
 
 use super::bindings::{self, Bindings, Need, RuleBinding, Source, WriteEffect};
+use super::laws::{
+    ANNOTATE, FOLD_DOCUMENTS, FOLD_DRAFTS, FOLD_FIELDS, INFER_TIMEOUT, ROUTE, SELECT_BY_FIELD,
+    SELECT_BY_KEY, SOURCE_COLUMNS, SUMMARY, ZIP, anchor_law, bullet_layout, category_schema,
+    draft_law, draft_schema, extract_schema, per_item_extract_law, per_item_law,
+    per_item_translation_law, translation, translation_law,
+};
 use super::paths::{self, Structured};
 use super::plan::{EffectPolicy, Op, Plan, Step};
 use super::shape::{self, Shape};
@@ -247,14 +253,6 @@ const DATA_FACTS: [&str; 5] = ["computed", "fields", "validation", "records", "r
 /// CSV source's column order applies to.
 const ROW_FACTS: [&str; 2] = ["computed", "records"];
 
-/// An anchor law over the whole corpus: every string the step could copy from is a
-/// candidate; non-string facts are compared through their JSON text.
-/// Every language step the assembler seats carries an explicit deadline: the runtime's
-/// buffered default is thirty seconds for a cloud model, and a reasoning model answering a
-/// schema in a fresh sandbox routinely needs more. Five minutes is the documented ceiling
-/// a human is asked to wait for one step.
-const INFER_TIMEOUT: &str = "5m";
-
 /// The output cap of a draft on a seat the catalog does not know to reason: room for a
 /// body and its anchored claims.
 const DRAFT_MAX_TOKENS: u32 = 1200;
@@ -285,41 +283,6 @@ fn infer_cap(d: &Doc, base: u32) -> u32 {
     } else {
         base
     }
-}
-
-/// Both sides fold before an anchor is compared: runs of whitespace to one space, spaces
-/// around JSON punctuation away, case down. A model may wrap a line, drop a double space
-/// or re-serialize a record it was shown; it may not change a word.
-const FOLD: &str = r#"gsub("\\s*,\\s*"; ",") | gsub("\\s*:\\s*"; ":") | gsub("\\s*\\{\\s*"; "{") | gsub("\\s*\\}\\s*"; "}") | gsub("\\s*\\[\\s*"; "[") | gsub("\\s*\\]\\s*"; "]") | gsub("\\s+"; " ") | ascii_downcase"#;
-
-/// The corpus of a law: every fact of the input except the judged keys, as the value the
-/// prompt showed (a string as is, anything else as its JSON text) and as the `name: value`
-/// line the prompt renders it on, so an anchor copied from either form is found. Folded.
-fn corpus(excluded: &str) -> String {
-    format!(
-        "[$root | del({excluded}) | to_entries[] | (.value | if type == \"string\" then . else tojson end) as $v | ($v, \"\\(.key): \\($v)\") | {FOLD}] as $corpus"
-    )
-}
-
-fn anchor_law(key: &str, required: bool) -> String {
-    let empty = if required {
-        "($f.anchor | length) > 0 and"
-    } else {
-        "($f.anchor | length) == 0 or"
-    };
-    format!(
-        ". as $root | {} | all(.{key}[]; . as $f | {empty} any($corpus[]; contains($f.anchor | {FOLD})))",
-        corpus(&format!(".{key}"))
-    )
-}
-
-/// The draft law: a nonempty body, and every declared claim anchored in the corpus the
-/// draft was given. The body is judged, never part of its own corpus.
-fn draft_law() -> String {
-    format!(
-        ". as $root | {} | ($root.body | length) > 0 and all(.facts_used[]; . as $f | ($f.anchor | length) > 0 and any($corpus[]; contains($f.anchor | {FOLD})))",
-        corpus(".facts_used, .body")
-    )
 }
 
 fn guidance(plan: &Plan, consumed: &[String]) -> String {
@@ -447,13 +410,6 @@ fn refused(plan: &Plan, out: &mut CompileOutcome) -> bool {
     false
 }
 
-/// The record keyed by the invocation's `record_id` in an object directory.
-const SELECT_BY_KEY: &str = ". as $lookup | ($lookup.directory | fromjson)[$lookup.id]";
-
-/// The one record whose field equals the literal identifier: the first match in an array
-/// directory, the keyed entry in an object directory.
-const SELECT_BY_FIELD: &str = ". as $l | ($l.directory | fromjson) | if type == \"array\" then (map(select(type == \"object\" and .[$l.field] == $l.id)) | .[0]) else .[$l.id] end";
-
 /// The jq input and expression that select the looked-up record from the directory
 /// text bound as `with.directory`.
 fn selector(lookup: &bindings::Lookup) -> (Value, &'static str) {
@@ -552,12 +508,6 @@ fn emit_read(d: &mut Doc, plan: &Plan, b: &Bindings) {
     }
 }
 
-/// The header order of a CSV source: its first line, `\r` trimmed, split on commas,
-/// the surrounding double quotes stripped from each cell. A quoted header holding a
-/// comma is out of scope: the cells are then a superset, still emitted first.
-const SOURCE_COLUMNS: &str =
-    r#"split("\n") | .[0] | rtrimstr("\r") | split(",") | map(ltrimstr("\"") | rtrimstr("\""))"#;
-
 /// A CSV source written back as CSV keeps its column order. The engine never preserves
 /// JSON key order (a parsed row is a sorted object), so the order is read from the
 /// source text itself and handed to the `<stem>_csv` stage as `columns`. Emitted before
@@ -596,13 +546,6 @@ fn emit_parse(d: &mut Doc, format: Structured) {
     }
     d.fact("records", "${{ tasks.parse_source.output }}", Kind::Parsed);
 }
-
-/// The zip of a fan-out: one `{path, text}` per read file, in item order.
-const ZIP: &str =
-    ". as $r | [range(0; $r.texts | length) as $i | {path: $r.paths[$i], text: $r.texts[$i]}]";
-
-/// The fold of a fan-out: one document with a heading per file, in item order.
-const FOLD_DOCUMENTS: &str = ". as $r | [range(0; $r.texts | length) as $i | \"## \\($r.paths[$i])\\n\\n\\($r.texts[$i])\"] | join(\"\\n\\n\")";
 
 fn emit_fan_out(d: &mut Doc, plan: &Plan, b: &Bindings, source: &Source) {
     let mut fan = json!({"fail_fast": true});
@@ -831,12 +774,6 @@ fn emit_synthesized_rule(d: &mut Doc, plan: &Plan, rule: &super::rules::Rule) {
     }
 }
 
-/// The deterministic count and totals of a computed result: `{count, totals}` where the
-/// totals sum every numeric column of an array of objects (identifier columns excluded),
-/// rounded to two decimals. A language step that must state how many rows were kept and
-/// what they add up to anchors those claims here, never in its own arithmetic.
-const SUMMARY: &str = r#". as $c | if ($c | type) == "array" then {count: ($c | length), totals: ([$c[] | select(type == "object") | to_entries[] | select(((.key | test("(^|_)id$")) | not) and (((.value | type) == "number") or (((.value | type) == "string") and (.value | test("^-?[0-9]+([.][0-9]+)?$"))))) | {key, value: (.value | tonumber)}] | group_by(.key) | map({key: .[0].key, value: ((map(.value) | add) * 100 | round / 100)}) | from_entries)} else {count: (if ($c | type) == "object" then ($c | length) else 1 end), totals: {}} end"#;
-
 /// Emitted when a language step follows the compute (the summary is a fact it reads) or
 /// the rule itself asked how many rows were kept and what they add up to (the summary is
 /// an output).
@@ -865,11 +802,6 @@ fn emit_compute_summary(d: &mut Doc, plan: &Plan, wanted: bool) {
     if wanted {
         d.root["outputs"]["summary"] = json!("${{ tasks.compute_summary.output }}");
     }
-}
-
-/// The extract schema every extract step answers: named fields, each with its anchor.
-fn extract_schema() -> Value {
-    json!({"type": "object", "additionalProperties": false, "required": ["fields"], "properties": {"fields": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["name", "value", "anchor"], "properties": {"name": {"type": "string", "minLength": 1}, "value": {"type": "string"}, "anchor": {"type": "string"}}}}}})
 }
 
 fn emit_extract(d: &mut Doc, plan: &Plan, guide: &str, step: &Step, retry: Option<u32>) {
@@ -902,19 +834,6 @@ fn emit_extract(d: &mut Doc, plan: &Plan, guide: &str, step: &Step, retry: Optio
     );
     d.root["outputs"]["fields"] = json!("${{ tasks.extract.output.fields }}");
 }
-
-/// The per-item extract law: one record per item, every anchor copied from its own item's
-/// text (an empty anchor allowed beside an empty value, as in the one-shot law).
-fn per_item_extract_law() -> String {
-    format!(
-        ". as $r | ($r.extracts | length) == ($r.items | length) and all(range(0; $r.extracts | length); . as $i | ([$r.items[$i].text | {FOLD}] as $corpus | all($r.extracts[$i].fields[]; . as $f | ($f.anchor | length) == 0 or any($corpus[]; contains($f.anchor | {FOLD})))))"
-    )
-}
-
-/// The fan-in of per-item extracts: one object per item, keyed by the field names the
-/// model returned, in item order.
-const FOLD_FIELDS: &str =
-    ". as $r | [$r.extracts[] | .fields | map({key: .name, value: .value}) | from_entries]";
 
 /// An extract distributed over the read items: the prompt sees one item's text and nothing
 /// else, the law judges every record against its own item, the fold makes one object per
@@ -971,21 +890,6 @@ fn emit_extract_per_item(
     d.root["outputs"]["fields"] = json!("${{ tasks.extract_fold.output }}");
 }
 
-/// The category schema of a classify step: the named categories, or any nonempty word.
-fn category_schema(step: &Step) -> Value {
-    if step.categories.is_empty() {
-        json!({"type": "string", "minLength": 1})
-    } else {
-        json!({"type": "string", "enum": step.categories})
-    }
-}
-
-/// The records a per-record classification routed to one category, in source order.
-const ROUTE: &str = ". as $r | [range(0; $r.records | length) as $i | select($r.categories[$i].category == $r.category) | $r.records[$i]]";
-
-/// Every record with the category the classification gave it, in source order.
-const ANNOTATE: &str = ". as $r | [range(0; $r.records | length) as $i | $r.records[$i] + {category: $r.categories[$i].category}]";
-
 /// A classification distributed over the parsed records of one structured source: the
 /// prompt sees one record and nothing else, one category per record comes back in source
 /// order, and a write naming a category carries the records routed to it.
@@ -1035,73 +939,6 @@ fn emit_classify(d: &mut Doc, guide: &str, step: &Step) {
         Kind::Derived,
     );
     d.root["outputs"]["category"] = json!("${{ tasks.classify.output.category }}");
-}
-
-/// Heads that make a draft a translation (EN · FR · ES · IT · PT · DE, folded).
-const TRANSLATE_HEADS: &[&str] = &[
-    "translate",
-    "translates",
-    "traduis",
-    "traduisez",
-    "traduire",
-    "traduce",
-    "traducir",
-    "traduci",
-    "traducir",
-    "traduza",
-    "traduzir",
-    "ubersetze",
-    "ubersetzen",
-];
-
-/// A draft whose clause is led by a translation head restates the source in another
-/// language: none of its sentences is a substring of the source, so an anchor law cannot
-/// judge it. Its admission is a nonempty body.
-fn translation(step: &Step) -> bool {
-    let head = shape::fold(&step.evidence);
-    head.split(|c: char| !c.is_alphanumeric())
-        .find(|w| !w.is_empty())
-        .is_some_and(|w| TRANSLATE_HEADS.contains(&w))
-}
-
-/// The translation law: a nonempty body. Anchors are not required (see [`translation`]).
-fn translation_law() -> String {
-    ". as $root | ($root.body | length) > 0".to_owned()
-}
-
-/// Words that ask for bullets or points (EN · FR · ES · IT · PT · DE, folded).
-const BULLET_WORDS: &[&str] = &[
-    "bullet",
-    "bullets",
-    "point",
-    "points",
-    "puce",
-    "puces",
-    "punto",
-    "punti",
-    "vineta",
-    "vinetas",
-    "topico",
-    "topicos",
-    "stichpunkt",
-    "stichpunkte",
-    "aufzahlungspunkt",
-    "aufzahlungspunkte",
-];
-
-/// A draft asked as bullets or points ("in 3 punti", "en 3 puces", "as 5 bullets") is laid
-/// out one per line: a model that runs three points into one line answers the count with
-/// a shape the request did not ask for.
-fn bullet_layout(text: &str) -> &'static str {
-    let folded = shape::fold(text);
-    let asks = folded
-        .split(|c: char| !c.is_alphanumeric())
-        .any(|w| BULLET_WORDS.contains(&w));
-    if asks {
-        " Put each bullet or point on its own line, each line starting with `- `."
-    } else {
-        ""
-    }
 }
 
 fn emit_draft(d: &mut Doc, guide: &str, step: &Step, retry: Option<u32>) {
@@ -1165,27 +1002,6 @@ fn emit_draft(d: &mut Doc, guide: &str, step: &Step, retry: Option<u32>) {
     d.fact("draft", &body, Kind::Derived);
     d.root["outputs"]["draft"] = json!(body);
 }
-
-/// The draft schema every draft step answers: a body and its anchored claims.
-fn draft_schema() -> Value {
-    json!({"type": "object", "additionalProperties": false, "required": ["body", "facts_used"], "properties": {"body": {"type": "string", "minLength": 1}, "facts_used": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["claim", "anchor"], "properties": {"claim": {"type": "string", "minLength": 1}, "anchor": {"type": "string", "minLength": 1}}}}}})
-}
-
-/// The per-item draft law: one draft per item, a nonempty body each, every claim anchored
-/// in its own item's text (whitespace folded on both sides).
-fn per_item_law() -> String {
-    format!(
-        ". as $r | ($r.drafts | length) == ($r.items | length) and all(range(0; $r.drafts | length); . as $i | ($r.drafts[$i].body | length) > 0 and ([$r.items[$i].text | {FOLD}] as $corpus | all($r.drafts[$i].facts_used[]; . as $f | ($f.anchor | length) > 0 and any($corpus[]; contains($f.anchor | {FOLD})))))"
-    )
-}
-
-/// The per-item translation law: one translation per item, a nonempty body each.
-fn per_item_translation_law() -> String {
-    ". as $r | ($r.drafts | length) == ($r.items | length) and all($r.drafts[]; (.body | length) > 0)".to_owned()
-}
-
-/// The fan-in of per-item drafts: one heading per file, named after the file, in item order.
-const FOLD_DRAFTS: &str = ". as $r | [range(0; $r.drafts | length) as $i | \"## \\($r.items[$i].path | split(\"/\") | last)\\n\\n\\($r.drafts[$i].body)\"] | join(\"\\n\\n\")";
 
 /// A draft distributed over the read items: the prompt sees one item's text and nothing
 /// else, the law judges every draft against its own item, the fold joins the bodies under
