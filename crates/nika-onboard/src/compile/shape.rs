@@ -474,6 +474,61 @@ pub(super) fn per_item(intent: &str, plan: &Plan) -> bool {
         || plan.trigger.as_deref().is_some_and(led_by_quantifier)
 }
 
+/// Phrases that open a distributive scope at the end of an object ("the supplier, the date
+/// and the amount of each one", "les champs de chaque facture"): ASCII, lowercase.
+const DISTRIBUTIVE_OPENERS: &[&str] = &[
+    " of each",
+    " of every",
+    " for each",
+    " for every",
+    " from each",
+    " in each",
+    " de chaque",
+    " de chacun",
+    " pour chaque",
+    " dans chaque",
+    " di ciascun",
+    " di ogni",
+    " de cada",
+];
+
+/// The object without its trailing distributive scope: "the supplier, the date and the
+/// amount of each one" → "the supplier, the date and the amount". The scope is the opener
+/// and at most two words after it, at the very end; anything else is not a scope.
+pub(super) fn without_distributive_tail(text: &str) -> &str {
+    let text = text.trim().trim_end_matches(['.', ',', ';', ':']);
+    let lower = text.to_lowercase();
+    if lower.len() != text.len() {
+        return text;
+    }
+    let cut = DISTRIBUTIVE_OPENERS
+        .iter()
+        .filter_map(|opener| lower.rfind(opener).map(|at| (at, opener.len())))
+        .max_by_key(|(at, _)| *at);
+    match cut {
+        Some((at, len))
+            if lower
+                .get(at + len..)
+                .is_some_and(|tail| tail.split_whitespace().count() <= 2) =>
+        {
+            text.get(..at).unwrap_or(text).trim()
+        }
+        _ => text,
+    }
+}
+
+/// Whether the request distributes its extract over the read items: an extract step whose
+/// object or clause is scoped to each item ("the supplier, the date and the amount of each
+/// one", "pour chaque facture, extrais …"). One record per item is then produced, and the
+/// step never sees the folded corpus.
+pub(super) fn per_item_extract(plan: &Plan) -> bool {
+    plan.steps.iter().filter(|s| s.op == Op::Extract).any(|s| {
+        without_distributive_tail(&s.detail).len() < s.detail.trim().len()
+            || led_by_quantifier(&s.evidence)
+            || led_by_quantifier(&s.detail)
+    })
+}
+
 /// A constraint the fan-in structure realizes (order, one heading per item): consumed
 /// out of the prompts when the work is distributed.
 pub(super) fn structural(constraint: &str) -> bool {
