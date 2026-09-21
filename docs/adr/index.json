@@ -1585,5 +1585,21 @@
       "requires": [],
       "enables": []
     }
+    ,
+    {
+      "id": "ADR-139",
+      "title": "The terminal renderer: Ratatui, inline-first, one owner of the terminal",
+      "status": "proposed",
+      "date": "2026-09-21",
+      "filename": "adr-139-terminal-renderer-inline-first-one-owner.md",
+      "tags": ["architecture","crates","tui","session","terminal"],
+      "affects_crates": ["nika-tui","nika-tui-core","nika-session","nika-cli"],
+      "affects_layers": ["L4"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-125","ADR-133"],
+      "requires": [],
+      "enables": []
+    }
   ]
 }

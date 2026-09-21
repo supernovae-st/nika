@@ -1,0 +1,36 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+#
+# nika-tui · L4 · the Ratatui renderer of the session (ADR-139) · inline-first ·
+# one terminal owner · typed events in, lines out · plain mode never touched.
+# Joined the workspace as WIP 2026-09-21 (the nika-tui-core precedent).
+[package]
+name        = "nika-tui"
+description = "L4 interface — the terminal renderer of the Nika session: one owner of the terminal, an inline viewport whose finished lines live in the terminal's own scrollback, a focus mode on request, a composer that treats a paste as data (ADR-139)"
+
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Interface crate — the `nika` binary is the only consumer.
+
+[lints]
+workspace = true
+
+[dependencies]
+ratatui          = { workspace = true }
+crossterm        = { workspace = true }
+ratatui-textarea = { workspace = true }
+tokio            = { workspace = true, features = ["sync", "signal", "time", "rt", "macros"] }
+futures-util     = { workspace = true }
+unicode-width    = "0.2"
+
+[dev-dependencies]
+expectrl = { workspace = true }   # PTY proof · the terminal is restored on every exit path (unix)
+
+[[bin]]
+name = "nika-tui-proto"
+path = "src/bin/nika-tui-proto.rs"
