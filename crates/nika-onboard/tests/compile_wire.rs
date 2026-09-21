@@ -96,6 +96,7 @@ fn every_document_has_exactly_the_generation_one_shape() {
                 "provenance",
                 "questions",
                 "requested_boundary",
+                "requested_trigger",
                 "status"
             ],
             "{name}: the core document carries no transport fact such as `written`"

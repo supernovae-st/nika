@@ -13,6 +13,7 @@ use serde_json::{Value, json};
 
 use super::types::{
     AuthoringCognition, CompileOutcome, CompileStatus, DiagnosticKind, PreviewScope, QuestionType,
+    TriggerKind, TriggerRequirement, TriggerStatus,
 };
 
 /// Generation of the Compile machine document. Only a breaking change bumps it.
@@ -57,6 +58,44 @@ impl DiagnosticKind {
     }
 }
 
+impl TriggerKind {
+    /// The stable machine word for this trigger kind.
+    #[must_use]
+    pub const fn word(self) -> &'static str {
+        match self {
+            Self::Manual => "manual",
+            Self::Schedule => "schedule",
+            Self::Webhook => "webhook",
+            Self::Event => "event",
+        }
+    }
+}
+
+impl TriggerStatus {
+    /// The stable machine word for this trigger status.
+    #[must_use]
+    pub const fn word(self) -> &'static str {
+        match self {
+            Self::Satisfied => "satisfied",
+            Self::RequiresBinding => "requires_binding",
+            Self::Unsupported => "unsupported",
+        }
+    }
+}
+
+/// The trigger requirement as the wire carries it: every field, nullable when unread.
+fn trigger_document(trigger: &TriggerRequirement) -> Value {
+    json!({
+        "kind": trigger.kind.word(),
+        "source_hint": trigger.source_hint,
+        "event_hint": trigger.event_hint,
+        "cadence": trigger.cadence,
+        "at": trigger.at,
+        "payload_input": trigger.payload_input,
+        "status": trigger.status.word(),
+    })
+}
+
 /// Project a typed outcome onto the generation-1 machine document.
 ///
 /// The preview is a REVIEW of source only: nothing here grants authority or
@@ -99,6 +138,7 @@ pub fn outcome_document(out: &CompileOutcome) -> Value {
         "questions": questions,
         "diagnostics": diagnostics,
         "requested_boundary": out.requested_boundary,
+        "requested_trigger": out.requested_trigger.as_ref().map(trigger_document),
         "check_preview": preview,
         "provenance": {
             "compiler_version": out.provenance.compiler_version,

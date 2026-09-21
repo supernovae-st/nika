@@ -326,6 +326,7 @@ fn a_replayed_document_keeps_the_generation_one_shape() {
             "provenance",
             "questions",
             "requested_boundary",
+            "requested_trigger",
             "status"
         ]
     );

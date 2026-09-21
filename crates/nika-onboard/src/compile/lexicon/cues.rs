@@ -157,6 +157,7 @@ pub(super) const TRIGGER_PREFIXES: &[&str] = &[
     "tous les ",
     "toutes les ",
     "chaque fois ",
+    "chaque ",
     "après ",
     "for each ",
     "when ",

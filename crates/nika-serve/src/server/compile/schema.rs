@@ -99,13 +99,14 @@ pub(in crate::server) fn outcome() -> Value {
         "questions": {"type": "array", "items": question()},
         "diagnostics": {"type": "array", "items": diagnostic()},
         "requested_boundary": {"type": ["object", "null"], "description": "The candidate's requested permits, derived by Check. Requested, never granted", "additionalProperties": true},
+        "requested_trigger": {"type": ["object", "null"], "description": "The trigger the request names (kind · source_hint · event_hint · cadence · at · payload_input · status), stated beside the candidate whose bytes carry no cadence, host or event. A requirement the operator binds through the schedule contract, never a grant or a schedule row", "additionalProperties": true},
         "check_preview": preview(),
         "provenance": provenance()
     });
     json!({
         "type": "object",
         "description": "The engine-owned machine document of one authoring result — the document `nika compile --json` prints, without the CLI-only `written`. No field grants authority, writes or executes source.",
-        "required": ["compile_version", "status", "candidate", "questions", "diagnostics", "requested_boundary", "check_preview", "provenance"],
+        "required": ["compile_version", "status", "candidate", "questions", "diagnostics", "requested_boundary", "requested_trigger", "check_preview", "provenance"],
         "properties": properties
     })
 }

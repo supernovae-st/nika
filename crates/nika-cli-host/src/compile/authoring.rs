@@ -76,25 +76,28 @@ pub(super) fn compile(
             (None, Some(seat)) => Some(seat),
             (None, None) => None,
         };
+        // The compile future carries a whole `CompileOutcome` (its boundary, its trigger
+        // requirement, its preview): boxed so the host's stack frame stays small
+        // (clippy::large_futures) whatever the outcome grows to.
         match provider.as_ref() {
             Some(provider) => {
-                compile_with_cognition(
+                Box::pin(compile_with_cognition(
                     &request,
                     Cognition {
                         provider: Some(provider),
                         seat,
                     },
-                )
+                ))
                 .await
             }
             None => {
-                compile_with_cognition::<NoProvider>(
+                Box::pin(compile_with_cognition::<NoProvider>(
                     &request,
                     Cognition {
                         provider: None,
                         seat,
                     },
-                )
+                ))
                 .await
             }
         }

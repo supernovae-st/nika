@@ -197,6 +197,14 @@
               "null"
             ]
           },
+          "requested_trigger": {
+            "additionalProperties": true,
+            "description": "The trigger the request names (kind · source_hint · event_hint · cadence · at · payload_input · status), stated beside the candidate whose bytes carry no cadence, host or event. A requirement the operator binds through the schedule contract, never a grant or a schedule row",
+            "type": [
+              "object",
+              "null"
+            ]
+          },
           "status": {
             "description": "Completeness of authoring, never permission to execute",
             "enum": [
@@ -214,6 +222,7 @@
           "questions",
           "diagnostics",
           "requested_boundary",
+          "requested_trigger",
           "check_preview",
           "provenance"
         ],

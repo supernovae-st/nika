@@ -6,7 +6,10 @@
 //! the action by a verb word gates that effect; a stated cadence is a trigger requirement
 //! beside the candidate, never inside its bytes. Every sentence rides with its near-misses.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-use nika_onboard::compile::{CompileOutcome, CompileRequest, CompileStatus, Strategy, compile};
+use nika_onboard::compile::{
+    CompileOutcome, CompileRequest, CompileStatus, DiagnosticKind, Strategy, TriggerKind,
+    TriggerStatus, compile, outcome_document,
+};
 use serde_json::{Value, json};
 
 fn keys(out: &CompileOutcome) -> Vec<&str> {
@@ -358,6 +361,76 @@ fn a_post_with_no_destination_asks_and_unproduced_content_is_never_posted() {
     .unwrap();
     assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
     assert_eq!(keys(&out), ["const.publish_endpoint"], "{out:#?}");
+}
+
+#[test]
+fn a_stated_cadence_is_a_trigger_requirement_beside_the_candidate_never_in_its_bytes() {
+    let intent = "Every morning at 9, read ./inbox/*.md and write a digest to ./digest.md";
+    // The first round (the seat is still asked) already states the requirement.
+    let out = compile(&CompileRequest::create(intent)).unwrap();
+    assert_eq!(keys(&out), ["model"], "{out:#?}");
+    let trigger = out.requested_trigger.as_ref().expect("requested_trigger");
+    assert_eq!(trigger.kind, TriggerKind::Schedule);
+    assert_eq!(trigger.source_hint.as_deref(), Some("every morning at 9"));
+    assert_eq!(trigger.cadence.as_deref(), Some("daily"));
+    assert_eq!(trigger.at.as_deref(), Some("09:00"));
+    assert_eq!(trigger.status, TriggerStatus::RequiresBinding);
+    assert_eq!(
+        trigger.payload_input, None,
+        "a fan-out reads its folder, not an item"
+    );
+    let note = out
+        .diagnostics
+        .iter()
+        .find(|d| d.target == "trigger")
+        .expect("the trigger note");
+    assert_eq!(note.kind, DiagnosticKind::Applied);
+    assert!(
+        note.message.contains("`every morning at 9`") && note.message.contains("daily · 09:00"),
+        "{}",
+        note.message
+    );
+    // The wire carries it as one nullable field; the bytes carry no cadence.
+    let document = outcome_document(&out);
+    assert_eq!(document["requested_trigger"]["kind"], "schedule");
+    assert_eq!(document["requested_trigger"]["at"], "09:00");
+    assert_eq!(document["requested_trigger"]["status"], "requires_binding");
+    let doc = hot_with_model(intent);
+    let bytes = serde_yaml_bw::to_string(&doc).unwrap().to_lowercase();
+    for word in ["cron", "schedule", "every morning", "morning at 9", "09:00"] {
+        assert!(
+            !bytes.contains(word),
+            "{word} leaked into the bytes: {doc:#}"
+        );
+    }
+    assert_eq!(doc["const"]["source_glob"], "./inbox/*.md");
+    assert!(doc.get("inputs").is_none(), "{doc:#}");
+    // French, with a named day and a time: weekly at 08:30.
+    let out = compile(&CompileRequest::create(
+        "Chaque lundi à 8h30, lis ./notes/*.md et écris un digest dans ./digest.md",
+    ))
+    .unwrap();
+    assert_eq!(keys(&out), ["model"], "{out:#?}");
+    let trigger = out.requested_trigger.as_ref().expect("requested_trigger");
+    assert_eq!(trigger.cadence.as_deref(), Some("weekly"));
+    assert_eq!(trigger.at.as_deref(), Some("08:30"));
+    // A per-item trigger is an event whose firing supplies the item.
+    let out = compile(&CompileRequest::create(
+        "For each incoming ticket, classify it as bug or feature",
+    ))
+    .unwrap();
+    let trigger = out.requested_trigger.as_ref().expect("requested_trigger");
+    assert_eq!(trigger.kind, TriggerKind::Event);
+    assert_eq!(trigger.payload_input.as_deref(), Some("item"));
+    assert_eq!(trigger.cadence, None);
+    // No trigger clause: nothing stated, no note.
+    let out = compile(&CompileRequest::create(
+        "Read ./report.md and post it to https://hooks.example.com/notify",
+    ))
+    .unwrap();
+    assert!(out.requested_trigger.is_none(), "{out:#?}");
+    assert!(!out.diagnostics.iter().any(|d| d.target == "trigger"));
+    assert!(outcome_document(&out)["requested_trigger"].is_null());
 }
 
 #[test]
