@@ -1077,7 +1077,10 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
         // A clause with no head that the closed rule grammar reads whole ("count the rows
         // per client", "sort the rows by amount descending", "remove the duplicate lines")
         // is a stated computation: its words are the literals, the jq is the compiler's.
-        if let Some(rule) = super::rules::synthesize(original, &reading.columns) {
+        // A question ("Which ending is gentler?") is a conversation, never a rule.
+        if !cues::question(original)
+            && let Some(rule) = super::rules::synthesize(original, &reading.columns)
+        {
             push_rule(original, rule, reading);
             return true;
         }

@@ -6,6 +6,32 @@
 //! led by, which words are articles, how a policy sentence announces itself.
 //! Every table is closed; a cue absent here is a cue the reader does not know.
 
+/// The openers of a question (EN · FR · IT · ES): a headless clause led by one of these,
+/// or closed by `?`, is a conversation. Relative pronouns the rule grammar knows ("which",
+/// "whose") open a fragment attached to a head, never a clause of their own.
+pub(super) const QUESTION_OPENERS: &[&str] = &[
+    "which", "what", "who", "whom", "how", "why", "is", "are", "does", "did", "can", "could",
+    "should", "would", "will", "quel", "quelle", "quels", "quelles", "qui", "quoi", "comment",
+    "pourquoi", "est-ce", "où", "quale", "quali", "chi", "cosa", "perché", "perche", "qué", "cuál",
+    "cual", "cuáles", "cuales", "quién", "quien", "cómo", "dónde",
+];
+
+/// A clause that asks ("Which ending is gentler?", "is the total above 100"): the closed
+/// rule grammar must never read it whole, a relative-looking opener and a copula are not
+/// a predicate the workflow runs. A headed request keeps its meaning whatever its mark.
+pub(super) fn question(clause: &str) -> bool {
+    let trimmed = clause.trim();
+    if trimmed.ends_with('?') {
+        return true;
+    }
+    let first = trimmed
+        .split(|c: char| c.is_whitespace() || c == ',' || c == ':' || c == ';')
+        .next()
+        .unwrap_or_default()
+        .to_lowercase();
+    QUESTION_OPENERS.contains(&first.as_str())
+}
+
 /// Cues that settle an ambiguous retrieval head deterministically.
 pub(super) const LOOKUP_CUES: &[&str] = &[
     "mongodb",
