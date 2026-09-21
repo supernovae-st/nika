@@ -16,6 +16,16 @@
 //! completion count) — a consumer reading it today reads the same number
 //! tomorrow. Absent meters stay ABSENT: `None` is "not reported", never
 //! a fabricated zero (the ledger's fake-zero law).
+//!
+//! The same carrier rides the TRANSPORT's account of the call (the
+//! product-convergence war room · L4): a seat that answered only after
+//! the provider layer's bounded backoff (429 · 503 · 529 · `Retry-After`)
+//! used to be invisible in the sealed trace — the verb reported it, the
+//! frame did not. `attempts` · `waited_ms` · `retried_on` now ride the
+//! terminal beside the meters they explain (a 3-second task with one
+//! completion token is a rate-limited seat, not a slow one).
+
+use nika_providers::TransportReport;
 
 use crate::{FieldValue, i, s};
 
@@ -41,6 +51,17 @@ pub(crate) struct UsageSplit {
     pub model_served: Option<String>,
     /// `gen_ai.response.id` — the provider's own id for the response.
     pub response_id: Option<String>,
+    /// Round-trips the transport sent for this task (1 = the seat
+    /// answered first time · summed across a `schema:` task's re-asks
+    /// like the meters). `None` = the verb reported no transport (a
+    /// harness seat · an agent loop · a builtin).
+    pub attempts: Option<u32>,
+    /// Backoff slept between round-trips, in milliseconds — the seat's
+    /// `Retry-After` or the layer's 1 s · 2 s · 4 s schedule.
+    pub waited_ms: Option<u64>,
+    /// The HTTP status of every answer the transport waited on, in
+    /// order (`[429, 429]` = two rate-limits before the answer).
+    pub retried_on: Vec<u16>,
 }
 
 impl UsageSplit {
@@ -67,6 +88,9 @@ impl UsageSplit {
             reasoning,
             model_served: None,
             response_id: None,
+            attempts: None,
+            waited_ms: None,
+            retried_on: Vec::new(),
         }
     }
 
@@ -81,6 +105,27 @@ impl UsageSplit {
         self
     }
 
+    /// Stamp the transport's account of the call (the provider layer's
+    /// [`TransportReport`] · every round-trip summed). A report that
+    /// sent nothing (`attempts == 0`) stamps nothing: the frame never
+    /// claims a round-trip the wire did not make.
+    pub(crate) fn transported(mut self, report: &TransportReport) -> Self {
+        if report.attempts == 0 {
+            return self;
+        }
+        self.attempts = Some(report.attempts);
+        // `u128` ms → the frame's `u64`, saturating (a corrupt clock must
+        // not wrap the receipt).
+        self.waited_ms = Some(u64::try_from(report.waited.as_millis()).unwrap_or(u64::MAX));
+        self.retried_on.clone_from(&report.statuses);
+        self
+    }
+
+    /// Whether the transport re-sent at least once.
+    pub(crate) fn retried(&self) -> bool {
+        !self.retried_on.is_empty()
+    }
+
     /// Whether the provider reported ANY meter — an all-zero split is
     /// "did not report" and must not ride as four honest zeroes.
     pub(crate) fn has_signal(&self) -> bool {
@@ -91,18 +136,21 @@ impl UsageSplit {
             || self.reasoning.is_some_and(|n| n > 0)
     }
 
-    /// A split worth carrying — a metered call with signal, or a wire
-    /// that named the responder.
+    /// A split worth carrying — a metered call with signal, a wire that
+    /// named the responder, or a transport that sent a round-trip.
     pub(crate) fn carried(self) -> Option<Box<Self>> {
         let named = self.model_served.is_some() || self.response_id.is_some();
-        (self.has_signal() || named).then(|| Box::new(self))
+        (self.has_signal() || named || self.attempts.is_some()).then(|| Box::new(self))
     }
 }
 
 /// Push the additive split onto a terminal frame's fields — `tokens_in`
 /// · `tokens_out` always when a split rides, the subsets only when the
 /// provider reported them, the responder's identity only when the wire
-/// returned it.
+/// returned it, the transport's `attempts` whenever the verb reported
+/// one and `waited_ms` · `retried_on` only when it re-sent (a first-time
+/// answer reads `attempts: 1` and nothing else — zero waits are not a
+/// fact worth a field).
 pub(crate) fn push_usage_fields(
     fields: &mut Vec<(&'static str, FieldValue)>,
     split: Option<&UsageSplit>,
@@ -131,6 +179,21 @@ pub(crate) fn push_usage_fields(
     }
     if let Some(id) = &split.response_id {
         fields.push(("response_id", s(id)));
+    }
+    if let Some(attempts) = split.attempts {
+        fields.push(("attempts", i(i64::from(attempts))));
+    }
+    if split.retried() {
+        if let Some(ms) = split.waited_ms {
+            fields.push(("waited_ms", n(ms)));
+        }
+        let statuses = split
+            .retried_on
+            .iter()
+            .map(u16::to_string)
+            .collect::<Vec<_>>()
+            .join(" · ");
+        fields.push(("retried_on", s(&statuses)));
     }
 }
 
@@ -200,5 +263,63 @@ mod tests {
         usage.cache_write_tokens = Some(7);
         usage.cache_creation_tokens = Some(3);
         assert_eq!(UsageSplit::of(&usage).cache_write, Some(10));
+    }
+
+    /// A seat that answered after one 429 (the measured Gemini shape
+    /// under the product matrix's parallel load): the frame says two
+    /// round-trips, the second-long wait, and what was waited on.
+    #[test]
+    fn a_retried_call_stamps_attempts_wait_and_statuses() {
+        let mut report = TransportReport::new();
+        report.attempts = 2;
+        report.waited = std::time::Duration::from_millis(2000);
+        report.statuses = vec![429];
+        let split = UsageSplit::of(&TokenUsage::new(7, 3)).transported(&report);
+        let mut fields = Vec::new();
+        push_usage_fields(&mut fields, Some(&split));
+        assert_eq!(field(&fields, "attempts"), Some(&i(2)));
+        assert_eq!(field(&fields, "waited_ms"), Some(&i(2000)));
+        assert_eq!(field(&fields, "retried_on"), Some(&s("429")));
+    }
+
+    /// The first-time answer — the common case — reads `attempts: 1`
+    /// and no wait fields: a zero wait is not a fact worth a field, and
+    /// a reader greps `retried_on` for exactly the retried calls.
+    #[test]
+    fn a_first_time_answer_reads_one_attempt_and_no_wait() {
+        let mut report = TransportReport::new();
+        report.attempts = 1;
+        let split = UsageSplit::of(&TokenUsage::new(7, 3)).transported(&report);
+        let mut fields = Vec::new();
+        push_usage_fields(&mut fields, Some(&split));
+        assert_eq!(field(&fields, "attempts"), Some(&i(1)));
+        assert_eq!(field(&fields, "waited_ms"), None);
+        assert_eq!(field(&fields, "retried_on"), None);
+    }
+
+    /// A report that sent nothing stamps nothing — and a split whose
+    /// ONLY fact is the transport is still carried (a seat that reported
+    /// no meters but was retried is exactly the call a reader asks about).
+    #[test]
+    #[allow(clippy::expect_used)]
+    fn an_unsent_report_stamps_nothing_and_a_transport_alone_is_carried() {
+        let split = UsageSplit::of(&TokenUsage::new(7, 3)).transported(&TransportReport::new());
+        assert_eq!(split.attempts, None);
+        assert!(!split.retried());
+
+        let mut report = TransportReport::new();
+        report.attempts = 3;
+        report.statuses = vec![503, 429];
+        report.waited = std::time::Duration::from_secs(3);
+        let carried = UsageSplit::of(&TokenUsage::new(0, 0))
+            .transported(&report)
+            .carried()
+            .expect("the transport alone is worth carrying");
+        let mut fields = Vec::new();
+        push_usage_fields(&mut fields, Some(&carried));
+        assert_eq!(field(&fields, "tokens_in"), None, "no signal, no meters");
+        assert_eq!(field(&fields, "attempts"), Some(&i(3)));
+        assert_eq!(field(&fields, "waited_ms"), Some(&i(3000)));
+        assert_eq!(field(&fields, "retried_on"), Some(&s("503 · 429")));
     }
 }

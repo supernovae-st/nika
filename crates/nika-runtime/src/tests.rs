@@ -15,6 +15,7 @@ mod boot_manifest;
 mod returns_contract;
 mod seated_receipt;
 mod tool_warning;
+mod transport_receipt;
 mod usage_split;
 
 /// The F-O1 integrity label for the pre-existing frame tests below —
