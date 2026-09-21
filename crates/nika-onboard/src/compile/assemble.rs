@@ -245,6 +245,38 @@ const ROW_FACTS: [&str; 2] = ["computed", "records"];
 /// a human is asked to wait for one step.
 const INFER_TIMEOUT: &str = "5m";
 
+/// The output cap of a draft on a seat the catalog does not know to reason: room for a
+/// body and its anchored claims.
+const DRAFT_MAX_TOKENS: u32 = 1200;
+
+/// The cap on a catalog-known reasoning seat (gpt-5 · o-series · gemini 2.5 · grok-3-mini ·
+/// claude): the reasoning trace shares `max_tokens` with the visible answer, and a structured
+/// draft with anchors needs room for both. 1200 was measured too small (openai/gpt-5-mini ·
+/// the trace ate the whole cap · `NIKA-INFER-002 · no JSON value found · cut off at the token
+/// limit` at run); 4096 leaves the answer its room. A cap is a ceiling the run never exceeds,
+/// never a spend.
+const REASONING_MAX_TOKENS: u32 = 4096;
+
+/// The `max_tokens` a language step declares: the step's own cap, raised to the reasoning
+/// floor when the doc's seat is a catalog-known reasoning model. The seat is the `model`
+/// answer already stamped on the doc; a seat the catalog does not know keeps the step's cap
+/// (no evidence it reasons), `mock` keeps it too (the catalog's fixture row claims every
+/// capability; an offline rehearsal synthesizes its answer and the cap is moot), and the
+/// run's own `--model` override is judged by `nika check`.
+fn infer_cap(d: &Doc, base: u32) -> u32 {
+    let reasoning = d.root["model"]
+        .as_str()
+        .and_then(|seat| seat.split_once('/'))
+        .is_some_and(|(provider, name)| {
+            provider != "mock" && nika_catalog::model_capabilities(provider, name).reasoning
+        });
+    if reasoning {
+        base.max(REASONING_MAX_TOKENS)
+    } else {
+        base
+    }
+}
+
 /// Both sides fold before an anchor is compared: runs of whitespace to one space, spaces
 /// around JSON punctuation away, case down. A model may wrap a line, drop a double space
 /// or re-serialize a record it was shown; it may not change a word.
@@ -700,7 +732,7 @@ fn emit_step(d: &mut Doc, plan: &Plan, b: &Bindings, guide: &str, step: &Step) {
                 guide,
                 d.prompt_tail()
             );
-            let node = json!({"timeout": INFER_TIMEOUT, "infer": {"max_tokens": 400, "prompt": prompt, "schema": {"type": "object", "additionalProperties": false, "required": ["valid", "issues"], "properties": {"valid": {"type": "boolean"}, "issues": {"type": "array", "items": {"type": "string"}}}}}});
+            let node = json!({"timeout": INFER_TIMEOUT, "infer": {"max_tokens": infer_cap(d, 400), "prompt": prompt, "schema": {"type": "object", "additionalProperties": false, "required": ["valid", "issues"], "properties": {"valid": {"type": "boolean"}, "issues": {"type": "array", "items": {"type": "string"}}}}}});
             d.infer("validate", node);
             d.fact("validation", "${{ tasks.validate.output }}", Kind::Derived);
             d.root["outputs"]["validation"] = json!("${{ tasks.validate.output }}");
@@ -819,7 +851,7 @@ fn emit_extract(d: &mut Doc, plan: &Plan, guide: &str, step: &Step, retry: Optio
         guide,
         d.prompt_tail()
     );
-    let mut node = json!({"timeout": INFER_TIMEOUT, "infer": {"max_tokens": 800, "prompt": prompt, "schema": {"type": "object", "additionalProperties": false, "required": ["fields"], "properties": {"fields": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["name", "value", "anchor"], "properties": {"name": {"type": "string", "minLength": 1}, "value": {"type": "string"}, "anchor": {"type": "string"}}}}}}}});
+    let mut node = json!({"timeout": INFER_TIMEOUT, "infer": {"max_tokens": infer_cap(d, 800), "prompt": prompt, "schema": {"type": "object", "additionalProperties": false, "required": ["fields"], "properties": {"fields": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["name", "value", "anchor"], "properties": {"name": {"type": "string", "minLength": 1}, "value": {"type": "string"}, "anchor": {"type": "string"}}}}}}}});
     if let Some(n) = retry
         && !plan.has(Op::Draft)
     {
@@ -864,7 +896,7 @@ fn emit_classify(d: &mut Doc, guide: &str, step: &Step) {
         guide,
         d.prompt_tail()
     );
-    let node = json!({"timeout": INFER_TIMEOUT, "infer": {"max_tokens": 400, "prompt": prompt, "schema": {"type": "object", "additionalProperties": false, "required": ["category"], "properties": {"category": category}}}});
+    let node = json!({"timeout": INFER_TIMEOUT, "infer": {"max_tokens": infer_cap(d, 400), "prompt": prompt, "schema": {"type": "object", "additionalProperties": false, "required": ["category"], "properties": {"category": category}}}});
     d.infer("classify", node);
     d.fact(
         "category",
@@ -885,7 +917,7 @@ fn emit_draft(d: &mut Doc, guide: &str, step: &Step, retry: Option<u32>) {
         guide,
         d.prompt_tail()
     );
-    let mut node = json!({"timeout": INFER_TIMEOUT, "infer": {"max_tokens": 1200, "prompt": prompt, "schema": draft_schema()}});
+    let mut node = json!({"timeout": INFER_TIMEOUT, "infer": {"max_tokens": infer_cap(d, DRAFT_MAX_TOKENS), "prompt": prompt, "schema": draft_schema()}});
     if let Some(n) = retry {
         node["retry"] = json!({"max_attempts": n});
     }
@@ -944,7 +976,7 @@ fn emit_draft_per_item(d: &mut Doc, b: &Bindings, guide: &str, step: &Step, retr
     if let Some(n) = b.max_parallel {
         fan["max_parallel"] = json!(n);
     }
-    let mut node = json!({"with": {"items": "${{ tasks.draft_items.output }}"}, "for_each": fan, "timeout": INFER_TIMEOUT, "infer": {"max_tokens": 1200, "prompt": prompt, "schema": draft_schema()}});
+    let mut node = json!({"with": {"items": "${{ tasks.draft_items.output }}"}, "for_each": fan, "timeout": INFER_TIMEOUT, "infer": {"max_tokens": infer_cap(d, DRAFT_MAX_TOKENS), "prompt": prompt, "schema": draft_schema()}});
     if let Some(n) = retry {
         node["retry"] = json!({"max_attempts": n});
     }
