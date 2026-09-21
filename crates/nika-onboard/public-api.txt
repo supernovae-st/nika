@@ -781,6 +781,117 @@ impl<T> tracing::instrument::Instrument for nika_onboard::compile::Strategy
 impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::Strategy
 impl<T> typenum::type_operators::Same for nika_onboard::compile::Strategy
 pub type nika_onboard::compile::Strategy::Output = T
+#[non_exhaustive] pub enum nika_onboard::compile::TriggerKind
+pub nika_onboard::compile::TriggerKind::Event
+pub nika_onboard::compile::TriggerKind::Manual
+pub nika_onboard::compile::TriggerKind::Schedule
+pub nika_onboard::compile::TriggerKind::Webhook
+impl nika_onboard::compile::TriggerKind
+pub const fn nika_onboard::compile::TriggerKind::word(self) -> &'static str
+impl core::clone::Clone for nika_onboard::compile::TriggerKind
+pub fn nika_onboard::compile::TriggerKind::clone(&self) -> nika_onboard::compile::TriggerKind
+impl core::cmp::Eq for nika_onboard::compile::TriggerKind
+impl core::cmp::PartialEq for nika_onboard::compile::TriggerKind
+pub fn nika_onboard::compile::TriggerKind::eq(&self, other: &nika_onboard::compile::TriggerKind) -> bool
+impl core::fmt::Debug for nika_onboard::compile::TriggerKind
+pub fn nika_onboard::compile::TriggerKind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_onboard::compile::TriggerKind
+impl core::marker::StructuralPartialEq for nika_onboard::compile::TriggerKind
+impl<D> owo_colors::OwoColorize for nika_onboard::compile::TriggerKind
+impl<Q, K> equivalent::Equivalent<K> for nika_onboard::compile::TriggerKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile::TriggerKind::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_onboard::compile::TriggerKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile::TriggerKind::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_onboard::compile::TriggerKind where U: core::convert::From<T>
+pub fn nika_onboard::compile::TriggerKind::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::TriggerKind where U: core::convert::Into<T>
+pub type nika_onboard::compile::TriggerKind::Error = core::convert::Infallible
+pub fn nika_onboard::compile::TriggerKind::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::TriggerKind where U: core::convert::TryFrom<T>
+pub type nika_onboard::compile::TriggerKind::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::compile::TriggerKind::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_onboard::compile::TriggerKind where T: core::clone::Clone
+pub type nika_onboard::compile::TriggerKind::Owned = T
+pub fn nika_onboard::compile::TriggerKind::clone_into(&self, target: &mut T)
+pub fn nika_onboard::compile::TriggerKind::to_owned(&self) -> T
+impl<T> core::any::Any for nika_onboard::compile::TriggerKind where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::compile::TriggerKind::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::compile::TriggerKind where T: ?core::marker::Sized
+pub fn nika_onboard::compile::TriggerKind::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::compile::TriggerKind where T: ?core::marker::Sized
+pub fn nika_onboard::compile::TriggerKind::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_onboard::compile::TriggerKind where T: core::clone::Clone
+pub unsafe fn nika_onboard::compile::TriggerKind::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_onboard::compile::TriggerKind
+pub fn nika_onboard::compile::TriggerKind::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_onboard::compile::TriggerKind where T: core::clone::Clone
+pub fn nika_onboard::compile::TriggerKind::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_onboard::compile::TriggerKind where T: 'static
+pub fn nika_onboard::compile::TriggerKind::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_onboard::compile::TriggerKind where T: core::marker::Copy
+pub fn nika_onboard::compile::TriggerKind::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::compile::TriggerKind where T: ?core::marker::Sized
+pub fn nika_onboard::compile::TriggerKind::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::compile::TriggerKind::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::compile::TriggerKind
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::TriggerKind
+impl<T> typenum::type_operators::Same for nika_onboard::compile::TriggerKind
+pub type nika_onboard::compile::TriggerKind::Output = T
+#[non_exhaustive] pub enum nika_onboard::compile::TriggerStatus
+pub nika_onboard::compile::TriggerStatus::RequiresBinding
+pub nika_onboard::compile::TriggerStatus::Satisfied
+pub nika_onboard::compile::TriggerStatus::Unsupported
+impl nika_onboard::compile::TriggerStatus
+pub const fn nika_onboard::compile::TriggerStatus::word(self) -> &'static str
+impl core::clone::Clone for nika_onboard::compile::TriggerStatus
+pub fn nika_onboard::compile::TriggerStatus::clone(&self) -> nika_onboard::compile::TriggerStatus
+impl core::cmp::Eq for nika_onboard::compile::TriggerStatus
+impl core::cmp::PartialEq for nika_onboard::compile::TriggerStatus
+pub fn nika_onboard::compile::TriggerStatus::eq(&self, other: &nika_onboard::compile::TriggerStatus) -> bool
+impl core::fmt::Debug for nika_onboard::compile::TriggerStatus
+pub fn nika_onboard::compile::TriggerStatus::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_onboard::compile::TriggerStatus
+impl core::marker::StructuralPartialEq for nika_onboard::compile::TriggerStatus
+impl<D> owo_colors::OwoColorize for nika_onboard::compile::TriggerStatus
+impl<Q, K> equivalent::Equivalent<K> for nika_onboard::compile::TriggerStatus where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile::TriggerStatus::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_onboard::compile::TriggerStatus where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile::TriggerStatus::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_onboard::compile::TriggerStatus where U: core::convert::From<T>
+pub fn nika_onboard::compile::TriggerStatus::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::TriggerStatus where U: core::convert::Into<T>
+pub type nika_onboard::compile::TriggerStatus::Error = core::convert::Infallible
+pub fn nika_onboard::compile::TriggerStatus::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::TriggerStatus where U: core::convert::TryFrom<T>
+pub type nika_onboard::compile::TriggerStatus::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::compile::TriggerStatus::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_onboard::compile::TriggerStatus where T: core::clone::Clone
+pub type nika_onboard::compile::TriggerStatus::Owned = T
+pub fn nika_onboard::compile::TriggerStatus::clone_into(&self, target: &mut T)
+pub fn nika_onboard::compile::TriggerStatus::to_owned(&self) -> T
+impl<T> core::any::Any for nika_onboard::compile::TriggerStatus where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::compile::TriggerStatus::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::compile::TriggerStatus where T: ?core::marker::Sized
+pub fn nika_onboard::compile::TriggerStatus::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::compile::TriggerStatus where T: ?core::marker::Sized
+pub fn nika_onboard::compile::TriggerStatus::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_onboard::compile::TriggerStatus where T: core::clone::Clone
+pub unsafe fn nika_onboard::compile::TriggerStatus::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_onboard::compile::TriggerStatus
+pub fn nika_onboard::compile::TriggerStatus::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_onboard::compile::TriggerStatus where T: core::clone::Clone
+pub fn nika_onboard::compile::TriggerStatus::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_onboard::compile::TriggerStatus where T: 'static
+pub fn nika_onboard::compile::TriggerStatus::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_onboard::compile::TriggerStatus where T: core::marker::Copy
+pub fn nika_onboard::compile::TriggerStatus::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::compile::TriggerStatus where T: ?core::marker::Sized
+pub fn nika_onboard::compile::TriggerStatus::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::compile::TriggerStatus::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::compile::TriggerStatus
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::TriggerStatus
+impl<T> typenum::type_operators::Same for nika_onboard::compile::TriggerStatus
+pub type nika_onboard::compile::TriggerStatus::Output = T
 #[non_exhaustive] pub struct nika_onboard::compile::AuthoringPolicy
 impl nika_onboard::compile::AuthoringPolicy
 pub fn nika_onboard::compile::AuthoringPolicy::new(model: impl core::convert::Into<alloc::string::String>, max_tokens: u32, timeout: core::time::Duration) -> Self
@@ -976,6 +1087,7 @@ pub nika_onboard::compile::CompileOutcome::diagnostics: alloc::vec::Vec<nika_onb
 pub nika_onboard::compile::CompileOutcome::provenance: nika_onboard::compile::CompileProvenance
 pub nika_onboard::compile::CompileOutcome::questions: alloc::vec::Vec<nika_onboard::compile::CompileQuestion>
 pub nika_onboard::compile::CompileOutcome::requested_boundary: core::option::Option<nika_check::effective::EffectivePermits>
+pub nika_onboard::compile::CompileOutcome::requested_trigger: core::option::Option<nika_onboard::compile::TriggerRequirement>
 pub nika_onboard::compile::CompileOutcome::status: nika_onboard::compile::CompileStatus
 impl core::clone::Clone for nika_onboard::compile::CompileOutcome
 pub fn nika_onboard::compile::CompileOutcome::clone(&self) -> nika_onboard::compile::CompileOutcome
@@ -1345,6 +1457,60 @@ impl<T> tracing::instrument::Instrument for nika_onboard::compile::Representatio
 impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::RepresentationError
 impl<T> typenum::type_operators::Same for nika_onboard::compile::RepresentationError
 pub type nika_onboard::compile::RepresentationError::Output = T
+#[non_exhaustive] pub struct nika_onboard::compile::TriggerRequirement
+pub nika_onboard::compile::TriggerRequirement::at: core::option::Option<alloc::string::String>
+pub nika_onboard::compile::TriggerRequirement::cadence: core::option::Option<alloc::string::String>
+pub nika_onboard::compile::TriggerRequirement::event_hint: core::option::Option<alloc::string::String>
+pub nika_onboard::compile::TriggerRequirement::kind: nika_onboard::compile::TriggerKind
+pub nika_onboard::compile::TriggerRequirement::payload_input: core::option::Option<alloc::string::String>
+pub nika_onboard::compile::TriggerRequirement::source_hint: core::option::Option<alloc::string::String>
+pub nika_onboard::compile::TriggerRequirement::status: nika_onboard::compile::TriggerStatus
+impl core::clone::Clone for nika_onboard::compile::TriggerRequirement
+pub fn nika_onboard::compile::TriggerRequirement::clone(&self) -> nika_onboard::compile::TriggerRequirement
+impl core::cmp::Eq for nika_onboard::compile::TriggerRequirement
+impl core::cmp::PartialEq for nika_onboard::compile::TriggerRequirement
+pub fn nika_onboard::compile::TriggerRequirement::eq(&self, other: &nika_onboard::compile::TriggerRequirement) -> bool
+impl core::fmt::Debug for nika_onboard::compile::TriggerRequirement
+pub fn nika_onboard::compile::TriggerRequirement::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_onboard::compile::TriggerRequirement
+impl<D> owo_colors::OwoColorize for nika_onboard::compile::TriggerRequirement
+impl<Q, K> equivalent::Equivalent<K> for nika_onboard::compile::TriggerRequirement where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile::TriggerRequirement::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_onboard::compile::TriggerRequirement where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile::TriggerRequirement::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_onboard::compile::TriggerRequirement where U: core::convert::From<T>
+pub fn nika_onboard::compile::TriggerRequirement::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::TriggerRequirement where U: core::convert::Into<T>
+pub type nika_onboard::compile::TriggerRequirement::Error = core::convert::Infallible
+pub fn nika_onboard::compile::TriggerRequirement::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::TriggerRequirement where U: core::convert::TryFrom<T>
+pub type nika_onboard::compile::TriggerRequirement::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::compile::TriggerRequirement::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_onboard::compile::TriggerRequirement where T: core::clone::Clone
+pub type nika_onboard::compile::TriggerRequirement::Owned = T
+pub fn nika_onboard::compile::TriggerRequirement::clone_into(&self, target: &mut T)
+pub fn nika_onboard::compile::TriggerRequirement::to_owned(&self) -> T
+impl<T> core::any::Any for nika_onboard::compile::TriggerRequirement where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::compile::TriggerRequirement::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::compile::TriggerRequirement where T: ?core::marker::Sized
+pub fn nika_onboard::compile::TriggerRequirement::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::compile::TriggerRequirement where T: ?core::marker::Sized
+pub fn nika_onboard::compile::TriggerRequirement::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_onboard::compile::TriggerRequirement where T: core::clone::Clone
+pub unsafe fn nika_onboard::compile::TriggerRequirement::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_onboard::compile::TriggerRequirement
+pub fn nika_onboard::compile::TriggerRequirement::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_onboard::compile::TriggerRequirement where T: core::clone::Clone
+pub fn nika_onboard::compile::TriggerRequirement::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_onboard::compile::TriggerRequirement where T: 'static
+pub fn nika_onboard::compile::TriggerRequirement::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::compile::TriggerRequirement where T: ?core::marker::Sized
+pub fn nika_onboard::compile::TriggerRequirement::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::compile::TriggerRequirement::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::compile::TriggerRequirement
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::TriggerRequirement
+impl<T> typenum::type_operators::Same for nika_onboard::compile::TriggerRequirement
+pub type nika_onboard::compile::TriggerRequirement::Output = T
 pub const nika_onboard::compile::COMPILE_WIRE_VERSION: u32
 pub fn nika_onboard::compile::compile(request: &nika_onboard::compile::CompileRequest) -> core::result::Result<nika_onboard::compile::CompileOutcome, nika_onboard::compile::CompileError>
 pub async fn nika_onboard::compile::compile_with_cognition<P: nika_kernel_ai::provider::ProviderInferDyn>(request: &nika_onboard::compile::CompileRequest, cognition: nika_onboard::compile::Cognition<'_, P>) -> core::result::Result<nika_onboard::compile::CompileOutcome, nika_onboard::compile::CompileError>

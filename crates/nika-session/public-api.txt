@@ -191,6 +191,7 @@ pub type nika_session::authoring::AuthoringRound::Output = T
 pub fn nika_session::authoring::compile_deterministic(request: &nika_onboard::compile::types::CompileRequest) -> core::result::Result<nika_onboard::compile::types::CompileOutcome, nika_session::authoring::AuthoringError>
 pub fn nika_session::authoring::compile_through(seat: &nika_session::authoring::AuthoringSeat, request: &nika_onboard::compile::types::CompileRequest) -> core::result::Result<nika_onboard::compile::types::CompileOutcome, nika_session::authoring::AuthoringError>
 pub fn nika_session::authoring::is_cancel(line: &str) -> bool
+pub fn nika_session::authoring::is_greeting(input: &str) -> bool
 pub fn nika_session::authoring::literal_for(question: &nika_onboard::compile::types::CompileQuestion, line: &str) -> alloc::string::String
 pub fn nika_session::authoring::looks_like_discussion(input: &str) -> bool
 pub fn nika_session::authoring::reasons(out: &nika_onboard::compile::types::CompileOutcome) -> alloc::vec::Vec<alloc::string::String>
@@ -2043,6 +2044,7 @@ pub fn nika_session::runtime::SessionRuntime::pending_proposal(&self) -> core::o
 pub fn nika_session::runtime::SessionRuntime::waiting_gate(&self) -> core::option::Option<nika_session::outcome::GateId>
 impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::authoring_seat(&self) -> &nika_session::authoring::AuthoringSeat
+pub fn nika_session::runtime::SessionRuntime::pending_input(&self) -> core::option::Option<&str>
 pub fn nika_session::runtime::SessionRuntime::pending_question(&self) -> core::option::Option<&nika_onboard::compile::types::CompileQuestion>
 impl core::fmt::Debug for nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
@@ -3948,6 +3950,7 @@ pub fn nika_session::runtime::SessionRuntime::pending_proposal(&self) -> core::o
 pub fn nika_session::runtime::SessionRuntime::waiting_gate(&self) -> core::option::Option<nika_session::outcome::GateId>
 impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::authoring_seat(&self) -> &nika_session::authoring::AuthoringSeat
+pub fn nika_session::runtime::SessionRuntime::pending_input(&self) -> core::option::Option<&str>
 pub fn nika_session::runtime::SessionRuntime::pending_question(&self) -> core::option::Option<&nika_onboard::compile::types::CompileQuestion>
 impl core::fmt::Debug for nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result

@@ -50,6 +50,17 @@ pub nika_verb_infer::VerbInferError::ModelResolution::source: nika_kernel_ai::pr
 pub nika_verb_infer::VerbInferError::ProviderCall
 pub nika_verb_infer::VerbInferError::ProviderCall::source: nika_kernel_ai::provider::ProviderError
 pub nika_verb_infer::VerbInferError::ProviderCall::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
+pub nika_verb_infer::VerbInferError::ProviderCallExhausted
+pub nika_verb_infer::VerbInferError::ProviderCallExhausted::attempts: u32
+pub nika_verb_infer::VerbInferError::ProviderCallExhausted::model: alloc::string::String
+pub nika_verb_infer::VerbInferError::ProviderCallExhausted::source: alloc::boxed::Box<nika_kernel_ai::provider::ProviderError>
+pub nika_verb_infer::VerbInferError::ProviderCallExhausted::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
+pub nika_verb_infer::VerbInferError::ProviderCallExhausted::waited_ms: u64
+pub nika_verb_infer::VerbInferError::SchemaRefused
+pub nika_verb_infer::VerbInferError::SchemaRefused::model: alloc::string::String
+pub nika_verb_infer::VerbInferError::SchemaRefused::source: alloc::boxed::Box<nika_kernel_ai::provider::ProviderError>
+pub nika_verb_infer::VerbInferError::SchemaRefused::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
+pub nika_verb_infer::VerbInferError::SchemaRefused::wire: &'static str
 pub nika_verb_infer::VerbInferError::SchemaValidation
 pub nika_verb_infer::VerbInferError::SchemaValidation::attempts: u32
 pub nika_verb_infer::VerbInferError::SchemaValidation::detail: alloc::string::String
@@ -180,9 +191,11 @@ pub fn nika_verb_infer::InferInput::as_any(&self) -> &(dyn core::any::Any + 'sta
 pub nika_verb_infer::InferOutput::model_resolved: alloc::string::String
 pub nika_verb_infer::InferOutput::output: nika_verb_infer::InferValue
 pub nika_verb_infer::InferOutput::response: nika_kernel_ai::provider::InferResponse
+pub nika_verb_infer::InferOutput::transport: nika_providers::retry::TransportReport
 pub nika_verb_infer::InferOutput::usage: nika_types::token_usage::TokenUsage
 impl nika_verb_infer::InferOutput
 pub fn nika_verb_infer::InferOutput::new(output: nika_verb_infer::InferValue, model_resolved: alloc::string::String, response: nika_kernel_ai::provider::InferResponse, usage: nika_types::token_usage::TokenUsage) -> Self
+pub fn nika_verb_infer::InferOutput::with_transport(self, transport: nika_providers::retry::TransportReport) -> Self
 impl core::fmt::Debug for nika_verb_infer::InferOutput
 pub fn nika_verb_infer::InferOutput::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_verb_infer::InferOutput

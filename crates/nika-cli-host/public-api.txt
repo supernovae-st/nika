@@ -186,9 +186,9 @@ pub nika_cli_host::compile::CompileArgs::authoring_max_tokens: core::option::Opt
 pub nika_cli_host::compile::CompileArgs::authoring_model: core::option::Option<alloc::string::String>
 pub nika_cli_host::compile::CompileArgs::authoring_samples: core::option::Option<u32>
 pub nika_cli_host::compile::CompileArgs::authoring_timeout: core::option::Option<u64>
-pub nika_cli_host::compile::CompileArgs::decision_model: core::option::Option<alloc::string::String>
 pub nika_cli_host::compile::CompileArgs::base: core::option::Option<alloc::string::String>
 pub nika_cli_host::compile::CompileArgs::change: core::option::Option<alloc::string::String>
+pub nika_cli_host::compile::CompileArgs::decision_model: core::option::Option<alloc::string::String>
 pub nika_cli_host::compile::CompileArgs::dest: core::option::Option<alloc::string::String>
 pub nika_cli_host::compile::CompileArgs::force: bool
 pub nika_cli_host::compile::CompileArgs::fresh: bool
@@ -1452,6 +1452,7 @@ impl<T> typenum::type_operators::Same for nika_cli_host::help_card::HelpKind
 pub type nika_cli_host::help_card::HelpKind::Output = T
 pub const nika_cli_host::help_card::AFTER_HELP: &str
 pub const nika_cli_host::help_card::CHECK_EXITS: &str
+pub const nika_cli_host::help_card::COMPILE_EXITS: &str
 pub const nika_cli_host::help_card::RUN_EXITS: &str
 pub const nika_cli_host::help_card::TEST_EXITS: &str
 pub fn nika_cli_host::help_card::classify_help(argv: &[impl core::convert::AsRef<std::ffi::os_str::OsStr>]) -> core::option::Option<nika_cli_host::help_card::HelpKind>
