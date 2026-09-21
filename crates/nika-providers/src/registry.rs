@@ -343,7 +343,11 @@ where
         let mut report = TransportReport::new();
         loop {
             report.attempts = report.attempts.saturating_add(1);
-            let err = match self.infer_once(request.clone()).await {
+            // The attempt is boxed: the loop's state machine would otherwise
+            // carry the largest wire future inline, and a nested run (a
+            // workflow invoking a workflow) polls it from a deeper stack than
+            // a 2 MiB thread affords (the pre-push gate's child-run test).
+            let err = match Box::pin(self.infer_once(request.clone())).await {
                 Ok(response) => return Ok((response, report)),
                 Err(err) => err,
             };
