@@ -15,6 +15,7 @@
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
+use nika_check::EffectivePermits;
 use nika_onboard::compile::CompileOutcome;
 use nika_schema::raw::{RawAction, RawInvokeTarget, RawWorkflow};
 use nika_schema::{FileId, ParseMode};
@@ -67,6 +68,58 @@ pub fn destination(root: &Path, candidate: &str) -> Option<PathBuf> {
 /// a dangling one absent; a candidate never lands on a link of any kind).
 fn taken(root: &Path, rel: &Path) -> bool {
     std::fs::symlink_metadata(root.join(rel)).is_ok()
+}
+
+/// What the workflow reaches outside the project: the network hosts and
+/// programs the bytes DECLARE (the boundary the human accepts, default-deny)
+/// joined with the check's inferred floor. The floor alone would print
+/// « none » for a loopback webhook: the inference leaves a loopback host
+/// out by design (the SSRF floor) while the candidate names it. A face the
+/// check could not pin is said so, never folded into « none ».
+fn external_effects(candidate: &str, boundary: Option<&EffectivePermits>) -> String {
+    let declared = parse(candidate).and_then(|wf| wf.permits.map(|p| p.value));
+    let mut hosts: Vec<String> = declared
+        .as_ref()
+        .and_then(|p| p.net.as_ref())
+        .map(|net| net.http.clone())
+        .unwrap_or_default();
+    let mut exec = declared.as_ref().and_then(|p| p.exec.clone());
+    let mut unpinned = Vec::new();
+    if let Some(boundary) = boundary {
+        if let Some(net) = &boundary.needed.net {
+            for host in &net.http {
+                if !hosts.contains(host) {
+                    hosts.push(host.clone());
+                }
+            }
+        }
+        if exec.is_none() {
+            exec.clone_from(&boundary.needed.exec);
+        }
+        if boundary.partial.net && hosts.is_empty() {
+            unpinned.push("a network host the check could not pin");
+        }
+        if boundary.partial.exec && exec.is_none() {
+            unpinned.push("a program the check could not pin");
+        }
+    }
+    let mut external = Vec::new();
+    if !hosts.is_empty() {
+        external.push(format!("network · {}", hosts.join(" · ")));
+    }
+    match exec {
+        Some(nika_cap::ExecPermit::Any) => external.push("runs any program".to_owned()),
+        Some(nika_cap::ExecPermit::Programs(p)) if !p.is_empty() => {
+            external.push(format!("runs · {}", p.join(" · ")));
+        }
+        _ => {}
+    }
+    external.extend(unpinned.into_iter().map(str::to_owned));
+    if external.is_empty() {
+        "none".to_owned()
+    } else {
+        external.join(" · ")
+    }
 }
 
 /// The candidate's tasks in order — one line each: the id, the verb, the
@@ -187,29 +240,10 @@ pub fn render(set: &ProjectChangeSet, out: &CompileOutcome, bytes: &str) -> Stri
         text.push_str(&line);
         text.push('\n');
     }
-    let mut external = Vec::new();
-    if let Some(boundary) = &out.requested_boundary {
-        if let Some(net) = &boundary.needed.net
-            && !net.http.is_empty()
-        {
-            external.push(format!("network · {}", net.http.join(" · ")));
-        }
-        match &boundary.needed.exec {
-            Some(nika_cap::ExecPermit::Any) => external.push("runs any program".to_owned()),
-            Some(nika_cap::ExecPermit::Programs(p)) if !p.is_empty() => {
-                external.push(format!("runs · {}", p.join(" · ")));
-            }
-            _ => {}
-        }
-    }
     let _ = writeln!(
         text,
         "  external effects · {}",
-        if external.is_empty() {
-            "none".to_owned()
-        } else {
-            external.join(" · ")
-        }
+        external_effects(candidate, out.requested_boundary.as_ref())
     );
     let gates = gate_tasks(candidate);
     let _ = writeln!(
@@ -312,6 +346,22 @@ mod tests {
         );
     }
 
+    /// A webhook to a loopback host: the check's inferred floor leaves the
+    /// host out by design, the bytes declare it, and the human must see it
+    /// before consenting. « none » here would hide an effect.
+    #[test]
+    fn a_loopback_webhook_is_an_external_effect_the_review_names() {
+        let out = ready("Read ./report.md and post it to http://127.0.0.1:8767/notify");
+        let root = tempfile::tempdir().expect("root");
+        let set = propose(root.path(), "post the report", &out).expect("set");
+        let review = render(&set, &out, &set.preview());
+        assert!(
+            review.contains("external effects · network · 127.0.0.1"),
+            "{review}"
+        );
+        assert!(!review.contains("external effects · none"), "{review}");
+    }
+
     #[test]
     fn a_gated_skeleton_names_its_gate() {
         let out = ready("human-gated-ship");
@@ -324,8 +374,10 @@ mod tests {
             review.contains("human approval at run · `human`"),
             "{review}"
         );
+        // The bytes declare a host the inferred floor does not carry (a SLOT the
+        // skeleton leaves for its notify): the human sees the declared reach.
         assert!(
-            review.contains("external effects · runs · echo"),
+            review.contains("external effects · network · hooks.slack.com · runs · echo"),
             "{review}"
         );
         assert!(review.contains("4. human · nika:prompt"), "{review}");
