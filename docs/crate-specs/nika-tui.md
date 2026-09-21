@@ -2,9 +2,9 @@
 
 | | |
 |---|---|
-| Status | **CANDIDATE** — Gate 1 (this document) authored 2026-08-12 · D-2026-08-11-N6 (T27 APRÈS T28 · le renderer est le premier consommateur natif de `nika-tui-core`) |
+| Status | **WIP · in the workspace since 2026-09-21** (the `nika-tui-core` precedent) · Gate 1 (this document) authored 2026-08-12, amended 2026-09-21 by ADR-139 (the renderer architecture: inline-first, one owner of the terminal) · D-2026-08-11-N6 (T27 APRÈS T28 · le renderer est le premier consommateur natif de `nika-tui-core`) |
 | Layer | L4 — interfaces (la surface terminal native) |
-| Design | Le renderer ratatui de la session · un `Buffer` de cellules, les effets APRÈS écriture (tachyonfx), le widget cascade, la boucle `crossterm`. Toute la loi vient de `nika-tui-core` (session · dérivation · seating · claims) · ce crate ne calcule rien, il PEINT. |
+| Design | Le renderer Ratatui de la session (ADR-139) · UN propriétaire du terminal (raw mode · bracketed paste · focus · protocole clavier sondé · écran alternatif, activés dans un ordre fixe et restaurés en sens inverse depuis un seul endroit, le hook de panique restaure AVANT le message) · présentation INLINE d'abord (`Viewport::Inline` + `insert_before` avec régions de défilement : les blocs finis vivent dans le scrollback du terminal) · présentation FOCUS sur demande (écran alternatif, transcript défilable, brouillon conservé) · UN courtier d'événements, mis en pause autour de chaque requête de position du curseur · un composeur (`ratatui-textarea` derrière un wrapper : Entrée envoie, Alt+Entrée saute une ligne, un collage est une donnée, l'historique aux bords du tampon). Toute la loi vient de `nika-tui-core` · ce crate ne calcule rien, il PEINT et il ÉCOUTE. |
 | LOC budget | ≤6,000 src prod · ≤15,000 hard cap |
 | File cap | ≤1,500 LOC each |
 | Function cap | ≤100 lines each |
@@ -12,9 +12,9 @@
 | License | `AGPL-3.0-or-later` |
 | Edition | 2024 (workspace-inherited) |
 | Publish | `false` |
-| Dependencies | `ratatui` · `crossterm` · `tachyonfx` · `nika-tui-core` (la loi) · `serde`/`serde_json` (les types de l'ingress) — dev: `proptest` |
+| Dependencies | **mesurées sur `Cargo.toml`, pas déclarées ici** · `ratatui` 0.30 (feature `scrolling-regions`) · `crossterm` 0.29 (`event-stream` · `bracketed-paste`) · `ratatui-textarea` 0.9 · `tokio` · `futures-util` · `unicode-width` · dev : `expectrl` (la preuve PTY). `tachyonfx` et `nika-tui-core` arrivent avec les vagues UX-2+ (ADR-139 §Consequences). |
 | NIKA codes | none owed — le renderer ne refuse pas · il affiche le refus que le moteur a rendu |
-| Depends on | **T28 admis** (nika-tui-core hors wip) · le crate ne se build pas sur une loi en mouvement |
+| Depends on | **T28 admis** (nika-tui-core hors wip, fait 2026-08-14) · ADR-139 proposée (confirmée ou renversée par les deux prototypes de la vague UX-1 sur les mêmes fixtures) |
 
 ---
 
@@ -57,15 +57,32 @@ d'étendue de palette du studio mesure alors ce qu'il prétend mesurer.
 - Les 9 goldens du studio sont la preuve de RENDU · le crate les
   reproduit au caractère près (le harnais goldens descend ici).
 
-## 4. Ordre d'implémentation (la carte, §7)
+## 4. Ordre d'implémentation (ADR-139 · les vagues du produit)
 
-1. le contrat généré inclus (`enum Key` matché exhaustivement) · le
-   squelette compile avant de dessiner
-2. le buffer + le châssis en arbre (`permits · spend · proof · live`)
-3. le fil et ses blocs (`say` · `draft` · `gate`)
-4. la cascade en `Widget` (le repli du fan-out et sa traîne)
-5. tachyonfx · deux effets, aux deux moments déclarés
-6. le reste du contrat
+L'ordre de la carte de portage (contrat généré · buffer · fil · cascade ·
+tachyonfx) est remplacé par les vagues du produit, chacune finie quand le
+scénario complet est qualifié sur le VRAI binaire, jamais quand le code
+existe :
+
+1. **UX-1 · la preuve du renderer** (2026-09-21) · la coque Ratatui, les
+   deux présentations (inline · focus) sur la même fixture (`Script::demo`),
+   le spike du composeur, le cycle de vie du terminal prouvé depuis un PTY
+   (`tests/pty_restore.rs` : fermeture normale · deux Ctrl+C · panique dans
+   la boucle · SIGTERM · un collage `yes`/`/quit` inerte à travers un
+   basculement focus · un tube refusé avec le code 2 et zéro séquence).
+2. **UX-2 · les cinq premières secondes** · le vrai `SessionRuntime` branché
+   par les mêmes beats typés, derrière un interrupteur explicite tant que
+   les goldens PTY de la CLI ne sont pas recoupés · le premier écran, l'aide
+   locale, la latence.
+3. **UX-3 · cognition contextuelle et récupération** · le picker
+   d'intelligence, la récupération typée.
+4. **UX-4 · l'objet workflow vivant** · clarification typée, review dans
+   l'ordre mandaté, inspecteur, sauvegarde exacte, Check.
+5. **UX-5 · exécution** · run, porte, reprise, résultat, preuve.
+6. **UX-6 · durcissement** · la matrice de terminaux, les tailles, tmux,
+   SSH, `TERM=dumb`, le monochrome.
+7. **UX-7 · qualification humaine** · les goldens A à O, le dogfood, l'étude
+   modérée.
 
 ## 5. Determinism contract
 
