@@ -12,6 +12,16 @@ use crate::{
 
 use super::{ExecutionTask, ServerError, ServerLimits, StoreHandle};
 
+/// A reservation on the execution queue that did not land: a FULL queue is
+/// back-pressure (`ExecutionQueueFull`); a CLOSED one means the authority is
+/// stopping (`Stopping`), which no caller may read as capacity.
+fn queue_refusal<T>(error: &tokio::sync::mpsc::error::TrySendError<T>) -> ServerError {
+    match error {
+        tokio::sync::mpsc::error::TrySendError::Full(_) => ServerError::ExecutionQueueFull,
+        tokio::sync::mpsc::error::TrySendError::Closed(_) => ServerError::Stopping,
+    }
+}
+
 const OBSERVATION_POLL: Duration = Duration::from_millis(5);
 const SCHEDULE_KEY_DOMAIN: &[u8] = b"nika/resident-schedule-idempotency@1\0";
 /// The resident's own idempotency namespace (a scheduled slot's key):
@@ -70,7 +80,7 @@ impl ResidentExecutionCoordinator {
                 .jobs
                 .clone()
                 .try_reserve_owned()
-                .map_err(|_| ServerError::ExecutionQueueFull)?;
+                .map_err(|error| queue_refusal(&error))?;
             permit.send(
                 ExecutionTask::new(record.id().clone(), self.limits.default_max_cost_usd())
                     .with_access_pin(record.access_pin().map(str::to_owned)),
@@ -112,7 +122,7 @@ impl ResidentExecutionCoordinator {
             .jobs
             .clone()
             .try_reserve_owned()
-            .map_err(|_| ServerError::ExecutionQueueFull)?;
+            .map_err(|error| queue_refusal(&error))?;
         let admission = self
             .store
             .create_or_replay(
@@ -193,7 +203,7 @@ impl ResidentExecutionCoordinator {
             .jobs
             .clone()
             .try_reserve_owned()
-            .map_err(|_| ServerError::ExecutionQueueFull)?;
+            .map_err(|error| queue_refusal(&error))?;
         let admission = self.store.prepare_scheduled_blocking(
             key,
             digest,
@@ -405,4 +415,30 @@ fn scheduled_key(origin: &JobOrigin) -> Result<IdempotencyKey, ServerError> {
         hasher.finalize()
     ))
     .map_err(ServerError::JobStore)
+}
+
+#[cfg(test)]
+mod queue_refusal_tests {
+    use super::*;
+
+    /// A full queue is back-pressure; a closed queue is the authority
+    /// stopping. The two were one error before, and a fire that met the
+    /// closed queue at shutdown ended the resident with « queue full ».
+    #[test]
+    fn a_closed_queue_is_stopping_and_a_full_one_is_capacity() {
+        let (sender, receiver) = tokio::sync::mpsc::channel::<u8>(1);
+        let held = sender.clone().try_reserve_owned().expect("one slot");
+        let full = sender
+            .clone()
+            .try_reserve_owned()
+            .expect_err("no second slot");
+        assert!(matches!(
+            queue_refusal(&full),
+            ServerError::ExecutionQueueFull
+        ));
+        drop(held);
+        drop(receiver);
+        let closed = sender.try_reserve_owned().expect_err("closed queue");
+        assert!(matches!(queue_refusal(&closed), ServerError::Stopping));
+    }
 }

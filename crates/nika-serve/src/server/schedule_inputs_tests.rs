@@ -288,3 +288,81 @@ async fn a_project_beat_with_inputs_binds_them_and_an_undeclared_key_is_containe
         .await
         .expect("a contained refusal stops clean");
 }
+
+/// Three beats due on the same tick, one job slot, a backend that never
+/// returns: the third fire finds the execution queue full. That is
+/// back-pressure, never a resident death: the resident stays alive, the
+/// deferred beat carries the finding, and the server stops clean. Before
+/// this law the scheduler task returned the error and the authority loop
+/// ended with `ExecutionQueueFull` (main's Diamond red on a slower host).
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_fire_that_finds_the_queue_full_is_deferred_and_the_resident_lives() {
+    let world = TestWorld::new();
+    for name in ["intake-one", "intake-two", "intake-three"] {
+        std::fs::write(
+            world.workflows.join(format!("{name}.nika")),
+            INTAKE_WORKFLOW.replacen("nika: intake", &format!("nika: {name}"), 1),
+        )
+        .expect("workflow");
+    }
+    std::fs::write(
+        world.workflows.join("nika.yaml"),
+        concat!(
+            "nika: proj\narm:\n",
+            "  - workflow: intake-one.nika\n    cadence: \"TZ=UTC * * * * *\"\n    plafond: 0.25\n    manqué: sauter\n    inputs: { tenant: acme }\n",
+            "  - workflow: intake-two.nika\n    cadence: \"TZ=UTC * * * * *\"\n    plafond: 0.25\n    manqué: sauter\n    inputs: { tenant: acme }\n",
+            "  - workflow: intake-three.nika\n    cadence: \"TZ=UTC * * * * *\"\n    plafond: 0.25\n    manqué: sauter\n    inputs: { tenant: acme }\n",
+        ),
+    )
+    .expect("project nika.yaml");
+    let backend = Arc::new(super::tests::TestBackend::hangs());
+    let clock = Arc::new(ManualClock::new("2026-09-01T08:00:30Z[UTC]"));
+    // One running job, a queue of one, room for the records.
+    let tight = super::ServerLimits::new(
+        1024,
+        Duration::from_secs(2),
+        Duration::from_secs(2),
+        Duration::from_millis(200),
+        1,
+        1,
+        8,
+        32,
+    )
+    .with_max_jobs(4);
+    let server = world
+        .start_with_clock(backend.clone(), tight, clock.clone())
+        .await;
+    clock.wait_for_sleeps(1).await;
+    clock.advance_to("2026-09-01T08:01:01Z[UTC]");
+    // One slot: the fires after the first meet a full queue, and are
+    // deferred, named on their beat, contained; the resident lives.
+    let deferred = tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            let mut named = 0;
+            for id in ["intake-one", "intake-two", "intake-three"] {
+                let response = server
+                    .request(&get_request(&format!("/v1/schedules/{id}")))
+                    .await;
+                if response.status == 200 {
+                    let body = response.json();
+                    if body["finding"]["detail"]
+                        .as_str()
+                        .is_some_and(|m| m.contains("is full at fire time"))
+                    {
+                        named += 1;
+                    }
+                }
+            }
+            if named >= 1 {
+                break named;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .expect("the deferred fire is named on its beat");
+    assert!(deferred >= 1, "at least one beat found the queue full");
+    let alive = server.request(&get_request("/v1/workflows")).await;
+    assert_eq!(alive.status, 200, "the resident is alive: {}", alive.body);
+    server.stop().await.expect("a deferred fire stops clean");
+}
