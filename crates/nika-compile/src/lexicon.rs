@@ -20,11 +20,11 @@ mod slugs;
 #[cfg(test)]
 mod tests;
 
-use super::paths::Structured;
+use super::paths::{self, Structured};
 use super::plan::{
     Binding, Effect, EffectPolicy, EffectVerb, Obligation, ObligationKind, Op, Plan, Step,
 };
-use super::{gates, objects};
+use super::{gates, hot, objects};
 use cues::{
     ARTICLES, ATTEMPT_NOUNS, BOUND_WORDS, CATEGORY_MARKERS, CONSTRAINT_OPENERS, FINAL_GATE_MARKERS,
     FORBIDDEN_MARKERS, LEADING_FILLER, LOOKUP_CUES, NAMED_GATE_MARKERS, NEGATION_OPENERS,
@@ -342,6 +342,36 @@ pub(super) fn head_of_exact(lower: &str) -> Option<(&'static str, &'static Head)
         }
     }
     best
+}
+
+/// Whether an object opens with a noun naming produced content (`un digest des notes`,
+/// `a short report`, `un riassunto in 3 punti`): after its determiners, within the head
+/// noun phrase (before an `of`/`de`/`di`), one of the closed produced-content nouns.
+fn opens_with_produced_noun(object_lower: &str) -> bool {
+    const OF: &[&str] = &[
+        "of", "de", "du", "des", "d'", "from", "about", "sur", "di", "del", "della", "dei",
+        "delle", "degli", "sobre", "dans", "in", "en", "nel", "nella",
+    ];
+    hot::fold(object_lower)
+        .split(|c: char| !c.is_alphanumeric() && c != '-' && c != '\'')
+        .flat_map(|t| t.split('\''))
+        .filter(|t| !t.is_empty())
+        .skip_while(|t| ARTICLES.contains(t))
+        .take_while(|t| !OF.contains(t))
+        .take(3)
+        .any(|t| hot::PRODUCED_NOUNS.contains(&t))
+}
+
+/// Whether the local path an object names is its material rather than a destination: a
+/// folder or a glob is never written to (`les notes dans ./notes` is a source whatever
+/// its connector); a file is material only when no destination connector precedes it.
+fn source_path(detail: &str, detail_lower: &str, path: &str) -> bool {
+    match paths::token(path) {
+        Some(paths::PathShape::Directory(_) | paths::PathShape::Glob(_)) => true,
+        _ => detail
+            .find(path)
+            .is_some_and(|at| objects::destination_at(detail_lower, at).is_none()),
+    }
 }
 
 fn strip_filler(lower: &str) -> &str {
@@ -1165,6 +1195,13 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
         lowered_path = path.to_lowercase();
         detail_lower = &lowered_path;
     }
+    // A make head (`fais-moi`, `fammi`, `hazme`) is a draft only of produced content: a
+    // digest, un résumé, un riassunto. `fais-moi un café` is a request the reader does not
+    // know, never a draft of a coffee.
+    if heads::is_make(phrase) && !opens_with_produced_noun(detail_lower) {
+        reading.unresolved.push(original.to_owned());
+        return false;
+    }
     // A named local path settles the medium: writing TO a path is a file effect,
     // reading a path is the supplied-document read.
     if let Some(path) = &path {
@@ -1198,10 +1235,41 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
             reading.plan.push_step(Step {
                 op: Op::Read,
                 evidence: original.to_owned(),
-                detail: path.clone(),
+                detail: paths::material(path),
                 categories: Vec::new(),
             });
             defer_residue(&detail, path, reading);
+            return true;
+        }
+        // A source path inside the object of an operation (`traduis ./notes/brief.md en
+        // anglais`, `un digest des notes dans ./notes`) is the material the operation
+        // consumes: the read is that path (a folder is every file directly under it) and
+        // the operation keeps the object the clause states, verbatim.
+        if let Head::Op(op @ (Op::Draft | Op::Extract | Op::Classify | Op::Validate | Op::Compute)) =
+            head
+            && source_path(&detail, detail_lower, path)
+        {
+            reading.plan.bindings.push(Binding {
+                role: "path",
+                literal: path.clone(),
+            });
+            reading.plan.push_step(Step {
+                op: Op::Read,
+                evidence: original.to_owned(),
+                detail: paths::material(path),
+                categories: Vec::new(),
+            });
+            let categories = if *op == Op::Classify {
+                categories_of(detail_lower)
+            } else {
+                Vec::new()
+            };
+            reading.plan.push_step(Step {
+                op: *op,
+                evidence: original.to_owned(),
+                detail,
+                categories,
+            });
             return true;
         }
         if let Head::Effect(verb) = head {

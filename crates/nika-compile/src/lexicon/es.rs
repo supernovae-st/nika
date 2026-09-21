@@ -65,6 +65,17 @@ pub(super) const HEADS: &[(&str, Head)] = &[
     ("preparar", Head::Op(Op::Draft)),
     ("corrija", Head::Op(Op::Draft)),
     ("corregir", Head::Op(Op::Draft)),
+    ("hazme", Head::Op(Op::Draft)),
+    ("haznos", Head::Op(Op::Draft)),
+    ("hágame", Head::Op(Op::Draft)),
+    ("hagame", Head::Op(Op::Draft)),
+    ("haz", Head::Op(Op::Draft)),
+    ("haga", Head::Op(Op::Draft)),
+    ("hacer", Head::Op(Op::Draft)),
+    ("produzca", Head::Op(Op::Draft)),
+    ("producir", Head::Op(Op::Draft)),
+    ("elabore", Head::Op(Op::Draft)),
+    ("elaborar", Head::Op(Op::Draft)),
     ("calcula", Head::Op(Op::Compute)),
     ("calcule", Head::Op(Op::Compute)),
     ("calcular", Head::Op(Op::Compute)),
@@ -167,4 +178,10 @@ pub(super) const WRITE_HEADS: &[&str] = &[
     "guardala",
     "guardalos",
     "guardalas",
+];
+
+/// Heads that make something: a draft only of produced content.
+pub(super) const MAKE_HEADS: &[&str] = &[
+    "hazme", "haznos", "hágame", "hagame", "haz", "haga", "hacer", "produzca", "producir",
+    "elabore", "elaborar",
 ];

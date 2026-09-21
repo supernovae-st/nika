@@ -72,6 +72,17 @@ pub(super) fn token(word: &str) -> Option<PathShape> {
     Some(PathShape::File(literal))
 }
 
+/// The material a read consumes when a request names a path: a file or a glob as
+/// stated; a directory as every file directly under it (`./notes` → `./notes/*`), a
+/// derivation of the stated literal that guesses neither an extension nor a depth.
+/// `nika:glob` returns files only, so a subdirectory is left out, never read.
+pub(super) fn material(path: &str) -> String {
+    match token(path) {
+        Some(PathShape::Directory(dir)) => format!("{}/*", dir.trim_end_matches('/')),
+        _ => path.to_owned(),
+    }
+}
+
 /// `name.ext` with a real stem and an alphabetic-led extension; never a bare number,
 /// an abbreviation (`e.g`) or a version (`v1.2`).
 fn bare_filename(word: &str) -> bool {
@@ -251,5 +262,14 @@ mod tests {
         assert_eq!(directory_of("*.md"), ".");
         assert_eq!(Structured::of("./x.yml"), Some(Structured::Yaml));
         assert_eq!(Structured::of("./x.md"), None);
+    }
+
+    #[test]
+    fn a_directory_is_read_as_every_file_directly_under_it_and_nothing_else_changes() {
+        assert_eq!(material("./notes"), "./notes/*");
+        assert_eq!(material("./notes/"), "./notes/*");
+        assert_eq!(material("./notes/brief.md"), "./notes/brief.md");
+        assert_eq!(material("./notes/*.md"), "./notes/*.md");
+        assert_eq!(material("./catalog/<slug>.md"), "./catalog/<slug>.md");
     }
 }

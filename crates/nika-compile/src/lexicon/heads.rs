@@ -7,7 +7,7 @@
 //! operations, an effect verb or the deduplication obligation; the reader never
 //! guesses a head it does not list. English and French share one table; Italian
 //! and Spanish live in their own files. The longest matching phrase wins, and a
-//! match must end at a word boundary (`look up` before `look`, never `lookups`).
+//! match must end at a word boundary (`fais-moi` before `fais`, never `faisons`).
 
 use super::super::plan::{EffectVerb, Op};
 
@@ -19,7 +19,7 @@ pub(crate) enum Head {
 }
 
 /// Every head table, in lookup order (the longest phrase wins across all of them).
-pub(super) const TABLES: &[&[(&str, Head)]] = &[EN_FR, super::it::HEADS, super::es::HEADS];
+pub(super) const TABLES: &[&[(&str, Head)]] = &[EN_FR, MAKE_FR, super::it::HEADS, super::es::HEADS];
 
 /// Heads that write named content to a path (`écris … dans ./x.md`, `salvalo in
 /// ./x.md`): with a path and a destination connector, the clause is a write effect.
@@ -29,15 +29,47 @@ pub(super) fn writes_to_path(phrase: &str) -> bool {
         || super::es::WRITE_HEADS.contains(&phrase)
 }
 
+/// Heads that make something (`fais-moi`, `fammi`, `hazme`): a draft only when the
+/// object opens with a produced-content noun (a digest, un résumé, un riassunto);
+/// anything else is a request the reader cannot read.
+pub(super) fn is_make(phrase: &str) -> bool {
+    MAKE_HEADS.contains(&phrase)
+        || super::it::MAKE_HEADS.contains(&phrase)
+        || super::es::MAKE_HEADS.contains(&phrase)
+}
+
 const WRITE_HEADS: &[&str] = &[
     "write",
     "écris",
     "écrivez",
     "écrire",
+    "ecris",
+    "ecrivez",
+    "ecrire",
     "enregistre",
     "enregistrez",
     "enregistrer",
     "record",
+];
+
+const MAKE_HEADS: &[&str] = &[
+    "fais-moi",
+    "fais-nous",
+    "faites-moi",
+    "faites-nous",
+    "fais",
+    "faites",
+    "produis",
+    "produisez",
+    "produire",
+    "génère",
+    "générez",
+    "générer",
+    "genère",
+    "elabore",
+    "élabore",
+    "élaborez",
+    "élaborer",
 ];
 
 /// Longest phrase first. Lowercase, apostrophes normalized to `'`.
@@ -254,4 +286,25 @@ pub(super) const EN_FR: &[(&str, Head)] = &[
     ("trigger", Head::Effect(EffectVerb::Other)),
     ("execute", Head::Effect(EffectVerb::Other)),
     ("exécute", Head::Effect(EffectVerb::Other)),
+];
+
+/// The French make heads: a draft when the object names produced content.
+const MAKE_FR: &[(&str, Head)] = &[
+    ("fais-moi", Head::Op(Op::Draft)),
+    ("fais-nous", Head::Op(Op::Draft)),
+    ("faites-moi", Head::Op(Op::Draft)),
+    ("faites-nous", Head::Op(Op::Draft)),
+    ("fais", Head::Op(Op::Draft)),
+    ("faites", Head::Op(Op::Draft)),
+    ("produis", Head::Op(Op::Draft)),
+    ("produisez", Head::Op(Op::Draft)),
+    ("produire", Head::Op(Op::Draft)),
+    ("génère", Head::Op(Op::Draft)),
+    ("générez", Head::Op(Op::Draft)),
+    ("générer", Head::Op(Op::Draft)),
+    ("genère", Head::Op(Op::Draft)),
+    ("elabore", Head::Op(Op::Draft)),
+    ("élabore", Head::Op(Op::Draft)),
+    ("élaborez", Head::Op(Op::Draft)),
+    ("élaborer", Head::Op(Op::Draft)),
 ];
