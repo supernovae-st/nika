@@ -326,7 +326,93 @@ fn a_stated_aggregate_is_the_shape_after_the_filter() {
     assert_eq!(rule.totals_names(), ["moyenne"]);
     assert_eq!(rule.fields(), ["montant"]);
     assert!(!rule.summary());
-    assert_eq!(jq("the total of the amount column per client"), None);
+    // A grouping is a stage of the shape: one row per client with its total.
+    let grouped = synthesize("the total of the amount column per client", &[]).expect("a rule");
+    assert_eq!(
+        grouped.jq(),
+        ".records | group_by(.client) | map({\"client\": (.[0] | .client), \"total\": (map(.amount | tonumber) | add // 0)})"
+    );
+    assert_eq!(grouped.fields(), ["client", "amount"]);
+    assert_eq!(
+        grouped.output_columns(),
+        Some(vec!["client".to_owned(), "total".to_owned()])
+    );
+    assert!(grouped.totals_names().is_empty());
+}
+
+#[test]
+fn a_join_a_top_n_a_projection_and_a_dedup_lower_after_the_filter() {
+    let join = synthesize("merge them on the id column", &[]).expect("a join");
+    assert!(join.joins());
+    assert_eq!(join.fields(), ["id"]);
+    assert_eq!(
+        join.jq(),
+        ".records | reduce .[1:][] as $right (.[0]; [.[] as $a | $right[] | select(.id == ($a | .id)) | $a + .])"
+    );
+    assert_eq!(
+        join.guard(),
+        "(.records | type) == \"array\" and (.records | length) >= 2 and all(.records[]; type == \"array\" and (length == 0 or (.[0] | type == \"object\" and has(\"id\"))))"
+    );
+    assert!(join.guard_message().contains("joins the sources on `id`"));
+    // A filter after the join selects over the joined rows.
+    assert_eq!(
+        jq("merge them on the id column ; whose amount is above 100"),
+        Some(".records | reduce .[1:][] as $right (.[0]; [.[] as $a | $right[] | select(.id == ($a | .id)) | $a + .]) | [.[] | select((.amount | tonumber) > 100)]".to_owned())
+    );
+    assert_eq!(
+        jq("keep the 2 rows with the highest amount"),
+        Some(".records | sort_by(.amount | tonumber? // .) | reverse | .[:2]".to_owned())
+    );
+    assert_eq!(
+        jq("whose client is acme ; keep the 2 rows with the highest amount"),
+        Some("[.records[] | select(.client == \"acme\")] | sort_by(.amount | tonumber? // .) | reverse | .[:2]".to_owned())
+    );
+    let slim = synthesize("keep only the id and title of each ticket", &[]).expect("a projection");
+    assert_eq!(
+        slim.jq(),
+        ".records | map({\"id\": .id, \"title\": .title})"
+    );
+    assert_eq!(slim.fields(), ["id", "title"]);
+    assert_eq!(
+        slim.output_columns(),
+        Some(vec!["id".to_owned(), "title".to_owned()])
+    );
+    // A removal of duplicates over a text source runs over its lines and writes lines.
+    let distinct = synthesize("remove the duplicate lines", &[]).expect("a dedup");
+    assert!(!distinct.lines());
+    let lines = distinct.over_lines().expect("over lines");
+    assert!(lines.lines());
+    assert_eq!(
+        lines.jq(),
+        ".records | reduce .[] as $r ([]; if any(.[]; . == $r) then . else . + [$r] end) | join(\"\\n\") | if length > 0 then . + \"\\n\" else . end"
+    );
+    assert_eq!(
+        lines.guard(),
+        "(.records | type) == \"array\" and all(.records[]; type == \"string\")"
+    );
+    assert_eq!(Rule::from_json(&lines.to_json()), Some(lines));
+    // A filter, a sort or a projection has no meaning over lines: asked, never guessed.
+    for text in [
+        "whose status is open",
+        "sort the rows by amount",
+        "keep only the id and title of each ticket",
+        "count the rows per client",
+    ] {
+        assert_eq!(
+            synthesize(text, &[]).and_then(|r| r.over_lines()),
+            None,
+            "{text}"
+        );
+    }
+    // Two stages of the same kind, or a dedup beside a top-N, are not one computation.
+    assert_eq!(
+        jq("sort the rows by amount ; sort the rows by client"),
+        None
+    );
+    assert_eq!(
+        jq("remove the duplicate lines ; keep the 2 rows with the highest amount"),
+        None
+    );
 }
 
 #[test]
@@ -338,6 +424,12 @@ fn a_negation_among_the_lead_words_is_read_as_nothing_never_inverted() {
         "ne garde pas les lignes dont amount dépasse 200",
         "ne garde jamais les lignes dont amount dépasse 200",
         "don't keep rows whose amount is above 100",
+        // An exclusion names what leaves: never read as a keep of those rows.
+        "exclude the rows whose amount is below 100 or whose status is refunded",
+        "drop the rows whose status is closed",
+        "filter out the rows whose amount is above 100",
+        "remove the rows whose status is closed",
+        "supprime les lignes dont le montant est plus grand que 100",
     ] {
         assert_eq!(synthesize(text, &[]), None, "{text}");
     }

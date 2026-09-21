@@ -91,6 +91,7 @@ mod rule_cues;
 mod rule_tokens;
 mod rules;
 mod shape;
+mod stages;
 mod support;
 pub mod text;
 mod types;

@@ -20,10 +20,10 @@
 
 use super::bindings::{self, Bindings, Need, RuleBinding, Source, WriteEffect};
 use super::laws::{
-    ANNOTATE, FOLD_DOCUMENTS, FOLD_DRAFTS, FOLD_FIELDS, INFER_TIMEOUT, ROUTE, SELECT_BY_FIELD,
-    SELECT_BY_KEY, SOURCE_COLUMNS, SUMMARY, ZIP, anchor_law, bullet_layout, category_schema,
-    draft_law, draft_schema, extract_schema, per_item_extract_law, per_item_law,
-    per_item_translation_law, translation, translation_law,
+    ANNOTATE, FOLD_DOCUMENTS, FOLD_DRAFTS, FOLD_FIELDS, INFER_TIMEOUT, LINES, ROUTE,
+    SELECT_BY_FIELD, SELECT_BY_KEY, SOURCE_COLUMNS, SOURCE_COLUMNS_UNION, SUMMARY, ZIP, anchor_law,
+    bullet_layout, category_schema, draft_law, draft_schema, extract_schema, per_item_extract_law,
+    per_item_law, per_item_translation_law, translation, translation_law,
 };
 use super::paths::{self, Structured};
 use super::plan::{EffectPolicy, Op, Plan, Step};
@@ -527,14 +527,12 @@ fn emit_read(d: &mut Doc, plan: &Plan, b: &Bindings) {
             if let Some(format) = Structured::of(path)
                 && b.parses()
             {
-                let writes_csv = b
-                    .writes
-                    .iter()
-                    .any(|w| Structured::of(&w.path) == Some(Structured::Csv));
-                if format == Structured::Csv && writes_csv {
+                if format == Structured::Csv && writes_csv(b) {
                     emit_source_columns(d);
                 }
                 emit_parse(d, format);
+            } else if b.rule_over_lines() {
+                emit_parse_lines(d);
             }
         }
         Some(source @ (Source::Files(_) | Source::Glob(_))) => emit_fan_out(d, plan, b, source),
@@ -556,6 +554,58 @@ fn emit_source_columns(d: &mut Doc) {
         false,
     );
     d.source_columns = true;
+}
+
+fn writes_csv(b: &Bindings) -> bool {
+    b.writes
+        .iter()
+        .any(|w| Structured::of(&w.path) == Some(Structured::Csv))
+}
+
+/// The header order of several CSV sources, each in turn, for a join written back as CSV.
+fn emit_source_columns_union(d: &mut Doc) {
+    d.tool(
+        "source_columns",
+        "nika:jq",
+        json!({"input": "${{ with.texts }}", "expression": SOURCE_COLUMNS_UNION}),
+        Some(json!({"texts": "${{ tasks.read_source.output }}"})),
+        false,
+    );
+    d.source_columns = true;
+}
+
+/// A text source whose rule runs over its lines is decoded once into the array of lines.
+fn emit_parse_lines(d: &mut Doc) {
+    d.tool(
+        "parse_source",
+        "nika:jq",
+        json!({"input": "${{ with.document }}", "expression": LINES}),
+        Some(json!({"document": "${{ tasks.read_source.output }}"})),
+        false,
+    );
+    d.fact("records", "${{ tasks.parse_source.output }}", Kind::Parsed);
+}
+
+/// Several structured files a rule joins are decoded apart: one array of records per file,
+/// in item order, so the join reads `.records[0]`, `.records[1]`, … as the request listed
+/// the files.
+fn emit_parse_each(d: &mut Doc, format: Structured) {
+    let (tool, args) = match format {
+        Structured::Json => (
+            "nika:jq",
+            json!({"input": "${{ item }}", "expression": "fromjson"}),
+        ),
+        other => (
+            "nika:convert",
+            json!({"input": "${{ item }}", "from": other.word(), "to": "json"}),
+        ),
+    };
+    d.tools.insert(tool);
+    let mut node = invoke(tool, args);
+    node["with"] = json!({"texts": "${{ tasks.read_source.output }}"});
+    node["for_each"] = json!({"items": "${{ with.texts }}", "fail_fast": true});
+    d.task("parse_source", node, false);
+    d.fact("records", "${{ tasks.parse_source.output }}", Kind::Parsed);
 }
 
 /// A structured source is decoded once for code rules; prompts keep the raw text. Emitted
@@ -619,6 +669,19 @@ fn emit_fan_out(d: &mut Doc, plan: &Plan, b: &Bindings, source: &Source) {
     d.tools.insert("nika:read");
     node["for_each"] = fan;
     d.task("read_source", node, false);
+    // Several structured files a rule joins are parsed apart, one array of records per
+    // file; the join is the data every later step and write consume, so no folded
+    // document is made.
+    if let Source::Files(files) = source
+        && b.joins()
+        && let Some(format) = bindings::joined_format(files)
+    {
+        if format == Structured::Csv && writes_csv(b) {
+            emit_source_columns_union(d);
+        }
+        emit_parse_each(d, format);
+        return;
+    }
     let input = json!({"texts": "${{ with.texts }}", "paths": paths_ref});
     if !b.per_item.is_empty() {
         let zip = if b.draft_per_item() {

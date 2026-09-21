@@ -307,6 +307,89 @@ fn a_spanish_read_draft_and_save_is_read_without_a_seat() {
 }
 
 #[test]
+fn a_headless_clause_the_rule_grammar_reads_whole_is_a_computation() {
+    let intent =
+        "Read ./sales.csv, count the rows per client and write the counts to ./per-client.json";
+    let reading = read(intent);
+    assert_eq!(
+        steps(&reading),
+        [
+            ("read", "./sales.csv".to_owned()),
+            ("compute", "count the rows per client".to_owned()),
+        ]
+    );
+    assert_eq!(reading.plan.rules.len(), 1);
+    assert!(reading.unresolved.is_empty(), "{:?}", reading.unresolved);
+    assert_eq!(writes(&reading).len(), 1);
+    assert_eq!(admission(intent), Vec::<String>::new());
+    // A clause the grammar cannot read whole stays unresolved; a write whose whole object
+    // is a path is the write of the latest result, never a read of the destination.
+    let reading = read("Read ./sales.csv, sort the rows and write ./sorted.csv");
+    assert_eq!(reading.unresolved, ["sort the rows"]);
+    assert_eq!(steps(&reading), [("read", "./sales.csv".to_owned())]);
+    assert_eq!(
+        writes(&reading),
+        [("./sorted.csv".to_owned(), EffectPolicy::Automatic)]
+    );
+    assert!(!reading.plan.has(Op::Draft));
+    // With nothing produced, the same bare path is a write with no content.
+    assert!(
+        admission("Read ./a.txt and write ./b.txt")
+            .iter()
+            .any(|w| w.contains("a write with no content")),
+        "{:?}",
+        admission("Read ./a.txt and write ./b.txt")
+    );
+    // An exclusion names what leaves: never a keep of those rows. The clause stays the
+    // prose the reader cannot parse, and the deterministic door refuses it.
+    let intent =
+        "Read ./sales.csv, exclude the rows whose amount is below 100 and write them to ./big.csv";
+    let reading = read(intent);
+    assert!(!reading.plan.has(Op::Compute), "{:?}", steps(&reading));
+    assert!(reading.plan.rules.is_empty());
+    assert_eq!(
+        reading.soft_constraints,
+        ["exclude the rows whose amount is below 100"]
+    );
+    assert!(!admission(intent).is_empty());
+    // A list of files is read as stated; a join on a column is a computation; a join with
+    // no key is unresolved; a merge of prose into a file stays the effect it is.
+    let reading = read(
+        "Read ./a.csv and ./b.csv, merge them on the id column and write the result to ./merged.csv",
+    );
+    assert_eq!(
+        steps(&reading),
+        [
+            ("read", "./a.csv ; ./b.csv".to_owned()),
+            ("compute", "merge them on the id column".to_owned()),
+        ]
+    );
+    assert!(
+        reading
+            .plan
+            .effects
+            .iter()
+            .all(|e| e.verb == EffectVerb::Write),
+        "{:?}",
+        reading.plan.effects
+    );
+    let reading = read("Read ./a.csv and ./b.csv, merge them and write the result to ./merged.csv");
+    assert_eq!(reading.unresolved, ["merge them"]);
+    let reading = read(
+        "Read ./notes/a.md and ./notes/b.md, draft a summary and merge the summaries into ./out/all.md",
+    );
+    assert!(
+        reading
+            .plan
+            .effects
+            .iter()
+            .any(|e| e.verb == EffectVerb::Merge && e.target == "./out/all.md"),
+        "{:?}",
+        reading.plan.effects
+    );
+}
+
+#[test]
 fn an_english_sentence_keeps_its_reading_and_the_vague_request_still_asks() {
     // The vague English request of the matrix: no source, no head the reader lists.
     let out = compile(&CompileRequest::create("build me a digest of the docs")).expect("compile");

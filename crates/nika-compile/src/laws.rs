@@ -65,6 +65,15 @@ pub(super) const SELECT_BY_FIELD: &str = ". as $l | ($l.directory | fromjson) | 
 pub(super) const SOURCE_COLUMNS: &str =
     r#"split("\n") | .[0] | rtrimstr("\r") | split(",") | map(ltrimstr("\"") | rtrimstr("\""))"#;
 
+/// The header order of several CSV sources read in a fan-out: each source's header in turn,
+/// a column named twice kept where it first appeared. What a join writes back as CSV.
+pub(super) const SOURCE_COLUMNS_UNION: &str = r#"[.[] | split("\n") | .[0] | rtrimstr("\r") | split(",") | map(ltrimstr("\"") | rtrimstr("\""))] | add | reduce .[] as $c ([]; if any(.[]; . == $c) then . else . + [$c] end)"#;
+
+/// The lines of a text source: split on newlines, `\r` trimmed, the empty segment after
+/// the file's final newline dropped (it is the terminator, not a line).
+pub(super) const LINES: &str =
+    r#"split("\n") | map(rtrimstr("\r")) | if .[-1] == "" then .[:-1] else . end"#;
+
 /// The zip of a fan-out: one `{path, text}` per read file, in item order.
 pub(super) const ZIP: &str =
     ". as $r | [range(0; $r.texts | length) as $i | {path: $r.paths[$i], text: $r.texts[$i]}]";

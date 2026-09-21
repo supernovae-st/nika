@@ -296,6 +296,7 @@ pub(super) fn typed_rule(
         sort_by,
         columns,
         derived,
+        ..Shape::default()
     };
     if clauses.is_empty() && shape == Shape::default() {
         return None;

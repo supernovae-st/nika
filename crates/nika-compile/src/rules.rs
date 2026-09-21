@@ -184,6 +184,9 @@ pub(super) struct Rule {
     summary: bool,
     /// What happens to the rows after the filter.
     shape: Shape,
+    /// The records are the lines of a text source, and the result is written back as
+    /// lines: a removal of duplicate lines over a `.txt` file.
+    lines: bool,
 }
 
 /// The jq path of one column: a bare identifier as `.name`, anything else bracketed.
@@ -263,11 +266,39 @@ impl Rule {
             junction,
             summary: false,
             shape,
+            lines: false,
         }
     }
     /// The columns the computation writes, in order, when it fixes them.
     pub(super) fn output_columns(&self) -> Option<Vec<String>> {
         self.shape.output_columns()
+    }
+    /// Whether the rule joins several parsed sources on a column: its records are then one
+    /// array per source, first source first.
+    pub(super) fn joins(&self) -> bool {
+        self.shape.join_on.is_some()
+    }
+    /// Whether the rule runs over the lines of a text source.
+    pub(super) const fn lines(&self) -> bool {
+        self.lines
+    }
+    /// The same rule over the lines of a text source, when its only work is the removal of
+    /// duplicates: a line has no columns to filter, group, sort or project. Anything else
+    /// over a text source is `None`: the human is asked.
+    pub(super) fn over_lines(&self) -> Option<Self> {
+        let s = &self.shape;
+        let only_distinct = s.distinct
+            && self.clauses.is_empty()
+            && s.join_on.is_none()
+            && s.group_by.is_none()
+            && s.aggregations.is_empty()
+            && s.sort_by.is_none()
+            && s.limit.is_none()
+            && s.columns.is_empty();
+        only_distinct.then(|| Self {
+            lines: true,
+            ..self.clone()
+        })
     }
     /// The names of the totals, when the computation is totals over every row.
     pub(super) fn totals_names(&self) -> Vec<String> {
@@ -298,21 +329,23 @@ impl Rule {
             .get("summary")
             .and_then(Value::as_bool)
             .unwrap_or(false);
+        let lines = value.get("lines").and_then(Value::as_bool).unwrap_or(false);
         Some(Self {
             text,
             clauses,
             junction,
             summary,
             shape,
+            lines,
         })
     }
     /// Whether the text also asked for the count and totals the summary stage computes.
     pub(super) const fn summary(&self) -> bool {
         self.summary
     }
-    /// Every source column the rule reads, first use first: the clauses, the group column,
-    /// the aggregated columns, a sort or a projection on a source column (a sort or a
-    /// projection on a produced name reads nothing from the source).
+    /// Every source column the rule reads, first use first: the join key, the clauses, the
+    /// group column, the aggregated columns, a sort or a projection on a source column (a
+    /// sort or a projection on a produced name reads nothing from the source).
     pub(super) fn fields(&self) -> Vec<String> {
         let mut out: Vec<String> = Vec::new();
         let mut push = |name: &str| {
@@ -320,6 +353,9 @@ impl Rule {
                 out.push(name.to_owned());
             }
         };
+        if let Some(key) = &self.shape.join_on {
+            push(key);
+        }
         for clause in &self.clauses {
             push(&clause.field);
             if let Operand::Column(other) = &clause.value {
@@ -355,37 +391,72 @@ impl Rule {
             .collect::<Vec<_>>()
             .join(&format!(" {} ", self.junction.word()))
     }
-    /// The computation over the parsed records: the filter, then the shape's stages in
-    /// their fixed order.
+    /// The computation over the parsed records: the join of the sources when the rule joins,
+    /// the filter, then the shape's stages in their fixed order; over the lines of a text
+    /// source, the result is written back as lines with the file's final newline.
     pub(super) fn jq(&self) -> String {
+        let base = match &self.shape.join_on {
+            Some(on) => format!(
+                ".records | reduce .[1:][] as $right (.[0]; [.[] as $a | $right[] | select({k} == ($a | {k})) | $a + .])",
+                k = key(on)
+            ),
+            None => ".records".to_owned(),
+        };
         let filtered = if self.clauses.is_empty() {
-            ".records".to_owned()
+            base
+        } else if self.shape.join_on.is_some() {
+            format!("{base} | [.[] | select({})]", self.predicate())
         } else {
             format!("[.records[] | select({})]", self.predicate())
         };
-        self.shape.lower(filtered)
+        let mut jq = self.shape.lower(filtered);
+        if self.lines {
+            jq.push_str(" | join(\"\\n\") | if length > 0 then . + \"\\n\" else . end");
+        }
+        jq
     }
     /// True when the records are an array whose first record carries every column the
     /// rule reads (an empty array passes): a wrong column fails loudly, never filters
-    /// everything in silence.
+    /// everything in silence. A join judges every source's first record; lines are strings.
     pub(super) fn guard(&self) -> String {
+        if self.lines {
+            return "(.records | type) == \"array\" and all(.records[]; type == \"string\")"
+                .to_owned();
+        }
         let has = self
             .fields()
             .iter()
             .map(|f| format!(" and has({})", json!(f)))
             .collect::<Vec<_>>()
             .concat();
+        if self.joins() {
+            return format!(
+                "(.records | type) == \"array\" and (.records | length) >= 2 and all(.records[]; type == \"array\" and (length == 0 or (.[0] | type == \"object\"{has})))"
+            );
+        }
         format!(
             "(.records | type) == \"array\" and ((.records | length) == 0 or (.records[0] | type == \"object\"{has}))"
         )
     }
     pub(super) fn guard_message(&self) -> String {
+        if self.lines {
+            return format!(
+                "The rule `{}` runs over the lines of the source, but the source was not read as lines.",
+                self.text
+            );
+        }
         let fields = self
             .fields()
             .iter()
             .map(|f| format!("`{f}`"))
             .collect::<Vec<_>>()
             .join(", ");
+        if self.joins() {
+            return format!(
+                "The rule `{}` joins the sources on {fields}, but a source is missing or its first parsed record has no such field; check every source header.",
+                self.text
+            );
+        }
         format!(
             "The rule `{}` reads the column(s) {fields}, but the first parsed record has no such field; check the source header.",
             self.text
@@ -401,6 +472,7 @@ impl Rule {
             "synthesized": true,
             "summary": self.summary,
             "shape": self.shape.to_json(),
+            "lines": self.lines,
         });
         if let [only] = self.clauses.as_slice() {
             let clause = only.to_json();
@@ -545,6 +617,60 @@ fn last_relative(region: &[Token]) -> Option<(usize, usize)> {
 /// is closed", "never keep …", "ne garde pas …") inverts the whole clause; the grammar
 /// reads no polarity there, so it reads nothing. The French restriction "ne … que" is
 /// "only", never a negation.
+/// A verb that drops the rows it describes ("exclude the rows whose …", "filter out …",
+/// "supprime les lignes dont …"): the clauses name what leaves, and the grammar reads no
+/// polarity there. Reading them as a keep would run the complement of the request.
+const EXCLUSION_LEADS: &[&str] = &[
+    "exclude",
+    "excludes",
+    "excluding",
+    "drop",
+    "drops",
+    "remove",
+    "removes",
+    "delete",
+    "deletes",
+    "discard",
+    "discards",
+    "omit",
+    "omits",
+    "skip",
+    "skips",
+    "ignore",
+    "ignores",
+    "strip",
+    "out",
+    "exclus",
+    "exclure",
+    "excluez",
+    "supprime",
+    "supprimez",
+    "supprimer",
+    "retire",
+    "retirez",
+    "retirer",
+    "enleve",
+    "enlevez",
+    "enlever",
+    "elimine",
+    "eliminez",
+    "eliminer",
+    "ignorez",
+    "ecarte",
+    "ecartez",
+    "elimina",
+    "quita",
+    "descarta",
+    "excluye",
+    "omite",
+    "rimuovi",
+    "escludi",
+    "scarta",
+    "entferne",
+    "losche",
+    "verwerfe",
+];
+
 fn negated_lead(lead: &[Token]) -> bool {
     let words: Vec<&str> = lead.iter().filter_map(Token::word).collect();
     words.iter().enumerate().any(|(at, word)| {
@@ -554,6 +680,7 @@ fn negated_lead(lead: &[Token]) -> bool {
                 .is_some_and(|window| window.contains(&"que"));
         }
         NEGATIONS.contains(word)
+            || EXCLUSION_LEADS.contains(word)
             || matches!(
                 *word,
                 "never"
@@ -757,14 +884,13 @@ pub(super) fn synthesize(text: &str, columns: &[String]) -> Option<Rule> {
         let mut at = 0;
         loop {
             let Some((clause, next)) = parse_clause(&tokens, at, columns) else {
-                // A whole segment stating one aggregate over a column is the shape's work:
-                // the filter (if any) runs first, the totals follow.
+                // A whole segment stating a stage (an aggregate over a column, a count per
+                // column, a sort, a top-N, a projection, a removal of duplicates, a join) is
+                // the shape's work: the filter (if any) runs first, the stages follow.
                 if at == 0
-                    && let Some(aggregation) = super::aggregate::stated(segment, columns)
+                    && let Some(stage) = super::stages::stated(segment, columns)
                 {
-                    if !shape.aggregations.contains(&aggregation) {
-                        shape.aggregations.push(aggregation);
-                    }
+                    shape = shape.merge(stage)?;
                     break;
                 }
                 // After a clause, a count-or-total request is the summary stage's work.
@@ -794,7 +920,7 @@ pub(super) fn synthesize(text: &str, columns: &[String]) -> Option<Rule> {
             }
         }
     }
-    if clauses.is_empty() && shape.aggregations.is_empty() {
+    if clauses.is_empty() && shape == Shape::default() {
         return None;
     }
     Some(Rule {
@@ -803,6 +929,7 @@ pub(super) fn synthesize(text: &str, columns: &[String]) -> Option<Rule> {
         junction: junction.unwrap_or(Junction::And),
         summary,
         shape,
+        lines: false,
     })
 }
 

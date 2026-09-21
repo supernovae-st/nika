@@ -62,8 +62,23 @@ pub(super) struct Reading {
     /// Clauses whose whole meaning is a policy on an effect read elsewhere (`a human must
     /// approve the write first`): accounted for by the policy they set.
     pub policy_clauses: Vec<String>,
-    /// The columns the request lists: a word among them names a column, never an effect.
+    /// The columns the request lists beside its source: a word among them names a column,
+    /// never an effect, and the closed rule grammar reads them.
     pub columns: Vec<String>,
+}
+
+/// A clause the closed rule grammar read whole ("count the rows per client", "merge them on
+/// the id column") is a compute step carrying its rule: the words are its literals.
+fn push_rule(original: &str, rule: super::rules::Rule, reading: &mut Reading) {
+    reading.plan.push_step(Step {
+        op: Op::Compute,
+        evidence: original.to_owned(),
+        detail: original.trim().to_owned(),
+        categories: Vec::new(),
+    });
+    if !reading.plan.rules.iter().any(|r| r.text() == rule.text()) {
+        reading.plan.rules.push(rule);
+    }
 }
 
 impl Reading {
@@ -1042,6 +1057,13 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
                 .any(|c| c.eq_ignore_ascii_case(phrase) || c.eq_ignore_ascii_case(first_token)))
     });
     let Some((phrase, head)) = found else {
+        // A clause with no head that the closed rule grammar reads whole ("count the rows
+        // per client", "sort the rows by amount descending", "remove the duplicate lines")
+        // is a stated computation: its words are the literals, the jq is the compiler's.
+        if let Some(rule) = super::rules::synthesize(original, &reading.columns) {
+            push_rule(original, rule, reading);
+            return true;
+        }
         let declarative = [
             " est ",
             " sont ",
@@ -1167,14 +1189,44 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
             defer_residue(&detail, path, reading);
             return true;
         }
+        // `write ./sorted.csv`: a write head whose whole object is the path writes the
+        // latest result there. With nothing produced before it, the admission law names
+        // the missing content; the path is never read as something to draft.
+        if writes
+            && matches!(head, Head::Op(Op::Draft))
+            && detail.trim().trim_end_matches(['.', ',', ';']) == path.as_str()
+        {
+            reading.plan.bindings.push(Binding {
+                role: "path",
+                literal: path.clone(),
+            });
+            push_effect(
+                &mut reading.plan,
+                Effect {
+                    verb: EffectVerb::Write,
+                    target: path.clone(),
+                    evidence: original.to_owned(),
+                    policy: EffectPolicy::Automatic,
+                    policy_literal: None,
+                },
+            );
+            return true;
+        }
         if matches!(head, Head::Choice(options) if options.contains(&Op::Read)) {
+            // "Read ./a.csv and ./b.csv": a list of files is read as stated, every file a
+            // path literal in order; any other residue re-enters as a clause of its own.
+            let listed = objects::path_list(&detail);
             reading.plan.push_step(Step {
                 op: Op::Read,
                 evidence: original.to_owned(),
-                detail: paths::material(path),
+                detail: listed
+                    .as_ref()
+                    .map_or_else(|| paths::material(path), |files| files.join(" ; ")),
                 categories: Vec::new(),
             });
-            defer_residue(&detail, path, reading);
+            if listed.is_none() {
+                defer_residue(&detail, path, reading);
+            }
             return true;
         }
         // A source path inside the object of an operation (`traduis ./notes/brief.md en
@@ -1357,6 +1409,21 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
             }
         }
         Head::Effect(verb) => {
+            // "merge them on the id column": a join of the read sources on a stated column
+            // is a computation the compiler writes, never an external merge effect.
+            if *verb == EffectVerb::Merge
+                && let Some(rule) = super::rules::synthesize(original, &reading.columns)
+                && rule.joins()
+            {
+                push_rule(original, rule, reading);
+                return true;
+            }
+            // "merge them": the sources are named, the key is not. The human completes the
+            // clause; no endpoint is asked for a merge of the files the request read.
+            if *verb == EffectVerb::Merge && super::stages::join_without_key(original) {
+                reading.unresolved.push(original.to_owned());
+                return false;
+            }
             let literal = literals::money_literal(original).then(|| original.to_owned());
             let money = [
                 "money", "argent", "payment", "paiement", "€", "euro", "dollar", "usd", "eur ",
