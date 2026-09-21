@@ -99,6 +99,10 @@ pub fn outcome_document(out: &CompileOutcome) -> Value {
         "questions": questions,
         "diagnostics": diagnostics,
         "requested_boundary": out.requested_boundary,
+        "requested_trigger": out
+            .requested_trigger
+            .as_ref()
+            .map(super::types::TriggerRequirement::to_json),
         "check_preview": preview,
         "provenance": {
             "compiler_version": out.provenance.compiler_version,

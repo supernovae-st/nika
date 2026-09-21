@@ -6,8 +6,8 @@
 //! the assertions read the emitted candidate, never a model.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 use nika_compile::{
-    AuthoringPolicy, CompileOutcome, CompileRequest, CompileStatus, DiagnosticKind,
-    compile_with_provider,
+    AuthoringPolicy, CompileOutcome, CompileRequest, CompileStatus, DiagnosticKind, TriggerKind,
+    TriggerStatus, compile_with_provider, outcome_document,
 };
 use nika_kernel::ai::provider::{
     ContentBlock, InferRequest, InferResponse, ProviderError, ProviderInferDyn, StopReason,
@@ -756,6 +756,243 @@ fn a_body_whose_keys_the_request_states_is_those_keys_over_produced_values() {
         document(&out)["tasks"]["send_payload"]["invoke"]["args"]["expression"],
         r#"{"digest": .draft}"#
     );
+}
+
+// ── the obligation ledger: every stated duty is carried, or nothing is READY ───────
+// The ledger is the typed truth a product projects: one duty per stated demand with its
+// kind, its state and the element carrying it. A READY candidate has no unresolved duty;
+// a constraint no step can carry ends INCOMPLETE naming it, never a green run on a dropped
+// instruction.
+#[test]
+fn the_ledger_names_the_carrier_of_every_stated_duty_and_refuses_a_silent_one() {
+    let out = replay(CHAPTERS, &chapters_record(), &[MODEL]);
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    let record = out.provenance.decision.clone().unwrap();
+    let ledger = record["ledger"].as_array().unwrap();
+    let duties: Vec<(&str, &str, &str)> = ledger
+        .iter()
+        .map(|d| {
+            (
+                d["kind"].as_str().unwrap(),
+                d["state"].as_str().unwrap(),
+                d["realized_by"].as_str().unwrap_or("-"),
+            )
+        })
+        .collect();
+    assert_eq!(
+        duties,
+        [
+            ("transformation", "realized", "draft"),
+            ("effect", "realized", "write_output"),
+            ("format", "realized", "for_each"),
+            ("identity", "realized", "draft_fold"),
+            ("identity", "realized", "draft_fold"),
+            ("cardinality", "realized", "draft"),
+        ],
+        "{record:#}"
+    );
+    assert!(
+        ledger.iter().all(|d| d["state"] != "unresolved"),
+        "{record:#}"
+    );
+    // The plan record stays the replayable identity of the plan: no ledger inside it.
+    assert!(
+        out.provenance
+            .plan
+            .as_ref()
+            .unwrap()
+            .get("ledger")
+            .is_none()
+    );
+    // A gated write carries its gate; a prompt-bound cardinality says it is not verified.
+    let out = replay(HEADLINE, &headline_record(None), &[MODEL]);
+    let record = out.provenance.decision.clone().unwrap();
+    assert_eq!(record["ledger"][0]["realized_by"], "draft", "{record:#}");
+    let mut gated = headline_record(None);
+    gated["effects"][0]["policy"] = json!("human_first");
+    gated["constraints"] = json!(["a single line, under 90 characters"]);
+    let out = replay(HEADLINE, &gated, &[MODEL]);
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    let record = out.provenance.decision.clone().unwrap();
+    let by_kind: Vec<(&str, &str, &str)> = record["ledger"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|d| {
+            (
+                d["kind"].as_str().unwrap(),
+                d["realized_by"].as_str().unwrap_or("-"),
+                d["note"].as_str().unwrap_or("-"),
+            )
+        })
+        .collect();
+    assert!(
+        by_kind.contains(&("gate", "write_output_review", "-")),
+        "{record:#}"
+    );
+    assert!(
+        by_kind.contains(&(
+            "cardinality",
+            "draft",
+            "prompt guidance; not verified at run"
+        )),
+        "{record:#}"
+    );
+    // A constraint with no step to carry it: INCOMPLETE naming the instruction, no candidate.
+    let intent = "Read ./draft.md and write it to ./final.md in a warm tone.";
+    let record = json!({"operations":[
+        {"op":"read","detail":"./draft.md","evidence":"Read ./draft.md","categories":[]}],
+      "effects":[{"verb":"write","target":"./final.md","policy":"automatic","evidence":"write it to ./final.md","policy_literal":null}],
+      "obligations":[],"bindings":[],"constraints":["in a warm tone"],"unknowns":[],"trigger":null,"strategy":"cold"});
+    let out = replay(intent, &record, &[]);
+    assert!(out.candidate.is_none(), "{out:#?}");
+    assert!(keys(&out).contains(&"intent.clarification"), "{out:#?}");
+    assert!(
+        out.diagnostics
+            .iter()
+            .any(|d| d.kind == DiagnosticKind::Unknown
+                && d.target == "format"
+                && d.message.contains("in a warm tone")
+                && d.message.contains("silent obligation")),
+        "{out:#?}"
+    );
+    let ledger = out.provenance.decision.clone().unwrap()["ledger"].clone();
+    assert_eq!(ledger[0]["kind"], "effect", "{ledger:#}");
+    assert_eq!(ledger[0]["state"], "realized");
+    assert_eq!(ledger[1]["kind"], "format");
+    assert_eq!(ledger[1]["state"], "unresolved");
+    // Metamorphic: the same request without the tone instruction is READY.
+    let mut plain = record;
+    plain["constraints"] = json!([]);
+    let out = replay("Read ./draft.md and write it to ./final.md.", &plain, &[]);
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+}
+
+// ── a cadence or an event is a requirement beside the candidate, never a dropped clause ─
+// nika#1720: the portable program bytes carry no cadence, hook id or secret; the outcome
+// states the trigger requirement next to the candidate, the ledger records the clause as
+// carried by that requirement, and a sequencing head ("once …") states none.
+const MORNING: &str = "Every morning, read ./tickets.json, draft a short digest of the open tickets and write it to ./out/digest.md.";
+fn morning_record(trigger: &str) -> Value {
+    json!({"operations":[
+        {"op":"read","detail":"./tickets.json","evidence":"read ./tickets.json","categories":[]},
+        {"op":"draft","detail":"a short digest of the open tickets","evidence":"draft a short digest of the open tickets","categories":[]}],
+      "effects":[{"verb":"write","target":"./out/digest.md","policy":"automatic","evidence":"write it to ./out/digest.md","policy_literal":null}],
+      "obligations":[],"bindings":[{"role":"path","literal":"./tickets.json"},{"role":"path","literal":"./out/digest.md"}],
+      "constraints":[],"unknowns":[],"trigger":trigger,"strategy":"cold"})
+}
+
+#[test]
+fn a_cadence_or_an_event_is_a_trigger_requirement_beside_the_candidate() {
+    let out = replay(MORNING, &morning_record("Every morning"), &[MODEL]);
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    let requirement = out.requested_trigger.as_ref().expect("a cadence is stated");
+    assert_eq!(requirement.kind, TriggerKind::Schedule);
+    assert_eq!(requirement.status, TriggerStatus::RequiresBinding);
+    assert_eq!(requirement.source_hint.as_deref(), Some("Every morning"));
+    assert!(requirement.payload_input.is_none(), "{requirement:#?}");
+    let doc = document(&out);
+    assert!(doc.get("inputs").is_none(), "{doc:#}");
+    assert!(
+        !doc.to_string().to_lowercase().contains("morning"),
+        "the bytes carry no cadence: {doc:#}"
+    );
+    let wire = outcome_document(&out);
+    assert_eq!(wire["requested_trigger"]["kind"], "schedule", "{wire:#}");
+    assert_eq!(wire["requested_trigger"]["status"], "requires_binding");
+    assert_eq!(wire["requested_trigger"]["source_hint"], "Every morning");
+    let ledger = out.provenance.decision.clone().unwrap()["ledger"].clone();
+    assert!(
+        ledger
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|d| d["kind"] == "trigger"
+                && d["state"] == "realized"
+                && d["realized_by"] == "requested_trigger"),
+        "{ledger:#}"
+    );
+    // An outside event, in another language, with no material of its own: the item is the
+    // payload the trigger supplies.
+    let intent =
+        "Dès qu'un ticket arrive, rédige un accusé de réception et écris-le dans ./out/accuse.md.";
+    let record = json!({"operations":[
+        {"op":"draft","detail":"un accusé de réception","evidence":"rédige un accusé de réception","categories":[]}],
+      "effects":[{"verb":"write","target":"./out/accuse.md","policy":"automatic","evidence":"écris-le dans ./out/accuse.md","policy_literal":null}],
+      "obligations":[],"bindings":[],"constraints":[],"unknowns":[],"trigger":"Dès qu'un ticket arrive","strategy":"cold"});
+    let out = replay(intent, &record, &[MODEL]);
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    let requirement = out.requested_trigger.as_ref().expect("an event is stated");
+    assert_eq!(requirement.kind, TriggerKind::Event);
+    assert_eq!(requirement.payload_input.as_deref(), Some("item"));
+    // A sequencing head and a plain request state no requirement.
+    let out = replay(
+        HEADLINE,
+        &headline_record(Some("once the brief is read")),
+        &[MODEL],
+    );
+    assert!(out.requested_trigger.is_none(), "{out:#?}");
+    assert!(outcome_document(&out)["requested_trigger"].is_null());
+    let out = replay(
+        MORNING,
+        &morning_record("Every morning").tap_trigger_null(),
+        &[MODEL],
+    );
+    assert!(out.requested_trigger.is_none(), "{out:#?}");
+}
+
+trait TapTriggerNull {
+    fn tap_trigger_null(self) -> Self;
+}
+impl TapTriggerNull for Value {
+    fn tap_trigger_null(mut self) -> Self {
+        self["trigger"] = Value::Null;
+        self
+    }
+}
+
+// ── contradictory bounds on the produced content are refused, never run ──────────
+#[test]
+fn contradictory_bounds_on_the_produced_content_are_refused_never_run() {
+    let intent = "Read ./notes.md and write ./out/report.md: the report must be exactly 5 lines and at least 12 lines long, both are mandatory.";
+    let record = |constraints: Value| {
+        json!({"operations":[
+            {"op":"read","detail":"./notes.md","evidence":"Read ./notes.md","categories":[]},
+            {"op":"draft","detail":"the report","evidence":"write ./out/report.md: the report","categories":[]}],
+          "effects":[{"verb":"write","target":"./out/report.md","policy":"automatic","evidence":"write ./out/report.md","policy_literal":null}],
+          "obligations":[],"bindings":[],"constraints":constraints,"unknowns":[],"trigger":null,"strategy":"cold"})
+    };
+    let out = replay(
+        intent,
+        &record(json!(["exactly 5 lines", "at least 12 lines long"])),
+        &[MODEL],
+    );
+    assert_eq!(out.status, CompileStatus::Refused, "{out:#?}");
+    assert!(out.candidate.is_none());
+    assert!(
+        out.diagnostics
+            .iter()
+            .any(|d| d.kind == DiagnosticKind::RequiresHuman
+                && d.message.contains("exactly 5 lines")
+                && d.message.contains("at least 12 lines long")),
+        "{out:#?}"
+    );
+    assert!(keys(&out).contains(&"intent.clarification"));
+    let ledger = out.provenance.decision.clone().unwrap()["ledger"].clone();
+    let contradicted = ledger
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|d| d["kind"] == "cardinality" && d["state"] == "contradicted")
+        .count();
+    assert_eq!(contradicted, 2, "{ledger:#}");
+    // Compatible bounds are carried by the draft's prompt and the request is READY.
+    let out = replay(
+        intent,
+        &record(json!(["at least 3 lines", "5 lines"])),
+        &[MODEL],
+    );
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
 }
 
 // ── a trigger over the request's own material never declares an item ────────────

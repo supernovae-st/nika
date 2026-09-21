@@ -70,6 +70,7 @@
 mod aggregate;
 mod assemble;
 mod bindings;
+mod cardinality;
 mod cognition;
 mod columns;
 mod compose;
@@ -79,6 +80,7 @@ mod edit;
 mod edit_source;
 mod gates;
 mod hot;
+mod ledger;
 mod lexicon;
 mod materialize;
 mod objects;
@@ -91,6 +93,7 @@ mod rules;
 mod shape;
 mod support;
 pub mod text;
+mod trigger;
 mod types;
 mod wire;
 
@@ -109,7 +112,7 @@ pub use types::{
     AuthoringCognition, AuthoringPolicy, AuthoringReceipt, CompileDiagnostic, CompileError,
     CompileOutcome, CompilePreview, CompileProvenance, CompileQuestion, CompileRequest,
     CompileStatus, DiagnosticKind, HotPolicy, PreviewScope, QuestionType, RepresentationError,
-    Strategy,
+    Strategy, TriggerKind, TriggerRequirement, TriggerStatus,
 };
 pub use wire::{COMPILE_WIRE_VERSION, outcome_document};
 
@@ -148,6 +151,7 @@ fn initial() -> CompileOutcome {
         questions: Vec::new(),
         diagnostics: Vec::new(),
         requested_boundary: None,
+        requested_trigger: None,
         check_preview: None,
         provenance: CompileProvenance {
             authoring: None,

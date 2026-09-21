@@ -108,6 +108,9 @@ pub(super) struct WriteEffect {
     pub path: String,
     pub gated: bool,
     pub target: String,
+    /// The verbatim excerpts of every plan effect this write realizes (a merge and a write
+    /// of one file are two excerpts, one task).
+    pub evidences: Vec<String>,
 }
 
 /// The settled bindings of one plan.
@@ -757,6 +760,7 @@ fn bind_effects(
             };
             if let Some(existing) = b.writes.iter_mut().find(|w| w.path == path) {
                 existing.gated |= gated;
+                existing.evidences.push(effect.evidence.clone());
                 continue;
             }
             b.writes.push(WriteEffect {
@@ -764,6 +768,7 @@ fn bind_effects(
                 path,
                 gated,
                 target: effect.target.clone(),
+                evidences: vec![effect.evidence.clone()],
             });
             continue;
         }
@@ -933,6 +938,7 @@ fn bind_named_outputs(
                 target: path.clone(),
                 path,
                 gated: false,
+                evidences: Vec::new(),
             }),
             Some(Value::Bool(false)) => super::finding(
                 out,

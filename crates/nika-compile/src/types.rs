@@ -375,6 +375,102 @@ pub struct CompileProvenance {
     pub decision: Option<serde_json::Value>,
 }
 
+/// How a request wants to be started, when it says so: on a cadence, on an outside event,
+/// on a webhook, or by hand.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum TriggerKind {
+    /// Started by a person or a caller, no clause about when.
+    Manual,
+    /// A cadence ("every morning", "tous les matins", "at 9:00").
+    Schedule,
+    /// An inbound HTTP call the request names as a webhook.
+    Webhook,
+    /// An outside event ("when Stripe sends `payment_succeeded`", "dès qu'un ticket arrive").
+    Event,
+}
+
+impl TriggerKind {
+    /// The wire word.
+    #[must_use]
+    pub const fn word(self) -> &'static str {
+        match self {
+            Self::Manual => "manual",
+            Self::Schedule => "schedule",
+            Self::Webhook => "webhook",
+            Self::Event => "event",
+        }
+    }
+}
+
+/// Where a trigger requirement stands.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum TriggerStatus {
+    /// The program bytes carry everything the trigger needs.
+    Satisfied,
+    /// The requirement is stated; binding it (a schedule row, a hook) is an operator or
+    /// product gesture through the schedule contract, never a compiler grant.
+    RequiresBinding,
+    /// The compiler cannot express the trigger the request states.
+    Unsupported,
+}
+
+impl TriggerStatus {
+    /// The wire word.
+    #[must_use]
+    pub const fn word(self) -> &'static str {
+        match self {
+            Self::Satisfied => "satisfied",
+            Self::RequiresBinding => "requires_binding",
+            Self::Unsupported => "unsupported",
+        }
+    }
+}
+
+/// The trigger a request states, carried beside the candidate (nika#1720). The portable
+/// program bytes stay trigger-agnostic: no cadence, hook id, tenant or secret enters them.
+/// A requirement, not a grant and not a schedule row.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct TriggerRequirement {
+    /// The kind of trigger the request states.
+    pub kind: TriggerKind,
+    /// The verbatim phrase or the named source ("every morning", "stripe"): a hint, never a binding.
+    pub source_hint: Option<String>,
+    /// The named event, when the request names one (`payment_succeeded`).
+    pub event_hint: Option<String>,
+    /// The declared input the candidate expects the trigger to supply (`item`), when any.
+    pub payload_input: Option<String>,
+    /// Where the requirement stands.
+    pub status: TriggerStatus,
+}
+
+impl TriggerRequirement {
+    /// A requirement of one kind in one state, every hint absent.
+    #[must_use]
+    pub const fn new(kind: TriggerKind, status: TriggerStatus) -> Self {
+        Self {
+            kind,
+            source_hint: None,
+            event_hint: None,
+            payload_input: None,
+            status,
+        }
+    }
+    /// The wire projection: one nullable object beside `requested_boundary`.
+    #[must_use]
+    pub fn to_json(&self) -> serde_json::Value {
+        serde_json::json!({
+            "kind": self.kind.word(),
+            "source_hint": self.source_hint,
+            "event_hint": self.event_hint,
+            "payload_input": self.payload_input,
+            "status": self.status.word(),
+        })
+    }
+}
+
 /// A reviewable authoring result. No field grants authority, writes or executes source.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
@@ -389,6 +485,8 @@ pub struct CompileOutcome {
     pub diagnostics: Vec<CompileDiagnostic>,
     /// Requested boundary, derived from the candidate's Check report; not a grant.
     pub requested_boundary: Option<nika_check::EffectivePermits>,
+    /// The trigger the request states, beside the candidate; the bytes never carry it.
+    pub requested_trigger: Option<TriggerRequirement>,
     /// The candidate's in-memory static judgment, when it parses.
     pub check_preview: Option<CompilePreview>,
     /// Reproduction metadata, not run evidence.

@@ -734,6 +734,11 @@ impl Rule {
     pub(super) fn totals_names(&self) -> Vec<String> {
         self.shape.totals_names()
     }
+    /// Whether the computation keeps or drops rows (a row filter), as opposed to a pure
+    /// aggregation, sort or projection over every row.
+    pub(super) fn filters(&self) -> bool {
+        !self.clauses.is_empty()
+    }
     /// The excerpt the rule was read from.
     pub(super) fn text(&self) -> &str {
         &self.text
