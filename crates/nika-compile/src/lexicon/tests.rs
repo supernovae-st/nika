@@ -358,6 +358,34 @@ fn a_question_is_a_conversation_never_a_rule_read_whole() {
     }
 }
 
+/// A French sort head (« trie », « triez », « trier ») that the reader knows as a classify
+/// reads as the sort the closed grammar sees when the clause names its column: a
+/// computation, never a classification asking for categories. A classification with
+/// stated categories keeps its reading; a sort without a key stays unresolved.
+#[test]
+fn a_french_sort_head_whose_clause_names_its_column_is_the_sort() {
+    let reading =
+        read("Lis ./sales.csv, trie les lignes par montant décroissant et écris ./sorted.csv");
+    assert_eq!(
+        steps(&reading),
+        [
+            ("read", "./sales.csv".to_owned()),
+            (
+                "compute",
+                "trie les lignes par montant décroissant".to_owned()
+            ),
+        ]
+    );
+    assert_eq!(reading.plan.rules.len(), 1);
+    assert!(reading.unresolved.is_empty(), "{:?}", reading.unresolved);
+    let reading = read("Lis ./tickets.json, classe les tickets en bugs et features");
+    assert_eq!(steps(&reading).len(), 2, "{:?}", steps(&reading));
+    assert_eq!(steps(&reading)[1].0, "classify");
+    assert!(reading.plan.rules.is_empty());
+    let reading = read("Lis ./sales.csv, trie les lignes et écris ./sorted.csv");
+    assert!(reading.plan.rules.is_empty(), "{:?}", reading.plan.rules);
+}
+
 #[test]
 fn a_headless_clause_the_rule_grammar_reads_whole_is_a_computation() {
     let intent =

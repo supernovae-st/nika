@@ -229,6 +229,16 @@ fn a_stated_top_n_and_a_stated_sort_run_as_code_and_write_csv_in_header_order() 
         "${{ tasks.sorted_csv.output }}"
     );
     assert!(doc["tasks"].get("draft").is_none(), "{doc:#}");
+    // The same sort in French, headed by « trie » (a head the reader also knows as a
+    // classify): the grammar's reading wins and the same jq runs.
+    let (_, doc) =
+        ready("Lis ./sales.csv, trie les lignes par montant décroissant et écris ./sorted.csv");
+    assert_eq!(
+        expression(&doc, "compute"),
+        ".records | sort_by(.montant | tonumber? // .) | reverse"
+    );
+    assert_eq!(doc["const"]["output_path"], "./sorted.csv");
+    assert!(doc.get("model").is_none(), "{doc:#}");
 }
 
 #[test]
