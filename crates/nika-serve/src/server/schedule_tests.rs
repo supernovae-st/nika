@@ -164,6 +164,16 @@ impl ExecutionBackend for CountingBackend {
     }
 }
 
+/// Every wait of the shutdown scenario is bounded (#1726): a lost wakeup
+/// under nextest concurrency then names its phase and fails, instead of
+/// stalling the whole run until a human sends SIGTERM.
+const SETTLE_BOUND: Duration = Duration::from_secs(30);
+
+async fn settles<T>(phase: &str, wait: impl Future<Output = T>) -> T {
+    let why = format!("phase `{phase}` did not settle within {SETTLE_BOUND:?}");
+    tokio::time::timeout(SETTLE_BOUND, wait).await.expect(&why)
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn shutdown_keeps_store_alive_until_scheduled_observation_finishes() {
     let world = TestWorld::new();
@@ -183,17 +193,29 @@ async fn shutdown_keeps_store_alive_until_scheduled_observation_finishes() {
         ))
         .await;
     assert_eq!(created.status, 200, "{}", created.body);
-    clock.wait_for_sleeps(2).await;
+    settles("two scheduler sleeps", clock.wait_for_sleeps(2)).await;
     clock.advance_to("2026-09-01T09:00:00Z[UTC]");
-    backend.wait_for_call().await;
-    shutdown_probe.wait_observation_blocked().await;
+    settles("the backend call", backend.wait_for_call()).await;
+    settles(
+        "the observation blocked",
+        shutdown_probe.wait_observation_blocked(),
+    )
+    .await;
 
     let stopped = server.signal_stop();
-    shutdown_probe.wait_shutdown_loop_observed().await;
+    settles(
+        "the shutdown loop observed",
+        shutdown_probe.wait_shutdown_loop_observed(),
+    )
+    .await;
     backend.release();
 
-    shutdown_probe.wait_terminal_settled().await;
-    let first_phase = shutdown_probe.wait_first_phase().await;
+    settles(
+        "the terminal settled",
+        shutdown_probe.wait_terminal_settled(),
+    )
+    .await;
+    let first_phase = settles("the first phase", shutdown_probe.wait_first_phase()).await;
     shutdown_probe.release_observation();
 
     let stop_result = tokio::time::timeout(Duration::from_secs(5), stopped)
