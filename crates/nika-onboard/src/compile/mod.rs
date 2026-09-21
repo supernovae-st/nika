@@ -71,6 +71,7 @@ mod hot;
 mod laws;
 mod lexicon;
 mod materialize;
+mod network;
 mod objects;
 mod paths;
 pub(crate) mod pattern;

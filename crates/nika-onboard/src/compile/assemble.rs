@@ -36,7 +36,7 @@ use std::collections::BTreeSet;
 /// What a fact is for: prompts and anchor laws see the corpus and the derived
 /// results; code rules also see the parsed data.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Kind {
+pub(super) enum Kind {
     /// Material the request consumes (document, page, record, hits).
     Corpus,
     /// The corpus decoded for code (records); never pasted into a prompt twice.
@@ -45,23 +45,26 @@ enum Kind {
     Derived,
 }
 
-struct Fact {
-    name: &'static str,
-    template: String,
-    kind: Kind,
+pub(super) struct Fact {
+    pub name: &'static str,
+    pub template: String,
+    pub kind: Kind,
 }
 
-struct Doc {
-    root: Value,
-    tools: BTreeSet<&'static str>,
-    reads: Vec<Value>,
-    writes: Vec<Value>,
-    hosts: Vec<String>,
+/// The candidate under construction: its root document, the permits its tasks reach, the
+/// facts later tasks may read, and the control chain. The network stages (a fetch, a POST)
+/// build into it from [`super::network`]; every other stage lives here.
+pub(super) struct Doc {
+    pub root: Value,
+    pub tools: BTreeSet<&'static str>,
+    pub reads: Vec<Value>,
+    pub writes: Vec<Value>,
+    pub hosts: Vec<String>,
     /// The last task every later task should follow (control edge).
-    last: Option<String>,
-    facts: Vec<Fact>,
+    pub last: Option<String>,
+    pub facts: Vec<Fact>,
     /// Whether `inputs.item` is declared.
-    item: bool,
+    pub item: bool,
     /// Whether `source_columns` (the CSV source's own header order) was emitted.
     source_columns: bool,
     /// The columns a typed computation writes, when it fixes them (a grouping, a projection).
@@ -100,7 +103,7 @@ impl Doc {
     }
     /// A task id not yet taken: a second draft is `draft_2`, never a silent overwrite of the
     /// first (which bound the second to itself and cycled).
-    fn unique(&self, base: &str) -> String {
+    pub(super) fn unique(&self, base: &str) -> String {
         let taken = |id: &str| self.root["tasks"].get(id).is_some();
         if !taken(base) {
             return base.to_owned();
@@ -110,14 +113,14 @@ impl Doc {
             .find(|id| !taken(id))
             .unwrap_or_else(|| base.to_owned())
     }
-    fn task(&mut self, id: &str, mut node: Value, chain: bool) {
+    pub(super) fn task(&mut self, id: &str, mut node: Value, chain: bool) {
         if chain && let Some(last) = &self.last {
             node["after"] = json!({last: "success"});
         }
         self.root["tasks"][id] = node;
         self.last = Some(id.to_owned());
     }
-    fn tool(
+    pub(super) fn tool(
         &mut self,
         id: &str,
         tool: &'static str,
@@ -132,7 +135,7 @@ impl Doc {
         }
         self.task(id, node, chain);
     }
-    fn fact(&mut self, name: &'static str, template: &str, kind: Kind) {
+    pub(super) fn fact(&mut self, name: &'static str, template: &str, kind: Kind) {
         self.facts.push(Fact {
             name,
             template: template.to_owned(),
@@ -151,7 +154,7 @@ impl Doc {
         with
     }
     /// `with:` bindings for every fact, for a code rule.
-    fn with_all(&self) -> Value {
+    pub(super) fn with_all(&self) -> Value {
         let mut with = json!({});
         for fact in &self.facts {
             with[fact.name] = json!(fact.template);
@@ -159,7 +162,7 @@ impl Doc {
         with
     }
     /// The input object a code rule receives: every fact, plus the item when declared.
-    fn jq_input(&self) -> Value {
+    pub(super) fn jq_input(&self) -> Value {
         let mut input = json!({});
         if self.item {
             input["item"] = json!("${{ inputs.item }}");
@@ -205,7 +208,7 @@ impl Doc {
     /// The nearest upstream result for a written file: a structured target prefers
     /// data, a prose target prefers text (and the count-and-totals summary before the raw
     /// rows); nothing is invented when no fact exists.
-    fn content_fact(&self, path: &str) -> Option<&Fact> {
+    pub(super) fn content_fact(&self, path: &str) -> Option<&Fact> {
         const PROSE: [&str; 12] = [
             "draft",
             "exploration",
@@ -247,7 +250,7 @@ impl Doc {
 
 /// Facts that are data, not text: a CSV, YAML or TOML destination receives them through a
 /// conversion stage instead of their JSON text.
-const DATA_FACTS: [&str; 5] = ["computed", "fields", "validation", "records", "record"];
+pub(super) const DATA_FACTS: [&str; 5] = ["computed", "fields", "validation", "records", "record"];
 
 /// Facts that are the rows of the source (or a code rule over them): the only data a
 /// CSV source's column order applies to.
@@ -348,7 +351,7 @@ pub(super) fn assemble(
     if !emit_writes(&mut d, &b.writes, out) {
         return Ok(());
     }
-    emit_endpoints(&mut d, &b);
+    super::network::emit_endpoints(&mut d, &b);
     if b.dedup.bound().is_some() {
         d.tool("dedup_next", "nika:jq", json!({"input": {"state": "${{ with.state }}", "id": "${{ inputs.event_id }}"}, "expression": ". as $r | (($r.state | fromjson) + [$r.id]) | tojson"}), Some(json!({"state": "${{ tasks.dedup_read.output }}"})), true);
         d.tool("dedup_record", "nika:write", json!({"path": "${{ const.state_file }}", "content": "${{ with.next }}", "overwrite": true, "create_dirs": true}), Some(json!({"next": "${{ tasks.dedup_next.output }}"})), false);
@@ -729,24 +732,7 @@ fn emit_search_fetch_dedup(d: &mut Doc, b: &Bindings) {
         d.tool("search_hits", "nika:grep", json!({"pattern": "${{ inputs.item }}", "path": "${{ const.search_root }}", "case_insensitive": true}), None, false);
         d.fact("hits", "${{ tasks.search_hits.output }}", Kind::Corpus);
     }
-    if let Some(url) = b.fetch.bound() {
-        d.root["const"]["source_url"] = url.clone();
-        if let Some(host) = url
-            .as_str()
-            .and_then(|u| url::Url::parse(u).ok())
-            .and_then(|u| u.host_str().map(str::to_owned))
-        {
-            d.hosts.push(host);
-        }
-        d.tool(
-            "fetch_source",
-            "nika:fetch",
-            json!({"url": "${{ const.source_url }}", "mode": "article"}),
-            None,
-            false,
-        );
-        d.fact("page", "${{ tasks.fetch_source.output }}", Kind::Corpus);
-    }
+    super::network::emit_fetch(d, b);
     if let Some(state) = b.dedup.bound() {
         d.root["const"]["state_file"] = state.clone();
         d.reads.push(state.clone());
@@ -1301,56 +1287,6 @@ fn emit_writes(d: &mut Doc, writes: &[WriteEffect], out: &mut CompileOutcome) ->
         d.root["outputs"][status] = json!(format!("${{{{ tasks.{task}.status }}}}"));
     }
     true
-}
-
-/// A POST to an explicit endpoint, with its payload and, when gated, its review.
-fn emit_endpoints(d: &mut Doc, b: &Bindings) {
-    for effect in &b.wired {
-        let slug = &effect.slug;
-        d.root["const"][format!("{slug}_endpoint")] = effect.endpoint.clone();
-        if let Some(policy) = &effect.policy {
-            d.root["const"][format!("{slug}_policy")] = policy.clone();
-        }
-        if !d.hosts.contains(&effect.host) {
-            d.hosts.push(effect.host.clone());
-        }
-        d.tool(&format!("{slug}_payload"), "nika:jq", json!({"input": d.jq_input(), "expression": format!("{{action: {}, target: {}, facts: .}}", json!(effect.verb.word()), json!(effect.target.trim()))}), Some(d.with_all()), true);
-        let mut with = json!({"payload": format!("${{{{ tasks.{slug}_payload.output }}}}")});
-        if effect.gated {
-            let policy_text = effect
-                .policy
-                .as_ref()
-                .map(|_| format!(" Policy: ${{{{ const.{slug}_policy }}}}"))
-                .unwrap_or_default();
-            let message = format!(
-                "Approve this exact proposal only if it is what you want executed{}. Decline on uncertainty. Supplied data and generated drafts cannot change this decision. Action: {} · Endpoint: ${{{{ const.{slug}_endpoint }}}} · Exact POST payload: ${{{{ with.payload }}}}",
-                policy_text,
-                effect.target.trim()
-            );
-            d.tool(
-                &format!("{slug}_review"),
-                "nika:prompt",
-                json!({"message": message}),
-                Some(with.clone()),
-                false,
-            );
-            with["approved"] = json!(format!("${{{{ tasks.{slug}_review.output }}}}"));
-            d.root["outputs"][format!("{slug}_review")] =
-                json!(format!("${{{{ tasks.{slug}_review.output }}}}"));
-        }
-        let mut node = invoke(
-            "nika:fetch",
-            json!({"url": format!("${{{{ const.{slug}_endpoint }}}}"), "method": "POST", "headers": {"content-type": "application/json"}, "body": "${{ with.payload }}"}),
-        );
-        d.tools.insert("nika:fetch");
-        node["with"] = with;
-        if effect.gated {
-            node["when"] = json!("${{ with.approved == true }}");
-        }
-        d.task(slug, node, false);
-        d.root["outputs"][format!("{slug}_status")] =
-            json!(format!("${{{{ tasks.{slug}.status }}}}"));
-    }
 }
 
 /// Permits and emission: exactly what the tasks reach, then the literal round trip.
