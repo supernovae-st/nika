@@ -89,7 +89,7 @@ pub(super) const SUMMARY: &str = r#". as $c | if ($c | type) == "array" then {co
 
 /// The extract schema every extract step answers: named fields, each with its anchor.
 pub(super) fn extract_schema() -> Value {
-    json!({"type": "object", "additionalProperties": false, "required": ["fields"], "properties": {"fields": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["name", "value", "anchor"], "properties": {"name": {"type": "string", "minLength": 1}, "value": {"type": "string"}, "anchor": {"type": "string"}}}}}})
+    json!({"type": "object", "additionalProperties": false, "required": ["fields"], "properties": {"fields": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["name", "value", "anchor"], "properties": {"name": {"type": "string", "minLength": 1}, "value": {"type": "string", "description": "the field's value as the source states it, empty when the source does not state it"}, "anchor": {"type": "string", "description": "the source span the value comes from: one contiguous span of the supplied text copied character for character, never a paraphrase; empty beside an empty value"}}}}}})
 }
 
 /// The per-item extract law: one record per item, every anchor copied from its own item's
@@ -189,7 +189,7 @@ pub(super) fn bullet_layout(text: &str) -> &'static str {
 
 /// The draft schema every draft step answers: a body and its anchored claims.
 pub(super) fn draft_schema() -> Value {
-    json!({"type": "object", "additionalProperties": false, "required": ["body", "facts_used"], "properties": {"body": {"type": "string", "minLength": 1}, "facts_used": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["claim", "anchor"], "properties": {"claim": {"type": "string", "minLength": 1}, "anchor": {"type": "string", "minLength": 1}}}}}})
+    json!({"type": "object", "additionalProperties": false, "required": ["body", "facts_used"], "properties": {"body": {"type": "string", "minLength": 1}, "facts_used": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["claim", "anchor"], "properties": {"claim": {"type": "string", "minLength": 1, "description": "the fact as the draft states it, in the draft's own words"}, "anchor": {"type": "string", "minLength": 1, "description": "the source span the claim rests on: one contiguous span of the supplied text copied character for character, never a paraphrase"}}}}}})
 }
 
 /// The per-item draft law: one draft per item, a nonempty body each, every claim anchored
