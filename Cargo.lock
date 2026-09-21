@@ -4423,6 +4423,7 @@ dependencies = [
  "marked-yaml",
  "miette",
  "nika-bm25",
+ "nika-catalog",
  "nika-check",
  "nika-error",
  "nika-kernel",
