@@ -1,4 +1,5 @@
 mod refusal;
+mod transport;
 
 use super::*;
 use nika_providers::ProvidersConfig;
@@ -356,14 +357,25 @@ use nika_providers::ProviderRegistry as Registry;
 /// every request it saw (the dividend of the kernel http seam — the
 /// real openai adapter runs with zero network).
 struct SeamHttp {
-    responses: std::sync::Mutex<std::collections::VecDeque<String>>,
+    responses: std::sync::Mutex<std::collections::VecDeque<(u16, String)>>,
     captured: std::sync::Mutex<Vec<HttpRequest>>,
 }
 
 impl SeamHttp {
     fn with_json(bodies: &[&str]) -> Arc<Self> {
+        Self::with_answers(&bodies.iter().map(|b| (200, *b)).collect::<Vec<_>>())
+    }
+
+    /// Answers served in order, each with its own status (a 429 · a 400
+    /// · the 200) — the shape the transport tests need.
+    fn with_answers(answers: &[(u16, &str)]) -> Arc<Self> {
         Arc::new(Self {
-            responses: std::sync::Mutex::new(bodies.iter().map(|b| (*b).to_owned()).collect()),
+            responses: std::sync::Mutex::new(
+                answers
+                    .iter()
+                    .map(|(status, body)| (*status, (*body).to_owned()))
+                    .collect(),
+            ),
             captured: std::sync::Mutex::new(Vec::new()),
         })
     }
@@ -379,7 +391,7 @@ impl HttpPostDyn for SeamHttp {
             .lock()
             .expect("seam lock")
             .push(request.clone());
-        let body = self
+        let (status, body) = self
             .responses
             .lock()
             .expect("seam lock")
@@ -388,7 +400,7 @@ impl HttpPostDyn for SeamHttp {
                 reason: "SeamHttp: no canned response queued".to_owned(),
             })?;
         Ok(HttpResponse::new(
-            200,
+            status,
             std::collections::BTreeMap::new(),
             bytes::Bytes::from(body),
             request.url,

@@ -43,6 +43,52 @@ pub enum VerbInferError {
         spend: Box<SpendOnFailure>,
     },
 
+    /// The provider call failed AFTER the transport's own bounded backoff
+    /// (NIKA-430 · wire `NIKA-INFER-001`): the seat answered 429 · 503 ·
+    /// 529 on every round-trip the layer allowed itself. The numbers ride
+    /// the message so the receipt says what happened; the underlying
+    /// error keeps its transience, so an authored `retry:` may still fire
+    /// on top of the floor.
+    #[error(
+        "provider call failed during `infer` on `{model}` after {attempts} round-trips ({waited_ms} ms of backoff on a rate-limited or overloaded seat): {source}"
+    )]
+    #[diagnostic(code(nika::verb::infer_provider_call))]
+    ProviderCallExhausted {
+        /// The seat that kept asking for patience (`provider/name`).
+        model: String,
+        /// Round-trips sent, the first included.
+        attempts: u32,
+        /// Total backoff slept between them.
+        waited_ms: u64,
+        /// The last answer, as the provider named it.
+        #[source]
+        source: Box<ProviderError>,
+        /// The spend of the round-trips that DID answer before this task
+        /// (a schema-repair loop bills every answered round-trip).
+        spend: Box<SpendOnFailure>,
+    },
+
+    /// The seat rejected a request that carried the task `schema:`
+    /// natively — HTTP 400 or 422 at the door with `response_format` set
+    /// (NIKA-430 · wire `NIKA-INFER-001`). Nothing was sampled; a retry
+    /// re-asks the identical refusal. The fix is the schema or the seat,
+    /// and the message names both.
+    #[error(
+        "`{model}` rejected the structured request while the task `schema:` travelled as native {wire}: {source} — simplify the schema (drop formats, patterns, minLength) or seat a model the catalog lists with json_mode: schema (`nika catalog --json`); the reply was never sampled"
+    )]
+    #[diagnostic(code(nika::verb::infer_provider_call))]
+    SchemaRefused {
+        /// The seat that refused (`provider/name`).
+        model: String,
+        /// How the schema travelled: `json_schema` or `json_object`.
+        wire: &'static str,
+        /// The refusal, as the provider named it.
+        #[source]
+        source: Box<ProviderError>,
+        /// The spend of the round-trips that DID answer before this one.
+        spend: Box<SpendOnFailure>,
+    },
+
     /// The backend omitted the usage block on a PRICED model (NIKA-434 ·
     /// wire `NIKA-INFER-003`) — the ledger would bill this task $0 while
     /// the provider charges real money (the 2026-07-29 audit, run 3 ·
@@ -127,6 +173,8 @@ impl VerbInferError {
     pub fn spend(&self) -> Option<&SpendOnFailure> {
         match self {
             Self::ProviderCall { spend, .. }
+            | Self::ProviderCallExhausted { spend, .. }
+            | Self::SchemaRefused { spend, .. }
             | Self::UsageUnmetered { spend, .. }
             | Self::EmptyAnswer { spend, .. }
             | Self::SchemaValidation { spend, .. } => spend.has_signal().then_some(spend),
@@ -140,7 +188,10 @@ impl VerbInferError {
 impl NikaErrorCode for VerbInferError {
     fn nika_code(&self) -> NikaCode {
         match self {
-            Self::ProviderCall { .. } | Self::HarnessAccess { .. } => codes::NIKA_430,
+            Self::ProviderCall { .. }
+            | Self::ProviderCallExhausted { .. }
+            | Self::SchemaRefused { .. }
+            | Self::HarnessAccess { .. } => codes::NIKA_430,
             Self::UsageUnmetered { .. } => codes::NIKA_434,
             Self::EmptyAnswer { .. } => codes::NIKA_435,
             Self::SchemaValidation { .. } => codes::NIKA_431,
@@ -160,6 +211,8 @@ impl NikaErrorCode for VerbInferError {
     fn spec_code(&self) -> String {
         match self {
             Self::ProviderCall { .. }
+            | Self::ProviderCallExhausted { .. }
+            | Self::SchemaRefused { .. }
             | Self::HarnessAccess { .. }
             | Self::ModelResolution { .. } => "NIKA-INFER-001".to_owned(),
             Self::UsageUnmetered { .. } => "NIKA-INFER-003".to_owned(),
@@ -172,11 +225,15 @@ impl NikaErrorCode for VerbInferError {
     fn is_transient(&self) -> bool {
         match self {
             // Inherit the provider's own retry classification (rate limits
-            // and 5xx are transient; auth and model-not-found are not).
+            // and 5xx are transient; auth and model-not-found are not). A
+            // spent backoff keeps it: the floor is not the author's ceiling.
             Self::ProviderCall { source, .. } => source.is_transient(),
+            Self::ProviderCallExhausted { source, .. } => source.as_ref().is_transient(),
             // An empty answer at the SAME budget re-asks for the identical
-            // failure — the remedy is `max_tokens`, never a retry (#651).
+            // failure — the remedy is `max_tokens`, never a retry (#651); a
+            // seat that refused the schema at the door refuses it again.
             Self::HarnessAccess { .. }
+            | Self::SchemaRefused { .. }
             | Self::EmptyAnswer { .. }
             | Self::SchemaValidation { .. }
             | Self::UsageUnmetered { .. }
@@ -195,6 +252,74 @@ mod tests {
             status: 500,
             message: "boom".to_owned(),
         }
+    }
+
+    fn rate_limited() -> ProviderError {
+        ProviderError::HttpResponse {
+            details: nika_kernel::ai::provider::ProviderHttpError::new(
+                429,
+                Some("rate_limit_exceeded"),
+                None,
+                Some("2"),
+            ),
+        }
+    }
+
+    fn bad_request() -> ProviderError {
+        ProviderError::HttpResponse {
+            details: nika_kernel::ai::provider::ProviderHttpError::new(
+                400,
+                None,
+                Some("invalid_request_error"),
+                None,
+            ),
+        }
+    }
+
+    /// The two readings of a failed call the verb adds over the provider's
+    /// own: both speak `NIKA-INFER-001`, both name the seat, only the spent
+    /// backoff stays transient (the author's `retry:` may still fire), and
+    /// the schema refusal names the next safe action.
+    #[test]
+    fn the_exhausted_backoff_and_the_schema_refusal_name_the_seat() {
+        let spent = VerbInferError::ProviderCallExhausted {
+            model: "gemini/gemini-2.5-flash".to_owned(),
+            attempts: 4,
+            waited_ms: 7000,
+            source: Box::new(rate_limited()),
+            spend: Box::default(),
+        };
+        assert_eq!(spent.spec_code(), "NIKA-INFER-001");
+        assert!(
+            spent.is_transient(),
+            "the floor is not the author's ceiling"
+        );
+        let text = spent.to_string();
+        assert!(text.contains("on `gemini/gemini-2.5-flash`"), "{text}");
+        assert!(text.contains("after 4 round-trips"), "{text}");
+        assert!(text.contains("7000 ms of backoff"), "{text}");
+        assert!(text.contains("rate limited (HTTP 429)"), "{text}");
+        assert!(text.contains("Retry-After=2"), "{text}");
+        assert!(spent.spend().is_none(), "a refused answer bills nothing");
+
+        let refused = VerbInferError::SchemaRefused {
+            model: "openai/gpt-4o-mini".to_owned(),
+            wire: "json_schema",
+            source: Box::new(bad_request()),
+            spend: Box::default(),
+        };
+        assert_eq!(refused.spec_code(), "NIKA-INFER-001");
+        assert!(
+            !refused.is_transient(),
+            "the seat refuses the same schema again"
+        );
+        let text = refused.to_string();
+        assert!(text.contains("`openai/gpt-4o-mini` rejected"), "{text}");
+        assert!(text.contains("native json_schema"), "{text}");
+        assert!(text.contains("HTTP 400"), "{text}");
+        assert!(text.contains("simplify the schema"), "{text}");
+        assert!(text.contains("json_mode: schema"), "{text}");
+        assert!(text.contains("never sampled"), "{text}");
     }
 
     #[test]
@@ -242,6 +367,25 @@ mod tests {
                     spend: Box::default(),
                 },
                 codes::NIKA_435,
+            ),
+            (
+                VerbInferError::ProviderCallExhausted {
+                    model: "gemini/gemini-2.5-flash".to_owned(),
+                    attempts: 4,
+                    waited_ms: 7000,
+                    source: Box::new(rate_limited()),
+                    spend: Box::default(),
+                },
+                codes::NIKA_430,
+            ),
+            (
+                VerbInferError::SchemaRefused {
+                    model: "openai/gpt-4o-mini".to_owned(),
+                    wire: "json_schema",
+                    source: Box::new(bad_request()),
+                    spend: Box::default(),
+                },
+                codes::NIKA_430,
             ),
         ];
         for (err, expected) in cases {
