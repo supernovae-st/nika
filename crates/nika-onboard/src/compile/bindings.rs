@@ -283,8 +283,16 @@ pub(super) fn bind(
             answer(request, out, "const.source_url", URL_LABEL, true)
         }
     });
+    // A path the plan writes is a destination, never a source, even when a proposal names
+    // it in the read step (`Read ./caisse.csv ; write the object to ./out/caisse.json`).
+    let written: Vec<String> = plan
+        .effects
+        .iter()
+        .filter(|e| e.verb == EffectVerb::Write)
+        .map(|e| e.target.trim().to_owned())
+        .collect();
     let read = Need::from_step(plan.step(Op::Read), |step| {
-        resolve_read(step, request, out, recognized)
+        resolve_read(step, &written, request, out, recognized)
     });
     let dedup = if plan.obligation("dedup") {
         recognized.insert("const.state_file".to_owned());
@@ -438,6 +446,7 @@ fn resolve_lookup(
 /// stable question, never a path literal.
 fn resolve_read(
     step: &Step,
+    written: &[String],
     request: &CompileRequest,
     out: &mut CompileOutcome,
     recognized: &mut BTreeSet<String>,
@@ -448,6 +457,7 @@ fn resolve_read(
     let mut placeholders = Vec::new();
     for shape in paths::literals(&step.detail) {
         match shape {
+            PathShape::File(p) if written.iter().any(|w| w == &p) => {}
             PathShape::File(p) => files.push(p),
             PathShape::Glob(p) => globs.push(p),
             PathShape::Directory(p) => directories.push(p),

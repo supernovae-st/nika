@@ -43,6 +43,8 @@ pub(super) struct Reading {
     /// Clauses whose whole meaning is a policy on an effect read elsewhere (`a human must
     /// approve the write first`): accounted for by the policy they set.
     pub policy_clauses: Vec<String>,
+    /// The columns the request lists: a word among them names a column, never an effect.
+    pub columns: Vec<String>,
 }
 
 impl Reading {
@@ -869,7 +871,36 @@ fn categories_of(detail_lower: &str) -> Vec<String> {
     Vec::new()
 }
 
-fn effect_words(lower: &str) -> Vec<EffectVerb> {
+/// The text with every listed column blanked out, underscores kept, so a column that spells
+/// a verb (`credit_cents`, `email`) is never read as one.
+fn mask_columns(lower: &str, columns: &[String]) -> String {
+    if columns.is_empty() {
+        return lower.to_owned();
+    }
+    let mut out = String::with_capacity(lower.len());
+    for token in lower.split_inclusive(|c: char| !(c.is_alphanumeric() || c == '_')) {
+        let (word, separator) = match token.char_indices().last() {
+            Some((i, c)) if !(c.is_alphanumeric() || c == '_') => (
+                token.get(..i).unwrap_or_default(),
+                token.get(i..).unwrap_or_default(),
+            ),
+            _ => (token, ""),
+        };
+        if columns.iter().any(|c| c.eq_ignore_ascii_case(word)) {
+            out.extend(std::iter::repeat_n(' ', word.chars().count()));
+        } else {
+            out.push_str(word);
+        }
+        out.push_str(separator);
+    }
+    out
+}
+
+/// The effect verbs a text names. A word the request lists as a column (`name, email e
+/// city`) is a column, never the verb it spells.
+pub(super) fn effect_words(lower: &str, columns: &[String]) -> Vec<EffectVerb> {
+    let masked = mask_columns(lower, columns);
+    let lower = masked.as_str();
     let mut verbs = Vec::new();
     for word in lower.split(|c: char| !c.is_alphanumeric() && c != '\'' && c != ' ') {
         let mut seen = false;
@@ -1134,7 +1165,7 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
             .next()
             .unwrap_or_default()
             .trim();
-        let verb = effect_words(target)
+        let verb = effect_words(target, &reading.columns)
             .first()
             .copied()
             .unwrap_or(EffectVerb::Other);
@@ -1153,7 +1184,7 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
     if (text.contains("pas encore décidé")
         || text.contains("not decided")
         || text.starts_with("maybe "))
-        && let Some(verb) = effect_words(text).first().copied()
+        && let Some(verb) = effect_words(text, &reading.columns).first().copied()
     {
         push_effect(
             &mut reading.plan,
@@ -1259,10 +1290,10 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
         read_prefix(prefix_before(text, pos), clause, reading, state);
         reading.policy_clauses.push(clause.to_owned());
         let after = text.get(end..).unwrap_or_default();
-        let mut verbs = effect_words(after);
+        let mut verbs = effect_words(after, &reading.columns);
         if verbs.is_empty() {
             // `the write needs my approval`: the subject of the requirement is gated.
-            verbs = effect_words(text.get(pos..end).unwrap_or_default());
+            verbs = effect_words(text.get(pos..end).unwrap_or_default(), &reading.columns);
         }
         if verbs.is_empty() {
             gate_last_automatic(reading, state);
@@ -1289,7 +1320,7 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
         reading.policy_clauses.push(clause.to_owned());
         let after = text.get(end..).unwrap_or_default();
         let target = objects::destination_target(after);
-        let verbs = effect_words(after);
+        let verbs = effect_words(after, &reading.columns);
         if verbs.is_empty() {
             gate_last_automatic(reading, state);
         } else {
@@ -1320,7 +1351,7 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
         });
     if let Some((pos, target)) = forbidden {
         read_prefix(prefix_before(text, pos), clause, reading, state);
-        let verbs = effect_words(target);
+        let verbs = effect_words(target, &reading.columns);
         if verbs.is_empty() {
             reading.plan.constraints.push(clause.to_owned());
         } else {
@@ -1354,7 +1385,10 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
 /// Deterministically read one intent (already folded by [`fold_apostrophes`]).
 #[allow(clippy::too_many_lines)] // one sentence walk; each policy family is one visible arm
 pub(super) fn read(intent: &str) -> Reading {
-    let mut reading = Reading::default();
+    let mut reading = Reading {
+        columns: super::columns::columns_hint(intent),
+        ..Reading::default()
+    };
     let mut state = ReadState {
         conflict_marker: false,
         final_gate: false,
@@ -1473,7 +1507,7 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
         || text.starts_with("no ")
         || text.starts_with("aucun");
     if negated {
-        let verbs = effect_words(text);
+        let verbs = effect_words(text, &reading.columns);
         if verbs.is_empty() {
             // A negated clause that still carries an operation head ("n'extraire que …",
             // "ne corrige pas …") restricts work the reader cannot read: cognition, not a constraint.
@@ -1516,7 +1550,20 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
         reading.plan.constraints.push(original.to_owned());
         return true;
     }
-    let Some((phrase, head)) = head_of(text) else {
+    // A listed column at the head of a clause (`credit_cents, the sum of …`) is a column,
+    // never the verb it spells.
+    let first_token = text
+        .split(|c: char| !(c.is_alphanumeric() || c == '_'))
+        .next()
+        .unwrap_or_default();
+    let found = head_of(text).filter(|(phrase, head)| {
+        !(matches!(head, Head::Effect(_))
+            && reading
+                .columns
+                .iter()
+                .any(|c| c.eq_ignore_ascii_case(phrase) || c.eq_ignore_ascii_case(first_token)))
+    });
+    let Some((phrase, head)) = found else {
         let declarative = [
             " est ",
             " sont ",

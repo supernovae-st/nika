@@ -236,6 +236,24 @@ fn fold(text: &str) -> String {
         .collect()
 }
 
+/// The family of an effect verb: writing a file, moving money, or reaching out.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Family {
+    File,
+    Money,
+    Outbound,
+}
+
+fn family(verb: EffectVerb) -> Family {
+    if verb == EffectVerb::Write {
+        Family::File
+    } else if verb.moves_money() {
+        Family::Money
+    } else {
+        Family::Outbound
+    }
+}
+
 /// Two targets naming the same URL, path or address.
 fn shares_literal(a: &str, b: &str) -> bool {
     let literals = |t: &str| -> Vec<String> {
@@ -327,6 +345,36 @@ pub(super) fn feasibility(candidate: &Plan, floor: &Plan, intent: &str) -> Resul
             "{} constraint(s) have no operation to carry them",
             candidate.constraints.len()
         ));
+    }
+    // Rule 14: an effect is asked by its excerpt. An excerpt that carries no word of the
+    // effect's family (a file word or a path for a write, an outbound word or an endpoint
+    // for a send, a money word for a refund) was read into the request, never out of it;
+    // a prohibition is anchored by the ban it states.
+    let columns = super::columns::columns_hint(intent);
+    for effect in &candidate.effects {
+        if effect.policy == EffectPolicy::Forbidden {
+            continue;
+        }
+        let lower = effect.evidence.to_lowercase();
+        // Only an excerpt the lexicon can read is judged: one whose effect words all belong
+        // to another family, or whose only effect word is a listed column (`name, email e
+        // city`). An excerpt in a language the lexicon does not read carries no verdict.
+        let read = super::lexicon::effect_words(&lower, &[]);
+        let words = super::lexicon::effect_words(&lower, &columns);
+        let asked = read.is_empty()
+            || words.iter().any(|w| family(*w) == family(effect.verb))
+            || (effect.verb == EffectVerb::Write && super::objects::has_literal(&effect.evidence))
+            || (family(effect.verb) == Family::Outbound
+                && (lower.contains("http://")
+                    || lower.contains("https://")
+                    || lower.contains('@')));
+        if !asked {
+            why.push(format!(
+                "`{}` is not asked by its excerpt ({})",
+                effect.verb.word(),
+                effect.evidence.trim()
+            ));
+        }
     }
     // Rule 13: gate dominance. An automatic effect on the clause or the endpoint of a
     // human-first effect performs the gated action before the gate the request demanded.

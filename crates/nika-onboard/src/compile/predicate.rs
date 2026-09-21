@@ -7,7 +7,7 @@
 use serde::Deserialize;
 use serde_json::{Value, json};
 
-use super::rules::{AggOp, Aggregation, Shape};
+use super::rules::{AggOp, Aggregation, ArithOp, Derived, Shape, Term};
 
 /// A computation stated as meaning: the rows kept or dropped, the grouping, the aggregates,
 /// the ordering and the output columns, all in the request's own words.
@@ -31,6 +31,23 @@ pub(super) struct ProposedComputation {
     pub(super) order: String,
     #[serde(default, deserialize_with = "super::cognition::nullable_vec")]
     pub(super) columns: Vec<String>,
+    #[serde(default, deserialize_with = "nullable_derived")]
+    pub(super) derived: Vec<ProposedDerived>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct ProposedDerived {
+    #[serde(
+        rename = "as",
+        default,
+        deserialize_with = "super::cognition::nullable_string"
+    )]
+    pub(super) name: String,
+    pub(super) op: String,
+    #[serde(default, deserialize_with = "super::cognition::nullable_string")]
+    pub(super) left: String,
+    #[serde(default, deserialize_with = "super::cognition::nullable_string")]
+    pub(super) right: String,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -62,6 +79,11 @@ fn nullable_clauses<'de, D: serde::Deserializer<'de>>(
 ) -> Result<Vec<ProposedClause>, D::Error> {
     Ok(Option::<Vec<ProposedClause>>::deserialize(d)?.unwrap_or_default())
 }
+fn nullable_derived<'de, D: serde::Deserializer<'de>>(
+    d: D,
+) -> Result<Vec<ProposedDerived>, D::Error> {
+    Ok(Option::<Vec<ProposedDerived>>::deserialize(d)?.unwrap_or_default())
+}
 fn nullable_aggregations<'de, D: serde::Deserializer<'de>>(
     d: D,
 ) -> Result<Vec<ProposedAggregation>, D::Error> {
@@ -82,12 +104,19 @@ pub(super) fn typed_rule(
     use super::rules::{Clause, Comparator, Junction, Operand, Rule};
     let lower = intent.to_lowercase();
     let hint = super::columns::columns_hint(intent);
+    // A source column is one the request lists when it lists its columns; only a request
+    // that names no columns lets any of its words stand for one. An output name the request
+    // states ("as") is a word of the request, never a source column.
     let names_field = |field: &str| {
         let field = field.trim();
-        !field.is_empty()
-            && field.len() <= 64
-            && (hint.iter().any(|c| c.eq_ignore_ascii_case(field))
-                || lower.contains(&field.to_lowercase()))
+        if field.is_empty() || field.len() > 64 {
+            return false;
+        }
+        if hint.is_empty() {
+            lower.contains(&field.to_lowercase())
+        } else {
+            hint.iter().any(|c| c.eq_ignore_ascii_case(field))
+        }
     };
     let digit_runs: Vec<String> = intent
         .split(|c: char| !c.is_ascii_digit() && c != '.' && c != ',')
@@ -225,11 +254,48 @@ pub(super) fn typed_rule(
         }
         columns.push(column.to_owned());
     }
+    // Arithmetic over the outputs: each side is an output already produced or a number
+    // of the request; an output the request defines that way is never an aggregate.
+    let mut derived: Vec<Derived> = Vec::new();
+    for entry in &computation.derived {
+        let name = entry.name.trim();
+        if name.is_empty() || name.len() > 64 || !lower.contains(&name.to_lowercase()) {
+            return None;
+        }
+        let op = ArithOp::from_word(&entry.op)?;
+        let known: Vec<&str> = produced
+            .iter()
+            .copied()
+            .chain(derived.iter().map(|d| d.name.as_str()))
+            .collect();
+        let term = |text: &str| -> Option<Term> {
+            let text = text.trim();
+            if known.contains(&text) {
+                return Some(Term::Name(text.to_owned()));
+            }
+            let numeric = text.replace(',', ".");
+            if numeric.parse::<f64>().is_ok() && digit_runs.iter().any(|run| run == &numeric) {
+                return Some(Term::Number(numeric));
+            }
+            None
+        };
+        let (left, right) = (term(&entry.left)?, term(&entry.right)?);
+        derived.push(Derived {
+            name: name.to_owned(),
+            op,
+            left,
+            right,
+        });
+    }
+    if !derived.is_empty() && aggregations.is_empty() {
+        return None;
+    }
     let shape = Shape {
         group_by,
         aggregations,
         sort_by,
         columns,
+        derived,
     };
     if clauses.is_empty() && shape == Shape::default() {
         return None;
@@ -240,7 +306,7 @@ pub(super) fn typed_rule(
 /// The schema of a typed computation on a compute step: every key required (a strict
 /// schema needs no optional), empty strings and arrays meaning absent.
 pub(super) fn computation_schema() -> Value {
-    json!({"type":"object","additionalProperties":false,"required":["present","polarity","join","clauses","group_by","aggregations","sort_by","order","columns"],"properties":{
+    json!({"type":"object","additionalProperties":false,"required":["present","polarity","join","clauses","group_by","aggregations","sort_by","order","columns","derived"],"properties":{
         "present":{"type":"boolean"},
         "polarity":{"type":"string","enum":["keep","drop"]},
         "join":{"type":"string","enum":["and","or"]},
@@ -253,5 +319,8 @@ pub(super) fn computation_schema() -> Value {
             "as":{"type":"string"},"round":{"type":"string"}}}},
         "sort_by":{"type":"string"},
         "order":{"type":"string","enum":["asc","desc",""]},
-        "columns":{"type":"array","items":{"type":"string"}}}})
+        "columns":{"type":"array","items":{"type":"string"}},
+        "derived":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["as","op","left","right"],"properties":{
+            "as":{"type":"string"},"op":{"type":"string","enum":["sub","add","mul","div"]},
+            "left":{"type":"string"},"right":{"type":"string"}}}}}})
 }

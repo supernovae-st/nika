@@ -1937,3 +1937,62 @@ async fn typed_totals_become_named_outputs() {
         "{candidate}"
     );
 }
+
+/// An output the request defines as arithmetic over other outputs is a derived entry over
+/// the totals, never an aggregate the model picks: `solde_cents = credit_cents - debit_cents`.
+#[tokio::test]
+async fn a_derived_output_is_arithmetic_over_the_totals() {
+    let intent = "Read ./grand-livre.csv (columns date,libelle,debit_cents,credit_cents) and expose as outputs: ecritures, the number of rows; debit_cents, the sum of debit_cents; credit_cents, the sum of credit_cents; solde_cents, credit_cents minus debit_cents. Write nothing.";
+    let typed = json!({
+        "steps": [
+            {"op": "read", "detail": "./grand-livre.csv", "evidence": "Read ./grand-livre.csv"},
+            {"op": "compute", "detail": "ecritures, the number of rows; debit_cents, the sum of debit_cents; credit_cents, the sum of credit_cents; solde_cents, credit_cents minus debit_cents", "evidence": "ecritures, the number of rows; debit_cents, the sum of debit_cents; credit_cents, the sum of credit_cents; solde_cents, credit_cents minus debit_cents",
+             "computation": {"present": true, "polarity": "keep", "join": "and", "clauses": [], "group_by": "",
+                             "aggregations": [{"field": "", "op": "count", "as": "ecritures", "round": ""}, {"field": "debit_cents", "op": "sum", "as": "debit_cents", "round": ""}, {"field": "credit_cents", "op": "sum", "as": "credit_cents", "round": ""}],
+                             "sort_by": "", "order": "", "columns": [],
+                             "derived": [{"as": "solde_cents", "op": "sub", "left": "credit_cents", "right": "debit_cents"}]}}
+        ],
+        "effects": [{"verb": "write", "target": "nothing", "policy": "forbidden", "evidence": "Write nothing."}],
+        "obligations": [], "constraints": [], "unknowns": [],
+        "regions": [
+            {"text": "Read ./grand-livre.csv (columns date,libelle,debit_cents,credit_cents)", "role": "operation"},
+            {"text": "and expose as outputs: ecritures, the number of rows; debit_cents, the sum of debit_cents; credit_cents, the sum of credit_cents; solde_cents, credit_cents minus debit_cents.", "role": "operation"},
+            {"text": "Write nothing.", "role": "policy"}
+        ],
+        "approval_bypass": {"present": false, "evidence": ""}
+    });
+    let out = compile_with_provider(
+        &CompileRequest::create(intent).with_authoring_policy(policy()),
+        &Provider::new(typed),
+    )
+    .await
+    .unwrap();
+    assert!(!keys(&out).contains(&"const.rule_expression"), "{out:#?}");
+    let candidate = out.candidate.as_deref().unwrap_or_default();
+    assert!(
+        candidate.contains("| . + {\"solde_cents\": (.credit_cents - .debit_cents)}"),
+        "{candidate}\n{:#?}\n{:#?}",
+        out.questions,
+        out.diagnostics
+    );
+    assert!(
+        candidate.contains("solde_cents: ${{ tasks.compute.output.solde_cents }}"),
+        "{candidate}"
+    );
+}
+
+/// A word the request lists as a column is a column, never the verb it spells: `name, email
+/// e city` asks for no send, and a proposal that reads one is not feasible.
+#[test]
+fn a_listed_column_is_never_an_effect() {
+    let intent = "Read ./contatos.csv, which has the columns nome,email,cidade, and write ./out/contatos.json as a JSON array with the keys name, email e city, sorted by email.";
+    let out = nika_onboard::compile::compile(&CompileRequest::create(intent)).unwrap();
+    let plan = out.provenance.plan.clone().unwrap_or_default();
+    let verbs: Vec<String> = plan["effects"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|e| e["verb"].as_str().map(str::to_owned))
+        .collect();
+    assert!(!verbs.iter().any(|v| v == "send"), "{plan:#}");
+}

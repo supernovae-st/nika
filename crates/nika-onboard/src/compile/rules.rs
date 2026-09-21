@@ -17,7 +17,7 @@
 use super::shape::{ATTEMPT_UNITS, SIZE_UNITS, fold};
 use serde_json::{Value, json};
 
-pub(super) use super::aggregate::{AggOp, Aggregation, Shape};
+pub(super) use super::aggregate::{AggOp, Aggregation, ArithOp, Derived, Shape, Term};
 
 /// The six comparisons a rule may state.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

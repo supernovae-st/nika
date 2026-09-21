@@ -99,6 +99,98 @@ impl Aggregation {
     }
 }
 
+/// Arithmetic between two outputs (or an output and a literal of the request).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum ArithOp {
+    Sub,
+    Add,
+    Mul,
+    Div,
+}
+
+impl ArithOp {
+    pub(super) fn from_word(word: &str) -> Option<Self> {
+        match word.trim().to_ascii_lowercase().as_str() {
+            "sub" | "minus" | "-" => Some(Self::Sub),
+            "add" | "plus" | "+" => Some(Self::Add),
+            "mul" | "times" | "*" => Some(Self::Mul),
+            "div" | "over" | "/" => Some(Self::Div),
+            _ => None,
+        }
+    }
+    const fn word(self) -> &'static str {
+        match self {
+            Self::Sub => "sub",
+            Self::Add => "add",
+            Self::Mul => "mul",
+            Self::Div => "div",
+        }
+    }
+}
+
+/// One side of a derived output: another output by name, or a number of the request.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) enum Term {
+    Name(String),
+    Number(String),
+}
+
+impl Term {
+    fn jq(&self) -> String {
+        match self {
+            Self::Name(name) => key(name),
+            Self::Number(n) => n.clone(),
+        }
+    }
+    fn to_json(&self) -> Value {
+        match self {
+            Self::Name(name) => json!({"name": name}),
+            Self::Number(n) => json!({"number": n}),
+        }
+    }
+    fn from_json(value: &Value) -> Option<Self> {
+        if let Some(name) = value.get("name").and_then(Value::as_str) {
+            return Some(Self::Name(name.to_owned()));
+        }
+        value
+            .get("number")
+            .and_then(Value::as_str)
+            .map(|n| Self::Number(n.to_owned()))
+    }
+}
+
+/// An output the request defines as arithmetic over other outputs (`solde = credit - debit`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct Derived {
+    pub name: String,
+    pub op: ArithOp,
+    pub left: Term,
+    pub right: Term,
+}
+
+impl Derived {
+    fn jq(&self) -> String {
+        let (l, r) = (self.left.jq(), self.right.jq());
+        match self.op {
+            ArithOp::Sub => format!("({l} - {r})"),
+            ArithOp::Add => format!("({l} + {r})"),
+            ArithOp::Mul => format!("({l} * {r})"),
+            ArithOp::Div => format!("(if ({r}) == 0 then null else ({l} / {r}) end)"),
+        }
+    }
+    fn to_json(&self) -> Value {
+        json!({"name": self.name, "op": self.op.word(), "left": self.left.to_json(), "right": self.right.to_json()})
+    }
+    fn from_json(value: &Value) -> Option<Self> {
+        Some(Self {
+            name: value.get("name")?.as_str()?.to_owned(),
+            op: ArithOp::from_word(value.get("op")?.as_str()?)?,
+            left: Term::from_json(value.get("left")?)?,
+            right: Term::from_json(value.get("right")?)?,
+        })
+    }
+}
+
 /// What happens to the rows after the filter: one output row per distinct value of a
 /// column with its aggregates, or totals over every row, then a sort, then a projection.
 /// Every stage is typed and closed; the composition lowers in that fixed order.
@@ -109,6 +201,8 @@ pub(super) struct Shape {
     /// The column sorted on and whether the order is descending.
     pub sort_by: Option<(String, bool)>,
     pub columns: Vec<String>,
+    /// Outputs defined as arithmetic over the aggregates.
+    pub derived: Vec<Derived>,
 }
 
 impl Shape {
@@ -118,6 +212,7 @@ impl Shape {
             .iter()
             .map(String::as_str)
             .chain(self.aggregations.iter().map(|a| a.name.as_str()))
+            .chain(self.derived.iter().map(|d| d.name.as_str()))
             .collect()
     }
     /// The columns the shape writes, in order, when it fixes them: the projection, or the
@@ -137,7 +232,11 @@ impl Shape {
     /// The names of the totals, when the shape is totals over every row.
     pub(super) fn totals_names(&self) -> Vec<String> {
         if self.is_totals() {
-            self.aggregations.iter().map(|a| a.name.clone()).collect()
+            self.aggregations
+                .iter()
+                .map(|a| a.name.clone())
+                .chain(self.derived.iter().map(|d| d.name.clone()))
+                .collect()
         } else {
             Vec::new()
         }
@@ -167,6 +266,19 @@ impl Shape {
         } else if !self.aggregations.is_empty() {
             jq = format!("{jq} | {{{}}}", entries(&self.aggregations));
         }
+        if !self.derived.is_empty() {
+            let extra = self
+                .derived
+                .iter()
+                .map(|d| format!("{}: {}", json!(d.name), d.jq()))
+                .collect::<Vec<_>>()
+                .join(", ");
+            jq = if self.is_totals() {
+                format!("{jq} | . + {{{extra}}}")
+            } else {
+                format!("{jq} | map(. + {{{extra}}})")
+            };
+        }
         if let Some((field, descending)) = &self.sort_by {
             jq = format!("{jq} | sort_by({})", key(field));
             if *descending {
@@ -195,6 +307,7 @@ impl Shape {
             "sort_by": self.sort_by.as_ref().map(|(f, _)| f.clone()),
             "descending": self.sort_by.as_ref().is_some_and(|(_, d)| *d),
             "columns": self.columns,
+            "derived": self.derived.iter().map(Derived::to_json).collect::<Vec<_>>(),
         })
     }
     pub(super) fn from_json(value: Option<&Value>) -> Option<Self> {
@@ -236,11 +349,21 @@ impl Shape {
                     .collect()
             })
             .unwrap_or_default();
+        let derived = value.get("derived").and_then(Value::as_array).map_or_else(
+            || Some(Vec::new()),
+            |items| {
+                items
+                    .iter()
+                    .map(Derived::from_json)
+                    .collect::<Option<Vec<_>>>()
+            },
+        )?;
         Some(Self {
             group_by: text("group_by"),
             aggregations,
             sort_by: text("sort_by").map(|f| (f, descending)),
             columns,
+            derived,
         })
     }
 }
