@@ -611,6 +611,7 @@ pub fn nika_providers::profile::Profile::access_class(&self) -> nika_types::acce
 pub fn nika_providers::profile::Profile::env_candidates(&self) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_providers::profile::Profile::resolve_model<'m>(&self, name: &'m str) -> &'m str
 pub fn nika_providers::profile::Profile::supports_response_format(&self) -> bool
+pub fn nika_providers::profile::Profile::supports_response_format_for(&self, wire_model: &str) -> bool
 impl core::clone::Clone for nika_providers::profile::Profile
 pub fn nika_providers::profile::Profile::clone(&self) -> nika_providers::profile::Profile
 impl core::fmt::Debug for nika_providers::profile::Profile
@@ -739,6 +740,7 @@ pub fn nika_providers::registry::ProviderRegistry<H>::resolve(&self, model: &str
 impl<H> nika_providers::registry::ProviderRegistry<H>
 pub fn nika_providers::registry::ProviderRegistry<H>::effective_base_url(&self, provider: &str) -> core::option::Option<&str>
 pub fn nika_providers::registry::ProviderRegistry<H>::supports_response_format(&self, model: &str) -> bool
+pub fn nika_providers::registry::ProviderRegistry<H>::with_backoff(self, backoff: alloc::sync::Arc<dyn nika_providers::retry::Backoff>) -> Self
 impl<H: core::fmt::Debug> core::fmt::Debug for nika_providers::registry::ProviderRegistry<H>
 pub fn nika_providers::registry::ProviderRegistry<H>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_providers::registry::ProviderRegistry<H>
@@ -797,6 +799,8 @@ pub fn nika_providers::registry::ProvidersConfig::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::registry::ProvidersConfig where T: 'static
 pub fn nika_providers::registry::ProvidersConfig::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub struct nika_providers::registry::ResolvedProvider<H>
+impl<H> nika_providers::registry::ResolvedProvider<H> where H: nika_kernel_core::io::http::HttpPostDyn + core::marker::Send + core::marker::Sync + 'static
+pub async fn nika_providers::registry::ResolvedProvider<H>::infer_reported(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<(nika_kernel_ai::provider::InferResponse, nika_providers::retry::TransportReport), (nika_kernel_ai::provider::ProviderError, alloc::boxed::Box<nika_providers::retry::TransportReport>)>
 impl<H> nika_providers::registry::ResolvedProvider<H>
 pub fn nika_providers::registry::ResolvedProvider<H>::strict_schema_rejects_underspecified(&self) -> bool
 pub fn nika_providers::registry::ResolvedProvider<H>::wire_model(&self) -> &str
@@ -1012,6 +1016,89 @@ pub fn nika_providers::resolve_access::refuse_pin<'m>(models: impl core::iter::t
 pub fn nika_providers::resolve_access::refuse_pin_for_verbs<'m>(models: impl core::iter::traits::collect::IntoIterator<Item = &'m str>, probes: &[nika_providers::probe::ProviderProbe], pin: &str, has_infer: bool, has_agent: bool) -> core::option::Option<nika_providers::resolve_access::PinRefusal>
 pub fn nika_providers::resolve_access::refuse_pin_with<'m>(models: impl core::iter::traits::collect::IntoIterator<Item = &'m str>, probes: &[nika_providers::probe::ProviderProbe], pin: &str, verbs: nika_providers::resolve_access::VerbNeeds) -> core::option::Option<nika_providers::resolve_access::PinRefusal>
 pub fn nika_providers::resolve_access::resolve_access(model: &str, candidates: &[nika_providers::resolve_access::AccessCandidate], allow_providers: core::option::Option<&[alloc::string::String]>, pin: core::option::Option<&str>) -> core::result::Result<nika_types::access::AccessPlan, nika_providers::resolve_access::AccessRefusal>
+pub mod nika_providers::retry
+pub struct nika_providers::retry::ClockBackoff<C>(pub alloc::sync::Arc<C>)
+impl<C: core::clone::Clone> core::clone::Clone for nika_providers::retry::ClockBackoff<C>
+pub fn nika_providers::retry::ClockBackoff<C>::clone(&self) -> nika_providers::retry::ClockBackoff<C>
+impl<C: core::fmt::Debug> core::fmt::Debug for nika_providers::retry::ClockBackoff<C>
+pub fn nika_providers::retry::ClockBackoff<C>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<C: nika_kernel_core::io::clock::ClockDyn + core::fmt::Debug + 'static> nika_providers::retry::Backoff for nika_providers::retry::ClockBackoff<C>
+pub fn nika_providers::retry::ClockBackoff<C>::sleep(&self, duration: core::time::Duration) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = ()> + core::marker::Send + '_)>>
+impl<D> owo_colors::OwoColorize for nika_providers::retry::ClockBackoff<C>
+impl<T, U> core::convert::Into<U> for nika_providers::retry::ClockBackoff<C> where U: core::convert::From<T>
+pub fn nika_providers::retry::ClockBackoff<C>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::retry::ClockBackoff<C> where U: core::convert::Into<T>
+pub type nika_providers::retry::ClockBackoff<C>::Error = core::convert::Infallible
+pub fn nika_providers::retry::ClockBackoff<C>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::retry::ClockBackoff<C> where U: core::convert::TryFrom<T>
+pub type nika_providers::retry::ClockBackoff<C>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::retry::ClockBackoff<C>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::retry::ClockBackoff<C> where T: core::clone::Clone
+pub type nika_providers::retry::ClockBackoff<C>::Owned = T
+pub fn nika_providers::retry::ClockBackoff<C>::clone_into(&self, target: &mut T)
+pub fn nika_providers::retry::ClockBackoff<C>::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::retry::ClockBackoff<C> where T: 'static + ?core::marker::Sized
+pub fn nika_providers::retry::ClockBackoff<C>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::retry::ClockBackoff<C> where T: ?core::marker::Sized
+pub fn nika_providers::retry::ClockBackoff<C>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::retry::ClockBackoff<C> where T: ?core::marker::Sized
+pub fn nika_providers::retry::ClockBackoff<C>::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::retry::ClockBackoff<C> where T: core::clone::Clone
+pub unsafe fn nika_providers::retry::ClockBackoff<C>::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::retry::ClockBackoff<C>
+pub fn nika_providers::retry::ClockBackoff<C>::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::retry::ClockBackoff<C> where T: 'static
+pub fn nika_providers::retry::ClockBackoff<C>::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_providers::retry::TransportReport
+pub nika_providers::retry::TransportReport::attempts: u32
+pub nika_providers::retry::TransportReport::statuses: alloc::vec::Vec<u16>
+pub nika_providers::retry::TransportReport::waited: core::time::Duration
+impl nika_providers::retry::TransportReport
+pub fn nika_providers::retry::TransportReport::absorb(&mut self, other: &Self)
+pub fn nika_providers::retry::TransportReport::new() -> Self
+pub fn nika_providers::retry::TransportReport::retried(&self) -> bool
+pub fn nika_providers::retry::TransportReport::summary(&self) -> core::option::Option<alloc::string::String>
+impl core::clone::Clone for nika_providers::retry::TransportReport
+pub fn nika_providers::retry::TransportReport::clone(&self) -> nika_providers::retry::TransportReport
+impl core::cmp::Eq for nika_providers::retry::TransportReport
+impl core::cmp::PartialEq for nika_providers::retry::TransportReport
+pub fn nika_providers::retry::TransportReport::eq(&self, other: &nika_providers::retry::TransportReport) -> bool
+impl core::default::Default for nika_providers::retry::TransportReport
+pub fn nika_providers::retry::TransportReport::default() -> nika_providers::retry::TransportReport
+impl core::fmt::Debug for nika_providers::retry::TransportReport
+pub fn nika_providers::retry::TransportReport::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_providers::retry::TransportReport
+impl<D> owo_colors::OwoColorize for nika_providers::retry::TransportReport
+impl<T, U> core::convert::Into<U> for nika_providers::retry::TransportReport where U: core::convert::From<T>
+pub fn nika_providers::retry::TransportReport::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::retry::TransportReport where U: core::convert::Into<T>
+pub type nika_providers::retry::TransportReport::Error = core::convert::Infallible
+pub fn nika_providers::retry::TransportReport::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::retry::TransportReport where U: core::convert::TryFrom<T>
+pub type nika_providers::retry::TransportReport::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::retry::TransportReport::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::retry::TransportReport where T: core::clone::Clone
+pub type nika_providers::retry::TransportReport::Owned = T
+pub fn nika_providers::retry::TransportReport::clone_into(&self, target: &mut T)
+pub fn nika_providers::retry::TransportReport::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::retry::TransportReport where T: 'static + ?core::marker::Sized
+pub fn nika_providers::retry::TransportReport::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::retry::TransportReport where T: ?core::marker::Sized
+pub fn nika_providers::retry::TransportReport::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::retry::TransportReport where T: ?core::marker::Sized
+pub fn nika_providers::retry::TransportReport::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::retry::TransportReport where T: core::clone::Clone
+pub unsafe fn nika_providers::retry::TransportReport::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::retry::TransportReport
+pub fn nika_providers::retry::TransportReport::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::retry::TransportReport where T: 'static
+pub fn nika_providers::retry::TransportReport::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub const nika_providers::retry::MAX_RETRIES: u32
+pub const nika_providers::retry::MAX_RETRY_AFTER: core::time::Duration
+pub trait nika_providers::retry::Backoff: core::marker::Send + core::marker::Sync + core::fmt::Debug
+pub fn nika_providers::retry::Backoff::sleep(&self, duration: core::time::Duration) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = ()> + core::marker::Send + '_)>>
+impl<C: nika_kernel_core::io::clock::ClockDyn + core::fmt::Debug + 'static> nika_providers::retry::Backoff for nika_providers::retry::ClockBackoff<C>
+pub fn nika_providers::retry::ClockBackoff<C>::sleep(&self, duration: core::time::Duration) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = ()> + core::marker::Send + '_)>>
 pub mod nika_providers::wire
 #[non_exhaustive] pub enum nika_providers::KeyAuth
 pub nika_providers::KeyAuth::Absent
@@ -1347,6 +1434,38 @@ impl<T> core::convert::From<T> for nika_providers::resolve_access::AccessRefusal
 pub fn nika_providers::resolve_access::AccessRefusal::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::resolve_access::AccessRefusal where T: 'static
 pub fn nika_providers::resolve_access::AccessRefusal::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub struct nika_providers::ClockBackoff<C>(pub alloc::sync::Arc<C>)
+impl<C: core::clone::Clone> core::clone::Clone for nika_providers::retry::ClockBackoff<C>
+pub fn nika_providers::retry::ClockBackoff<C>::clone(&self) -> nika_providers::retry::ClockBackoff<C>
+impl<C: core::fmt::Debug> core::fmt::Debug for nika_providers::retry::ClockBackoff<C>
+pub fn nika_providers::retry::ClockBackoff<C>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<C: nika_kernel_core::io::clock::ClockDyn + core::fmt::Debug + 'static> nika_providers::retry::Backoff for nika_providers::retry::ClockBackoff<C>
+pub fn nika_providers::retry::ClockBackoff<C>::sleep(&self, duration: core::time::Duration) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = ()> + core::marker::Send + '_)>>
+impl<D> owo_colors::OwoColorize for nika_providers::retry::ClockBackoff<C>
+impl<T, U> core::convert::Into<U> for nika_providers::retry::ClockBackoff<C> where U: core::convert::From<T>
+pub fn nika_providers::retry::ClockBackoff<C>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::retry::ClockBackoff<C> where U: core::convert::Into<T>
+pub type nika_providers::retry::ClockBackoff<C>::Error = core::convert::Infallible
+pub fn nika_providers::retry::ClockBackoff<C>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::retry::ClockBackoff<C> where U: core::convert::TryFrom<T>
+pub type nika_providers::retry::ClockBackoff<C>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::retry::ClockBackoff<C>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::retry::ClockBackoff<C> where T: core::clone::Clone
+pub type nika_providers::retry::ClockBackoff<C>::Owned = T
+pub fn nika_providers::retry::ClockBackoff<C>::clone_into(&self, target: &mut T)
+pub fn nika_providers::retry::ClockBackoff<C>::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::retry::ClockBackoff<C> where T: 'static + ?core::marker::Sized
+pub fn nika_providers::retry::ClockBackoff<C>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::retry::ClockBackoff<C> where T: ?core::marker::Sized
+pub fn nika_providers::retry::ClockBackoff<C>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::retry::ClockBackoff<C> where T: ?core::marker::Sized
+pub fn nika_providers::retry::ClockBackoff<C>::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::retry::ClockBackoff<C> where T: core::clone::Clone
+pub unsafe fn nika_providers::retry::ClockBackoff<C>::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::retry::ClockBackoff<C>
+pub fn nika_providers::retry::ClockBackoff<C>::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::retry::ClockBackoff<C> where T: 'static
+pub fn nika_providers::retry::ClockBackoff<C>::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_providers::ExecutionAccessPlan
 pub nika_providers::ExecutionAccessPlan::lanes: alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_providers::plan::LaneVerdict>
 pub nika_providers::ExecutionAccessPlan::pin: core::option::Option<alloc::string::String>
@@ -1484,6 +1603,7 @@ pub fn nika_providers::profile::Profile::access_class(&self) -> nika_types::acce
 pub fn nika_providers::profile::Profile::env_candidates(&self) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_providers::profile::Profile::resolve_model<'m>(&self, name: &'m str) -> &'m str
 pub fn nika_providers::profile::Profile::supports_response_format(&self) -> bool
+pub fn nika_providers::profile::Profile::supports_response_format_for(&self, wire_model: &str) -> bool
 impl core::clone::Clone for nika_providers::profile::Profile
 pub fn nika_providers::profile::Profile::clone(&self) -> nika_providers::profile::Profile
 impl core::fmt::Debug for nika_providers::profile::Profile
@@ -1523,6 +1643,7 @@ pub fn nika_providers::registry::ProviderRegistry<H>::resolve(&self, model: &str
 impl<H> nika_providers::registry::ProviderRegistry<H>
 pub fn nika_providers::registry::ProviderRegistry<H>::effective_base_url(&self, provider: &str) -> core::option::Option<&str>
 pub fn nika_providers::registry::ProviderRegistry<H>::supports_response_format(&self, model: &str) -> bool
+pub fn nika_providers::registry::ProviderRegistry<H>::with_backoff(self, backoff: alloc::sync::Arc<dyn nika_providers::retry::Backoff>) -> Self
 impl<H: core::fmt::Debug> core::fmt::Debug for nika_providers::registry::ProviderRegistry<H>
 pub fn nika_providers::registry::ProviderRegistry<H>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_providers::registry::ProviderRegistry<H>
@@ -1658,6 +1779,8 @@ pub fn nika_providers::plan::ResolvedLane::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::plan::ResolvedLane where T: 'static
 pub fn nika_providers::plan::ResolvedLane::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub struct nika_providers::ResolvedProvider<H>
+impl<H> nika_providers::registry::ResolvedProvider<H> where H: nika_kernel_core::io::http::HttpPostDyn + core::marker::Send + core::marker::Sync + 'static
+pub async fn nika_providers::registry::ResolvedProvider<H>::infer_reported(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<(nika_kernel_ai::provider::InferResponse, nika_providers::retry::TransportReport), (nika_kernel_ai::provider::ProviderError, alloc::boxed::Box<nika_providers::retry::TransportReport>)>
 impl<H> nika_providers::registry::ResolvedProvider<H>
 pub fn nika_providers::registry::ResolvedProvider<H>::strict_schema_rejects_underspecified(&self) -> bool
 pub fn nika_providers::registry::ResolvedProvider<H>::wire_model(&self) -> &str
@@ -1738,6 +1861,50 @@ impl<T> core::convert::From<T> for nika_providers::census::SeatFact
 pub fn nika_providers::census::SeatFact::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::census::SeatFact where T: 'static
 pub fn nika_providers::census::SeatFact::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_providers::TransportReport
+pub nika_providers::TransportReport::attempts: u32
+pub nika_providers::TransportReport::statuses: alloc::vec::Vec<u16>
+pub nika_providers::TransportReport::waited: core::time::Duration
+impl nika_providers::retry::TransportReport
+pub fn nika_providers::retry::TransportReport::absorb(&mut self, other: &Self)
+pub fn nika_providers::retry::TransportReport::new() -> Self
+pub fn nika_providers::retry::TransportReport::retried(&self) -> bool
+pub fn nika_providers::retry::TransportReport::summary(&self) -> core::option::Option<alloc::string::String>
+impl core::clone::Clone for nika_providers::retry::TransportReport
+pub fn nika_providers::retry::TransportReport::clone(&self) -> nika_providers::retry::TransportReport
+impl core::cmp::Eq for nika_providers::retry::TransportReport
+impl core::cmp::PartialEq for nika_providers::retry::TransportReport
+pub fn nika_providers::retry::TransportReport::eq(&self, other: &nika_providers::retry::TransportReport) -> bool
+impl core::default::Default for nika_providers::retry::TransportReport
+pub fn nika_providers::retry::TransportReport::default() -> nika_providers::retry::TransportReport
+impl core::fmt::Debug for nika_providers::retry::TransportReport
+pub fn nika_providers::retry::TransportReport::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_providers::retry::TransportReport
+impl<D> owo_colors::OwoColorize for nika_providers::retry::TransportReport
+impl<T, U> core::convert::Into<U> for nika_providers::retry::TransportReport where U: core::convert::From<T>
+pub fn nika_providers::retry::TransportReport::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::retry::TransportReport where U: core::convert::Into<T>
+pub type nika_providers::retry::TransportReport::Error = core::convert::Infallible
+pub fn nika_providers::retry::TransportReport::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::retry::TransportReport where U: core::convert::TryFrom<T>
+pub type nika_providers::retry::TransportReport::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::retry::TransportReport::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::retry::TransportReport where T: core::clone::Clone
+pub type nika_providers::retry::TransportReport::Owned = T
+pub fn nika_providers::retry::TransportReport::clone_into(&self, target: &mut T)
+pub fn nika_providers::retry::TransportReport::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::retry::TransportReport where T: 'static + ?core::marker::Sized
+pub fn nika_providers::retry::TransportReport::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::retry::TransportReport where T: ?core::marker::Sized
+pub fn nika_providers::retry::TransportReport::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::retry::TransportReport where T: ?core::marker::Sized
+pub fn nika_providers::retry::TransportReport::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::retry::TransportReport where T: core::clone::Clone
+pub unsafe fn nika_providers::retry::TransportReport::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::retry::TransportReport
+pub fn nika_providers::retry::TransportReport::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::retry::TransportReport where T: 'static
+pub fn nika_providers::retry::TransportReport::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_providers::VerbNeeds
 pub nika_providers::VerbNeeds::agent: bool
 pub nika_providers::VerbNeeds::infer: bool
@@ -1780,7 +1947,13 @@ pub fn nika_providers::resolve_access::VerbNeeds::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::resolve_access::VerbNeeds where T: 'static
 pub fn nika_providers::resolve_access::VerbNeeds::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub const nika_providers::CANONICAL_IDS: [&str; 17]
+pub const nika_providers::MAX_RETRIES: u32
+pub const nika_providers::MAX_RETRY_AFTER: core::time::Duration
 pub const nika_providers::PREFIX_REFUSAL_CODE: &str
+pub trait nika_providers::Backoff: core::marker::Send + core::marker::Sync + core::fmt::Debug
+pub fn nika_providers::Backoff::sleep(&self, duration: core::time::Duration) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = ()> + core::marker::Send + '_)>>
+impl<C: nika_kernel_core::io::clock::ClockDyn + core::fmt::Debug + 'static> nika_providers::retry::Backoff for nika_providers::retry::ClockBackoff<C>
+pub fn nika_providers::retry::ClockBackoff<C>::sleep(&self, duration: core::time::Duration) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = ()> + core::marker::Send + '_)>>
 pub fn nika_providers::access_plan_map(models: &[alloc::string::String], probes: &[nika_providers::probe::ProviderProbe], pin: core::option::Option<&str>) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_types::access::AccessPlan>
 pub fn nika_providers::candidates_for(probes: &[nika_providers::probe::ProviderProbe], provider: &str) -> alloc::vec::Vec<nika_providers::resolve_access::AccessCandidate>
 pub fn nika_providers::canonical_provider(id: &str) -> &str

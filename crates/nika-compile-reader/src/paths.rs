@@ -11,7 +11,8 @@
 
 /// How one literal token reads as a local path.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) enum PathShape {
+#[non_exhaustive]
+pub enum PathShape {
     /// One exact file: a final segment with an extension, no placeholder, no glob.
     File(String),
     /// A directory: a trailing slash or no extension on the final segment.
@@ -23,7 +24,8 @@ pub(super) enum PathShape {
 }
 
 /// Every path-shaped token of a phrase, in order, without duplicates.
-pub(super) fn literals(text: &str) -> Vec<PathShape> {
+#[must_use]
+pub fn literals(text: &str) -> Vec<PathShape> {
     let mut found: Vec<PathShape> = Vec::new();
     for word in text.split_whitespace() {
         if let Some(shape) = token(word)
@@ -37,7 +39,8 @@ pub(super) fn literals(text: &str) -> Vec<PathShape> {
 
 /// The one exact file a phrase names, when it names exactly one path-shaped token
 /// and that token is a file.
-pub(super) fn single_file(text: &str) -> Option<String> {
+#[must_use]
+pub fn single_file(text: &str) -> Option<String> {
     match literals(text).as_slice() {
         [PathShape::File(path)] => Some(path.clone()),
         _ => None,
@@ -45,7 +48,7 @@ pub(super) fn single_file(text: &str) -> Option<String> {
 }
 
 /// One whitespace-free word read as a path, or nothing when it is prose.
-pub(super) fn token(word: &str) -> Option<PathShape> {
+pub fn token(word: &str) -> Option<PathShape> {
     let word = word
         .trim_matches(|c: char| matches!(c, '"' | '\'' | '`' | '(' | ')' | '[' | ']' | '«' | '»'))
         .trim_end_matches(['.', ',', ';', ':', '!', '?']);
@@ -72,6 +75,17 @@ pub(super) fn token(word: &str) -> Option<PathShape> {
     Some(PathShape::File(literal))
 }
 
+/// The material a read consumes when a request names a path: a file or a glob as
+/// stated; a directory as every file directly under it (`./notes` → `./notes/*`), a
+/// derivation of the stated literal that guesses neither an extension nor a depth.
+/// `nika:glob` returns files only, so a subdirectory is left out, never read.
+pub(crate) fn material(path: &str) -> String {
+    match token(path) {
+        Some(PathShape::Directory(dir)) => format!("{}/*", dir.trim_end_matches('/')),
+        _ => path.to_owned(),
+    }
+}
+
 /// `name.ext` with a real stem and an alphabetic-led extension; never a bare number,
 /// an abbreviation (`e.g`) or a version (`v1.2`).
 fn bare_filename(word: &str) -> bool {
@@ -93,7 +107,7 @@ fn bare_filename(word: &str) -> bool {
 }
 
 /// The lowercase extension of the final segment, when it has one.
-pub(super) fn extension(path: &str) -> Option<String> {
+pub fn extension(path: &str) -> Option<String> {
     let name = path.rsplit('/').next().unwrap_or(path);
     let (stem, ext) = name.rsplit_once('.')?;
     if stem.is_empty()
@@ -108,7 +122,8 @@ pub(super) fn extension(path: &str) -> Option<String> {
 }
 
 /// The `snake_case` stem of a file path, for task ids and constant names.
-pub(super) fn stem(path: &str) -> String {
+#[must_use]
+pub fn stem(path: &str) -> String {
     let name = path
         .trim_end_matches('/')
         .rsplit('/')
@@ -132,7 +147,8 @@ pub(super) fn stem(path: &str) -> String {
 }
 
 /// The directory a glob or a directory literal lives under, for a permit entry.
-pub(super) fn directory_of(path: &str) -> String {
+#[must_use]
+pub fn directory_of(path: &str) -> String {
     let trimmed = path.trim_end_matches('/');
     let cut = trimmed
         .find(['*', '?', '['])
@@ -147,7 +163,8 @@ pub(super) fn directory_of(path: &str) -> String {
 
 /// Structured text formats the assembler can parse before a code rule.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum Structured {
+#[non_exhaustive]
+pub enum Structured {
     Json,
     Csv,
     Yaml,
@@ -155,7 +172,8 @@ pub(super) enum Structured {
 }
 
 impl Structured {
-    pub(super) fn of(path: &str) -> Option<Self> {
+    #[must_use]
+    pub fn of(path: &str) -> Option<Self> {
         match extension(path)?.as_str() {
             "json" => Some(Self::Json),
             "csv" => Some(Self::Csv),
@@ -164,7 +182,8 @@ impl Structured {
             _ => None,
         }
     }
-    pub(super) const fn word(self) -> &'static str {
+    #[must_use]
+    pub const fn word(self) -> &'static str {
         match self {
             Self::Json => "json",
             Self::Csv => "csv",
@@ -251,5 +270,14 @@ mod tests {
         assert_eq!(directory_of("*.md"), ".");
         assert_eq!(Structured::of("./x.yml"), Some(Structured::Yaml));
         assert_eq!(Structured::of("./x.md"), None);
+    }
+
+    #[test]
+    fn a_directory_is_read_as_every_file_directly_under_it_and_nothing_else_changes() {
+        assert_eq!(material("./notes"), "./notes/*");
+        assert_eq!(material("./notes/"), "./notes/*");
+        assert_eq!(material("./notes/brief.md"), "./notes/brief.md");
+        assert_eq!(material("./notes/*.md"), "./notes/*.md");
+        assert_eq!(material("./catalog/<slug>.md"), "./catalog/<slug>.md");
     }
 }

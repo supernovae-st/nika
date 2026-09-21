@@ -10,7 +10,9 @@ repository  = "https://github.com/supernovae-st/nika"
 publish     = false  # member of the nika-onboard unit — never on crates.io alone
 
 [dependencies]
+nika-compile-reader = { path = "../nika-compile-reader", version = "0.120.3" } # the frozen reader and the typed plan, ONE unit in two members (the ADR-137 precedent)
 nika-kernel = { path = "../nika-kernel", version = "0.120.3" } # explicit authoring provider seam
+nika-catalog = { path = "../nika-catalog", version = "0.120.3" } # the seat's capability row: the reasoning cap is a shape the assembler sizes at Ready
 serde = { workspace = true } # private semantic-plan decoder
 tokio = { workspace = true } # bounded authoring timeout
 url = { workspace = true } # explicit HTTP binding host, never inferred authority

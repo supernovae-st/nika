@@ -4423,7 +4423,9 @@ dependencies = [
  "marked-yaml",
  "miette",
  "nika-bm25",
+ "nika-catalog",
  "nika-check",
+ "nika-compile-reader",
  "nika-error",
  "nika-kernel",
  "nika-pack",
@@ -4438,6 +4440,13 @@ dependencies = [
  "thiserror 2.0.20",
  "tokio",
  "url",
+]
+
+[[package]]
+name = "nika-compile-reader"
+version = "0.120.3"
+dependencies = [
+ "serde_json",
 ]
 
 [[package]]
@@ -4915,6 +4924,7 @@ dependencies = [
  "futures-core",
  "jsonschema",
  "nika-catalog",
+ "nika-clock",
  "nika-harness",
  "nika-kernel",
  "nika-types",
@@ -5135,6 +5145,7 @@ dependencies = [
  "nika-pack",
  "nika-providers",
  "nika-runtime",
+ "nika-schema",
  "nika-source",
  "nika-types",
  "nika-verb-infer",

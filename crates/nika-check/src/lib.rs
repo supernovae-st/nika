@@ -203,8 +203,8 @@ pub use tools::{MissingArg, UnknownArg, UnknownTool};
 // re-exported pre-split (substrate descent 2026-08-25 · ADR-115's direction).
 pub use analyzer::{AnalyzedWorkflow, analyze, lowered_returns, returns_type, static_literal_of};
 pub use analyzer::{
-    CapacityFinding, MIN_REASONING_MAX_TOKENS, ThinkingFinding, capacity_findings, catalog_knows,
-    thinking_findings,
+    CapacityFinding, MIN_REASONING_MAX_TOKENS, REASONING_COMFORT_MAX_TOKENS, ThinkingFinding,
+    capacity_findings, catalog_knows, reasoning_cap_hints, thinking_findings,
 };
 
 /// The JSON contract version of [`CheckReport`] — bumped on any

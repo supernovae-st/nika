@@ -87,6 +87,9 @@ pub enum RefusalClass {
     EmptyAnswer,
     /// The file system refused; the sentence names what this call wrote.
     Io,
+    /// The compiler refused the authoring request under its own policy,
+    /// or its machinery failed; nothing was written or substituted.
+    AuthoringRefused,
 }
 
 impl RefusalClass {
@@ -102,6 +105,7 @@ impl RefusalClass {
             Self::AlreadyConsumed => "already_consumed",
             Self::EmptyAnswer => "empty_answer",
             Self::Io => "io",
+            Self::AuthoringRefused => "authoring_refused",
         }
     }
 }

@@ -375,6 +375,59 @@ pub struct CompileProvenance {
     pub decision: Option<serde_json::Value>,
 }
 
+/// What starts a run of the candidate, when the request names it ("Every morning at 9,
+/// …", "for each incoming ticket, …"): a requirement stated beside the candidate, never
+/// inside its bytes. The same bytes run locally, in two workspaces and on a server with
+/// different bindings; binding the trigger is an operator or product gesture through the
+/// schedule contract (`nika.yaml arm:`, `PUT /v1/schedules`), never the compiler's. A
+/// requirement is not a grant and not a schedule row.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct TriggerRequirement {
+    /// How the request expects runs to start.
+    pub kind: TriggerKind,
+    /// The request's own words for the trigger, verbatim ("every morning at 9"): a hint
+    /// for whoever binds it, never a binding.
+    pub source_hint: Option<String>,
+    /// The event the words name, when the compiler reads one.
+    pub event_hint: Option<String>,
+    /// The cadence the words state, when they state one: `daily` · `weekdays` · `weekly`
+    /// · `monthly` · `hourly` · `minutely`.
+    pub cadence: Option<String>,
+    /// The time of day the words state, as `HH:MM`, when they state one.
+    pub at: Option<String>,
+    /// The declared input each firing supplies (`item`), when the candidate declares one.
+    pub payload_input: Option<String>,
+    /// Whether the requirement is met by the candidate alone or needs a binding.
+    pub status: TriggerStatus,
+}
+
+/// How a request expects runs of its candidate to start.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum TriggerKind {
+    /// Started by hand (`nika run`).
+    Manual,
+    /// A cadence: "every morning at 9", "chaque lundi à 8h".
+    Schedule,
+    /// An incoming HTTP call from a named system.
+    Webhook,
+    /// One run per incoming item or occurrence: "for each incoming ticket".
+    Event,
+}
+
+/// Whether a trigger requirement is met by the candidate alone.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum TriggerStatus {
+    /// Nothing to bind: the candidate runs when invoked.
+    Satisfied,
+    /// An operator or product binds it through the schedule contract.
+    RequiresBinding,
+    /// The compiler cannot express the trigger it read.
+    Unsupported,
+}
+
 /// A reviewable authoring result. No field grants authority, writes or executes source.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
@@ -389,6 +442,9 @@ pub struct CompileOutcome {
     pub diagnostics: Vec<CompileDiagnostic>,
     /// Requested boundary, derived from the candidate's Check report; not a grant.
     pub requested_boundary: Option<nika_check::EffectivePermits>,
+    /// The trigger the request names, as a requirement beside the candidate (nika#1720);
+    /// the candidate's bytes carry no cadence, host or event.
+    pub requested_trigger: Option<TriggerRequirement>,
     /// The candidate's in-memory static judgment, when it parses.
     pub check_preview: Option<CompilePreview>,
     /// Reproduction metadata, not run evidence.

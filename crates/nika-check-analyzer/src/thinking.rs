@@ -52,6 +52,16 @@ use nika_schema::raw::{RawAction, RawInferAction, RawWorkflow};
 /// 2.5 Flash (issue 1305 · 16 fails, 256 works).
 pub const MIN_REASONING_MAX_TOKENS: u32 = 256;
 
+/// The cap under which a catalog-known reasoning seat is HINTED, never
+/// refused ([`reasoning_cap_hints`]): the seat is legal at 256, but a
+/// long think under a few-thousand-token cap truncates the visible
+/// answer — a `schema:` task then fails NIKA-INFER-002 (the cut JSON
+/// never validates), a plain one is cut or blank (NIKA-INFER-004). 4096
+/// is the cap `nika compile` emits for such a seat (the product
+/// matrix, 2026-09-21: gpt-5-mini under the composer's 1200 died on
+/// three intents, at 4096 answered). Above it the hint is silent.
+pub const REASONING_COMFORT_MAX_TOKENS: u32 = 4096;
+
 /// One thinking-law refusal: the task carrying the dead or
 /// self-defeating declaration, the seat it names, and why.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -150,6 +160,71 @@ pub fn thinking_findings(wf: &RawWorkflow) -> Vec<ThinkingFinding> {
         }
     }
     findings
+}
+
+/// The advisory sibling of the floor: a catalog-known reasoning seat
+/// (the envelope's · the task's · a templated seat through its declared
+/// default · a `nika check --model` override, which is swapped into the
+/// envelope before this runs) under a cap that is legal but tight
+/// ([`MIN_REASONING_MAX_TOKENS`] ≤ cap < [`REASONING_COMFORT_MAX_TOKENS`]).
+/// Never a refusal — `is_clean` ignores it; the run may well answer at
+/// 1200. It names the seat, the cap and the fix (`max_tokens: 4096` or a
+/// no-think variant) so the author is not told by NIKA-INFER-002 after a
+/// paid call.
+///
+/// Silent when the author bounded the think (`thinking.budget_tokens`
+/// under the cap — the budget-vs-cap law judges that pair) or switched
+/// it off (`thinking: { enabled: false }`), when the cap is already under
+/// the floor (the refusal owns that), and on every seat the catalog does
+/// not positively know (the mock · an unheard-of model · a templated
+/// seat with no literal default).
+#[must_use]
+pub fn reasoning_cap_hints(wf: &RawWorkflow) -> Vec<ThinkingFinding> {
+    let mut hints = Vec::new();
+    for task in &wf.tasks {
+        let RawAction::Infer(action) = &task.value.action else {
+            continue;
+        };
+        let id = task.value.id.value.as_str();
+        let Some(max) = action.max_tokens.as_ref() else {
+            continue;
+        };
+        if !(MIN_REASONING_MAX_TOKENS..REASONING_COMFORT_MAX_TOKENS).contains(&max.value) {
+            continue;
+        }
+        // The author addressed the think: a declared budget (the pair
+        // law judges it) or an explicit off switch.
+        if let Some(thinking) = &action.thinking
+            && (!thinking.value.enabled || thinking.value.budget_tokens.is_some())
+        {
+            continue;
+        }
+        let Some(judged) = judged_seat(wf, action) else {
+            continue;
+        };
+        let Some((provider, name)) = judged.split_once('/') else {
+            continue;
+        };
+        if provider == "mock"
+            || !catalog_knows(provider, name, &judged)
+            || !nika_catalog::model_capabilities(provider, name).reasoning
+        {
+            continue;
+        }
+        hints.push(ThinkingFinding::new(
+            id.to_owned(),
+            judged.clone(),
+            format!(
+                "`max_tokens` ({}) on `{id}` is a tight cap for reasoning seat `{judged}` — \
+                 the thinking trace is billed inside the cap, so a long think truncates the \
+                 visible answer (a `schema:` task then fails NIKA-INFER-002, a plain one is \
+                 cut or blank, NIKA-INFER-004); set `max_tokens: {REASONING_COMFORT_MAX_TOKENS}` \
+                 (the cap `nika compile` emits for this seat) or seat a no-think variant",
+                max.value
+            ),
+        ));
+    }
+    hints
 }
 
 /// The statically known seat a thinking law judges, if any.
@@ -355,6 +430,109 @@ mod tests {
              prompt: hi\n      max_tokens: 256\n",
         );
         assert!(f.is_empty(), "256 is the measured repair: {f:?}");
+    }
+
+    fn cap_hints_of(yaml: &str) -> Vec<ThinkingFinding> {
+        let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("fixture parses");
+        reasoning_cap_hints(&wf)
+    }
+
+    /// The product matrix's own shape (2026-09-21): the composer's
+    /// language step at `max_tokens: 1200` under `model: openai/gpt-5-mini`
+    /// on the ENVELOPE — `nika check` 0.120.3 said `0 hints · capacity
+    /// fit ✔`, the run died NIKA-INFER-002. The hint names the seat, the
+    /// cap, the run codes and both fixes.
+    #[test]
+    fn a_tight_cap_on_an_envelope_reasoning_seat_is_a_hint() {
+        let h = cap_hints_of(
+            "nika: w\nmodel: openai/gpt-5-mini\ntasks:\n  draft:\n    infer:\n      \
+             prompt: hi\n      max_tokens: 1200\n",
+        );
+        assert_eq!(h.len(), 1, "one hint on the one task: {h:?}");
+        assert_eq!(h[0].task, "draft");
+        assert_eq!(h[0].model, "openai/gpt-5-mini");
+        for needle in [
+            "1200",
+            "openai/gpt-5-mini",
+            "NIKA-INFER-002",
+            "NIKA-INFER-004",
+            "max_tokens: 4096",
+            "no-think",
+        ] {
+            assert!(h[0].why.contains(needle), "names `{needle}`: {}", h[0].why);
+        }
+        // The hint is advisory: the floor's refusal must NOT fire here.
+        assert!(
+            findings_of(
+                "nika: w\nmodel: openai/gpt-5-mini\ntasks:\n  draft:\n    infer:\n      \
+                 prompt: hi\n      max_tokens: 1200\n"
+            )
+            .is_empty(),
+            "1200 is legal — a hint, never a finding"
+        );
+    }
+
+    /// The task's own seat wins over the envelope, both ways: a
+    /// reasoning task seat under a non-reasoning envelope hints; a
+    /// non-reasoning task seat under a reasoning envelope stays silent.
+    #[test]
+    fn the_task_seat_wins_over_the_envelope() {
+        let task_reasons = cap_hints_of(
+            "nika: w\nmodel: openai/gpt-4o-mini\ntasks:\n  t:\n    infer:\n      prompt: hi\n      \
+             model: openai/gpt-5-mini\n      max_tokens: 1200\n",
+        );
+        assert_eq!(task_reasons.len(), 1, "{task_reasons:?}");
+        assert_eq!(task_reasons[0].model, "openai/gpt-5-mini");
+        let task_does_not = cap_hints_of(
+            "nika: w\nmodel: openai/gpt-5-mini\ntasks:\n  t:\n    infer:\n      prompt: hi\n      \
+             model: openai/gpt-4o-mini\n      max_tokens: 1200\n",
+        );
+        assert!(task_does_not.is_empty(), "{task_does_not:?}");
+    }
+
+    /// A templated seat is judged through its declared default (the
+    /// via-default law the floor already applies).
+    #[test]
+    fn a_templated_seat_is_hinted_through_its_declared_default() {
+        let h = cap_hints_of(
+            "nika: w\nconst:\n  seat: \"openai/gpt-5-mini\"\ntasks:\n  t:\n    infer:\n      \
+             prompt: hi\n      model: \"${{ const.seat }}\"\n      max_tokens: 1200\n",
+        );
+        assert_eq!(h.len(), 1, "{h:?}");
+        assert_eq!(h[0].model, "openai/gpt-5-mini");
+    }
+
+    /// The near-misses the hint must not eat: the compiler's own 4096
+    /// (the fix) · a cap under the floor (the refusal owns it) · a
+    /// bounded or switched-off think · a non-reasoning seat · the mock ·
+    /// a templated seat with no default · no cap at all (the `cost`
+    /// hint's domain).
+    #[test]
+    fn the_hint_stays_silent_on_its_near_misses() {
+        for yaml in [
+            "nika: w\nmodel: openai/gpt-5-mini\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 4096 }\n"
+                .to_owned(),
+            "nika: w\nmodel: openai/gpt-5-mini\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 200 }\n"
+                .to_owned(),
+            infer_wf(
+                "\"openai/gpt-5-mini\"",
+                "1200",
+                "{ enabled: true, budget_tokens: 800 }",
+            ),
+            infer_wf("\"openai/gpt-5-mini\"", "1200", "{ enabled: false }"),
+            infer_wf("\"openai/gpt-4o-mini\"", "1200", "{ enabled: false }"),
+            "nika: w\nmodel: mock/echo\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 1200 }\n"
+                .to_owned(),
+            "nika: w\ninputs:\n  seat: { type: string, required: true }\ntasks:\n  t:\n    \
+             infer:\n      prompt: hi\n      model: \"${{ inputs.seat }}\"\n      \
+             max_tokens: 1200\n"
+                .to_owned(),
+            "nika: w\nmodel: openai/gpt-5-mini\ntasks:\n  t:\n    infer: { prompt: hi }\n"
+                .to_owned(),
+        ] {
+            let h = cap_hints_of(&yaml);
+            assert!(h.is_empty(), "no hint here: {h:?}\n{yaml}");
+        }
     }
 
     /// Neighbours the floor must not eat: a non-reasoning catalog seat,

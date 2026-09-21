@@ -11,6 +11,7 @@ pub(crate) mod anthropic;
 #[cfg(test)]
 mod error_tests;
 pub(crate) mod gemini;
+pub(crate) mod json_mode;
 pub(crate) mod mock;
 mod mock_schema;
 pub(crate) mod openai_compat;
@@ -174,9 +175,49 @@ pub(crate) fn status_error(
 ) -> ProviderError {
     let value = serde_json::from_slice::<serde_json::Value>(body).ok();
     let field = |name| value.as_ref()?.get("error")?.get(name)?.as_str();
+    // The Gemini API names its delay in the BODY (`google.rpc.RetryInfo`
+    // · `error.details[].retryDelay = "39s"`), not in a header — the
+    // backoff reads it through the same bounded parser as `Retry-After`.
+    // Its `status` (`RESOURCE_EXHAUSTED`) stands in for a `type` only when
+    // the body carries no `type`; the closed vocabulary still decides
+    // what survives.
+    let body_delay = value.as_ref().and_then(google_retry_delay);
+    let retry_after = retry_after.or(body_delay.as_deref());
+    // HTTP 402 is a billing refusal by status alone: filed under the existing
+    // `credit_balance_exhausted` identifier. A provider that answers an
+    // exhausted balance with a 400 and the reason in prose (Anthropic) stays
+    // an ordinary 400 here: prose is never classified (the hostile-body law);
+    // the infer verb names both readings of such a 400.
+    let code = if status == 402 {
+        Some("credit_balance_exhausted")
+    } else {
+        field("code")
+    };
     ProviderError::HttpResponse {
-        details: ProviderHttpError::new(status, field("code"), field("type"), retry_after),
+        details: ProviderHttpError::new(
+            status,
+            code,
+            field("type").or_else(|| field("status")),
+            retry_after,
+        ),
     }
+}
+
+/// `error.details[].retryDelay` in Google's `<seconds>s` form, as the
+/// bare seconds the sanitized parser accepts.
+fn google_retry_delay(value: &serde_json::Value) -> Option<String> {
+    value
+        .get("error")?
+        .get("details")?
+        .as_array()?
+        .iter()
+        .find_map(|detail| {
+            detail
+                .get("retryDelay")?
+                .as_str()?
+                .strip_suffix('s')
+                .map(str::to_owned)
+        })
 }
 
 /// `gen_ai.system` attribution per canonical provider id.
@@ -411,6 +452,30 @@ mod tests {
         }
         let auth = status_error(401, b"{}", None, "m");
         assert!(auth.to_string().contains("does not probe present keys"));
+    }
+
+    /// HTTP 402 is a billing refusal by status: the credit class, no retry,
+    /// the label names the top-up, and no prose survives. A 400 that carries
+    /// the reason only in prose (Anthropic's exhausted balance) stays an
+    /// ordinary 400: prose is never classified.
+    #[test]
+    fn a_payment_required_status_is_billing_by_status_alone() {
+        let error = status_error(402, br#"{"error":{"message":"private"}}"#, None, "m");
+        let ProviderError::HttpResponse { details } = &error else {
+            panic!("{error:?}")
+        };
+        assert!(details.is_quota_exhausted(), "{error}");
+        assert!(!error.is_transient(), "no retry pays a bill");
+        let text = error.to_string();
+        assert!(text.contains("quota exhausted (credit balance)"), "{text}");
+        assert!(text.contains("top up"), "{text}");
+        assert!(!text.contains("private"), "{text}");
+        let body = br#"{"type":"error","error":{"type":"invalid_request_error","message":"Your credit balance is too low to access the Anthropic API."}}"#;
+        let plain = status_error(400, body, None, "anthropic/claude-sonnet-5");
+        let ProviderError::HttpResponse { details } = &plain else {
+            panic!("{plain:?}")
+        };
+        assert!(!details.is_quota_exhausted(), "prose is never classified");
     }
 
     #[test]

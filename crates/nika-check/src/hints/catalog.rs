@@ -47,6 +47,16 @@ const ROWS: &[(&str, &str)] = &[
          in a paid blank (NIKA-INFER-004 at run). Declare `thinking:`",
     ),
     (
+        "reasoning-cap",
+        "a catalog-known reasoning seat (the envelope's, the task's, or a \
+         `--model` override) under a legal but tight `max_tokens` (256 ≤ cap < \
+         4096) — the thinking trace is billed inside the cap, so a long think \
+         truncates the visible answer: a `schema:` task fails NIKA-INFER-002, a \
+         plain one is cut or blank (NIKA-INFER-004). Set `max_tokens: 4096` \
+         (what `nika compile` emits for such a seat) or seat a no-think variant. \
+         Advisory (`is_clean` ignores it)",
+    ),
+    (
         "dead-spend",
         "a pure `infer:` whose output nobody reads — every token it spends is \
          dead. Bind it, put it in `outputs:`, or delete the task",

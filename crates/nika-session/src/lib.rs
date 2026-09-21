@@ -13,16 +13,21 @@
 //! answers Nika facts from the engine's own authorities ([`facts`]), and
 //! reads every reply through the [`guard`] before a human sees it — a
 //! named builtin, model, code, MCP server, verb or field this engine does
-//! not carry is corrected, never presented as real. A reply that carries
-//! a file becomes a typed [`change`] set: previewed from the exact bytes
-//! the apply consumes, witnessed against stale targets, landed only on
-//! the human's consent, checked by the real checker after it lands
-//! (ADR-126 · wave 5).
+//! not carry is corrected, never presented as real.
+//!
+//! Work to build reaches the ONE compiler ([`authoring`] · the canonical
+//! typed Compile CREATE): its typed question is the next line's meaning,
+//! its Ready candidate is reviewed from the engine's own facts
+//! ([`review`]) and becomes a typed [`change`] set — previewed from the
+//! exact bytes the apply consumes, witnessed against stale targets, landed
+//! only on the human's consent, checked by the real checker after it lands
+//! (ADR-126 · wave 5). A reasoner's reply is words: it never becomes a file.
 //!
 //! What the session must NOT own is what it queries: the grammar, the
-//! catalogs, the codes, the checker, the runtime. Its identity core
-//! ([`identity`]) says so to the model in six laws.
+//! catalogs, the codes, the checker, the compiler, the runtime. Its
+//! identity core ([`identity`]) says so to the model in six laws.
 
+pub mod authoring;
 pub mod broker;
 pub mod change;
 pub mod consent;
@@ -32,6 +37,7 @@ pub mod identity;
 pub mod intelligence;
 pub mod outcome;
 pub mod reasoner;
+pub mod review;
 pub mod runtime;
 pub mod snapshot;
 pub mod state;
@@ -44,6 +50,7 @@ mod episode_tests;
 #[allow(clippy::expect_used, clippy::panic)]
 mod change_fs_tests;
 
+pub use authoring::{AuthoringRound, AuthoringSeat, Reading};
 pub use broker::{ContextBroker, SessionContextBundle, Snippet};
 pub use change::{
     Applied, ChangeError, PendingGate, ProjectChange, ProjectChangeSet, RunRequest, Witness,

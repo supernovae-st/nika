@@ -372,6 +372,7 @@ fn outcome_kind(outcome: &TurnOutcome) -> &'static str {
         TurnOutcome::Refusal(_) => "refusal",
         TurnOutcome::Ask(_) => "ask",
         TurnOutcome::Held { .. } => "held",
+        TurnOutcome::Question { .. } => "question",
         TurnOutcome::Proposal { .. } => "proposal",
         TurnOutcome::RunRequested { .. } => "run_requested",
         TurnOutcome::GateAsk { .. } => "gate_ask",
@@ -399,6 +400,10 @@ fn with_note(outcome: TurnOutcome, note: &str) -> TurnOutcome {
         TurnOutcome::Proposal { id, preview } => TurnOutcome::Proposal {
             id,
             preview: preview + &line,
+        },
+        TurnOutcome::Question { key, question } => TurnOutcome::Question {
+            key,
+            question: question + &line,
         },
         TurnOutcome::RunRequested { report, run } => TurnOutcome::RunRequested {
             report: report + &line,

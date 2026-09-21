@@ -207,7 +207,7 @@ fn bindings(plan: &Plan, request: &CompileRequest, out: &mut CompileOutcome) -> 
         return None;
     };
     let policy = admit_policy(out, policy)?;
-    let host = admit_endpoint(out, &endpoint)?;
+    let host = admit_endpoint(out, "const.refund_endpoint", ENDPOINT_LABEL, &endpoint)?;
     Some((directory, model, Some((policy, endpoint, host))))
 }
 
@@ -277,11 +277,18 @@ pub(super) fn admit_policy(out: &mut CompileOutcome, policy: Value) -> Option<Va
     Some(policy)
 }
 
-pub(super) fn admit_endpoint(out: &mut CompileOutcome, endpoint: &Value) -> Option<String> {
+/// The permitted host of an explicit endpoint, or a rejection under the question that
+/// owns the endpoint (`const.<effect>_endpoint`), so the caller sees which value to fix.
+pub(super) fn admit_endpoint(
+    out: &mut CompileOutcome,
+    key: &str,
+    label: &str,
+    endpoint: &Value,
+) -> Option<String> {
     match endpoint_host(endpoint) {
         Ok(host) => Some(host),
         Err(why) => {
-            reject(out, "const.refund_endpoint", ENDPOINT_LABEL, true, why);
+            reject(out, key, label, true, why);
             None
         }
     }

@@ -87,7 +87,9 @@ impl ProviderHttpError {
 
 impl std::fmt::Display for ProviderHttpError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let label = if self.is_quota_exhausted() {
+        let label = if self.code == Some("credit_balance_exhausted") {
+            "provider quota exhausted (credit balance): top up the account or seat another model; automatic retry disabled"
+        } else if self.is_quota_exhausted() {
             "provider quota exhausted; automatic retry disabled"
         } else {
             match self.status {

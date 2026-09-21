@@ -159,6 +159,9 @@ extend-exclude = [
   # the public tree. Its English doc prose is judged by `cargo doc -D warnings`
   # and review.
   "crates/nika-compile/",
+  # The frozen reader and its six-language tables descended to their own member on
+  # 2026-09-21 (ADR-138); the same exclusion follows them.
+  "crates/nika-compile-reader/",
   # cargo public-api baselines — generated symbol dumps, not prose. Real
   # source typos are still caught in the .rs files they derive from.
   "**/public-api.txt",

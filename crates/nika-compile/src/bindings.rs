@@ -71,6 +71,9 @@ pub(super) struct Wired {
     pub policy: Option<Value>,
     pub verb: EffectVerb,
     pub target: String,
+    /// The effect carries material the plan already holds, unchanged ("post it to
+    /// `<url>`", "send the report to `<url>`"): a webhook message, not an action payload.
+    pub carry: bool,
 }
 
 /// A lookup that selects one record by a literal identifier: the identifier and the
@@ -106,6 +109,12 @@ pub(super) struct WriteEffect {
     pub path: String,
     pub gated: bool,
     pub target: String,
+    /// The one classify category the write's clause names ("the bugs to ./bugs.json"):
+    /// the write carries the records routed to it.
+    pub category: Option<String>,
+    /// The facet of the fetched page the write's clause names ("the page title to
+    /// ./title.txt"): the write carries the fetch's own mode, never a draft.
+    pub facet: Option<super::network::Facet>,
 }
 
 /// The settled bindings of one plan.
@@ -127,9 +136,13 @@ pub(super) struct Bindings {
     /// Whether `inputs.item` is declared: the request is invoked per item, or it
     /// supplies no other material.
     pub item: bool,
-    /// The draft runs once per read item and is folded back in item order: the request
-    /// distributes its draft over the files of a fan-out.
-    pub per_item: bool,
+    /// The operations that run once per read item of a fan-out and fold back in item
+    /// order: a draft the request distributes over the files, an extract whose fields it
+    /// scopes to each item.
+    pub per_item: Vec<Op>,
+    /// The classify runs once per parsed record of one structured source: the request
+    /// classifies each record, and a write naming a category carries its records.
+    pub classify_per_record: bool,
 }
 
 impl Bindings {
@@ -137,14 +150,38 @@ impl Bindings {
     pub(super) fn fan_out(&self) -> bool {
         matches!(self.read, Need::Bound(Source::Files(_) | Source::Glob(_)))
     }
+    /// The draft runs once per read item and is folded back in item order.
+    pub(super) fn draft_per_item(&self) -> bool {
+        self.per_item.contains(&Op::Draft)
+    }
+    /// The extract runs once per read item and folds into one record per item.
+    pub(super) fn extract_per_item(&self) -> bool {
+        self.per_item.contains(&Op::Extract)
+    }
     /// Whether at least one effect waits on a human gate.
     pub(super) fn gated(&self) -> bool {
         self.writes.iter().any(|w| w.gated) || self.wired.iter().any(|w| w.gated)
+    }
+    /// The rule the compiler synthesized from the request, when the compute step has one.
+    fn synthesized(&self) -> Option<&rules::Rule> {
+        match &self.rule {
+            Need::Bound(RuleBinding::Synthesized(rule)) => Some(rule),
+            _ => None,
+        }
+    }
+    /// The rule joins several parsed sources on a column: each read file is parsed apart.
+    pub(super) fn joins(&self) -> bool {
+        self.synthesized().is_some_and(rules::Rule::joins)
+    }
+    /// The rule runs over the lines of a text source: the source is decoded into lines.
+    pub(super) fn rule_over_lines(&self) -> bool {
+        self.synthesized().is_some_and(rules::Rule::lines)
     }
     /// Whether a structured source must be decoded for code: a code rule, an endpoint
     /// payload or a structured write consumes the parsed records; a prompt never does.
     pub(super) fn parses(&self) -> bool {
         !matches!(self.rule, Need::Absent)
+            || self.classify_per_record
             || !self.wired.is_empty()
             || self
                 .writes
@@ -253,6 +290,16 @@ pub(super) fn parallel_bound(constraint: &str) -> Option<u32> {
     }
 }
 
+/// The paths the plan writes: a destination, never a source, even when a proposal names
+/// one in the read step (`Read ./caisse.csv ; write the object to ./out/caisse.json`).
+fn written_targets(plan: &Plan) -> Vec<String> {
+    plan.effects
+        .iter()
+        .filter(|e| e.verb == EffectVerb::Write)
+        .map(|e| e.target.trim().to_owned())
+        .collect()
+}
+
 /// Every binding the plan needs, answered or asked. Sources first, because the
 /// item and the rule's input shape depend on them.
 pub(super) fn bind(
@@ -283,14 +330,7 @@ pub(super) fn bind(
             answer(request, out, "const.source_url", URL_LABEL, true)
         }
     });
-    // A path the plan writes is a destination, never a source, even when a proposal names
-    // it in the read step (`Read ./caisse.csv ; write the object to ./out/caisse.json`).
-    let written: Vec<String> = plan
-        .effects
-        .iter()
-        .filter(|e| e.verb == EffectVerb::Write)
-        .map(|e| e.target.trim().to_owned())
-        .collect();
+    let written = written_targets(plan);
     let read = Need::from_step(plan.step(Op::Read), |step| {
         resolve_read(step, &written, request, out, recognized)
     });
@@ -326,8 +366,16 @@ pub(super) fn bind(
     // The request distributes its draft over the files: the fan-in realizes the order
     // and the headings itself, so those instructions leave the prompts.
     let distributed = shape::per_item(intent, plan);
-    let per_item = distributed && fan_out && plan.has(Op::Draft);
-    if per_item {
+    let mut per_item = Vec::new();
+    if distributed && fan_out && plan.has(Op::Draft) {
+        per_item.push(Op::Draft);
+    }
+    if fan_out && shape::per_item_extract(plan) {
+        per_item.push(Op::Extract);
+    }
+    let classify_per_record = matches!(&read, Need::Bound(Source::File(path)) if Structured::of(path).is_some())
+        && shape::per_record_classify(plan);
+    if per_item.contains(&Op::Draft) {
         for constraint in &plan.constraints {
             if shape::structural(constraint) && !consumed.contains(constraint) {
                 consumed.push(constraint.clone());
@@ -349,6 +397,7 @@ pub(super) fn bind(
         max_parallel,
         item,
         per_item,
+        classify_per_record,
     };
     b.rule = Need::from_step(plan.step(Op::Compute), |step| {
         // A rule the request states over a parsed source is code the compiler writes;
@@ -462,6 +511,7 @@ fn resolve_read(
             PathShape::Glob(p) => globs.push(p),
             PathShape::Directory(p) => directories.push(p),
             PathShape::Placeholder(p) => placeholders.push(p),
+            _ => {}
         }
     }
     if files.is_empty() && globs.is_empty() && directories.is_empty() && placeholders.is_empty() {
@@ -543,22 +593,50 @@ fn resolve_directory(
     }
 }
 
-/// The rule a compute step states in words, when the corpus is one structured file whose
-/// parsed records the rule can run over and every part of the detail is in the grammar.
+/// The rule a compute step states in words, when the corpus is what the rule can run over
+/// and every part of the detail is in the grammar: one structured file for a filter, an
+/// aggregate, a grouping, a sort, a top-N or a projection over its parsed records; one text
+/// file for a removal of duplicate lines; several structured files of one format for a join.
 fn synthesized_rule(plan: &Plan, step: &Step, intent: &str, b: &Bindings) -> Option<rules::Rule> {
+    // A validated rule stated for this very step first (the semantic frontend's typed
+    // predicate, or a promoted constraint: meaning before syntax), then the closed grammar
+    // over the whole detail. A detail the plan joined from several clauses (` ; `) must
+    // parse whole: one recorded rule for one of its parts would silently drop the others.
+    let detail = step.detail.trim();
+    let whole = !detail.contains(" ; ");
+    // A rule recorded for this very step stands for it when it is the only rule (the seat's
+    // paraphrase beside the promoted constraint of the same rule); two recorded rules on a
+    // joined detail are synthesized whole, so neither stands for the other.
+    let stated = plan
+        .rules
+        .iter()
+        .find(|rule| rule.text() == step.evidence || rule.text() == detail)
+        .filter(|_| whole || plan.rules.len() == 1)
+        .cloned()
+        .or_else(|| rules::synthesize(detail, &super::columns::columns_hint(intent)))
+        .or_else(|| {
+            (whole && plan.rules.len() == 1)
+                .then(|| plan.rules.first().cloned())
+                .flatten()
+        })?;
     match &b.read {
         Need::Bound(Source::File(path)) if Structured::of(path).is_some() => {
-            // The semantic frontend's validated predicate first (meaning before syntax), then
-            // the closed grammar over the step's own words.
-            plan.rules
-                .iter()
-                .find(|rule| rule.text() == step.evidence)
-                .or_else(|| plan.rules.first())
-                .cloned()
-                .or_else(|| rules::synthesize(&step.detail, &super::columns::columns_hint(intent)))
+            (!stated.joins()).then_some(stated)
+        }
+        Need::Bound(Source::File(_)) => stated.over_lines(),
+        Need::Bound(Source::Files(files)) if joined_format(files).is_some() => {
+            stated.joins().then_some(stated)
         }
         _ => None,
     }
+}
+
+/// The one structured format several read files share, when they do: what a join parses,
+/// one array of records per file.
+pub(super) fn joined_format(files: &[String]) -> Option<Structured> {
+    let mut formats = files.iter().map(|file| Structured::of(file));
+    let first = formats.next()??;
+    formats.all(|format| format == Some(first)).then_some(first)
 }
 
 /// The input object a code rule will receive, named fact by fact, so the question
@@ -602,7 +680,8 @@ fn rule_label(plan: &Plan, b: &Bindings, detail: &str) -> String {
             Op::Validate => shape.push(("validation", "the {valid, issues} verdict".to_owned())),
             Op::Draft => shape.push(("draft", "the drafted text".to_owned())),
             Op::Explore => shape.push(("exploration", "the agent's final answer".to_owned())),
-            Op::Read | Op::Fetch | Op::Lookup | Op::Search => {}
+            // A retrieval (read · fetch · lookup · search) shapes nothing here.
+            _ => {}
         }
     }
     let names = shape
@@ -625,7 +704,8 @@ pub(super) fn parsed_about(path: &str, format: Structured) -> String {
     match format {
         Structured::Json => format!("{path} decoded from JSON"),
         Structured::Csv => format!("the rows of {path} as an array of objects keyed by header"),
-        Structured::Yaml | Structured::Toml => format!("{path} decoded as JSON"),
+        // YAML, TOML and any structured format this member learns later decode to JSON.
+        _ => format!("{path} decoded as JSON"),
     }
 }
 
@@ -683,6 +763,8 @@ fn wanted(
                 None => None,
             }
         }
+        // A policy this member does not know yet leaves the effect unresolved, never bound.
+        _ => None,
     }
 }
 
@@ -725,11 +807,30 @@ fn bind_effects(
                 existing.gated |= gated;
                 continue;
             }
+            // The clause's prose names the category ("the bugs to ./bugs.json"), else the
+            // file's own name does ("them to ./bugs.json and ./features.json"): a stated
+            // literal, never the other file's name riding the same excerpt.
+            let prose = effect
+                .evidence
+                .split_whitespace()
+                .filter(|word| paths::token(word).is_none())
+                .collect::<Vec<_>>()
+                .join(" ");
+            let category = plan.step(Op::Classify).and_then(|s| {
+                category_named(&s.categories, &prose)
+                    .or_else(|| category_named(&s.categories, &paths::stem(&path)))
+            });
+            let facet = plan
+                .has(Op::Fetch)
+                .then(|| super::network::write_facet(&effect.evidence, &path))
+                .flatten();
             b.writes.push(WriteEffect {
                 stem: paths::stem(&path),
                 path,
                 gated,
                 target: effect.target.clone(),
+                category,
+                facet,
             });
             continue;
         }
@@ -742,9 +843,36 @@ fn bind_effects(
                 policy,
                 verb: effect.verb,
                 target: effect.target.clone(),
+                carry: super::network::carries(effect, plan),
             }),
             None => b.effects_pending = true,
         }
+    }
+}
+
+/// The one category of a classify step that a write's clause names ("the bugs to
+/// ./bugs.json" names `bug`), singular or plural; none when the clause names none or
+/// several of them.
+fn category_named(categories: &[String], text: &str) -> Option<String> {
+    let folded = shape::fold(text);
+    let words: Vec<&str> = folded
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|w| !w.is_empty())
+        .collect();
+    let named: Vec<&String> = categories
+        .iter()
+        .filter(|category| {
+            let c = shape::fold(category);
+            words.iter().any(|w| {
+                *w == c
+                    || w.strip_suffix('s') == Some(c.as_str())
+                    || w.strip_suffix("es") == Some(c.as_str())
+            })
+        })
+        .collect();
+    match named.as_slice() {
+        [only] => Some((*only).clone()),
+        _ => None,
     }
 }
 
@@ -849,7 +977,7 @@ fn bind_endpoint(
         None
     };
     let endpoint = endpoint?;
-    let host = admit_endpoint(out, &endpoint)?;
+    let host = admit_endpoint(out, &endpoint_key, &label, &endpoint)?;
     if effect.verb.moves_money() && policy.is_none() {
         return None;
     }
@@ -898,6 +1026,8 @@ fn bind_named_outputs(
                 target: path.clone(),
                 path,
                 gated: false,
+                category: None,
+                facet: None,
             }),
             Some(Value::Bool(false)) => super::finding(
                 out,

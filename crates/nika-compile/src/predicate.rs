@@ -155,11 +155,7 @@ pub(super) fn typed_rule(
             }
             Operand::Column(other.to_owned())
         };
-        clauses.push(Clause {
-            field: clause.field.trim().to_owned(),
-            comparator,
-            value,
-        });
+        clauses.push(Clause::new(clause.field.trim(), comparator, value));
     }
     let mut junction = match computation.join.trim() {
         "or" => Junction::Or,
@@ -174,6 +170,7 @@ pub(super) fn typed_rule(
         junction = match junction {
             Junction::And => Junction::Or,
             Junction::Or => Junction::And,
+            other => other,
         };
     }
     // The shape after the filter: every column read is a column of the request, every
@@ -216,12 +213,7 @@ pub(super) fn typed_rule(
             }
             Some(n)
         };
-        aggregations.push(Aggregation {
-            field,
-            op,
-            name: name.to_owned(),
-            round,
-        });
+        aggregations.push(Aggregation::new(field, op, name, round));
     }
     if group_by.is_some() && aggregations.is_empty() {
         return None;
@@ -280,23 +272,17 @@ pub(super) fn typed_rule(
             None
         };
         let (left, right) = (term(&entry.left)?, term(&entry.right)?);
-        derived.push(Derived {
-            name: name.to_owned(),
-            op,
-            left,
-            right,
-        });
+        derived.push(Derived::new(name, op, left, right));
     }
     if !derived.is_empty() && aggregations.is_empty() {
         return None;
     }
-    let shape = Shape {
-        group_by,
-        aggregations,
-        sort_by,
-        columns,
-        derived,
-    };
+    let mut shape = Shape::default();
+    shape.group_by = group_by;
+    shape.aggregations = aggregations;
+    shape.sort_by = sort_by;
+    shape.columns = columns;
+    shape.derived = derived;
     if clauses.is_empty() && shape == Shape::default() {
         return None;
     }

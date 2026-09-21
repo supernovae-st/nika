@@ -30,6 +30,9 @@ use nika_kernel::ai::provider::{
 use serde::Deserialize;
 use serde_json::{Value, json};
 
+mod instructions;
+use instructions::INSTRUCTIONS;
+
 /// The explicit cognition a caller permits for one request. Absent seats are not consent.
 #[derive(Clone, Copy)]
 pub struct Cognition<'a, P: ProviderInferDyn = NoProvider> {
@@ -130,16 +133,6 @@ pub(super) fn nullable_string<'de, D: serde::Deserializer<'de>>(d: D) -> Result<
     Ok(Option::<String>::deserialize(d)?.unwrap_or_default())
 }
 
-const INSTRUCTIONS: &str = r"Interpret the ENTIRE user request, in whatever language, as a private semantic plan for a workflow compiler. Return only one JSON object with steps, effects, obligations, constraints, unknowns, regions, approval_bypass. Never produce YAML, source, tool calls, credentials, endpoints or permissions.
-steps: the operations requested, in order. op is one of read (consume a document, text, file, transcript, local folder, glob or set of named files the requester supplies with the invocation; never a named system or store), fetch (retrieve one web page by an explicit URL in the request), lookup (retrieve existing records or values from any named external system, store, service, database, directory, catalog, calendar, dashboard, history, registry, runbook or knowledge base; consulting, reading, checking or querying such a source is lookup even when the request says read), search (find passages or files in a corpus of documents by a query), extract (pull structured fields out of free text, a form, a PDF or a transcript), classify (categorize or route into named categories; list the categories verbatim when named), draft (write, summarize, translate, propose in writing, correct or draft text without sending it), compute (a threshold, comparison, total, count, average, grouping, sort or projection that must run as code over a parsed table; state it as computation {present: true, polarity: keep|drop, join: and|or, clauses: [{field, op: gt|ge|lt|le|eq|ne, value, value_field}], group_by, aggregations: [{field, op: sum|count|avg|min|max, as, round}], sort_by, order: asc|desc, columns} using the request's own column names, output names and literal values exactly as the request states them, never rewriting a comparison: clauses describe the rows kept (polarity keep) or excluded (polarity drop) and are empty when every row counts; value_field names another column when two columns compare and is empty otherwise; group_by names the column one output row per distinct value is made for, empty otherwise; each aggregation names the output field the request states (as), the source column it aggregates (field, empty for count) and the number of decimals when the request rounds (round, empty otherwise); sort_by and order name the ordering the request states, empty otherwise; columns lists the output columns in the order the request fixes them, empty otherwise; derived lists the outputs the request defines as arithmetic over other outputs ({as, op: sub|add|mul|div, left, right} where left and right name outputs already produced or a number of the request; such an output is never an aggregation); computation.present is false when the step is not such a computation), validate (verify against explicit criteria), explore (an open-ended region the request explicitly delegates to agents, bounded by turns). detail is the verbatim object of the operation. evidence is an exact nonempty verbatim substring of the request.
-effects: every action that changes the outside world (create a record, send, publish, post, open a ticket, trigger a payment, mark, order, refund, merge, notify, delete, write a file). verb is one of create, send, publish, update, notify, refund, pay, order, merge, delete, write, effect. target is the verbatim phrase naming the action. policy is one of automatic (requested without a prior human requirement), human_first (only after a fresh explicit human validation of that exact action), forbidden (explicitly prohibited), unspecified (the requester explicitly has not decided and wants to be asked), conflict (requested and prohibited at once). evidence is an exact verbatim substring. Never drop a requested effect; never add one.
-obligations: kind is one of dedup (no second action for the same incoming identifier), retry_bound (a numeric maximum of attempts, cycles or iterations; put the number in value), revision_check (recheck the current version immediately before the final action). A price, deadline, record count or number of proposed time slots is not a bound.
-constraints: verbatim instructions that shape how steps run (what not to infer, what to keep null, what remains a code rule, which sources are excluded).
-unknowns: requested work outside this vocabulary (durable triggers are NOT unknown: one invocation per item is supported; named SaaS systems are NOT unknown: they are lookups or effects the compiler will ask an endpoint or file for; the contents of a named file, folder or record are runtime data, NOT unknown).
-regions: partition the WHOLE request into contiguous verbatim excerpts, in order, covering every sentence, each with role operation | effect | policy | obligation | constraint | context | unknown. Nothing meaningful may be left out of regions; a region you cannot map gets role unknown.
-approval_bypass: {present: true|false, evidence: verbatim substring} when the request asks to reuse a prior approval, skip approval, act without asking, or otherwise presuppose an approval it does not give.
-Preserve the meaning expressed in the requester's language; never complete by guessing; never rewrite a literal (URL, path, number, currency, name).";
-
 /// Compile with one explicitly authorized generative provider (COLD only).
 ///
 /// # Errors
@@ -221,13 +214,18 @@ pub async fn compile_with_cognition<P: ProviderInferDyn>(
     record_retrieval(&mut out, &effective_intent, None);
     let mut reading = lexicon::read(&effective_intent);
     backstop(&effective_intent, &mut reading.plan);
-    match admit_hot(&effective_intent, &reading, request.hot) {
+    // The deterministic door judges the reading with its stated rules promoted: a rule
+    // carries its own constraint, and the words inside it are its literals. The reading
+    // itself keeps its constraints: they are the policy floor a seat's proposal inherits.
+    let mut admitted = reading.clone();
+    super::shape::promote_stated_rules(&mut admitted.plan, &effective_intent);
+    match admit_hot(&effective_intent, &admitted, request.hot) {
         Ok(()) => {
             route.push("hot".to_owned());
             record_route(&mut out, &route);
             return settle(
                 Strategy::Hot,
-                &reading.plan,
+                &admitted.plan,
                 &effective_intent,
                 &assembly_request,
                 out,
@@ -241,7 +239,7 @@ pub async fn compile_with_cognition<P: ProviderInferDyn>(
         && !reading.ambiguous.is_empty()
         && request.hot != HotPolicy::Off
         && let Some(seat) = cognition.seat
-        && lexical_rest_is_explicit(&effective_intent, &reading)
+        && lexical_rest_is_explicit(&effective_intent, &admitted)
     {
         out.provenance.cognition = AuthoringCognition::ExplicitDecision;
         let mut records = Vec::new();
@@ -272,12 +270,12 @@ pub async fn compile_with_cognition<P: ProviderInferDyn>(
             match admitted {
                 Ok(choice) if choice != NONE_OPTION => {
                     if let Some(op) = Op::parse(&choice) {
-                        reading.plan.push_step(Step {
+                        reading.plan.push_step(Step::new(
                             op,
-                            evidence: ambiguity.clause.clone(),
-                            detail: ambiguity.detail.clone(),
-                            categories: Vec::new(),
-                        });
+                            ambiguity.clause.clone(),
+                            ambiguity.detail.clone(),
+                            Vec::new(),
+                        ));
                     }
                 }
                 Ok(_) => {
@@ -503,7 +501,13 @@ pub(super) fn replay(
     }
     // A record from an earlier engine may still carry a numeric rule as guidance.
     let mut plan = plan;
-    super::shape::promote_numeric_rules(&mut plan, intent);
+    super::shape::promote_stated_rules(&mut plan, intent);
+    // A seat's plan (or a record with no strategy word) that works on nothing is asked,
+    // never assembled; the reader's own HOT plan was already judged explicit.
+    if strategy != Some(Strategy::Hot) && super::assemble::unfed(&plan, intent, out) {
+        out.provenance.plan = Some(plan_record(&plan, strategy));
+        return Ok(());
+    }
     super::assemble::assemble(&plan, intent, request, out)?;
     record_retrieval(out, intent, Some(&plan));
     out.provenance.strategy = strategy;
@@ -521,14 +525,17 @@ pub(super) fn hot(
     let intent = folded.as_str();
     let mut reading = lexicon::read(intent);
     backstop(intent, &mut reading.plan);
-    match admit_hot(intent, &reading, request.hot) {
+    // The deterministic door judges the reading with its stated rules promoted: a rule
+    // carries its own constraint, and the words inside it are its literals.
+    let mut admitted = reading.clone();
+    super::shape::promote_stated_rules(&mut admitted.plan, intent);
+    match admit_hot(intent, &admitted, request.hot) {
         Ok(()) => {
             record_route(out, &["hot".to_owned()]);
-            super::shape::promote_numeric_rules(&mut reading.plan, intent);
-            super::assemble::assemble(&reading.plan, intent, request, out)?;
-            record_retrieval(out, intent, Some(&reading.plan));
+            super::assemble::assemble(&admitted.plan, intent, request, out)?;
+            record_retrieval(out, intent, Some(&admitted.plan));
             out.provenance.strategy = Some(Strategy::Hot);
-            out.provenance.plan = Some(plan_record(&reading.plan, Some(Strategy::Hot)));
+            out.provenance.plan = Some(plan_record(&admitted.plan, Some(Strategy::Hot)));
             Ok(true)
         }
         Err(why) => {
@@ -630,7 +637,14 @@ fn settle(
         return Ok(out);
     }
     let mut plan = plan.clone();
-    super::shape::promote_numeric_rules(&mut plan, intent);
+    super::shape::promote_stated_rules(&mut plan, intent);
+    // A seat's plan that works on nothing is asked, never assembled; the reader's own
+    // HOT plan was already judged explicit.
+    if strategy != Strategy::Hot && super::assemble::unfed(&plan, intent, &mut out) {
+        out.provenance.strategy = Some(strategy);
+        out.provenance.plan = Some(plan_record(&plan, Some(strategy)));
+        return Ok(out);
+    }
     super::assemble::assemble(&plan, intent, request, &mut out)?;
     record_retrieval(&mut out, intent, Some(&plan));
     out.provenance.strategy = Some(strategy);
@@ -930,10 +944,8 @@ fn merge(
     // The deterministic reading contributes its POLICY floor (effects with their policy,
     // obligations, constraints, bindings, unknowns), never its operation guesses: a clause the
     // reader consumed is not understanding, and the model must account for every region.
-    let mut plan = Plan {
-        steps: Vec::new(),
-        ..reading.plan.clone()
-    };
+    let mut plan = reading.plan.clone();
+    plan.steps = Vec::new();
     for step in proposal.steps {
         let Some(op) = Op::parse(&step.op) else {
             reject(out, "unknown operation in the proposal");
@@ -965,12 +977,7 @@ fn merge(
         {
             plan.rules.push(rule);
         }
-        plan.push_step(Step {
-            op,
-            evidence,
-            detail: step.detail,
-            categories: step.categories,
-        });
+        plan.push_step(Step::new(op, evidence, step.detail, step.categories));
     }
     for effect in proposal.effects {
         let (Some(verb), Some(policy)) = (
@@ -1020,13 +1027,8 @@ fn merge(
                 ));
             }
         } else {
-            plan.effects.push(Effect {
-                verb,
-                target: effect.target,
-                evidence,
-                policy,
-                policy_literal: None,
-            });
+            plan.effects
+                .push(Effect::new(verb, effect.target, evidence, policy));
         }
     }
     for obligation in proposal.obligations {
@@ -1055,7 +1057,7 @@ fn merge(
             .iter()
             .any(|o| o.kind.word() == kind.word())
         {
-            plan.obligations.push(Obligation { kind, evidence });
+            plan.obligations.push(Obligation::new(kind, evidence));
         }
     }
     for constraint in proposal.constraints {
@@ -1082,7 +1084,7 @@ fn merge(
     }
     // A numeric rule the model demoted to guidance is an operation: promoted here so the
     // composer's signature and feasibility see the compute step.
-    super::shape::promote_numeric_rules(&mut plan, intent);
+    super::shape::promote_stated_rules(&mut plan, intent);
     backstop(intent, &mut plan);
     reconcile_refund_backstop(&mut plan, &proposal.regions);
     plan.unknowns.dedup();

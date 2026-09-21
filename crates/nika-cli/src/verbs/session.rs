@@ -122,6 +122,14 @@ fn drive<R: BufRead, W: Write>(
     };
     let mut session =
         SessionRuntime::open_with(cwd, census.clone(), &pref, home, Box::new(reasoner_for));
+    // A truthful line while the compiler works under a seat — to the
+    // terminal the human watches, never a percentage, never an ETA.
+    session.on_progress(Box::new(|line| {
+        use std::io::Write as _;
+        let mut stdout = std::io::stdout().lock();
+        let _ = writeln!(stdout, "{line}");
+        let _ = stdout.flush();
+    }));
     let recovered = match home {
         Some(home) => match session.enable_history(home) {
             Ok(notice) => notice,
@@ -140,8 +148,10 @@ fn drive<R: BufRead, W: Write>(
         writeln!(output, "{notice}")?;
     }
     // The line goes where the MACHINE's state says (ADR-133 · #1464): the
-    // runtime owns what waits — a proposal, a gate — and the door keeps
-    // only the one bit that is its own, the first screen it asked again.
+    // runtime owns what waits — a proposal, a gate, an authoring question
+    // (each its own prompt: a `yes` never crosses from one to another) —
+    // and the door keeps only the one bit that is its own, the first
+    // screen it asked again.
     let mut choosing = false;
     loop {
         let prompt = if choosing {
@@ -150,6 +160,8 @@ fn drive<R: BufRead, W: Write>(
             "apply? › "
         } else if session.waiting_gate().is_some() {
             "answer › "
+        } else if session.pending_question().is_some() || session.pending_input().is_some() {
+            "reply › "
         } else {
             "nika › "
         };
@@ -210,7 +222,11 @@ fn handle_outcome<W: Write>(
             let (code, trace) = run_once(&session.snapshot.root, &run, theme);
             observed(output, session.observe_run(code, trace.as_deref()))?;
         }
-        TurnOutcome::GateAsk { question, .. } => writeln!(output, "{question}")?,
+        // An authoring question and a runtime gate print the same way; the
+        // prompt that follows (`reply ›` · `answer ›`) names which one waits.
+        TurnOutcome::Question { question, .. } | TurnOutcome::GateAsk { question, .. } => {
+            writeln!(output, "{question}")?;
+        }
         TurnOutcome::ResumeRequested {
             workflow,
             trace,

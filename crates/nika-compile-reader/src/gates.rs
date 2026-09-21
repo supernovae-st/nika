@@ -161,7 +161,7 @@ fn is_approval(tokens: &[Token<'_>], k: usize) -> bool {
 /// `only after my explicit approval`, `once i approve`, `the write needs my approval first`,
 /// `human approval required`. Returns the byte span of the gate phrase; the span starts at
 /// the connector (or at the subject of a requirement) and ends after the approval word.
-pub(super) fn final_gate(lower: &str) -> Option<(usize, usize)> {
+pub(crate) fn final_gate(lower: &str) -> Option<(usize, usize)> {
     let tokens = tokens(lower);
     for k in 0..tokens.len() {
         if !is_approval(&tokens, k) {
@@ -196,7 +196,7 @@ pub(super) fn final_gate(lower: &str) -> Option<(usize, usize)> {
 /// A gate that asks a person: `ask me to confirm before writing …`, `wait for my confirmation`,
 /// `demande mon accord avant d'écrire`. Returns the span of the asking phrase; what follows
 /// the span names the gated effect when a `before` connector closes the phrase.
-pub(super) fn named_gate(lower: &str) -> Option<(usize, usize)> {
+pub(crate) fn named_gate(lower: &str) -> Option<(usize, usize)> {
     let tokens = tokens(lower);
     for (a, token) in tokens.iter().enumerate() {
         if !ASK.contains(&token.word) {
@@ -233,7 +233,7 @@ pub(super) fn named_gate(lower: &str) -> Option<(usize, usize)> {
 
 /// A prohibition bounded by an approval is a gate, not a prohibition: `don't write until i
 /// approve`, `never publish without my approval`, `ne publie rien sans ma validation`.
-pub(super) fn approval_bound(lower: &str) -> bool {
+pub(crate) fn approval_bound(lower: &str) -> bool {
     let tokens = tokens(lower);
     (0..tokens.len()).any(|u| {
         UNTIL.contains(&tokens[u].word)

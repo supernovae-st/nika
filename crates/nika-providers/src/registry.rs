@@ -29,6 +29,7 @@ use nika_kernel::http::{HttpError, HttpPostDyn, HttpRequest, HttpResponse, HttpS
 use nika_kernel::secret::Secret;
 
 use crate::profile::{Profile, WireFormat, seed};
+use crate::retry::{self, Backoff, TransportReport};
 use crate::wire;
 
 /// Operator-owned configuration (overrides on top of the profile defaults).
@@ -94,6 +95,9 @@ pub struct ProviderRegistry<H = NoHttp> {
     http: Option<Arc<H>>,
     profiles: Vec<Profile>,
     config: ProvidersConfig,
+    /// The sleep seam of the transport backoff (`retry`) — the system
+    /// clock unless the composition injects its own.
+    backoff: Arc<dyn Backoff>,
 }
 
 impl ProviderRegistry<NoHttp> {
@@ -105,6 +109,7 @@ impl ProviderRegistry<NoHttp> {
             http: None,
             profiles: seed(),
             config,
+            backoff: retry::system_backoff(),
         }
     }
 }
@@ -112,6 +117,15 @@ impl ProviderRegistry<NoHttp> {
 // Capability queries that need only the profiles (no http · no key) —
 // the keyless surface the composition's per-call bridge consults.
 impl<H> ProviderRegistry<H> {
+    /// Inject the clock the transport backoff sleeps on (the composer's
+    /// declared clock · a test's recorder). Every provider resolved after
+    /// this call rides it; the default is the system clock.
+    #[must_use]
+    pub fn with_backoff(mut self, backoff: Arc<dyn Backoff>) -> Self {
+        self.backoff = backoff;
+        self
+    }
+
     /// The base URL a run against this provider would ACTUALLY hit —
     /// the operator's `with_base_url` override when present, else the
     /// profile seed. Diagnostic surfaces (doctor `--ping`) must probe
@@ -143,11 +157,14 @@ impl<H> ProviderRegistry<H> {
     pub fn supports_response_format(&self, model: &str) -> bool {
         model
             .split_once('/')
-            .and_then(|(provider_id, _)| {
+            .and_then(|(provider_id, rest)| {
                 let provider_id = crate::profile::canonical_provider(provider_id);
-                self.profiles.iter().find(|p| p.id == provider_id)
+                self.profiles
+                    .iter()
+                    .find(|p| p.id == provider_id)
+                    .map(|p| (p, rest))
             })
-            .is_some_and(Profile::supports_response_format)
+            .is_some_and(|(p, rest)| p.supports_response_format_for(p.resolve_model(rest)))
     }
 }
 
@@ -163,6 +180,7 @@ where
             http: Some(http),
             profiles: seed(),
             config,
+            backoff: retry::system_backoff(),
         }
     }
 
@@ -259,6 +277,7 @@ where
             base_url,
             key,
             http,
+            backoff: Arc::clone(&self.backoff),
         })
     }
 }
@@ -274,6 +293,7 @@ pub struct ResolvedProvider<H = NoHttp> {
     pub(crate) base_url: String,
     pub(crate) key: Option<Secret>,
     pub(crate) http: Option<Arc<H>>,
+    pub(crate) backoff: Arc<dyn Backoff>,
 }
 
 impl<H> ResolvedProvider<H> {
@@ -299,16 +319,85 @@ impl<H> ResolvedProvider<H> {
 // blankets.
 impl<H> nika_kernel::sealed::Sealed for ResolvedProvider<H> {}
 
-impl<H> ProviderInferDyn for ResolvedProvider<H>
+impl<H> ResolvedProvider<H>
 where
     H: HttpPostDyn + Send + Sync + 'static,
 {
-    async fn infer(&self, request: InferRequest) -> Result<InferResponse, ProviderError> {
+    /// One inference WITH the transport's own account of it: the same
+    /// bounded backoff the kernel `infer` rides (a 429 · 503 · 529 is
+    /// re-sent after the seat's `Retry-After` or 1 s · 2 s · 4 s, at most
+    /// [`retry::MAX_RETRIES`] times), plus the [`TransportReport`] a verb
+    /// folds into its receipt. On failure the typed error stays intact —
+    /// its transience still drives the author's `retry:` — and the report
+    /// rides beside it.
+    ///
+    /// # Errors
+    ///
+    /// The last provider error once the backoff is spent or the error is
+    /// not one the layer waits on (a wrong request · a dead key · an
+    /// exhausted quota · a dropped connection).
+    pub async fn infer_reported(
+        &self,
+        request: InferRequest,
+    ) -> Result<(InferResponse, TransportReport), (ProviderError, Box<TransportReport>)> {
+        let mut report = TransportReport::new();
+        loop {
+            report.attempts = report.attempts.saturating_add(1);
+            // The attempt is boxed: the loop's state machine would otherwise
+            // carry the largest wire future inline, and a nested run (a
+            // workflow invoking a workflow) polls it from a deeper stack than
+            // a 2 MiB thread affords (the pre-push gate's child-run test).
+            let err = match Box::pin(self.infer_once(request.clone())).await {
+                Ok(response) => return Ok((response, report)),
+                Err(err) => err,
+            };
+            let retries = u32::try_from(report.statuses.len()).unwrap_or(u32::MAX);
+            let Some(delay) = retry::retry_delay(&err, retries) else {
+                return Err((err, Box::new(report)));
+            };
+            report
+                .statuses
+                .push(retry::status_of(&err).unwrap_or_default());
+            self.backoff.sleep(delay).await;
+            report.waited = report.waited.saturating_add(delay);
+        }
+    }
+
+    /// One round-trip on the profile's wire — no backoff.
+    async fn infer_once(&self, request: InferRequest) -> Result<InferResponse, ProviderError> {
         match self.profile.wire {
             WireFormat::Anthropic => wire::anthropic::infer(self, request).await,
             WireFormat::OpenAiCompat => wire::openai_compat::infer(self, request).await,
             WireFormat::Gemini => wire::gemini::infer(self, request).await,
             WireFormat::Mock => Ok(wire::mock::infer(self, &request)),
+        }
+    }
+
+    /// One streaming open on the profile's wire — no backoff.
+    async fn infer_stream_once(
+        &self,
+        request: InferRequest,
+    ) -> Result<InferEventStream, ProviderError> {
+        match self.profile.wire {
+            WireFormat::Anthropic => wire::anthropic::infer_stream(self, request).await,
+            WireFormat::OpenAiCompat => wire::openai_compat::infer_stream(self, request).await,
+            WireFormat::Gemini => wire::gemini::infer_stream(self, request).await,
+            WireFormat::Mock => Ok(wire::mock::infer_stream(self, &request)),
+        }
+    }
+}
+
+impl<H> ProviderInferDyn for ResolvedProvider<H>
+where
+    H: HttpPostDyn + Send + Sync + 'static,
+{
+    /// The kernel contract over [`Self::infer_reported`]: the same
+    /// bounded backoff, the report dropped (a caller that wants it asks
+    /// the inherent form).
+    async fn infer(&self, request: InferRequest) -> Result<InferResponse, ProviderError> {
+        match self.infer_reported(request).await {
+            Ok((response, _)) => Ok(response),
+            Err((err, _)) => Err(err),
         }
     }
 }
@@ -317,12 +406,21 @@ impl<H> ProviderStreamDyn for ResolvedProvider<H>
 where
     H: HttpPostDyn + Send + Sync + 'static,
 {
+    /// A streaming open refused with a 429 · 503 · 529 is re-opened
+    /// under the same bounded backoff — nothing was consumed yet, so the
+    /// re-send is the identical request.
     async fn infer_stream(&self, request: InferRequest) -> Result<InferEventStream, ProviderError> {
-        match self.profile.wire {
-            WireFormat::Anthropic => wire::anthropic::infer_stream(self, request).await,
-            WireFormat::OpenAiCompat => wire::openai_compat::infer_stream(self, request).await,
-            WireFormat::Gemini => wire::gemini::infer_stream(self, request).await,
-            WireFormat::Mock => Ok(wire::mock::infer_stream(self, &request)),
+        let mut retries = 0u32;
+        loop {
+            let err = match self.infer_stream_once(request.clone()).await {
+                Ok(stream) => return Ok(stream),
+                Err(err) => err,
+            };
+            let Some(delay) = retry::retry_delay(&err, retries) else {
+                return Err(err);
+            };
+            retries = retries.saturating_add(1);
+            self.backoff.sleep(delay).await;
         }
     }
 }
@@ -335,10 +433,11 @@ where
         self.profile.id
     }
 
-    /// The resolved provider's actual capability · delegates to the
-    /// wire-family source of truth ([`WireFormat::supports_response_format`]).
+    /// The resolved seat's actual capability · the wire-family answer
+    /// ([`WireFormat::supports_response_format`]) refined by the catalog's
+    /// per-model `json_mode` ([`Profile::supports_response_format_for`]).
     fn supports_response_format(&self) -> bool {
-        self.profile.supports_response_format()
+        self.profile.supports_response_format_for(&self.wire_model)
     }
 }
 

@@ -12,20 +12,36 @@
 //! AMBIGUOUS and may be settled by a bounded decision seat. Nothing here invents
 //! an operation, an effect or a policy; every element keeps its verbatim clause.
 
-use super::cues::{
-    ARTICLES, ATTEMPT_NOUNS, BOUND_WORDS, FINAL_GATE_MARKERS, FORBIDDEN_MARKERS, LEADING_FILLER,
-    LEXICON, LOOKUP_CUES, NAMED_GATE_MARKERS, NUMBER_WORDS, READ_CUES, REVISION_MARKERS,
-    SEARCH_CUES, STOP_MARKERS, TRIGGER_PREFIXES, UNDECIDED_MARKERS,
-};
-use super::paths::Structured;
+mod cues;
+mod effects;
+mod es;
+mod heads;
+mod it;
+mod literals;
+mod slugs;
+
+use super::paths::{self, Structured};
 use super::plan::{
     Binding, Effect, EffectPolicy, EffectVerb, Obligation, ObligationKind, Op, Plan, Step,
 };
-use super::{gates, objects};
+use super::{gates, hot, objects};
+pub(crate) use cues::{ARTICLES, OBJECT_CONNECTORS};
+use cues::{
+    CONSTRAINT_OPENERS, FINAL_GATE_MARKERS, FORBIDDEN_MARKERS, LEADING_FILLER, LOOKUP_CUES,
+    NAMED_GATE_MARKERS, NEGATION_OPENERS, READ_CUES, REVISION_MARKERS, SEARCH_CUES,
+    SECOND_WORD_FILLERS, STOP_MARKERS, STRONG_CONNECTORS, TRIGGER_PREFIXES, UNDECIDED_MARKERS,
+    WEAK_CONNECTORS,
+};
+pub use effects::effect_words;
+pub(crate) use effects::kindred;
+use effects::{push_effect, push_obligation};
+pub(crate) use heads::Head;
+pub use slugs::slug;
 
 /// One clause the lexicon could not settle alone: a small feasible set, never a guess.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct Ambiguity {
+#[non_exhaustive]
+pub struct Ambiguity {
     pub clause: String,
     pub detail: String,
     pub options: Vec<Op>,
@@ -33,7 +49,8 @@ pub(super) struct Ambiguity {
 
 /// The deterministic reading of one intent.
 #[derive(Clone, Debug, Default)]
-pub(super) struct Reading {
+#[non_exhaustive]
+pub struct Reading {
     pub plan: Plan,
     pub ambiguous: Vec<Ambiguity>,
     pub unresolved: Vec<String>,
@@ -49,8 +66,23 @@ pub(super) struct Reading {
     /// Clauses whose whole meaning is a policy on an effect read elsewhere (`a human must
     /// approve the write first`): accounted for by the policy they set.
     pub policy_clauses: Vec<String>,
-    /// The columns the request lists: a word among them names a column, never an effect.
+    /// The columns the request lists beside its source: a word among them names a column,
+    /// never an effect, and the closed rule grammar reads them.
     pub columns: Vec<String>,
+}
+
+/// A clause the closed rule grammar read whole ("count the rows per client", "merge them on
+/// the id column") is a compute step carrying its rule: the words are its literals.
+fn push_rule(original: &str, rule: super::rules::Rule, reading: &mut Reading) {
+    reading.plan.push_step(Step {
+        op: Op::Compute,
+        evidence: original.to_owned(),
+        detail: original.trim().to_owned(),
+        categories: Vec::new(),
+    });
+    if !reading.plan.rules.iter().any(|r| r.text() == rule.text()) {
+        reading.plan.rules.push(rule);
+    }
 }
 
 impl Reading {
@@ -58,7 +90,8 @@ impl Reading {
     /// consumed is not evidence of understanding. A step is explicit when its object is a
     /// typed literal or a short noun phrase without coordinated residue; an effect when its
     /// target is short or literal; and nothing ambiguous, unresolved or unknown remains.
-    pub(super) fn hot_rejections(&self) -> Vec<String> {
+    #[must_use]
+    pub fn hot_rejections(&self) -> Vec<String> {
         let mut why = Vec::new();
         if !self.unresolved.is_empty() {
             why.push(format!("{} unresolved clause(s)", self.unresolved.len()));
@@ -74,7 +107,18 @@ impl Reading {
         }
         for step in &self.plan.steps {
             let categorical = step.op == Op::Classify && !step.categories.is_empty();
-            if !categorical && !explicit_object(&step.detail) {
+            // A rule the closed grammar parsed is a typed literal, explicit by construction;
+            // the plan joins a promoted rule to an existing computation with ` ; `, so each
+            // part is judged on its own.
+            let ruled = step.op == Op::Compute
+                && step.detail.split(" ; ").all(|part| {
+                    objects::explicit_object(part)
+                        || self.plan.rules.iter().any(|r| r.text() == part.trim())
+                });
+            // An extract's object is the list of the fields to pull out: a list of short
+            // noun phrases is explicit, whatever its length.
+            let listed = step.op == Op::Extract && objects::explicit_field_list(&step.detail);
+            if !categorical && !ruled && !listed && !objects::explicit_object(&step.detail) {
                 why.push(format!(
                     "`{}` object is not explicit: {}",
                     step.op.word(),
@@ -86,7 +130,7 @@ impl Reading {
             if matches!(
                 effect.policy,
                 EffectPolicy::Automatic | EffectPolicy::HumanFirst
-            ) && !explicit_object(&effect.target)
+            ) && !objects::explicit_object(&effect.target)
             {
                 why.push(format!(
                     "`{}` target is not explicit: {}",
@@ -121,6 +165,7 @@ impl Reading {
             let accounted = self.plan.steps.iter().any(|s| within(&s.evidence))
                 || self.plan.effects.iter().any(|e| within(&e.evidence))
                 || self.plan.obligations.iter().any(|o| within(&o.evidence))
+                || self.plan.rules.iter().any(|r| within(r.text()))
                 || self.policy_clauses.iter().any(|c| within(c))
                 || self
                     .plan
@@ -142,23 +187,18 @@ impl Reading {
     }
 
     /// HOT is possible only when every clause was consumed and something was asked.
-    pub(super) fn complete(&self) -> bool {
+    #[must_use]
+    pub fn complete(&self) -> bool {
         self.unresolved.is_empty()
             && self.ambiguous.is_empty()
             && (!self.plan.steps.is_empty() || !self.plan.effects.is_empty())
     }
 }
 
-pub(super) enum Head {
-    Op(Op),
-    Choice(&'static [Op]),
-    Effect(EffectVerb),
-    Dedup,
-}
-
 /// Typographic apostrophes fold to `'` so byte offsets stay aligned between the
 /// lowercase matching copy and the evidence copy. Callers anchor against this form.
-pub(super) fn fold_apostrophes(intent: &str) -> String {
+#[must_use]
+pub fn fold_apostrophes(intent: &str) -> String {
     intent.replace(['’', '‘'], "'")
 }
 
@@ -205,7 +245,19 @@ fn written_object(
             .chain(reading.plan.steps.iter().map(|s| s.detail.as_str()));
         objects::refers_back(object_lower, earlier)
     };
-    if refers_back {
+    // A fold of pieces produced earlier ("the combined brief" after a draft of each one)
+    // refers back to those pieces; with nothing produced, it names new content.
+    let produced = reading
+        .plan
+        .steps
+        .iter()
+        .any(|s| matches!(s.op, Op::Draft | Op::Extract | Op::Compute | Op::Classify));
+    // "the category" after a classify step is that classification.
+    let classified = reading.plan.has(Op::Classify) && objects::names_classification(object_lower);
+    // "the page title" after a fetch is a facet of the fetched page: the fetch's own
+    // extract mode, carried as it is, never a draft of it.
+    let fetched = reading.plan.has(Op::Fetch) && objects::page_facet(object_lower).is_some();
+    if refers_back || classified || fetched || (produced && objects::folds(object_lower)) {
         return;
     }
     if Structured::of(path).is_some() {
@@ -229,57 +281,6 @@ fn nearest(
         (Some(a), Some(b)) => Some(if b.0 < a.0 { b } else { a }),
         (a, b) => a.or(b),
     }
-}
-
-/// A step object the reader may trust without a model: a typed literal (URL, path, email,
-/// timezone, number) or at most four content tokens with no coordinating connector.
-fn explicit_object(detail: &str) -> bool {
-    let lower = normalize(detail);
-    let literal = lower.split_whitespace().any(|w| {
-        let w = w.trim_end_matches(['.', ',', ';', ')', ':']);
-        w.starts_with("http://")
-            || w.starts_with("https://")
-            || w.starts_with("./")
-            || (w.starts_with('/') && w.contains('.'))
-            || (w.contains('@') && w.contains('.'))
-            || w.starts_with("europe/")
-            || w.starts_with("america/")
-            || w.starts_with("asia/")
-            || w.chars().all(|c| c.is_ascii_digit()) && !w.is_empty()
-    });
-    let connectors = [
-        ", ",
-        " and ",
-        " et ",
-        " or ",
-        " ou ",
-        " puis ",
-        " then ",
-        ";",
-        " sans ",
-        " without ",
-        " mais ",
-        " but ",
-    ];
-    let coordinated = connectors.iter().any(|c| lower.contains(c));
-    let content = lower
-        .split(|c: char| {
-            !c.is_alphanumeric()
-                && c != '\''
-                && c != '/'
-                && c != '.'
-                && c != ':'
-                && c != '-'
-                && c != '_'
-        })
-        .filter(|t| !t.is_empty() && !ARTICLES.contains(t))
-        .count();
-    // A literal names the object only when nothing is coordinated beside it: "./orders.csv
-    // and keep the rows that matter" carries a second request the literal does not cover.
-    if literal {
-        return !coordinated && content <= 6;
-    }
-    !coordinated && content <= 4
 }
 
 fn normalize(text: &str) -> String {
@@ -332,26 +333,16 @@ fn head_of(lower: &str) -> Option<(&'static str, &'static Head)> {
     let mut words = lower.splitn(3, ' ');
     let (first, second, rest) = (words.next(), words.next(), words.next());
     if let (Some(first), Some(second), Some(rest)) = (first, second, rest)
-        && matches!(
-            second,
-            "ensuite"
-                | "alors"
-                | "then"
-                | "also"
-                | "aussi"
-                | "puis"
-                | "immédiatement"
-                | "immediately"
-        )
+        && SECOND_WORD_FILLERS.contains(&second)
     {
         return head_of_exact(&format!("{first} {rest}"));
     }
     None
 }
 
-pub(super) fn head_of_exact(lower: &str) -> Option<(&'static str, &'static Head)> {
+pub(crate) fn head_of_exact(lower: &str) -> Option<(&'static str, &'static Head)> {
     let mut best: Option<(&'static str, &'static Head)> = None;
-    for (phrase, head) in LEXICON {
+    for (phrase, head) in heads::TABLES.iter().flat_map(|table| table.iter()) {
         if lower.starts_with(phrase) {
             let boundary = lower.get(phrase.len()..).is_none_or(|rest| {
                 rest.is_empty() || rest.starts_with(|c: char| !c.is_alphanumeric())
@@ -362,6 +353,36 @@ pub(super) fn head_of_exact(lower: &str) -> Option<(&'static str, &'static Head)
         }
     }
     best
+}
+
+/// Whether an object opens with a noun naming produced content (`un digest des notes`,
+/// `a short report`, `un riassunto in 3 punti`): after its determiners, within the head
+/// noun phrase (before an `of`/`de`/`di`), one of the closed produced-content nouns.
+fn opens_with_produced_noun(object_lower: &str) -> bool {
+    const OF: &[&str] = &[
+        "of", "de", "du", "des", "d'", "from", "about", "sur", "di", "del", "della", "dei",
+        "delle", "degli", "sobre", "dans", "in", "en", "nel", "nella",
+    ];
+    hot::fold(object_lower)
+        .split(|c: char| !c.is_alphanumeric() && c != '-' && c != '\'')
+        .flat_map(|t| t.split('\''))
+        .filter(|t| !t.is_empty())
+        .skip_while(|t| ARTICLES.contains(t))
+        .take_while(|t| !OF.contains(t))
+        .take(3)
+        .any(|t| hot::PRODUCED_NOUNS.contains(&t))
+}
+
+/// Whether the local path an object names is its material rather than a destination: a
+/// folder or a glob is never written to (`les notes dans ./notes` is a source whatever
+/// its connector); a file is material only when no destination connector precedes it.
+fn source_path(detail: &str, detail_lower: &str, path: &str) -> bool {
+    match paths::token(path) {
+        Some(paths::PathShape::Directory(_) | paths::PathShape::Glob(_)) => true,
+        _ => detail
+            .find(path)
+            .is_some_and(|at| objects::destination_at(detail_lower, at).is_none()),
+    }
 }
 
 fn strip_filler(lower: &str) -> &str {
@@ -385,16 +406,12 @@ fn split_clauses(sentence: &str) -> Vec<&str> {
     // A sequencing connector always opens a new clause (an unknown verb after
     // `puis` must stay visible, never be swallowed as the previous object);
     // a coordinating comma or `et`/`and` opens one only before a known head.
-    const STRONG: &[&str] = &[
-        ", puis ", " puis ", ", then ", " then ", ", mais ", " mais ", ", but ", " but ",
-    ];
-    const WEAK: &[&str] = &[", et ", " et ", ", and ", " and ", ", "];
     let lower = normalize(sentence);
     if lower.len() != sentence.len() {
         return vec![sentence];
     }
     let mut cuts = Vec::new();
-    for (connectors, always) in [(STRONG, true), (WEAK, false)] {
+    for (connectors, always) in [(STRONG_CONNECTORS, true), (WEAK_CONNECTORS, false)] {
         for connector in connectors {
             let mut from = 0;
             while let Some(pos) = lower.get(from..).and_then(|s| s.find(connector)) {
@@ -426,182 +443,6 @@ fn split_clauses(sentence: &str) -> Vec<&str> {
     out.into_iter().filter(|p| !p.is_empty()).collect()
 }
 
-fn retry_bound(lower: &str) -> Option<u32> {
-    if !BOUND_WORDS.iter().any(|w| lower.contains(w)) {
-        return None;
-    }
-    let words: Vec<&str> = lower
-        .split(|c: char| !c.is_alphanumeric() && c != '\'')
-        .filter(|w| !w.is_empty())
-        .collect();
-    for (index, word) in words.iter().enumerate() {
-        let number = word.parse::<u32>().ok().or_else(|| {
-            NUMBER_WORDS
-                .iter()
-                .find(|(w, _)| w == word)
-                .map(|(_, n)| *n)
-        });
-        let Some(number) = number else { continue };
-        let next = words.get(index + 1).copied().unwrap_or_default();
-        let next2 = words.get(index + 2).copied().unwrap_or_default();
-        let prev = index
-            .checked_sub(2)
-            .and_then(|i| words.get(i))
-            .copied()
-            .unwrap_or_default();
-        let prev2 = index
-            .checked_sub(3)
-            .and_then(|i| words.get(i))
-            .copied()
-            .unwrap_or_default();
-        if ATTEMPT_NOUNS.iter().any(|n| {
-            next.starts_with(n)
-                || next2.starts_with(n)
-                || prev.starts_with(n)
-                || prev2.starts_with(n)
-        }) {
-            return Some(number);
-        }
-    }
-    None
-}
-
-fn money_literal(sentence: &str) -> bool {
-    let lower = normalize(sentence);
-    let has_amount = lower
-        .split(|c: char| !c.is_alphanumeric() && c != '€' && c != '$')
-        .any(|w| w.chars().all(|c| c.is_ascii_digit()) && !w.is_empty())
-        && ["€", "eur", "euro", "usd", "$", "dollar"]
-            .iter()
-            .any(|c| lower.contains(c));
-    has_amount
-        && [
-            "éligible",
-            "eligible",
-            "limite",
-            "maximum",
-            "cap",
-            "only",
-            "uniquement",
-            "seuls",
-            "up to",
-            "per ",
-        ]
-        .iter()
-        .any(|c| lower.contains(c))
-}
-
-fn categories_of(detail_lower: &str) -> Vec<String> {
-    for marker in [" en ", " into ", " as "] {
-        if let Some(pos) = detail_lower.find(marker) {
-            let tail = detail_lower.get(pos + marker.len()..).unwrap_or_default();
-            let tail = tail.split([';', '.']).next().unwrap_or_default();
-            let parts: Vec<String> = tail
-                .replace(" ou ", ",")
-                .replace(" or ", ",")
-                .split(',')
-                .map(|p| p.trim().trim_end_matches(['.', ';']).to_owned())
-                .filter(|p| !p.is_empty() && p.split_whitespace().count() <= 3)
-                .collect();
-            if parts.len() >= 2 {
-                return parts;
-            }
-        }
-    }
-    Vec::new()
-}
-
-/// The effect verbs a text names. A word the request lists as a column (`name, email e
-/// city`) is a column, never the verb it spells.
-pub(super) fn effect_words(lower: &str, columns: &[String]) -> Vec<EffectVerb> {
-    let masked = objects::mask_columns(lower, columns);
-    let lower = masked.as_str();
-    let mut verbs = Vec::new();
-    for word in lower.split(|c: char| !c.is_alphanumeric() && c != '\'' && c != ' ') {
-        let mut seen = false;
-        for candidate in word.split_whitespace() {
-            if let Some((_, Head::Effect(verb))) = head_of(candidate) {
-                if !verbs.contains(verb) {
-                    verbs.push(*verb);
-                }
-                seen = true;
-            }
-        }
-        if !seen && lower.contains("remboursement") && !verbs.contains(&EffectVerb::Refund) {
-            verbs.push(EffectVerb::Refund);
-        }
-    }
-    if (lower.contains("write")
-        || lower.contains("écri")
-        || lower.contains("enregistre")
-        || lower.contains("save"))
-        && (lower.contains("disk")
-            || lower.contains("disque")
-            || lower.contains("file")
-            || lower.contains("fichier")
-            || lower.contains("./"))
-        && !verbs.contains(&EffectVerb::Write)
-    {
-        verbs.push(EffectVerb::Write);
-    }
-    for (needle, verb) in [
-        ("remboursement", EffectVerb::Refund),
-        ("refund", EffectVerb::Refund),
-        ("envoi", EffectVerb::Send),
-        ("sending", EffectVerb::Send),
-        ("writing", EffectVerb::Write),
-        ("publishing", EffectVerb::Publish),
-        ("publication", EffectVerb::Publish),
-        ("paiement", EffectVerb::Pay),
-        ("payment", EffectVerb::Pay),
-        ("commande", EffectVerb::Order),
-        ("crédit", EffectVerb::Pay),
-        ("credits", EffectVerb::Pay),
-    ] {
-        if lower.contains(needle) && !verbs.contains(&verb) {
-            verbs.push(verb);
-        }
-    }
-    verbs
-}
-
-fn push_obligation(plan: &mut Plan, obligation: Obligation) {
-    if !plan
-        .obligations
-        .iter()
-        .any(|o| o.kind.word() == obligation.kind.word())
-    {
-        plan.obligations.push(obligation);
-    }
-}
-
-fn push_effect(plan: &mut Plan, effect: Effect) {
-    if let Some(existing) = plan.effects.iter_mut().find(|e| e.verb == effect.verb) {
-        match (existing.policy, effect.policy) {
-            (EffectPolicy::Automatic | EffectPolicy::HumanFirst, EffectPolicy::Forbidden)
-            | (EffectPolicy::Forbidden, EffectPolicy::Automatic | EffectPolicy::HumanFirst) => {
-                existing.policy = EffectPolicy::Conflict;
-                existing.evidence = format!("{} / {}", existing.evidence, effect.evidence);
-            }
-            (EffectPolicy::Automatic, EffectPolicy::HumanFirst) => {
-                existing.policy = EffectPolicy::HumanFirst;
-            }
-            (_, EffectPolicy::Undecided) | (EffectPolicy::Undecided, _) => {
-                existing.policy = EffectPolicy::Undecided;
-            }
-            _ => {}
-        }
-        if existing.policy_literal.is_none() {
-            existing.policy_literal = effect.policy_literal;
-        }
-        if !objects::has_literal(&existing.target) && objects::has_literal(&effect.target) {
-            existing.target = effect.target;
-        }
-    } else {
-        plan.effects.push(effect);
-    }
-}
-
 struct ReadState {
     conflict_marker: bool,
     final_gate: bool,
@@ -628,6 +469,11 @@ fn prefix_before(text: &str, pos: usize) -> &str {
         .trim_end_matches(" mais")
         .trim_end_matches(" puis")
         .trim_end_matches(" then")
+        .trim_end_matches(" e")
+        .trim_end_matches(" ed")
+        .trim_end_matches(" poi")
+        .trim_end_matches(" y")
+        .trim_end_matches(" luego")
         .trim()
 }
 
@@ -737,7 +583,7 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
         return;
     }
     // A numeric attempt bound rides the clause; a clause that is only the bound is consumed.
-    if let Some(n) = retry_bound(text) {
+    if let Some(n) = literals::retry_bound(text) {
         push_obligation(
             &mut reading.plan,
             Obligation {
@@ -783,6 +629,13 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
         "remove duplicates",
         "prevent duplicates",
         "de-duplicate",
+        "deduplica",
+        "elimina i duplicati",
+        "rimuovi i duplicati",
+        "evita i duplicati",
+        "elimina los duplicados",
+        "quita los duplicados",
+        "evita los duplicados",
     ]
     .iter()
     .any(|m| text.starts_with(m));
@@ -799,6 +652,13 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
         "dedupe",
         "remove duplicates",
         "prevent duplicates",
+        "deduplica",
+        "elimina i duplicati",
+        "rimuovi i duplicati",
+        "evita i duplicati",
+        "elimina los duplicados",
+        "quita los duplicados",
+        "evita los duplicados",
     ];
     if !dedup_head && let Some((pos, _)) = earliest(text, &dedup_markers) {
         read_prefix(prefix_before(text, pos), clause, reading, state);
@@ -863,8 +723,8 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
             gate_last_automatic(reading, state);
         } else {
             for verb in verbs {
-                let literal =
-                    (verb.moves_money() && money_literal(clause)).then(|| clause.to_owned());
+                let literal = (verb.moves_money() && literals::money_literal(clause))
+                    .then(|| clause.to_owned());
                 push_effect(
                     &mut reading.plan,
                     Effect {
@@ -893,6 +753,11 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
         if verbs.is_empty() {
             reading.plan.constraints.push(clause.to_owned());
         } else {
+            if gates::approval_bound(target) {
+                // The clause is the policy of the effect it names, which may be stated
+                // elsewhere ("post it to <url>. Never send anything without my approval").
+                reading.policy_clauses.push(clause.to_owned());
+            }
             for verb in verbs {
                 let policy = if gates::approval_bound(target) {
                     // `don't write until i approve`: bounded by an approval, a prohibition
@@ -922,7 +787,8 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
 
 /// Deterministically read one intent (already folded by [`fold_apostrophes`]).
 #[allow(clippy::too_many_lines)] // one sentence walk; each policy family is one visible arm
-pub(super) fn read(intent: &str) -> Reading {
+#[must_use]
+pub fn read(intent: &str) -> Reading {
     let mut reading = Reading {
         columns: super::columns::columns_hint(intent),
         ..Reading::default()
@@ -935,7 +801,7 @@ pub(super) fn read(intent: &str) -> Reading {
     for sentence in split_sentences(intent) {
         let lower = normalize(sentence);
         let text = strip_filler(&lower);
-        if money_literal(sentence) {
+        if literals::money_literal(sentence) {
             state.money_sentences.push(sentence.to_owned());
             reading.plan.bindings.push(Binding {
                 role: "money_policy",
@@ -959,6 +825,8 @@ pub(super) fn read(intent: &str) -> Reading {
         {
             let head = body_lower.get(..comma).unwrap_or_default().to_owned();
             if prefix.starts_with("à partir de")
+                || prefix.starts_with("a partire da")
+                || prefix.starts_with("a partir de")
                 || prefix.starts_with("from the")
                 || prefix.starts_with("starting from")
             {
@@ -993,7 +861,9 @@ pub(super) fn read(intent: &str) -> Reading {
         }
         let negated_sentence = FORBIDDEN_MARKERS.iter().any(|m| body_lower.starts_with(m))
             || body_lower.starts_with("ne ")
-            || body_lower.starts_with("n'");
+            || body_lower.starts_with("n'")
+            || body_lower.starts_with("non ")
+            || body_lower.starts_with("nunca ");
         let clauses = if negated_sentence {
             vec![body]
         } else {
@@ -1026,7 +896,7 @@ pub(super) fn read(intent: &str) -> Reading {
             effect.policy_literal = state.money_sentences.first().cloned();
         }
     }
-    collect_bindings(intent, &mut reading.plan);
+    literals::collect_bindings(intent, &mut reading.plan);
     reading
 }
 
@@ -1037,13 +907,7 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
     if text.is_empty() {
         return false;
     }
-    let negated = text.starts_with("ne ")
-        || text.starts_with("n'")
-        || text.starts_with("do not ")
-        || text.starts_with("don't ")
-        || text.starts_with("never ")
-        || text.starts_with("no ")
-        || text.starts_with("aucun");
+    let negated = NEGATION_OPENERS.iter().any(|m| text.starts_with(m));
     if negated {
         let verbs = effect_words(text, &reading.columns);
         if verbs.is_empty() {
@@ -1073,18 +937,7 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
         }
         return true;
     }
-    if text.starts_with("si ")
-        || text.starts_with("if ")
-        || text.starts_with("lorsque ")
-        || text.starts_with("unless ")
-        || text.starts_with("laisse ")
-        || text.starts_with("laissez ")
-        || text.starts_with("leave ")
-        || text.starts_with("keep ")
-        || text.starts_with("conserve ")
-        || text.starts_with("garde ")
-        || text.starts_with("ignore ")
-    {
+    if CONSTRAINT_OPENERS.iter().any(|m| text.starts_with(m)) {
         reading.plan.constraints.push(original.to_owned());
         return true;
     }
@@ -1102,6 +955,16 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
                 .any(|c| c.eq_ignore_ascii_case(phrase) || c.eq_ignore_ascii_case(first_token)))
     });
     let Some((phrase, head)) = found else {
+        // A clause with no head that the closed rule grammar reads whole ("count the rows
+        // per client", "sort the rows by amount descending", "remove the duplicate lines")
+        // is a stated computation: its words are the literals, the jq is the compiler's.
+        // A question ("Which ending is gentler?") is a conversation, never a rule.
+        if !cues::question(original)
+            && let Some(rule) = super::rules::synthesize(original, &reading.columns)
+        {
+            push_rule(original, rule, reading);
+            return true;
+        }
         let declarative = [
             " est ",
             " sont ",
@@ -1167,25 +1030,48 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
         lowered_path = path.to_lowercase();
         detail_lower = &lowered_path;
     }
+    // A make head (`fais-moi`, `fammi`, `hazme`) is a draft only of produced content: a
+    // digest, un résumé, un riassunto. `fais-moi un café` is a request the reader does not
+    // know, never a draft of a coffee.
+    if heads::is_make(phrase) && !opens_with_produced_noun(detail_lower) {
+        reading.unresolved.push(original.to_owned());
+        return false;
+    }
     // A named local path settles the medium: writing TO a path is a file effect,
     // reading a path is the supplied-document read.
     if let Some(path) = &path {
-        let writes = matches!(
-            phrase,
-            "write"
-                | "écris"
-                | "écrivez"
-                | "écrire"
-                | "enregistre"
-                | "enregistrez"
-                | "enregistrer"
-                | "record"
-        );
+        let writes = heads::writes_to_path(phrase);
         let saves = detail_lower.contains(" to ")
             || detail_lower.contains(" dans ")
             || detail_lower.contains(" into ")
-            || detail_lower.contains(" sous ");
+            || detail_lower.contains(" sous ")
+            || objects::destination_at(detail_lower, detail.find(path.as_str()).unwrap_or(0))
+                .is_some();
         if writes && saves {
+            // Several destinations in one clause ("write the bugs to ./bugs.json and the
+            // features to ./features.json"): one write per destination, each with its own
+            // object and its own verbatim excerpt.
+            let segments = objects::write_segments(&detail);
+            if segments.len() >= 2 {
+                for (_, target, segment) in &segments {
+                    reading.plan.bindings.push(Binding {
+                        role: "path",
+                        literal: target.clone(),
+                    });
+                    push_effect(
+                        &mut reading.plan,
+                        Effect {
+                            verb: EffectVerb::Write,
+                            target: target.clone(),
+                            evidence: segment.clone(),
+                            policy: EffectPolicy::Automatic,
+                            policy_literal: None,
+                        },
+                    );
+                    written_object(segment, &segment.to_lowercase(), target, segment, reading);
+                }
+                return true;
+            }
             reading.plan.bindings.push(Binding {
                 role: "path",
                 literal: path.clone(),
@@ -1204,14 +1090,75 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
             defer_residue(&detail, path, reading);
             return true;
         }
+        // `write ./sorted.csv`: a write head whose whole object is the path writes the
+        // latest result there. With nothing produced before it, the admission law names
+        // the missing content; the path is never read as something to draft.
+        if writes
+            && matches!(head, Head::Op(Op::Draft))
+            && detail.trim().trim_end_matches(['.', ',', ';']) == path.as_str()
+        {
+            reading.plan.bindings.push(Binding {
+                role: "path",
+                literal: path.clone(),
+            });
+            push_effect(
+                &mut reading.plan,
+                Effect {
+                    verb: EffectVerb::Write,
+                    target: path.clone(),
+                    evidence: original.to_owned(),
+                    policy: EffectPolicy::Automatic,
+                    policy_literal: None,
+                },
+            );
+            return true;
+        }
         if matches!(head, Head::Choice(options) if options.contains(&Op::Read)) {
+            // "Read ./a.csv and ./b.csv": a list of files is read as stated, every file a
+            // path literal in order; any other residue re-enters as a clause of its own.
+            let listed = objects::path_list(&detail);
             reading.plan.push_step(Step {
                 op: Op::Read,
                 evidence: original.to_owned(),
-                detail: path.clone(),
+                detail: listed
+                    .as_ref()
+                    .map_or_else(|| paths::material(path), |files| files.join(" ; ")),
                 categories: Vec::new(),
             });
-            defer_residue(&detail, path, reading);
+            if listed.is_none() {
+                defer_residue(&detail, path, reading);
+            }
+            return true;
+        }
+        // A source path inside the object of an operation (`traduis ./notes/brief.md en
+        // anglais`, `un digest des notes dans ./notes`) is the material the operation
+        // consumes: the read is that path (a folder is every file directly under it) and
+        // the operation keeps the object the clause states, verbatim.
+        if let Head::Op(op @ (Op::Draft | Op::Extract | Op::Classify | Op::Validate | Op::Compute)) =
+            head
+            && source_path(&detail, detail_lower, path)
+        {
+            reading.plan.bindings.push(Binding {
+                role: "path",
+                literal: path.clone(),
+            });
+            reading.plan.push_step(Step {
+                op: Op::Read,
+                evidence: original.to_owned(),
+                detail: paths::material(path),
+                categories: Vec::new(),
+            });
+            let categories = if *op == Op::Classify {
+                literals::categories_of(detail_lower)
+            } else {
+                Vec::new()
+            };
+            reading.plan.push_step(Step {
+                op: *op,
+                evidence: original.to_owned(),
+                detail,
+                categories,
+            });
             return true;
         }
         if let Head::Effect(verb) = head {
@@ -1226,7 +1173,8 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
                         target: path.clone(),
                         evidence: original.to_owned(),
                         policy: EffectPolicy::Automatic,
-                        policy_literal: money_literal(original).then(|| original.to_owned()),
+                        policy_literal: literals::money_literal(original)
+                            .then(|| original.to_owned()),
                     },
                 );
                 if matches!(verb, EffectVerb::Write | EffectVerb::Publish) {
@@ -1279,8 +1227,18 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
     }
     match head {
         Head::Op(op) => {
+            // "trie les lignes par montant décroissant": a head the reader knows as a
+            // classify whose whole clause the closed grammar reads (a sort by a stated
+            // column) is that computation; "classe les tickets en bugs et features" stays
+            // a classification, the grammar reads no shape in it.
+            if *op == Op::Classify
+                && let Some(rule) = super::rules::synthesize(original, &reading.columns)
+            {
+                push_rule(original, rule, reading);
+                return true;
+            }
             let categories = if *op == Op::Classify {
-                categories_of(detail_lower)
+                literals::categories_of(detail_lower)
             } else {
                 Vec::new()
             };
@@ -1362,7 +1320,22 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
             }
         }
         Head::Effect(verb) => {
-            let literal = money_literal(original).then(|| original.to_owned());
+            // "merge them on the id column": a join of the read sources on a stated column
+            // is a computation the compiler writes, never an external merge effect.
+            if *verb == EffectVerb::Merge
+                && let Some(rule) = super::rules::synthesize(original, &reading.columns)
+                && rule.joins()
+            {
+                push_rule(original, rule, reading);
+                return true;
+            }
+            // "merge them": the sources are named, the key is not. The human completes the
+            // clause; no endpoint is asked for a merge of the files the request read.
+            if *verb == EffectVerb::Merge && super::stages::join_without_key(original) {
+                reading.unresolved.push(original.to_owned());
+                return false;
+            }
+            let literal = literals::money_literal(original).then(|| original.to_owned());
             let money = [
                 "money", "argent", "payment", "paiement", "€", "euro", "dollar", "usd", "eur ",
                 "credits", "crédit",
@@ -1396,92 +1369,4 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
         }
     }
     true
-}
-
-fn collect_bindings(intent: &str, plan: &mut Plan) {
-    for word in intent.split_whitespace() {
-        let token = word.trim_end_matches(['.', ',', ';', ')', ']', ':']);
-        if token.starts_with("http://") || token.starts_with("https://") {
-            plan.bindings.push(Binding {
-                role: "url",
-                literal: token.to_owned(),
-            });
-        } else if token.contains('@') && token.contains('.') && !token.starts_with('@') {
-            plan.bindings.push(Binding {
-                role: "email",
-                literal: token.to_owned(),
-            });
-        } else if (token.starts_with("./") || token.starts_with('/')) && token.len() > 2 {
-            plan.bindings.push(Binding {
-                role: "path",
-                literal: token.to_owned(),
-            });
-        } else if token.starts_with("Europe/")
-            || token.starts_with("America/")
-            || token.starts_with("Asia/")
-            || token.starts_with("Africa/")
-        {
-            plan.bindings.push(Binding {
-                role: "timezone",
-                literal: token.to_owned(),
-            });
-        }
-    }
-}
-
-/// Slug of a verbatim phrase for a constant name: ASCII letters, articles dropped, at most three tokens.
-pub(super) fn slug(phrase: &str) -> String {
-    let lower = normalize(phrase);
-    let cut = [
-        " dans ",
-        " in ",
-        " from ",
-        " depuis ",
-        " sur ",
-        " on ",
-        " to ",
-        " vers ",
-        " pour ",
-        " for ",
-        " avec ",
-        " with ",
-        " correspondant",
-        " correspondante",
-    ]
-    .iter()
-    .filter_map(|m| lower.find(m))
-    .min()
-    .unwrap_or(lower.len());
-    let head = lower.get(..cut).unwrap_or(&lower);
-    let tokens: Vec<String> = head
-        .split(|c: char| !c.is_alphanumeric() && c != '\'')
-        .flat_map(|t| t.split('\''))
-        .map(|t| {
-            t.chars()
-                .map(fold_ascii)
-                .filter(char::is_ascii_alphanumeric)
-                .collect::<String>()
-        })
-        .filter(|t| !t.is_empty() && !ARTICLES.contains(&t.as_str()))
-        .take(3)
-        .collect();
-    if tokens.is_empty() {
-        "record".to_owned()
-    } else {
-        tokens.join("_")
-    }
-}
-
-fn fold_ascii(c: char) -> char {
-    match c {
-        'à' | 'â' | 'ä' | 'á' => 'a',
-        'é' | 'è' | 'ê' | 'ë' => 'e',
-        'î' | 'ï' | 'í' => 'i',
-        'ô' | 'ö' | 'ó' => 'o',
-        'û' | 'ù' | 'ü' | 'ú' => 'u',
-        'ç' => 'c',
-        'ñ' => 'n',
-        c if c.is_ascii_alphanumeric() => c,
-        _ => '_',
-    }
 }

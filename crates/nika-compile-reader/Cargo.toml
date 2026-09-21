@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+[package]
+name        = "nika-compile-reader"
+version.workspace = true
+edition     = "2024"
+rust-version = "1.88"
+license     = "AGPL-3.0-or-later"
+description = "The frozen deterministic reader of the Compile core and the typed semantic plan it produces: the multilingual head, cue and marker tables, the object, gate and path laws, the closed rule grammar and its typed computations. Layer L4 — ONE architectural unit with nika-compile in TWO workspace members (D-2026-07-09-N1 · the ADR-137 precedent), descended at the 15k prod-LOC wall; nika-compile depends on it, never the reverse."
+repository  = "https://github.com/supernovae-st/nika"
+publish     = false  # member of the nika-onboard unit — never on crates.io alone
+
+[dependencies]
+serde_json = { workspace = true } # the plan's provenance record and its faithful inverse
+
+[package.metadata.lore]
+daemon        = "forgeron"
+archetype     = "compiler-smith"
+spirit_role   = "lit l'intention mot à mot, ne devine jamais · le lecteur est gelé, chaque loi nouvelle vit dans le plan typé"
+
+[lints]
+workspace = true
