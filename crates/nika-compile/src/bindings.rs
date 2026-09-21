@@ -71,6 +71,8 @@ pub(super) struct Wired {
     pub policy: Option<Value>,
     pub verb: EffectVerb,
     pub target: String,
+    /// The verbatim excerpt that requested the effect (a stated body shape lives there).
+    pub evidence: String,
 }
 
 /// A lookup that selects one record by a literal identifier: the identifier and the
@@ -124,8 +126,8 @@ pub(super) struct Bindings {
     /// Constraints the structure consumed (a concurrency bound), kept out of prompts.
     pub consumed: Vec<String>,
     pub max_parallel: Option<u32>,
-    /// Whether `inputs.item` is declared: the request is invoked per item, or it
-    /// supplies no other material.
+    /// Whether `inputs.item` is declared: the request supplies no material of its own (no
+    /// read file, fan-out, fetched page or literal lookup), or a search needs its query.
     pub item: bool,
     /// The draft runs once per read item and is folded back in item order: the request
     /// distributes its draft over the files of a fan-out.
@@ -140,6 +142,37 @@ impl Bindings {
     /// Whether at least one effect waits on a human gate.
     pub(super) fn gated(&self) -> bool {
         self.writes.iter().any(|w| w.gated) || self.wired.iter().any(|w| w.gated)
+    }
+    /// Whether the request supplies its own material: a read file or fan-out, a fetched
+    /// page, or a literal lookup (the record it selects). A trigger over that material
+    /// never declares an item.
+    pub(super) fn corpus(&self) -> bool {
+        matches!(
+            self.read,
+            Need::Bound(Source::File(_) | Source::Files(_) | Source::Glob(_))
+        ) || !matches!(self.fetch, Need::Absent)
+            || matches!(&self.lookup, Need::Bound(l) if l.by_id.is_some())
+    }
+    /// An outbound effect the request repeats once per item of the material it supplies:
+    /// stated inside the sentence a distributive trigger opens ("for each critical row,
+    /// send a POST …") over a read, fetched or looked-up corpus. The compiled workflow
+    /// performs an outbound effect once, so the effect is asked, never sent once in silence.
+    /// A write to one file folds the items into that file and is not repeated; an effect a
+    /// later sentence states applies to the whole result.
+    pub(super) fn repeated_effect<'a>(&self, plan: &'a Plan, intent: &str) -> Option<&'a Effect> {
+        let trigger = plan.trigger.as_deref()?;
+        if !self.corpus() || !shape::led_by_quantifier(trigger) {
+            return None;
+        }
+        let (start, end) = shape::triggered_span(intent, trigger)?;
+        plan.effects.iter().find(|effect| {
+            effect.policy != EffectPolicy::Forbidden
+                && effect.verb != EffectVerb::Write
+                && file_write(effect).is_none()
+                && intent
+                    .find(effect.evidence.trim())
+                    .is_some_and(|at| (start..end).contains(&at))
+        })
     }
     /// Whether a structured source must be decoded for code: a code rule, an endpoint
     /// payload or a structured write consumes the parsed records; a prompt never does.
@@ -308,10 +341,11 @@ pub(super) fn bind(
         || fan_out
         || !matches!(fetch, Need::Absent)
         || literal_lookup;
-    let item = !has_corpus
-        || matches!(read, Need::Bound(Source::Item))
-        || plan.has(Op::Search)
-        || (plan.trigger.is_some() && !fan_out);
+    // The item is the material of an invocation only when the request supplies none of its
+    // own. A trigger over a read, fetched or looked-up corpus ("for each critical row",
+    // "once all three are done") distributes or sequences work over THAT corpus; it never
+    // declares an input the run could not supply.
+    let item = !has_corpus || plan.has(Op::Search);
     let mut consumed = Vec::new();
     let mut max_parallel = None;
     if fan_out {
@@ -742,6 +776,7 @@ fn bind_effects(
                 policy,
                 verb: effect.verb,
                 target: effect.target.clone(),
+                evidence: effect.evidence.clone(),
             }),
             None => b.effects_pending = true,
         }

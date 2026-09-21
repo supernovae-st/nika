@@ -384,11 +384,34 @@ fn heading_beside_distributive(text: &str) -> bool {
         .any(|h| cues.iter().any(|c| h.abs_diff(*c) <= 60))
 }
 
-fn led_by_quantifier(text: &str) -> bool {
+pub(super) fn led_by_quantifier(text: &str) -> bool {
     let padded = padded(text);
     LEADING_QUANTIFIERS
         .iter()
         .any(|q| padded.starts_with(&format!(" {q} ")))
+}
+
+/// The byte span of the sentence a trigger opens: from the trigger's first occurrence in
+/// the request (case-insensitive when folding keeps every byte) to the sentence end that
+/// follows it (`.`, `!`, `?`, a line break, or the end of the request). What that sentence
+/// states is done once per item of the trigger; what a later sentence states is not.
+pub(super) fn triggered_span(intent: &str, trigger: &str) -> Option<(usize, usize)> {
+    let trigger = trigger.trim();
+    if trigger.is_empty() {
+        return None;
+    }
+    let lower = intent.to_lowercase();
+    let start = if lower.len() == intent.len() {
+        lower.find(&trigger.to_lowercase())
+    } else {
+        intent.find(trigger)
+    }?;
+    let after = start + trigger.len();
+    let end = intent
+        .get(after..)?
+        .find(['.', '!', '?', '\n'])
+        .map_or(intent.len(), |at| after + at);
+    Some((start, end))
 }
 
 /// Whether the request distributes its draft over items: a heading word beside a

@@ -672,6 +672,254 @@ fn a_per_item_request_with_placeholder_outputs_is_refused_not_lowered() {
     );
 }
 
+// ── a body whose keys the request states is exactly those keys over produced values ─
+// The sealed till seed computed `{tickets, total_cents}` correctly, then posted the generic
+// `{action, target, facts}` envelope: run green, wrong body. A brace list in the effect's
+// own words is the payload's shape; a key nothing produces is asked, never invented.
+const TILL: &str = "Compute the day's sales total from ./till.csv (columns ticket,time,amount_cents): the number of tickets and the sum of amount_cents. Send that summary in one POST to http://127.0.0.1:18471/hooks/till with the JSON body {tickets, total_cents} and write the same object to ./out/till.json.";
+const TILL_PLAIN: &str = "Compute the day's sales total from ./till.csv (columns ticket,time,amount_cents): the number of tickets and the sum of amount_cents. Send that summary in one POST to http://127.0.0.1:18471/hooks/till with the JSON body of the summary and write the same object to ./out/till.json.";
+const TILL_CASHIER: &str = "Compute the day's sales total from ./till.csv (columns ticket,time,amount_cents): the number of tickets and the sum of amount_cents. Send that summary in one POST to http://127.0.0.1:18471/hooks/till with the JSON body {tickets, cashier} and write the same object to ./out/till.json.";
+fn till_record(body: &str) -> Value {
+    let compute = "the number of tickets and the sum of amount_cents";
+    json!({"operations":[
+        {"op":"read","detail":"./till.csv","evidence":"Compute the day's sales total from ./till.csv (columns ticket,time,amount_cents)","categories":[]},
+        {"op":"compute","detail":compute,"evidence":compute,"categories":[]}],
+      "effects":[
+        {"verb":"send","target":format!("one POST to http://127.0.0.1:18471/hooks/till with the JSON body {body}"),"policy":"automatic","evidence":format!("Send that summary in one POST to http://127.0.0.1:18471/hooks/till with the JSON body {body}"),"policy_literal":null},
+        {"verb":"write","target":"./out/till.json","policy":"automatic","evidence":"write the same object to ./out/till.json","policy_literal":null}],
+      "obligations":[],"bindings":[{"role":"path","literal":"./till.csv"},{"role":"url","literal":"http://127.0.0.1:18471/hooks/till"},{"role":"path","literal":"./out/till.json"}],
+      "constraints":[],"unknowns":[],"trigger":null,"strategy":"cold",
+      "rules":[{"text":compute,"clauses":[],"junction":"and","summary":false,
+                "shape":{"group_by":null,
+                         "aggregations":[{"field":null,"op":"count","name":"tickets","round":null},
+                                         {"field":"amount_cents","op":"sum","name":"total_cents","round":null}],
+                         "sort_by":null,"descending":false,"columns":[],"derived":[]}}]})
+}
+
+#[test]
+fn a_body_whose_keys_the_request_states_is_those_keys_over_produced_values() {
+    let out = replay(TILL, &till_record("{tickets, total_cents}"), &[]);
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    let doc = document(&out);
+    assert!(doc.get("inputs").is_none(), "{doc:#}");
+    assert_eq!(
+        tasks(&doc)["send_payload"]["invoke"]["args"]["expression"],
+        r#"{"tickets": .computed["tickets"], "total_cents": .computed["total_cents"]}"#,
+        "{doc:#}"
+    );
+    assert_eq!(
+        tasks(&doc)["send_payload"]["with"]["computed"],
+        "${{ tasks.compute.output }}"
+    );
+    assert_eq!(
+        tasks(&doc)["write_output"]["with"]["content"],
+        "${{ tasks.compute.output }}"
+    );
+    assert_eq!(
+        doc["outputs"]["total_cents"],
+        "${{ tasks.compute.output.total_cents }}"
+    );
+    // No stated keys: the payload names the action, its target and every fact, as before.
+    let out = replay(TILL_PLAIN, &till_record("of the summary"), &[]);
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    let expression = document(&out)["tasks"]["send_payload"]["invoke"]["args"]["expression"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert!(
+        expression.starts_with(r#"{action: "send", target: "#) && expression.ends_with("facts: .}"),
+        "{expression}"
+    );
+    // A key nothing produces is asked, never filled with an invented value.
+    let out = replay(TILL_CASHIER, &till_record("{tickets, cashier}"), &[]);
+    assert!(out.candidate.is_none(), "{out:#?}");
+    assert!(keys(&out).contains(&"intent.clarification"), "{out:#?}");
+    assert!(
+        out.diagnostics
+            .iter()
+            .any(|d| d.kind == DiagnosticKind::Unknown
+                && d.target == "send"
+                && d.message.contains("`cashier`")),
+        "{out:#?}"
+    );
+    // One key left and one drafted text: the body the request named after its content.
+    let intent = "Make a one-paragraph digest of ./notes.md and POST it to http://127.0.0.1:18471/hooks/digest with the JSON body {digest}.";
+    let record = json!({"operations":[
+        {"op":"read","detail":"./notes.md","evidence":"Make a one-paragraph digest of ./notes.md","categories":[]},
+        {"op":"draft","detail":"a one-paragraph digest","evidence":"Make a one-paragraph digest of ./notes.md","categories":[]}],
+      "effects":[{"verb":"send","target":"POST it to http://127.0.0.1:18471/hooks/digest with the JSON body {digest}","policy":"automatic","evidence":"POST it to http://127.0.0.1:18471/hooks/digest with the JSON body {digest}","policy_literal":null}],
+      "obligations":[],"bindings":[{"role":"path","literal":"./notes.md"},{"role":"url","literal":"http://127.0.0.1:18471/hooks/digest"}],
+      "constraints":[],"unknowns":[],"trigger":null,"strategy":"cold"});
+    let out = replay(intent, &record, &[MODEL]);
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert_eq!(
+        document(&out)["tasks"]["send_payload"]["invoke"]["args"]["expression"],
+        r#"{"digest": .draft}"#
+    );
+}
+
+// ── a trigger over the request's own material never declares an item ────────────
+// Two sealed seeds compiled READY and died at run time on a missing `inputs.item`: "once
+// all three are done" (a sequencing trigger over a read brief) and "pour chaque ligne de
+// niveau critique" (a per-row trigger over a read CSV) both declared an input no run could
+// supply. The item is the material of an invocation only when the request supplies none.
+const HEADLINE: &str = "Take the product brief in ./brief.md and write a formal headline (a single line, under 90 characters) to ./out/headline.txt. Once the brief is read, nothing else runs.";
+fn headline_record(trigger: Option<&str>) -> Value {
+    json!({"operations":[
+        {"op":"read","detail":"./brief.md","evidence":"Take the product brief in ./brief.md","categories":[]},
+        {"op":"draft","detail":"a formal headline (a single line, under 90 characters)","evidence":"write a formal headline (a single line, under 90 characters) to ./out/headline.txt","categories":[]}],
+      "effects":[{"verb":"write","target":"./out/headline.txt","policy":"automatic","evidence":"write a formal headline (a single line, under 90 characters) to ./out/headline.txt","policy_literal":null}],
+      "obligations":[],"bindings":[],"constraints":[],"unknowns":[],"trigger":trigger,"strategy":"cold"})
+}
+
+#[test]
+fn a_trigger_over_the_request_s_own_material_never_declares_an_item() {
+    let sequenced = replay(
+        HEADLINE,
+        &headline_record(Some("once the brief is read")),
+        &[MODEL],
+    );
+    assert_eq!(sequenced.status, CompileStatus::Ready, "{sequenced:#?}");
+    let doc = document(&sequenced);
+    assert!(doc.get("inputs").is_none(), "{doc:#}");
+    let prompt = tasks(&doc)["draft"]["infer"]["prompt"].as_str().unwrap();
+    assert!(!prompt.contains("inputs.item"), "{prompt}");
+    // Metamorphic pair: the sequencing trigger changes nothing in the emitted source.
+    let plain = replay(HEADLINE, &headline_record(None), &[MODEL]);
+    assert_eq!(sequenced.candidate, plain.candidate);
+    // No material of its own: the item IS the material, as before.
+    let intent = "For each incoming brief, write a formal headline to ./out/headline.txt.";
+    let record = json!({"operations":[
+        {"op":"draft","detail":"a formal headline","evidence":"write a formal headline to ./out/headline.txt","categories":[]}],
+      "effects":[{"verb":"write","target":"./out/headline.txt","policy":"automatic","evidence":"write a formal headline to ./out/headline.txt","policy_literal":null}],
+      "obligations":[],"bindings":[],"constraints":[],"unknowns":[],"trigger":"For each incoming brief","strategy":"cold"});
+    let per_item = replay(intent, &record, &[MODEL]);
+    assert_eq!(per_item.status, CompileStatus::Ready, "{per_item:#?}");
+    let doc = document(&per_item);
+    assert_eq!(doc["inputs"]["item"]["required"], true, "{doc:#}");
+}
+
+// ── an outbound effect repeated per item is asked, never sent once in silence ───
+const ALERTS: &str = "Read ./alerts.csv (columns id,level,message). For each critical row, send a POST to http://127.0.0.1:18471/hooks with a JSON body {id, message}, one request per alert, nothing for the other levels. At the end write ./out/sent.json: the array of the ids sent, in file order.";
+const ALERTS_FOLD: &str = "Read ./alerts.csv (columns id,level,message). For each row, compute whether it is critical. Then send one POST to http://127.0.0.1:18471/hooks with the critical rows as a JSON body and write ./out/sent.json with their ids.";
+const RULE_CRITICAL: (&str, &str) = (
+    "const.rule_expression",
+    r#"".records | map(select(.level == \"critical\"))""#,
+);
+fn alerts_record(intent: &str, compute: &str, send: &str, trigger: &str) -> Value {
+    json!({"operations":[
+        {"op":"read","detail":"./alerts.csv","evidence":"Read ./alerts.csv (columns id,level,message)","categories":[]},
+        {"op":"compute","detail":"critical","evidence":compute,"categories":[]}],
+      "effects":[
+        {"verb":"send","target":"a POST to http://127.0.0.1:18471/hooks","policy":"automatic","evidence":send,"policy_literal":null},
+        {"verb":"write","target":"./out/sent.json","policy":"automatic","evidence":"write ./out/sent.json","policy_literal":null}],
+      "obligations":[],"bindings":[{"role":"path","literal":"./alerts.csv"},{"role":"url","literal":"http://127.0.0.1:18471/hooks"},{"role":"path","literal":"./out/sent.json"}],
+      "constraints":[],"unknowns":[],"trigger":trigger,"strategy":"cold",
+      "intent_check": intent.contains(send)})
+}
+
+#[test]
+fn an_outbound_effect_repeated_per_item_of_a_read_source_is_asked_never_sent_once() {
+    let record = alerts_record(
+        ALERTS,
+        "For each critical row",
+        "send a POST to http://127.0.0.1:18471/hooks with a JSON body {id, message}, one request per alert",
+        "For each critical row",
+    );
+    let out = replay(ALERTS, &record, &[RULE_CRITICAL]);
+    assert!(out.candidate.is_none(), "{out:#?}");
+    assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
+    assert!(keys(&out).contains(&"intent.clarification"), "{out:#?}");
+    assert!(
+        out.diagnostics
+            .iter()
+            .any(|d| d.kind == DiagnosticKind::Unknown
+                && d.target == "send"
+                && d.message.contains("once per item")
+                && d.message.contains("For each critical row")),
+        "{out:#?}"
+    );
+    // The effect a later sentence states applies to the whole result: one POST, no item,
+    // no clarification. The distributive trigger over the rows stays a trigger.
+    let folded = alerts_record(
+        ALERTS_FOLD,
+        "For each row, compute whether it is critical",
+        "send one POST to http://127.0.0.1:18471/hooks with the critical rows as a JSON body",
+        "For each row",
+    );
+    let out = replay(ALERTS_FOLD, &folded, &[RULE_CRITICAL]);
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    let doc = document(&out);
+    assert!(doc.get("inputs").is_none(), "{doc:#}");
+    assert_eq!(
+        tasks(&doc)["send"]["invoke"]["tool"],
+        "nika:fetch",
+        "{doc:#}"
+    );
+    assert_eq!(tasks(&doc)["send"]["invoke"]["args"]["method"], "POST");
+    assert_eq!(
+        doc["const"]["send_endpoint"],
+        "http://127.0.0.1:18471/hooks"
+    );
+    assert_eq!(
+        tasks(&doc)["write_output"]["with"]["content"],
+        "${{ tasks.compute.output }}"
+    );
+}
+
+// ── distinct files bound to one drafted text are asked, never duplicated ────────
+// The sealed "three headline variants, one per tone" seed drafted once and wrote the same
+// body to three files; the run would have been green on wrong content.
+const VARIANTS: &str = "Take the product brief in ./brief.md and write three headline variants, one per tone: formal, playful and urgent, each to its own file ./out/headline-formal.txt, ./out/headline-playful.txt and ./out/headline-urgent.txt.";
+fn variants_record() -> Value {
+    json!({"operations":[
+        {"op":"read","detail":"./brief.md","evidence":"Take the product brief in ./brief.md","categories":[]},
+        {"op":"draft","detail":"three headline variants, one per tone: formal, playful and urgent","evidence":"write three headline variants, one per tone: formal, playful and urgent","categories":[]}],
+      "effects":[
+        {"verb":"write","target":"./out/headline-formal.txt","policy":"automatic","evidence":"each to its own file ./out/headline-formal.txt","policy_literal":null},
+        {"verb":"write","target":"./out/headline-playful.txt","policy":"automatic","evidence":"./out/headline-playful.txt","policy_literal":null},
+        {"verb":"write","target":"./out/headline-urgent.txt","policy":"automatic","evidence":"./out/headline-urgent.txt","policy_literal":null}],
+      "obligations":[],"bindings":[],"constraints":[],"unknowns":[],"trigger":null,"strategy":"cold"})
+}
+
+#[test]
+fn distinct_files_bound_to_one_drafted_text_are_asked_never_duplicated() {
+    let out = replay(VARIANTS, &variants_record(), &[MODEL]);
+    assert!(out.candidate.is_none(), "{out:#?}");
+    assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
+    assert!(keys(&out).contains(&"intent.clarification"), "{out:#?}");
+    assert!(
+        out.diagnostics
+            .iter()
+            .any(|d| d.kind == DiagnosticKind::Unknown
+                && d.message.contains("./out/headline-formal.txt")
+                && d.message.contains("./out/headline-playful.txt")
+                && d.message.contains("same drafted text")),
+        "{out:#?}"
+    );
+    // Two renderings of one computed result (JSON and CSV) are not a duplicate.
+    let intent = "Read ./data/orders.csv, keep only the rows whose amount is strictly greater than 100, and write those rows to ./out/big.json and to ./out/big.csv.";
+    let record = json!({"operations":[
+        {"op":"read","detail":"./data/orders.csv","evidence":"Read ./data/orders.csv","categories":[]},
+        {"op":"compute","detail":"keep only the rows whose amount is strictly greater than 100","evidence":"keep only the rows whose amount is strictly greater than 100","categories":[]}],
+      "effects":[
+        {"verb":"write","target":"./out/big.json","policy":"automatic","evidence":"write those rows to ./out/big.json","policy_literal":null},
+        {"verb":"write","target":"./out/big.csv","policy":"automatic","evidence":"to ./out/big.csv","policy_literal":null}],
+      "obligations":[],"bindings":[],"constraints":[],"unknowns":[],"trigger":null,"strategy":"cold"});
+    let out = replay(intent, &record, &[RULE]);
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    let doc = document(&out);
+    assert_eq!(
+        tasks(&doc)["write_output"]["with"]["content"],
+        "${{ tasks.compute.output }}",
+        "{doc:#}"
+    );
+    assert_eq!(
+        tasks(&doc)["write_big"]["with"]["content"],
+        "${{ tasks.big_csv.output }}"
+    );
+}
+
 // ── a structured destination receives its format, not JSON ─────────────────────
 // The control (case a) wrote the computed JSON array into ./out/big_orders.csv. A .csv,
 // .yaml or .toml destination whose content is data gets a nika:convert stage feeding

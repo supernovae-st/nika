@@ -13,10 +13,11 @@
 //!
 //! The corpus is what the steps consume. A read file, a fetched page or a
 //! looked-up record is the material; an incoming `item` input exists only when
-//! the request is invoked per item (a trigger) or supplies no other material.
-//! Every anchor law checks against that whole corpus. Several files are a
+//! the request supplies no other material (a trigger over a corpus never declares
+//! one). Every anchor law checks against that whole corpus. Several files are a
 //! bounded fan-out folded into one document; a glob is expanded first; every
-//! write effect is its own task bound to the nearest upstream result.
+//! write effect is its own task bound to the nearest upstream result, and two
+//! destinations never receive the same produced content in silence.
 
 use super::bindings::{self, Bindings, Need, RuleBinding, Source, WriteEffect};
 use super::paths::{self, Structured};
@@ -60,6 +61,9 @@ struct Doc {
     source_columns: bool,
     /// The columns a typed computation writes, when it fixes them (a grouping, a projection).
     computed_columns: Option<Vec<String>>,
+    /// The names a typed computation produces as totals over every row (`tickets`,
+    /// `total_cents`): the keys an outbound payload may name.
+    totals: Vec<String>,
 }
 
 impl Doc {
@@ -80,6 +84,7 @@ impl Doc {
             item,
             source_columns: false,
             computed_columns: None,
+            totals: Vec::new(),
         }
     }
     /// A task id not yet taken: a second draft is `draft_2`, never a silent overwrite of the
@@ -312,7 +317,7 @@ pub(super) fn assemble(
         &recognized.iter().map(String::as_str).collect(),
         out,
     );
-    if !b.ready(plan) {
+    if repeated_effect_asked(plan, intent, &b, out) || !b.ready(plan) {
         return Ok(());
     }
     if plan.obligation("revision_check") && matches!(b.lookup, Need::Absent) {
@@ -343,7 +348,9 @@ pub(super) fn assemble(
     if !emit_writes(&mut d, &b.writes, out) {
         return Ok(());
     }
-    emit_endpoints(&mut d, &b);
+    if !emit_endpoints(&mut d, &b, out) {
+        return Ok(());
+    }
     if b.dedup.bound().is_some() {
         d.tool("dedup_next", "nika:jq", json!({"input": {"state": "${{ with.state }}", "id": "${{ inputs.event_id }}"}, "expression": ". as $r | (($r.state | fromjson) + [$r.id]) | tojson"}), Some(json!({"state": "${{ tasks.dedup_read.output }}"})), true);
         d.tool("dedup_record", "nika:write", json!({"path": "${{ const.state_file }}", "content": "${{ with.next }}", "overwrite": true, "create_dirs": true}), Some(json!({"next": "${{ tasks.dedup_next.output }}"})), false);
@@ -362,6 +369,38 @@ pub(super) fn assemble(
     }
     out.provenance.decision = Some(decision);
     emit(d, out)
+}
+
+/// An outbound effect the request repeats per item of its own corpus is not yet compiled
+/// (one workflow performs one outbound effect): it is asked, never performed once in
+/// silence and never given a phantom `inputs.item`.
+fn repeated_effect_asked(
+    plan: &Plan,
+    intent: &str,
+    b: &Bindings,
+    out: &mut CompileOutcome,
+) -> bool {
+    let Some(effect) = b.repeated_effect(plan, intent) else {
+        return false;
+    };
+    let trigger = plan.trigger.as_deref().unwrap_or_default().trim();
+    super::finding(
+        out,
+        DiagnosticKind::Unknown,
+        effect.verb.word(),
+        format!(
+            "The request repeats `{}` once per item (`{trigger}`, {}), but a compiled workflow performs an outbound effect once over the whole result; a per-item effect is not built yet. Name the one effect over the selected items, or one request per item.",
+            effect.verb.word(),
+            effect.evidence.trim()
+        ),
+    );
+    super::question(
+        out,
+        "intent.clarification",
+        "Supply a complete replacement request that performs the effect once over the selected items, or one request per item. It explicitly replaces the earlier intent.",
+        QuestionType::Text,
+    );
+    true
 }
 
 /// Refusals and human-only regions come first: nothing below them is assembled.
@@ -766,6 +805,7 @@ fn emit_synthesized_rule(d: &mut Doc, plan: &Plan, rule: &super::rules::Rule) {
         true,
     );
     d.computed_columns = rule.output_columns();
+    d.totals = rule.totals_names();
     emit_computed(d, plan, rule.summary());
     // Totals over every row are the outputs the request named, one by one.
     for name in rule.totals_names() {
@@ -1002,6 +1042,23 @@ fn emit_revision_check(d: &mut Doc, plan: &Plan, b: &Bindings) {
 /// data as JSON; a prose destination takes text. A write with nothing upstream is a
 /// finding, never an invented input. Returns false when a write could not be bound.
 fn emit_writes(d: &mut Doc, writes: &[WriteEffect], out: &mut CompileOutcome) -> bool {
+    if let Some((first, second, name)) = duplicated_content(d, writes) {
+        super::finding(
+            out,
+            DiagnosticKind::Unknown,
+            &format!("write_{}", paths::stem(second)),
+            format!(
+                "`{first}` and `{second}` would receive the same {name}: the request names distinct content for each file, but one step produces it. Name the one file that content goes to, or one request per file."
+            ),
+        );
+        super::question(
+            out,
+            "intent.clarification",
+            "Supply a complete replacement request that names one file per produced content, or one request per file. It explicitly replaces the earlier intent.",
+            QuestionType::Text,
+        );
+        return false;
+    }
     for (index, effect) in writes.iter().enumerate() {
         let Some((name, mut content)) = d
             .content_fact(&effect.path)
@@ -1085,10 +1142,123 @@ fn emit_writes(d: &mut Doc, writes: &[WriteEffect], out: &mut CompileOutcome) ->
     true
 }
 
-/// A POST to an explicit endpoint, with its payload and, when gated, its review.
-fn emit_endpoints(d: &mut Doc, b: &Bindings) {
+/// Two distinct destinations of one class (prose, or the same structured format) bound to
+/// the same produced fact would receive identical content: the request named a file per
+/// content and one step produced one. A JSON and a CSV destination of one computed result
+/// are two renderings, not a duplicate. Returns (first path, second path, what they share).
+fn duplicated_content<'a>(
+    d: &Doc,
+    writes: &'a [WriteEffect],
+) -> Option<(&'a str, &'a str, String)> {
+    let mut seen: Vec<(&str, Option<Structured>, &'a str)> = Vec::new();
+    for effect in writes {
+        let Some(fact) = d.content_fact(&effect.path) else {
+            continue;
+        };
+        let class = Structured::of(&effect.path);
+        if let Some((_, _, first)) = seen
+            .iter()
+            .find(|(template, seen_class, _)| *template == fact.template && *seen_class == class)
+        {
+            let name = match fact.name {
+                "draft" => "drafted text".to_owned(),
+                other => format!("produced `{other}` result"),
+            };
+            return Some((first, effect.path.as_str(), name));
+        }
+        seen.push((fact.template.as_str(), class, effect.path.as_str()));
+    }
+    None
+}
+
+/// The JSON body keys a request states as a brace list (`{tickets, total_cents}`): bare
+/// identifiers, comma-separated, inside the one pair of braces of the effect's own words.
+/// Anything else inside braces (a placeholder, prose, a nested object) is not a key list.
+fn payload_keys(text: &str) -> Option<Vec<String>> {
+    let open = text.find('{')?;
+    let close = open + 1 + text.get(open + 1..)?.find('}')?;
+    let keys: Vec<String> = text
+        .get(open + 1..close)?
+        .split(',')
+        .map(|key| key.trim().trim_matches(['"', '\'', '`']).to_owned())
+        .collect();
+    let identifier = |key: &str| {
+        !key.is_empty()
+            && key.chars().all(|c| c.is_alphanumeric() || c == '_')
+            && !key.chars().all(|c| c.is_ascii_digit())
+    };
+    (!keys.is_empty() && keys.iter().all(|key| identifier(key))).then_some(keys)
+}
+
+/// The jq object that fills the stated keys from produced values: a total the typed
+/// computation produced under that name, a fact of that name, or, for one key left, the
+/// one drafted text (the body the request named after its content). A key nothing
+/// produces is returned as the error: nothing is invented into a payload.
+fn payload_expression(d: &Doc, keys: &[String]) -> Result<String, String> {
+    let prose: Vec<&str> = d
+        .facts
+        .iter()
+        .filter(|f| f.kind == Kind::Derived && matches!(f.name, "draft" | "exploration"))
+        .map(|f| f.name)
+        .collect();
+    let mut entries = Vec::new();
+    let mut unresolved = Vec::new();
+    for key in keys {
+        if d.totals.iter().any(|name| name == key) {
+            entries.push(format!("{}: .computed[{}]", json!(key), json!(key)));
+        } else if d.facts.iter().any(|f| f.name == key) {
+            entries.push(format!("{}: .{key}", json!(key)));
+        } else {
+            unresolved.push(key.as_str());
+        }
+    }
+    if let ([key], [text]) = (unresolved.as_slice(), prose.as_slice()) {
+        entries.push(format!("{}: .{text}", json!(key)));
+        unresolved.clear();
+    }
+    match unresolved.first() {
+        Some(key) => Err((*key).to_owned()),
+        None => Ok(format!("{{{}}}", entries.join(", "))),
+    }
+}
+
+/// A POST to an explicit endpoint, with its payload and, when gated, its review. A body
+/// whose keys the request states is exactly those keys over produced values; otherwise the
+/// payload names the action, its target and every fact. Returns false when a stated key
+/// names nothing the workflow produces (a finding and a question, never an invented value).
+fn emit_endpoints(d: &mut Doc, b: &Bindings, out: &mut CompileOutcome) -> bool {
     for effect in &b.wired {
         let slug = &effect.slug;
+        let expression = match payload_keys(&effect.target)
+            .or_else(|| payload_keys(&effect.evidence))
+        {
+            Some(keys) => match payload_expression(d, &keys) {
+                Ok(expression) => expression,
+                Err(key) => {
+                    super::finding(
+                        out,
+                        DiagnosticKind::Unknown,
+                        slug,
+                        format!(
+                            "The body of `{}` names the key `{key}`, but no step produces a value of that name; a payload never carries an invented value. Name the operation that produces `{key}`, or drop the key.",
+                            effect.verb.word()
+                        ),
+                    );
+                    super::question(
+                        out,
+                        "intent.clarification",
+                        "Supply a complete replacement request that names what each key of the body contains. It explicitly replaces the earlier intent.",
+                        QuestionType::Text,
+                    );
+                    return false;
+                }
+            },
+            None => format!(
+                "{{action: {}, target: {}, facts: .}}",
+                json!(effect.verb.word()),
+                json!(effect.target.trim())
+            ),
+        };
         d.root["const"][format!("{slug}_endpoint")] = effect.endpoint.clone();
         if let Some(policy) = &effect.policy {
             d.root["const"][format!("{slug}_policy")] = policy.clone();
@@ -1096,7 +1266,13 @@ fn emit_endpoints(d: &mut Doc, b: &Bindings) {
         if !d.hosts.contains(&effect.host) {
             d.hosts.push(effect.host.clone());
         }
-        d.tool(&format!("{slug}_payload"), "nika:jq", json!({"input": d.jq_input(), "expression": format!("{{action: {}, target: {}, facts: .}}", json!(effect.verb.word()), json!(effect.target.trim()))}), Some(d.with_all()), true);
+        d.tool(
+            &format!("{slug}_payload"),
+            "nika:jq",
+            json!({"input": d.jq_input(), "expression": expression}),
+            Some(d.with_all()),
+            true,
+        );
         let mut with = json!({"payload": format!("${{{{ tasks.{slug}_payload.output }}}}")});
         if effect.gated {
             let policy_text = effect
@@ -1133,6 +1309,7 @@ fn emit_endpoints(d: &mut Doc, b: &Bindings) {
         d.root["outputs"][format!("{slug}_status")] =
             json!(format!("${{{{ tasks.{slug}.status }}}}"));
     }
+    true
 }
 
 /// Permits and emission: exactly what the tasks reach, then the literal round trip.
