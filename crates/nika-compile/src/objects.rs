@@ -92,6 +92,63 @@ pub(super) fn destination_target(text: &str) -> &str {
     }
 }
 
+/// The destinations of one write clause, in order, when it names several: "the bugs to
+/// ./bugs.json and the features to ./features.json" → `("the bugs", "./bugs.json", "the
+/// bugs to ./bugs.json")` then `("the features", "./features.json", "the features to
+/// ./features.json")`. Every segment is a verbatim span of the detail: an object, a
+/// destination connector, one path. One destination, or a destination with no object before
+/// it, is not a split.
+pub(super) fn write_segments(detail: &str) -> Vec<(String, String, String)> {
+    let lower = detail.to_lowercase();
+    if lower.len() != detail.len() {
+        return Vec::new();
+    }
+    let mut paths: Vec<(usize, usize)> = Vec::new();
+    let mut cursor = 0;
+    for word in detail.split_whitespace() {
+        let Some(found) = detail.get(cursor..).and_then(|rest| rest.find(word)) else {
+            break;
+        };
+        let start = cursor + found;
+        cursor = start + word.len();
+        let core = word.trim_end_matches(['.', ',', ';', ')', ':']);
+        let is_path = (core.starts_with("./") || (core.starts_with('/') && core.contains('.')))
+            && core.len() > 2;
+        if is_path {
+            paths.push((start, start + core.len()));
+        }
+    }
+    if paths.len() < 2 {
+        return Vec::new();
+    }
+    let mut segments = Vec::new();
+    let mut from = 0;
+    for (start, end) in paths {
+        let Some(span) = detail.get(from..end) else {
+            return Vec::new();
+        };
+        let segment = as_clause(span);
+        let Some(segment_lower) = lower.get(end - segment.len()..end) else {
+            return Vec::new();
+        };
+        let path_at = segment.len() - (end - start);
+        let Some(pos) = destination_at(segment_lower, path_at) else {
+            return Vec::new();
+        };
+        let object = segment.get(..pos).unwrap_or_default().trim();
+        if object.is_empty() {
+            return Vec::new();
+        }
+        segments.push((
+            object.to_owned(),
+            detail.get(start..end).unwrap_or_default().to_owned(),
+            segment.to_owned(),
+        ));
+        from = end;
+    }
+    segments
+}
+
 /// Whether a target carries a literal (a path, a URL or an address).
 pub(super) fn has_literal(target: &str) -> bool {
     target.split_whitespace().any(|w| {
@@ -180,6 +237,39 @@ pub(super) fn folds(object_lower: &str) -> bool {
     super::shape::fold(object_lower)
         .split(|c: char| !c.is_alphanumeric() && c != '-')
         .any(|w| FOLD_WORDS.contains(&w))
+}
+
+/// Words that name the result of a classification ("the category", "la catégorie", "the
+/// label"), diacritics folded: after a classify step, such an object is that result.
+const CLASSIFICATION_WORDS: &[&str] = &[
+    "category",
+    "categories",
+    "categorie",
+    "categoria",
+    "categorias",
+    "categorie",
+    "kategorie",
+    "kategorien",
+    "classification",
+    "classifications",
+    "classificazione",
+    "clasificacion",
+    "klassifizierung",
+    "label",
+    "labels",
+    "etiquette",
+    "etiquettes",
+    "etiqueta",
+    "etiquetas",
+    "etichetta",
+    "etichette",
+];
+
+/// Whether an object names the result of a classification ("the category").
+pub(super) fn names_classification(object_lower: &str) -> bool {
+    super::shape::fold(object_lower)
+        .split(|c: char| !c.is_alphanumeric() && c != '-')
+        .any(|w| CLASSIFICATION_WORDS.contains(&w))
 }
 
 /// Does the object of a write refer back to something already in the request, or does it
@@ -275,6 +365,11 @@ pub(super) fn refers_back<'a>(object_lower: &str, earlier: impl Iterator<Item = 
         .last()
         .copied()
         .unwrap_or(first);
+    // A plural head refers back to its singular ("the bugs" after "bug or feature").
+    let head = head
+        .strip_suffix('s')
+        .filter(|_| head.len() > 3 && !head.ends_with("ss"))
+        .unwrap_or(head);
     let stem: String = head.chars().take(4).collect();
     if stem.chars().count() < 3 {
         return false;

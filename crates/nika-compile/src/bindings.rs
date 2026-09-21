@@ -106,6 +106,9 @@ pub(super) struct WriteEffect {
     pub path: String,
     pub gated: bool,
     pub target: String,
+    /// The one classify category the write's clause names ("the bugs to ./bugs.json"):
+    /// the write carries the records routed to it.
+    pub category: Option<String>,
 }
 
 /// The settled bindings of one plan.
@@ -131,6 +134,9 @@ pub(super) struct Bindings {
     /// order: a draft the request distributes over the files, an extract whose fields it
     /// scopes to each item.
     pub per_item: Vec<Op>,
+    /// The classify runs once per parsed record of one structured source: the request
+    /// classifies each record, and a write naming a category carries its records.
+    pub classify_per_record: bool,
 }
 
 impl Bindings {
@@ -154,6 +160,7 @@ impl Bindings {
     /// payload or a structured write consumes the parsed records; a prompt never does.
     pub(super) fn parses(&self) -> bool {
         !matches!(self.rule, Need::Absent)
+            || self.classify_per_record
             || !self.wired.is_empty()
             || self
                 .writes
@@ -342,6 +349,8 @@ pub(super) fn bind(
     if fan_out && shape::per_item_extract(plan) {
         per_item.push(Op::Extract);
     }
+    let classify_per_record = matches!(&read, Need::Bound(Source::File(path)) if Structured::of(path).is_some())
+        && shape::per_record_classify(plan);
     if per_item.contains(&Op::Draft) {
         for constraint in &plan.constraints {
             if shape::structural(constraint) && !consumed.contains(constraint) {
@@ -364,6 +373,7 @@ pub(super) fn bind(
         max_parallel,
         item,
         per_item,
+        classify_per_record,
     };
     b.rule = Need::from_step(plan.step(Op::Compute), |step| {
         // A rule the request states over a parsed source is code the compiler writes;
@@ -748,11 +758,15 @@ fn bind_effects(
                 existing.gated |= gated;
                 continue;
             }
+            let category = plan
+                .step(Op::Classify)
+                .and_then(|s| category_named(&s.categories, &effect.evidence));
             b.writes.push(WriteEffect {
                 stem: paths::stem(&path),
                 path,
                 gated,
                 target: effect.target.clone(),
+                category,
             });
             continue;
         }
@@ -768,6 +782,32 @@ fn bind_effects(
             }),
             None => b.effects_pending = true,
         }
+    }
+}
+
+/// The one category of a classify step that a write's clause names ("the bugs to
+/// ./bugs.json" names `bug`), singular or plural; none when the clause names none or
+/// several of them.
+fn category_named(categories: &[String], text: &str) -> Option<String> {
+    let folded = shape::fold(text);
+    let words: Vec<&str> = folded
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|w| !w.is_empty())
+        .collect();
+    let named: Vec<&String> = categories
+        .iter()
+        .filter(|category| {
+            let c = shape::fold(category);
+            words.iter().any(|w| {
+                *w == c
+                    || w.strip_suffix('s') == Some(c.as_str())
+                    || w.strip_suffix("es") == Some(c.as_str())
+            })
+        })
+        .collect();
+    match named.as_slice() {
+        [only] => Some((*only).clone()),
+        _ => None,
     }
 }
 
@@ -921,6 +961,7 @@ fn bind_named_outputs(
                 target: path.clone(),
                 path,
                 gated: false,
+                category: None,
             }),
             Some(Value::Bool(false)) => super::finding(
                 out,
