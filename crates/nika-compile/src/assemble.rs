@@ -941,7 +941,7 @@ fn emit_classify_per_record(d: &mut Doc, guide: &str, step: &Step) {
         },
         guide,
     );
-    let node = json!({"with": {"records": records}, "for_each": {"items": "${{ with.records }}", "fail_fast": true}, "timeout": INFER_TIMEOUT, "infer": {"max_tokens": 400, "prompt": prompt, "schema": {"type": "object", "additionalProperties": false, "required": ["category"], "properties": {"category": category_schema(step)}}}});
+    let node = json!({"with": {"records": records}, "for_each": {"items": "${{ with.records }}", "fail_fast": true}, "timeout": INFER_TIMEOUT, "infer": {"max_tokens": infer_cap(d, 400), "prompt": prompt, "schema": {"type": "object", "additionalProperties": false, "required": ["category"], "properties": {"category": category_schema(step)}}}});
     d.task("classify", node, true);
     d.fact("categories", "${{ tasks.classify.output }}", Kind::Derived);
     d.root["outputs"]["categories"] = json!("${{ tasks.classify.output }}");
