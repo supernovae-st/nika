@@ -175,9 +175,39 @@ pub(crate) fn status_error(
 ) -> ProviderError {
     let value = serde_json::from_slice::<serde_json::Value>(body).ok();
     let field = |name| value.as_ref()?.get("error")?.get(name)?.as_str();
+    // The Gemini API names its delay in the BODY (`google.rpc.RetryInfo`
+    // · `error.details[].retryDelay = "39s"`), not in a header — the
+    // backoff reads it through the same bounded parser as `Retry-After`.
+    // Its `status` (`RESOURCE_EXHAUSTED`) stands in for a `type` only when
+    // the body carries no `type`; the closed vocabulary still decides
+    // what survives.
+    let body_delay = value.as_ref().and_then(google_retry_delay);
+    let retry_after = retry_after.or(body_delay.as_deref());
     ProviderError::HttpResponse {
-        details: ProviderHttpError::new(status, field("code"), field("type"), retry_after),
+        details: ProviderHttpError::new(
+            status,
+            field("code"),
+            field("type").or_else(|| field("status")),
+            retry_after,
+        ),
     }
+}
+
+/// `error.details[].retryDelay` in Google's `<seconds>s` form, as the
+/// bare seconds the sanitized parser accepts.
+fn google_retry_delay(value: &serde_json::Value) -> Option<String> {
+    value
+        .get("error")?
+        .get("details")?
+        .as_array()?
+        .iter()
+        .find_map(|detail| {
+            detail
+                .get("retryDelay")?
+                .as_str()?
+                .strip_suffix('s')
+                .map(str::to_owned)
+        })
 }
 
 /// `gen_ai.system` attribution per canonical provider id.

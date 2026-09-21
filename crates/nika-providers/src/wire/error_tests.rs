@@ -50,6 +50,42 @@ fn transient_rate_limit_preserves_safe_evidence() {
 }
 
 #[test]
+fn gemini_names_its_delay_in_the_body_and_its_status_as_the_type() {
+    // The Gemini API sends no Retry-After header: google.rpc.RetryInfo
+    // rides the body. The backoff must read it, bounded like the header.
+    let body = br#"{"error":{"code":429,"message":"quota","status":"RESOURCE_EXHAUSTED",
+        "details":[{"@type":"type.googleapis.com/google.rpc.ErrorInfo","reason":"RATE_LIMIT_EXCEEDED"},
+                   {"@type":"type.googleapis.com/google.rpc.RetryInfo","retryDelay":"39s"}]}}"#;
+    let error = status_error(429, body, None, "gemini-2.5-flash");
+    let ProviderError::HttpResponse { details } = &error else {
+        panic!("{error:?}")
+    };
+    assert_eq!(details.status(), 429);
+    assert_eq!(details.retry_after(), Some("39"));
+    assert_eq!(details.retry_after_ms(), Some(39_000));
+    assert_eq!(details.error_type(), Some("RESOURCE_EXHAUSTED"));
+    assert_eq!(details.code(), None, "a numeric code is not an identifier");
+    assert!(error.is_transient());
+    // A header still wins over the body; a fractional delay parses; a
+    // hostile delay is dropped by the same bounded parser.
+    let with_header = status_error(429, body, Some("2"), "m");
+    let ProviderError::HttpResponse { details } = &with_header else {
+        panic!()
+    };
+    assert_eq!(details.retry_after_ms(), Some(2000));
+    let fractional = br#"{"error":{"details":[{"retryDelay":"0.750s"}]}}"#;
+    let ProviderError::HttpResponse { details } = status_error(429, fractional, None, "m") else {
+        panic!()
+    };
+    assert_eq!(details.retry_after_ms(), Some(750));
+    let hostile = br#"{"error":{"details":[{"retryDelay":"\r\nAuthorization: x"}]}}"#;
+    let ProviderError::HttpResponse { details } = status_error(429, hostile, None, "m") else {
+        panic!()
+    };
+    assert_eq!(details.retry_after(), None);
+}
+
+#[test]
 fn malformed_and_hostile_bodies_never_become_diagnostics() {
     for body in [
         "sk-secret-private-prompt",
