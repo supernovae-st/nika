@@ -92,7 +92,10 @@ impl Reading {
                 && step.detail.split(" ; ").all(|part| {
                     explicit_object(part) || self.plan.rules.iter().any(|r| r.text() == part.trim())
                 });
-            if !categorical && !ruled && !explicit_object(&step.detail) {
+            // An extract's object is the list of the fields to pull out: a list of short
+            // noun phrases is explicit, whatever its length.
+            let listed = step.op == Op::Extract && explicit_field_list(&step.detail);
+            if !categorical && !ruled && !listed && !explicit_object(&step.detail) {
                 why.push(format!(
                     "`{}` object is not explicit: {}",
                     step.op.word(),
@@ -217,7 +220,14 @@ fn written_object(
             .chain(reading.plan.steps.iter().map(|s| s.detail.as_str()));
         objects::refers_back(object_lower, earlier)
     };
-    if refers_back {
+    // A fold of pieces produced earlier ("the combined brief" after a draft of each one)
+    // refers back to those pieces; with nothing produced, it names new content.
+    let produced = reading
+        .plan
+        .steps
+        .iter()
+        .any(|s| matches!(s.op, Op::Draft | Op::Extract | Op::Compute | Op::Classify));
+    if refers_back || (produced && objects::folds(object_lower)) {
         return;
     }
     if Structured::of(path).is_some() {
@@ -278,6 +288,35 @@ fn explicit_object(detail: &str) -> bool {
         return !coordinated && content <= 6;
     }
     !coordinated && content <= 4
+}
+
+/// A list of the fields an extract pulls out ("the supplier, the date and the amount of each
+/// one", "le fournisseur, la date et le montant"): at least two items separated by commas or
+/// a conjunction, each a short noun phrase (one to three content tokens), no path, an
+/// optional distributive scope at the end. Coordination here enumerates, it does not
+/// compose.
+fn explicit_field_list(detail: &str) -> bool {
+    let lower = normalize(super::shape::without_distributive_tail(detail));
+    let listed = lower
+        .replace(" and ", ", ")
+        .replace(" et ", ", ")
+        .replace(" y ", ", ")
+        .replace(" e ", ", ")
+        .replace(" und ", ", ")
+        .replace(" & ", ", ");
+    let items: Vec<&str> = listed
+        .split(',')
+        .map(str::trim)
+        .filter(|item| !item.is_empty())
+        .collect();
+    items.len() >= 2
+        && items.iter().all(|item| {
+            let content = item
+                .split(|c: char| !c.is_alphanumeric() && c != '\'' && c != '-' && c != '_')
+                .filter(|t| !t.is_empty() && !ARTICLES.contains(t))
+                .count();
+            (1..=3).contains(&content) && !item.contains("./") && !item.contains("://")
+        })
 }
 
 fn normalize(text: &str) -> String {

@@ -127,15 +127,24 @@ pub(super) struct Bindings {
     /// Whether `inputs.item` is declared: the request is invoked per item, or it
     /// supplies no other material.
     pub item: bool,
-    /// The draft runs once per read item and is folded back in item order: the request
-    /// distributes its draft over the files of a fan-out.
-    pub per_item: bool,
+    /// The operations that run once per read item of a fan-out and fold back in item
+    /// order: a draft the request distributes over the files, an extract whose fields it
+    /// scopes to each item.
+    pub per_item: Vec<Op>,
 }
 
 impl Bindings {
     /// The corpus is several files read in a bounded fan-out.
     pub(super) fn fan_out(&self) -> bool {
         matches!(self.read, Need::Bound(Source::Files(_) | Source::Glob(_)))
+    }
+    /// The draft runs once per read item and is folded back in item order.
+    pub(super) fn draft_per_item(&self) -> bool {
+        self.per_item.contains(&Op::Draft)
+    }
+    /// The extract runs once per read item and folds into one record per item.
+    pub(super) fn extract_per_item(&self) -> bool {
+        self.per_item.contains(&Op::Extract)
     }
     /// Whether at least one effect waits on a human gate.
     pub(super) fn gated(&self) -> bool {
@@ -326,8 +335,14 @@ pub(super) fn bind(
     // The request distributes its draft over the files: the fan-in realizes the order
     // and the headings itself, so those instructions leave the prompts.
     let distributed = shape::per_item(intent, plan);
-    let per_item = distributed && fan_out && plan.has(Op::Draft);
-    if per_item {
+    let mut per_item = Vec::new();
+    if distributed && fan_out && plan.has(Op::Draft) {
+        per_item.push(Op::Draft);
+    }
+    if fan_out && shape::per_item_extract(plan) {
+        per_item.push(Op::Extract);
+    }
+    if per_item.contains(&Op::Draft) {
         for constraint in &plan.constraints {
             if shape::structural(constraint) && !consumed.contains(constraint) {
                 consumed.push(constraint.clone());

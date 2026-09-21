@@ -127,6 +127,61 @@ pub(super) fn mask_columns(lower: &str, columns: &[String]) -> String {
     out
 }
 
+/// Words that name a fold of pieces produced earlier ("the combined brief", "le résumé
+/// fusionné", "il riassunto unito"), diacritics folded: such an object refers back to the
+/// pieces a step produced, never to new content.
+const FOLD_WORDS: &[&str] = &[
+    "combined",
+    "merged",
+    "consolidated",
+    "assembled",
+    "concatenated",
+    "collated",
+    "aggregated",
+    "combine",
+    "combinee",
+    "combines",
+    "combinees",
+    "fusionne",
+    "fusionnee",
+    "fusionnes",
+    "fusionnees",
+    "regroupe",
+    "regroupee",
+    "regroupes",
+    "regroupees",
+    "consolide",
+    "consolidee",
+    "consolides",
+    "consolidees",
+    "combinado",
+    "combinada",
+    "combinados",
+    "combinadas",
+    "fusionado",
+    "fusionada",
+    "combinato",
+    "combinata",
+    "combinati",
+    "combinate",
+    "unito",
+    "unita",
+    "uniti",
+    "kombiniert",
+    "kombinierte",
+    "kombinierten",
+    "zusammengefuhrt",
+    "zusammengefuhrte",
+    "zusammengefasst",
+];
+
+/// Whether an object names a fold of pieces ("the combined brief").
+pub(super) fn folds(object_lower: &str) -> bool {
+    super::shape::fold(object_lower)
+        .split(|c: char| !c.is_alphanumeric() && c != '-')
+        .any(|w| FOLD_WORDS.contains(&w))
+}
+
 /// Does the object of a write refer back to something already in the request, or does it
 /// name new content the write demands? A pronoun or a generic result word refers back; so
 /// does a head noun that recurs in an earlier clause (`the count` after `count the tickets`).
