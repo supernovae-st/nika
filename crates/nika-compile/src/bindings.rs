@@ -793,9 +793,19 @@ fn bind_effects(
                 existing.gated |= gated;
                 continue;
             }
-            let category = plan
-                .step(Op::Classify)
-                .and_then(|s| category_named(&s.categories, &effect.evidence));
+            // The clause's prose names the category ("the bugs to ./bugs.json"), else the
+            // file's own name does ("them to ./bugs.json and ./features.json"): a stated
+            // literal, never the other file's name riding the same excerpt.
+            let prose = effect
+                .evidence
+                .split_whitespace()
+                .filter(|word| paths::token(word).is_none())
+                .collect::<Vec<_>>()
+                .join(" ");
+            let category = plan.step(Op::Classify).and_then(|s| {
+                category_named(&s.categories, &prose)
+                    .or_else(|| category_named(&s.categories, &paths::stem(&path)))
+            });
             b.writes.push(WriteEffect {
                 stem: paths::stem(&path),
                 path,
