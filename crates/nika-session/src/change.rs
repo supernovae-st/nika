@@ -401,7 +401,7 @@ impl ProjectChangeSet {
     /// BOUNDARY (everything before `tasks:` — the name, the model, the
     /// constants, the inputs, the permits, the outputs) and one line for the
     /// tasks; `/show` prints the exact bytes. The identity the consent
-    /// answers is still [`ProposalId::of`] the full preview.
+    /// answers is still [`crate::ProposalId::of`] the full preview.
     #[must_use]
     pub fn preview_condensed(&self) -> String {
         self.preview_with(false)
