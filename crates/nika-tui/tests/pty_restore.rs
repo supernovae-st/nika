@@ -299,7 +299,7 @@ fn a_pasted_yes_is_data_and_the_focus_switch_keeps_the_draft() {
     );
     session.send("\x1b").expect("Esc · back inline");
     answer_cursor_report(&mut session);
-    session.expect("nika ›").expect("the inline prompt is back");
+    expect_or_dump(&mut session, &tee, "nika ›", "the inline prompt is back");
     session.send("\x03\x03").expect("leave");
     let status = wait(&mut session);
     assert!(matches!(status, WaitStatus::Exited(_, 130)), "{status:?}");

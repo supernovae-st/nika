@@ -426,7 +426,7 @@ getrandom-02 = { package = "getrandom", version = "0.2" }  # nika-check-wasm L4 
 uuid     = { version = "1", features = ["v7", "v4", "serde"] }   # ADR-033 UUIDv7 IDs (nika-error L0) · v4 for nika:builtin nika:uuid
 clap     = { version = "4.5", features = ["derive"] }       # L4 CLI surface (completions + man derive from this tree)
 ratatui  = { version = "0.30", features = ["scrolling-regions"] }   # nika-tui L4 · the inline viewport with scroll regions (ADR-139)
-crossterm = { version = "0.29", features = ["event-stream", "bracketed-paste"] }   # nika-tui L4 · one async event stream · paste as data (ADR-139)
+crossterm = { version = "0.29", features = ["event-stream", "bracketed-paste"] }   # nika-tui L4 · one reader thread on poll slices · paste as data (ADR-139)
 ratatui-textarea = "0.9"   # nika-tui L4 · the composer spike behind a wrapper (ADR-139 · exit criterion written)
 clap_complete = "4.5"   # L4 CLI — shell completions generated from the clap tree (nika-cli spec §9)
 lsp-server = "0.10"      # nika-lsp L4 — sync stdio JSON-RPC message loop (rust-analyzer's · MIT)

@@ -124,17 +124,13 @@ enum Step {
 }
 
 impl Shell {
-    async fn drive(&mut self, broker: Broker) -> io::Result<Exit> {
-        let mut broker = Some(broker);
+    async fn drive(&mut self, mut broker: Broker) -> io::Result<Exit> {
         let opening = self.script.open();
         self.apply_all(opening)?;
         self.draw()?;
         loop {
-            let Some(live) = broker.as_mut() else {
-                return Ok(Exit::Closed);
-            };
-            let Some(event) = live.next().await else {
-                self.pause(&mut broker).await;
+            let Some(event) = broker.next().await else {
+                broker.stop();
                 return Ok(Exit::Closed);
             };
             let step = match event {
@@ -145,12 +141,13 @@ impl Shell {
                 }
                 UiEvent::Resize(cols, rows) => {
                     // The inline viewport recomputes its origin from a
-                    // cursor-position report: the stream must be paused
-                    // while the terminal answers.
+                    // cursor-position report: the reader parks while the
+                    // terminal answers.
                     self.state.size = (cols, rows);
-                    self.pause(&mut broker).await;
-                    self.screen.autoresize()?;
-                    broker = Some(Broker::start());
+                    broker.pause();
+                    let resized = self.screen.autoresize();
+                    broker.resume();
+                    resized?;
                     Step::Stay
                 }
                 UiEvent::FocusGained | UiEvent::FocusLost => Step::Stay,
@@ -160,13 +157,14 @@ impl Shell {
             };
             match step {
                 Step::Leave(exit) => {
-                    self.pause(&mut broker).await;
+                    broker.stop();
                     return Ok(exit);
                 }
                 Step::Switch(to) => {
-                    self.pause(&mut broker).await;
-                    self.switch(to)?;
-                    broker = Some(Broker::start());
+                    broker.pause();
+                    let switched = self.switch(to);
+                    broker.resume();
+                    switched?;
                 }
                 Step::Stay => {}
             }
@@ -174,15 +172,9 @@ impl Shell {
             // human never saw is not a result.
             self.draw()?;
             if self.state.quit {
-                self.pause(&mut broker).await;
+                broker.stop();
                 return Ok(Exit::Quit);
             }
-        }
-    }
-
-    async fn pause(&mut self, broker: &mut Option<Broker>) {
-        if let Some(live) = broker.take() {
-            live.stop().await;
         }
     }
 

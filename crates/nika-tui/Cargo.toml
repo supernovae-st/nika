@@ -25,7 +25,6 @@ ratatui          = { workspace = true }
 crossterm        = { workspace = true }
 ratatui-textarea = { workspace = true }
 tokio            = { workspace = true, features = ["sync", "signal", "time", "rt", "macros"] }
-futures-util     = { workspace = true }
 unicode-width    = "0.2"
 
 [dev-dependencies]

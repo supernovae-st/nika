@@ -5488,7 +5488,6 @@ version = "0.120.3"
 dependencies = [
  "crossterm",
  "expectrl",
- "futures-util",
  "ratatui",
  "ratatui-textarea",
  "tokio",

@@ -48,8 +48,8 @@ in a fixed order, a panic hook tested from a real PTY), OpenCode and Crush
 buffer's edges, a paste normalised as data), ratatui 0.30 (`Viewport::Inline`
 anchored on a cursor-position report, `Terminal::insert_before`, the
 `scrolling-regions` feature that spares the repaint, `try_init_with_options`
-without the alternate screen), crossterm 0.29 (`EventStream` behind one
-reader lock, bracketed paste, focus events, the kitty keyboard protocol
+without the alternate screen), crossterm 0.29 (one input reader behind one
+lock, bracketed paste, focus events, the kitty keyboard protocol
 probed), `ratatui-textarea` 0.9.2 (the maintained fork with word wrap; the
 original `tui-textarea` is frozen at ratatui 0.29).
 
@@ -86,16 +86,19 @@ original `tui-textarea` is frozen at ratatui 0.29).
    terminal (a pipe, a redirect, `TERM=dumb`): the CLI keeps its plain line
    loop there, byte for byte, with the existing PTY goldens.
 
-4. **One event broker, paused around every cursor-position query.** One
-   task polls crossterm's `EventStream` into one channel of typed events;
-   `SIGTERM` and a signalled `SIGINT` arrive on the same channel. Because
-   crossterm keeps one input reader behind a lock that the stream's thread
-   holds while it blocks, and because every inline viewport computation
-   (entry, resize, the switch back from focus) asks the terminal where the
-   cursor is, the broker is stopped (its stream really dropped) before such
-   a query and started again after. A spinner means work is active and
-   nothing else; the busy label is the session's own line, never a
-   percentage.
+4. **One event broker, parked around every cursor-position query.** One
+   thread reads the terminal in short `poll` slices into one channel of
+   typed events; `SIGTERM` and a signalled `SIGINT` arrive on the same
+   channel. Because crossterm keeps one input reader behind a lock, and
+   because every inline viewport computation (entry, resize, the switch
+   back from focus) asks the terminal where the cursor is within two
+   seconds, the reader parks before such a query and reads again after;
+   `pause` returns only once the thread has acknowledged. Not crossterm's
+   `EventStream`: its reader thread holds the lock while it blocks and
+   releases it some time after the stream is dropped, a window that made
+   the same PTY suite pass on macOS and fail on Linux. A spinner means work
+   is active and nothing else; the busy label is the session's own line,
+   never a percentage.
 
 5. **The composer: `ratatui-textarea` behind a wrapper.** The wrapper owns
    the meaning: `Enter` sends, `Alt+Enter` (or `Shift+Enter` · `Ctrl+J`)
