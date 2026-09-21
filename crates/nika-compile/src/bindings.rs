@@ -290,6 +290,16 @@ pub(super) fn parallel_bound(constraint: &str) -> Option<u32> {
     }
 }
 
+/// The paths the plan writes: a destination, never a source, even when a proposal names
+/// one in the read step (`Read ./caisse.csv ; write the object to ./out/caisse.json`).
+fn written_targets(plan: &Plan) -> Vec<String> {
+    plan.effects
+        .iter()
+        .filter(|e| e.verb == EffectVerb::Write)
+        .map(|e| e.target.trim().to_owned())
+        .collect()
+}
+
 /// Every binding the plan needs, answered or asked. Sources first, because the
 /// item and the rule's input shape depend on them.
 pub(super) fn bind(
@@ -320,14 +330,7 @@ pub(super) fn bind(
             answer(request, out, "const.source_url", URL_LABEL, true)
         }
     });
-    // A path the plan writes is a destination, never a source, even when a proposal names
-    // it in the read step (`Read ./caisse.csv ; write the object to ./out/caisse.json`).
-    let written: Vec<String> = plan
-        .effects
-        .iter()
-        .filter(|e| e.verb == EffectVerb::Write)
-        .map(|e| e.target.trim().to_owned())
-        .collect();
+    let written = written_targets(plan);
     let read = Need::from_step(plan.step(Op::Read), |step| {
         resolve_read(step, &written, request, out, recognized)
     });
