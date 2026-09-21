@@ -135,6 +135,22 @@ impl Profile {
         self.id != "deepseek" && self.wire.supports_response_format()
     }
 
+    /// Whether THIS seat honours native `response_format: json_schema` —
+    /// the provider answer refined by the catalog's per-model `json_mode`
+    /// (`Object` and `Unavailable` say no; `Schema` or an absent fact keeps
+    /// the family answer). The OpenAI-compatible wire reshapes a
+    /// `JsonSchema` request by the same fact (`wire::json_mode`), so a
+    /// caller that asks here and a caller that never asks both end on a
+    /// request the seat accepts.
+    #[must_use]
+    pub fn supports_response_format_for(&self, wire_model: &str) -> bool {
+        self.supports_response_format()
+            && !matches!(
+                nika_catalog::model_capabilities(self.id, wire_model).json_mode,
+                Some(nika_catalog::JsonMode::Object | nika_catalog::JsonMode::Unavailable)
+            )
+    }
+
     /// The execution-access class this profile runs over TODAY
     /// (D-2026-08-04-N1 · `model:` picks the intelligence, access the
     /// path) — the ONE derivation, shared with the trace emitter via

@@ -90,9 +90,14 @@ fn build_request(
     // servers (older llama.cpp/LocalAI builds) may 400 on unknown fields,
     // so it is gated to key-bearing (cloud) profiles. The profile id picks
     // the strict-schema normalization (openai's structured-output dialect).
+    // The seat's structured-output level is a catalog fact: a `json_schema`
+    // promise the seat cannot honour is reshaped BEFORE the body is built
+    // (`wire::json_mode` · DeepSeek refuses it with a 400 at the door).
+    let json_mode = nika_catalog::model_capabilities(rp.profile.id, &rp.wire_model).json_mode;
+    let req = super::json_mode::shape(req, json_mode);
     let body = request_body(
         &rp.wire_model,
-        req,
+        &req,
         stream,
         rp.profile.requires_key,
         rp.profile.id,
@@ -125,7 +130,7 @@ fn build_request(
     // calls always get one (per-provider default when undeclared · local
     // servers get minutes, not the 30s cloud default); streaming carries
     // only an explicit budget (the idle-read guard reaps stalls).
-    http_req.timeout = super::transport_deadline(&rp.profile, req, stream);
+    http_req.timeout = super::transport_deadline(&rp.profile, &req, stream);
     Ok(http_req)
 }
 

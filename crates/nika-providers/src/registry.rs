@@ -143,11 +143,14 @@ impl<H> ProviderRegistry<H> {
     pub fn supports_response_format(&self, model: &str) -> bool {
         model
             .split_once('/')
-            .and_then(|(provider_id, _)| {
+            .and_then(|(provider_id, rest)| {
                 let provider_id = crate::profile::canonical_provider(provider_id);
-                self.profiles.iter().find(|p| p.id == provider_id)
+                self.profiles
+                    .iter()
+                    .find(|p| p.id == provider_id)
+                    .map(|p| (p, rest))
             })
-            .is_some_and(Profile::supports_response_format)
+            .is_some_and(|(p, rest)| p.supports_response_format_for(p.resolve_model(rest)))
     }
 }
 
@@ -335,10 +338,11 @@ where
         self.profile.id
     }
 
-    /// The resolved provider's actual capability · delegates to the
-    /// wire-family source of truth ([`WireFormat::supports_response_format`]).
+    /// The resolved seat's actual capability · the wire-family answer
+    /// ([`WireFormat::supports_response_format`]) refined by the catalog's
+    /// per-model `json_mode` ([`Profile::supports_response_format_for`]).
     fn supports_response_format(&self) -> bool {
-        self.profile.supports_response_format()
+        self.profile.supports_response_format_for(&self.wire_model)
     }
 }
 

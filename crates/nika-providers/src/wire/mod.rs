@@ -11,6 +11,7 @@ pub(crate) mod anthropic;
 #[cfg(test)]
 mod error_tests;
 pub(crate) mod gemini;
+pub(crate) mod json_mode;
 pub(crate) mod mock;
 mod mock_schema;
 pub(crate) mod openai_compat;
