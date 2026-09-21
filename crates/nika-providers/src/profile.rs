@@ -430,6 +430,12 @@ fn unique_other_seat(canonical: &str, name: &str) -> Option<String> {
     {
         return None;
     }
+    // A model this seat PRICES is this seat's model, whatever another
+    // row's short list says: `openai/gpt-4o` is priced under openai and
+    // was refused as azure's because only azure's row listed it.
+    if nika_catalog::find_pricing_scoped(canonical, name).is_some() {
+        return None;
+    }
     let pasteable = nika_catalog::pasteable_for(name)?;
     let owner = pasteable.split_once('/')?.0;
     (owner != canonical).then_some(pasteable)
@@ -741,6 +747,12 @@ mod tests {
             !bare.why.contains("groq"),
             "repair must not dump groq next to xai: {}",
             bare.why
+        );
+        // A model the seat prices is the seat's own, even when only another
+        // provider's short list names it (openai prices gpt-4o; azure lists it).
+        assert!(
+            resolve_refusal("openai/gpt-4o").is_none_or(|r| !r.why.contains("served by")),
+            "a priced model is never a wrong seat"
         );
         let groq_wrong = resolve_refusal("groq/grok-3").expect("wrong seat is a refusal");
         assert!(
