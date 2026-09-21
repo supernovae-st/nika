@@ -21,6 +21,15 @@
 //!   model (the catalog knows) seated with `max_tokens` but no
 //!   `thinking:`: the reasoning share lives INSIDE that budget, and a
 //!   heavy think ends in a paid blank answer (NIKA-INFER-004 at run).
+//! - **tight reasoning cap** (`reasoning-cap`) — emitted by the
+//!   analyzer's `thinking` module (folded in `check()`): a catalog-known
+//!   reasoning seat — the envelope's, the task's, a templated seat's
+//!   declared default, or a `--model` override — under a legal but tight
+//!   `max_tokens` (256 ≤ cap < 4096): a long think truncates the visible
+//!   answer (a `schema:` task fails NIKA-INFER-002, a plain one is cut or
+//!   blank). The fix is `max_tokens: 4096` (what `nika compile` emits)
+//!   or a no-think variant. Silent under a declared budget or an
+//!   explicit `enabled: false`, and under the floor the refusal owns.
 //! - **unconsumed output** (`dead-spend`) — a pure `infer:` task whose
 //!   output no one reads (no task references it · not in `outputs:`):
 //!   every token it spends is dead spend.
@@ -119,7 +128,7 @@ use nika_schema::types::CaptureMode;
 #[non_exhaustive]
 pub struct Hint {
     /// The hint class — the closed set today: `cost` · `zero-cap` ·
-    /// `envelope-model` · `thinking-budget` · `dead-spend` ·
+    /// `envelope-model` · `thinking-budget` · `reasoning-cap` · `dead-spend` ·
     /// `typing` · `permits` · `strictness` · `schema-portability` ·
     /// `redundant-gate` · `retry-effects` ·
     /// `secrets-store` · `native-first` ·
