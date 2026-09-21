@@ -20,30 +20,6 @@ pub(super) struct Plan {
     pub operations: BTreeSet<Operation>,
 }
 
-pub(super) fn create(
-    intent: &str,
-    request: &CompileRequest,
-    out: &mut CompileOutcome,
-) -> Result<bool, CompileError> {
-    let plan = match resolve(intent) {
-        Ok(Some(plan)) => plan,
-        Ok(None) => return Ok(false),
-        Err(fragment) => {
-            super::finding(
-                out,
-                DiagnosticKind::Unknown,
-                "intent",
-                format!(
-                    "Unresolved support clause: {fragment}. No requested operation was dropped."
-                ),
-            );
-            return Ok(true);
-        }
-    };
-    assemble(&plan, request, out)?;
-    Ok(true)
-}
-
 pub(super) fn resolve(intent: &str) -> Result<Option<Plan>, String> {
     let text = intent.trim().trim_end_matches('.').to_lowercase();
     let text = text
@@ -112,7 +88,7 @@ const ENDPOINT_LABEL: &str = "Which HTTP endpoint accepts a refund POST with cus
 const POLICY_LABEL: &str = "What refund cap, currency and eligibility criteria must the human reviewer apply? Supply literal policy data; this is not approval to refund.";
 const POLICY_WHY: &str = "Refund eligibility and limits are business policy. Neither a model nor the compiler may invent them; an authoring answer does not approve a runtime proposal.";
 
-fn answer(
+pub(super) fn answer(
     request: &CompileRequest,
     out: &mut CompileOutcome,
     key: &str,
@@ -146,7 +122,7 @@ fn answer(
 
 /// A rejected answer keeps its stable question open, so a client driving the
 /// loop from `questions` can always resume with a corrected value.
-fn reject(out: &mut CompileOutcome, key: &str, label: &str, text: bool, why: &str) {
+pub(super) fn reject(out: &mut CompileOutcome, key: &str, label: &str, text: bool, why: &str) {
     super::finding(out, DiagnosticKind::Missed, key, why);
     super::question(
         out,
@@ -247,7 +223,7 @@ fn ask_policy(request: &CompileRequest, out: &mut CompileOutcome) -> Option<Valu
     policy
 }
 
-fn admit_directory(out: &mut CompileOutcome, directory: Value) -> Option<Value> {
+pub(super) fn admit_directory(out: &mut CompileOutcome, directory: Value) -> Option<Value> {
     if directory
         .as_str()
         .is_some_and(|path| path.chars().any(|c| matches!(c, '*' | '?' | '[' | ']')))
@@ -266,7 +242,7 @@ fn admit_directory(out: &mut CompileOutcome, directory: Value) -> Option<Value> 
 
 /// The compiler asks for an explicit provider: a bare model id would pass the
 /// source-only preview and be refused by the host Check as NIKA-PROVIDER.
-fn admit_model(out: &mut CompileOutcome, model: Value) -> Option<Value> {
+pub(super) fn admit_model(out: &mut CompileOutcome, model: Value) -> Option<Value> {
     let qualified = model.as_str().is_some_and(|s| {
         !s.chars().any(char::is_whitespace)
             && s.split_once('/')
@@ -285,7 +261,7 @@ fn admit_model(out: &mut CompileOutcome, model: Value) -> Option<Value> {
     Some(model)
 }
 
-fn admit_policy(out: &mut CompileOutcome, policy: Value) -> Option<Value> {
+pub(super) fn admit_policy(out: &mut CompileOutcome, policy: Value) -> Option<Value> {
     let empty = policy.as_str().is_none_or(|s| s.trim().is_empty())
         && policy.as_object().is_none_or(serde_json::Map::is_empty);
     if empty {
@@ -301,7 +277,7 @@ fn admit_policy(out: &mut CompileOutcome, policy: Value) -> Option<Value> {
     Some(policy)
 }
 
-fn admit_endpoint(out: &mut CompileOutcome, endpoint: &Value) -> Option<String> {
+pub(super) fn admit_endpoint(out: &mut CompileOutcome, endpoint: &Value) -> Option<String> {
     match endpoint_host(endpoint) {
         Ok(host) => Some(host),
         Err(why) => {
@@ -474,7 +450,7 @@ impl Assembly {
         self.doc["outputs"]["refund_status"] = json!("${{ tasks.refund.status }}");
     }
 }
-fn invoke(tool: &str, args: Value) -> Value {
+pub(super) fn invoke(tool: &str, args: Value) -> Value {
     let mut node = json!({"invoke":{"tool":tool}});
     node["invoke"]["args"] = args;
     node

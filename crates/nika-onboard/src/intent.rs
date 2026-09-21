@@ -101,59 +101,7 @@ pub(crate) const ALIASES: &[(&str, &[&str])] = &[
     ("incremental", &["state", "diff", "delta"]),
 ];
 
-/// Function words + Nika envelope keywords that carry zero routing signal —
-/// stripped from the query so an all-boilerplate `--from` (`the` · `workflow`
-/// · `template`) lists the set instead of spuriously routing (every template
-/// shares `workflow:`/`tasks:`/… so those terms separate nothing).
-pub(crate) const STOPWORDS: &[&str] = &[
-    "a",
-    "an",
-    "and",
-    "the",
-    "to",
-    "of",
-    "in",
-    "on",
-    "for",
-    "with",
-    "that",
-    "this",
-    "then",
-    "than",
-    "into",
-    "from",
-    "by",
-    "as",
-    "at",
-    "is",
-    "are",
-    "be",
-    "it",
-    "its",
-    "or",
-    "i",
-    "me",
-    "my",
-    "we",
-    "you",
-    "no",
-    "such",
-    "nika",
-    "workflow",
-    "model",
-    "vars",
-    "tasks",
-    "id",
-    "template",
-    "slot",
-    "kebab",
-    "case",
-    "do",
-    "stuff",
-    "thing",
-    "things",
-    "something",
-];
+pub(crate) use nika_compile::text::STOPWORDS;
 
 /// A capability a template can carry — or an utterance can demand. The
 /// vocabulary is closed on purpose: every variant is DERIVABLE from a

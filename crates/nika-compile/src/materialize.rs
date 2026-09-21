@@ -116,7 +116,7 @@ fn replace_regular(dest: &Path, source: &str) -> Result<(), MaterializeError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::compile::{CompileRequest, compile};
+    use crate::{CompileRequest, compile};
 
     fn ready() -> CompileOutcome {
         let created = compile(

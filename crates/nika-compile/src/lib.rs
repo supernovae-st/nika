@@ -1,6 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
-
+//! The stateless Compile core: one intent in, one [`CompileOutcome`] out. The deterministic
+//! reader, the typed semantic plan, the finite composer, the deterministic assembler and
+//! the Check preview live here; `nika-onboard` re-exports this crate at its historical
+//! `compile` path, so every caller keeps writing `nika_compile::…`.
+//!
+//! Descended from `nika-onboard` at the 15k prod-LOC wall (2026-09-21 · ADR-137): per
+//! D-2026-07-09-N1 this is ONE architectural unit in TWO workspace members. The member
+//! never depends back on the surface.
+//!
 //! Stateless authoring foundation: explicit request → ordinary source → pure Check preview.
 //!
 //! CREATE resolves exact embedded skeletons and a bounded support clause grammar,
@@ -30,7 +38,7 @@
 //! grants authority.
 //!
 //! ```
-//! use nika_onboard::compile::{compile, CompileRequest, CompileStatus};
+//! use nika_compile::{compile, CompileRequest, CompileStatus};
 //! let request = CompileRequest::create("classify-and-route")
 //!     .answer("const.request", r#""An outage affects our customers.""#);
 //! let created = compile(&request)?;
@@ -40,13 +48,13 @@
 //!         r#"Set const.request to "One customer cannot log in.""#))?;
 //!     assert_eq!(edited.status, CompileStatus::Ready);
 //! }
-//! # Ok::<(), nika_onboard::compile::CompileError>(())
+//! # Ok::<(), nika_compile::CompileError>(())
 //! ```
 
 //! A UI can submit an explicit operation against the source it owns:
 //!
 //! ```
-//! use nika_onboard::compile::{compile, CompileRequest, CompileStatus};
+//! use nika_compile::{compile, CompileRequest, CompileStatus};
 //! let base = compile(&CompileRequest::create("classify-and-route")
 //!     .answer("const.request", r#""Initial request""#))?;
 //! if let Some(source) = base.candidate {
@@ -54,15 +62,35 @@
 //!         source, "request", r#""https://example.invalid/a?q=é#résumé""#))?;
 //!     assert_eq!(edited.status, CompileStatus::Ready);
 //! }
-//! # Ok::<(), nika_onboard::compile::CompileError>(())
+//! # Ok::<(), nika_compile::CompileError>(())
 //! ```
 
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
+
+mod aggregate;
+mod assemble;
+mod bindings;
 mod cognition;
+mod columns;
+mod compose;
+mod cues;
+pub mod decide;
 mod edit;
 mod edit_source;
+mod gates;
+mod hot;
+mod lexicon;
 mod materialize;
+mod objects;
+mod paths;
 pub(crate) mod pattern;
+mod plan;
+mod predicate;
+mod retrieve;
+mod rules;
+mod shape;
 mod support;
+pub mod text;
 mod types;
 mod wire;
 
@@ -72,12 +100,16 @@ use nika_schema::{FileId, ParseMode, raw::RawWorkflow};
 use serde_json::Value;
 use types::{EditChange, Input};
 
-pub use cognition::compile_with_provider;
+pub use cognition::{
+    Cognition, NoProvider, compile_with_cognition, compile_with_provider, intent_sha256,
+};
 pub use materialize::{MaterializeError, materialize_ready};
+pub use retrieve::{Hit, HitKind, retrieve, retrieve_by_ops};
 pub use types::{
     AuthoringCognition, AuthoringPolicy, AuthoringReceipt, CompileDiagnostic, CompileError,
     CompileOutcome, CompilePreview, CompileProvenance, CompileQuestion, CompileRequest,
-    CompileStatus, DiagnosticKind, PreviewScope, QuestionType, RepresentationError,
+    CompileStatus, DiagnosticKind, HotPolicy, PreviewScope, QuestionType, RepresentationError,
+    Strategy,
 };
 pub use wire::{COMPILE_WIRE_VERSION, outcome_document};
 
@@ -128,6 +160,9 @@ fn initial() -> CompileOutcome {
                 .to_owned(),
             skeleton: None,
             cognition: AuthoringCognition::DeterministicOnly,
+            strategy: None,
+            plan: None,
+            decision: None,
         },
     }
 }
@@ -172,7 +207,17 @@ fn create(
     } else if nika_pack::template_names().iter().any(|name| name == slug) {
         nika_pack::template(slug)
     } else {
-        if support::create(intent, request, out)? {
+        // An answer round replays the plan its previous round produced (zero reading).
+        if let Some(record) = &request.plan {
+            return cognition::replay(intent, record, request, out);
+        }
+        // A partial support match is not a verdict: the general reader is a superset.
+        if let Ok(Some(plan)) = support::resolve(intent) {
+            support::assemble(&plan, request, out)?;
+            out.provenance.strategy = Some(types::Strategy::Support);
+            return Ok(());
+        }
+        if cognition::hot(intent, request, out)? {
             return Ok(());
         }
         finding(
@@ -187,6 +232,7 @@ fn create(
         return Err(CompileError::MissingSkeleton(slug.to_owned()));
     };
     out.provenance.skeleton = Some(slug.to_owned());
+    out.provenance.strategy = Some(types::Strategy::Skeleton);
     let wf = parse(source).map_err(CompileError::Registry)?;
     let report = nika_check::check(&wf);
     let mut doc: Value = serde_yaml_bw::from_str(source).map_err(CompileError::representation)?;
@@ -515,6 +561,28 @@ fn finish(source: String, out: &mut CompileOutcome) {
         && report.is_clean()
     {
         out.status = CompileStatus::Ready;
+    } else if out.status != CompileStatus::Refused
+        && out.questions.is_empty()
+        && !unresolved
+        && !report.is_clean()
+    {
+        // Nothing to ask and nothing else to report: the preview's own refusals are the
+        // reason the candidate is not ready, and they must be visible without opening it.
+        let refusals: Vec<String> = report
+            .findings
+            .iter()
+            .take(3)
+            .map(|f| {
+                format!(
+                    "Check refuses the candidate ({}): {}",
+                    f.code.as_deref().unwrap_or(f.kind),
+                    f.message
+                )
+            })
+            .collect();
+        for message in refusals {
+            finding(out, DiagnosticKind::Unknown, "check_preview", message);
+        }
     }
     out.requested_boundary = Some(report.permits.clone());
     out.check_preview = Some(CompilePreview {

@@ -4,7 +4,7 @@
 //! Hermetic authoring contracts. No files, credentials, models or workflows execute.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use nika_onboard::compile::{
+use nika_compile::{
     AuthoringCognition, CompileRequest, CompileStatus, DiagnosticKind, PreviewScope, compile,
 };
 use nika_schema::{FileId, ParseMode};
@@ -447,11 +447,7 @@ fn emitted_literal_must_retain_the_exact_canonical_value() {
     );
 }
 
-fn equivalent_edits(
-    source: &str,
-    name: &str,
-    literal: &str,
-) -> nika_onboard::compile::CompileOutcome {
+fn equivalent_edits(source: &str, name: &str, literal: &str) -> nika_compile::CompileOutcome {
     let structured = compile(&CompileRequest::set_constant(source, name, literal)).unwrap();
     let textual = compile(&CompileRequest::edit(
         source,
@@ -546,12 +542,45 @@ fn explicit_urls_remain_distinct_and_preserve_unicode_query_and_fragment_exactly
 }
 
 #[test]
-fn unsupported_natural_language_urls_never_get_a_substitute_workflow() {
+fn natural_language_urls_compile_to_a_fetch_that_keeps_the_exact_url() {
+    for (intent, url) in [
+        (
+            "Lis https://example.invalid/a puis résume le contenu",
+            "https://example.invalid/a",
+        ),
+        (
+            "Lis https://example.invalid/b puis résume le contenu",
+            "https://example.invalid/b",
+        ),
+        (
+            "Lis https://example.invalid/東京?q=é#🦋 puis résume le contenu",
+            "https://example.invalid/東京?q=é#🦋",
+        ),
+    ] {
+        let created = compile(&CompileRequest::create(intent)).unwrap();
+        assert_eq!(created.status, CompileStatus::Incomplete, "{created:#?}");
+        assert!(created.candidate.is_none());
+        assert!(created.provenance.skeleton.is_none());
+        assert_eq!(created.questions.len(), 1, "{created:#?}");
+        assert_eq!(created.questions[0].key, "model");
+        let ready =
+            compile(&CompileRequest::create(intent).answer("model", r#""mock/echo""#)).unwrap();
+        assert_eq!(ready.status, CompileStatus::Ready, "{ready:#?}");
+        let doc = document(ready.candidate.as_deref().unwrap());
+        assert_eq!(
+            doc["const"]["source_url"], url,
+            "the literal URL is copied, never rewritten"
+        );
+        assert_eq!(doc["permits"]["net"]["http"], json!(["example.invalid"]));
+        assert_eq!(doc["tasks"]["fetch_source"]["invoke"]["tool"], "nika:fetch");
+        assert!(doc["tasks"]["draft"]["infer"].is_object());
+    }
+}
+
+#[test]
+fn unsupported_natural_language_never_gets_a_substitute_workflow() {
     let source = literal_fixture("{payload: 'original'}");
     for intent in [
-        "Lis https://example.invalid/a puis résume le contenu",
-        "Lis https://example.invalid/b puis résume le contenu",
-        "Lis https://example.invalid/東京?q=é#🦋 puis résume le contenu",
         "Fais le nécessaire",
         "Résume ce ticket puis propose une réponse",
         "Propose un remboursement sans payer automatiquement",

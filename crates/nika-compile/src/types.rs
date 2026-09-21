@@ -11,6 +11,37 @@ pub struct CompileRequest {
     pub(super) answers: BTreeMap<String, String>,
     pub(super) workflow_id: Option<String>,
     pub(super) authoring: Option<AuthoringPolicy>,
+    pub(super) hot: HotPolicy,
+    /// A previously produced private plan to replay for the same intent (see [`Self::with_plan`]).
+    pub(super) plan: Option<serde_json::Value>,
+}
+
+/// How much the deterministic reader may decide on its own. False HOT is the P0 defect:
+/// the default admits HOT only on positive structural evidence.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum HotPolicy {
+    /// HOT only when every clause is explicit (short canonical operation, typed literal,
+    /// no coordinated residue) and no ambiguity, policy or authority question remains.
+    #[default]
+    Strict,
+    /// The pre-refactor admission: every clause consumed by the reader. Ablation only.
+    Legacy,
+    /// Never HOT for free prose: exact skeletons and the support grammar only; everything
+    /// else needs a seat. Ablation only.
+    Off,
+}
+
+impl HotPolicy {
+    /// The stable machine word.
+    #[must_use]
+    pub const fn word(self) -> &'static str {
+        match self {
+            Self::Strict => "strict",
+            Self::Legacy => "legacy",
+            Self::Off => "off",
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -33,6 +64,25 @@ impl CompileRequest {
         self.authoring = Some(policy);
         self
     }
+    /// Choose the HOT admission contract (Strict by default; Legacy/Off are ablations).
+    #[must_use]
+    pub fn with_hot_policy(mut self, hot: HotPolicy) -> Self {
+        self.hot = hot;
+        self
+    }
+    /// Replay the private semantic plan a previous round produced for the SAME intent:
+    /// `plan` is the exact `provenance.plan` value of that outcome. The compiler then skips
+    /// reading, decision seats and generative proposals entirely and assembles this plan
+    /// with the request's answers, so every answer round of one authoring conversation
+    /// reaches the same candidate with zero provider calls. The caller guarantees the
+    /// intent is unchanged; the intent's sha256 is recorded in provenance either way. A
+    /// plan that does not parse, is not anchored in the intent or still carries unknown
+    /// work is a finding, never a candidate. Skeletons, `hello` and EDIT ignore it.
+    #[must_use]
+    pub fn with_plan(mut self, plan: serde_json::Value) -> Self {
+        self.plan = Some(plan);
+        self
+    }
     /// Create from an exact skeleton or bounded support clauses. Other intents
     /// remain incomplete unless an explicit provider authoring call resolves them.
     #[must_use]
@@ -42,6 +92,8 @@ impl CompileRequest {
             answers: BTreeMap::new(),
             workflow_id: None,
             authoring: None,
+            hot: HotPolicy::default(),
+            plan: None,
         }
     }
 
@@ -60,6 +112,8 @@ impl CompileRequest {
             answers: BTreeMap::new(),
             workflow_id: None,
             authoring: None,
+            hot: HotPolicy::default(),
+            plan: None,
         }
     }
 
@@ -89,6 +143,8 @@ impl CompileRequest {
             answers: BTreeMap::new(),
             workflow_id: None,
             authoring: None,
+            hot: HotPolicy::default(),
+            plan: None,
         }
     }
 
@@ -205,6 +261,50 @@ pub enum AuthoringCognition {
     DeterministicOnly,
     /// One explicitly authorized call through the kernel provider seam.
     ExplicitProvider,
+    /// Bounded closed choices through an explicitly seated decision capability; no generative call.
+    ExplicitDecision,
+}
+
+/// Which internal resolution settled a CREATE; observational, never authority.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Strategy {
+    /// An exact embedded skeleton.
+    Skeleton,
+    /// The bounded support clause grammar.
+    Support,
+    /// Every clause read deterministically; zero seat calls.
+    Hot,
+    /// Finite ambiguities settled by a bounded decision seat.
+    Warm,
+    /// One generative proposal, constrained by the deterministic facts.
+    Cold,
+}
+
+impl Strategy {
+    /// The stable machine word.
+    #[must_use]
+    pub const fn word(self) -> &'static str {
+        match self {
+            Self::Skeleton => "skeleton",
+            Self::Support => "support",
+            Self::Hot => "hot",
+            Self::Warm => "warm",
+            Self::Cold => "cold",
+        }
+    }
+    /// The strategy a recorded plan names, if the word is one of ours.
+    pub(super) fn parse(word: &str) -> Option<Self> {
+        [
+            Self::Skeleton,
+            Self::Support,
+            Self::Hot,
+            Self::Warm,
+            Self::Cold,
+        ]
+        .into_iter()
+        .find(|strategy| strategy.word() == word)
+    }
 }
 
 /// Explicit limits for one authoring call. Ambient credentials are not consent.
@@ -214,8 +314,16 @@ pub struct AuthoringPolicy {
     pub(super) model: String,
     pub(super) max_tokens: u32,
     pub(super) timeout: std::time::Duration,
+    pub(super) samples: u32,
 }
 impl AuthoringPolicy {
+    /// Ask for `samples` independent proposals (1..=5) and keep the one the others agree
+    /// with most; disagreement is recorded, never voted away. Each sample is one call.
+    #[must_use]
+    pub fn with_samples(mut self, samples: u32) -> Self {
+        self.samples = samples.clamp(1, 5);
+        self
+    }
     /// Permit one call with an explicit model, output-token cap and timeout.
     /// Invalid or unbounded limits yield Incomplete without calling a provider.
     #[must_use]
@@ -224,6 +332,7 @@ impl AuthoringPolicy {
             model: model.into(),
             max_tokens,
             timeout,
+            samples: 1,
         }
     }
 }
@@ -258,6 +367,12 @@ pub struct CompileProvenance {
     pub skeleton: Option<String>,
     /// Authoring cognition policy; independent of runtime model configuration.
     pub cognition: AuthoringCognition,
+    /// The internal strategy that settled a free intent, when one was engaged.
+    pub strategy: Option<Strategy>,
+    /// The private semantic plan projection (operations, effects, obligations), when read.
+    pub plan: Option<serde_json::Value>,
+    /// Bounded decision records (seat, questions, choices, reported usage), when a seat was asked.
+    pub decision: Option<serde_json::Value>,
 }
 
 /// A reviewable authoring result. No field grants authority, writes or executes source.

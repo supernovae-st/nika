@@ -16,7 +16,7 @@ use super::*;
 mod refusals;
 
 const FIXTURE: &str =
-    include_str!("../../../../nika-onboard/tests/fixtures/compile_parity_v1.json");
+    include_str!("../../../../nika-compile/tests/fixtures/compile_parity_v1.json");
 
 /// The listener ceiling sits above the compile ceiling, so the compile bounds bind.
 fn compile_limits() -> ServerLimits {

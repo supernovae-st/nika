@@ -38,6 +38,7 @@ impl AuthoringCognition {
         match self {
             Self::DeterministicOnly => "deterministicOnly",
             Self::ExplicitProvider => "explicitProvider",
+            Self::ExplicitDecision => "explicitDecision",
         }
     }
 }
@@ -106,6 +107,15 @@ pub fn outcome_document(out: &CompileOutcome) -> Value {
             "cognition": out.provenance.cognition.word(),
         },
     });
+    if let Some(strategy) = out.provenance.strategy {
+        document["provenance"]["strategy"] = json!(strategy.word());
+    }
+    if let Some(plan) = &out.provenance.plan {
+        document["provenance"]["plan"] = plan.clone();
+    }
+    if let Some(decision) = &out.provenance.decision {
+        document["provenance"]["decision"] = decision.clone();
+    }
     if let Some(receipt) = &out.provenance.authoring {
         document["provenance"]["authoring"] = json!({
             "model": receipt.model, "calls": receipt.calls,

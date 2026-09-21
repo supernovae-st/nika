@@ -4,7 +4,7 @@
 //! Source fidelity at the public Compile door; no files or providers are used.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use nika_onboard::compile::{CompileRequest, CompileStatus, DiagnosticKind, compile};
+use nika_compile::{CompileRequest, CompileStatus, DiagnosticKind, compile};
 use serde_json::{Value, json};
 
 const HEADER: &str = "# Licence stays here\n# café 🦋\nnika: edit-source\n";

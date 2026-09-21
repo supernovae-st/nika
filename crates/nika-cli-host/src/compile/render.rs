@@ -38,8 +38,10 @@ pub(super) fn failure(code: &str, message: &str, exit: u8, json_output: bool) ->
 pub(super) fn outcome(
     out: &CompileOutcome,
     written: Option<&str>,
+    note: Option<&super::sidecar::Note>,
     json_output: bool,
 ) -> VerbOutput {
+    use super::sidecar::Note;
     let status = out.status.word();
     // FILE is the existing authoring/validation finding class (2); trace's
     // INCOMPLETE (5) judges an unfinished journal, not authoring questions.
@@ -54,6 +56,14 @@ pub(super) fn outcome(
         let mut document = outcome_document(out);
         if let Some(object) = document.as_object_mut() {
             object.insert("written".to_owned(), json!(written));
+            // A recorded or replayed plan is already the core's fact (`provenance.plan`,
+            // `decision.route`); only a failure to record is this adapter's own.
+            if let Some(Note::Failed { path, error }) = note {
+                object.insert(
+                    "plan_record_error".to_owned(),
+                    json!({"path": path.display().to_string(), "message": error}),
+                );
+            }
         }
         document.to_string()
     } else {
@@ -72,6 +82,26 @@ pub(super) fn outcome(
         }
         for d in &out.diagnostics {
             let _ = writeln!(text, "{} · {} · {}", d.kind.word(), d.target, d.message);
+        }
+        match note {
+            Some(Note::Recorded(path)) => {
+                let _ = writeln!(
+                    text,
+                    "recorded plan · {} · an --answer round replays it with zero provider calls (--fresh re-reads)",
+                    path.display()
+                );
+            }
+            Some(Note::Replayed(path)) => {
+                let _ = writeln!(
+                    text,
+                    "replayed plan · {} · zero provider calls (--fresh re-reads)",
+                    path.display()
+                );
+            }
+            Some(Note::Failed { path, error }) => {
+                let _ = writeln!(text, "plan not recorded · {} · {error}", path.display());
+            }
+            None => {}
         }
         if let Some(dest) = written {
             let run_path = if dest.starts_with('-') {

@@ -55,7 +55,10 @@ fn preview_is_the_same_typed_core_and_questions_are_stable() {
 #[test]
 fn explicit_authoring_is_bounded_and_ambient_credentials_do_not_opt_in() {
     let room = tempfile::tempdir().expect("room");
-    let intent = "Review this customer request and prepare a support reply";
+    // The strict reader admits "review … and prepare a support reply" as validate + draft
+    // (a correct reading that asks only for a model); this test needs a clause the reader
+    // cannot consume, so the explicit provider is the one that answers.
+    let intent = "Review this customer request and harmonise the tone of the support reply";
     let automatic = command(room.path())
         .env("OPENAI_API_KEY", "not-a-real-key")
         .args(["compile", intent, "--json"])
@@ -489,14 +492,14 @@ fn an_equals_prefixed_path_is_taught_as_a_word_no_shell_rewrites() {
     }
 }
 
-/// The shared parity set (`nika-onboard/tests/fixtures/compile_parity_v1.json`) also
+/// The shared parity set (`nika-compile/tests/fixtures/compile_parity_v1.json`) also
 /// drives the core's own wire test and the Serve door: three doors, one document.
 #[test]
 fn the_cli_door_prints_the_core_document_for_every_shared_parity_case() {
     use nika_onboard::compile::outcome_document;
 
     let fixture: Value = serde_json::from_str(include_str!(
-        "../../nika-onboard/tests/fixtures/compile_parity_v1.json"
+        "../../nika-compile/tests/fixtures/compile_parity_v1.json"
     ))
     .expect("parity fixture");
     let mut judged = 0;

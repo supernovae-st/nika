@@ -281,7 +281,7 @@ enum Command {
     Try(try_args::TryArgs),
     /// Compile a skeleton, bounded support intent or conservative edit into a reviewable workflow.
     /// No destination: preview only; unknown intent stays incomplete.
-    #[command(display_order = 11)]
+    #[command(display_order = 11, after_help = help_card::COMPILE_EXITS)]
     Compile(verbs::compile::CompileArgs),
     /// Generate shell completions (bash · zsh · fish · elvish · powershell).
     #[command(hide = true, display_order = 63)]

@@ -4,15 +4,20 @@
 //! CLI transport and explicit materialization for the stateless Compile core.
 mod authoring;
 mod render;
+mod sidecar;
+mod typesafe;
 
 use crate::output::{VerbOutput, exit};
-use nika_onboard::compile::{CompileRequest, CompileStatus, compile};
+use nika_onboard::compile::{CompileRequest, CompileStatus, compile, intent_sha256};
 use std::io::Write as _;
 use std::path::Path;
 
 /// Explicit CLI inputs. No terminal conversation or ambient authoring policy.
 #[derive(Debug, clap::Args)]
 #[group(id = "compile_options", multiple = true)]
+// Four independent CLI flags ARE four bools — the clap-surface idiom
+// (same as RunArgs), not a state machine to encode.
+#[allow(clippy::struct_excessive_bools)]
 pub struct CompileArgs {
     /// Exact skeleton, hello, or bounded support intent; unknown work remains incomplete.
     pub intent: Option<String>,
@@ -20,7 +25,7 @@ pub struct CompileArgs {
     #[arg(group = "destination")]
     pub dest: Option<String>,
     /// Explicit destination for edit mode (or create without a positional destination).
-    #[arg(long, conflicts_with = "dest", group = "destination")]
+    #[arg(long, short = 'o', conflicts_with = "dest", group = "destination")]
     pub output: Option<String>,
     /// Explicit accepted source for a conservative edit.
     #[arg(long, requires = "change", conflicts_with = "intent")]
@@ -40,9 +45,22 @@ pub struct CompileArgs {
     /// Authoring timeout in seconds, at most 120; no retries.
     #[arg(long, requires = "authoring_model")]
     pub authoring_timeout: Option<u64>,
+    /// HOT admission contract: strict (default), legacy (pre-refactor, ablation) or off (never HOT for prose).
+    #[arg(long, value_parser = ["strict", "legacy", "off"])]
+    pub hot_policy: Option<String>,
+    /// Independent COLD proposals to compare (1..=5); each is one call. Requires the authoring model.
+    #[arg(long, requires = "authoring_model")]
+    pub authoring_samples: Option<u32>,
+    /// Explicitly seat one bounded-decision capability (`typesafe/jev-1.13.0` or `provider/name`) for finite ambiguities.
+    #[arg(long, conflicts_with_all = ["base", "list"])]
+    pub decision_model: Option<String>,
     /// Replace the explicitly named destination.
     #[arg(long, requires = "destination")]
     pub force: bool,
+    /// Ignore the plan recorded for this intent (`.nika/compile/<sha256>.plan.json`) and read or
+    /// sample it again. An answer round otherwise replays that plan: zero provider calls.
+    #[arg(long, conflicts_with_all = ["base", "list"])]
+    pub fresh: bool,
     /// Print the versioned structured result, including incomplete questions.
     #[arg(long)]
     pub json: bool,
@@ -81,6 +99,11 @@ pub fn run(args: &CompileArgs) -> VerbOutput {
         }
         request
     };
+    request = request.with_hot_policy(match args.hot_policy.as_deref() {
+        Some("legacy") => nika_onboard::compile::HotPolicy::Legacy,
+        Some("off") => nika_onboard::compile::HotPolicy::Off,
+        _ => nika_onboard::compile::HotPolicy::Strict,
+    });
     for answer in &args.answers {
         let Some((key, literal)) = answer.split_once('=') else {
             return render::failure(
@@ -92,16 +115,20 @@ pub fn run(args: &CompileArgs) -> VerbOutput {
         };
         request = request.answer(key, literal);
     }
-    let result = if args.authoring_model.is_some()
+    let named = matches!(
+        args.intent.as_deref().map(str::trim),
+        Some("hello" | "01-hello")
+    ) || nika_pack::template_names()
+        .iter()
+        .any(|name| Some(name.as_str()) == args.intent.as_deref().map(str::trim));
+    let cognition = (args.authoring_model.is_some() || args.decision_model.is_some())
         && args.base.is_none()
-        && !matches!(
-            args.intent.as_deref().map(str::trim),
-            Some("hello" | "01-hello")
-        )
-        && !nika_pack::template_names()
-            .iter()
-            .any(|name| Some(name.as_str()) == args.intent.as_deref().map(str::trim))
-    {
+        && !named;
+    // Free intents only: a skeleton, hello or an edit never produces a plan to record.
+    let sha =
+        (args.base.is_none() && !named).then(|| intent_sha256(&effective_intent(args, cognition)));
+    let (request, note) = sidecar::replay(sha.as_deref(), args, request);
+    let result = if cognition {
         authoring::compile(&request, args)
     } else {
         compile(&request).map_err(|error| error.to_string())
@@ -112,6 +139,7 @@ pub fn run(args: &CompileArgs) -> VerbOutput {
             return render::failure("compile_error", &error, exit::ENV, args.json);
         }
     };
+    let note = sidecar::keep(sha.as_deref(), note, &outcome);
     let mut written = None;
     if outcome.status == CompileStatus::Ready
         && let (Some(dest), Some(candidate)) = (dest, &outcome.candidate)
@@ -128,7 +156,25 @@ pub fn run(args: &CompileArgs) -> VerbOutput {
             },
         );
     }
-    render::outcome(&outcome, written, args.json)
+    render::outcome(&outcome, written, note.as_ref(), args.json)
+}
+
+/// The intent the compiler will actually read, as the sha key must see it: the
+/// `intent.clarification` answer replaces the intent, but only through the cognition
+/// door, which is the only door that consumes that answer.
+fn effective_intent(args: &CompileArgs, cognition: bool) -> String {
+    let intent = args.intent.clone().unwrap_or_default();
+    if !cognition {
+        return intent;
+    }
+    args.answers
+        .iter()
+        .filter_map(|answer| answer.split_once('='))
+        .filter(|(key, _)| *key == "intent.clarification")
+        .filter_map(|(_, literal)| serde_json::from_str::<serde_json::Value>(literal).ok())
+        .filter_map(|value| value.as_str().map(str::to_owned))
+        .find(|text| !text.trim().is_empty())
+        .unwrap_or(intent)
 }
 
 fn workflow_id(dest: &str) -> String {
@@ -167,6 +213,9 @@ fn materialize(dest: &Path, candidate: &str, force: bool) -> std::io::Result<()>
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
         .unwrap_or(Path::new("."));
+    // A destination in a directory that does not exist yet is an ordinary request
+    // (`nika compile hello out/hello.nika`), not a raw `os error 2` on a temp path.
+    std::fs::create_dir_all(parent)?;
     let mut pending = tempfile::NamedTempFile::new_in(parent)?;
     pending.write_all(candidate.as_bytes())?;
     pending.as_file().sync_all()?;

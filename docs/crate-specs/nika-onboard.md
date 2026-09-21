@@ -96,6 +96,23 @@ The CLI opts in with `--authoring-model`, optional `--authoring-max-tokens`
 its adapter use the established environment credential/endpoint ladder.
 Serve remains deterministic; it does not accept this authoring policy yet.
 
+One authoring conversation is several requests of the same intent with more
+answers each round. `CompileRequest::with_plan(plan)` replays the private plan
+an earlier round produced (the exact `provenance.plan` value, which names its
+`strategy`): the compiler skips reading, decision seats and generative
+proposals and assembles that plan with the round's answers, so every answer
+round reaches the same candidate with zero provider and zero seat calls
+(`decision.route = ["replayed plan"]`, cognition `deterministicOnly`, no
+authoring receipt). A record that does not parse, is not anchored in the intent
+or still carries unknown work is a `recorded_plan` finding, never a candidate.
+`intent_sha256` is the key a transport files the record under (typographic
+apostrophes folded, as the reader sees the intent) and is recorded as
+`provenance.decision.intent_sha256` on every general-path outcome. The CLI
+records a settled plan under `.nika/compile/<sha>.plan.json` (a self-ignoring
+directory carrying the plan, the engine version and the intent hash, never the
+candidate or a key), replays it on any `--answer` round of the same intent
+under the same engine, and reads the intent again under `--fresh`.
+
 Deterministic outcomes retain the exact generation-1 wire shape. A provider
 attempt emits generation 2 with cognition `explicitProvider` and an
 `authoring` provenance receipt: model, calls, input/output token counts (null
@@ -206,6 +223,14 @@ Private pattern-facet derivation (#1666) lives beside Compile. It parses with
 the same schema door, reads Check `needed` as the membrane, and never text-scans
 comments. Task ids come from the `tasks:` map only. It is not a public YAML key,
 a fifth verb, or an SDK noun, and it does not change CREATE/EDIT.
+
+Candidate retrieval (`compile::retrieve` · `compile::retrieve_by_ops`) is the
+lexical recall floor beside it: BM25 over the embedded skeletons and a compact
+projection of the spec's pattern-family inventory (`assets/pattern_families.json`,
+Apache-2.0 development knowledge), with French/English alias tokens and a light
+stemmer. A hit is a candidate to read, never a selection, a semantic truth or
+authority; `tests/compile_retrieval.rs` prints and floors recall@1/@5 on seen
+example intents and unseen paraphrases.
 
 ### The one machine document (`compile_version` 1)
 

@@ -38,66 +38,9 @@
 //! moves, the calibration does not follow. Re-tuning it needs a probe
 //! corpus, not a test suite to select on.
 
-/// Every prose line of the banner, in order — the SPDX tag, the schema
-/// hint and any copyright excluded (they are tooling, not words).
-fn lines(body: &str) -> Vec<&str> {
-    let mut out = Vec::new();
-    for line in body.lines() {
-        let Some(rest) = line.strip_prefix('#') else {
-            if line.trim().is_empty() {
-                continue;
-            }
-            break; // the first YAML line closes the banner
-        };
-        let rest = rest.trim();
-        if rest.is_empty()
-            || rest.starts_with("SPDX-License-Identifier")
-            || rest.starts_with("yaml-language-server")
-            || rest.starts_with("Copyright")
-        {
-            continue;
-        }
-        out.push(rest);
-    }
-    out
-}
-
-/// Whether a `·`-separated segment of a title is a LABEL — the kind
-/// marker, the number, the entry's own name, the tier tag. Labels are
-/// single words (`TEMPLATE` · `01` · `human-gated-ship` · `showcase`)
-/// or a tier pair (`T2 chain`); anything else is prose.
-fn is_label(seg: &str) -> bool {
-    !seg.contains(' ')
-        || seg
-            .split_once(' ')
-            .is_some_and(|(head, _)| head.len() == 2 && head.starts_with('T'))
-}
-
-/// One line for a menu row — the entry's sentence, without the labels
-/// that precede it (the row prints the name and the facet itself, so
-/// repeating them would spend the row's width on nothing).
-///
-/// The labels are a PREFIX, and only a prefix: `human-gated-ship`'s own
-/// title carries a `·` inside its sentence, so taking the trail after
-/// the LAST separator loses two thirds of it and lands on an ASCII
-/// diagram. Drop the leading labels, keep everything after them.
-///
-/// A title that is labels all the way down is a classification line
-/// (`showcase · T2 chain · finance / freelance`) — the sentence is then
-/// the paragraph under it.
-pub(crate) fn sentence(body: &str) -> Option<String> {
-    let lines = lines(body);
-    let first = lines.first()?;
-    let rest: Vec<&str> = first.split(" · ").skip_while(|seg| is_label(seg)).collect();
-    let trail = rest.join(" · ");
-    if trail.split_whitespace().count() >= 4 {
-        return Some(trail);
-    }
-    lines
-        .get(1)
-        .map(|l| (*l).trim().to_owned())
-        .filter(|l| !l.is_empty())
-}
+// The banner reader lives in `nika_compile::text` since ADR-137 (the member never depends
+// back on this surface); the menu keeps reading the entry's sentence through it.
+pub(crate) use nika_compile::text::banner_sentence as sentence;
 
 #[cfg(test)]
 mod tests {

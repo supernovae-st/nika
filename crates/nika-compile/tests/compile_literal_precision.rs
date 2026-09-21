@@ -6,9 +6,7 @@
 //! before any decoder can round it. No files or providers are used.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use nika_onboard::compile::{
-    CompileOutcome, CompileRequest, CompileStatus, DiagnosticKind, compile,
-};
+use nika_compile::{CompileOutcome, CompileRequest, CompileStatus, DiagnosticKind, compile};
 use nika_schema::{FileId, ParseMode};
 use serde_json::{Value, json};
 

@@ -25,7 +25,10 @@ extend-ignore-identifiers-re = [
 # The French classification and Spanish customer-lookup phrases are literal
 # multilingual compiler fixtures. Ignore only these phrases; English prose and
 # the rest of each test file remain checked.
-extend-ignore-re = ["« [^»]* »", "\"highlihgts\"", "\"chek\"", "view: recods", "classe le problème", "datos del cliente"]
+# The frozen reader's multilingual cue literals in nika-compile (Spanish `columnas`,
+# French `limite` and `seconde`): quoted tokens only, so the English prose around
+# them stays checked.
+extend-ignore-re = ["« [^»]* »", "\"highlihgts\"", "\"chek\"", "view: recods", "classe le problème", "datos del cliente", "\"columnas\"", "\"limite\"", "\"limite \"", "pas de seconde action", "größer als", "o / oder"]
 
 [default.extend-words]
 # Speaches is a real project (speaches.ai · OpenAI-compat speech server), not a typo of "Speeches".
@@ -148,6 +151,14 @@ extend-exclude = [
   # `variant`, so allowlisting them would blind the gate across 57 crates
   # of public code. The DATA rows below the header stay English.
   "crates/nika-catalog/data/mcp-servers.toml",
+  # The Compile core reads six languages by design: its cue tables, its closed rule
+  # grammar and its intent fixtures are French, Spanish, Portuguese, German and
+  # Italian literals (114 hits on the member split of 2026-09-21, none English).
+  # Excluded as one crate rather than allowlisted word by word: `sur`, `als`,
+  # `oder`, `classe` are plausible English typos and would blind the gate across
+  # the public tree. Its English doc prose is judged by `cargo doc -D warnings`
+  # and review.
+  "crates/nika-compile/",
   # cargo public-api baselines — generated symbol dumps, not prose. Real
   # source typos are still caught in the .rs files they derive from.
   "**/public-api.txt",

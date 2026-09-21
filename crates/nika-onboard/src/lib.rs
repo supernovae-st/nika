@@ -24,7 +24,7 @@
 mod banner;
 mod bootstrap;
 pub mod briefs;
-pub mod compile;
+pub use nika_compile as compile;
 pub mod fixtures;
 pub mod founding;
 mod gitignore;

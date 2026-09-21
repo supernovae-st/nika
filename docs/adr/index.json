@@ -1553,5 +1553,21 @@
       "requires": ["ADR-117","ADR-132"],
       "enables": []
     }
+    ,
+    {
+      "id": "ADR-137",
+      "title": "nika-onboard size-cap member split: the Compile core descends to nika-compile",
+      "status": "accepted",
+      "date": "2026-09-21",
+      "filename": "adr-137-nika-onboard-member-split-nika-compile.md",
+      "tags": ["architecture","crates","split","size-cap","compile"],
+      "affects_crates": ["nika-onboard","nika-compile"],
+      "affects_layers": ["L4"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-110","ADR-115"],
+      "requires": [],
+      "enables": []
+    }
   ]
 }
