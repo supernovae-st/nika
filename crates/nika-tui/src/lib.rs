@@ -40,4 +40,5 @@ pub mod composer;
 pub mod events;
 pub mod model;
 pub mod render;
+pub mod session;
 pub mod terminal;

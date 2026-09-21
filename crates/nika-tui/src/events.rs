@@ -9,6 +9,11 @@
 //! otherwise turns into `Ctrl+C`) arrive on the same channel, so the loop
 //! has one place to decide what an interruption means in its current state.
 //!
+//! The loop is synchronous: it blocks on one std channel, so the plain run
+//! path the session hands the terminal to may build its own executor on
+//! the same thread (a runtime cannot start inside a runtime). The signal
+//! watcher runs on its own thread with its own small executor.
+//!
 //! Why a thread with a short `poll` rather than crossterm's `EventStream`:
 //! crossterm keeps ONE input reader behind a lock, and a cursor-position
 //! query (every inline viewport computation, every resize, the switch back
@@ -25,8 +30,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread::JoinHandle;
 use std::time::Duration;
 
+use std::sync::mpsc;
+
 use crossterm::event::{Event, KeyEvent, KeyEventKind};
-use tokio::sync::mpsc;
 
 /// How long one `poll` may hold the input reader.
 pub const POLL_SLICE: Duration = Duration::from_millis(50);
@@ -67,19 +73,18 @@ pub enum Signal {
 /// The broker: one reader thread, one signal task, one channel.
 #[derive(Debug)]
 pub struct Broker {
-    rx: mpsc::UnboundedReceiver<UiEvent>,
+    rx: mpsc::Receiver<UiEvent>,
     paused: Arc<AtomicBool>,
     parked: Arc<AtomicBool>,
     stopping: Arc<AtomicBool>,
     reader: Option<JoinHandle<()>>,
-    signals: tokio::task::JoinHandle<()>,
 }
 
 impl Broker {
     /// Start reading the terminal and watching the signals.
     #[must_use]
     pub fn start() -> Self {
-        let (tx, rx) = mpsc::unbounded_channel();
+        let (tx, rx) = mpsc::channel();
         let paused = Arc::new(AtomicBool::new(false));
         let parked = Arc::new(AtomicBool::new(false));
         let stopping = Arc::new(AtomicBool::new(false));
@@ -93,20 +98,32 @@ impl Broker {
                 move || read_loop(&tx, &paused, &parked, &stopping)
             })
             .ok();
-        let signals = tokio::spawn(watch_signals(tx));
+        // The signal watcher lives on its own thread with its own small
+        // executor and ends with the process: a signal after the shell left
+        // finds no receiver and is dropped.
+        let _signals = std::thread::Builder::new()
+            .name("nika-tui-signals".to_owned())
+            .spawn(move || {
+                let Ok(runtime) = tokio::runtime::Builder::new_current_thread()
+                    .enable_io()
+                    .build()
+                else {
+                    return;
+                };
+                runtime.block_on(watch_signals(tx));
+            });
         Self {
             rx,
             paused,
             parked,
             stopping,
             reader,
-            signals,
         }
     }
 
-    /// The next event, or `None` once every sender is gone.
-    pub async fn next(&mut self) -> Option<UiEvent> {
-        self.rx.recv().await
+    /// The next event, blocking; `None` once every sender is gone.
+    pub fn recv(&mut self) -> Option<UiEvent> {
+        self.rx.recv().ok()
     }
 
     /// Park the reader: it stops touching the terminal's input until
@@ -126,11 +143,10 @@ impl Broker {
     }
 
     /// Release stdin for good: the reader thread ends within one poll
-    /// slice, the signal watcher is aborted.
+    /// slice.
     pub fn stop(mut self) {
         self.stopping.store(true, Ordering::SeqCst);
         self.paused.store(false, Ordering::SeqCst);
-        self.signals.abort();
         if let Some(reader) = self.reader.take() {
             let _ = reader.join();
         }
@@ -138,7 +154,7 @@ impl Broker {
 }
 
 fn read_loop(
-    tx: &mpsc::UnboundedSender<UiEvent>,
+    tx: &mpsc::Sender<UiEvent>,
     paused: &AtomicBool,
     parked: &AtomicBool,
     stopping: &AtomicBool,
@@ -175,7 +191,7 @@ fn read_loop(
 }
 
 #[cfg(unix)]
-async fn watch_signals(tx: mpsc::UnboundedSender<UiEvent>) {
+async fn watch_signals(tx: mpsc::Sender<UiEvent>) {
     use tokio::signal::unix::{SignalKind, signal};
     let (Ok(mut term), Ok(mut int)) = (
         signal(SignalKind::terminate()),
@@ -195,7 +211,7 @@ async fn watch_signals(tx: mpsc::UnboundedSender<UiEvent>) {
 }
 
 #[cfg(not(unix))]
-async fn watch_signals(tx: mpsc::UnboundedSender<UiEvent>) {
+async fn watch_signals(tx: mpsc::Sender<UiEvent>) {
     if tokio::signal::ctrl_c().await.is_ok() {
         let _ = tx.send(UiEvent::Signal(Signal::Interrupt));
     }

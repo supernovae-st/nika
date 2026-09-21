@@ -650,6 +650,7 @@ fn front_door(argv: &[std::ffi::OsString]) -> Option<std::process::ExitCode> {
     let mut json = false;
     let mut ascii = false;
     let mut saw_fix = false;
+    let mut tui = false;
     let mut positional: Vec<&std::ffi::OsStr> = Vec::new();
     let mut skip_value = false;
     for arg in argv {
@@ -661,6 +662,7 @@ fn front_door(argv: &[std::ffi::OsString]) -> Option<std::process::ExitCode> {
             Some("--json") => json = true,
             Some("--plain" | "--ascii") => ascii = true,
             Some("--fix") => saw_fix = true,
+            Some("--tui") => tui = true,
             Some("--color" | "--hyperlink") => skip_value = true,
             Some(s) if s.starts_with("--color=") || s.starts_with("--hyperlink=") => {}
             _ => positional.push(arg),
@@ -683,7 +685,11 @@ fn front_door(argv: &[std::ffi::OsString]) -> Option<std::process::ExitCode> {
             // session; a pipe keeps the deterministic concierge (exit 0).
             let interactive =
                 !json && std::io::stdin().is_terminal() && std::io::stdout().is_terminal();
-            Some(if interactive {
+            // `--tui` (ADR-139 · UX-2): the same session behind the renderer,
+            // an explicit door while the plain loop's goldens stay the law.
+            Some(if interactive && tui {
+                std::process::ExitCode::from(verbs::session::run_tui(interactive_theme(theme)))
+            } else if interactive {
                 std::process::ExitCode::from(verbs::session::run(interactive_theme(theme)))
             } else {
                 concierge(json, theme)

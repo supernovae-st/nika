@@ -16,6 +16,7 @@ tempfile = { workspace = true }  # each try owns a fresh room, removed after its
 nika-event  = { path = "../nika-event", version = "0.120.3" }  # the REAL event taxonomy (the fold input)
 nika-cli-host = { path = "../nika-cli-host", version = "0.120.3" } # the host-integration member (the 15k wall · ADR-110 · one unit, two members)
 nika-session = { path = "../nika-session", version = "0.120.3", default-features = false }  # the native session (bare `nika` on a terminal · ADR-125)
+nika-tui     = { path = "../nika-tui", version = "0.120.3" }  # the session behind the terminal renderer (`nika --tui` · ADR-139 · UX-2)
 nika-types  = { path = "../nika-types", version = "0.120.3" }  # Timestamp · KeyValue · ids
 nika-schema = { path = "../nika-schema", version = "0.120.3" } # parse (check · inspect · graph · run)
 nika-source = { path = "../nika-source", version = "0.120.3" } # lexical program-source naming (#1684)

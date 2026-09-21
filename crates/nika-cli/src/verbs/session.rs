@@ -379,6 +379,44 @@ fn run_once(
     (verdict.code, verdict.trace)
 }
 
+/// `TERM` as the renderer's probe reads it. The `disallowed_methods` ban on
+/// `std::env::var` routes SECRET lookups through the vault; a display
+/// capability variable is not a secret (the same allow `main.rs` carries).
+#[allow(clippy::disallowed_methods)]
+fn term_name() -> Option<String> {
+    std::env::var("TERM").ok()
+}
+
+/// Open the native session behind the terminal renderer (`nika --tui` ·
+/// ADR-139 · UX-2): the same runtime, the same census and kept choice, the
+/// same two run paths lent as runners; the renderer owns the terminal and
+/// hands it back around each run.
+#[must_use]
+pub fn run_tui(theme: Theme) -> u8 {
+    use nika_tui::session::{Live, Runners};
+    let census = IntelligenceCensus::take();
+    let home = nika_cli_host::probe::home_dir();
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let kept = home.as_deref().and_then(UserIntelligencePreference::load);
+    let runners = Runners {
+        run_once: Box::new(move |root, run| run_once(root, run, theme)),
+        run_resume: Box::new(move |root, workflow, trace, answer| {
+            run_resume(root, workflow, trace, answer, theme)
+        }),
+    };
+    let live = Live::new(cwd, census, kept, home, Box::new(reasoner_for), runners);
+    let mut options = nika_tui::app::Options::new(nika_tui::model::Presentation::Inline);
+    options.color = theme.color;
+    options.term = term_name();
+    match nika_tui::app::run(live, options) {
+        Ok(left) => left.code(),
+        Err(error) => {
+            let _ = writeln!(std::io::stderr(), "nika: {error}");
+            exit::ENV
+        }
+    }
+}
+
 /// Open the native session on this terminal.
 #[must_use]
 pub fn run(theme: Theme) -> u8 {

@@ -4618,6 +4618,7 @@ dependencies = [
  "nika-source",
  "nika-store",
  "nika-trace",
+ "nika-tui",
  "nika-types",
  "nika-verb-agent",
  "nika-verb-exec",
@@ -5488,6 +5489,7 @@ version = "0.120.3"
 dependencies = [
  "crossterm",
  "expectrl",
+ "nika-session",
  "ratatui",
  "ratatui-textarea",
  "tokio",
