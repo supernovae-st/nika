@@ -822,6 +822,31 @@ fn excerpt_head(text: &str) -> String {
 /// when the merged plan carries a refund effect, or when every region that mentions a refund
 /// was read as an operation, a constraint or context (a status value such as "refunded" in a
 /// filter). A region read as an effect, a policy or unknown keeps the guard.
+/// A final human gate the deterministic reader saw with no effect to guard (its effect heads
+/// are in a language the lexicon does not read) finds its effect in the proposal: the unknown
+/// lifts and, when no effect is gated yet, the last automatic effect becomes human-first, as
+/// the reader itself does when it knows the verb. The gate stays unresolved when the proposal
+/// names no effect at all.
+fn gate_finds_its_effect(plan: &mut Plan) {
+    let gate = super::lexicon::GATE_WITHOUT_EFFECT;
+    if plan.effects.is_empty() || !plan.unknowns.iter().any(|u| u == gate) {
+        return;
+    }
+    plan.unknowns.retain(|u| u != gate);
+    if plan
+        .effects
+        .iter()
+        .all(|e| e.policy != EffectPolicy::HumanFirst)
+        && let Some(last) = plan
+            .effects
+            .iter_mut()
+            .rev()
+            .find(|e| e.policy == EffectPolicy::Automatic)
+    {
+        last.policy = EffectPolicy::HumanFirst;
+    }
+}
+
 fn reconcile_refund_backstop(plan: &mut Plan, regions: &[ProposedRegion]) {
     const GUARD: &str = "The request mentions a refund that no recognized effect carries";
     if !plan.unknowns.iter().any(|u| u.starts_with(GUARD)) {
@@ -1045,6 +1070,7 @@ fn merge(
             });
         }
     }
+    gate_finds_its_effect(&mut plan);
     for obligation in proposal.obligations {
         let Some(evidence) = exact_excerpt(intent, &obligation.evidence) else {
             reject(

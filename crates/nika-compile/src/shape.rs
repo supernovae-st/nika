@@ -271,6 +271,8 @@ const HEADING_WORDS: &[&str] = &[
     "intestazione",
     "uberschrift",
     "uberschriften",
+    "cabecalho",
+    "cabecalhos",
 ];
 
 /// Distributive words and file-name phrases that, beside a heading word, ask for one
@@ -301,6 +303,10 @@ const DISTRIBUTIVE_CUES: &[&str] = &[
     "nome del file",
     "dateiname",
     "dateinamen",
+    "por ficheiro",
+    "por arquivo",
+    "nome do ficheiro",
+    "nome do arquivo",
 ];
 
 /// A quantifier that leads a clause and distributes the work over items.
@@ -316,6 +322,8 @@ const LEADING_QUANTIFIERS: &[&str] = &[
     "fur jede",
     "fur jeden",
     "fur jedes",
+    "para cada um",
+    "para cada uma",
 ];
 
 /// Order and heading phrases the fan-in structure realizes itself, so they leave the

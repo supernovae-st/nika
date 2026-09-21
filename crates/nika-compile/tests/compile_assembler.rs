@@ -804,7 +804,7 @@ fn the_ledger_names_the_carrier_of_every_stated_duty_and_refuses_a_silent_one() 
             .get("ledger")
             .is_none()
     );
-    // A gated write carries its gate; a prompt-bound cardinality says it is not verified.
+    // A gated write carries its gate; a measurable bound is verified at run by a law.
     let out = replay(HEADLINE, &headline_record(None), &[MODEL]);
     let record = out.provenance.decision.clone().unwrap();
     assert_eq!(record["ledger"][0]["realized_by"], "draft", "{record:#}");
@@ -831,11 +831,7 @@ fn the_ledger_names_the_carrier_of_every_stated_duty_and_refuses_a_silent_one() 
         "{record:#}"
     );
     assert!(
-        by_kind.contains(&(
-            "cardinality",
-            "draft",
-            "prompt guidance; not verified at run"
-        )),
+        by_kind.contains(&("cardinality", "draft_bounds", "verified at run")),
         "{record:#}"
     );
     // A constraint with no step to carry it: INCOMPLETE naming the instruction, no candidate.
@@ -993,6 +989,156 @@ fn contradictory_bounds_on_the_produced_content_are_refused_never_run() {
         &[MODEL],
     );
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+}
+
+// ── a stated bound on the drafted text is verified at run, not only prompted ──────
+#[test]
+fn a_stated_bound_on_the_drafted_text_is_verified_at_run_not_only_prompted() {
+    let intent = "Read ./notes/brief.md and write a 3-bullet summary of under 150 words to ./out/summary.md.";
+    let record = json!({"operations":[
+        {"op":"read","detail":"./notes/brief.md","evidence":"Read ./notes/brief.md","categories":[]},
+        {"op":"draft","detail":"a 3-bullet summary of under 150 words","evidence":"write a 3-bullet summary of under 150 words","categories":[]}],
+      "effects":[{"verb":"write","target":"./out/summary.md","policy":"automatic","evidence":"write a 3-bullet summary of under 150 words to ./out/summary.md","policy_literal":null}],
+      "obligations":[],"bindings":[],"constraints":["3 bullets", "under 150 words", "in a warm tone"],"unknowns":[],"trigger":null,"strategy":"cold"});
+    let out = replay(intent, &record, &[MODEL]);
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    let doc = document(&out);
+    let bounds = &tasks(&doc)["draft_bounds"];
+    assert_eq!(bounds["invoke"]["tool"], "nika:jq", "{doc:#}");
+    assert_eq!(bounds["with"]["body"], "${{ tasks.draft.output.body }}");
+    let expression = bounds["invoke"]["args"]["expression"].as_str().unwrap();
+    assert!(
+        expression.contains("== 3") && expression.contains("< 150"),
+        "{expression}"
+    );
+    assert!(
+        expression.contains(r#"select(test("^\\s*([-*•]|[0-9]+[.)])\\s+"))"#),
+        "{expression}"
+    );
+    assert!(expression.contains(r#"scan("\\S+")"#), "{expression}");
+    assert_eq!(
+        bounds["after"],
+        json!({"draft_admit": "success"}),
+        "{bounds:#}"
+    );
+    let admit = &tasks(&doc)["draft_bounds_admit"];
+    assert_eq!(admit["invoke"]["tool"], "nika:assert");
+    assert!(
+        admit["invoke"]["args"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("3 bullets; under 150 words"),
+        "{admit:#}"
+    );
+    assert_eq!(
+        tasks(&doc)["write_output"]["after"],
+        json!({"draft_bounds_admit": "success"}),
+        "the write waits for the verified bounds: {doc:#}"
+    );
+    // The prompt still carries the tone; the bounds are realized by the law, not the prompt.
+    let prompt = tasks(&doc)["draft"]["infer"]["prompt"].as_str().unwrap();
+    assert!(prompt.contains("in a warm tone"), "{prompt}");
+    let ledger = out.provenance.decision.clone().unwrap()["ledger"].clone();
+    let cardinality: Vec<(&str, &str)> = ledger
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|d| d["kind"] == "cardinality")
+        .map(|d| {
+            (
+                d["realized_by"].as_str().unwrap(),
+                d["note"].as_str().unwrap(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        cardinality,
+        [
+            ("draft_bounds", "verified at run"),
+            ("draft_bounds", "verified at run")
+        ],
+        "{ledger:#}"
+    );
+    // No measurable bound: no law, no extra task, the write follows the draft's admit.
+    let mut plain = record;
+    plain["constraints"] = json!(["in a warm tone"]);
+    let doc = document(&replay(intent, &plain, &[MODEL]));
+    assert!(tasks(&doc).get("draft_bounds").is_none(), "{doc:#}");
+    assert_eq!(
+        tasks(&doc)["write_output"]["after"],
+        json!({"draft_admit": "success"})
+    );
+}
+
+// ── one approval clause covering several effects is one gate ─────────────────────
+// The sealed release seed asked for one confirmation before a POST and a write; the
+// assembler emitted one prompt per effect and the runner's single resume could not finish.
+#[test]
+fn one_approval_covering_several_effects_is_one_gate_two_approvals_are_two() {
+    let intent = "Read ./draft.md, then ask me to confirm before you POST it to http://127.0.0.1:18471/hooks/x. Only after I say yes: do the POST, then write it to ./out/sent.md.";
+    let record = json!({"operations":[
+        {"op":"read","detail":"./draft.md","evidence":"Read ./draft.md","categories":[]}],
+      "effects":[
+        {"verb":"send","target":"POST it to http://127.0.0.1:18471/hooks/x","policy":"human_first","evidence":"ask me to confirm before you POST it to http://127.0.0.1:18471/hooks/x","policy_literal":null},
+        {"verb":"write","target":"./out/sent.md","policy":"human_first","evidence":"write it to ./out/sent.md","policy_literal":null}],
+      "obligations":[],"bindings":[{"role":"path","literal":"./draft.md"},{"role":"url","literal":"http://127.0.0.1:18471/hooks/x"},{"role":"path","literal":"./out/sent.md"}],
+      "constraints":[],"unknowns":[],"trigger":null,"strategy":"cold"});
+    let out = replay(intent, &record, &[]);
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    let doc = document(&out);
+    let prompts: Vec<&String> = tasks(&doc)
+        .iter()
+        .filter(|(_, node)| node["invoke"]["tool"] == "nika:prompt")
+        .map(|(id, _)| id)
+        .collect();
+    assert_eq!(prompts, ["approval_review"], "{doc:#}");
+    let message = tasks(&doc)["approval_review"]["invoke"]["args"]["message"]
+        .as_str()
+        .unwrap();
+    assert!(
+        message.contains("1) write ./out/sent.md") && message.contains("2) send · POST it to"),
+        "{message}"
+    );
+    for task in ["write_output", "send"] {
+        assert_eq!(
+            tasks(&doc)[task]["when"],
+            "${{ with.approved == true }}",
+            "{task}: {doc:#}"
+        );
+        assert_eq!(
+            tasks(&doc)[task]["with"]["approved"],
+            "${{ tasks.approval_review.output }}",
+            "{task}: {doc:#}"
+        );
+    }
+    let ledger = out.provenance.decision.clone().unwrap()["ledger"].clone();
+    let gates: Vec<&str> = ledger
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|d| d["kind"] == "gate")
+        .map(|d| d["realized_by"].as_str().unwrap())
+        .collect();
+    assert_eq!(gates, ["approval_review", "approval_review"], "{ledger:#}");
+    // Two approvals, one per effect: two gates, each before its own effect.
+    let intent = "Read ./draft.md. Ask me before writing it to ./out/a.md. Ask me again before sending it to http://127.0.0.1:18471/hooks/x.";
+    let record = json!({"operations":[
+        {"op":"read","detail":"./draft.md","evidence":"Read ./draft.md","categories":[]}],
+      "effects":[
+        {"verb":"write","target":"./out/a.md","policy":"human_first","evidence":"Ask me before writing it to ./out/a.md","policy_literal":null},
+        {"verb":"send","target":"sending it to http://127.0.0.1:18471/hooks/x","policy":"human_first","evidence":"Ask me again before sending it to http://127.0.0.1:18471/hooks/x","policy_literal":null}],
+      "obligations":[],"bindings":[{"role":"path","literal":"./draft.md"},{"role":"path","literal":"./out/a.md"},{"role":"url","literal":"http://127.0.0.1:18471/hooks/x"}],
+      "constraints":[],"unknowns":[],"trigger":null,"strategy":"cold"});
+    let out = replay(intent, &record, &[]);
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    let doc = document(&out);
+    let mut prompts: Vec<&String> = tasks(&doc)
+        .iter()
+        .filter(|(_, node)| node["invoke"]["tool"] == "nika:prompt")
+        .map(|(id, _)| id)
+        .collect();
+    prompts.sort();
+    assert_eq!(prompts, ["send_review", "write_output_review"], "{doc:#}");
 }
 
 // ── a trigger over the request's own material never declares an item ────────────

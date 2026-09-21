@@ -205,6 +205,84 @@ pub(super) fn bound(constraint: &str) -> Option<Bound> {
     None
 }
 
+/// The measure of a text a unit counts, for a run-time law over the drafted body.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Measure {
+    Lines,
+    Bullets,
+    Words,
+    Sentences,
+    Characters,
+    Paragraphs,
+}
+
+impl Measure {
+    /// The measure a folded singular unit names; a page or a token measures nothing at run.
+    pub(super) fn of(unit: &str) -> Option<Self> {
+        match unit {
+            "line" | "ligne" | "zeile" | "riga" | "linea" | "linha" => Some(Self::Lines),
+            "bullet" | "puce" | "stichpunkt" | "aufzahlungspunkt" | "vineta" | "marcador" => {
+                Some(Self::Bullets)
+            }
+            "word" | "mot" | "wort" | "parola" | "palabra" | "palavra" => Some(Self::Words),
+            "sentence" | "phrase" | "satz" | "frase" | "oracion" => Some(Self::Sentences),
+            "character" | "char" | "caractere" | "zeichen" | "carattere" | "caracter" => {
+                Some(Self::Characters)
+            }
+            "paragraph" | "paragraphe" | "absatz" | "paragrafo" | "parrafo" => {
+                Some(Self::Paragraphs)
+            }
+            _ => None,
+        }
+    }
+    /// jq over the body string (`.`) counting the measure: nonblank lines, bullet lines
+    /// (`-`, `*`, `•` or a numbered marker), whitespace-separated words, sentences ended by
+    /// `.`, `!` or `?`, characters, blank-line-separated paragraphs.
+    pub(super) const fn jq(self) -> &'static str {
+        match self {
+            Self::Lines => r#"([split("\n")[] | select(test("\\S"))] | length)"#,
+            Self::Bullets => {
+                r#"([split("\n")[] | select(test("^\\s*([-*•]|[0-9]+[.)])\\s+"))] | length)"#
+            }
+            Self::Words => r#"([scan("\\S+")] | length)"#,
+            Self::Sentences => r#"([scan("[^.!?]+[.!?]+")] | length)"#,
+            Self::Characters => "length",
+            Self::Paragraphs => r#"([split("\n\n")[] | select(test("\\S"))] | length)"#,
+        }
+    }
+}
+
+impl Bound {
+    /// The jq predicate over the body string that holds exactly when the bound does; none
+    /// when the unit measures nothing at run.
+    pub(super) fn law(&self) -> Option<String> {
+        let measure = Measure::of(&self.unit)?;
+        Some(format!(
+            "({} {} {})",
+            measure.jq(),
+            self.comparator.symbol(),
+            self.value
+        ))
+    }
+}
+
+/// The conjunction of every measurable bound the constraints state, with the constraints it
+/// covers, so the drafted text is judged at run and not only asked for in the prompt.
+pub(super) fn body_law(constraints: &[String]) -> Option<(String, Vec<String>)> {
+    let mut laws = Vec::new();
+    let mut covered = Vec::new();
+    for constraint in constraints {
+        if let Some(law) = bound(constraint).and_then(|b| b.law()) {
+            laws.push(law);
+            covered.push(constraint.clone());
+        }
+    }
+    if laws.is_empty() {
+        return None;
+    }
+    Some((laws.join(" and "), covered))
+}
+
 /// The first pair of constraints whose bounds cannot both hold, as indexes into the slice.
 pub(super) fn contradiction(constraints: &[String]) -> Option<(usize, usize)> {
     let bounds: Vec<(usize, Bound)> = constraints
@@ -265,6 +343,28 @@ mod tests {
         ] {
             assert!(bound(none).is_none(), "{none}");
         }
+    }
+
+    #[test]
+    fn a_measurable_bound_lowers_to_a_law_over_the_body() {
+        let (law, covered) = body_law(&[
+            "3 bullets".into(),
+            "under 150 words".into(),
+            "in a warm tone".into(),
+        ])
+        .expect("two measurable bounds");
+        assert_eq!(
+            law,
+            r#"(([split("\n")[] | select(test("^\\s*([-*•]|[0-9]+[.)])\\s+"))] | length) == 3) and (([scan("\\S+")] | length) < 150)"#
+        );
+        assert_eq!(covered, ["3 bullets", "under 150 words"]);
+        assert_eq!(
+            bound("12 lignes max").and_then(|b| b.law()).as_deref(),
+            Some(r#"(([split("\n")[] | select(test("\\S"))] | length) <= 12)"#)
+        );
+        // A page or a token measures nothing at run; the prompt keeps the instruction.
+        assert!(bound("at most 2 pages").and_then(|b| b.law()).is_none());
+        assert!(body_law(&["in a warm tone".into()]).is_none());
     }
 
     #[test]

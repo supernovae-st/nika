@@ -283,27 +283,7 @@ pub(super) fn step_evidence(step: &super::plan::Step) -> &str {
 /// words"). A concurrency bound is a structure the assembler consumes, not a cardinality
 /// of the content, and is left to the format duties.
 fn bounded(constraint: &str) -> bool {
-    if super::bindings::parallel_bound(constraint).is_some() {
-        return false;
-    }
-    let folded = shape::fold(constraint);
-    let words: Vec<&str> = folded
-        .split(|c: char| !c.is_alphanumeric())
-        .filter(|w| !w.is_empty())
-        .collect();
-    let numeric = |w: &str| {
-        w.chars().all(|c| c.is_ascii_digit())
-            || super::cues::NUMBER_WORDS.iter().any(|(word, _)| *word == w)
-    };
-    let unit = |w: &str| shape::SIZE_UNITS.contains(&w);
-    (0..words.len()).any(|i| {
-        numeric(words[i])
-            && (words.get(i + 1).is_some_and(|w| unit(w))
-                || (words
-                    .get(i + 1)
-                    .is_some_and(|w| matches!(*w, "a" | "de" | "di" | "of"))
-                    && words.get(i + 2).is_some_and(|w| unit(w))))
-    })
+    super::cardinality::bound(constraint).is_some()
 }
 
 #[cfg(test)]
