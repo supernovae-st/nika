@@ -393,6 +393,21 @@ impl ProjectChangeSet {
     /// would cover. Rendered from the set the apply consumes.
     #[must_use]
     pub fn preview(&self) -> String {
+        self.preview_with(true)
+    }
+
+    /// The preview a human reads at the consent prompt: the same header and
+    /// audits as [`Self::preview`], but each file's bytes reduced to its
+    /// BOUNDARY (everything before `tasks:` — the name, the model, the
+    /// constants, the inputs, the permits, the outputs) and one line for the
+    /// tasks; `/show` prints the exact bytes. The identity the consent
+    /// answers is still [`ProposalId::of`] the full preview.
+    #[must_use]
+    pub fn preview_condensed(&self) -> String {
+        self.preview_with(false)
+    }
+
+    fn preview_with(&self, full: bool) -> String {
         let mut out = format!("proposed change · {}\n", self.goal);
         for c in &self.changes {
             let path = c.path();
@@ -411,10 +426,34 @@ impl ProjectChangeSet {
                 }
             }
             let _ = writeln!(out, "  ┌─ `{}`", path.display());
-            for line in c.content().lines() {
-                let _ = writeln!(out, "  │ {line}");
+            if full {
+                for line in c.content().lines() {
+                    let _ = writeln!(out, "  │ {line}");
+                }
+                let _ = writeln!(out, "  └─");
+            } else {
+                let mut tasks = 0usize;
+                let mut in_tasks = false;
+                for line in c.content().lines() {
+                    if in_tasks {
+                        // A task id is the only thing at exactly two spaces of indent.
+                        if line.starts_with("  ") && !line.starts_with("   ") && line.ends_with(':')
+                        {
+                            tasks += 1;
+                        }
+                        continue;
+                    }
+                    if line == "tasks:" {
+                        in_tasks = true;
+                        continue;
+                    }
+                    let _ = writeln!(out, "  │ {line}");
+                }
+                if in_tasks {
+                    let _ = writeln!(out, "  │ tasks: {tasks} (in run order above)");
+                }
+                let _ = writeln!(out, "  └─ `/show` prints the exact {lines} lines");
             }
-            let _ = writeln!(out, "  └─");
         }
         if !self.repairs.is_empty() {
             let _ = writeln!(out, "  repaired before this preview (the fix ladder):");
@@ -432,8 +471,8 @@ impl ProjectChangeSet {
             for f in &a.findings {
                 let _ = writeln!(out, "    · {f}");
             }
-            for h in &a.hints {
-                let _ = writeln!(out, "    · hint · {h}");
+            if let Some(line) = compact_hints(&a.hints, &a.path.display().to_string()) {
+                let _ = writeln!(out, "    · {line}");
             }
             if !a.effects.is_empty() {
                 let _ = writeln!(out, "  when it runs:");
@@ -792,6 +831,26 @@ fn write_under(root: &Path, rel: &Path, content: &str) -> Result<(), ChangeError
             .map_err(io)?;
     }
     Ok(())
+}
+
+/// The check's hints in one line: their names, and where the full text is.
+/// A hint's text opens with its name (`run-clock · …`); three paragraphs of
+/// teaching after a consent hide the one line that matters (the run).
+#[must_use]
+pub fn compact_hints(hints: &[String], file: &str) -> Option<String> {
+    if hints.is_empty() {
+        return None;
+    }
+    let names: Vec<&str> = hints
+        .iter()
+        .map(|h| h.split(" · ").next().unwrap_or(h).trim())
+        .collect();
+    Some(format!(
+        "{} hint{} · {} · `nika check {file}` prints them",
+        hints.len(),
+        if hints.len() > 1 { "s" } else { "" },
+        names.join(" · ")
+    ))
 }
 
 #[cfg(test)]

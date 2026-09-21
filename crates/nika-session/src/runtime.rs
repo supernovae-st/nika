@@ -128,12 +128,25 @@ text                 ask, in words · these answer from the engine, no AI asked:
                      · the builtins · the providers · an example or template for a job · a code (« explain NIKA-… »)
                      · what Nika calls a node, step, trigger, secret, action · the rest goes to your chosen intelligence, in words
 /intelligence        the AI this session reasons with · asks the first screen again, the next line is your answer
+/show                while a proposal waits: print its exact bytes (the review shows the boundary)
 /help                this card
 /quit                close the session
 Name a workflow file in your question to let the session read it (only files under the root are ever read).";
 
 /// How many recent turns ride the next prompt.
 const RECENT_TURNS: usize = 8;
+
+/// A byte count a human reads (`1.2 KB`, `340 B`).
+#[allow(clippy::cast_precision_loss)] // display-only: a size shown to a human, never computed with
+fn human_size(bytes: u64) -> String {
+    if bytes < 1024 {
+        format!("{bytes} B")
+    } else if bytes < 1024 * 1024 {
+        format!("{:.1} KB", bytes as f64 / 1024.0)
+    } else {
+        format!("{:.1} MB", bytes as f64 / (1024.0 * 1024.0))
+    }
+}
 
 /// How a door builds the reasoner for a resolved choice.
 pub type ReasonerFactory = Box<dyn Fn(&ResolvedSessionIntelligence) -> Box<dyn SessionReasoner>>;
@@ -425,6 +438,17 @@ impl SessionRuntime {
             return TurnOutcome::Refusal(self.nothing_pending());
         };
         let id = ProposalId::of(&set.preview());
+        // The exact bytes, on request, the proposal held: consent stays a yes.
+        if matches!(answer.trim(), "/show" | "show") {
+            let preview = set.preview();
+            self.pending = Some(set);
+            return TurnOutcome::Held {
+                id,
+                preview: format!(
+                    "{preview}(the proposal still waits · `yes` applies it · `no` discards it)"
+                ),
+            };
+        }
         if is_no(answer) {
             self.decided = Some(id);
             return TurnOutcome::Facts(
@@ -522,8 +546,10 @@ impl SessionRuntime {
             for f in &audit.findings {
                 let _ = write!(report, "\n    · {f}");
             }
-            for h in &audit.hints {
-                let _ = write!(report, "\n    · hint · {h}");
+            if let Some(line) =
+                crate::change::compact_hints(&audit.hints, &wf.display().to_string())
+            {
+                let _ = write!(report, "\n    · {line}");
             }
         }
         self.snapshot = ProjectSnapshot::observe(&self.snapshot.cwd);
@@ -715,9 +741,43 @@ impl SessionRuntime {
             Some(note) => format!("{line}\n  {note}"),
             None => line,
         };
+        let line = match (exit, self.produced_line()) {
+            (0, Some(produced)) => format!("{line}\n  {produced}"),
+            _ => line,
+        };
         self.last_run = Some((exit, line.clone()));
         self.remember("(run)", &line);
         line
+    }
+
+    /// What a green run left behind: the files the workflow's own boundary
+    /// lets it write (`permits.fs.write`, literal paths only) that exist
+    /// under the root now, with their sizes. The boundary is the claim; the
+    /// file on disk is the evidence; a glob is not a file.
+    fn produced_line(&self) -> Option<String> {
+        let workflow = self.last_workflow.as_ref()?;
+        let root = &self.snapshot.root;
+        let source = std::fs::read_to_string(root.join(workflow)).ok()?;
+        let wf = nika_schema::parse(
+            &source,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .ok()?;
+        let writes = wf.permits.as_ref()?.value.fs.as_ref()?.write.clone();
+        let mut produced = Vec::new();
+        for path in writes {
+            if path.contains(['*', '?', '[']) {
+                continue;
+            }
+            let Ok(meta) = std::fs::metadata(root.join(&path)) else {
+                continue;
+            };
+            if meta.is_file() {
+                produced.push(format!("{path} ({})", human_size(meta.len())));
+            }
+        }
+        (!produced.is_empty()).then(|| format!("produced · {}", produced.join(" · ")))
     }
 
     /// In a git repository whose `.gitignore` does not keep `.nika/traces/`

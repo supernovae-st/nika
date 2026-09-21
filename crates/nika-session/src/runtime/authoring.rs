@@ -102,7 +102,15 @@ impl SessionRuntime {
                     return TurnOutcome::Facts(honest_incomplete(&out, None));
                 };
                 let key = question.key.clone();
-                let text = question_text(question, &round.reasons);
+                let mut text = question_text(question, &round.reasons);
+                if key == "model"
+                    && let AuthoringSeat::Provider { model } = &self.seat
+                {
+                    let _ = write!(
+                        text,
+                        "\n  Enter takes your seat `{model}` · or name another <provider>/<model>"
+                    );
+                }
                 self.intent.unresolved = vec![question.label.clone()];
                 self.remember(&round.intent, &text);
                 self.authoring = Some(round);
@@ -171,13 +179,25 @@ impl SessionRuntime {
                     .to_owned(),
             );
         }
-        if line.trim().is_empty() {
-            self.authoring = Some(round);
-            return TurnOutcome::Refusal(Refusal::new(
-                RefusalClass::EmptyAnswer,
-                "the question needs an answer — nothing answers for you (`cancel` drops it)",
-            ));
-        }
+        // An empty line takes the offered default and nothing else: the
+        // `model` question's default is the seat the human already chose.
+        let seat_default = match (round.current().map(|q| q.key.as_str()), &self.seat) {
+            (Some("model"), AuthoringSeat::Provider { model }) => Some(model.clone()),
+            _ => None,
+        };
+        let line = if line.trim().is_empty() {
+            let Some(default) = seat_default else {
+                self.authoring = Some(round);
+                return TurnOutcome::Refusal(Refusal::new(
+                    RefusalClass::EmptyAnswer,
+                    "the question needs an answer — nothing answers for you (`cancel` drops it)",
+                ));
+            };
+            default
+        } else {
+            line.to_owned()
+        };
+        let line = line.as_str();
         let Some(key) = round.answer_current(line) else {
             return TurnOutcome::Refusal(Refusal::new(
                 RefusalClass::WrongState,
@@ -413,8 +433,8 @@ fn question_text(question: &CompileQuestion, reasons: &[String]) -> String {
 /// An incomplete the human can act on: what the reader could not settle,
 /// and the next safe step — never a substitute workflow.
 fn honest_incomplete(out: &CompileOutcome, why: Option<&str>) -> String {
-    let mut text = "I read this as work but cannot settle it on my own:".to_owned();
-    let reasons = reasons(out);
+    let mut text = "I read this as work but cannot build it yet:".to_owned();
+    let reasons = human_reasons(reasons(out));
     if reasons.is_empty() {
         text.push_str("\n  · the request names no operation I can read");
     }
@@ -424,9 +444,25 @@ fn honest_incomplete(out: &CompileOutcome, why: Option<&str>) -> String {
     }
     text.push_str("\n  ");
     text.push_str(why.unwrap_or(
-        "rephrase with explicit operations and literals — what to read, what to produce, where to write it",
+        "rephrase with what to read, what to produce and where to write it, e.g. « read ./docs, draft a digest and write it to ./digest.md »",
     ));
     text
+}
+
+/// The compiler's reasons a human can act on: its machine sentences (the
+/// plan's own vocabulary, an unmapped part with nothing after the colon)
+/// dropped, duplicates folded, the rest verbatim.
+pub(crate) fn human_reasons(reasons: Vec<String>) -> Vec<String> {
+    let mut kept: Vec<String> = Vec::new();
+    for reason in reasons {
+        let r = reason.trim();
+        let machine = r.contains("semantic plan") || r.ends_with(": .") || r.ends_with(':');
+        if machine || r.is_empty() || kept.iter().any(|k| k == r) {
+            continue;
+        }
+        kept.push(r.to_owned());
+    }
+    kept
 }
 
 fn machinery(error: &AuthoringError) -> TurnOutcome {

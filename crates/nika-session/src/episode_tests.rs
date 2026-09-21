@@ -271,12 +271,29 @@ fn the_copy_lands_on_a_named_consent_that_is_never_a_run() {
     let before = listing(world.root());
     let (id, preview) = propose(&mut s, ASK);
     let bytes = candidate(ASK);
-    for line in bytes.lines() {
+    // The review shows the BOUNDARY (every line before `tasks:`) and keeps
+    // the internals behind `/show`, which prints the exact bytes and holds.
+    for line in bytes.lines().take_while(|l| *l != "tasks:") {
         assert!(
             preview.contains(&format!("│ {line}")),
+            "the boundary line: {line}"
+        );
+    }
+    assert!(preview.contains("`/show` prints the exact"), "{preview}");
+    let TurnOutcome::Held { preview: shown, .. } = s.consent("/show") else {
+        panic!("/show holds the proposal and prints its bytes");
+    };
+    for line in bytes.lines() {
+        assert!(
+            shown.contains(&format!("│ {line}")),
             "the exact bytes: {line}"
         );
     }
+    assert_eq!(
+        s.pending_proposal(),
+        Some(id.clone()),
+        "/show never consumes"
+    );
     for row in [
         "Nika proposes `compiled-workflow.nika`:",
         "read_source · nika:read",

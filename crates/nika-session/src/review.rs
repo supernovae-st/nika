@@ -127,13 +127,33 @@ fn external_effects(candidate: &str, boundary: Option<&EffectivePermits>) -> Str
 /// never from prose.
 #[must_use]
 pub fn plan_lines(candidate: &str) -> Vec<String> {
+    plan_lines_in_order(candidate, &[])
+}
+
+/// [`plan_lines`] in RUN order: the check's waves (indices into the file's
+/// tasks) first, then anything the waves left out in file order. The file
+/// lists its tasks alphabetically; a human reads what runs first, first.
+#[must_use]
+pub fn plan_lines_in_order(candidate: &str, waves: &[Vec<usize>]) -> Vec<String> {
     let Some(wf) = parse(candidate) else {
         return vec!["(the candidate does not parse; the check below says why)".to_owned()];
     };
+    let mut order: Vec<usize> = waves
+        .iter()
+        .flatten()
+        .copied()
+        .filter(|i| *i < wf.tasks.len())
+        .collect();
+    for i in 0..wf.tasks.len() {
+        if !order.contains(&i) {
+            order.push(i);
+        }
+    }
     let default_model = wf.model.as_ref().map(|m| m.value.clone());
-    wf.tasks
+    order
         .iter()
         .enumerate()
+        .filter_map(|(n, i)| wf.tasks.get(*i).map(|t| (n, t)))
         .map(|(i, task)| {
             let task = &task.value;
             let what = match &task.action {
@@ -236,7 +256,11 @@ pub fn render(set: &ProjectChangeSet, out: &CompileOutcome, bytes: &str) -> Stri
     };
     let candidate = change.content();
     let mut text = format!("Nika proposes `{}`:\n", change.path().display());
-    for line in plan_lines(candidate) {
+    let waves: &[Vec<usize>] = out
+        .check_preview
+        .as_ref()
+        .map_or(&[], |p| p.report.waves.as_slice());
+    for line in plan_lines_in_order(candidate, waves) {
         text.push_str(&line);
         text.push('\n');
     }
@@ -259,7 +283,14 @@ pub fn render(set: &ProjectChangeSet, out: &CompileOutcome, bytes: &str) -> Stri
                 .join(" · ")
         }
     );
-    text.push_str(bytes);
+    // The boundary and the audits, not every byte: `/show` prints those.
+    // The identity beside the question is what a `yes` answers.
+    text.push_str(&set.preview_condensed());
+    let _ = writeln!(
+        text,
+        "  identity {} · `/show` for the exact bytes · `yes` applies · `no` discards",
+        crate::ProposalId::of(bytes)
+    );
     text
 }
 
@@ -341,8 +372,20 @@ mod tests {
         assert!(review.contains("reads ./rfc/**"), "{review}");
         assert!(review.contains("writes ./all.md"), "{review}");
         assert!(
-            review.ends_with(&bytes),
-            "the set's own preview closes the review"
+            review.contains("`/show` prints the exact"),
+            "the condensed preview closes the review: {review}"
+        );
+        assert!(
+            !review.contains("expression:"),
+            "the internals stay behind /show: {review}"
+        );
+        assert!(
+            review.contains("permits:"),
+            "the boundary is shown: {review}"
+        );
+        assert!(
+            review.contains(&format!("identity {}", crate::ProposalId::of(&bytes))),
+            "the identity a yes answers is printed: {review}"
         );
     }
 
