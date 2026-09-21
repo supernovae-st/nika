@@ -1,0 +1,12 @@
+# nextest · the workspace profile.
+#
+# A hung test names itself instead of stalling the whole run (#1726): nextest
+# marks a test SLOW after 60 s and terminates it after five periods (5 min),
+# reporting a timeout failure with the test's name. The slowest honest tests of
+# the workspace (the PTY suites, whose expect windows are 120 s) sit far under
+# this ceiling; a test that needs more has to say so with its own override.
+#
+# Before this file, a test wedged under nextest concurrency held the pre-push
+# gate for 23 minutes until a human sent SIGTERM (2026-09-21).
+[profile.default]
+slow-timeout = { period = "60s", terminate-after = 5, grace-period = "10s" }
