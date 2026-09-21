@@ -55,7 +55,10 @@ fn preview_is_the_same_typed_core_and_questions_are_stable() {
 #[test]
 fn explicit_authoring_is_bounded_and_ambient_credentials_do_not_opt_in() {
     let room = tempfile::tempdir().expect("room");
-    let intent = "Review this customer request and prepare a support reply";
+    // The strict reader admits "review … and prepare a support reply" as validate + draft
+    // (a correct reading that asks only for a model); this test needs a clause the reader
+    // cannot consume, so the explicit provider is the one that answers.
+    let intent = "Review this customer request and harmonise the tone of the support reply";
     let automatic = command(room.path())
         .env("OPENAI_API_KEY", "not-a-real-key")
         .args(["compile", intent, "--json"])

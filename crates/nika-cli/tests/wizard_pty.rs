@@ -107,7 +107,10 @@ fn unsupported_intent_on_a_terminal_never_routes_to_a_substitute() {
     let room = fresh_dir("compile-intent");
     let mut p = spawn_pty(
         room.path(),
-        &["compile", "summarize every item in parallel"],
+        // "summarize every item in parallel" is a draft over the incoming item to the strict
+        // reader (it asks for a model and records its plan); an unsupported intent is one
+        // with no readable operation at all.
+        &["compile", "harmonise the tone of every reply"],
         true,
     );
     let output = p.expect(Eof).expect("returns without answering anything");
