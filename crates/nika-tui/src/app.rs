@@ -263,7 +263,15 @@ impl<C: Conversation> Shell<C> {
             "nika-tui-proto: panic requested after {} line(s)",
             self.submitted
         );
+        // A turn is synchronous: the busy state is drawn BEFORE it runs, with
+        // the conversation's own name for the work, and the turn's first
+        // word clears it.
+        if let Some(label) = self.conversation.busy_label(line) {
+            self.state.busy = Some(label);
+            self.draw()?;
+        }
         let turn = self.conversation.submit(line);
+        self.state.busy = None;
         self.apply_all(turn.beats)?;
         if self.options.exit_after == Some(self.submitted) {
             self.state.quit = true;

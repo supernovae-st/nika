@@ -362,6 +362,12 @@ pub trait Conversation {
     /// Perform the handed-off work with the terminal handed back; the beats
     /// that follow it (the observation, the next prompt).
     fn perform(&mut self, handoff: &Handoff) -> Vec<Beat>;
+    /// The work a submitted line starts, named before it runs, so the shell
+    /// shows the busy state while the turn is computed (a turn is
+    /// synchronous; nothing draws until it returns). `None` draws nothing.
+    fn busy_label(&self, _line: &str) -> Option<String> {
+        None
+    }
 }
 
 impl Conversation for Script {

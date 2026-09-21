@@ -139,6 +139,9 @@ fn the_renderer_takes_a_sentence_to_a_file_and_gives_the_terminal_back() {
 
     session.send(format!("{intent}\r")).expect("the intent");
     session
+        .expect("through")
+        .expect("the busy state (« working through your words ») is drawn before the turn runs");
+    session
         .expect("compiled-workflow.nika")
         .expect("the proposal names the file it would write");
     // The diff renderer skips the cell the two prompts share: assert on the
@@ -182,6 +185,23 @@ fn the_renderer_takes_a_sentence_to_a_file_and_gives_the_terminal_back() {
         compiled_candidate(project.path(), intent),
         "the bytes the session landed are the compiler's own candidate"
     );
+}
+
+/// C · `/help` answers from the engine, committed above the composer, and
+/// the prompt comes back free; no busy state is drawn for a slash command.
+#[test]
+fn help_is_answered_by_the_engine_inside_the_viewport() {
+    let (project, home) = rig("help");
+    let (mut session, _first_paint) = open_tui(project.path(), home.path());
+    session.send("/help\r").expect("help");
+    session
+        .expect("/intelligence")
+        .expect("the help card names the intelligence door");
+    // The prompt was `nika ›` before and after: the diff renderer sends
+    // nothing for it, so the next door proves the session is still free.
+    session.send("/quit\r").expect("quit");
+    session.expect(Eof).expect("closes");
+    assert_eq!(exit_code(&mut session), 0);
 }
 
 /// B · a pipe never reaches the renderer: `--tui` on a pipe is the

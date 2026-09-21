@@ -328,6 +328,25 @@ impl Conversation for Live {
         Turn { beats, handoff }
     }
 
+    fn busy_label(&self, line: &str) -> Option<String> {
+        let runtime = self.runtime.as_ref()?;
+        let label = if self.choosing {
+            "seating the intelligence you chose"
+        } else if runtime.pending_proposal().is_some() {
+            if line.trim().is_empty() {
+                return None;
+            }
+            "landing the exact bytes and checking them"
+        } else if runtime.waiting_gate().is_some() {
+            "answering the gate"
+        } else if line.trim_start().starts_with('/') {
+            return None;
+        } else {
+            "working through your words"
+        };
+        Some(label.to_owned())
+    }
+
     fn perform(&mut self, handoff: &Handoff) -> Vec<Beat> {
         let Some((id, work)) = self.pending.take() else {
             return vec![Beat::Wait(self.waiting())];
