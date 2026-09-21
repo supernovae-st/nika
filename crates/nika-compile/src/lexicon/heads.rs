@@ -1,14 +1,44 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
-//! The frozen reader's tables: heads, cues, fillers and policy markers. Frozen on
-//! 2026-09-21 (HOT is a safety floor; every new law lives in the typed plan), so this file
-//! only ever shrinks. Lookup data, no logic.
 
-use super::lexicon::Head;
-use super::plan::{EffectVerb, Op};
+//! The head-verb tables of the deterministic reader: what a clause may open with.
+//!
+//! Every table is closed. A head names one operation, a small finite choice of
+//! operations, an effect verb or the deduplication obligation; the reader never
+//! guesses a head it does not list. The longest matching phrase wins, and a match
+//! must end at a word boundary (`look up` before `look`, never `lookups`).
+
+use super::super::plan::{EffectVerb, Op};
+
+pub(crate) enum Head {
+    Op(Op),
+    Choice(&'static [Op]),
+    Effect(EffectVerb),
+    Dedup,
+}
+
+/// Every head table, in lookup order (the longest phrase wins across all of them).
+pub(super) const TABLES: &[&[(&str, Head)]] = &[EN_FR];
+
+/// Heads that write named content to a path (`écris … dans ./x.md`): with a path and
+/// a destination connector, the clause is a write effect.
+pub(super) fn writes_to_path(phrase: &str) -> bool {
+    WRITE_HEADS.contains(&phrase)
+}
+
+const WRITE_HEADS: &[&str] = &[
+    "write",
+    "écris",
+    "écrivez",
+    "écrire",
+    "enregistre",
+    "enregistrez",
+    "enregistrer",
+    "record",
+];
 
 /// Longest phrase first. Lowercase, apostrophes normalized to `'`.
-pub(super) const LEXICON: &[(&str, Head)] = &[
+pub(super) const EN_FR: &[(&str, Head)] = &[
     ("va chercher", Head::Op(Op::Lookup)),
     ("allez chercher", Head::Op(Op::Lookup)),
     ("look up", Head::Op(Op::Lookup)),
@@ -221,242 +251,4 @@ pub(super) const LEXICON: &[(&str, Head)] = &[
     ("trigger", Head::Effect(EffectVerb::Other)),
     ("execute", Head::Effect(EffectVerb::Other)),
     ("exécute", Head::Effect(EffectVerb::Other)),
-];
-
-/// Cues that settle an ambiguous retrieval head deterministically.
-pub(super) const LOOKUP_CUES: &[&str] = &[
-    "mongodb",
-    "base ",
-    "database",
-    "annuaire",
-    "directory",
-    "registre",
-    "registry",
-    "catalogue",
-    "catalog",
-    "historique",
-    "history",
-    "calendrier",
-    "calendar",
-    "crm",
-    "shopify",
-    "runbook",
-    "checklist",
-    "knowledge base",
-    "disponibilit",
-    "availabilit",
-    "agenda",
-    "base de connaissances",
-    "record",
-    "customer",
-    "client",
-    "entreprise",
-    "compte",
-];
-
-pub(super) const SEARCH_CUES: &[&str] = &[
-    "pdf",
-    "dossier",
-    "fichiers",
-    "files",
-    "folder",
-    "pages",
-    "documents",
-    "guide",
-    "passages",
-    "corpus",
-];
-
-pub(super) const READ_CUES: &[&str] = &[
-    "fourni",
-    "fournie",
-    "fournis",
-    "fournies",
-    "supplied",
-    "provided",
-    "attached",
-    "ci-joint",
-    "formulaire",
-    "form ",
-    "transcript",
-];
-
-pub(super) const LEADING_FILLER: &[&str] = &[
-    "ensuite ",
-    "puis ",
-    "then ",
-    "also ",
-    "aussi ",
-    "please ",
-    "veuillez ",
-    "s'il te plaît ",
-    "s'il vous plaît ",
-    "automatically ",
-    "automatiquement ",
-    "seulement ",
-    "only ",
-    "always ",
-    "toujours ",
-];
-
-pub(super) const ARTICLES: &[&str] = &[
-    "le", "la", "les", "l", "l'", "d", "qu", "n", "s", "c", "j", "un", "une", "des", "du", "de",
-    "d'", "the", "a", "an", "my", "mon", "ma", "mes", "notre", "nos", "our", "son", "sa", "ses",
-    "its", "their", "leur", "leurs", "ce", "cet", "cette", "ces", "chaque", "each", "every",
-    "tout", "toute", "tous", "toutes", "any", "all", "en", "ensuite",
-];
-
-pub(super) const TRIGGER_PREFIXES: &[&str] = &[
-    "pour la ",
-    "pour le ",
-    "pour les ",
-    "pour chaque ",
-    "for the ",
-    "for every ",
-    "quand ",
-    "lorsque ",
-    "dès que ",
-    "tous les ",
-    "toutes les ",
-    "chaque fois ",
-    "après ",
-    "for each ",
-    "when ",
-    "whenever ",
-    "every ",
-    "after ",
-    "once ",
-    "à partir de ",
-    "from the ",
-    "starting from ",
-];
-
-pub(super) const NUMBER_WORDS: &[(&str, u32)] = &[
-    ("un", 1),
-    ("une", 1),
-    ("one", 1),
-    ("deux", 2),
-    ("two", 2),
-    ("trois", 3),
-    ("three", 3),
-    ("quatre", 4),
-    ("four", 4),
-    ("cinq", 5),
-    ("five", 5),
-    ("six", 6),
-    ("sept", 7),
-    ("seven", 7),
-    ("huit", 8),
-    ("eight", 8),
-    ("neuf", 9),
-    ("nine", 9),
-    ("dix", 10),
-    ("ten", 10),
-];
-
-pub(super) const ATTEMPT_NOUNS: &[&str] = &[
-    "essai",
-    "tentative",
-    "itération",
-    "iteration",
-    "cycle",
-    "attempt",
-    "retr",
-    "tries",
-    "try",
-    "round",
-];
-
-pub(super) const BOUND_WORDS: &[&str] = &[
-    "limite ",
-    "limit ",
-    "au maximum",
-    "maximum",
-    "at most",
-    "up to",
-    "no more than",
-    "at max",
-    "max ",
-];
-
-pub(super) const UNDECIDED_MARKERS: &[&str] = &[
-    "je n'ai pas encore décidé si le workflow doit ",
-    "je n'ai pas encore décidé si le workflow devait ",
-    "je n'ai pas encore décidé si ",
-    "i have not decided whether the workflow should ",
-    "i have not decided whether to ",
-    "i have not decided whether ",
-    "i haven't decided whether to ",
-    "i haven't decided whether ",
-];
-
-pub(super) const REVISION_MARKERS: &[&str] = &[
-    "vérifie de nouveau la version",
-    "vérifie à nouveau la version",
-    "re-check the current",
-    "recheck the current",
-    "check the current version again",
-    "re-verify the current",
-];
-
-pub(super) const FINAL_GATE_MARKERS: &[&str] = &[
-    "mais cette action finale exige la validation humaine",
-    "cette action finale exige la validation humaine",
-    "this final action requires human validation",
-    "this final action requires human approval",
-    "only after my approval",
-    "only after i approve",
-    "only once i approve",
-    "once i approve",
-    "after my approval",
-    "seulement après mon accord",
-    "après mon accord",
-    "après ma validation",
-    "après validation humaine",
-    "but ask me before",
-    "but get my approval before",
-    "get my approval before",
-    "with my approval before",
-];
-
-pub(super) const NAMED_GATE_MARKERS: &[&str] = &[
-    "demande mon accord avant ",
-    "demandez mon accord avant ",
-    "demander mon accord avant ",
-    "demande un accord humain avant ",
-    "demande ma validation avant ",
-    "require my approval before ",
-    "ask me before ",
-    "ask for my approval before ",
-    "obtain my approval before ",
-    "hold every ",
-    "attends ma validation avant ",
-    "wait for my approval before ",
-];
-
-pub(super) const FORBIDDEN_MARKERS: &[&str] = &[
-    "il est aussi absolument interdit de ",
-    "il est aussi absolument interdit d'",
-    "il est absolument interdit de ",
-    "il est absolument interdit d'",
-    "il est aussi interdit de ",
-    "il est aussi interdit d'",
-    "il est interdit de ",
-    "il est interdit d'",
-    "it is absolutely forbidden to ",
-    "it is also absolutely forbidden to ",
-    "it is forbidden to ",
-    "never ",
-    "do not ",
-    "don't ",
-    "nothing should be ",
-    "ne jamais ",
-];
-
-pub(super) const STOP_MARKERS: &[&str] = &[
-    "arrête-toi après",
-    "aucune autre action n'est demandée",
-    "no other step",
-    "nothing else",
-    "no further action",
 ];

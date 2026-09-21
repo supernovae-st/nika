@@ -12,16 +12,23 @@
 //! AMBIGUOUS and may be settled by a bounded decision seat. Nothing here invents
 //! an operation, an effect or a policy; every element keeps its verbatim clause.
 
-use super::cues::{
-    ARTICLES, ATTEMPT_NOUNS, BOUND_WORDS, FINAL_GATE_MARKERS, FORBIDDEN_MARKERS, LEADING_FILLER,
-    LEXICON, LOOKUP_CUES, NAMED_GATE_MARKERS, NUMBER_WORDS, READ_CUES, REVISION_MARKERS,
-    SEARCH_CUES, STOP_MARKERS, TRIGGER_PREFIXES, UNDECIDED_MARKERS,
-};
+mod cues;
+mod heads;
+mod slugs;
+
 use super::paths::Structured;
 use super::plan::{
     Binding, Effect, EffectPolicy, EffectVerb, Obligation, ObligationKind, Op, Plan, Step,
 };
 use super::{gates, objects};
+use cues::{
+    ARTICLES, ATTEMPT_NOUNS, BOUND_WORDS, CATEGORY_MARKERS, CONSTRAINT_OPENERS, FINAL_GATE_MARKERS,
+    FORBIDDEN_MARKERS, LEADING_FILLER, LOOKUP_CUES, NAMED_GATE_MARKERS, NEGATION_OPENERS,
+    NUMBER_WORDS, OBJECT_CONNECTORS, READ_CUES, REVISION_MARKERS, SEARCH_CUES, SECOND_WORD_FILLERS,
+    STOP_MARKERS, STRONG_CONNECTORS, TRIGGER_PREFIXES, UNDECIDED_MARKERS, WEAK_CONNECTORS,
+};
+pub(crate) use heads::Head;
+pub(super) use slugs::slug;
 
 /// One clause the lexicon could not settle alone: a small feasible set, never a guess.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -149,13 +156,6 @@ impl Reading {
     }
 }
 
-pub(super) enum Head {
-    Op(Op),
-    Choice(&'static [Op]),
-    Effect(EffectVerb),
-    Dedup,
-}
-
 /// Typographic apostrophes fold to `'` so byte offsets stay aligned between the
 /// lowercase matching copy and the evidence copy. Callers anchor against this form.
 pub(super) fn fold_apostrophes(intent: &str) -> String {
@@ -247,21 +247,7 @@ fn explicit_object(detail: &str) -> bool {
             || w.starts_with("asia/")
             || w.chars().all(|c| c.is_ascii_digit()) && !w.is_empty()
     });
-    let connectors = [
-        ", ",
-        " and ",
-        " et ",
-        " or ",
-        " ou ",
-        " puis ",
-        " then ",
-        ";",
-        " sans ",
-        " without ",
-        " mais ",
-        " but ",
-    ];
-    let coordinated = connectors.iter().any(|c| lower.contains(c));
+    let coordinated = OBJECT_CONNECTORS.iter().any(|c| lower.contains(c));
     let content = lower
         .split(|c: char| {
             !c.is_alphanumeric()
@@ -332,17 +318,7 @@ fn head_of(lower: &str) -> Option<(&'static str, &'static Head)> {
     let mut words = lower.splitn(3, ' ');
     let (first, second, rest) = (words.next(), words.next(), words.next());
     if let (Some(first), Some(second), Some(rest)) = (first, second, rest)
-        && matches!(
-            second,
-            "ensuite"
-                | "alors"
-                | "then"
-                | "also"
-                | "aussi"
-                | "puis"
-                | "immédiatement"
-                | "immediately"
-        )
+        && SECOND_WORD_FILLERS.contains(&second)
     {
         return head_of_exact(&format!("{first} {rest}"));
     }
@@ -351,7 +327,7 @@ fn head_of(lower: &str) -> Option<(&'static str, &'static Head)> {
 
 pub(super) fn head_of_exact(lower: &str) -> Option<(&'static str, &'static Head)> {
     let mut best: Option<(&'static str, &'static Head)> = None;
-    for (phrase, head) in LEXICON {
+    for (phrase, head) in heads::TABLES.iter().flat_map(|table| table.iter()) {
         if lower.starts_with(phrase) {
             let boundary = lower.get(phrase.len()..).is_none_or(|rest| {
                 rest.is_empty() || rest.starts_with(|c: char| !c.is_alphanumeric())
@@ -385,16 +361,12 @@ fn split_clauses(sentence: &str) -> Vec<&str> {
     // A sequencing connector always opens a new clause (an unknown verb after
     // `puis` must stay visible, never be swallowed as the previous object);
     // a coordinating comma or `et`/`and` opens one only before a known head.
-    const STRONG: &[&str] = &[
-        ", puis ", " puis ", ", then ", " then ", ", mais ", " mais ", ", but ", " but ",
-    ];
-    const WEAK: &[&str] = &[", et ", " et ", ", and ", " and ", ", "];
     let lower = normalize(sentence);
     if lower.len() != sentence.len() {
         return vec![sentence];
     }
     let mut cuts = Vec::new();
-    for (connectors, always) in [(STRONG, true), (WEAK, false)] {
+    for (connectors, always) in [(STRONG_CONNECTORS, true), (WEAK_CONNECTORS, false)] {
         for connector in connectors {
             let mut from = 0;
             while let Some(pos) = lower.get(from..).and_then(|s| s.find(connector)) {
@@ -492,7 +464,7 @@ fn money_literal(sentence: &str) -> bool {
 }
 
 fn categories_of(detail_lower: &str) -> Vec<String> {
-    for marker in [" en ", " into ", " as "] {
+    for marker in CATEGORY_MARKERS {
         if let Some(pos) = detail_lower.find(marker) {
             let tail = detail_lower.get(pos + marker.len()..).unwrap_or_default();
             let tail = tail.split([';', '.']).next().unwrap_or_default();
@@ -1037,13 +1009,7 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
     if text.is_empty() {
         return false;
     }
-    let negated = text.starts_with("ne ")
-        || text.starts_with("n'")
-        || text.starts_with("do not ")
-        || text.starts_with("don't ")
-        || text.starts_with("never ")
-        || text.starts_with("no ")
-        || text.starts_with("aucun");
+    let negated = NEGATION_OPENERS.iter().any(|m| text.starts_with(m));
     if negated {
         let verbs = effect_words(text, &reading.columns);
         if verbs.is_empty() {
@@ -1073,18 +1039,7 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
         }
         return true;
     }
-    if text.starts_with("si ")
-        || text.starts_with("if ")
-        || text.starts_with("lorsque ")
-        || text.starts_with("unless ")
-        || text.starts_with("laisse ")
-        || text.starts_with("laissez ")
-        || text.starts_with("leave ")
-        || text.starts_with("keep ")
-        || text.starts_with("conserve ")
-        || text.starts_with("garde ")
-        || text.starts_with("ignore ")
-    {
+    if CONSTRAINT_OPENERS.iter().any(|m| text.starts_with(m)) {
         reading.plan.constraints.push(original.to_owned());
         return true;
     }
@@ -1170,17 +1125,7 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
     // A named local path settles the medium: writing TO a path is a file effect,
     // reading a path is the supplied-document read.
     if let Some(path) = &path {
-        let writes = matches!(
-            phrase,
-            "write"
-                | "écris"
-                | "écrivez"
-                | "écrire"
-                | "enregistre"
-                | "enregistrez"
-                | "enregistrer"
-                | "record"
-        );
+        let writes = heads::writes_to_path(phrase);
         let saves = detail_lower.contains(" to ")
             || detail_lower.contains(" dans ")
             || detail_lower.contains(" into ")
@@ -1426,62 +1371,5 @@ fn collect_bindings(intent: &str, plan: &mut Plan) {
                 literal: token.to_owned(),
             });
         }
-    }
-}
-
-/// Slug of a verbatim phrase for a constant name: ASCII letters, articles dropped, at most three tokens.
-pub(super) fn slug(phrase: &str) -> String {
-    let lower = normalize(phrase);
-    let cut = [
-        " dans ",
-        " in ",
-        " from ",
-        " depuis ",
-        " sur ",
-        " on ",
-        " to ",
-        " vers ",
-        " pour ",
-        " for ",
-        " avec ",
-        " with ",
-        " correspondant",
-        " correspondante",
-    ]
-    .iter()
-    .filter_map(|m| lower.find(m))
-    .min()
-    .unwrap_or(lower.len());
-    let head = lower.get(..cut).unwrap_or(&lower);
-    let tokens: Vec<String> = head
-        .split(|c: char| !c.is_alphanumeric() && c != '\'')
-        .flat_map(|t| t.split('\''))
-        .map(|t| {
-            t.chars()
-                .map(fold_ascii)
-                .filter(char::is_ascii_alphanumeric)
-                .collect::<String>()
-        })
-        .filter(|t| !t.is_empty() && !ARTICLES.contains(&t.as_str()))
-        .take(3)
-        .collect();
-    if tokens.is_empty() {
-        "record".to_owned()
-    } else {
-        tokens.join("_")
-    }
-}
-
-fn fold_ascii(c: char) -> char {
-    match c {
-        'à' | 'â' | 'ä' | 'á' => 'a',
-        'é' | 'è' | 'ê' | 'ë' => 'e',
-        'î' | 'ï' | 'í' => 'i',
-        'ô' | 'ö' | 'ó' => 'o',
-        'û' | 'ù' | 'ü' | 'ú' => 'u',
-        'ç' => 'c',
-        'ñ' => 'n',
-        c if c.is_ascii_alphanumeric() => c,
-        _ => '_',
     }
 }
