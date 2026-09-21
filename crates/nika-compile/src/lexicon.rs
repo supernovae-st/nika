@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+// LOC-EXEMPT: lookup-table [compile · the deterministic reader is FROZEN 2026-09-21 (HOT is a safety floor, every new law lives in the typed plan) · its head, cue and marker tables are the bulk · split scheduled with the season-2 debt wave]
 
 //! Deterministic reading of a free intent (the HOT frontend and the policy backstop).
 //!

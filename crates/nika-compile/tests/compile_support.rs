@@ -2,7 +2,7 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! User-level composition contracts. No credentials or business effects.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-use nika_onboard::compile::{CompileRequest, CompileStatus, QuestionType, compile};
+use nika_compile::{CompileRequest, CompileStatus, QuestionType, compile};
 use serde_json::{Value, json};
 const SUPPORT: &str =
     "Route support tickets, look up the customer, draft a reply, and ask me before any refund";

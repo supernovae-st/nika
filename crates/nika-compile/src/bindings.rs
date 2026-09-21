@@ -367,7 +367,7 @@ pub(super) fn bind(
     b
 }
 
-/// A per-item request whose written target is a placeholder ("./out/<name>.md") asks for
+/// A per-item request whose written target is a placeholder (`./out/<name>.md`) asks for
 /// one file per item; the compiler emits one written file per request and never lowers
 /// that to a single guessed path.
 fn refuse_per_item_placeholder(effect: &Effect, out: &mut CompileOutcome) -> bool {

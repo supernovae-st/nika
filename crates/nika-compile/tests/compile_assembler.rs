@@ -5,13 +5,13 @@
 //! for a fresh intent (2026-09-20 clean-shell gate), fed through a hermetic provider double;
 //! the assertions read the emitted candidate, never a model.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+use nika_compile::{
+    AuthoringPolicy, CompileOutcome, CompileRequest, CompileStatus, DiagnosticKind,
+    compile_with_provider,
+};
 use nika_kernel::ai::provider::{
     ContentBlock, InferRequest, InferResponse, ProviderError, ProviderInferDyn, StopReason,
     TokenUsage,
-};
-use nika_onboard::compile::{
-    AuthoringPolicy, CompileOutcome, CompileRequest, CompileStatus, DiagnosticKind,
-    compile_with_provider,
 };
 use serde_json::{Value, json};
 use std::time::Duration;
@@ -50,7 +50,7 @@ fn replay(intent: &str, record: &Value, answers: &[(&str, &str)]) -> CompileOutc
     for (key, literal) in answers {
         request = request.answer(*key, *literal);
     }
-    nika_onboard::compile::compile(&request).unwrap()
+    nika_compile::compile(&request).unwrap()
 }
 
 fn keys(out: &CompileOutcome) -> Vec<&str> {

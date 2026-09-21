@@ -4,7 +4,7 @@
 //! Hermetic authoring contracts. No files, credentials, models or workflows execute.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use nika_onboard::compile::{
+use nika_compile::{
     AuthoringCognition, CompileRequest, CompileStatus, DiagnosticKind, PreviewScope, compile,
 };
 use nika_schema::{FileId, ParseMode};
@@ -447,11 +447,7 @@ fn emitted_literal_must_retain_the_exact_canonical_value() {
     );
 }
 
-fn equivalent_edits(
-    source: &str,
-    name: &str,
-    literal: &str,
-) -> nika_onboard::compile::CompileOutcome {
+fn equivalent_edits(source: &str, name: &str, literal: &str) -> nika_compile::CompileOutcome {
     let structured = compile(&CompileRequest::set_constant(source, name, literal)).unwrap();
     let textual = compile(&CompileRequest::edit(
         source,

@@ -570,7 +570,7 @@ fn literal_tokens(text: &str) -> Vec<String> {
     out
 }
 
-/// A path the request spells with a placeholder ("./catalog/<slug>.md" beside the slugs it
+/// A path the request spells with a placeholder (`./catalog/<slug>.md` beside the slugs it
 /// lists) is derived, not invented: every component of the path appears verbatim in the
 /// request. URLs and emails never qualify.
 fn derived_path(token: &str, intent: &str) -> bool {

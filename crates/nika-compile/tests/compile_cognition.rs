@@ -3,15 +3,15 @@
 //! Explicit cognition contracts: HOT reads alone, WARM asks a bounded seat, COLD asks
 //! one generative provider. All seats are injected hermetic doubles.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-use nika_kernel::ai::provider::{
-    ContentBlock, InferRequest, InferResponse, ProviderError, ProviderInferDyn, StopReason,
-    TokenUsage,
-};
-use nika_onboard::compile::{
+use nika_compile::{
     AuthoringPolicy, Cognition, CompileRequest, CompileStatus, HotPolicy, NoProvider, Strategy,
     compile_with_cognition, compile_with_provider,
     decide::{ChoiceAnswer, ChoiceFuture, ChoiceQuestion, DecisionSeat, NONE_OPTION},
     outcome_document,
+};
+use nika_kernel::ai::provider::{
+    ContentBlock, InferRequest, InferResponse, ProviderError, ProviderInferDyn, StopReason,
+    TokenUsage,
 };
 use serde_json::{Value, json};
 use std::{
@@ -64,7 +64,7 @@ fn policy() -> AuthoringPolicy {
 fn request() -> CompileRequest {
     CompileRequest::create(INTENT).with_authoring_policy(policy())
 }
-fn keys(out: &nika_onboard::compile::CompileOutcome) -> Vec<&str> {
+fn keys(out: &nika_compile::CompileOutcome) -> Vec<&str> {
     out.questions.iter().map(|q| q.key.as_str()).collect()
 }
 
@@ -255,7 +255,7 @@ async fn model_cannot_omit_refund_or_insert_approval_into_automatic_refund() {
 async fn recognized_send_is_a_bound_effect_never_a_draft_only_candidate() {
     let intent =
         "Consulte le client, classe le problème, prépare une réponse et envoyer la réponse.";
-    let out = nika_onboard::compile::compile(&CompileRequest::create(intent)).unwrap();
+    let out = nika_compile::compile(&CompileRequest::create(intent)).unwrap();
     assert_eq!(out.provenance.strategy, Some(Strategy::Hot), "{out:#?}");
     assert!(out.candidate.is_none());
     assert!(keys(&out).contains(&"const.send_endpoint"), "{out:#?}");
@@ -266,7 +266,7 @@ async fn recognized_send_is_a_bound_effect_never_a_draft_only_candidate() {
         doc["provenance"]["plan"]["effects"][0]["policy"],
         "automatic"
     );
-    let ready = nika_onboard::compile::compile(
+    let ready = nika_compile::compile(
         &CompileRequest::create(intent)
             .answer("model", r#""mock/echo""#)
             .answer("const.customer_directory", r#""customers.json""#)
@@ -430,13 +430,12 @@ async fn exact_support_clauses_never_reach_an_opted_in_provider() {
 #[test]
 fn hot_reads_a_file_transforms_it_and_writes_the_result_with_zero_calls() {
     let intent = "Read ./notes/brief.md, summarize it in three bullets, and write the summary to ./out/summary.md";
-    let out = nika_onboard::compile::compile(&CompileRequest::create(intent)).unwrap();
+    let out = nika_compile::compile(&CompileRequest::create(intent)).unwrap();
     assert_eq!(out.provenance.strategy, Some(Strategy::Hot), "{out:#?}");
     assert_eq!(keys(&out), ["model"], "{out:#?}");
-    let ready = nika_onboard::compile::compile(
-        &CompileRequest::create(intent).answer("model", r#""mock/echo""#),
-    )
-    .unwrap();
+    let ready =
+        nika_compile::compile(&CompileRequest::create(intent).answer("model", r#""mock/echo""#))
+            .unwrap();
     assert_eq!(ready.status, CompileStatus::Ready, "{ready:#?}");
     assert!(ready.check_preview.as_ref().unwrap().report.is_clean());
     let doc: Value = serde_yaml_bw::from_str(ready.candidate.as_deref().unwrap()).unwrap();
@@ -452,10 +451,9 @@ fn hot_reads_a_file_transforms_it_and_writes_the_result_with_zero_calls() {
 #[test]
 fn hot_prohibition_and_indecision_are_honoured_without_a_model() {
     let forbidden = "Extrais les coordonnées de chaque candidature et prépare un accusé de réception. Il est absolument interdit d'envoyer une invitation.";
-    let out = nika_onboard::compile::compile(
-        &CompileRequest::create(forbidden).answer("model", r#""mock/echo""#),
-    )
-    .unwrap();
+    let out =
+        nika_compile::compile(&CompileRequest::create(forbidden).answer("model", r#""mock/echo""#))
+            .unwrap();
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     let doc = outcome_document(&out);
     assert_eq!(
@@ -464,11 +462,11 @@ fn hot_prohibition_and_indecision_are_honoured_without_a_model() {
     );
     assert!(!out.candidate.as_deref().unwrap().contains("nika:fetch"));
     let undecided = "Extrais les coordonnées de chaque candidature et prépare un accusé de réception. Je n'ai pas encore décidé si le workflow doit envoyer une invitation. Pose-moi la question avant de choisir.";
-    let out = nika_onboard::compile::compile(&CompileRequest::create(undecided)).unwrap();
+    let out = nika_compile::compile(&CompileRequest::create(undecided)).unwrap();
     assert_eq!(out.status, CompileStatus::Incomplete);
     assert!(keys(&out).contains(&"effect.send.include"), "{out:#?}");
     let conflict = "Extrais les coordonnées de chaque candidature et prépare un accusé de réception. Envoie ensuite une invitation. Il est aussi absolument interdit d'envoyer une invitation. Ces deux consignes doivent rester visibles comme une contradiction à résoudre.";
-    let out = nika_onboard::compile::compile(&CompileRequest::create(conflict)).unwrap();
+    let out = nika_compile::compile(&CompileRequest::create(conflict)).unwrap();
     assert_eq!(out.status, CompileStatus::Refused, "{out:#?}");
     assert!(out.candidate.is_none());
 }
@@ -678,7 +676,7 @@ const SWALLOWED: &str = "Look up the customer, harmonize the tone and prepare a 
 
 #[test]
 fn strict_hot_refuses_a_clause_that_hides_unknown_requested_work() {
-    let out = nika_onboard::compile::compile(&CompileRequest::create(SWALLOWED)).unwrap();
+    let out = nika_compile::compile(&CompileRequest::create(SWALLOWED)).unwrap();
     assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
     assert!(out.candidate.is_none());
     assert!(out.provenance.strategy.is_none(), "{out:#?}");
@@ -686,7 +684,7 @@ fn strict_hot_refuses_a_clause_that_hides_unknown_requested_work() {
     let route = doc["provenance"]["decision"]["route"].to_string();
     assert!(route.contains("hot rejected"), "{route}");
     // The legacy contract (ablation only) would have admitted it: the false HOT we measure.
-    let legacy = nika_onboard::compile::compile(
+    let legacy = nika_compile::compile(
         &CompileRequest::create(SWALLOWED).with_hot_policy(HotPolicy::Legacy),
     )
     .unwrap();
@@ -711,7 +709,7 @@ async fn strict_hot_rejection_escalates_to_cold_when_a_seat_is_permitted() {
 
 #[test]
 fn strict_hot_admits_an_explicit_literal_request() {
-    let out = nika_onboard::compile::compile(&CompileRequest::create(
+    let out = nika_compile::compile(&CompileRequest::create(
         "Fetch https://example.com/pricing and write the result to ./out/pricing.md",
     ))
     .unwrap();
@@ -720,7 +718,7 @@ fn strict_hot_admits_an_explicit_literal_request() {
 
 #[test]
 fn hot_policy_off_never_admits_prose() {
-    let out = nika_onboard::compile::compile(
+    let out = nika_compile::compile(
         &CompileRequest::create("Look up the customer, classify the ticket and draft a reply.")
             .with_hot_policy(HotPolicy::Off),
     )
@@ -896,7 +894,7 @@ async fn retrieval_is_recorded_as_recall_on_every_route() {
     }
     // HOT · deterministic, zero calls: recall by intent and by the plan's operation words.
     let intent = "Read ./notes/brief.md, summarize it in three bullets, and write the summary to ./out/summary.md";
-    let hot = nika_onboard::compile::compile(&CompileRequest::create(intent)).unwrap();
+    let hot = nika_compile::compile(&CompileRequest::create(intent)).unwrap();
     assert_eq!(hot.provenance.strategy, Some(Strategy::Hot));
     let doc = outcome_document(&hot);
     let by_intent = hits(&doc, "by_intent");
@@ -905,7 +903,7 @@ async fn retrieval_is_recorded_as_recall_on_every_route() {
     assert!(!by_ops.is_empty() && by_ops.len() <= 10, "{doc:#}");
     assert!(by_intent.iter().chain(&by_ops).all(well_formed), "{doc:#}");
     // A deterministic rejection still records the recall by intent, and no plan recall.
-    let rejected = nika_onboard::compile::compile(&CompileRequest::create(INTENT)).unwrap();
+    let rejected = nika_compile::compile(&CompileRequest::create(INTENT)).unwrap();
     assert_ne!(rejected.status, CompileStatus::Ready);
     let doc = outcome_document(&rejected);
     assert!(!hits(&doc, "by_intent").is_empty(), "{doc:#}");
@@ -946,17 +944,17 @@ async fn retrieval_is_recorded_as_recall_on_every_route() {
 #[test]
 fn strict_hot_requires_every_cue_to_produce_an_element() {
     let intent = "Fetch https://www.rfc-editor.org/rfc/rfc2324.txt and pull out the numbered section titles. Then write a plain-English brief of under 150 words explaining what the protocol does and why it is a joke, as 5 bullets, to ./out/rfc2324-brief.md.";
-    let out = nika_onboard::compile::compile(&CompileRequest::create(intent)).unwrap();
+    let out = nika_compile::compile(&CompileRequest::create(intent)).unwrap();
     assert_ne!(out.provenance.strategy, Some(Strategy::Hot), "{out:#?}");
     assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
-    let out = nika_onboard::compile::compile(
+    let out = nika_compile::compile(
         &CompileRequest::create("Read ./a.txt and write ./b.txt").answer("model", r#""mock/echo""#),
     )
     .unwrap();
     assert_ne!(out.provenance.strategy, Some(Strategy::Hot), "{out:#?}");
     assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
     let control = "Read ./notes/brief.md, summarize it in three bullets, and write the summary to ./out/summary.md";
-    let out = nika_onboard::compile::compile(&CompileRequest::create(control)).unwrap();
+    let out = nika_compile::compile(&CompileRequest::create(control)).unwrap();
     assert_eq!(out.provenance.strategy, Some(Strategy::Hot), "{out:#?}");
 }
 
@@ -1741,10 +1739,10 @@ fn requested_meaning_survives_the_deterministic_door() {
     ];
     let mut realized = Vec::new();
     for case in &cases {
-        let mut out = nika_onboard::compile::compile(&CompileRequest::create(case.intent)).unwrap();
+        let mut out = nika_compile::compile(&CompileRequest::create(case.intent)).unwrap();
         if keys(&out).contains(&"model") {
             // A drafted transformation needs a model: the only question a realized case asks.
-            out = nika_onboard::compile::compile(
+            out = nika_compile::compile(
                 &CompileRequest::create(case.intent).answer("model", r#""mock/echo""#),
             )
             .unwrap();
@@ -1986,7 +1984,7 @@ async fn a_derived_output_is_arithmetic_over_the_totals() {
 #[test]
 fn a_listed_column_is_never_an_effect() {
     let intent = "Read ./contatos.csv, which has the columns nome,email,cidade, and write ./out/contatos.json as a JSON array with the keys name, email e city, sorted by email.";
-    let out = nika_onboard::compile::compile(&CompileRequest::create(intent)).unwrap();
+    let out = nika_compile::compile(&CompileRequest::create(intent)).unwrap();
     let plan = out.provenance.plan.clone().unwrap_or_default();
     let verbs: Vec<String> = plan["effects"]
         .as_array()

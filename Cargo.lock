@@ -4417,6 +4417,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-compile"
+version = "0.120.3"
+dependencies = [
+ "marked-yaml",
+ "miette",
+ "nika-bm25",
+ "nika-check",
+ "nika-error",
+ "nika-kernel",
+ "nika-pack",
+ "nika-schema",
+ "nika-source",
+ "nix 0.31.3",
+ "serde",
+ "serde_json",
+ "serde_yaml_bw",
+ "sha2 0.10.9",
+ "tempfile",
+ "thiserror 2.0.20",
+ "tokio",
+ "url",
+]
+
+[[package]]
 name = "nika-dap"
 version = "0.120.3"
 dependencies = [
@@ -4839,27 +4863,16 @@ dependencies = [
 name = "nika-onboard"
 version = "0.120.3"
 dependencies = [
- "marked-yaml",
- "miette",
  "nika-bm25",
  "nika-catalog",
  "nika-check",
+ "nika-compile",
  "nika-display",
- "nika-error",
- "nika-kernel",
  "nika-pack",
  "nika-schema",
  "nika-source",
  "nika-vocab",
- "nix 0.31.3",
- "serde",
  "serde_json",
- "serde_yaml_bw",
- "sha2 0.10.9",
- "tempfile",
- "thiserror 2.0.20",
- "tokio",
- "url",
 ]
 
 [[package]]

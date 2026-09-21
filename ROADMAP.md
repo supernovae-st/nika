@@ -105,10 +105,10 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| HEAD             | `c77cfc203` (`c77cfc20327493d2ac3691894eb234da5664ae40`)             |
+| HEAD             | `4661fdb7e` (`4661fdb7e1bdaa055a55091c92e317ca4ecbb41a`)             |
 | workspace        | v0.120.3                                  |
-| crates (workspace)| 73                                              |
-| crates (admitted)| 64                                             |
+| crates (workspace)| 74                                              |
+| crates (admitted)| 65                                             |
 | crates (WIP)     | 9 — nika-chart nika-fx nika-proof nika-store nika-harness nika-execution nika-service-execution nika-serve nika-session                                  |
 | L0               | 22                                              |
 | L0.5             | 6                                              |
@@ -116,8 +116,8 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 | L1.5             | 4                                              |
 | L2               | 5                                              |
 | L3               | 4                                              |
-| L4               | 15                                              |
-| lib tests        | 7941 passed, 0 failed                              |
+| L4               | 16                                              |
+| lib tests        | 8007 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
 > **Where we are · 2026-09-20.** Engine **v0.120.3** is published from

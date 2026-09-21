@@ -23,7 +23,7 @@
     clippy::print_stderr
 )]
 
-use nika_onboard::compile::{Hit, retrieve};
+use nika_compile::{Hit, retrieve};
 
 /// (intent verbatim from `example_intent`, accepted family ids).
 const SEEN: &[(&str, &[&str])] = &[

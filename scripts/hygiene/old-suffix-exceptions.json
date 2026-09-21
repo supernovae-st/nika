@@ -47,7 +47,7 @@
       "lines_sha256": "sha256:ec76d151057747765f9d816efa6b7da347da8cd700c53562382ed2615c2e627f"
     },
     {
-      "path": "crates/nika-onboard/src/compile/materialize.rs",
+      "path": "crates/nika-compile/src/materialize.rs",
       "category": "negative",
       "reason": "compile adapter refuses a retired destination",
       "owner": "nika-onboard",

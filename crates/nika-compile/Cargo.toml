@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+[package]
+name        = "nika-compile"
+version.workspace = true
+edition     = "2024"
+rust-version = "1.88"
+license     = "AGPL-3.0-or-later"
+description = "The stateless Compile core — one intent in, one CompileOutcome out: the deterministic reader, the typed semantic plan, the finite composer, the deterministic assembler and the Check preview. Layer L4 — ONE architectural unit with nika-onboard in TWO workspace members (D-2026-07-09-N1 · ADR-137), descended at the 15k prod-LOC wall; nika-onboard re-exports it at its historical `compile` path."
+repository  = "https://github.com/supernovae-st/nika"
+publish     = false  # member of the nika-onboard unit — never on crates.io alone
+
+[dependencies]
+nika-kernel = { path = "../nika-kernel", version = "0.120.3" } # explicit authoring provider seam
+serde = { workspace = true } # private semantic-plan decoder
+tokio = { workspace = true } # bounded authoring timeout
+url = { workspace = true } # explicit HTTP binding host, never inferred authority
+nika-pack    = { path = "../nika-pack", version = "0.120.3" }    # templates · examples (the scaffold corpus)
+nika-bm25    = { path = "../nika-bm25", version = "0.120.3" }    # recall over the gallery
+serde_json   = { workspace = true }                              # the plan, the provenance, the schema
+sha2         = { workspace = true }                              # the intent sha a recorded plan is keyed by
+nika-schema = { path = "../nika-schema", version = "0.120.3" }  # the same strict parser for in-memory candidates
+nika-source = { path = "../nika-source", version = "0.120.3" }  # lexical program-source naming (#1684)
+nika-check  = { path = "../nika-check", version = "0.120.3" }  # the same pure Check core for the preview
+serde_yaml_bw = { workspace = true } # deterministic emission; edits retain semantic regions
+marked-yaml = { workspace = true } # locate constant nodes with the canonical parser's YAML frontend
+thiserror = { workspace = true }
+miette = { workspace = true }
+nika-error = { path = "../nika-error", version = "0.120.3" } # compiler machinery failures retain the canonical error voice
+tempfile = { workspace = true } # exclusive dest create + atomic overwrite persist
+
+[dev-dependencies]
+nix = { workspace = true, features = ["fs"] } # FIFO fixture for overwrite-refuse proof
+
+[package.metadata.lore]
+daemon        = "forgeron"
+archetype     = "compiler-smith"
+spirit_role   = "lit l'intention, écrit le code, ne devine jamais · une clause demandée survit ou est questionnée"
+
+[lints]
+workspace = true

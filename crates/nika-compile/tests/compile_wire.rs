@@ -11,7 +11,7 @@
 
 use std::collections::BTreeMap;
 
-use nika_onboard::compile::{
+use nika_compile::{
     COMPILE_WIRE_VERSION, CompileRequest, CompileStatus, DiagnosticKind, compile, outcome_document,
 };
 use serde_json::Value;

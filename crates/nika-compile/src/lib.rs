@@ -1,6 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
-
+//! The stateless Compile core: one intent in, one [`CompileOutcome`] out. The deterministic
+//! reader, the typed semantic plan, the finite composer, the deterministic assembler and
+//! the Check preview live here; `nika-onboard` re-exports this crate at its historical
+//! `compile` path, so every caller keeps writing `nika_compile::…`.
+//!
+//! Descended from `nika-onboard` at the 15k prod-LOC wall (2026-09-21 · ADR-137): per
+//! D-2026-07-09-N1 this is ONE architectural unit in TWO workspace members. The member
+//! never depends back on the surface.
+//!
 //! Stateless authoring foundation: explicit request → ordinary source → pure Check preview.
 //!
 //! CREATE resolves exact embedded skeletons and a bounded support clause grammar,
@@ -30,7 +38,7 @@
 //! grants authority.
 //!
 //! ```
-//! use nika_onboard::compile::{compile, CompileRequest, CompileStatus};
+//! use nika_compile::{compile, CompileRequest, CompileStatus};
 //! let request = CompileRequest::create("classify-and-route")
 //!     .answer("const.request", r#""An outage affects our customers.""#);
 //! let created = compile(&request)?;
@@ -40,13 +48,13 @@
 //!         r#"Set const.request to "One customer cannot log in.""#))?;
 //!     assert_eq!(edited.status, CompileStatus::Ready);
 //! }
-//! # Ok::<(), nika_onboard::compile::CompileError>(())
+//! # Ok::<(), nika_compile::CompileError>(())
 //! ```
 
 //! A UI can submit an explicit operation against the source it owns:
 //!
 //! ```
-//! use nika_onboard::compile::{compile, CompileRequest, CompileStatus};
+//! use nika_compile::{compile, CompileRequest, CompileStatus};
 //! let base = compile(&CompileRequest::create("classify-and-route")
 //!     .answer("const.request", r#""Initial request""#))?;
 //! if let Some(source) = base.candidate {
@@ -54,8 +62,10 @@
 //!         source, "request", r#""https://example.invalid/a?q=é#résumé""#))?;
 //!     assert_eq!(edited.status, CompileStatus::Ready);
 //! }
-//! # Ok::<(), nika_onboard::compile::CompileError>(())
+//! # Ok::<(), nika_compile::CompileError>(())
 //! ```
+
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
 mod aggregate;
 mod assemble;
@@ -79,6 +89,7 @@ mod retrieve;
 mod rules;
 mod shape;
 mod support;
+pub mod text;
 mod types;
 mod wire;
 

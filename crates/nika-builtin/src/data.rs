@@ -920,3 +920,5 @@ pub(crate) fn base64_decode(text: &str) -> Result<Vec<u8>, String> {
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_columns;

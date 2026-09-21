@@ -4,15 +4,15 @@
 //! same questions, zero provider and zero seat calls. A plan that does not parse, is not
 //! anchored in the intent or still carries unknowns is a finding, never a candidate.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-use nika_kernel::ai::provider::{
-    ContentBlock, InferRequest, InferResponse, ProviderError, ProviderInferDyn, StopReason,
-    TokenUsage,
-};
-use nika_onboard::compile::{
+use nika_compile::{
     AuthoringCognition, AuthoringPolicy, Cognition, CompileRequest, CompileStatus, DiagnosticKind,
     Strategy, compile, compile_with_cognition, compile_with_provider,
     decide::{ChoiceAnswer, ChoiceFuture, ChoiceQuestion, DecisionSeat},
     intent_sha256, outcome_document,
+};
+use nika_kernel::ai::provider::{
+    ContentBlock, InferRequest, InferResponse, ProviderError, ProviderInferDyn, StopReason,
+    TokenUsage,
 };
 use serde_json::{Value, json};
 use std::{
@@ -84,10 +84,10 @@ fn answered(request: CompileRequest) -> CompileRequest {
             r#""https://refund.example.invalid/refunds""#,
         )
 }
-fn keys(out: &nika_onboard::compile::CompileOutcome) -> Vec<&str> {
+fn keys(out: &nika_compile::CompileOutcome) -> Vec<&str> {
     out.questions.iter().map(|q| q.key.as_str()).collect()
 }
-fn route(out: &nika_onboard::compile::CompileOutcome) -> Value {
+fn route(out: &nika_compile::CompileOutcome) -> Value {
     outcome_document(out)["provenance"]["decision"]["route"].clone()
 }
 

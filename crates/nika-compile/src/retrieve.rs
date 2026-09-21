@@ -33,7 +33,7 @@ use nika_bm25::{BmIndex, BmParams};
 use serde::Deserialize;
 
 /// The compact family projection (see the module doc).
-const FAMILIES: &str = include_str!("../../assets/pattern_families.json");
+const FAMILIES: &str = include_str!("../assets/pattern_families.json");
 
 /// Which corpus a hit came from.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -203,7 +203,7 @@ fn build() -> Corpus {
     for name in nika_pack::template_names() {
         let body = nika_pack::template(&name).unwrap_or_default();
         let words = structure_words(body);
-        let headline = crate::banner::sentence(body).unwrap_or_else(|| name.clone());
+        let headline = crate::text::banner_sentence(body).unwrap_or_else(|| name.clone());
         let mut text = format!(
             "{}\n{headline}\n{}\n",
             name.replace('-', " "),
@@ -416,7 +416,7 @@ static LEXICON: OnceLock<Lexicon> = OnceLock::new();
 fn lexicon() -> &'static Lexicon {
     LEXICON.get_or_init(|| {
         let mut stopwords: BTreeSet<&'static str> =
-            crate::intent::STOPWORDS.iter().copied().collect();
+            crate::text::STOPWORDS.iter().copied().collect();
         stopwords.extend(EXTRA_STOPWORDS.split_whitespace());
         let mut aliases: BTreeMap<&'static str, Vec<&'static str>> = BTreeMap::new();
         for entry in ALIASES.split(';') {

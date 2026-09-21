@@ -489,14 +489,14 @@ fn an_equals_prefixed_path_is_taught_as_a_word_no_shell_rewrites() {
     }
 }
 
-/// The shared parity set (`nika-onboard/tests/fixtures/compile_parity_v1.json`) also
+/// The shared parity set (`nika-compile/tests/fixtures/compile_parity_v1.json`) also
 /// drives the core's own wire test and the Serve door: three doors, one document.
 #[test]
 fn the_cli_door_prints_the_core_document_for_every_shared_parity_case() {
     use nika_onboard::compile::outcome_document;
 
     let fixture: Value = serde_json::from_str(include_str!(
-        "../../nika-onboard/tests/fixtures/compile_parity_v1.json"
+        "../../nika-compile/tests/fixtures/compile_parity_v1.json"
     ))
     .expect("parity fixture");
     let mut judged = 0;
