@@ -79,9 +79,12 @@ fn satisfied(head: &Head, reading: &Reading) -> bool {
                     .any(|a| a.options.iter().any(|op| options.contains(op)))
         }
         // A save cue (`enregistre`, `salvalo`, `guárdalo`) reads as a create; with a path
-        // and a destination the reader turns it into the write effect it names.
+        // and a destination the reader turns it into the write effect it names. A gate
+        // naming the action by a kindred verb ("never send … without my approval" over a
+        // stated post) is the policy of that effect.
         Head::Effect(verb) => plan.effects.iter().any(|e| {
-            e.verb == *verb || (*verb == EffectVerb::Create && e.verb == EffectVerb::Write)
+            lexicon::kindred(e.verb, *verb)
+                || (*verb == EffectVerb::Create && e.verb == EffectVerb::Write)
         }),
         Head::Dedup => plan
             .obligations
@@ -401,6 +404,11 @@ pub(super) fn unproduced_content(plan: &Plan, why: &mut Vec<String>) {
             continue;
         };
         if copy_cue(&text) && sourced {
+            continue;
+        }
+        // "post the report to <url>" after "Read ./report.md": an object whose head recurs
+        // in a source's own words carries that material unchanged.
+        if sourced && super::network::carried(&effect.target, plan) {
             continue;
         }
         why.push(format!(

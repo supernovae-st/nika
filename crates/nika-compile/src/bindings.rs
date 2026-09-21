@@ -71,6 +71,9 @@ pub(super) struct Wired {
     pub policy: Option<Value>,
     pub verb: EffectVerb,
     pub target: String,
+    /// The effect carries material the plan already holds, unchanged ("post it to
+    /// <url>", "send the report to <url>"): a webhook message, not an action payload.
+    pub carry: bool,
 }
 
 /// A lookup that selects one record by a literal identifier: the identifier and the
@@ -832,6 +835,7 @@ fn bind_effects(
                 policy,
                 verb: effect.verb,
                 target: effect.target.clone(),
+                carry: super::network::carries(effect, plan),
             }),
             None => b.effects_pending = true,
         }
@@ -965,7 +969,7 @@ fn bind_endpoint(
         None
     };
     let endpoint = endpoint?;
-    let host = admit_endpoint(out, &endpoint)?;
+    let host = admit_endpoint(out, &endpoint_key, &label, &endpoint)?;
     if effect.verb.moves_money() && policy.is_none() {
         return None;
     }
