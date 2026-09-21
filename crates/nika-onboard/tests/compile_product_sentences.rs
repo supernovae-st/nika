@@ -172,6 +172,81 @@ fn a_translation_is_admitted_without_source_anchors() {
 }
 
 #[test]
+fn a_seated_plan_with_only_a_draft_over_nothing_is_never_a_candidate() {
+    // The plan a seat proposed for "build me a digest of the docs": one draft, no source,
+    // no effect, no trigger. Replayed as a recorded plan, it reaches the assembler alone.
+    let record = serde_json::json!({
+        "operations": [{"op": "draft", "detail": "a digest of the docs", "evidence": "build me a digest of the docs", "categories": []}],
+        "effects": [], "obligations": [], "bindings": [], "constraints": [], "unknowns": [],
+        "trigger": null, "rules": []
+    });
+    let out = compile(
+        &CompileRequest::create("build me a digest of the docs")
+            .with_plan(record.clone())
+            .answer("model", r#""mock/echo""#),
+    )
+    .unwrap();
+    assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert_eq!(keys(&out), ["intent.clarification"], "{out:#?}");
+    assert!(out.candidate.is_none(), "{out:#?}");
+    assert!(
+        out.diagnostics
+            .iter()
+            .any(|d| d.message.contains("names no material to work on")),
+        "{out:#?}"
+    );
+    // The same draft over material an invocation supplies, or per incoming request, is
+    // fed: a candidate whose item is real.
+    let mut supplied = record.clone();
+    supplied["operations"][0]["evidence"] = serde_json::json!("summarize the supplied text");
+    let out = compile(
+        &CompileRequest::create("summarize the supplied text")
+            .with_plan(supplied)
+            .answer("model", r#""mock/echo""#),
+    )
+    .unwrap();
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    let mut triggered = record;
+    triggered["trigger"] = serde_json::json!("for each request");
+    triggered["operations"][0]["evidence"] = serde_json::json!("draft a digest of the docs");
+    let out = compile(
+        &CompileRequest::create("For each request, draft a digest of the docs")
+            .with_plan(triggered)
+            .answer("model", r#""mock/echo""#),
+    )
+    .unwrap();
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+}
+
+#[test]
+fn a_draft_prompt_asks_verbatim_anchors_and_one_bullet_per_line() {
+    let doc = ready_with_model(
+        "Lis ./notes/brief.md, rédige un résumé en 3 puces et écris ce résumé dans ./out/resume.md",
+    );
+    let prompt = doc["tasks"]["draft"]["infer"]["prompt"]
+        .as_str()
+        .unwrap_or_default()
+        .to_owned();
+    assert!(
+        prompt.contains("verbatim copy of one contiguous span"),
+        "{prompt}"
+    );
+    assert!(prompt.contains("never a paraphrase"), "{prompt}");
+    assert!(
+        prompt.contains("Put each bullet or point on its own line"),
+        "{prompt}"
+    );
+    let doc = ready_with_model(
+        "Read ./notes/brief.md, summarize it in one paragraph, and write the summary to ./out/summary.md",
+    );
+    let prompt = doc["tasks"]["draft"]["infer"]["prompt"]
+        .as_str()
+        .unwrap_or_default()
+        .to_owned();
+    assert!(!prompt.contains("on its own line"), "{prompt}");
+}
+
+#[test]
 fn a_classification_of_each_record_routes_the_records_to_the_files_named_after_its_categories() {
     let intent = "Read ./tickets.json, classify each ticket as bug or feature, and write the bugs to ./bugs.json and the features to ./features.json";
     let out = hot(intent);

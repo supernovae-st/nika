@@ -509,6 +509,12 @@ pub(super) fn replay(
     // A record from an earlier engine may still carry a numeric rule as guidance.
     let mut plan = plan;
     super::shape::promote_stated_rules(&mut plan, intent);
+    // A seat's plan (or a record with no strategy word) that works on nothing is asked,
+    // never assembled; the reader's own HOT plan was already judged explicit.
+    if strategy != Some(Strategy::Hot) && super::assemble::unfed(&plan, intent, out) {
+        out.provenance.plan = Some(plan_record(&plan, strategy));
+        return Ok(());
+    }
     super::assemble::assemble(&plan, intent, request, out)?;
     record_retrieval(out, intent, Some(&plan));
     out.provenance.strategy = strategy;
@@ -639,6 +645,13 @@ fn settle(
     }
     let mut plan = plan.clone();
     super::shape::promote_stated_rules(&mut plan, intent);
+    // A seat's plan that works on nothing is asked, never assembled; the reader's own
+    // HOT plan was already judged explicit.
+    if strategy != Strategy::Hot && super::assemble::unfed(&plan, intent, &mut out) {
+        out.provenance.strategy = Some(strategy);
+        out.provenance.plan = Some(plan_record(&plan, Some(strategy)));
+        return Ok(out);
+    }
     super::assemble::assemble(&plan, intent, request, &mut out)?;
     record_retrieval(&mut out, intent, Some(&plan));
     out.provenance.strategy = Some(strategy);

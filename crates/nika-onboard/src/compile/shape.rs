@@ -556,6 +556,66 @@ pub(super) fn per_record_classify(plan: &Plan) -> bool {
         .any(|s| distributive(&s.detail) || led_by_quantifier(&s.evidence))
 }
 
+/// Cues that the request supplies its material at invocation ("summarize the supplied
+/// text", "le texte ci-dessous", "each incoming request"), folded, whole words or phrases.
+const SUPPLIED_CUES: &[&str] = &[
+    "supplied",
+    "provided",
+    "attached",
+    "given",
+    "pasted",
+    "below",
+    "following",
+    "incoming",
+    "this text",
+    "the text",
+    "this document",
+    "the document",
+    "this message",
+    "the message",
+    "the input",
+    "each request",
+    "every request",
+    "fourni",
+    "fournie",
+    "fournis",
+    "fournies",
+    "ci-joint",
+    "ci-jointe",
+    "ci-dessous",
+    "suivant",
+    "suivante",
+    "entrant",
+    "entrante",
+    "ce texte",
+    "le texte",
+    "ce document",
+    "le document",
+    "ce message",
+    "le message",
+    "chaque demande",
+    "adjunto",
+    "proporcionado",
+    "este texto",
+    "el texto",
+    "allegato",
+    "fornito",
+    "questo testo",
+    "il testo",
+    "beigefugt",
+    "dieser text",
+    "der text",
+];
+
+/// Whether the request names material an invocation supplies, so a plan without a source
+/// step still works on something real.
+pub(super) fn names_supplied_material(intent: &str) -> bool {
+    let padded = padded(intent);
+    SUPPLIED_CUES
+        .iter()
+        .any(|cue| padded.contains(&format!(" {cue} ")))
+}
+
 /// A constraint the fan-in structure realizes (order, one heading per item): consumed
 /// out of the prompts when the work is distributed.
 pub(super) fn structural(constraint: &str) -> bool {
