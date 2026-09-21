@@ -55,7 +55,10 @@ fn preview_is_the_same_typed_core_and_questions_are_stable() {
 #[test]
 fn explicit_authoring_is_bounded_and_ambient_credentials_do_not_opt_in() {
     let room = tempfile::tempdir().expect("room");
-    let intent = "Review this customer request and prepare a support reply";
+    // A line the deterministic reader cannot settle (« something clever »):
+    // the support sentence this test used to carry is HOT since the
+    // admission laws and would make zero authoring calls.
+    let intent = "Read ./a.md and do something clever with it, then write ./b.md";
     let automatic = command(room.path())
         .env("OPENAI_API_KEY", "not-a-real-key")
         .args(["compile", intent, "--json"])
