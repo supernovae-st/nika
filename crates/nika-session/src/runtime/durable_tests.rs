@@ -239,6 +239,37 @@ fn persisted_history_redacts_recognized_values_in_every_intent_field_and_dialogu
     assert!(!prompt.contains("FAKE_ASSISTANT_PASSWORD_VALUE"));
 }
 
+/// A lease that looks held for a moment (a sibling thread's fork window
+/// duplicating this process's descriptors) is not a foreign owner: opening
+/// waits a bounded grace and then holds it. A lease still held past the
+/// grace is refused, as before.
+#[test]
+fn a_lease_held_for_a_moment_is_acquired_within_the_grace() {
+    let root = project();
+    let home = tempfile::tempdir().expect("home");
+    let (mut first, _) = open(root.path(), &[ANSWER]);
+    first.enable_history(home.path()).expect("fresh history");
+    let (mut second, _) = open(root.path(), &[ANSWER]);
+    assert!(
+        second.enable_history(home.path()).is_err(),
+        "a lease held past the grace is a foreign owner"
+    );
+    let (project_root, home_path) = (root.path().to_path_buf(), home.path().to_path_buf());
+    let opener = std::thread::Builder::new()
+        .name("lease-opener".to_owned())
+        .spawn(move || {
+            let (mut third, _) = open(&project_root, &[ANSWER]);
+            third.enable_history(&home_path).is_ok()
+        })
+        .expect("opener thread");
+    std::thread::sleep(std::time::Duration::from_millis(60));
+    drop(first);
+    assert!(
+        opener.join().expect("opener thread"),
+        "a lease released inside the grace is acquired"
+    );
+}
+
 #[test]
 fn reopening_does_not_restore_the_authority_of_a_pending_proposal() {
     let root = project();
