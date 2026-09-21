@@ -170,3 +170,87 @@ fn a_translation_is_admitted_without_source_anchors() {
         "{doc:#}"
     );
 }
+
+#[test]
+fn a_classification_of_each_record_routes_the_records_to_the_files_named_after_its_categories() {
+    let intent = "Read ./tickets.json, classify each ticket as bug or feature, and write the bugs to ./bugs.json and the features to ./features.json";
+    let out = hot(intent);
+    assert_eq!(keys(&out), ["model"], "{out:#?}");
+    let doc = ready_with_model(intent);
+    let tasks = doc["tasks"].as_object().unwrap();
+    // The source is parsed once; the classify runs per record; each write carries the
+    // records routed to the category its clause names.
+    assert_eq!(expression(&doc, "parse_source"), "fromjson");
+    assert_eq!(
+        doc["tasks"]["classify"]["for_each"]["items"],
+        "${{ with.records }}"
+    );
+    assert_eq!(
+        doc["tasks"]["classify"]["with"]["records"],
+        "${{ tasks.parse_source.output }}"
+    );
+    assert_eq!(
+        doc["tasks"]["classify"]["infer"]["schema"]["properties"]["category"]["enum"],
+        serde_json::json!(["bug", "feature"])
+    );
+    assert!(
+        doc["tasks"]["classify"]["infer"]["prompt"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("Record: ${{ item }}"),
+        "{doc:#}"
+    );
+    assert_eq!(doc["const"]["output_path"], "./bugs.json");
+    assert_eq!(doc["const"]["features_path"], "./features.json");
+    assert_eq!(
+        doc["tasks"]["route_bugs"]["invoke"]["args"]["input"]["category"],
+        "bug"
+    );
+    assert_eq!(
+        doc["tasks"]["route_features"]["invoke"]["args"]["input"]["category"],
+        "feature"
+    );
+    assert!(
+        expression(&doc, "route_bugs").contains("$r.categories[$i].category == $r.category"),
+        "{doc:#}"
+    );
+    assert_eq!(
+        doc["tasks"]["write_output"]["with"]["content"],
+        "${{ tasks.route_bugs.output }}"
+    );
+    assert_eq!(
+        doc["tasks"]["write_features"]["with"]["content"],
+        "${{ tasks.route_features.output }}"
+    );
+    assert!(!tasks.contains_key("draft"), "{doc:#}");
+    assert!(doc["inputs"]["item"].is_null(), "phantom item: {doc:#}");
+    assert_eq!(
+        doc["permits"]["fs"]["write"],
+        serde_json::json!(["./bugs.json", "./features.json"])
+    );
+    // One write of "the results" carries every record with its category, never the bare
+    // category word.
+    let doc = ready_with_model(
+        "Read ./tickets.json, classify each ticket as bug or feature, and write the results to ./out.json",
+    );
+    assert_eq!(
+        doc["tasks"]["write_output"]["with"]["content"],
+        "${{ tasks.out_classified.output }}"
+    );
+    assert!(
+        expression(&doc, "out_classified").contains("+ {category: $r.categories[$i].category}"),
+        "{doc:#}"
+    );
+    // Without "each", the classification is one judgement over the document, as before.
+    let doc = ready_with_model(
+        "Read ./tickets.json, classify the tickets as bug or feature, and write the category to ./category.txt",
+    );
+    assert!(
+        doc["tasks"]["classify"].get("for_each").is_none(),
+        "{doc:#}"
+    );
+    assert_eq!(
+        doc["tasks"]["write_output"]["with"]["content"],
+        "${{ tasks.classify.output.category }}"
+    );
+}

@@ -224,7 +224,9 @@ fn written_object(
         .steps
         .iter()
         .any(|s| matches!(s.op, Op::Draft | Op::Extract | Op::Compute | Op::Classify));
-    if refers_back || (produced && objects::folds(object_lower)) {
+    // "the category" after a classify step is that classification.
+    let classified = reading.plan.has(Op::Classify) && objects::names_classification(object_lower);
+    if refers_back || classified || (produced && objects::folds(object_lower)) {
         return;
     }
     if Structured::of(path).is_some() {
@@ -638,7 +640,18 @@ fn push_obligation(plan: &mut Plan, obligation: Obligation) {
 }
 
 fn push_effect(plan: &mut Plan, effect: Effect) {
-    if let Some(existing) = plan.effects.iter_mut().find(|e| e.verb == effect.verb) {
+    // Two writes to two literal files are two effects; anything else merges by verb.
+    let other_file = |e: &Effect| {
+        effect.verb == EffectVerb::Write
+            && objects::has_literal(&effect.target)
+            && objects::has_literal(&e.target)
+            && e.target != effect.target
+    };
+    if let Some(existing) = plan
+        .effects
+        .iter_mut()
+        .find(|e| e.verb == effect.verb && !other_file(e))
+    {
         match (existing.policy, effect.policy) {
             (EffectPolicy::Automatic | EffectPolicy::HumanFirst, EffectPolicy::Forbidden)
             | (EffectPolicy::Forbidden, EffectPolicy::Automatic | EffectPolicy::HumanFirst) => {
@@ -1237,6 +1250,30 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
             || objects::destination_at(detail_lower, detail.find(path.as_str()).unwrap_or(0))
                 .is_some();
         if writes && saves {
+            // Several destinations in one clause ("write the bugs to ./bugs.json and the
+            // features to ./features.json"): one write per destination, each with its own
+            // object and its own verbatim excerpt.
+            let segments = objects::write_segments(&detail);
+            if segments.len() >= 2 {
+                for (_, target, segment) in &segments {
+                    reading.plan.bindings.push(Binding {
+                        role: "path",
+                        literal: target.clone(),
+                    });
+                    push_effect(
+                        &mut reading.plan,
+                        Effect {
+                            verb: EffectVerb::Write,
+                            target: target.clone(),
+                            evidence: segment.clone(),
+                            policy: EffectPolicy::Automatic,
+                            policy_literal: None,
+                        },
+                    );
+                    written_object(segment, &segment.to_lowercase(), target, segment, reading);
+                }
+                return true;
+            }
             reading.plan.bindings.push(Binding {
                 role: "path",
                 literal: path.clone(),

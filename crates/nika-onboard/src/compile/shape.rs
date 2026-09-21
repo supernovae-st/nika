@@ -517,16 +517,43 @@ pub(super) fn without_distributive_tail(text: &str) -> &str {
     }
 }
 
+/// Distributive words that lead an object ("each ticket", "chaque ligne", "every row").
+const DISTRIBUTIVE_LEADS: &[&str] = &[
+    "each", "every", "chaque", "chacun", "chacune", "cada", "ogni", "ciascun", "ciascuna", "jede",
+    "jeden", "jedes", "jeder",
+];
+
+/// Whether an object distributes its work over items: led by a distributive word or a
+/// quantifier ("each ticket as bug or feature", "for each file …"), or scoped by a
+/// distributive tail ("… of each one").
+pub(super) fn distributive(text: &str) -> bool {
+    let padded = padded(text);
+    led_by_quantifier(text)
+        || DISTRIBUTIVE_LEADS
+            .iter()
+            .any(|w| padded.starts_with(&format!(" {w} ")))
+        || without_distributive_tail(text).len() < text.trim().len()
+}
+
 /// Whether the request distributes its extract over the read items: an extract step whose
 /// object or clause is scoped to each item ("the supplier, the date and the amount of each
 /// one", "pour chaque facture, extrais …"). One record per item is then produced, and the
 /// step never sees the folded corpus.
 pub(super) fn per_item_extract(plan: &Plan) -> bool {
-    plan.steps.iter().filter(|s| s.op == Op::Extract).any(|s| {
-        without_distributive_tail(&s.detail).len() < s.detail.trim().len()
-            || led_by_quantifier(&s.evidence)
-            || led_by_quantifier(&s.detail)
-    })
+    plan.steps
+        .iter()
+        .filter(|s| s.op == Op::Extract)
+        .any(|s| distributive(&s.detail) || led_by_quantifier(&s.evidence))
+}
+
+/// Whether the request classifies each record of its source ("classify each ticket as bug
+/// or feature"): one category per parsed record, so a write naming a category carries the
+/// records routed to it.
+pub(super) fn per_record_classify(plan: &Plan) -> bool {
+    plan.steps
+        .iter()
+        .filter(|s| s.op == Op::Classify)
+        .any(|s| distributive(&s.detail) || led_by_quantifier(&s.evidence))
 }
 
 /// A constraint the fan-in structure realizes (order, one heading per item): consumed
