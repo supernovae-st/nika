@@ -73,6 +73,7 @@ mod bindings;
 mod cognition;
 mod columns;
 mod compose;
+mod cues;
 pub mod decide;
 mod edit;
 mod edit_source;

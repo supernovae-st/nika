@@ -82,6 +82,31 @@ pub(super) fn has_literal(target: &str) -> bool {
     })
 }
 
+/// The text with every listed column blanked out, underscores kept, so a column that spells
+/// a verb (`credit_cents`, `email`) is never read as one.
+pub(super) fn mask_columns(lower: &str, columns: &[String]) -> String {
+    if columns.is_empty() {
+        return lower.to_owned();
+    }
+    let mut out = String::with_capacity(lower.len());
+    for token in lower.split_inclusive(|c: char| !(c.is_alphanumeric() || c == '_')) {
+        let (word, separator) = match token.char_indices().last() {
+            Some((i, c)) if !(c.is_alphanumeric() || c == '_') => (
+                token.get(..i).unwrap_or_default(),
+                token.get(i..).unwrap_or_default(),
+            ),
+            _ => (token, ""),
+        };
+        if columns.iter().any(|c| c.eq_ignore_ascii_case(word)) {
+            out.extend(std::iter::repeat_n(' ', word.chars().count()));
+        } else {
+            out.push_str(word);
+        }
+        out.push_str(separator);
+    }
+    out
+}
+
 /// Does the object of a write refer back to something already in the request, or does it
 /// name new content the write demands? A pronoun or a generic result word refers back; so
 /// does a head noun that recurs in an earlier clause (`the count` after `count the tickets`).
