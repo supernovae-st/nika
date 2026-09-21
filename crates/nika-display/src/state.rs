@@ -122,6 +122,15 @@ pub struct TaskRow {
     /// Reasoning/thinking tokens (`tokens_reasoning` · a subset of
     /// `tokens_out`).
     pub tokens_reasoning: Option<u64>,
+    /// The transport's account of the metered call: how many times the
+    /// wire was tried (`attempts`, always on a wire call), the wait the
+    /// backoff spent (`waited_ms`) and the status it backed off on
+    /// (`retried_on`, e.g. `429`), the last two only when it re-sent.
+    pub attempts: Option<u64>,
+    /// See [`Self::attempts`].
+    pub waited_ms: Option<u64>,
+    /// See [`Self::attempts`].
+    pub retried_on: Option<String>,
     /// The born origin of the task's UNTRUSTED value (F-O1 · the
     /// terminal frame's `integrity_source`, present only when `integrity`
     /// reads `untrusted`): the ingress task that let the content in (a
@@ -604,6 +613,13 @@ impl RunView {
         row.tokens_cache_read = meter(event, "tokens_cache_read").or(row.tokens_cache_read);
         row.tokens_cache_write = meter(event, "tokens_cache_write").or(row.tokens_cache_write);
         row.tokens_reasoning = meter(event, "tokens_reasoning").or(row.tokens_reasoning);
+        // The transport's account (a retried call says so on the sealed
+        // frame, and the reader must see it).
+        row.attempts = meter(event, "attempts").or(row.attempts);
+        row.waited_ms = meter(event, "waited_ms").or(row.waited_ms);
+        if let Some(status) = str_field(event, "retried_on") {
+            row.retried_on = Some(status.to_owned());
+        }
         // #1276 · #1397 · a fan-out's item table survives to the readers.
         row.items_json = items;
         // F-O1 · a task whose value is untrusted names its born origin on
@@ -684,6 +700,9 @@ impl RunView {
                 tokens_cache_read: None,
                 tokens_cache_write: None,
                 tokens_reasoning: None,
+                attempts: None,
+                waited_ms: None,
+                retried_on: None,
                 started_note: None,
                 def_hash: None,
                 input_hash: None,
