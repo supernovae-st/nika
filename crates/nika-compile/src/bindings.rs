@@ -481,7 +481,7 @@ pub(super) fn bind(
     b
 }
 
-/// A carry of held material (« post it to <url> »); a body whose keys the request states
+/// A carry of held material (« post it to `<url>` »); a body whose keys the request states
 /// (`{digest}`) is a typed payload, never a carry.
 fn carried(effect: &Effect, plan: &Plan) -> bool {
     super::network::carries(effect, plan)
