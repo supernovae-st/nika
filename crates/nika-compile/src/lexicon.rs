@@ -16,6 +16,7 @@ mod cues;
 mod es;
 mod heads;
 mod it;
+mod literals;
 mod slugs;
 #[cfg(test)]
 mod tests;
@@ -27,10 +28,10 @@ use super::plan::{
 use super::{gates, hot, objects};
 pub(super) use cues::{ARTICLES, OBJECT_CONNECTORS};
 use cues::{
-    ATTEMPT_NOUNS, BOUND_WORDS, CATEGORY_MARKERS, CONSTRAINT_OPENERS, FINAL_GATE_MARKERS,
-    FORBIDDEN_MARKERS, LEADING_FILLER, LOOKUP_CUES, NAMED_GATE_MARKERS, NEGATION_OPENERS,
-    NUMBER_WORDS, READ_CUES, REVISION_MARKERS, SEARCH_CUES, SECOND_WORD_FILLERS, STOP_MARKERS,
-    STRONG_CONNECTORS, TRIGGER_PREFIXES, UNDECIDED_MARKERS, WEAK_CONNECTORS,
+    CONSTRAINT_OPENERS, FINAL_GATE_MARKERS, FORBIDDEN_MARKERS, LEADING_FILLER, LOOKUP_CUES,
+    NAMED_GATE_MARKERS, NEGATION_OPENERS, READ_CUES, REVISION_MARKERS, SEARCH_CUES,
+    SECOND_WORD_FILLERS, STOP_MARKERS, STRONG_CONNECTORS, TRIGGER_PREFIXES, UNDECIDED_MARKERS,
+    WEAK_CONNECTORS,
 };
 pub(crate) use heads::Head;
 pub(super) use slugs::slug;
@@ -417,91 +418,6 @@ fn split_clauses(sentence: &str) -> Vec<&str> {
     out.into_iter().filter(|p| !p.is_empty()).collect()
 }
 
-fn retry_bound(lower: &str) -> Option<u32> {
-    if !BOUND_WORDS.iter().any(|w| lower.contains(w)) {
-        return None;
-    }
-    let words: Vec<&str> = lower
-        .split(|c: char| !c.is_alphanumeric() && c != '\'')
-        .filter(|w| !w.is_empty())
-        .collect();
-    for (index, word) in words.iter().enumerate() {
-        let number = word.parse::<u32>().ok().or_else(|| {
-            NUMBER_WORDS
-                .iter()
-                .find(|(w, _)| w == word)
-                .map(|(_, n)| *n)
-        });
-        let Some(number) = number else { continue };
-        let next = words.get(index + 1).copied().unwrap_or_default();
-        let next2 = words.get(index + 2).copied().unwrap_or_default();
-        let prev = index
-            .checked_sub(2)
-            .and_then(|i| words.get(i))
-            .copied()
-            .unwrap_or_default();
-        let prev2 = index
-            .checked_sub(3)
-            .and_then(|i| words.get(i))
-            .copied()
-            .unwrap_or_default();
-        if ATTEMPT_NOUNS.iter().any(|n| {
-            next.starts_with(n)
-                || next2.starts_with(n)
-                || prev.starts_with(n)
-                || prev2.starts_with(n)
-        }) {
-            return Some(number);
-        }
-    }
-    None
-}
-
-fn money_literal(sentence: &str) -> bool {
-    let lower = normalize(sentence);
-    let has_amount = lower
-        .split(|c: char| !c.is_alphanumeric() && c != '€' && c != '$')
-        .any(|w| w.chars().all(|c| c.is_ascii_digit()) && !w.is_empty())
-        && ["€", "eur", "euro", "usd", "$", "dollar"]
-            .iter()
-            .any(|c| lower.contains(c));
-    has_amount
-        && [
-            "éligible",
-            "eligible",
-            "limite",
-            "maximum",
-            "cap",
-            "only",
-            "uniquement",
-            "seuls",
-            "up to",
-            "per ",
-        ]
-        .iter()
-        .any(|c| lower.contains(c))
-}
-
-fn categories_of(detail_lower: &str) -> Vec<String> {
-    for marker in CATEGORY_MARKERS {
-        if let Some(pos) = detail_lower.find(marker) {
-            let tail = detail_lower.get(pos + marker.len()..).unwrap_or_default();
-            let tail = tail.split([';', '.']).next().unwrap_or_default();
-            let parts: Vec<String> = tail
-                .replace(" ou ", ",")
-                .replace(" or ", ",")
-                .split(',')
-                .map(|p| p.trim().trim_end_matches(['.', ';']).to_owned())
-                .filter(|p| !p.is_empty() && p.split_whitespace().count() <= 3)
-                .collect();
-            if parts.len() >= 2 {
-                return parts;
-            }
-        }
-    }
-    Vec::new()
-}
-
 /// The effect verbs a text names. A word the request lists as a column (`name, email e
 /// city`) is a column, never the verb it spells.
 pub(super) fn effect_words(lower: &str, columns: &[String]) -> Vec<EffectVerb> {
@@ -760,7 +676,7 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
         return;
     }
     // A numeric attempt bound rides the clause; a clause that is only the bound is consumed.
-    if let Some(n) = retry_bound(text) {
+    if let Some(n) = literals::retry_bound(text) {
         push_obligation(
             &mut reading.plan,
             Obligation {
@@ -900,8 +816,8 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
             gate_last_automatic(reading, state);
         } else {
             for verb in verbs {
-                let literal =
-                    (verb.moves_money() && money_literal(clause)).then(|| clause.to_owned());
+                let literal = (verb.moves_money() && literals::money_literal(clause))
+                    .then(|| clause.to_owned());
                 push_effect(
                     &mut reading.plan,
                     Effect {
@@ -972,7 +888,7 @@ pub(super) fn read(intent: &str) -> Reading {
     for sentence in split_sentences(intent) {
         let lower = normalize(sentence);
         let text = strip_filler(&lower);
-        if money_literal(sentence) {
+        if literals::money_literal(sentence) {
             state.money_sentences.push(sentence.to_owned());
             reading.plan.bindings.push(Binding {
                 role: "money_policy",
@@ -1067,7 +983,7 @@ pub(super) fn read(intent: &str) -> Reading {
             effect.policy_literal = state.money_sentences.first().cloned();
         }
     }
-    collect_bindings(intent, &mut reading.plan);
+    literals::collect_bindings(intent, &mut reading.plan);
     reading
 }
 
@@ -1280,7 +1196,7 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
                 categories: Vec::new(),
             });
             let categories = if *op == Op::Classify {
-                categories_of(detail_lower)
+                literals::categories_of(detail_lower)
             } else {
                 Vec::new()
             };
@@ -1304,7 +1220,8 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
                         target: path.clone(),
                         evidence: original.to_owned(),
                         policy: EffectPolicy::Automatic,
-                        policy_literal: money_literal(original).then(|| original.to_owned()),
+                        policy_literal: literals::money_literal(original)
+                            .then(|| original.to_owned()),
                     },
                 );
                 if matches!(verb, EffectVerb::Write | EffectVerb::Publish) {
@@ -1358,7 +1275,7 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
     match head {
         Head::Op(op) => {
             let categories = if *op == Op::Classify {
-                categories_of(detail_lower)
+                literals::categories_of(detail_lower)
             } else {
                 Vec::new()
             };
@@ -1440,7 +1357,7 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
             }
         }
         Head::Effect(verb) => {
-            let literal = money_literal(original).then(|| original.to_owned());
+            let literal = literals::money_literal(original).then(|| original.to_owned());
             let money = [
                 "money", "argent", "payment", "paiement", "€", "euro", "dollar", "usd", "eur ",
                 "credits", "crédit",
@@ -1474,35 +1391,4 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
         }
     }
     true
-}
-
-fn collect_bindings(intent: &str, plan: &mut Plan) {
-    for word in intent.split_whitespace() {
-        let token = word.trim_end_matches(['.', ',', ';', ')', ']', ':']);
-        if token.starts_with("http://") || token.starts_with("https://") {
-            plan.bindings.push(Binding {
-                role: "url",
-                literal: token.to_owned(),
-            });
-        } else if token.contains('@') && token.contains('.') && !token.starts_with('@') {
-            plan.bindings.push(Binding {
-                role: "email",
-                literal: token.to_owned(),
-            });
-        } else if (token.starts_with("./") || token.starts_with('/')) && token.len() > 2 {
-            plan.bindings.push(Binding {
-                role: "path",
-                literal: token.to_owned(),
-            });
-        } else if token.starts_with("Europe/")
-            || token.starts_with("America/")
-            || token.starts_with("Asia/")
-            || token.starts_with("Africa/")
-        {
-            plan.bindings.push(Binding {
-                role: "timezone",
-                literal: token.to_owned(),
-            });
-        }
-    }
 }

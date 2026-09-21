@@ -310,22 +310,6 @@ fn the_guard_names_every_column_and_the_record_is_observational() {
 }
 
 #[test]
-fn numbers_fold_currency_and_separators() {
-    assert_eq!(number("100").as_deref(), Some("100"));
-    assert_eq!(number("€100").as_deref(), Some("100"));
-    assert_eq!(number("100€").as_deref(), Some("100"));
-    assert_eq!(number("15%").as_deref(), Some("15"));
-    assert_eq!(number("-3").as_deref(), Some("-3"));
-    assert_eq!(number("1,5").as_deref(), Some("1.5"));
-    assert_eq!(number("1,000").as_deref(), Some("1000"));
-    assert_eq!(number("1,000,000").as_deref(), Some("1000000"));
-    assert_eq!(number("12.50").as_deref(), Some("12.50"));
-    for not in ["abc", "1.2.3", "1,2,3", "T-4471", "", "1.000,50"] {
-        assert_eq!(number(not), None, "{not}");
-    }
-}
-
-#[test]
 fn a_stated_aggregate_is_the_shape_after_the_filter() {
     assert_eq!(
         jq("the total of the amount column"),

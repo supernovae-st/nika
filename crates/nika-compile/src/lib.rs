@@ -88,6 +88,7 @@ mod plan;
 mod predicate;
 mod retrieve;
 mod rule_cues;
+mod rule_tokens;
 mod rules;
 mod shape;
 mod support;
