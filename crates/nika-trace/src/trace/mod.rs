@@ -605,6 +605,23 @@ fn render_peek(row: &TaskRow, text: &str, recovered_from: Option<&str>, theme: T
     if let Some(tok) = row.tokens {
         let _ = write!(meta, " · {tok} tok");
     }
+    // The transport's account: a call the backoff re-sent says how many
+    // tries, how long it waited and on what (the sealed frame's fields).
+    if let Some(attempts) = row.attempts.filter(|a| *a > 1) {
+        let _ = write!(meta, " · {attempts} attempts");
+        match (row.waited_ms, row.retried_on.as_deref()) {
+            (Some(waited), Some(status)) => {
+                let _ = write!(meta, " (waited {} on {status})", fmt_wall_ms(waited));
+            }
+            (Some(waited), None) => {
+                let _ = write!(meta, " (waited {})", fmt_wall_ms(waited));
+            }
+            (None, Some(status)) => {
+                let _ = write!(meta, " (on {status})");
+            }
+            (None, None) => {}
+        }
+    }
     let _ = write!(meta, " · {}", shape::fmt_bytes(text.len()));
     if row.recovered {
         let _ = write!(meta, " · recovered");
@@ -971,6 +988,55 @@ mod tests {
             ascii.text
         );
         assert!(!ascii.text.contains('…'), "no unicode under --ascii");
+    }
+
+    /// A call the transport re-sent carries its account on the sealed
+    /// frame (`attempts` · `waited_ms` · `retried_on`); the peek renders it
+    /// in the identity block instead of hiding it behind a whitelist. A
+    /// single attempt says nothing (the ordinary case stays quiet).
+    #[test]
+    fn peek_renders_the_transport_account_of_a_retried_call() {
+        use nika_event::EventKind;
+        use nika_types::resource::{KeyValue, Value};
+        let events = vec![
+            demo::bare_event(EventKind::TaskStarted, 0)
+                .with_field(KeyValue::new("task", Value::String("draft".into())))
+                .with_field(KeyValue::new(
+                    "note",
+                    Value::String("infer · mock/echo".into()),
+                )),
+            demo::bare_event(EventKind::TaskCompleted, 2_100)
+                .with_field(KeyValue::new("task", Value::String("draft".into())))
+                .with_field(KeyValue::new("output", Value::String("ok".into())))
+                .with_field(KeyValue::new("tokens", Value::Int(12)))
+                .with_field(KeyValue::new("duration_ms", Value::Int(2_080)))
+                .with_field(KeyValue::new("attempts", Value::Int(2)))
+                .with_field(KeyValue::new("waited_ms", Value::Int(2_000)))
+                .with_field(KeyValue::new("retried_on", Value::String("429".into()))),
+            demo::bare_event(EventKind::TaskStarted, 2_200)
+                .with_field(KeyValue::new("task", Value::String("save".into()))),
+            demo::bare_event(EventKind::TaskCompleted, 2_210)
+                .with_field(KeyValue::new("task", Value::String("save".into())))
+                .with_field(KeyValue::new("output", Value::String("ok".into())))
+                .with_field(KeyValue::new("duration_ms", Value::Int(9)))
+                .with_field(KeyValue::new("attempts", Value::Int(1))),
+        ];
+        let path = stage("peek-retried.ndjson", &events);
+        let out = peek(&path.to_string_lossy(), "draft", false, plain());
+        assert_eq!(out.code, exit::OK);
+        assert!(
+            out.text
+                .contains("2.1s · 12 tok · 2 attempts (waited 2.0s on 429) · 2B"),
+            "transport account in the meta line: {}",
+            out.text
+        );
+        let quiet = peek(&path.to_string_lossy(), "save", false, plain());
+        assert_eq!(quiet.code, exit::OK);
+        assert!(
+            !quiet.text.contains("attempt"),
+            "one attempt is the ordinary case, never announced: {}",
+            quiet.text
+        );
     }
 
     /// A failed task's peek performs the autopsy the failure card
