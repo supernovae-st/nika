@@ -21,7 +21,81 @@ pub fn rejections(intent: &str, reading: &Reading) -> Vec<String> {
     path_as_draft(reading, &mut why);
     unproduced_content(&reading.plan, &mut why);
     unrecheckable_revision(&reading.plan, &mut why);
+    why.extend(unopened_sources(intent, &reading.plan));
     why
+}
+
+/// A source the request names that nothing opens: a path stated as a source (at least one
+/// occurrence not introduced by a destination connector — « de ./tickets.json », « from
+/// ./tickets.json », « aus ./tickets.json ») that no step names, no rule reads, no trigger
+/// fires on and no prohibition refuses. « Chaque lundi matin, envoie-moi un récapitulatif
+/// des tickets ouverts de ./tickets.json » read as one send over the whole clause names the
+/// file in the send's own words and never reads it: a candidate that posts without opening
+/// the file is a false READY (the morning audit of 2026-09-22, both lanes). The same law
+/// feeds the cold merge, where a source the seat's plan never opens is unresolved work. A
+/// path every occurrence of which follows a destination connector (« into a single
+/// ./out/x.md », « belongs in ./out/totals.json ») is a place to write, judged by the write
+/// laws and the named-output question, never here. Only a source-shaped literal counts: a
+/// rooted path (`./`, `../`, `/`, `~/`), a glob, or a bare file name with a data or text
+/// extension; a domain-shaped word (`example.com`) is not a file.
+#[must_use]
+pub fn unopened_sources(intent: &str, plan: &Plan) -> Vec<String> {
+    let lower = intent.to_lowercase();
+    let stated_as_a_source = |path: &str| {
+        let needle = path.to_lowercase();
+        let mut from = 0;
+        while let Some(pos) = lower.get(from..).and_then(|rest| rest.find(&needle)) {
+            let at = from + pos;
+            if super::objects::destination_at(&lower, at).is_none() {
+                return true;
+            }
+            from = at + needle.len();
+        }
+        false
+    };
+    let opened = |path: &str| {
+        plan.steps
+            .iter()
+            .any(|s| s.detail.contains(path) || s.evidence.contains(path))
+            || plan.effects.iter().any(|e| {
+                (e.verb == EffectVerb::Write
+                    || matches!(e.policy, EffectPolicy::Forbidden | EffectPolicy::Conflict))
+                    && (e.target.contains(path) || e.evidence.contains(path))
+            })
+            || plan.trigger.as_deref().is_some_and(|t| t.contains(path))
+            || plan.rules.iter().any(|r| r.text().contains(path))
+    };
+    super::paths::literals(intent)
+        .into_iter()
+        .filter_map(|shape| match shape {
+            super::paths::PathShape::File(path)
+            | super::paths::PathShape::Directory(path)
+            | super::paths::PathShape::Glob(path) => Some(path),
+            _ => None,
+        })
+        .filter(|path| source_like(path) && stated_as_a_source(path) && !opened(path))
+        .map(|path| {
+            format!(
+                "`{path}` is named by the request and nothing opens it: no step reads it and no effect writes it"
+            )
+        })
+        .collect()
+}
+
+/// Extensions a bare file name (no `./`) is read as a source under: the data and text
+/// formats a workflow reads or writes. `example.com` and `nika.sh` are not sources.
+const SOURCE_EXTENSIONS: &[&str] = &[
+    "csv", "tsv", "json", "jsonl", "ndjson", "md", "txt", "yaml", "yml", "toml", "xml", "html",
+    "htm", "pdf", "log", "docx", "xlsx", "pptx",
+];
+
+fn source_like(path: &str) -> bool {
+    path.starts_with("./")
+        || path.starts_with("../")
+        || path.starts_with('/')
+        || path.starts_with("~/")
+        || super::paths::extension(path)
+            .is_some_and(|ext| SOURCE_EXTENSIONS.contains(&ext.as_str()))
 }
 
 /// Every cue of the reader's table that occurs in the request must correspond to an element
@@ -376,8 +450,10 @@ fn copy_cue(text: &str) -> bool {
 /// names a produced-content noun (a reply, a report, a summary…) needs a draft, an extract
 /// or a compute step, or, under a copy cue (forward, verbatim, tel quel, attach…), a source
 /// step whose material it carries unchanged. A prohibited or contradictory effect is never
-/// emitted, so it needs nothing; a target naming a local file is a write and follows the
-/// write law.
+/// emitted, so it needs nothing; a target that IS a local file (one bare path token) is a
+/// write and follows the write law — a target that merely names a file among its words
+/// (« -moi un récapitulatif des tickets ouverts de ./tickets.json ») is judged like any
+/// other: the recap it names needs a producer.
 pub fn unproduced_content(plan: &Plan, why: &mut Vec<String>) {
     write_without_producer(plan, why);
     let produces = plan.has(Op::Draft) || plan.has(Op::Extract) || plan.has(Op::Compute);
@@ -398,7 +474,7 @@ pub fn unproduced_content(plan: &Plan, why: &mut Vec<String>) {
                 | EffectVerb::Update
                 | EffectVerb::Other
         ) && !matches!(e.policy, EffectPolicy::Forbidden | EffectPolicy::Conflict)
-            && super::paths::single_file(&e.target).is_none()
+            && super::paths::token(e.target.trim()).is_none()
     }) {
         let text = format!("{} {}", effect.target, effect.evidence);
         let Some(noun) = produced_noun(&text) else {
@@ -758,6 +834,113 @@ mod tests {
         assert_eq!(
             lexicon::settle_retrieval("the meeting notes", &[Op::Read, Op::Lookup]),
             None
+        );
+    }
+
+    #[test]
+    fn a_source_named_only_by_an_outbound_effect_is_rejected() {
+        // The morning audit's false READY (2026-09-22): read as one send over the clause, the
+        // file is named by the send and never opened, and the recap has no producer.
+        let intent =
+            "Chaque lundi matin, envoie-moi un récapitulatif des tickets ouverts de ./tickets.json";
+        let reading = lexicon::read(intent);
+        assert!(
+            reading
+                .plan
+                .effects
+                .iter()
+                .any(|e| e.verb == EffectVerb::Send),
+            "{:?}",
+            reading.plan
+        );
+        let why = rejections(intent, &reading);
+        assert!(
+            why.iter().any(
+                |w| w.contains("`./tickets.json` is named by the request and nothing opens it")
+            ),
+            "{why:?}"
+        );
+        assert!(
+            why.iter()
+                .any(|w| w.contains("`send` names content no step produces: récapitulatif")),
+            "{why:?}"
+        );
+        // Opened by a read and drafted, the same recap is admitted by these laws.
+        let intent = "Lis ./tickets.json, rédige un récapitulatif des tickets ouverts et envoie le récapitulatif à ops@example.invalid";
+        let reading = lexicon::read(intent);
+        let why = rejections(intent, &reading);
+        assert!(
+            !why.iter()
+                .any(|w| w.contains("nothing opens it") || w.contains("no step produces")),
+            "{why:?} plan={:?}",
+            reading.plan
+        );
+    }
+
+    #[test]
+    fn a_path_a_write_a_trigger_or_a_prohibition_names_is_opened_and_a_destination_is_not_judged() {
+        // The law on a plan directly: a write, a trigger, a rule or a prohibition opens or
+        // refuses its path; a domain-shaped word and a placeholder are not sources.
+        let mut plan = Plan::default();
+        assert_eq!(
+            unopened_sources("post it on example.com and read ./in/<slug>.md", &plan),
+            Vec::<String>::new()
+        );
+        assert_eq!(
+            unopened_sources("Résume ./notes/brief.md pour moi", &plan).len(),
+            1
+        );
+        plan.trigger = Some("Pour chaque fichier de ./contrats/*.md".to_owned());
+        plan.effects.push(super::super::plan::Effect::new(
+            EffectVerb::Write,
+            "./index.csv",
+            "rassemble tout dans ./index.csv",
+            EffectPolicy::Automatic,
+        ));
+        plan.effects.push(super::super::plan::Effect::new(
+            EffectVerb::Send,
+            "./secret.txt",
+            "n'envoie jamais ./secret.txt",
+            EffectPolicy::Forbidden,
+        ));
+        assert!(
+            unopened_sources(
+                "Pour chaque fichier de ./contrats/*.md, rassemble tout dans ./index.csv ; n'envoie jamais ./secret.txt",
+                &plan
+            )
+            .is_empty()
+        );
+        assert_eq!(
+            unopened_sources("envoie orders.csv et ./x", &plan),
+            vec![
+                "`orders.csv` is named by the request and nothing opens it: no step reads it and no effect writes it".to_owned(),
+                "`./x` is named by the request and nothing opens it: no step reads it and no effect writes it".to_owned(),
+            ]
+        );
+        // A path every occurrence of which follows a destination connector is a place to
+        // write (« the JSON belongs in ./out/totals.json », « merge … into a single
+        // ./out/catalog-blurbs.md », « publish it to ./announce.md »): never a source here.
+        let plan = Plan::default();
+        for intent in [
+            "Harmonise the totals per country; the JSON belongs in ./out/totals.json.",
+            "then merge all four blurbs in the listed order into a single ./out/catalog-blurbs.md",
+            "Read ./draft.md, draft a short announcement from it, and publish it to ./announce.md",
+        ] {
+            let unopened = unopened_sources(intent, &plan);
+            assert!(
+                unopened.iter().all(|u| u.contains("`./draft.md`")),
+                "{intent}: {unopened:?}"
+            );
+        }
+        // Stated as a source once (« from ./tickets.json ») and as a destination elsewhere:
+        // the source occurrence is judged.
+        assert_eq!(
+            unopened_sources(
+                "send me a summary from ./tickets.json to ./tickets.json",
+                &plan
+            )
+            .len(),
+            1
         );
     }
 

@@ -95,7 +95,9 @@ mod writes;
 // The frozen reader and the typed plan live in the second member of this unit (the
 // ADR-137 precedent); the composer, the assembler and the preview read them at their
 // historical module paths.
-use nika_compile_reader::{columns, gates, hot, lexicon, objects, paths, plan, rule_tokens, rules};
+use nika_compile_reader::{
+    columns, gates, hot, lexicon, objects, paths, plan, rule_tokens, rules, unknowns,
+};
 
 use std::collections::BTreeSet;
 

@@ -1250,8 +1250,24 @@ pub(super) fn merge(
             );
             continue;
         }
+        // A destination the outbound effect asks, an hour the trigger binds: not unresolved.
+        if let Some(carrier) = crate::unknowns::bound_by_the_compiler(&unknown, &plan) {
+            crate::finding(
+                out,
+                DiagnosticKind::Applied,
+                "authoring_plan",
+                format!(
+                    "`{}` is bound by the {carrier}; it is not unresolved work.",
+                    unknown.trim()
+                ),
+            );
+            continue;
+        }
         plan.unknowns.push(unknown);
     }
+    // A source the request names that the proposal never opens is unresolved work.
+    plan.unknowns
+        .extend(crate::hot::unopened_sources(intent, &plan));
     // Semantic accounting: the request must be covered by regions the model can name.
     if let Some(bypass) = proposal.approval_bypass
         && bypass.present
