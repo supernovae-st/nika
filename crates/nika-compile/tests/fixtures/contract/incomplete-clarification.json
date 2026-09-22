@@ -126,6 +126,7 @@
           }
         ],
         "rules": [],
+        "slots": [],
         "trigger": null,
         "unknowns": []
       },

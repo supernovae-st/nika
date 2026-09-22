@@ -197,6 +197,9 @@ pub enum Operand {
     Bool(bool),
     /// Another column of the same record.
     Column(String),
+    /// A value the request alludes to without stating it, read at run under
+    /// `$in.slots.<slug>` from the const the compiler asked for.
+    Slot(String),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -273,11 +276,34 @@ pub(crate) fn key(field: &str) -> String {
 impl Clause {
     fn jq(&self) -> String {
         let field = key(&self.field);
+        if let Operand::Slot(slug) = &self.value {
+            let slot = format!("$in.slots.{slug}");
+            if let Some((function, negated)) = self.comparator.textual() {
+                let test = format!("({field} | tostring | {function}({slot} | tostring))");
+                return if negated {
+                    format!("({test} | not)")
+                } else {
+                    test
+                };
+            }
+            return if self.comparator.numeric() {
+                format!(
+                    "({field} | tonumber) {} ({slot} | tonumber)",
+                    self.comparator.symbol()
+                )
+            } else {
+                format!(
+                    "({field} | tostring) {} ({slot} | tostring)",
+                    self.comparator.symbol()
+                )
+            };
+        }
         if let Some((function, negated)) = self.comparator.textual() {
             let literal = match &self.value {
                 Operand::Number(text) | Operand::Text(text) => json!(text).to_string(),
                 Operand::Bool(truth) => json!(truth.to_string()).to_string(),
                 Operand::Column(other) => format!("({} | tostring)", key(other)),
+                Operand::Slot(slug) => format!("($in.slots.{slug} | tostring)"),
             };
             let test = format!("({field} | tostring | {function}({literal}))");
             return if negated {
@@ -302,6 +328,15 @@ impl Clause {
                 format!("{field} {} {}", self.comparator.symbol(), json!(text))
             }
             // A JSON file holds the boolean, a CSV its spelling: both are the same truth.
+            // A slot is rendered before this match; the arm keeps it exhaustive.
+            (Operand::Slot(slug), true) => format!(
+                "({field} | tonumber) {} ($in.slots.{slug} | tonumber)",
+                self.comparator.symbol()
+            ),
+            (Operand::Slot(slug), false) => format!(
+                "({field} | tostring) {} ($in.slots.{slug} | tostring)",
+                self.comparator.symbol()
+            ),
             (Operand::Bool(truth), _) => match self.comparator {
                 Comparator::Eq => format!("({field} == {truth} or {field} == \"{truth}\")"),
                 Comparator::Ne => format!("({field} != {truth} and {field} != \"{truth}\")"),
@@ -315,6 +350,7 @@ impl Clause {
             Operand::Text(t) => (t.clone(), "text"),
             Operand::Bool(b) => (b.to_string(), "bool"),
             Operand::Column(c) => (c.clone(), "column"),
+            Operand::Slot(s) => (s.clone(), "slot"),
         };
         json!({"field": self.field, "comparator": self.comparator.symbol(), "value": value, "value_kind": kind})
     }
@@ -326,6 +362,7 @@ impl Clause {
             Some("number") => Operand::Number(literal),
             Some("bool") => Operand::Bool(literal == "true"),
             Some("column") => Operand::Column(literal),
+            Some("slot") => Operand::Slot(literal),
             _ => Operand::Text(literal),
         };
         if field.is_empty() {
@@ -541,7 +578,29 @@ impl Rule {
         if self.lines {
             jq.push_str(" | join(\"\\n\") | if length > 0 then . + \"\\n\" else . end");
         }
-        jq
+        if self.slots().is_empty() {
+            jq
+        } else {
+            // The slots ride the input beside the records: `$in` keeps them in reach
+            // inside the filter, where `.` is one record.
+            format!(". as $in | {jq}")
+        }
+    }
+    /// The slugs of the slots the clauses compare to, in clause order.
+    #[must_use]
+    pub fn slots(&self) -> Vec<String> {
+        self.clauses
+            .iter()
+            .filter_map(|c| match &c.value {
+                Operand::Slot(slug) => Some(slug.clone()),
+                _ => None,
+            })
+            .collect()
+    }
+    /// Whether the comparison is over numbers.
+    #[must_use]
+    pub const fn compares_numbers(comparator: Comparator) -> bool {
+        comparator.numeric()
     }
     /// True when the records are an array whose first record carries every column the
     /// rule reads (an empty array passes): a wrong column fails loudly, never filters

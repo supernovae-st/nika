@@ -596,6 +596,7 @@
             "value": "open"
           }
         ],
+        "slots": [],
         "strategy": "hot",
         "trigger": "every weekday at 8",
         "unknowns": []

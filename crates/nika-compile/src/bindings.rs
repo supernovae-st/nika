@@ -149,6 +149,10 @@ pub(super) struct Bindings {
     /// The classify runs once per parsed record of one structured source: the request
     /// classifies each record, and a write naming a category carries its records.
     pub classify_per_record: bool,
+    /// The answered slots (slug, value): consts the rule's jq reads under `slots`.
+    pub slots: Vec<(String, Value)>,
+    /// The slots still asked, by key.
+    pub pending_slots: Vec<String>,
 }
 
 impl Bindings {
@@ -234,6 +238,7 @@ impl Bindings {
             && self.rule.settled()
             && self.dedup.settled()
             && !self.effects_pending
+            && self.pending_slots.is_empty()
     }
 }
 
@@ -443,11 +448,7 @@ pub(super) fn bind(
     let classify_per_record = matches!(&read, Need::Bound(Source::File(path)) if Structured::of(path).is_some())
         && shape::per_record_classify(plan);
     if per_item.contains(&Op::Draft) {
-        for constraint in &plan.constraints {
-            if shape::structural(constraint) && !consumed.contains(constraint) {
-                consumed.push(constraint.clone());
-            }
-        }
+        consume_structural(plan, &mut consumed);
     }
     let mut b = Bindings {
         model,
@@ -465,7 +466,10 @@ pub(super) fn bind(
         item,
         per_item,
         classify_per_record,
+        slots: Vec::new(),
+        pending_slots: Vec::new(),
     };
+    bind_slots(plan, request, out, recognized, &mut b);
     b.rule = Need::from_step(plan.step(Op::Compute), |step| {
         // A rule the request states over a parsed source is code the compiler writes;
         // an explicit answer still wins, and anything outside the grammar is asked.
@@ -519,6 +523,37 @@ fn refuse_per_item_placeholder(effect: &Effect, out: &mut CompileOutcome) -> boo
         QuestionType::Text,
     );
     true
+}
+
+/// A structure law among the constraints is consumed by the structure, kept out of prompts.
+fn consume_structural(plan: &Plan, consumed: &mut Vec<String>) {
+    for constraint in &plan.constraints {
+        if shape::structural(constraint) && !consumed.contains(constraint) {
+            consumed.push(constraint.clone());
+        }
+    }
+}
+
+/// A value the request alludes to without stating it: asked as its const, a literal for a
+/// numeric comparison, text otherwise; never guessed.
+fn bind_slots(
+    plan: &Plan,
+    request: &CompileRequest,
+    out: &mut CompileOutcome,
+    recognized: &mut BTreeSet<String>,
+    b: &mut Bindings,
+) {
+    for slot in &plan.slots {
+        recognized.insert(slot.key.clone());
+        let label = format!(
+            "Which value is « {} »? The request alludes to it without stating it; supply the literal value.",
+            slot.label
+        );
+        match answer(request, out, &slot.key, &label, !slot.numeric) {
+            Some(value) => b.slots.push((slot.slug().to_owned(), value)),
+            None => b.pending_slots.push(slot.key.clone()),
+        }
+    }
 }
 
 /// The one JSON file the plan's read step locates: a lookup by identifier selects its

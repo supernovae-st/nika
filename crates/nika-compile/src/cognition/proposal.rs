@@ -863,6 +863,8 @@ pub(super) fn merge(
         .map(|s| fold_words(&s.evidence))
         .filter(|words| !words.is_empty())
         .collect();
+    // The unknowns a typed rule turned into slots: asked, no longer unresolved work.
+    let mut slotted: Vec<String> = Vec::new();
     for step in proposal.steps {
         let Some(op) = Op::parse(&step.op) else {
             reject(out, "unknown operation in the proposal");
@@ -917,9 +919,26 @@ pub(super) fn merge(
         }
         if op == Op::Compute
             && let Some(computation) = step.computation.as_ref().filter(|c| c.present)
-            && let Some(rule) = crate::predicate::typed_rule(intent, &evidence, computation)
+            && let Some((rule, slots)) =
+                crate::predicate::typed_rule(intent, &evidence, computation, &proposal.unknowns)
             && !plan.rules.iter().any(|r| r.text() == rule.text())
         {
+            for slot in slots {
+                if plan.slots.iter().any(|s| s.key == slot.key) {
+                    continue;
+                }
+                crate::finding(
+                    out,
+                    DiagnosticKind::Applied,
+                    "authoring_plan",
+                    format!(
+                        "`{}` is a value the request alludes to without stating it: asked as `{}`, never guessed.",
+                        slot.label, slot.key
+                    ),
+                );
+                slotted.push(slot.label.clone());
+                plan.slots.push(slot);
+            }
             plan.rules.push(rule);
         }
         plan.push_step(Step::new(op, evidence, step.detail, step.categories));
@@ -1050,7 +1069,12 @@ pub(super) fn merge(
             plan.constraints.push(constraint);
         }
     }
-    plan.unknowns.extend(proposal.unknowns);
+    plan.unknowns
+        .extend(proposal.unknowns.into_iter().filter(|u| {
+            !slotted
+                .iter()
+                .any(|s| crate::rule_tokens::fold(s) == crate::rule_tokens::fold(u))
+        }));
     // Semantic accounting: the request must be covered by regions the model can name.
     if let Some(bypass) = proposal.approval_bypass
         && bypass.present

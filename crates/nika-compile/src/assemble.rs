@@ -398,6 +398,9 @@ pub(super) fn assemble(
     if let Some(model) = &b.model {
         d.root["model"] = model.clone();
     }
+    for (slug, value) in &b.slots {
+        d.root["const"][slug] = value.clone();
+    }
     emit_lookup(&mut d, &b);
     emit_read(&mut d, plan, &b);
     emit_search_fetch_dedup(&mut d, plan, &b);
@@ -963,7 +966,18 @@ fn emit_synthesized_rule(d: &mut Doc, plan: &Plan, rule: &super::rules::Rule) {
         || "${{ tasks.parse_source.output }}".to_owned(),
         |f| f.template.clone(),
     );
-    let input = json!({"records": "${{ with.records }}"});
+    let mut input = json!({"records": "${{ with.records }}"});
+    if !plan.slots.is_empty() {
+        // The values the request alludes to ride beside the records, from their consts.
+        let mut slots = serde_json::Map::new();
+        for slot in &plan.slots {
+            slots.insert(
+                slot.slug().to_owned(),
+                json!(format!("${{{{ {} }}}}", slot.key)),
+            );
+        }
+        input["slots"] = Value::Object(slots);
+    }
     d.tool(
         "compute_guard",
         "nika:jq",

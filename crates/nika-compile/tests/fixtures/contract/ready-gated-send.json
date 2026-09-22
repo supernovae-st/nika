@@ -424,6 +424,7 @@
           }
         ],
         "rules": [],
+        "slots": [],
         "strategy": "hot",
         "trigger": null,
         "unknowns": []
