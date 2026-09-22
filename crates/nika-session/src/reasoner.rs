@@ -167,8 +167,7 @@ impl SessionReasoner for ProviderReasoner {
     }
 
     fn reason(&mut self, prompt: &str) -> Result<Reply, ReasonError> {
-        let http =
-            nika_http::ReqwestHttp::new().map_err(|e| ReasonError::Provider(e.to_string()))?;
+        let http = provider_http().map_err(ReasonError::Provider)?;
         let registry = Arc::new(nika_providers::ProviderRegistry::new(
             Arc::new(http),
             nika_runtime::compose::config_from_env(),
@@ -182,6 +181,28 @@ impl SessionReasoner for ProviderReasoner {
             usage_observed: true,
         })
     }
+}
+
+/// The transport ceiling of the provider client — the engine's own
+/// (`nika_runtime::compose`): the per-request deadline is the wire layer's.
+const PROVIDER_TRANSPORT_CEILING: std::time::Duration = std::time::Duration::from_secs(600);
+
+/// The HTTP client for the PROVIDER plane, the same law as the engine's
+/// run path (`nika_runtime::compose`): SSRF disabled on purpose — the
+/// endpoints come from the fixed provider profiles, never from workflow
+/// data, and the local engines (`ollama` · `lmstudio` · …) bind
+/// `127.0.0.1` by design — and the transport ceiling raised so a long
+/// local answer is not cut at the fetch client's 30 s. The fetch guard
+/// (`ReqwestHttp::new`) stays for workflow-controlled URLs only.
+///
+/// # Errors
+///
+/// The TLS backend would not initialize.
+pub(crate) fn provider_http() -> Result<nika_http::ReqwestHttp, String> {
+    let mut config = nika_http::HttpConfig::default();
+    config.ssrf = nika_http::SsrfMode::Disabled;
+    config.timeout = PROVIDER_TRANSPORT_CEILING;
+    nika_http::ReqwestHttp::with_config(config).map_err(|e| e.to_string())
 }
 
 /// The text of an infer output — the text as is, a structured answer as JSON.

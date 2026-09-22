@@ -519,7 +519,9 @@ pub fn compile_through(
         AUTHORING_MAX_TOKENS,
         AUTHORING_TIMEOUT,
     ));
-    let http = nika_http::ReqwestHttp::new().map_err(|e| AuthoringError::Seat(e.to_string()))?;
+    // The provider plane's client (SSRF off · the transport ceiling), as
+    // the conversation's reasoner and the engine's run path use.
+    let http = crate::reasoner::provider_http().map_err(AuthoringError::Seat)?;
     let registry = nika_providers::ProviderRegistry::new(
         Arc::new(http),
         nika_runtime::compose::config_from_env(),
