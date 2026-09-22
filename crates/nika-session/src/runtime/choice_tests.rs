@@ -385,7 +385,20 @@ fn a_kept_choice_that_cannot_answer_asks_in_context_and_resumes_the_line() {
             provider: "mistral".to_owned()
         }
     );
-    // Work the reader cannot settle asks the same way under such a choice.
+}
+
+/// Work the reader cannot settle asks the same way under a kept choice
+/// this machine cannot serve: the first screen in context, with the
+/// authoring reason and the way on; the seat is never called.
+#[test]
+fn unsettled_work_under_a_kept_unusable_choice_asks_in_context() {
+    let dir = tree();
+    let pref = UserIntelligencePreference::new(
+        IntelligenceKind::Harness {
+            seat: "gemini-cli".to_owned(),
+        },
+        None,
+    );
     let mut again = SessionRuntime::open_with(
         dir.path(),
         IntelligenceCensus {
