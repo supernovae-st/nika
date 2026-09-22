@@ -85,7 +85,10 @@ fn explicit_authoring_is_bounded_and_ambient_credentials_do_not_opt_in() {
     );
     let document = result(&explicit);
     assert_eq!(document["compile_version"], 2, "{document}");
-    assert_eq!(document["provenance"]["authoring"]["calls"], 1);
+    // One proposal call, plus at most ONE bounded repair call when the mock's evidence is
+    // not an excerpt of the request (the verifier's counterexample goes back once).
+    let calls = document["provenance"]["authoring"]["calls"].as_u64();
+    assert!(matches!(calls, Some(1 | 2)), "{document}");
     assert_ne!(
         document["status"], "ready",
         "a schema mock is not a semantic witness"
