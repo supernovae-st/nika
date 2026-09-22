@@ -771,13 +771,21 @@ fn restates_a_clause(plan: &Plan, constraint: &str) -> bool {
 fn one_clause_one_effect(
     effect: &ProposedEffect,
     language_clauses: &[String],
+    constraints: &[String],
     stated: &mut Vec<String>,
     out: &mut CompileOutcome,
 ) -> bool {
-    let clause = fold_words(&effect.evidence);
+    let clause = super::words::clause_key(&effect.evidence);
     if clause.is_empty() {
         return false;
     }
+    // Two clauses are one when equal, or when this effect's clause contains a stated clause
+    // of three words or more (« puis conserve un état à reprendre manuellement » over the
+    // constraint « conserve un état à reprendre manuellement »).
+    let one_another = |words: &String| {
+        words == &clause
+            || (words.split_whitespace().count() >= 3 && clause.contains(words.as_str()))
+    };
     let names_a_place = crate::paths::literals(&effect.target).iter().any(|shape| {
         matches!(
             shape,
@@ -800,7 +808,21 @@ fn one_clause_one_effect(
         );
         return true;
     }
-    if stated.contains(&clause) {
+    // « puis conserve un état à reprendre manuellement » listed as a write with no path: the
+    // constraint the reading carries as guidance, never a file the workflow writes.
+    if effect.verb == "write" && !names_a_place && constraints.iter().any(one_another) {
+        crate::finding(
+            out,
+            DiagnosticKind::Applied,
+            "authoring_plan",
+            format!(
+                "`{}` is a constraint the request states, carried as guidance; the proposal's `write` over its words names no file and was not assembled as an effect.",
+                effect.evidence.trim()
+            ),
+        );
+        return true;
+    }
+    if stated.iter().any(one_another) {
         crate::finding(
             out,
             DiagnosticKind::Applied,
@@ -881,7 +903,7 @@ pub(super) fn merge(
         .steps
         .iter()
         .filter(|s| matches!(s.op.as_str(), "draft" | "extract" | "classify" | "compute"))
-        .map(|s| fold_words(&s.evidence))
+        .map(|s| super::words::clause_key(&s.evidence))
         .filter(|words| !words.is_empty())
         .collect();
     // The unknowns a typed rule turned into slots: asked, no longer unresolved work.
@@ -1034,7 +1056,13 @@ pub(super) fn merge(
     let twins = write_twins(&proposal.effects);
     let mut stated_effects: Vec<String> = Vec::new();
     for effect in proposal.effects {
-        if one_clause_one_effect(&effect, &language_clauses, &mut stated_effects, out) {
+        if one_clause_one_effect(
+            &effect,
+            &language_clauses,
+            &constraint_clauses,
+            &mut stated_effects,
+            out,
+        ) {
             folded.push(effect.evidence.clone());
             continue;
         }
