@@ -140,6 +140,9 @@ pub enum RoutingMethod {
     Model,
     /// No intelligence could judge: UNKNOWN, everything kept as is.
     Fallback,
+    /// The intelligence was asked and could not answer (a failed call, a
+    /// blank answer): UNKNOWN, everything kept as is, said as such.
+    Failed,
 }
 
 /// The decision: the act, the other acts a mixed line carries, the method.
@@ -201,9 +204,9 @@ impl ReasonerClassifier {
 
 impl TurnClassifier for ReasonerClassifier {
     fn classify(&mut self, context: &TurnContext, raw: &str) -> TurnDecision {
-        match self.reasoner.reason(&routing_prompt(context, raw)) {
+        match self.reasoner.reason_label(&routing_prompt(context, raw)) {
             Ok(reply) => TurnDecision::new(TurnAct::parse(&reply.text), RoutingMethod::Model),
-            Err(_) => TurnDecision::new(TurnAct::Unknown, RoutingMethod::Fallback),
+            Err(_) => TurnDecision::new(TurnAct::Unknown, RoutingMethod::Failed),
         }
     }
 }
@@ -308,6 +311,11 @@ mod tests {
         let fallback = ConservativeFallback.classify(&ctx, "anything");
         assert_eq!(fallback.act, TurnAct::Unknown);
         assert_eq!(fallback.method, RoutingMethod::Fallback);
+        // An intelligence that cannot answer is a FAILED route, not « none available ».
+        let failed = ReasonerClassifier::new(Box::new(crate::reasoner::NoReasoner))
+            .classify(&ctx, "anything");
+        assert_eq!(failed.act, TurnAct::Unknown);
+        assert_eq!(failed.method, RoutingMethod::Failed);
         let record = RouteRecord::new(SessionPhase::Idle, "hello", &fallback);
         assert_eq!(record.raw_hash.len(), 12);
         assert!(record.line().contains("UNKNOWN"));

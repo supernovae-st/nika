@@ -53,6 +53,17 @@ pub trait SessionReasoner: Send {
     /// the reason, never silently switches paths.
     fn reason(&mut self, prompt: &str) -> Result<Reply, ReasonError>;
 
+    /// One bounded label (the semantic route): the same call under a
+    /// small output ceiling and a zero temperature where the path can
+    /// set them; by default the ordinary turn.
+    ///
+    /// # Errors
+    ///
+    /// The path could not answer.
+    fn reason_label(&mut self, prompt: &str) -> Result<Reply, ReasonError> {
+        self.reason(prompt)
+    }
+
     /// The `<provider>/<model>` the compiler may author with under this
     /// path — the same model the human chose to reason with, when the
     /// path is a metered API or a local engine. A seat that reasons in
@@ -167,13 +178,35 @@ impl SessionReasoner for ProviderReasoner {
     }
 
     fn reason(&mut self, prompt: &str) -> Result<Reply, ReasonError> {
+        self.infer(prompt, None)
+    }
+
+    fn reason_label(&mut self, prompt: &str) -> Result<Reply, ReasonError> {
+        self.infer(prompt, Some(LABEL_CEILING_TOKENS))
+    }
+}
+
+/// The output ceiling of a label call: one word is the answer, and a
+/// thinking model spends its reasoning inside the same budget (measured
+/// 2026-09-22 on deepseek-v4-pro: 113 to 1133 tokens of reasoning for
+/// one label; a blank answer under the ceiling is a FAILED route, said).
+const LABEL_CEILING_TOKENS: u32 = 1024;
+
+impl ProviderReasoner {
+    /// The one-shot infer verb over the provider registry; a label call
+    /// carries its ceiling and a zero temperature.
+    fn infer(&self, prompt: &str, ceiling: Option<u32>) -> Result<Reply, ReasonError> {
         let http = provider_http().map_err(ReasonError::Provider)?;
         let registry = Arc::new(nika_providers::ProviderRegistry::new(
             Arc::new(http),
             nika_runtime::compose::config_from_env(),
         ));
         let verb = nika_verb_infer::InferVerb::new(registry, self.model.clone());
-        let input = nika_verb_infer::InferInput::new(prompt);
+        let mut input = nika_verb_infer::InferInput::new(prompt);
+        if let Some(ceiling) = ceiling {
+            input.max_tokens = Some(ceiling);
+            input.temperature = Some(0.0);
+        }
         let out = block_on(async { verb.run(input).await })?
             .map_err(|e| ReasonError::Provider(e.to_string()))?;
         Ok(Reply {

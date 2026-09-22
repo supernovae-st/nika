@@ -120,6 +120,9 @@ impl SessionRuntime {
             RoutingMethod::Fallback => {
                 "no intelligence is available to read what it means (`/intelligence` chooses one)"
             }
+            RoutingMethod::Failed => {
+                "the intelligence could not read it (its answer failed or came back blank) — say it again, or in other words"
+            }
             _ => "I could not tell what it means",
         };
         format!("{not}, and {reason} — nothing changed · {forms}")
