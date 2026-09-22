@@ -215,6 +215,10 @@ pub struct HarnessAdapter {
     pub command: String,
     /// The session-mode argv (e.g. `["--experimental-acp"]`).
     pub args: Vec<String>,
+    /// The `agentInfo.name` values this adapter answers in its initialize self-report,
+    /// measured (an npm adapter answers its scoped package name, Kimi answers `Kimi Code
+    /// CLI`). The id itself is always accepted; the match ignores case. Empty = the id only.
+    pub identities: Vec<String>,
     /// Extra parent env vars the adapter may read (beyond the floor) —
     /// credential-shaped names are refused by composition.
     pub passthrough_env: Vec<String>,
@@ -268,6 +272,7 @@ impl HarnessAdapter {
             id,
             command: command.into(),
             args: Vec::new(),
+            identities: Vec::new(),
             passthrough_env: Vec::new(),
             version_pin: None,
             version_args: vec!["--version".to_owned()],
@@ -289,6 +294,34 @@ impl HarnessAdapter {
     pub fn with_passthrough_env(mut self, vars: Vec<String>) -> Self {
         self.passthrough_env = vars;
         self
+    }
+
+    /// Declare the `agentInfo.name` values this adapter answers (measured, never
+    /// guessed): the handshake judge accepts the id, any of these, the name with its
+    /// npm scope stripped, or the command's own basename — and refuses every other name.
+    #[must_use]
+    pub fn with_identities(mut self, names: Vec<String>) -> Self {
+        self.identities = names;
+        self
+    }
+
+    /// Whether an initialize `agentInfo.name` names this adapter.
+    #[must_use]
+    pub fn answers_as(&self, name: &str) -> bool {
+        let name = name.trim();
+        if name.is_empty() {
+            return false;
+        }
+        let same = |a: &str, b: &str| a.eq_ignore_ascii_case(b);
+        if same(name, &self.id) || self.identities.iter().any(|i| same(i, name)) {
+            return true;
+        }
+        let unscoped = name.rsplit('/').next().unwrap_or(name);
+        let basename = std::path::Path::new(&self.command)
+            .file_name()
+            .and_then(|c| c.to_str())
+            .unwrap_or(self.command.as_str());
+        same(unscoped, &self.id) || same(unscoped, basename)
     }
 
     /// Pin the accepted `--version` range — the probe then runs BEFORE
@@ -571,11 +604,15 @@ impl SpawnedHarness {
             .pointer("/result/agentInfo/name")
             .and_then(serde_json::Value::as_str)
             .unwrap_or("");
-        if name != self.adapter.id {
+        if !self.adapter.answers_as(name) {
+            let accepted = std::iter::once(self.adapter.id.as_str())
+                .chain(self.adapter.identities.iter().map(String::as_str))
+                .collect::<Vec<_>>()
+                .join("` · `");
             return Err(HarnessError::Unavailable {
                 reason: format!(
                     "adapter `{}`: the handshake answered as `{name}` — this binary is not \
-                     the adapter it claims to be",
+                     the adapter it claims to be (it answers as `{accepted}`)",
                     self.adapter.id
                 ),
             });
@@ -1006,7 +1043,12 @@ else:
         reports: &str,
         version: &str,
     ) -> HarnessAdapter {
-        let script = dir.join(format!("agent-{reports}.py"));
+        // The answered name may carry a scope or spaces; the script's file name never does.
+        let slug: String = reports
+            .chars()
+            .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
+            .collect();
+        let script = dir.join(format!("agent-{slug}.py"));
         std::fs::write(
             &script,
             format!(
@@ -1051,6 +1093,69 @@ sys.stdout.flush()
             .await
             .expect_err("the impostor refuses");
         assert!(err.to_string().contains("qwen-code"), "{err}");
+        // The npm adapter answers its SCOPED package name: that IS the adapter (measured
+        // 2026-09-22: `@zed-industries/claude-agent-acp@0.23.1` had refused every session).
+        let scoped = SpawnedHarness::new(handshake_agent(
+            &dir,
+            "claude-agent-acp",
+            "@agentclientprotocol/claude-agent-acp",
+            "0.81.0",
+        ));
+        assert_eq!(
+            scoped
+                .probe_version()
+                .await
+                .expect("the scoped name is the adapter"),
+            Some((0, 81))
+        );
+        // A declared identity that shares nothing with the id (Kimi answers `Kimi Code CLI`).
+        let declared = SpawnedHarness::new(
+            handshake_agent(&dir, "kimi-code", "Kimi Code CLI", "2.0.2")
+                .with_identities(vec!["Kimi Code CLI".to_owned()])
+                .with_version_pin(crate::probe::VersionPin::new((2, 0), 2)),
+        );
+        assert_eq!(
+            declared.probe_version().await.expect("a declared identity"),
+            Some((2, 0))
+        );
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_answered_name_is_judged_by_id_identity_scope_or_command_never_by_guess() {
+        let row = HarnessAdapter::new("claude-code", "claude-agent-acp")
+            .expect("row")
+            .with_identities(vec!["Claude Agent".to_owned()]);
+        assert!(row.answers_as("claude-code"));
+        assert!(row.answers_as("claude-agent-acp"));
+        assert!(row.answers_as("@agentclientprotocol/claude-agent-acp"));
+        assert!(row.answers_as("@zed-industries/claude-agent-acp"));
+        assert!(row.answers_as("claude agent"), "case never decides");
+        assert!(!row.answers_as("qwen-code"));
+        assert!(!row.answers_as("@agentclientprotocol/codex-acp"));
+        assert!(!row.answers_as(""));
+        let pathed = HarnessAdapter::new("codex", "/opt/bin/codex-acp").expect("row");
+        assert!(pathed.answers_as("@agentclientprotocol/codex-acp"));
+        assert!(pathed.answers_as("codex-acp"));
+        assert!(
+            pathed.answers_as("Codex"),
+            "a title equal to the id, whatever the case, is the adapter"
+        );
+        assert!(
+            !pathed.answers_as("Codex CLI"),
+            "a title beyond the id needs a declaration"
+        );
+        let kimi = HarnessAdapter::new("kimi-code", "kimi")
+            .expect("row")
+            .with_identities(vec!["Kimi Code CLI".to_owned()]);
+        assert!(kimi.answers_as("Kimi Code CLI"));
+        assert!(
+            kimi.answers_as("kimi"),
+            "the command's own basename is an identity (an npm bin answers its bin name)"
+        );
+        assert!(
+            !kimi.answers_as("kimi-legacy"),
+            "a name beyond the row needs a declaration"
+        );
     }
 }

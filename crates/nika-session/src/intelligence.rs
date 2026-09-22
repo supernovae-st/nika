@@ -257,7 +257,7 @@ impl IntelligenceCensus {
                         .find(|s| s.product_present)
                         .map(|s| s.id.clone())
                         .ok_or_else(|| {
-                            "no AI app found on this machine — install one (Codex · Claude Code · Gemini CLI · Kimi Code · Qwen Code) or pick 2, 3 or 4".to_owned()
+                            "no AI app found on this machine — install one (Codex · Claude Code · GitHub Copilot CLI · Gemini CLI · Grok Build · Kimi Code · OpenCode · Qwen Code) or pick 2, 3 or 4".to_owned()
                         })?,
                 };
                 Ok(UserIntelligencePreference::new(

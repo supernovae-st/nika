@@ -364,10 +364,10 @@ fn access_code_help(num: u16) -> &'static str {
             "The `--access` pin names a path this task cannot use here. A pin is a pin: the engine refuses rather than substitute another path or model. Drop the pin, or pick one of the paths `nika doctor` lists for this provider."
         }
         1802 => {
-            "The `--access` token is neither an access class (local · api · harness · oauth · mock) nor a known agentic CLI (claude-code · codex · gemini-cli · kimi-code · qwen-code). `nika doctor` lists every path."
+            "The `--access` token is neither an access class (local · api · harness · oauth · mock) nor a known agentic CLI (claude-code · codex · copilot · gemini-cli · grok-build · kimi-code · opencode · qwen-code). `nika doctor` lists every path."
         }
         1803 => {
-            "That agentic CLI is not installed (or this nika was built without adapters). Install Claude Code, Codex, Gemini CLI, Kimi Code or Qwen Code, or pick Nika local / Nika Cloud."
+            "That agentic CLI is not installed (or this nika was built without adapters). Install Claude Code, Codex, GitHub Copilot CLI, Gemini CLI, Grok Build, Kimi Code, OpenCode or Qwen Code, or pick Nika local / Nika Cloud."
         }
         1804 => {
             "The harness session died mid-run (process exit or wire breakdown) — transient: retry, and if it repeats read the adapter's own logs."

@@ -153,10 +153,22 @@ pub fn parse_line(line: &str) -> Result<Incoming, WireError> {
                     .get("message")
                     .and_then(Value::as_str)
                     .unwrap_or("unnamed error");
-                Ok(Incoming::ErrorResponse {
-                    id,
-                    message: format!("{msg} (jsonrpc {code})"),
-                })
+                // The agent's own words ride verbatim: an adapter puts the reason under
+                // `error.data.details` (measured 2026-09-22: `Internal error` carried
+                // `Invalid permissions.defaultMode: auto.`), a CLI under `error.data` itself.
+                let details = err.get("data").and_then(|d| {
+                    d.get("details")
+                        .and_then(Value::as_str)
+                        .map(str::to_owned)
+                        .or_else(|| d.as_str().map(str::to_owned))
+                });
+                let message = match details {
+                    Some(details) if !details.is_empty() && details != msg => {
+                        format!("{msg} — {details} (jsonrpc {code})")
+                    }
+                    _ => format!("{msg} (jsonrpc {code})"),
+                };
+                Ok(Incoming::ErrorResponse { id, message })
             } else {
                 Ok(Incoming::Response {
                     id,

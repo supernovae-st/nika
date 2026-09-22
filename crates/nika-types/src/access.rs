@@ -93,8 +93,8 @@ impl fmt::Display for AccessClass {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct HarnessRuntime {
-    /// The `--access` token (`claude-code` · `codex` · `gemini-cli` ·
-    /// `kimi-code` · `qwen-code`).
+    /// The `--access` token (`claude-code` · `codex` · `copilot` · `gemini-cli` ·
+    /// `grok-build` · `kimi-code` · `opencode` · `qwen-code`).
     pub id: &'static str,
     /// Human name for doctor and refusal lines (`Claude Code`).
     pub display: &'static str,
@@ -131,6 +131,14 @@ impl HarnessRuntime {
         acp_bin: "kimi",
         not_installed: "Kimi Code is not installed. Install it or pick Nika local / Nika Cloud.",
     };
+    /// `OpenCode` (native ACP · `opencode acp`).
+    pub const OPENCODE: Self = Self {
+        id: "opencode",
+        display: "OpenCode",
+        detect_bin: "opencode",
+        acp_bin: "opencode",
+        not_installed: "OpenCode is not installed. Install it or pick Nika local / Nika Cloud.",
+    };
     /// Codex (ACP speaker is `codex-acp`).
     pub const CODEX: Self = Self {
         id: "codex",
@@ -138,6 +146,22 @@ impl HarnessRuntime {
         detect_bin: "codex",
         acp_bin: "codex-acp",
         not_installed: "Codex is not installed. Install it or pick Nika local / Nika Cloud.",
+    };
+    /// GitHub Copilot CLI (native ACP · `copilot --acp`).
+    pub const COPILOT: Self = Self {
+        id: "copilot",
+        display: "GitHub Copilot CLI",
+        detect_bin: "copilot",
+        acp_bin: "copilot",
+        not_installed: "GitHub Copilot CLI is not installed. Install it or pick Nika local / Nika Cloud.",
+    };
+    /// Grok Build (native ACP · `grok agent stdio`).
+    pub const GROK_BUILD: Self = Self {
+        id: "grok-build",
+        display: "Grok Build",
+        detect_bin: "grok",
+        acp_bin: "grok",
+        not_installed: "Grok Build is not installed. Install it or pick Nika local / Nika Cloud.",
     };
     /// Claude Code (ACP speaker is `claude-agent-acp`).
     pub const CLAUDE_CODE: Self = Self {
@@ -149,11 +173,14 @@ impl HarnessRuntime {
     };
 
     /// Shipped runtimes in G-3 probe order (gemini first · Anthropic last).
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 8] = [
         Self::GEMINI_CLI,
         Self::QWEN_CODE,
         Self::KIMI_CODE,
+        Self::OPENCODE,
         Self::CODEX,
+        Self::COPILOT,
+        Self::GROK_BUILD,
         Self::CLAUDE_CODE,
     ];
 
@@ -176,7 +203,7 @@ impl HarnessRuntime {
     /// The one help/docs vocabulary (` · ` separated, same day as `--help`).
     #[must_use]
     pub const fn vocabulary() -> &'static str {
-        "claude-code · codex · gemini-cli · kimi-code · qwen-code"
+        "claude-code · codex · copilot · gemini-cli · grok-build · kimi-code · opencode · qwen-code"
     }
 
     /// Dummy-readable line when the product CLI is present but the ACP
@@ -192,7 +219,7 @@ impl HarnessRuntime {
         } else {
             alloc::format!(
                 "{} is installed, but Nika talks to it through ACP. Install `{}` \
-                 (`npm i -g @zed-industries/{}`) or pick Nika local / Nika Cloud.",
+                 (`npm i -g @agentclientprotocol/{}`) or pick Nika local / Nika Cloud.",
                 self.display,
                 self.acp_bin,
                 self.acp_bin
@@ -912,7 +939,7 @@ mod tests {
 
     #[test]
     fn harness_runtime_tokens_are_one_name_each_and_never_a_class() {
-        assert_eq!(HarnessRuntime::ALL.len(), 5);
+        assert_eq!(HarnessRuntime::ALL.len(), 8);
         for (i, a) in HarnessRuntime::ALL.iter().enumerate() {
             for b in &HarnessRuntime::ALL[i + 1..] {
                 assert_ne!(a.id, b.id, "one name per runtime");
@@ -943,8 +970,11 @@ mod tests {
         for id in [
             "claude-code",
             "codex",
+            "copilot",
             "gemini-cli",
+            "grok-build",
             "kimi-code",
+            "opencode",
             "qwen-code",
         ] {
             assert!(vocab.contains(id), "{vocab} missing {id}");

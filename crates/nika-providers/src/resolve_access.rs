@@ -536,7 +536,8 @@ fn adapters_not_compiled_in() -> PinRefusal {
 }
 
 const NO_RUNTIME_INSTALLED: &str = "No agentic CLI runtime is installed. Install \
-     Claude Code, Codex, Gemini CLI, Kimi Code or Qwen Code, or pick Nika local / Nika Cloud.";
+     Claude Code, Codex, GitHub Copilot CLI, Gemini CLI, Grok Build, Kimi Code, OpenCode or Qwen \
+     Code, or pick Nika local / Nika Cloud.";
 
 /// The verbs a pinned seat must serve — decides WHICH binary presence the
 /// pin needs: an infer-grade seat spawns the PRODUCT (`codex`), an

@@ -17,7 +17,7 @@ fn doctor_teaches_access_classes_and_live_seat_pins() {
 #[test]
 fn doctor_lists_every_agentic_cli_runtime() {
     let findings = super::harness_findings();
-    assert_eq!(findings.len(), 5, "{findings:?}");
+    assert_eq!(findings.len(), 8, "{findings:?}");
     let text: String = findings
         .iter()
         .map(|f| format!("{} {}", f.label, f.detail))
@@ -26,8 +26,11 @@ fn doctor_lists_every_agentic_cli_runtime() {
     for token in [
         "claude-code",
         "codex",
+        "copilot",
         "gemini-cli",
+        "grok-build",
         "kimi-code",
+        "opencode",
         "qwen-code",
     ] {
         assert!(text.contains(token), "missing {token} in:\n{text}");

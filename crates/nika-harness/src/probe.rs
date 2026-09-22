@@ -726,7 +726,7 @@ mod tests {
     fn the_env_registry_wrapper_delegates_and_reads_the_switch() {
         // NIKA_HARNESS_DISABLE is unset in this process → the full table.
         let rows = crate::registry().expect("the live env loads");
-        assert_eq!(rows.len(), 5, "registry() reads the real env boundary");
+        assert_eq!(rows.len(), 8, "registry() reads the real env boundary");
     }
 
     /// The sync façade is FOR sync callers (doctor) — so the test is
@@ -759,7 +759,10 @@ mod tests {
                 "gemini-cli",
                 "qwen-code",
                 "kimi-code",
+                "opencode",
                 "codex",
+                "copilot",
+                "grok-build",
                 "claude-code"
             ]
         );
@@ -818,15 +821,24 @@ mod tests {
 
     #[test]
     fn kimi_code_pin_accepts_the_measured_line_and_refuses_below_the_floor() {
-        let pin = VersionPin::new((0, 37), 0);
-        let seen = judge_version("kimi-code", "0.37.2\n", &pin).expect("measured line");
-        assert_eq!(seen, (0, 37));
-        let err = judge_version("kimi-code", "0.36.9\n", &pin).expect_err("below the floor");
+        // Kimi Code CLI 2.0.2 (the Node rewrite, measured 2026-09-22) is inside the pin;
+        // the archived Python CLI (0.37.2, 2026-08-22) is below its floor; a new major refuses.
+        let pin = VersionPin::new((2, 0), 2);
+        let seen = judge_version("kimi-code", "2.0.2\n", &pin).expect("measured line");
+        assert_eq!(seen, (2, 0));
+        let err = judge_version("kimi-code", "0.37.2\n", &pin).expect_err("below the floor");
         let msg = err.to_string();
         assert!(msg.contains("kimi-code"), "{msg}");
-        assert!(msg.contains("0.36"), "{msg}");
-        let major = judge_version("kimi-code", "1.0.0\n", &pin).expect_err("new major");
-        assert!(major.to_string().contains("major <= 0"), "{major}");
+        assert!(msg.contains("0.37"), "{msg}");
+        let major = judge_version("kimi-code", "3.0.0\n", &pin).expect_err("new major");
+        assert!(major.to_string().contains("major <= 2"), "{major}");
+        // Grok Build prints `grok 1.0.40 (eb1a2256660d) [stable]` (measured 2026-09-22).
+        let grok = VersionPin::new((1, 0), 1);
+        assert_eq!(
+            judge_version("grok-build", "grok 1.0.40 (eb1a2256660d) [stable]\n", &grok)
+                .expect("measured line"),
+            (1, 0)
+        );
     }
 
     #[test]
