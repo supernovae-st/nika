@@ -656,7 +656,7 @@ const DETERMINERS: &[&str] = &[
 pub(crate) const COLUMN_WORDS: &[&str] = &[
     "column", "columns", "field", "fields", "colonne", "colonnes", "champ", "champs", "columna",
     "columnas", "campo", "campos", "colonna", "colonne", "campi", "spalte", "spalten", "feld",
-    "felder",
+    "felder", "coluna", "colunas",
 ];
 
 /// A word that may trail a column name without changing the aggregate.

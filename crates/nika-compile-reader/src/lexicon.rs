@@ -74,10 +74,13 @@ pub struct Reading {
 /// A clause the closed rule grammar read whole ("count the rows per client", "merge them on
 /// the id column") is a compute step carrying its rule: the words are its literals.
 fn push_rule(original: &str, rule: super::rules::Rule, reading: &mut Reading) {
+    // The detail is the text the grammar read (the whole clause, or the object after a
+    // computation head such as « compute »): the admission and the binding find the rule by
+    // that very text.
     reading.plan.push_step(Step {
         op: Op::Compute,
         evidence: original.to_owned(),
-        detail: original.trim().to_owned(),
+        detail: rule.text().trim().to_owned(),
         categories: Vec::new(),
     });
     if !reading.plan.rules.iter().any(|r| r.text() == rule.text()) {
@@ -408,6 +411,66 @@ fn strip_filler(lower: &str) -> &str {
     }
 }
 
+/// Whether a connector opens a stage the closed grammar reads whole (« …, sort them by
+/// priority and … », « …, garde seulement les lignes dont le statut est ouvert, … »): a
+/// clause boundary the reader cuts whatever verb the stage opens with, so a computation
+/// stated after a comma never rides as the residue of the clause before it.
+fn stage_ahead(rest: &str) -> bool {
+    let end = STRONG_CONNECTORS
+        .iter()
+        .chain(WEAK_CONNECTORS.iter())
+        .filter_map(|connector| rest.find(connector))
+        .min()
+        .unwrap_or(rest.len());
+    let segment = rest.get(..end).unwrap_or_default().trim();
+    // A stated stage (a sort, a count, a projection, a rename…) or a keep-family filter the
+    // grammar reads whole; never a bare comparator (`token=…?` inside a question) nor a
+    // question: those stay in the clause that carries them.
+    if segment.is_empty() || segment.ends_with('?') {
+        return false;
+    }
+    super::stages::stated(segment, &[]).is_some()
+        || (KEEP_OPENERS.iter().any(|lead| segment.starts_with(lead))
+            && super::rules::synthesize(segment, &[]).is_some())
+}
+
+/// A connector inside a projection list (« keep only the name and email of each person »,
+/// « ne garde que le nom et l'email de chaque personne ») is no clause boundary, whatever
+/// verb the next item spells (« email » is also an effect head): the list the grammar reads
+/// whole continues across it. The keep lead is looked for before the connector, and the
+/// grammar judges the whole span up to the next connector.
+fn projection_continues(before: &str, connector: &str, rest: &str) -> bool {
+    let end = STRONG_CONNECTORS
+        .iter()
+        .chain(WEAK_CONNECTORS.iter())
+        .filter_map(|c| rest.find(c))
+        .min()
+        .unwrap_or(rest.len());
+    let tail = rest.get(..end).unwrap_or_default().trim();
+    if tail.is_empty() {
+        return false;
+    }
+    KEEP_OPENERS.iter().any(|lead| {
+        before.rfind(lead).is_some_and(|at| {
+            let span = format!("{}{connector}{tail}", before.get(at..).unwrap_or_default());
+            super::stages::stated(&span, &[]).is_some_and(|shape| !shape.columns.is_empty())
+        })
+    })
+}
+
+/// The constraint openers of the keep family: « keep only the rows whose status is open »
+/// states a computation the closed grammar reads whole, « keep the tone formal » a
+/// constraint. The grammar judges first; only what it cannot read is a constraint.
+const KEEP_OPENERS: &[&str] = &[
+    "keep ",
+    "conserve ",
+    "garde ",
+    "mantieni ",
+    "conserva ",
+    "mantén ",
+    "manten ",
+];
+
 /// Split one sentence body into clauses at connectors followed by a known head.
 fn split_clauses(sentence: &str) -> Vec<&str> {
     // A sequencing connector always opens a new clause (an unknown verb after
@@ -425,7 +488,10 @@ fn split_clauses(sentence: &str) -> Vec<&str> {
                 let at = from + pos;
                 let after = at + connector.len();
                 let rest = lower.get(after..).unwrap_or_default();
-                if always || head_of(strip_filler(rest)).is_some() {
+                let before = lower.get(..at).unwrap_or_default();
+                if (always || head_of(strip_filler(rest)).is_some() || stage_ahead(rest))
+                    && !projection_continues(before, connector, rest)
+                {
                     cuts.push((at, after));
                 }
                 from = after;
@@ -942,6 +1008,13 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
         return true;
     }
     if CONSTRAINT_OPENERS.iter().any(|m| text.starts_with(m)) {
+        if KEEP_OPENERS.iter().any(|m| text.starts_with(m))
+            && !cues::question(original)
+            && let Some(rule) = super::rules::synthesize(original, &reading.columns)
+        {
+            push_rule(original, rule, reading);
+            return true;
+        }
         reading.plan.constraints.push(original.to_owned());
         return true;
     }
@@ -1045,7 +1118,13 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
     // reading a path is the supplied-document read.
     if let Some(path) = &path {
         let writes = heads::writes_to_path(phrase);
-        let saves = detail_lower.contains(" to ")
+        // « rename the country column to region and write ./sales-region.csv »: a bare path
+        // after the verb is the destination of the rows a computation produced. With no
+        // computation before it, a bare path stays a write with no content.
+        let bare = detail_lower.trim() == path.to_lowercase()
+            && reading.plan.steps.iter().any(|s| s.op == Op::Compute);
+        let saves = bare
+            || detail_lower.contains(" to ")
             || detail_lower.contains(" dans ")
             || detail_lower.contains(" into ")
             || detail_lower.contains(" sous ")
@@ -1234,9 +1313,17 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
             // "trie les lignes par montant décroissant": a head the reader knows as a
             // classify whose whole clause the closed grammar reads (a sort by a stated
             // column) is that computation; "classe les tickets en bugs et features" stays
-            // a classification, the grammar reads no shape in it.
-            if *op == Op::Classify
-                && let Some(rule) = super::rules::synthesize(original, &reading.columns)
+            // a classification, the grammar reads no shape in it. A computation head
+            // (« compute the total of the amount column per client », « conserva solo las
+            // filas cuyo importe supera 200 ») is the computation its clause or its object
+            // states: the grammar reads it whole, and its words are the literals.
+            if matches!(op, Op::Classify | Op::Compute)
+                && let Some(rule) =
+                    super::rules::synthesize(original, &reading.columns).or_else(|| {
+                        (*op == Op::Compute)
+                            .then(|| super::rules::synthesize(&detail, &reading.columns))
+                            .flatten()
+                    })
             {
                 push_rule(original, rule, reading);
                 return true;

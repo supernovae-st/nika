@@ -335,6 +335,34 @@ const UNIQUE_WORDS: &[&str] = &[
     "eindeutigen",
 ];
 
+/// The verbs of a rename, six languages ("rename", "renomme", "renombra", "rinomina",
+/// "benenne", "renomeia"), unaccented as the folded word.
+const RENAME_VERBS: &[&str] = &[
+    "rename",
+    "renames",
+    "renomme",
+    "renommez",
+    "renommer",
+    "renombra",
+    "renombre",
+    "renombrar",
+    "rinomina",
+    "rinominare",
+    "benenne",
+    "umbenennen",
+    "renomeia",
+    "renomeie",
+    "renomear",
+];
+/// The word between the old name and the new one ("rename country to region", "renomme
+/// country en region", "renombra country a region", "rinomina country in region",
+/// "benenne country in region um", "renomeia country para region").
+const RENAME_TO: &[&str] = &[
+    "to", "as", "en", "a", "in", "para", "als", "zu", "nach", "como",
+];
+/// A particle a rename may end with ("benenne … um").
+const RENAME_TAILS: &[&str] = &["um"];
+
 const JOIN_VERBS: &[&str] = &[
     "merge",
     "merges",
@@ -794,6 +822,37 @@ pub(crate) fn join_without_key(text: &str) -> bool {
         })
 }
 
+/// A rename of one column ("rename the country column to region", "renomme la colonne
+/// country en region", "benenne die Spalte country in region um"): the old name is a column
+/// of the hint or a name-shaped word, the new name a name-shaped word the request states;
+/// nothing else may follow. Without both names, `None`: the human is asked.
+fn rename(words: &[Word], columns: &[String]) -> Option<Shape> {
+    if !is(words, 0, RENAME_VERBS) {
+        return None;
+    }
+    let mut at = 1;
+    skip(words, &mut at, DETERMINERS);
+    skip(words, &mut at, COLUMN_WORDS);
+    let from = column(words.get(at)?, columns)?;
+    at += 1;
+    skip(words, &mut at, COLUMN_WORDS);
+    if !is(words, at, RENAME_TO) {
+        return None;
+    }
+    at += 1;
+    skip(words, &mut at, DETERMINERS);
+    skip(words, &mut at, COLUMN_WORDS);
+    // The new name is what the request writes: never hinted, name-shaped.
+    let to = column(words.get(at)?, &[])?;
+    at += 1;
+    skip(words, &mut at, COLUMN_WORDS);
+    skip(words, &mut at, RENAME_TAILS);
+    (at == words.len() && from != to).then(|| Shape {
+        renames: vec![(from, to)],
+        ..Shape::default()
+    })
+}
+
 /// The stage one whole segment states, or `None` when no closed form reads it whole.
 pub(crate) fn stated(text: &str, columns: &[String]) -> Option<Shape> {
     let words = words(text);
@@ -806,6 +865,7 @@ pub(crate) fn stated(text: &str, columns: &[String]) -> Option<Shape> {
         .or_else(|| projection(&words, columns))
         .or_else(|| dedup(&words))
         .or_else(|| join(&words, columns))
+        .or_else(|| rename(&words, columns))
 }
 
 #[cfg(test)]
@@ -863,6 +923,41 @@ mod tests {
             "count the rows per client and country",
             "the count of those orders per country as JSON",
             "write the count of those orders per country as JSON",
+        ] {
+            assert_eq!(stated(none, &[]), None, "{none}");
+        }
+    }
+
+    #[test]
+    fn a_rename_names_the_old_column_and_the_new_name_in_six_languages() {
+        let renamed = Some(
+            ".records | map(with_entries(if .key == \"country\" then .key = \"region\" else . end))"
+                .to_owned(),
+        );
+        for text in [
+            "rename the country column to region",
+            "rename country to region",
+            "renomme la colonne country en region",
+            "renombra la columna country a region",
+            "rinomina la colonna country in region",
+            "benenne die Spalte country in region um",
+            "renomeia a coluna country para region",
+        ] {
+            assert_eq!(lowered(text), renamed, "{text}");
+        }
+        // A columns hint fixes the spelling of the old name; the new name is the request's.
+        let hint = cols(&["date", "Country", "Amount"]);
+        assert_eq!(
+            stated("rename the country column to region", &hint).map(|s| s.renames),
+            Some(vec![("Country".to_owned(), "region".to_owned())])
+        );
+        assert_eq!(stated("rename the city column to region", &hint), None);
+        for none in [
+            "rename the country column",
+            "rename to region",
+            "rename the country column to region and the city column to town",
+            "rename the country column to the same country",
+            "rename the country column to region please",
         ] {
             assert_eq!(stated(none, &[]), None, "{none}");
         }
