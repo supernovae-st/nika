@@ -365,6 +365,12 @@ impl Rule {
     pub fn text(&self) -> &str {
         &self.text
     }
+    /// Whether a stage follows the filter (a grouping, an aggregation, a sort, a
+    /// projection, a limit, a rename or a join): a plain rule only keeps or drops rows.
+    #[must_use]
+    pub fn shaped(&self) -> bool {
+        self.shape != Shape::default()
+    }
     /// The inverse of [`Rule::to_json`], for a recorded plan replayed on an answer round.
     pub(crate) fn from_json(value: &Value) -> Option<Self> {
         let text = value.get("text")?.as_str()?.to_owned();

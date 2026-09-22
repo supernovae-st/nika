@@ -806,9 +806,13 @@ fn synthesized_rule(plan: &Plan, step: &Step, intent: &str, b: &Bindings) -> Opt
     // A rule recorded for this very step stands for it when it is the only rule (the seat's
     // paraphrase beside the promoted constraint of the same rule); two recorded rules on a
     // joined detail are synthesized whole, so neither stands for the other. A rule stands
-    // for a detail only when every sentence of the detail is its own: a second sentence
-    // (« keep only the rows whose status is shipped … . Write the count of those orders per
-    // country ») states more than the rule, and a rule over one part would silently drop it.
+    // for a VERBATIM detail only when every sentence of the detail is its own: a second
+    // sentence (« keep only the rows whose status is shipped … . Write the count of those
+    // orders per country ») states more than the rule, and a rule over one part would
+    // silently drop it. A seat's detail is its own paraphrase, not the request's sentences:
+    // its length says nothing about a second computation (the request's coverage is the
+    // accounting of its regions), so the rule anchored on its evidence stands.
+    let verbatim = super::cognition::exact_excerpt(intent, detail).is_some();
     let fold = |text: &str| {
         text.split(|c: char| !c.is_alphanumeric())
             .filter(|w| !w.is_empty())
@@ -818,25 +822,31 @@ fn synthesized_rule(plan: &Plan, step: &Step, intent: &str, b: &Bindings) -> Opt
     };
     let covers = |rule: &rules::Rule| {
         let text = fold(rule.text());
-        detail
-            .split(". ")
-            .map(str::trim)
-            .filter(|s| !s.is_empty())
-            .all(|sentence| {
-                let sentence = fold(sentence);
-                text.contains(&sentence) || sentence.contains(&text)
-            })
+        !verbatim
+            || detail
+                .split(". ")
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .all(|sentence| {
+                    let sentence = fold(sentence);
+                    text.contains(&sentence) || sentence.contains(&text)
+                })
     };
-    let stated = plan
-        .rules
+    let distinct = distinct_rules(plan);
+    let stated = distinct
         .iter()
         .find(|rule| rule.text() == step.evidence || rule.text() == detail)
-        .filter(|rule| (whole || plan.rules.len() == 1) && covers(rule))
-        .cloned()
+        .filter(|rule| (whole || distinct.len() == 1) && covers(rule))
+        .map(|rule| (*rule).clone())
         .or_else(|| rules::synthesize(detail, &super::columns::columns_hint(intent)))
         .or_else(|| {
-            (whole && plan.rules.len() == 1)
-                .then(|| plan.rules.first().filter(|rule| covers(rule)).cloned())
+            (whole && distinct.len() == 1)
+                .then(|| {
+                    distinct
+                        .first()
+                        .filter(|rule| covers(rule))
+                        .map(|rule| (*rule).clone())
+                })
                 .flatten()
         })?;
     match &b.read {
@@ -849,6 +859,34 @@ fn synthesized_rule(plan: &Plan, step: &Step, intent: &str, b: &Bindings) -> Opt
         }
         _ => None,
     }
+}
+
+/// The plan's rules with the plain twins removed: the promoted constraint of a clause
+/// (« data igual a 2026-09-22 ») beside the seat's typed rule over the same clause with its
+/// output columns is one rule, not two. A plain rule (a filter with no stage after it)
+/// whose clauses and junction another rule states is that rule's twin.
+fn distinct_rules(plan: &Plan) -> Vec<&rules::Rule> {
+    let key = |rule: &rules::Rule| {
+        let json = rule.to_json();
+        (json["clauses"].clone(), json["junction"].clone())
+    };
+    let mut kept: Vec<&rules::Rule> = Vec::new();
+    for rule in &plan.rules {
+        let twin = plan
+            .rules
+            .iter()
+            .any(|other| !std::ptr::eq(other, rule) && other.shaped() && key(other) == key(rule));
+        if !rule.shaped() && twin {
+            continue;
+        }
+        if !kept
+            .iter()
+            .any(|k| k.text() == rule.text() && k.jq() == rule.jq())
+        {
+            kept.push(rule);
+        }
+    }
+    kept
 }
 
 /// The one structured format several read files share, when they do: what a join parses,
