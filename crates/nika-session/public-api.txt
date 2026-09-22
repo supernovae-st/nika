@@ -1937,6 +1937,7 @@ impl nika_session::reasoner::SessionReasoner for nika_session::reasoner::Harness
 pub fn nika_session::reasoner::HarnessReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::reasoner::HarnessReasoner::name(&self) -> alloc::string::String
 pub fn nika_session::reasoner::HarnessReasoner::reason(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::HarnessReasoner::reason_label(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 impl<D> owo_colors::OwoColorize for nika_session::reasoner::HarnessReasoner
 impl<T, U> core::convert::Into<U> for nika_session::reasoner::HarnessReasoner where U: core::convert::From<T>
 pub fn nika_session::reasoner::HarnessReasoner::into(self) -> U
@@ -1970,6 +1971,7 @@ impl nika_session::reasoner::SessionReasoner for nika_session::reasoner::NoReaso
 pub fn nika_session::reasoner::NoReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::reasoner::NoReasoner::name(&self) -> alloc::string::String
 pub fn nika_session::reasoner::NoReasoner::reason(&mut self, _prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::NoReasoner::reason_label(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 impl<D> owo_colors::OwoColorize for nika_session::reasoner::NoReasoner
 impl<T, U> core::convert::Into<U> for nika_session::reasoner::NoReasoner where U: core::convert::From<T>
 pub fn nika_session::reasoner::NoReasoner::into(self) -> U
@@ -2005,6 +2007,7 @@ impl nika_session::reasoner::SessionReasoner for nika_session::reasoner::Provide
 pub fn nika_session::reasoner::ProviderReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::reasoner::ProviderReasoner::name(&self) -> alloc::string::String
 pub fn nika_session::reasoner::ProviderReasoner::reason(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::ProviderReasoner::reason_label(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 impl<D> owo_colors::OwoColorize for nika_session::reasoner::ProviderReasoner
 impl<T, U> core::convert::Into<U> for nika_session::reasoner::ProviderReasoner where U: core::convert::From<T>
 pub fn nika_session::reasoner::ProviderReasoner::into(self) -> U
@@ -2090,6 +2093,7 @@ impl nika_session::reasoner::SessionReasoner for nika_session::reasoner::Scripte
 pub fn nika_session::reasoner::ScriptedReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::reasoner::ScriptedReasoner::name(&self) -> alloc::string::String
 pub fn nika_session::reasoner::ScriptedReasoner::reason(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::ScriptedReasoner::reason_label(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 impl<D> owo_colors::OwoColorize for nika_session::reasoner::ScriptedReasoner
 impl<T, U> core::convert::Into<U> for nika_session::reasoner::ScriptedReasoner where U: core::convert::From<T>
 pub fn nika_session::reasoner::ScriptedReasoner::into(self) -> U
@@ -2120,22 +2124,27 @@ pub trait nika_session::reasoner::SessionReasoner: core::marker::Send
 pub fn nika_session::reasoner::SessionReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::reasoner::SessionReasoner::name(&self) -> alloc::string::String
 pub fn nika_session::reasoner::SessionReasoner::reason(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::SessionReasoner::reason_label(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 impl nika_session::reasoner::SessionReasoner for nika_session::reasoner::HarnessReasoner
 pub fn nika_session::reasoner::HarnessReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::reasoner::HarnessReasoner::name(&self) -> alloc::string::String
 pub fn nika_session::reasoner::HarnessReasoner::reason(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::HarnessReasoner::reason_label(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 impl nika_session::reasoner::SessionReasoner for nika_session::reasoner::NoReasoner
 pub fn nika_session::reasoner::NoReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::reasoner::NoReasoner::name(&self) -> alloc::string::String
 pub fn nika_session::reasoner::NoReasoner::reason(&mut self, _prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::NoReasoner::reason_label(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 impl nika_session::reasoner::SessionReasoner for nika_session::reasoner::ProviderReasoner
 pub fn nika_session::reasoner::ProviderReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::reasoner::ProviderReasoner::name(&self) -> alloc::string::String
 pub fn nika_session::reasoner::ProviderReasoner::reason(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::ProviderReasoner::reason_label(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 impl nika_session::reasoner::SessionReasoner for nika_session::reasoner::ScriptedReasoner
 pub fn nika_session::reasoner::ScriptedReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::reasoner::ScriptedReasoner::name(&self) -> alloc::string::String
 pub fn nika_session::reasoner::ScriptedReasoner::reason(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::ScriptedReasoner::reason_label(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub mod nika_session::review
 pub const nika_session::review::WORKFLOWS_DIR: &str
 pub fn nika_session::review::destination(root: &std::path::Path, candidate: &str) -> core::option::Option<std::path::PathBuf>
@@ -2572,6 +2581,7 @@ pub type nika_session::state::SessionState::Output = T
 pub const nika_session::state::STATE_FILE: &str
 pub mod nika_session::turn
 #[non_exhaustive] pub enum nika_session::turn::RoutingMethod
+pub nika_session::turn::RoutingMethod::Failed
 pub nika_session::turn::RoutingMethod::Fallback
 pub nika_session::turn::RoutingMethod::FastPath
 pub nika_session::turn::RoutingMethod::Model
@@ -4525,6 +4535,7 @@ impl nika_session::reasoner::SessionReasoner for nika_session::reasoner::Scripte
 pub fn nika_session::reasoner::ScriptedReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::reasoner::ScriptedReasoner::name(&self) -> alloc::string::String
 pub fn nika_session::reasoner::ScriptedReasoner::reason(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::ScriptedReasoner::reason_label(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 impl<D> owo_colors::OwoColorize for nika_session::reasoner::ScriptedReasoner
 impl<T, U> core::convert::Into<U> for nika_session::reasoner::ScriptedReasoner where U: core::convert::From<T>
 pub fn nika_session::reasoner::ScriptedReasoner::into(self) -> U
@@ -4949,19 +4960,24 @@ pub trait nika_session::SessionReasoner: core::marker::Send
 pub fn nika_session::SessionReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::SessionReasoner::name(&self) -> alloc::string::String
 pub fn nika_session::SessionReasoner::reason(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::SessionReasoner::reason_label(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 impl nika_session::reasoner::SessionReasoner for nika_session::reasoner::HarnessReasoner
 pub fn nika_session::reasoner::HarnessReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::reasoner::HarnessReasoner::name(&self) -> alloc::string::String
 pub fn nika_session::reasoner::HarnessReasoner::reason(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::HarnessReasoner::reason_label(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 impl nika_session::reasoner::SessionReasoner for nika_session::reasoner::NoReasoner
 pub fn nika_session::reasoner::NoReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::reasoner::NoReasoner::name(&self) -> alloc::string::String
 pub fn nika_session::reasoner::NoReasoner::reason(&mut self, _prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::NoReasoner::reason_label(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 impl nika_session::reasoner::SessionReasoner for nika_session::reasoner::ProviderReasoner
 pub fn nika_session::reasoner::ProviderReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::reasoner::ProviderReasoner::name(&self) -> alloc::string::String
 pub fn nika_session::reasoner::ProviderReasoner::reason(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::ProviderReasoner::reason_label(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 impl nika_session::reasoner::SessionReasoner for nika_session::reasoner::ScriptedReasoner
 pub fn nika_session::reasoner::ScriptedReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::reasoner::ScriptedReasoner::name(&self) -> alloc::string::String
 pub fn nika_session::reasoner::ScriptedReasoner::reason(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::ScriptedReasoner::reason_label(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
