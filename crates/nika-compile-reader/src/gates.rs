@@ -482,27 +482,58 @@ const WAIVED_ASKING: &[&str] = &[
     "confirmar",
 ];
 
-/// A clause that waives the asking: a waiver opener followed within a few words by an
-/// asking verb or an approval noun (« non serve chiedermi conferma », « no need to ask me »).
+/// Negations that flip a waiver into the gate it denies waiving (« mais pas sans me
+/// demander », « but not without asking me »), folded.
+const WAIVER_NEGATIONS: &[&str] = &[
+    "not", "never", "pas", "jamais", "no", "non", "nunca", "mai", "nicht", "nie", "niemals", "não",
+    "nao",
+];
+
+/// A waiver clause and its polarity: `Some(true)` waives the asking (« non serve chiedermi
+/// conferma », « no need to ask me »), `Some(false)` is a negated waiver — the gate it denies
+/// waiving (« mais pas sans me demander ») — and `None` is neither.
 #[must_use]
-pub fn waiver(lower: &str) -> bool {
+pub fn waiver_polarity(lower: &str) -> Option<bool> {
     let tokens = tokens(lower);
-    WAIVERS.iter().any(|opener| {
-        lower.match_indices(opener).any(|(at, _)| {
+    for opener in WAIVERS {
+        for (at, _) in lower.match_indices(opener) {
             let end = at + opener.len();
             let bounded = !lower[..at].ends_with(|c: char| c.is_alphanumeric())
                 && !lower[end..].starts_with(|c: char| c.is_alphanumeric());
-            bounded
-                && tokens
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, t)| t.start >= end)
-                    .take(6)
-                    .any(|(k, t)| {
-                        asking(t.word) || WAIVED_ASKING.contains(&t.word) || is_approval(&tokens, k)
-                    })
-        })
-    })
+            if !bounded {
+                continue;
+            }
+            // « without asking », « sin preguntarme »: the opener may carry the asking itself.
+            let opener_asks = opener
+                .split_whitespace()
+                .any(|w| asking(w) || WAIVED_ASKING.contains(&w));
+            let asks = tokens
+                .iter()
+                .enumerate()
+                .filter(|(_, t)| t.start >= end)
+                .take(6)
+                .any(|(k, t)| {
+                    asking(t.word) || WAIVED_ASKING.contains(&t.word) || is_approval(&tokens, k)
+                });
+            if !(opener_asks || asks) {
+                continue;
+            }
+            let negated = tokens
+                .iter()
+                .filter(|t| t.end <= at)
+                .rev()
+                .take(2)
+                .any(|t| WAIVER_NEGATIONS.contains(&t.word.trim_matches(',')));
+            return Some(!negated);
+        }
+    }
+    None
+}
+
+/// A clause that waives the asking, not negated.
+#[must_use]
+pub fn waiver(lower: &str) -> bool {
+    waiver_polarity(lower) == Some(true)
 }
 
 /// A gate that asks a person: `ask me to confirm before writing …`, `wait for my confirmation`,
@@ -610,6 +641,17 @@ mod tests {
         ] {
             assert!(!waiver(text), "{text}");
         }
+        // A negated waiver is the gate it denies waiving.
+        for text in [
+            "mais pas sans me demander",
+            "but not without asking me",
+            "pero no sin preguntarme",
+        ] {
+            assert_eq!(waiver_polarity(text), Some(false), "{text}");
+            assert!(!waiver(text), "{text}");
+        }
+        assert_eq!(waiver_polarity("non serve chiedermi conferma."), Some(true));
+        assert_eq!(waiver_polarity("écris-le dans ./final.md"), None);
     }
 
     #[test]

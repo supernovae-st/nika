@@ -715,6 +715,22 @@ mod tests {
             "{:?}",
             reading.policy_clauses
         );
+        // A negated waiver is the gate it denies waiving (the clause-drop probe wording).
+        let intent = "lis ./draft.md et écris-le dans ./final.md, mais pas sans me demander";
+        let reading = lexicon::read(intent);
+        let write = reading
+            .plan
+            .effects
+            .iter()
+            .find(|e| e.verb == EffectVerb::Write)
+            .expect("a write");
+        assert_eq!(
+            write.policy,
+            EffectPolicy::HumanFirst,
+            "{:?}",
+            reading.plan.effects
+        );
+        assert!(reading.unresolved.is_empty(), "{:?}", reading.unresolved);
     }
 
     #[test]

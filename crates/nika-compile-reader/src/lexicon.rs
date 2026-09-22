@@ -737,10 +737,19 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
         return;
     }
     // « Non serve chiedermi conferma », « no need to ask me »: a waiver is no gate. It is a
-    // policy clause; beside a contrary prohibition, the compiler refuses the bypass.
-    if gates::waiver(text) {
-        reading.policy_clauses.push(clause.to_owned());
-        return;
+    // policy clause; beside a contrary prohibition, the compiler refuses the bypass. A negated
+    // waiver (« mais pas sans me demander ») is the gate it denies waiving.
+    match gates::waiver_polarity(text) {
+        Some(true) => {
+            reading.policy_clauses.push(clause.to_owned());
+            return;
+        }
+        Some(false) => {
+            reading.policy_clauses.push(clause.to_owned());
+            gating::gate_last_automatic(reading, state, gating::names_sending(text));
+            return;
+        }
+        None => {}
     }
     // The final action requires a fresh human validation: a listed wording or the shape
     // (`only after my explicit approval`, `the write needs my approval first`).
