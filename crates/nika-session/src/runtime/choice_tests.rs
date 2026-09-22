@@ -198,6 +198,43 @@ fn a_rule_the_compiler_asks_as_code_is_asked_in_words_and_restated() {
     );
 }
 
+/// `/details` reads the compiler's own provenance for the last reading:
+/// the backend (none for a deterministic reading), the strategy, the
+/// engine and spec identity — and says it is not a proof; before any
+/// reading it says so.
+#[test]
+fn details_read_the_last_readings_provenance_on_demand() {
+    let dir = tree();
+    let mut s = SessionRuntime::open(
+        dir.path(),
+        ready(IntelligenceKind::None, DataLocus::None),
+        Box::new(NoReasoner),
+    );
+    let TurnOutcome::Facts(before) = s.turn("/details") else {
+        panic!("a fact");
+    };
+    assert!(
+        before.contains("no workflow was read in this session yet"),
+        "{before}"
+    );
+    assert!(matches!(s.turn(COPY), TurnOutcome::Proposal { .. }));
+    let TurnOutcome::Facts(after) = s.turn("/details") else {
+        panic!("a fact");
+    };
+    assert!(
+        after.contains("authoring backend: none (no model call")
+            && after.contains("engine: compiler ")
+            && after.contains("spec ")
+            && after.contains("none of this is a proof")
+            && after.contains("authoring · deterministic"),
+        "{after}"
+    );
+    assert!(
+        matches!(s.turn("/help"), TurnOutcome::Help(ref card) if card.contains("/details")),
+        "the card names it"
+    );
+}
+
 /// A change said at the consent prompt revises the proposal through the
 /// compiler's edit door; when the revision cannot settle (here: no seat,
 /// a change the deterministic door cannot read), the proposal still waits

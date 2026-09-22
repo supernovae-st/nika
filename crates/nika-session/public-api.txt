@@ -2303,6 +2303,7 @@ pub fn nika_session::runtime::SessionRuntime::authoring_seat(&self) -> &nika_ses
 pub fn nika_session::runtime::SessionRuntime::pending_input(&self) -> core::option::Option<&str>
 pub fn nika_session::runtime::SessionRuntime::pending_question(&self) -> core::option::Option<&nika_compile::types::CompileQuestion>
 impl nika_session::runtime::SessionRuntime
+pub fn nika_session::runtime::SessionRuntime::details(&self) -> alloc::string::String
 impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::phase(&self) -> nika_session::turn::SessionPhase
 pub fn nika_session::runtime::SessionRuntime::routes(&self) -> &[nika_session::turn::RouteRecord]
@@ -4635,6 +4636,7 @@ pub fn nika_session::runtime::SessionRuntime::authoring_seat(&self) -> &nika_ses
 pub fn nika_session::runtime::SessionRuntime::pending_input(&self) -> core::option::Option<&str>
 pub fn nika_session::runtime::SessionRuntime::pending_question(&self) -> core::option::Option<&nika_compile::types::CompileQuestion>
 impl nika_session::runtime::SessionRuntime
+pub fn nika_session::runtime::SessionRuntime::details(&self) -> alloc::string::String
 impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::phase(&self) -> nika_session::turn::SessionPhase
 pub fn nika_session::runtime::SessionRuntime::routes(&self) -> &[nika_session::turn::RouteRecord]

@@ -28,6 +28,7 @@ use crate::snapshot::ProjectSnapshot;
 
 mod aside;
 mod authoring;
+mod details;
 mod durable;
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
@@ -162,6 +163,7 @@ text                 ask, in words · these answer from the engine, no AI asked:
 /why                 beside a question or a gate: what the answer is for, what it lets happen · nothing is consumed
 /meaning             what Nika kept of your request, clause by clause, from the compiler's own ledger · a proposal still waits
 /proof               after a run: what its trace proves (chain · seal · boundary · digests) and what it does not · judged by `nika trace verify`, never a second walker
+/details             how the last workflow was built: the authoring backend and model, calls, tokens and time, the strategy, the decision seat, the engine and spec identity · advanced, on demand
 /show                while a proposal waits: print its exact bytes (the review shows the boundary)
 /help                this card
 /quit                close the session
@@ -175,6 +177,7 @@ pub const SLASH_COMMANDS: &[&str] = &[
     "/why",
     "/meaning",
     "/proof",
+    "/details",
     "/show",
     "/intelligence",
     "/quit",
@@ -682,6 +685,7 @@ impl SessionRuntime {
             "/why" => return self.explain_pending(),
             "/meaning" => return self.meaning_unrecorded(),
             "/proof" => return self.proof_unrecorded(),
+            "/details" => return TurnOutcome::Facts(self.details()),
             "/intelligence" => {
                 return match &self.census {
                     Some(census) => {
