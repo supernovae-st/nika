@@ -298,6 +298,160 @@ pub(super) fn decode(response: &InferResponse, out: &mut CompileOutcome) -> Opti
     }
 }
 
+fn fold_words(text: &str) -> String {
+    text.split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase()
+}
+
+/// Verbs a seat uses for a draft that is no language work (six languages, folded).
+const SERIALIZE_VERBS: &[&str] = &[
+    "prepar",
+    "prépar",
+    "serializ",
+    "sérialis",
+    "format",
+    "generat",
+    "génér",
+    "gener",
+    "produ",
+    "produir",
+    "produz",
+    "erzeug",
+    "schreib",
+    "write ",
+    "writ",
+    "écri",
+    "ecri",
+    "escrib",
+    "scriv",
+    "escrev",
+    "assembl",
+    "build",
+    "construi",
+    "compos",
+];
+/// The data the draft would only carry: the rows, the file content, the result.
+const DATA_WORDS: &[&str] = &[
+    "csv",
+    "json",
+    "content",
+    "contenu",
+    "contenido",
+    "contenuto",
+    "inhalt",
+    "conteúdo",
+    "conteudo",
+    "rows",
+    "row ",
+    "lignes",
+    "ligne ",
+    "filas",
+    "fila ",
+    "righe",
+    "riga ",
+    "zeilen",
+    "zeile ",
+    "linhas",
+    "linha ",
+    "array",
+    "tableau",
+    "table",
+    "tabelle",
+    "list",
+    "liste",
+    "lista",
+    "result",
+    "résultat",
+    "resultat",
+    "resultado",
+    "risultato",
+    "ergebnis",
+    "output",
+    "file",
+    "fichier",
+    "archivo",
+    "ficheiro",
+    "datei",
+    "record",
+    "enregistrement",
+    "column",
+    "colonne",
+    "columna",
+    "colonna",
+    "spalte",
+    "coluna",
+    "field",
+    "champ",
+];
+/// Words that make a draft language work whatever else it says: a summary, a note, a
+/// digest, a reply, a translation, a text with headings.
+const LANGUAGE_WORDS: &[&str] = &[
+    "summar",
+    "résum",
+    "resum",
+    "riassunt",
+    "zusammenfass",
+    "note",
+    "digest",
+    "report",
+    "rapport",
+    "informe",
+    "relazione",
+    "bericht",
+    "relatório",
+    "relatorio",
+    "reply",
+    "réponse",
+    "reponse",
+    "respuesta",
+    "risposta",
+    "antwort",
+    "resposta",
+    "translat",
+    "traduc",
+    "traduz",
+    "übersetz",
+    "ubersetz",
+    "letter",
+    "lettre",
+    "carta",
+    "heading",
+    "titre",
+    "título",
+    "titulo",
+    "titoli",
+    "überschrift",
+    "uberschrift",
+    "prose",
+    "paragraph",
+    "paragraphe",
+    "sentence",
+    "phrase",
+    "message",
+    "brief",
+    "explain",
+    "expliqu",
+    "describ",
+    "décri",
+    "decri",
+    "narrat",
+    "bullet",
+    "puces",
+];
+
+/// A draft whose detail only prepares, formats or serializes the rows a computation
+/// produced (« préparer le contenu CSV filtré pour écriture », « serialize the resulting
+/// array as JSON ») is no language work: the write takes the computed rows as they are. A
+/// detail that names language work (a summary, a note, a digest, headings) stays a draft.
+fn serialization_draft(detail: &str) -> bool {
+    let detail = fold_words(detail);
+    let cue = SERIALIZE_VERBS.iter().any(|v| detail.contains(v))
+        && DATA_WORDS.iter().any(|w| detail.contains(w));
+    cue && !LANGUAGE_WORDS.iter().any(|w| detail.contains(w))
+}
+
 /// The proposal joins the deterministic reading; deterministic facts win every disagreement,
 /// and the proposal must account for every region of the request.
 #[allow(clippy::too_many_lines)] // one validation walk over steps, effects, obligations, regions
@@ -312,11 +466,27 @@ pub(super) fn merge(
     // reader consumed is not understanding, and the model must account for every region.
     let mut plan = reading.plan.clone();
     plan.steps = Vec::new();
+    let produces_data = proposal
+        .steps
+        .iter()
+        .any(|s| matches!(s.op.as_str(), "compute" | "extract"));
     for step in proposal.steps {
         let Some(op) = Op::parse(&step.op) else {
             reject(out, "unknown operation in the proposal");
             return None;
         };
+        if op == Op::Draft && produces_data && serialization_draft(&step.detail) {
+            crate::finding(
+                out,
+                DiagnosticKind::Applied,
+                "authoring_plan",
+                format!(
+                    "`{}` only prepares the rows a computation produces; they are written as they are, and the proposal's `draft` over them was not assembled.",
+                    step.detail.trim()
+                ),
+            );
+            continue;
+        }
         let Some(evidence) = exact_excerpt(intent, &step.evidence) else {
             reject(
                 out,
