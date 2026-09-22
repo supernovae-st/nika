@@ -219,6 +219,59 @@ pub fn render_ledger(ledger: &Value, candidate: Option<&str>) -> String {
     text
 }
 
+/// What a revision changed in meaning: the revised ledger against the
+/// base one, clause by clause (a clause is its kind and its evidence) —
+/// added, dropped, a changed fate, kept. Said in the view's own words,
+/// never a score; `None` when neither ledger holds a clause.
+#[must_use]
+pub fn delta(base: &Value, revised: &Value) -> Option<String> {
+    let before = clauses_of(base);
+    let after = clauses_of(revised);
+    if before.is_empty() && after.is_empty() {
+        return None;
+    }
+    let key = |c: &Clause| (c.kind.clone(), c.evidence.clone());
+    let mut text = "Meaning · what changed with your words".to_owned();
+    let mut kept = 0usize;
+    for clause in &after {
+        match before.iter().find(|b| key(b) == key(clause)) {
+            None => {
+                let _ = write!(
+                    text,
+                    "\n  + « {} » · {}",
+                    clause.evidence,
+                    clause.disposition.word()
+                );
+            }
+            Some(b) if b.disposition != clause.disposition => {
+                let _ = write!(
+                    text,
+                    "\n  ~ « {} » · {} → {}",
+                    clause.evidence,
+                    b.disposition.word(),
+                    clause.disposition.word()
+                );
+            }
+            Some(_) => kept += 1,
+        }
+    }
+    for clause in &before {
+        if !after.iter().any(|a| key(a) == key(clause)) {
+            let _ = write!(text, "\n  − « {} » · no longer asked", clause.evidence);
+        }
+    }
+    let changed = after.len() + before.len() - 2 * kept;
+    if changed == 0 {
+        let _ = write!(
+            text,
+            "\n  nothing changed in what the compiler read · {kept} clause(s) kept"
+        );
+    } else {
+        let _ = write!(text, "\n  {kept} clause(s) kept as they were");
+    }
+    Some(text)
+}
+
 /// The line when no ledger exists: never an invented coverage.
 pub const UNAVAILABLE: &str = "Meaning · unavailable for this candidate (the compiler recorded no ledger) — the review above and `/show` are what there is";
 
@@ -340,5 +393,48 @@ mod tests {
         let doc = fixture("discussion");
         assert!(doc["provenance"]["decision"].is_null(), "{doc}");
         assert!(UNAVAILABLE.contains("unavailable"));
+    }
+
+    /// A revision's delta: the clause the words added, the one they
+    /// dropped, the one whose fate changed, and the ones kept — in the
+    /// view's words, never a score; two empty ledgers say nothing.
+    #[test]
+    fn a_revision_delta_names_what_the_words_changed() {
+        let base = serde_json::json!([
+            {"kind":"effect","state":"realized","evidence":"write it to ./out/copie.md","realized_by":"write_output","note":null},
+            {"kind":"trigger","state":"realized","evidence":"every weekday","realized_by":"requested_trigger","note":null},
+            {"kind":"format","state":"needs_human","evidence":"a short brief","realized_by":null,"note":null}
+        ]);
+        let revised = serde_json::json!([
+            {"kind":"effect","state":"realized","evidence":"write it to ./out/copie.md","realized_by":"write_output","note":null},
+            {"kind":"trigger","state":"realized","evidence":"Tuesday to Friday","realized_by":"requested_trigger","note":null},
+            {"kind":"format","state":"realized","evidence":"a short brief","realized_by":"draft","note":null},
+            {"kind":"order","state":"realized","evidence":"urgent tickets first","realized_by":"sort","note":null}
+        ]);
+        let text = delta(&base, &revised).expect("a delta");
+        assert!(
+            text.contains("+ « Tuesday to Friday » · external requirement"),
+            "{text}"
+        );
+        assert!(
+            text.contains("+ « urgent tickets first » · represented"),
+            "{text}"
+        );
+        assert!(
+            text.contains("− « every weekday » · no longer asked"),
+            "{text}"
+        );
+        assert!(
+            text.contains("~ « a short brief » · needs your answer → represented"),
+            "{text}"
+        );
+        assert!(text.contains("1 clause(s) kept as they were"), "{text}");
+        assert!(!text.contains('%'), "no score: {text}");
+        let same = delta(&base, &base).expect("a delta");
+        assert!(
+            same.contains("nothing changed in what the compiler read · 3 clause(s) kept"),
+            "{same}"
+        );
+        assert!(delta(&serde_json::json!([]), &serde_json::json!(null)).is_none());
     }
 }

@@ -314,7 +314,29 @@ impl SessionRuntime {
         match Reading::of(out) {
             Reading::Ready(out) => {
                 self.remember(change, "(revised the proposal)");
-                self.propose(&goal, &out)
+                // What the words changed in meaning: the base reading's
+                // ledger against the revised one (the Meaning delta, §21).
+                let delta = self
+                    .last_outcome
+                    .as_ref()
+                    .and_then(|base| base.provenance.decision.as_ref()?.get("ledger").cloned())
+                    .zip(
+                        out.provenance
+                            .decision
+                            .as_ref()
+                            .and_then(|d| d.get("ledger").cloned()),
+                    )
+                    .and_then(|(before, after)| crate::meaning::delta(&before, &after));
+                match self.propose(&goal, &out) {
+                    TurnOutcome::Proposal { id, preview } => TurnOutcome::Proposal {
+                        id,
+                        preview: match delta {
+                            Some(delta) => format!("{preview}\n{delta}"),
+                            None => preview,
+                        },
+                    },
+                    other => other,
+                }
             }
             reading => {
                 let id = ProposalId::of(&set.preview());

@@ -1646,6 +1646,7 @@ pub const nika_session::meaning::UNAVAILABLE: &str
 pub fn nika_session::meaning::assurance(clause: &nika_session::meaning::Clause, candidate: core::option::Option<&str>) -> &'static str
 pub fn nika_session::meaning::clauses(out: &nika_compile::types::CompileOutcome) -> core::option::Option<alloc::vec::Vec<nika_session::meaning::Clause>>
 pub fn nika_session::meaning::clauses_of(ledger: &serde_json::value::Value) -> alloc::vec::Vec<nika_session::meaning::Clause>
+pub fn nika_session::meaning::delta(base: &serde_json::value::Value, revised: &serde_json::value::Value) -> core::option::Option<alloc::string::String>
 pub fn nika_session::meaning::render(out: &nika_compile::types::CompileOutcome) -> core::option::Option<alloc::string::String>
 pub fn nika_session::meaning::render_ledger(ledger: &serde_json::value::Value, candidate: core::option::Option<&str>) -> alloc::string::String
 pub mod nika_session::outcome
