@@ -308,8 +308,10 @@ pub fn nika_session::authoring::is_meaning(line: &str) -> bool
 pub fn nika_session::authoring::is_what_happened(line: &str) -> bool
 pub fn nika_session::authoring::is_why(line: &str) -> bool
 pub fn nika_session::authoring::literal_for(question: &nika_compile::types::CompileQuestion, line: &str) -> alloc::string::String
+pub fn nika_session::authoring::openai_base_overridden() -> bool
 pub fn nika_session::authoring::reasons(out: &nika_compile::types::CompileOutcome) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_session::authoring::stronger_model(model: &str) -> core::option::Option<&'static str>
+pub fn nika_session::authoring::stronger_model_under(model: &str, openai_base_overridden: bool) -> core::option::Option<&'static str>
 pub mod nika_session::broker
 #[non_exhaustive] pub struct nika_session::broker::ContextBroker
 pub nika_session::broker::ContextBroker::max_snippet_bytes: usize
