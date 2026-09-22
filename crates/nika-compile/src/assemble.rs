@@ -357,27 +357,7 @@ pub(super) fn assemble(
     }
     let mut recognized: BTreeSet<String> = BTreeSet::new();
     let b = bindings::bind(plan, intent, request, out, &mut recognized);
-    // A trigger the request names is deployment, not workflow: stated beside the candidate
-    // on every round, whether or not a question is still open. A sequencing head (« once the
-    // brief is read ») orders the work the program already contains and states nothing. A
-    // schedule's binding values (timezone, missed-run and overlap policies, per-run ceiling)
-    // are asked beside it without blocking the candidate.
-    let sequencing = plan.trigger.as_deref().is_some_and(|t| {
-        matches!(
-            super::trigger::classify(t),
-            super::trigger::TriggerForm::Sequence
-        )
-    });
-    if !sequencing && let Some(mut trigger) = super::trigger::requirement(plan, b.item) {
-        super::trigger::bind_schedule(&mut trigger, request, out, &mut recognized);
-        super::finding(
-            out,
-            DiagnosticKind::Applied,
-            "trigger",
-            super::trigger::note(&trigger),
-        );
-        out.requested_trigger = Some(trigger);
-    }
+    state_trigger(plan, b.item, request, out, &mut recognized);
     super::unknown_answers(
         request,
         &recognized.iter().map(String::as_str).collect(),
@@ -434,6 +414,36 @@ pub(super) fn assemble(
         d.tool("dedup_record", "nika:write", json!({"path": "${{ const.state_file }}", "content": "${{ with.next }}", "overwrite": true, "create_dirs": true}), Some(json!({"next": "${{ tasks.dedup_next.output }}"})), false);
     }
     settle_candidate(plan, &b, d, out)
+}
+
+/// A trigger the request names is deployment, not workflow: stated beside the candidate
+/// on every round, whether or not a question is still open. A sequencing head (« once the
+/// brief is read ») orders the work the program already contains and states nothing. A
+/// schedule's binding values (timezone, missed-run and overlap policies, per-run ceiling)
+/// are asked beside it without blocking the candidate.
+fn state_trigger(
+    plan: &Plan,
+    item: bool,
+    request: &CompileRequest,
+    out: &mut CompileOutcome,
+    recognized: &mut BTreeSet<String>,
+) {
+    let sequencing = plan.trigger.as_deref().is_some_and(|t| {
+        matches!(
+            super::trigger::classify(t),
+            super::trigger::TriggerForm::Sequence
+        )
+    });
+    if !sequencing && let Some(mut trigger) = super::trigger::requirement(plan, item) {
+        super::trigger::bind_schedule(&mut trigger, request, out, recognized);
+        super::finding(
+            out,
+            DiagnosticKind::Applied,
+            "trigger",
+            super::trigger::note(&trigger),
+        );
+        out.requested_trigger = Some(trigger);
+    }
 }
 
 /// The one review task every gated effect waits for when the request states one approval.
