@@ -38,6 +38,15 @@ use effects::{push_effect, push_obligation};
 pub(crate) use heads::Head;
 pub use slugs::slug;
 
+/// The number a word spells in six languages (« five », « cinq », « fünf »), for the stages
+/// that read a count.
+pub(crate) fn number_word(folded: &str) -> Option<u32> {
+    cues::NUMBER_WORDS
+        .iter()
+        .find(|(word, _)| *word == folded)
+        .map(|(_, n)| *n)
+}
+
 /// One clause the lexicon could not settle alone: a small feasible set, never a guess.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]

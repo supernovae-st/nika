@@ -206,7 +206,7 @@ pub(super) const TRIGGER_PREFIXES: &[&str] = &[
     "a partir de ",
 ];
 
-pub(super) const NUMBER_WORDS: &[(&str, u32)] = &[
+pub(crate) const NUMBER_WORDS: &[(&str, u32)] = &[
     ("un", 1),
     ("une", 1),
     ("one", 1),
