@@ -22,7 +22,7 @@ use crate::authoring::{
 use crate::change::{RunRequest, check_on_disk};
 use crate::outcome::{ProposalId, Refusal, RefusalClass};
 use crate::review;
-use crate::turn::{SessionPhase, TurnAct};
+use crate::turn::{RoutingMethod, SessionPhase, TurnAct};
 
 impl SessionRuntime {
     /// The authoring question the next line answers, when one is open.
@@ -531,7 +531,17 @@ impl SessionRuntime {
         // question still waits), a change reads the request again with the
         // human's words; without any intelligence a line is the answer.
         let decision = self.classify(SessionPhase::QuestionPending, line);
-        match decision.act {
+        // A `?` is a hint, never a veto: it decides only when nothing could
+        // judge the line — an unread question is then asked, not bound.
+        let act = if decision.act == TurnAct::Unknown
+            && decision.method == RoutingMethod::Fallback
+            && line.trim_end().ends_with('?')
+        {
+            TurnAct::Discuss
+        } else {
+            decision.act
+        };
+        match act {
             TurnAct::Discuss => {
                 let text = round.current().map_or_else(
                     || "no authoring question waits".to_owned(),

@@ -242,5 +242,12 @@ fn at_a_question_a_question_explains_and_the_fallback_binds() {
     // (a short line at a question is the answer more often than not).
     let (_dir2, mut f) = session_with(Box::new(ConservativeFallback));
     assert!(matches!(f.turn(intent), TurnOutcome::Question { .. }));
+    // …except a line that ends with `?`: the hint decides only here, when
+    // nothing could judge the line — the question is explained, not bound.
+    let TurnOutcome::Aside(text) = f.turn("what happens if I leave it empty?") else {
+        panic!("an unread question is asked, not bound");
+    };
+    assert!(text.contains("This answer fills `model`"), "{text}");
+    assert!(f.pending_question().is_some(), "the question still waits");
     assert!(matches!(f.turn("mock/echo"), TurnOutcome::Proposal { .. }));
 }
