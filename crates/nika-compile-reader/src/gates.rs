@@ -613,6 +613,19 @@ pub(crate) fn approval_bound(lower: &str) -> bool {
     })
 }
 
+/// Words that open a prohibition in the languages the compiler meets.
+const PROHIBITION_CUES: &[&str] = &[
+    "do not ", "don't ", "never ", "ne ", "n'", "no ", "non ", "nicht ", "keine ", "sans ",
+    "jamais ", "nunca ", "mai ", "niemals ",
+];
+
+/// A prohibition ("Do not copy …", "Ne cite pas …", "No copies …") at the head of an excerpt.
+#[must_use]
+pub fn starts_with_prohibition(text: &str) -> bool {
+    let lower = text.trim().to_lowercase();
+    PROHIBITION_CUES.iter().any(|cue| lower.starts_with(cue))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

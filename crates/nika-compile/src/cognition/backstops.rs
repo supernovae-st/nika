@@ -7,18 +7,6 @@
 use super::super::plan::{EffectPolicy, EffectVerb, Plan};
 use super::ProposedRegion;
 
-/// Words that open a prohibition in the languages the compiler meets.
-const PROHIBITION_CUES: &[&str] = &[
-    "do not ", "don't ", "never ", "ne ", "n'", "no ", "non ", "nicht ", "keine ", "sans ",
-    "jamais ", "nunca ", "mai ", "niemals ",
-];
-
-/// A prohibition ("Do not copy …", "Ne cite pas …", "No copies …") at the head of an excerpt.
-pub(crate) fn starts_with_prohibition(text: &str) -> bool {
-    let lower = text.trim().to_lowercase();
-    PROHIBITION_CUES.iter().any(|cue| lower.starts_with(cue))
-}
-
 /// The reader's refund backstop is a word-level guard ("refund" appears, no refund effect
 /// recognized). Once a proposal exists, its own accounting decides: the unknown is withdrawn
 /// when the merged plan carries a refund effect, or when every region that mentions a refund

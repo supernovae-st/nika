@@ -32,7 +32,6 @@ mod instructions;
 use instructions::INSTRUCTIONS;
 mod anchor;
 mod backstops;
-pub(super) use backstops::starts_with_prohibition;
 mod proposal;
 mod transform;
 use proposal::{Proposal, decode, merge};

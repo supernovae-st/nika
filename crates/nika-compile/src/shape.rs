@@ -59,7 +59,7 @@ fn is_number(token: &str) -> bool {
 /// a size, attempt or turn unit, and not the concurrency bound the assembler already
 /// consumes: a rule that must run as code.
 pub(super) fn numeric_rule(text: &str) -> bool {
-    if super::bindings::parallel_bound(text).is_some() {
+    if super::cardinality::parallel_bound(text).is_some() {
         return false;
     }
     // A prohibition ("Do not copy more than 10 consecutive words") is a rule the prose obeys,
@@ -112,7 +112,7 @@ pub(super) fn prohibits(text: &str) -> bool {
     joined
         .split([',', ';'])
         .map(super::objects::as_clause)
-        .any(|part| super::cognition::starts_with_prohibition(part) && !restrictive_ne_que(part))
+        .any(|part| super::gates::starts_with_prohibition(part) && !restrictive_ne_que(part))
 }
 
 /// "ne garde que …", "n'écris que …", "ne conserve plus que …": the `que` within three

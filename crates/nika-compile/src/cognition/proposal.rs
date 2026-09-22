@@ -6,8 +6,9 @@
 //! facts win every disagreement; a model changes HOW a duty is realized, never whether.
 //! Split from `cognition.rs` at the file-LOC cap (2026-09-22); the laws are unchanged.
 
-use super::backstops::{gate_finds_its_effect, reconcile_refund_backstop, starts_with_prohibition};
+use super::backstops::{gate_finds_its_effect, reconcile_refund_backstop};
 use super::{backstop, plan_record, record_ledger};
+use crate::gates::starts_with_prohibition;
 use crate::plan::{Effect, EffectPolicy, EffectVerb, Obligation, ObligationKind, Op, Plan, Step};
 use crate::words::{
     CONVERSION_WORDS, LANGUAGE_WORDS, content_words, fold_words, only_format_words,

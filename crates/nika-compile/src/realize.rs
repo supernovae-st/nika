@@ -8,7 +8,7 @@
 //! authority.
 
 use super::assemble::{Doc, emit};
-use super::bindings::{self, Bindings, RuleBinding};
+use super::bindings::{Bindings, RuleBinding};
 use super::ledger::{Duty, DutyKind, DutyState, Ledger};
 use super::plan::{EffectPolicy, EffectVerb, Op, Plan};
 use super::shape::Shape;
@@ -290,7 +290,7 @@ fn realize_format(
         }
     } else if b.consumed.contains(&duty.evidence) {
         // A concurrency bound lives on the fan-out; order and headings on the fold.
-        let carrier = if bindings::parallel_bound(&duty.evidence).is_some() {
+        let carrier = if super::cardinality::parallel_bound(&duty.evidence).is_some() {
             "for_each"
         } else {
             "draft_fold"

@@ -7,12 +7,12 @@
 //! the request cannot be honoured as stated and is refused, never run on a prompt that
 //! silently obeys one of them.
 
+use super::rule_tokens::{self, SIZE_UNITS};
 use super::rules::{self, Comparator};
-use super::shape;
 
 /// One bound on the produced content.
 /// Number words in six languages, folded (« três » → « tres », « fünf » → « funf »).
-pub(super) const NUMBER_WORDS: &[(&str, u32)] = &[
+pub const NUMBER_WORDS: &[(&str, u32)] = &[
     ("un", 1),
     ("une", 1),
     ("one", 1),
@@ -176,7 +176,7 @@ pub(super) const NUMBER_WORDS: &[(&str, u32)] = &[
 ];
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct Bound {
+pub struct Bound {
     /// The unit, folded and singular (`line`, `ligne`, `zeile`, `bullet`, `word`).
     pub unit: String,
     pub comparator: Comparator,
@@ -196,7 +196,8 @@ impl Bound {
         }
     }
     /// Whether both bounds can hold at once.
-    pub(super) fn compatible(&self, other: &Self) -> bool {
+    #[must_use]
+    pub fn compatible(&self, other: &Self) -> bool {
         if self.unit != other.unit {
             return true;
         }
@@ -318,16 +319,17 @@ fn phrase_in(table: &[&str], padded: &str) -> bool {
 /// word) followed within two words by a size unit, with the comparator read from the words
 /// around it (exact by default: "3 bullets" means three). A concurrency bound ("2 at a
 /// time") is structure, not content, and states none.
-pub(super) fn bound(constraint: &str) -> Option<Bound> {
-    if super::bindings::parallel_bound(constraint).is_some() {
+#[must_use]
+pub fn bound(constraint: &str) -> Option<Bound> {
+    if parallel_bound(constraint).is_some() {
         return None;
     }
-    let folded = shape::fold(constraint);
+    let folded = rule_tokens::fold(constraint);
     let words: Vec<&str> = folded
         .split(|c: char| !c.is_alphanumeric())
         .filter(|w| !w.is_empty())
         .collect();
-    let unit_at = |i: usize| words.get(i).filter(|w| shape::SIZE_UNITS.contains(w));
+    let unit_at = |i: usize| words.get(i).filter(|w| SIZE_UNITS.contains(w));
     for (index, word) in words.iter().enumerate() {
         let Some(value) = number(word) else {
             continue;
@@ -370,7 +372,7 @@ pub(super) fn bound(constraint: &str) -> Option<Bound> {
 
 /// The measure of a text a unit counts, for a run-time law over the drafted body.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum Measure {
+pub enum Measure {
     Lines,
     Bullets,
     Words,
@@ -381,7 +383,8 @@ pub(super) enum Measure {
 
 impl Measure {
     /// The measure a folded singular unit names; a page or a token measures nothing at run.
-    pub(super) fn of(unit: &str) -> Option<Self> {
+    #[must_use]
+    pub fn of(unit: &str) -> Option<Self> {
         match unit {
             "line" | "ligne" | "zeile" | "riga" | "linea" | "linha" => Some(Self::Lines),
             "bullet" | "puce" | "stichpunkt" | "aufzahlungspunkt" | "vineta" | "marcador" => {
@@ -401,7 +404,8 @@ impl Measure {
     /// jq over the body string (`.`) counting the measure: nonblank lines, bullet lines
     /// (`-`, `*`, `•` or a numbered marker), whitespace-separated words, sentences ended by
     /// `.`, `!` or `?`, characters, blank-line-separated paragraphs.
-    pub(super) const fn jq(self) -> &'static str {
+    #[must_use]
+    pub const fn jq(self) -> &'static str {
         match self {
             Self::Lines => r#"([split("\n")[] | select(test("\\S"))] | length)"#,
             Self::Bullets => {
@@ -418,7 +422,8 @@ impl Measure {
 impl Bound {
     /// The jq predicate over the body string that holds exactly when the bound does; none
     /// when the unit measures nothing at run.
-    pub(super) fn law(&self) -> Option<String> {
+    #[must_use]
+    pub fn law(&self) -> Option<String> {
         let measure = Measure::of(&self.unit)?;
         Some(format!(
             "({} {} {})",
@@ -431,7 +436,8 @@ impl Bound {
 
 /// The conjunction of every measurable bound the constraints state, with the constraints it
 /// covers, so the drafted text is judged at run and not only asked for in the prompt.
-pub(super) fn body_law(constraints: &[String]) -> Option<(String, Vec<String>)> {
+#[must_use]
+pub fn body_law(constraints: &[String]) -> Option<(String, Vec<String>)> {
     let mut laws = Vec::new();
     let mut covered = Vec::new();
     for constraint in constraints {
@@ -447,7 +453,8 @@ pub(super) fn body_law(constraints: &[String]) -> Option<(String, Vec<String>)> 
 }
 
 /// The first pair of constraints whose bounds cannot both hold, as indexes into the slice.
-pub(super) fn contradiction(constraints: &[String]) -> Option<(usize, usize)> {
+#[must_use]
+pub fn contradiction(constraints: &[String]) -> Option<(usize, usize)> {
     let bounds: Vec<(usize, Bound)> = constraints
         .iter()
         .enumerate()
@@ -461,6 +468,38 @@ pub(super) fn contradiction(constraints: &[String]) -> Option<(usize, usize)> {
         }
     }
     None
+}
+
+/// A numeric concurrency bound stated as a constraint ("at most 2 at a time").
+#[must_use]
+pub fn parallel_bound(constraint: &str) -> Option<u32> {
+    let lower = constraint.to_lowercase();
+    let concurrent = [
+        "at a time",
+        "at once",
+        "in parallel",
+        "concurrently",
+        "simultaneously",
+        "à la fois",
+        "en parallèle",
+        "en même temps",
+        "a la vez",
+        "al mismo tiempo",
+    ]
+    .iter()
+    .any(|phrase| lower.contains(phrase));
+    if !concurrent {
+        return None;
+    }
+    let numbers: Vec<u32> = lower
+        .split(|c: char| !c.is_ascii_digit())
+        .filter(|w| !w.is_empty())
+        .filter_map(|w| w.parse().ok())
+        .collect();
+    match numbers.as_slice() {
+        [n] if *n > 0 => Some(*n),
+        _ => None,
+    }
 }
 
 #[cfg(test)]

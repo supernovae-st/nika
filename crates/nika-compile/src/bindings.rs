@@ -11,6 +11,7 @@
 //! to that file, never a POST. A file the request names that nothing reads or
 //! writes is a question, never a silent drop.
 
+use super::cardinality::parallel_bound;
 use super::paths::{self, PathShape, Structured};
 use super::plan::{Effect, EffectPolicy, EffectVerb, Op, Plan, Step};
 use super::rules;
@@ -297,37 +298,6 @@ fn file_write(effect: &Effect) -> Option<String> {
         | EffectVerb::Update
         | EffectVerb::Publish
         | EffectVerb::Other => paths::single_file(&effect.target),
-        _ => None,
-    }
-}
-
-/// A numeric concurrency bound stated as a constraint ("at most 2 at a time").
-pub(super) fn parallel_bound(constraint: &str) -> Option<u32> {
-    let lower = constraint.to_lowercase();
-    let concurrent = [
-        "at a time",
-        "at once",
-        "in parallel",
-        "concurrently",
-        "simultaneously",
-        "à la fois",
-        "en parallèle",
-        "en même temps",
-        "a la vez",
-        "al mismo tiempo",
-    ]
-    .iter()
-    .any(|phrase| lower.contains(phrase));
-    if !concurrent {
-        return None;
-    }
-    let numbers: Vec<u32> = lower
-        .split(|c: char| !c.is_ascii_digit())
-        .filter(|w| !w.is_empty())
-        .filter_map(|w| w.parse().ok())
-        .collect();
-    match numbers.as_slice() {
-        [n] if *n > 0 => Some(*n),
         _ => None,
     }
 }

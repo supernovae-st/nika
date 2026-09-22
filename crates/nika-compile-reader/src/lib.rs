@@ -28,6 +28,7 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
 pub mod aggregate;
+pub mod cardinality;
 pub mod columns;
 pub mod gates;
 pub mod hot;
@@ -39,6 +40,7 @@ pub mod rule_cues;
 pub mod rule_tokens;
 pub mod rules;
 pub mod stages;
+pub mod structure;
 pub mod text;
 pub mod unknowns;
 pub mod words;
