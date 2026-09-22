@@ -606,6 +606,15 @@ fn admit(candidate: &str, questions: &[Question], out: &mut Vec<Diagnostic>) -> 
         }
     };
     let doc = crate::edit::literal_projection(candidate);
+    if let Some(wild) = doc.as_ref().and_then(wildcard_grant) {
+        out.push(Diagnostic {
+            kind: "permits",
+            message: format!(
+                "permits.net.http carries `{wild}`: a wildcard is not a boundary; grant the exact host the request states as a literal, or leave `http: []` when the host comes from an answer (the compiler grants the answered host)"
+            ),
+        });
+        return None;
+    }
     let tolerated = doc
         .as_ref()
         .is_some_and(|d| placeholder_host_asked(d, questions));
@@ -659,6 +668,18 @@ fn admit(candidate: &str, questions: &[Question], out: &mut Vec<Diagnostic>) -> 
 
 /// Whether a `nika:fetch` URL rides a `const.<slug>` placeholder (declared empty) that the
 /// seat asks for: its host is unknown until the answer, and the answer grants it.
+/// The first wildcard entry of `permits.net.http`, if any (`*` · `*.example.com` · `**`).
+fn wildcard_grant(doc: &Value) -> Option<String> {
+    doc.get("permits")?
+        .get("net")?
+        .get("http")?
+        .as_array()?
+        .iter()
+        .filter_map(Value::as_str)
+        .find(|h| h.contains('*'))
+        .map(str::to_owned)
+}
+
 fn placeholder_host_asked(doc: &Value, questions: &[Question]) -> bool {
     let consts = doc.get("const").and_then(Value::as_object);
     let asked: Vec<&str> = questions
@@ -681,7 +702,7 @@ fn placeholder_host_asked(doc: &Value, questions: &[Question]) -> bool {
         .any(|(_, task)| {
             task.get("invoke")
                 .and_then(|i| i.get("args"))
-                .and_then(|a| a.get("url"))
+                .and_then(|a| a.get("url").or_else(|| a.get("target")))
                 .and_then(Value::as_str)
                 .is_some_and(|url| {
                     asked

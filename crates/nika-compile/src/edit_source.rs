@@ -88,6 +88,16 @@ fn literal_range(source: &str, path: &[&str]) -> Option<(usize, usize)> {
         // plain scalar is empty, and `prevent_coercion` keeps `''`/`""` apart.
         Node::Scalar(scalar) if scalar.may_coerce() && scalar.as_str().is_empty() => return None,
         Node::Scalar(_) => scalar_end(source, start, flow)?,
+        // A block sequence (`- a` lines under the key) ends where its last scalar item ends;
+        // the flow form written in its place is valid YAML on the item's first line.
+        Node::Sequence(items) if source.as_bytes().get(start) == Some(&b'-') => {
+            let last = items.last()?;
+            let Node::Scalar(_) = last else {
+                return None;
+            };
+            let item_start = byte_offset(source, last.span().start()?.character())?;
+            scalar_end(source, item_start, false)?
+        }
         Node::Mapping(_) | Node::Sequence(_) => {
             let closing = match source.as_bytes().get(start)? {
                 b'{' => b'}',
@@ -159,6 +169,24 @@ fn scalar_end(source: &str, start: usize, flow: bool) -> Option<usize> {
 #[cfg(test)]
 mod tests {
     use super::{literal_range, yaml_safe_json};
+
+    #[test]
+    fn a_block_sequence_permit_takes_the_flow_form_when_a_host_is_granted() {
+        let source = "nika: x\npermits:\n  net:\n    http:\n      - \"a.example\"\n      - \"b.example\"\ntasks: {}\n";
+        let before = crate::edit::literal_projection(source).expect("projects");
+        let mut after = before.clone();
+        after["permits"]["net"]["http"] =
+            serde_json::json!(["a.example", "b.example", "hooks.invalid"]);
+        let edited =
+            super::emit_at(source, &before, &after, &["permits", "net", "http"]).expect("edited");
+        assert!(
+            edited.contains(
+                "http:\n      [\"a.example\",\"b.example\",\"hooks.invalid\"]\ntasks: {}"
+            ),
+            "{edited}"
+        );
+        assert_eq!(crate::edit::literal_projection(&edited), Some(after));
+    }
 
     fn located(consts: &str, typed: bool) -> Option<String> {
         let source = format!("nika: x\nconst:\n{consts}\ntasks: {{}}\n");
