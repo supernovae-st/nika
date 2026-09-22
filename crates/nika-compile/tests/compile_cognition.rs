@@ -498,6 +498,51 @@ async fn warm_settles_a_finite_ambiguity_through_the_seat_and_records_it() {
     );
 }
 
+/// A lookup by identifier over a file the request already reads binds THAT file: the read
+/// clause locates the material (« Read ./tickets.json, find ticket 42 »), so the only value
+/// still open is the field that holds the identifier — never a second « directory ». The
+/// located file is read once, by the lookup, and the write carries the selected record.
+#[tokio::test]
+async fn warm_lookup_over_a_located_read_binds_the_read_file_and_asks_only_the_id_field() {
+    let intent = "Read ./tickets.json, find ticket 42 and write it to ./ticket-42.json";
+    let seat = Seat {
+        choice: "lookup",
+        asked: Mutex::new(Vec::new()),
+    };
+    let cognition = Cognition::<NoProvider> {
+        provider: None,
+        seat: Some(&seat),
+    };
+    let out = compile_with_cognition(&CompileRequest::create(intent), cognition)
+        .await
+        .unwrap();
+    assert_eq!(out.provenance.strategy, Some(Strategy::Warm), "{out:#?}");
+    assert_eq!(keys(&out), vec!["const.ticket_id_field"], "{out:#?}");
+    let ready = compile_with_cognition(
+        &CompileRequest::create(intent).answer("const.ticket_id_field", r#""id""#),
+        cognition,
+    )
+    .await
+    .unwrap();
+    assert_eq!(ready.status, CompileStatus::Ready, "{ready:#?}");
+    let candidate = ready.candidate.as_deref().unwrap();
+    assert!(candidate.contains("./tickets.json"), "{candidate}");
+    assert!(candidate.contains("./ticket-42.json"), "{candidate}");
+    assert!(candidate.contains("lookup_record"), "{candidate}");
+    assert!(
+        !candidate.contains("read_source"),
+        "the located file is read once, by the lookup: {candidate}"
+    );
+    assert!(
+        candidate.contains("read:\n    - ./tickets.json"),
+        "the located file is the one read permit: {candidate}"
+    );
+    assert!(
+        candidate.contains("ticket_id: '42'") && candidate.contains("ticket_id_field: id"),
+        "{candidate}"
+    );
+}
+
 #[tokio::test]
 async fn warm_none_never_picks_the_least_wrong_option() {
     let seat = Seat {

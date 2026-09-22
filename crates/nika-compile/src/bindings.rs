@@ -375,9 +375,11 @@ pub(super) fn bind(
     recognized: &mut BTreeSet<String>,
 ) -> Bindings {
     let model = bind_model(plan, request, out, recognized);
+    let located = located_json(plan);
     let lookup = Need::from_step(plan.step(Op::Lookup), |step| {
-        resolve_lookup(step, request, out, recognized)
+        resolve_lookup(step, located.as_deref(), request, out, recognized)
     });
+    let read_consumed = lookup_consumes(&lookup, located.as_deref());
     let search = Need::from_step(plan.step(Op::Search), |_| {
         recognized.insert("const.search_root".to_owned());
         answer(request, out, "const.search_root", SEARCH_LABEL, true)
@@ -386,7 +388,7 @@ pub(super) fn bind(
         bind_url(plan, request, out, recognized)
     });
     let written = written_targets(plan);
-    let read = Need::from_step(plan.step(Op::Read), |step| {
+    let read = Need::from_step(plan.step(Op::Read).filter(|_| !read_consumed), |step| {
         resolve_read(step, &written, request, out, recognized)
     });
     let absent = matches!(lookup, Need::Absent) && matches!(fetch, Need::Absent);
@@ -519,17 +521,39 @@ fn refuse_per_item_placeholder(effect: &Effect, out: &mut CompileOutcome) -> boo
     true
 }
 
+/// The one JSON file the plan's read step locates: a lookup by identifier selects its
+/// record there.
+fn located_json(plan: &Plan) -> Option<String> {
+    plan.step(Op::Read)
+        .and_then(|step| paths::single_file(&step.detail))
+        .filter(|file| paths::extension(file).as_deref() == Some("json"))
+}
+
+/// Whether the lookup consumed the located file: it is then read once, by the lookup, and
+/// the record it selects is the material; a second read of the whole file would be the
+/// wrong content for « write it ».
+fn lookup_consumes(lookup: &Need<Lookup>, located: Option<&str>) -> bool {
+    matches!(
+        (lookup, located),
+        (Need::Bound(l), Some(file)) if l.by_id.is_some() && l.directory == json!(file)
+    )
+}
+
 /// The lookup step settles its directory: a detail naming one JSON file and an
 /// identifier binds the file itself and asks only which field holds the identifier (the
-/// record is selected at run time); any other detail asks for the JSON directory file and
-/// reads the record keyed by each invocation's `record_id`.
+/// record is selected at run time); a detail naming an identifier and no path selects the
+/// record in the JSON file the request's read step locates; any other detail asks for the
+/// JSON directory file and reads the record keyed by each invocation's `record_id`.
 fn resolve_lookup(
     step: &Step,
+    located: Option<&str>,
     request: &CompileRequest,
     out: &mut CompileOutcome,
     recognized: &mut BTreeSet<String>,
 ) -> Option<Lookup> {
-    if let Some(literal) = shape::lookup_by_identifier(&step.detail) {
+    let literal = shape::lookup_by_identifier(&step.detail)
+        .or_else(|| located.and_then(|file| shape::lookup_by_identifier_over(&step.detail, file)));
+    if let Some(literal) = literal {
         let field_key = format!("const.{}_id_field", literal.slug);
         recognized.insert(field_key.clone());
         let label = format!(

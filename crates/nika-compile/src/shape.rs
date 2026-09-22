@@ -557,7 +557,48 @@ pub(super) fn lookup_by_identifier(detail: &str) -> Option<LiteralLookup> {
         }
         _ => return None,
     };
-    let id = identifier(detail)?;
+    literal_lookup(detail, file)
+}
+
+/// A lookup detail that names an identifier token and no path at all (« ticket 42 »)
+/// selects its record in the ONE JSON file the request already reads (« Read
+/// ./tickets.json, find ticket 42 »): the read clause locates the material, so no second
+/// « directory » is asked. A detail that names a path of its own keeps its own law.
+pub(super) fn lookup_by_identifier_over(detail: &str, located: &str) -> Option<LiteralLookup> {
+    if !super::paths::literals(detail).is_empty()
+        || super::paths::extension(located).as_deref() != Some("json")
+    {
+        return None;
+    }
+    literal_lookup(detail, located.to_owned())
+}
+
+/// The bare number that names a record in a LOOKUP detail: « ticket 42 », « order 1002 »,
+/// « le ticket 42 » — one all-digit token right after a word of letters. Only a lookup
+/// detail reads a bare number this way (a lookup selects one record); everywhere else a
+/// bare number stays a count or a bound, which [`identifier`] deliberately never returns.
+fn numbered_record(detail: &str) -> Option<String> {
+    let words: Vec<&str> = detail
+        .split_whitespace()
+        .map(|w| w.trim_matches(|c: char| !c.is_alphanumeric()))
+        .filter(|w| !w.is_empty())
+        .collect();
+    let numbers: Vec<usize> = words
+        .iter()
+        .enumerate()
+        .filter(|(_, w)| w.chars().all(|c| c.is_ascii_digit()))
+        .map(|(i, _)| i)
+        .collect();
+    match numbers.as_slice() {
+        [at] if *at > 0 && words[at - 1].chars().all(char::is_alphabetic) => {
+            Some(words[*at].to_owned())
+        }
+        _ => None,
+    }
+}
+
+fn literal_lookup(detail: &str, file: String) -> Option<LiteralLookup> {
+    let id = identifier(detail).or_else(|| numbered_record(detail))?;
     let rest: Vec<&str> = detail
         .split_whitespace()
         .filter(|w| {
