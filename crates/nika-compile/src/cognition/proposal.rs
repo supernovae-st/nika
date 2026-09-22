@@ -484,6 +484,19 @@ fn gate_phrase(evidence: &str, out: &mut CompileOutcome) -> bool {
     true
 }
 
+/// The clauses a proposal states as a record effect (create, update, order…): a `write`
+/// proposed over the same clause with no file path in its words is that effect's twin
+/// (« Enregistre une écriture dans le logiciel comptable » as a create AND a write).
+fn write_twins(effects: &[ProposedEffect]) -> Vec<String> {
+    effects
+        .iter()
+        .filter(|e| e.verb != "write")
+        .map(|e| fold_words(&e.evidence))
+        .filter(|words| !words.is_empty())
+        .filter(|words| crate::paths::literals(words).is_empty())
+        .collect()
+}
+
 /// The proposal joins the deterministic reading; deterministic facts win every disagreement,
 /// and the proposal must account for every region of the request.
 #[allow(clippy::too_many_lines)] // one validation walk over steps, effects, obligations, regions
@@ -547,7 +560,24 @@ pub(super) fn merge(
         }
         plan.push_step(Step::new(op, evidence, step.detail, step.categories));
     }
+    let twins = write_twins(&proposal.effects);
     for effect in proposal.effects {
+        if effect.verb == "write"
+            && twins
+                .iter()
+                .any(|twin| twin == &fold_words(&effect.evidence))
+        {
+            crate::finding(
+                out,
+                DiagnosticKind::Applied,
+                "authoring_plan",
+                format!(
+                    "`{}` is the record the proposal already creates; its `write` twin over the same words names no file and was not assembled.",
+                    effect.evidence.trim()
+                ),
+            );
+            continue;
+        }
         let (Some(verb), Some(policy)) = (
             EffectVerb::parse(&effect.verb),
             match effect.policy.as_str() {

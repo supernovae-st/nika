@@ -343,6 +343,7 @@ pub(super) fn feasibility(candidate: &Plan, floor: &Plan, intent: &str) -> Resul
         .constraints
         .iter()
         .filter(|c| !super::structure::binds_no_operation(c))
+        .filter(|c| !restated(candidate, floor, c))
         .count();
     if carried_by_an_operation > 0 && !candidate.steps.iter().any(|s| s.op.carries_constraints()) {
         why.push(format!(
@@ -423,7 +424,7 @@ fn floor_operations(candidate: &Plan, floor: &Plan, intent: &str, why: &mut Vec<
         let accounted = candidate
             .steps
             .iter()
-            .any(|s| s.op == step.op || overlaps(&s.evidence, &step.evidence))
+            .any(|s| same_family(s.op, step.op) || overlaps(&s.evidence, &step.evidence))
             || candidate
                 .effects
                 .iter()
@@ -466,6 +467,40 @@ fn written_computation(candidate: &Plan, step: &Step, intent: &str) -> bool {
                         })
             })
         })
+}
+
+/// The retrieval family: the reader's `search` over « retrouve le dossier dans `MongoDB` »
+/// and a seat's `lookup` over the same words retrieve the same records; the reader's
+/// word-level choice between them is no floor fact.
+fn same_family(a: Op, b: Op) -> bool {
+    a == b || matches!((a, b), (Op::Search, Op::Lookup) | (Op::Lookup, Op::Search))
+}
+
+/// A constraint that restates a clause the candidate or the reading already carries
+/// elsewhere (an operation's or an effect's excerpt, an obligation's words, the trigger)
+/// binds nothing new: the seat listed the clause twice, once as what it is and once as a
+/// constraint, or restated a clause the reader recognized as an operation.
+fn restated(candidate: &Plan, floor: &Plan, constraint: &str) -> bool {
+    let fold = |text: &str| {
+        text.split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+            .to_lowercase()
+    };
+    let wanted = fold(constraint);
+    let inside = |text: &str| {
+        let text = fold(text);
+        !text.is_empty() && (text.contains(&wanted) || wanted.contains(&text))
+    };
+    [candidate, floor].into_iter().any(|plan| {
+        plan.steps.iter().any(|s| inside(&s.evidence))
+            || plan
+                .effects
+                .iter()
+                .any(|e| inside(&e.evidence) || inside(&e.target))
+            || plan.obligations.iter().any(|o| inside(&o.evidence))
+            || plan.trigger.as_deref().is_some_and(inside)
+    })
 }
 
 /// Rule 5: every recognized effect stays, with its policy floor and its policy literal.
