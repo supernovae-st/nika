@@ -1496,6 +1496,9 @@ impl<T> tracing::instrument::Instrument for nika_cli_host::lane::RunStory
 impl<T> tracing::instrument::WithSubscriber for nika_cli_host::lane::RunStory
 impl<T> typenum::type_operators::Same for nika_cli_host::lane::RunStory
 pub type nika_cli_host::lane::RunStory::Output = T
+impl<T> zvariant::optional::NoneValue for nika_cli_host::lane::RunStory where T: core::default::Default
+pub type nika_cli_host::lane::RunStory::NoneType = T
+pub fn nika_cli_host::lane::RunStory::null_value() -> T
 pub fn nika_cli_host::lane::drive_child(exe: &std::path::Path, args: &[alloc::string::String], root: &std::path::Path, busy: &std::sync::mpsc::Sender<alloc::string::String>, slot: &nika_cli_host::lane::ChildSlot) -> (u8, core::option::Option<std::path::PathBuf>, alloc::vec::Vec<alloc::string::String>)
 pub type nika_cli_host::lane::ChildSlot = alloc::sync::Arc<std::sync::poison::mutex::Mutex<core::option::Option<u32>>>
 pub mod nika_cli_host::lines
@@ -1509,7 +1512,19 @@ impl<F> alloc::io::read::Read for nika_cli_host::lines::PerCallLines<F> where F:
 pub fn nika_cli_host::lines::PerCallLines<F>::read(&mut self, out: &mut [u8]) -> core::io::error::Result<usize>
 impl<B> bstr::io::BufReadExt for nika_cli_host::lines::PerCallLines<F> where B: alloc::io::buf_read::BufRead
 impl<D> owo_colors::OwoColorize for nika_cli_host::lines::PerCallLines<F>
-impl<R> byteorder::io::ReadBytesExt for nika_cli_host::lines::PerCallLines<F> where R: alloc::io::read::Read + ?core::marker::Sized
+impl<R> endi::io::ReadBytes for nika_cli_host::lines::PerCallLines<F> where R: alloc::io::read::Read
+pub fn nika_cli_host::lines::PerCallLines<F>::read_f32(&mut self, endian: endi::endian::Endian) -> core::result::Result<f32, core::io::error::Error>
+pub fn nika_cli_host::lines::PerCallLines<F>::read_f64(&mut self, endian: endi::endian::Endian) -> core::result::Result<f64, core::io::error::Error>
+pub fn nika_cli_host::lines::PerCallLines<F>::read_i128(&mut self, endian: endi::endian::Endian) -> core::result::Result<i128, core::io::error::Error>
+pub fn nika_cli_host::lines::PerCallLines<F>::read_i16(&mut self, endian: endi::endian::Endian) -> core::result::Result<i16, core::io::error::Error>
+pub fn nika_cli_host::lines::PerCallLines<F>::read_i32(&mut self, endian: endi::endian::Endian) -> core::result::Result<i32, core::io::error::Error>
+pub fn nika_cli_host::lines::PerCallLines<F>::read_i64(&mut self, endian: endi::endian::Endian) -> core::result::Result<i64, core::io::error::Error>
+pub fn nika_cli_host::lines::PerCallLines<F>::read_i8(&mut self, endian: endi::endian::Endian) -> core::result::Result<i8, core::io::error::Error>
+pub fn nika_cli_host::lines::PerCallLines<F>::read_u128(&mut self, endian: endi::endian::Endian) -> core::result::Result<u128, core::io::error::Error>
+pub fn nika_cli_host::lines::PerCallLines<F>::read_u16(&mut self, endian: endi::endian::Endian) -> core::result::Result<u16, core::io::error::Error>
+pub fn nika_cli_host::lines::PerCallLines<F>::read_u32(&mut self, endian: endi::endian::Endian) -> core::result::Result<u32, core::io::error::Error>
+pub fn nika_cli_host::lines::PerCallLines<F>::read_u64(&mut self, endian: endi::endian::Endian) -> core::result::Result<u64, core::io::error::Error>
+pub fn nika_cli_host::lines::PerCallLines<F>::read_u8(&mut self, endian: endi::endian::Endian) -> core::result::Result<u8, core::io::error::Error>
 impl<T, U> core::convert::Into<U> for nika_cli_host::lines::PerCallLines<F> where U: core::convert::From<T>
 pub fn nika_cli_host::lines::PerCallLines<F>::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_cli_host::lines::PerCallLines<F> where U: core::convert::Into<T>
