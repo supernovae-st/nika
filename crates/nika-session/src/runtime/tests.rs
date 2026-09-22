@@ -552,6 +552,15 @@ fn a_schedule_is_declared_only_through_the_human_s_gestures() {
         panic!("activate asks first");
     };
     assert_eq!(key, "project.timezone");
+    assert_eq!(
+        s.pending_activation(),
+        Some("project.timezone"),
+        "the shells read the waiting value from the runtime: the prompt is `reply ›`"
+    );
+    assert_eq!(
+        s.status_line(),
+        "Needs one value to declare the schedule · `project.timezone`"
+    );
     assert!(
         question.contains("Which time zone") && question.contains("(2 more after this one)"),
         "{question}"

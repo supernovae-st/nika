@@ -2175,6 +2175,7 @@ pub fn nika_session::runtime::SessionRuntime::on_progress(&mut self, hook: nika_
 pub fn nika_session::runtime::SessionRuntime::open(cwd: &std::path::Path, intelligence: nika_session::intelligence::ResolvedSessionIntelligence, reasoner: alloc::boxed::Box<dyn nika_session::reasoner::SessionReasoner>) -> Self
 pub fn nika_session::runtime::SessionRuntime::open_unchosen(cwd: &std::path::Path, census: nika_session::intelligence::IntelligenceCensus, home: core::option::Option<&std::path::Path>, factory: nika_session::runtime::ReasonerFactory) -> Self
 pub fn nika_session::runtime::SessionRuntime::open_with(cwd: &std::path::Path, census: nika_session::intelligence::IntelligenceCensus, pref: &nika_session::intelligence::UserIntelligencePreference, home: core::option::Option<&std::path::Path>, factory: nika_session::runtime::ReasonerFactory) -> Self
+pub fn nika_session::runtime::SessionRuntime::pending_activation(&self) -> core::option::Option<&'static str>
 pub fn nika_session::runtime::SessionRuntime::pending_choice(&self) -> bool
 pub fn nika_session::runtime::SessionRuntime::pending_proposal(&self) -> core::option::Option<nika_session::outcome::ProposalId>
 pub fn nika_session::runtime::SessionRuntime::status(&self) -> alloc::string::String
@@ -4093,6 +4094,7 @@ pub fn nika_session::runtime::SessionRuntime::on_progress(&mut self, hook: nika_
 pub fn nika_session::runtime::SessionRuntime::open(cwd: &std::path::Path, intelligence: nika_session::intelligence::ResolvedSessionIntelligence, reasoner: alloc::boxed::Box<dyn nika_session::reasoner::SessionReasoner>) -> Self
 pub fn nika_session::runtime::SessionRuntime::open_unchosen(cwd: &std::path::Path, census: nika_session::intelligence::IntelligenceCensus, home: core::option::Option<&std::path::Path>, factory: nika_session::runtime::ReasonerFactory) -> Self
 pub fn nika_session::runtime::SessionRuntime::open_with(cwd: &std::path::Path, census: nika_session::intelligence::IntelligenceCensus, pref: &nika_session::intelligence::UserIntelligencePreference, home: core::option::Option<&std::path::Path>, factory: nika_session::runtime::ReasonerFactory) -> Self
+pub fn nika_session::runtime::SessionRuntime::pending_activation(&self) -> core::option::Option<&'static str>
 pub fn nika_session::runtime::SessionRuntime::pending_choice(&self) -> bool
 pub fn nika_session::runtime::SessionRuntime::pending_proposal(&self) -> core::option::Option<nika_session::outcome::ProposalId>
 pub fn nika_session::runtime::SessionRuntime::status(&self) -> alloc::string::String

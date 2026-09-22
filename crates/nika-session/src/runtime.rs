@@ -332,6 +332,9 @@ impl SessionRuntime {
         if let Some(name) = self.pending_input() {
             return format!("Needs one value before it runs · `{name}`");
         }
+        if let Some(key) = self.pending_activation() {
+            return format!("Needs one value to declare the schedule · `{key}`");
+        }
         if let Some((exit, _)) = &self.last_run {
             let word = match exit {
                 0 => "Done · the run succeeded",
@@ -407,6 +410,16 @@ impl SessionRuntime {
     #[must_use]
     pub fn pending_choice(&self) -> bool {
         self.pending_choice
+    }
+
+    /// The key of the value an activation waits for (`project.timezone` ·
+    /// `project.missed` · `project.ceiling`), when « activate » is under
+    /// way: the next line answers it, on its own prompt.
+    #[must_use]
+    pub fn pending_activation(&self) -> Option<&'static str> {
+        self.activation
+            .as_ref()
+            .and_then(schedule::Activation::current)
     }
 
     /// Whether an intelligence was chosen or kept for this session.

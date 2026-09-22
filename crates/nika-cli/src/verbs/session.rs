@@ -123,7 +123,10 @@ fn drive<R: BufRead, W: Write>(
             "apply? › "
         } else if session.waiting_gate().is_some() {
             "answer › "
-        } else if session.pending_question().is_some() || session.pending_input().is_some() {
+        } else if session.pending_question().is_some()
+            || session.pending_input().is_some()
+            || session.pending_activation().is_some()
+        {
             "reply › "
         } else {
             "nika › "

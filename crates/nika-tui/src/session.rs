@@ -197,6 +197,10 @@ impl Live {
             }
         } else if runtime.pending_input().is_some() {
             Waiting::Question { key: String::new() }
+        } else if let Some(key) = runtime.pending_activation() {
+            Waiting::Question {
+                key: key.to_owned(),
+            }
         } else {
             Waiting::Free
         }
