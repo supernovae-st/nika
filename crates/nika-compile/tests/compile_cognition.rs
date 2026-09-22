@@ -89,31 +89,33 @@ async fn no_opt_in_and_exact_skeleton_never_call_provider_or_change_v1() {
 
 #[tokio::test]
 async fn malformed_unknown_conflicting_and_unanchored_plans_do_not_emit_source() {
-    let mut cases = vec![json!({"yaml":"nika: invented"})];
+    // Each case names the calls it costs: one, or two when the defect is an evidence the
+    // request never wrote (the one bounded repair call, answered here with the same plan).
+    let mut cases = vec![(json!({"yaml":"nika: invented"}), 1)];
     // A model may not weaken, lift or settle the deterministic policy of a recognized effect.
     for policy in ["automatic", "forbidden", "conflict", "unspecified"] {
         let mut p = plan();
         p["effects"][0]["policy"] = json!(policy);
-        cases.push(p);
+        cases.push((p, 1));
     }
     // Invented effects need an exact excerpt the request never wrote.
     for verb in ["send", "publish"] {
         let mut p = plan();
         p["effects"].as_array_mut().unwrap().push(json!({"verb":verb,"target":"la réponse","policy":"automatic","evidence":"envoie la réponse"}));
-        cases.push(p);
+        cases.push((p, 2));
     }
-    for field in ["op", "evidence"] {
+    for (field, calls) in [("op", 1), ("evidence", 2)] {
         let mut p = plan();
         p["steps"][0][field] = json!("invented");
-        cases.push(p);
+        cases.push((p, calls));
     }
     let mut p = plan();
     p["unknowns"] = json!(["Use a previous approval for a different amount"]);
-    cases.push(p);
+    cases.push((p, 1));
     let mut p = plan();
     p["effects"][0]["evidence"] = json!("unmentioned refund authority");
-    cases.push(p);
-    for p in cases {
+    cases.push((p, 2));
+    for (p, calls) in cases {
         let provider = Provider::new(p.clone());
         let out = compile_with_provider(&request(), &provider).await.unwrap();
         assert_eq!(out.status, CompileStatus::Incomplete, "{p}");
@@ -122,7 +124,7 @@ async fn malformed_unknown_conflicting_and_unanchored_plans_do_not_emit_source()
             !keys(&out).contains(&"const.refund_policy"),
             "{p}: {out:#?}"
         );
-        assert_eq!(provider.calls.load(Ordering::SeqCst), 1);
+        assert_eq!(provider.calls.load(Ordering::SeqCst), calls, "{p}");
     }
 }
 

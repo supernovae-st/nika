@@ -8,13 +8,21 @@ use nika_compile::{
     Cognition, CompileRequest, CompileStatus, HotPolicy, Strategy, compile_with_cognition,
     compile_with_provider, decide::NONE_OPTION, outcome_document,
 };
+use nika_kernel::ai::provider::{
+    ContentBlock, InferRequest, InferResponse, ProviderError, ProviderInferDyn, Role, StopReason,
+    TokenUsage,
+};
 use serde_json::{Value, json};
 
 mod common;
 use common::{
     ChoosePlan, INTENT, Provider, Rotating, disagreeing_provider, keys, plan, policy, request,
+    route,
 };
-use std::sync::{Mutex, atomic::Ordering};
+use std::sync::{
+    Mutex,
+    atomic::{AtomicU32, Ordering},
+};
 
 // ── COLD best-of-N: agreement, never a vote that hides a dropped effect ───────
 #[tokio::test]
@@ -63,16 +71,139 @@ async fn cold_best_of_three_keeps_the_plan_the_others_agree_with() {
 
 #[tokio::test]
 async fn cold_best_of_n_never_assembles_when_every_sample_is_refused() {
+    // Every sample cites an evidence the request never wrote, and every repair call answers
+    // the same: 3 samples, 3 repairs, nothing assembled, the repairs on the route.
     let mut unanchored = plan();
     unanchored["steps"][0]["evidence"] = json!("invented");
     let provider = Rotating::new(vec![unanchored.to_string()]);
     let req = CompileRequest::create(INTENT).with_authoring_policy(policy().with_samples(3));
     let out = compile_with_provider(&req, &provider).await.unwrap();
-    assert_eq!(provider.calls.load(Ordering::SeqCst), 3);
+    assert_eq!(provider.calls.load(Ordering::SeqCst), 6);
     assert_eq!(out.status, CompileStatus::Incomplete);
     assert!(out.candidate.is_none());
+    assert_eq!(out.provenance.authoring.as_ref().unwrap().calls, 6);
     let doc = outcome_document(&out);
     assert_eq!(doc["provenance"]["decision"]["cold_samples"]["accepted"], 0);
+    assert!(route(&doc).contains("cold: repair 3"), "{}", route(&doc));
+    assert!(
+        out.diagnostics
+            .iter()
+            .any(|d| d.message.contains("lacks an exact source excerpt")),
+        "{out:#?}"
+    );
+}
+
+/// A provider that records every conversation it was sent, answering its plans in order.
+struct Recording {
+    plans: Vec<String>,
+    calls: AtomicU32,
+    seen: Mutex<Vec<Vec<(Role, String)>>>,
+}
+impl ProviderInferDyn for Recording {
+    async fn infer(&self, request: InferRequest) -> Result<InferResponse, ProviderError> {
+        let index = self.calls.fetch_add(1, Ordering::SeqCst) as usize;
+        let turns = request
+            .messages
+            .iter()
+            .map(|m| {
+                let text = m
+                    .content
+                    .iter()
+                    .filter_map(|b| match b {
+                        ContentBlock::Text { text } => Some(text.as_str()),
+                        _ => None,
+                    })
+                    .collect::<String>();
+                (m.role, text)
+            })
+            .collect();
+        self.seen.lock().unwrap().push(turns);
+        let text = self.plans[index % self.plans.len()].clone();
+        Ok(InferResponse::new(
+            vec![ContentBlock::Text { text }],
+            TokenUsage::new(100, 50),
+            StopReason::EndTurn,
+        ))
+    }
+}
+
+#[tokio::test]
+async fn cold_repairs_an_unanchored_excerpt_with_one_bounded_call() {
+    // The seat names the right clause with the wrong letters ("classe le probleme" for
+    // "classe le problème"). The verifier's counterexample buys exactly one more call that
+    // carries the instructions, the request, the seat's own answer and the counterexample;
+    // the repaired proposal is then judged like any other.
+    let mut typo = plan();
+    typo["steps"][1]["evidence"] = json!("classe le probleme");
+    let provider = Recording {
+        plans: vec![typo.to_string(), plan().to_string()],
+        calls: AtomicU32::new(0),
+        seen: Mutex::new(Vec::new()),
+    };
+    let req = CompileRequest::create(INTENT)
+        .with_authoring_policy(policy())
+        .answer("model", r#""mock/echo""#)
+        .answer("const.customer_directory", r#""customers.json""#)
+        .answer("const.refund_policy", r#"{"cap":100,"currency":"EUR"}"#)
+        .answer(
+            "const.refund_endpoint",
+            r#""https://refund.example.invalid/refunds""#,
+        );
+    let out = compile_with_provider(&req, &provider).await.unwrap();
+    assert_eq!(provider.calls.load(Ordering::SeqCst), 2);
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert_eq!(out.provenance.strategy, Some(Strategy::Cold));
+    let receipt = out.provenance.authoring.as_ref().unwrap();
+    assert_eq!(receipt.calls, 2);
+    assert_eq!(receipt.input_tokens, Some(200));
+    assert_eq!(receipt.output_tokens, Some(100));
+    let doc = outcome_document(&out);
+    assert!(route(&doc).contains("cold: repair 1"), "{}", route(&doc));
+    assert_eq!(
+        doc["provenance"]["decision"]["cold_samples"]["samples"][0]["calls"],
+        2
+    );
+    let seen = provider.seen.lock().unwrap();
+    assert_eq!(seen[0].len(), 2, "the opening call: instructions, request");
+    assert_eq!(
+        seen[1].len(),
+        4,
+        "the repair call: the opening, the answer, the counterexample"
+    );
+    assert_eq!(seen[1][0], seen[0][0]);
+    assert_eq!(seen[1][1], seen[0][1]);
+    assert_eq!(seen[1][2], (Role::Assistant, typo.to_string()));
+    assert_eq!(seen[1][3].0, Role::User);
+    let counterexample = &seen[1][3].1;
+    assert!(
+        counterexample.contains("operation `classify`")
+            && counterexample.contains("classe le probleme")
+            && counterexample.contains("not an exact excerpt"),
+        "{counterexample}"
+    );
+}
+
+#[tokio::test]
+async fn a_repair_never_buys_a_third_call_and_the_merge_still_judges_it() {
+    // The repair answers another evidence the request never wrote (a doubled letter): no
+    // third call, the anchoring refusal
+    // of the merge stands, and the receipt counts both calls.
+    let mut first = plan();
+    first["steps"][1]["evidence"] = json!("classe le probleme");
+    let mut second = plan();
+    second["effects"][0]["evidence"] = json!("Demande un accord humain avant le rembourssement");
+    let provider = Rotating::new(vec![first.to_string(), second.to_string()]);
+    let out = compile_with_provider(&request(), &provider).await.unwrap();
+    assert_eq!(provider.calls.load(Ordering::SeqCst), 2);
+    assert_eq!(out.status, CompileStatus::Incomplete);
+    assert!(out.candidate.is_none());
+    assert_eq!(out.provenance.authoring.as_ref().unwrap().calls, 2);
+    assert!(
+        out.diagnostics.iter().any(|d| d
+            .message
+            .contains("an effect lacks an exact source excerpt (`refund` names")),
+        "{out:#?}"
+    );
 }
 
 // ── The strict HOT contract: a consumed clause is not understanding ──────────

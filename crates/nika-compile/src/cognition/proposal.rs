@@ -151,13 +151,56 @@ pub(crate) fn exact_excerpt(intent: &str, evidence: &str) -> Option<String> {
 
 /// The head of a rejected excerpt for the finding: enough to see what the model wrote,
 /// never the whole text.
-fn excerpt_head(text: &str) -> String {
+pub(super) fn excerpt_head(text: &str) -> String {
     let trimmed = text.trim();
     let mut head: String = trimmed.chars().take(80).collect();
     if head.len() < trimmed.len() {
         head.push('…');
     }
     head
+}
+
+/// An evidence of a proposal the request never wrote, seen before the merge judges the
+/// plan: the one defect a seat repairs from a verifier's counterexample without changing
+/// what it understood (a seat that answers `extraits` for a request that wrote `extrais`
+/// names the right clause with the wrong letters).
+pub(super) struct Unanchored {
+    /// `operation`, `effect` or `obligation`: the element whose evidence failed.
+    pub(super) role: &'static str,
+    /// The element's own word: its op, verb or kind.
+    pub(super) label: String,
+    /// The evidence as the seat wrote it.
+    pub(super) evidence: String,
+}
+
+/// The first evidence of a proposal that is not an exact excerpt of the request, if any,
+/// in the merge's own order: operations, then effects, then obligations.
+pub(super) fn unanchored(intent: &str, proposal: &Proposal) -> Option<Unanchored> {
+    let miss = |role: &'static str, label: &str, evidence: &str| {
+        exact_excerpt(intent, evidence)
+            .is_none()
+            .then(|| Unanchored {
+                role,
+                label: label.to_owned(),
+                evidence: evidence.to_owned(),
+            })
+    };
+    proposal
+        .steps
+        .iter()
+        .find_map(|step| miss("operation", &step.op, &step.evidence))
+        .or_else(|| {
+            proposal
+                .effects
+                .iter()
+                .find_map(|effect| miss("effect", &effect.verb, &effect.evidence))
+        })
+        .or_else(|| {
+            proposal
+                .obligations
+                .iter()
+                .find_map(|obligation| miss("obligation", &obligation.kind, &obligation.evidence))
+        })
 }
 
 /// The model's own accounting, read back: a region it labelled as producing (operation,

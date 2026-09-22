@@ -24,7 +24,7 @@ use super::{
     types::Input,
 };
 use nika_kernel::ai::provider::{
-    InferRequest, InferResponse, Message, ProviderInferDyn, ResponseFormat, Role,
+    ContentBlock, InferRequest, InferResponse, Message, ProviderInferDyn, ResponseFormat, Role,
 };
 use serde_json::{Value, json};
 
@@ -604,27 +604,130 @@ fn settle(
     Ok(out)
 }
 
+/// The messages of the opening authoring call: the instructions, then the request.
+fn opening(intent: &str) -> Vec<Message> {
+    vec![
+        Message::text(Role::System, INSTRUCTIONS),
+        Message::text(Role::User, intent),
+    ]
+}
+
+/// The verifier's counterexample for the one repair call: which evidence failed and the
+/// law it failed, never a word about meaning.
+fn counterexample(defect: &proposal::Unanchored) -> String {
+    format!(
+        "VERIFIER: your {} `{}` cites this evidence:\n{}\nThat text is not an exact excerpt of the request: the verifier could not find it verbatim. Only wrapped lines, doubled spaces and typographic quotes are tolerated; a changed, added or missing letter or word is not. Return the complete corrected JSON, identical to your answer except that every evidence string is copied character for character from the request (an ellipsis ... may abbreviate the middle of a long clause). Do not change any op, verb, kind, detail, target, policy or region.",
+        defect.role, defect.label, defect.evidence
+    )
+}
+
+/// One proposal for the request: the opening call, then at most ONE bounded repair call
+/// when the proposal's judged defect is an evidence the request never wrote. The seat's
+/// own answer and the verifier's counterexample go back as the conversation, and the
+/// repaired proposal is judged by the same merge as any other: a repair changes letters,
+/// never what the seat may propose. A repair the provider fails leaves the original
+/// proposal to the merge, which refuses it as before; the failure stays recorded.
 async fn propose<P: ProviderInferDyn>(
     intent: &str,
     policy: &AuthoringPolicy,
     provider: &P,
     out: &mut CompileOutcome,
 ) -> Option<Proposal> {
-    out.provenance.cognition = AuthoringCognition::ExplicitProvider;
-    out.provenance.authoring = Some(AuthoringReceipt {
-        model: policy.model.clone(),
-        calls: 1,
-        input_tokens: None,
-        output_tokens: None,
-        elapsed_ms: 0,
-    });
-    let mut infer = InferRequest::new(
-        &policy.model,
-        vec![
-            Message::text(Role::System, INSTRUCTIONS),
-            Message::text(Role::User, intent),
-        ],
+    let (proposal, text) = call(policy, provider, opening(intent), out).await?;
+    let Some(defect) = proposal::unanchored(intent, &proposal) else {
+        return Some(proposal);
+    };
+    super::finding(
+        out,
+        DiagnosticKind::Applied,
+        "authoring_plan",
+        format!(
+            "The seat's {} `{}` cited `{}`, which the request never wrote; one bounded repair call sent the verifier's counterexample back with the seat's own answer.",
+            defect.role,
+            defect.label,
+            proposal::excerpt_head(&defect.evidence)
+        ),
     );
+    let mut messages = opening(intent);
+    messages.push(Message::text(Role::Assistant, text));
+    messages.push(Message::text(Role::User, counterexample(&defect)));
+    match call(policy, provider, messages, out).await {
+        Some((repaired, _)) => Some(repaired),
+        None => Some(proposal),
+    }
+}
+
+/// One authoring call, accounted in the outcome's receipt (calls, tokens, wall time):
+/// the decoded proposal with the text it was decoded from, or None with the finding
+/// recorded. Every call is bounded by the policy's output cap and timeout; none retries.
+async fn call<P: ProviderInferDyn>(
+    policy: &AuthoringPolicy,
+    provider: &P,
+    messages: Vec<Message>,
+    out: &mut CompileOutcome,
+) -> Option<(Proposal, String)> {
+    out.provenance.cognition = AuthoringCognition::ExplicitProvider;
+    let receipt = out
+        .provenance
+        .authoring
+        .get_or_insert_with(|| AuthoringReceipt {
+            model: policy.model.clone(),
+            calls: 0,
+            input_tokens: None,
+            output_tokens: None,
+            elapsed_ms: 0,
+        });
+    receipt.calls += 1;
+    let start = std::time::Instant::now();
+    let result = tokio::time::timeout(
+        policy.timeout,
+        provider.infer(authoring_request(policy, messages)),
+    )
+    .await;
+    if let Some(receipt) = out.provenance.authoring.as_mut() {
+        receipt.elapsed_ms = receipt
+            .elapsed_ms
+            .saturating_add(u64::try_from(start.elapsed().as_millis()).unwrap_or(u64::MAX));
+    }
+    let response = match result {
+        Ok(Ok(response)) => response,
+        Ok(Err(error)) => {
+            super::finding(
+                out,
+                DiagnosticKind::Unknown,
+                "authoring_provider",
+                error.to_string(),
+            );
+            return None;
+        }
+        Err(_) => {
+            super::finding(
+                out,
+                DiagnosticKind::Unknown,
+                "authoring_provider",
+                "The single authorized authoring call timed out. No retry occurred.",
+            );
+            return None;
+        }
+    };
+    if let Some(receipt) = out.provenance.authoring.as_mut()
+        && response.usage_reported
+    {
+        receipt.input_tokens =
+            Some(receipt.input_tokens.unwrap_or(0) + response.usage.input_tokens);
+        receipt.output_tokens =
+            Some(receipt.output_tokens.unwrap_or(0) + response.usage.output_tokens);
+    }
+    let text = match response.content.as_slice() {
+        [ContentBlock::Text { text }] => text.clone(),
+        _ => String::new(),
+    };
+    decode(&response, out).map(|proposal| (proposal, text))
+}
+
+/// The bounded JSON-schema request every authoring call makes, whatever its messages.
+fn authoring_request(policy: &AuthoringPolicy, messages: Vec<Message>) -> InferRequest {
+    let mut infer = InferRequest::new(&policy.model, messages);
     infer.max_tokens = Some(policy.max_tokens);
     infer.timeout = Some(policy.timeout);
     infer.response_format = ResponseFormat::JsonSchema(json!({
@@ -652,39 +755,7 @@ async fn propose<P: ProviderInferDyn>(
         "approval_bypass":{"type":"object","additionalProperties":false,"required":["present"],"properties":{
             "present":{"type":"boolean"},"evidence":{"type":"string"}}}
     }}));
-    let start = std::time::Instant::now();
-    let result = tokio::time::timeout(policy.timeout, provider.infer(infer)).await;
-    if let Some(receipt) = out.provenance.authoring.as_mut() {
-        receipt.elapsed_ms = u64::try_from(start.elapsed().as_millis()).unwrap_or(u64::MAX);
-    }
-    let response = match result {
-        Ok(Ok(response)) => response,
-        Ok(Err(error)) => {
-            super::finding(
-                out,
-                DiagnosticKind::Unknown,
-                "authoring_provider",
-                error.to_string(),
-            );
-            return None;
-        }
-        Err(_) => {
-            super::finding(
-                out,
-                DiagnosticKind::Unknown,
-                "authoring_provider",
-                "The single authorized authoring call timed out. No retry occurred.",
-            );
-            return None;
-        }
-    };
-    if let Some(receipt) = out.provenance.authoring.as_mut()
-        && response.usage_reported
-    {
-        receipt.input_tokens = Some(response.usage.input_tokens);
-        receipt.output_tokens = Some(response.usage.output_tokens);
-    }
-    decode(&response, out)
+    infer
 }
 
 /// COLD with N proposals, then the composer: the distinct admissible plans become a finite
@@ -733,6 +804,7 @@ async fn sampled<P: ProviderInferDyn>(
             .collect();
         records.push(json!({
             "sample": index,
+            "calls": scratch.provenance.authoring.as_ref().map_or(0, |r| r.calls),
             "accepted": plan.is_some(),
             "signature": plan.as_ref().map(compose::signature),
             "findings": findings,
@@ -741,6 +813,11 @@ async fn sampled<P: ProviderInferDyn>(
             Some(plan) => accepted.push((index, plan)),
             None => rejected.push(scratch),
         }
+    }
+    // Every call beyond one per sample is a repair: the route says how many were bought.
+    let repairs = calls.saturating_sub(policy.samples.clamp(1, 5));
+    if repairs > 0 {
+        route.push(format!("cold: repair {repairs}"));
     }
     out.provenance.cognition = AuthoringCognition::ExplicitProvider;
     out.provenance.authoring = Some(AuthoringReceipt {

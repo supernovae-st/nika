@@ -369,7 +369,8 @@ impl AuthoringPolicy {
 pub struct AuthoringReceipt {
     /// Explicit model requested for this authoring attempt.
     pub model: String,
-    /// Provider calls attempted; this slice permits exactly one per request.
+    /// Provider calls attempted: one per proposal sample, plus at most one bounded repair
+    /// call per sample when the proposal cited an evidence the request never wrote.
     pub calls: u32,
     /// Reported input tokens, or unknown when the provider omitted usage.
     pub input_tokens: Option<u64>,
