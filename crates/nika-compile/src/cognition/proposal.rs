@@ -785,6 +785,38 @@ fn conversion_step(
     (Op::Compute, step)
 }
 
+/// The element that carries an unknown and asks its own typed question for it: a computation
+/// with no rule stated (the jq is asked), a write whose target names no file (the output path
+/// is asked). A read that carries it, or nothing at all, leaves the unknown unresolved.
+fn carried_by_an_asking_element(unknown: &str, plan: &Plan) -> Option<String> {
+    let words = crate::rule_tokens::fold(unknown);
+    if words.is_empty() {
+        return None;
+    }
+    let carries = |text: &str| crate::rule_tokens::fold(text).contains(&words);
+    let ruled = |step: &Step| plan.rules.iter().any(|r| r.text() == step.detail);
+    if let Some(step) = plan
+        .steps
+        .iter()
+        .find(|s| s.op == Op::Compute && !ruled(s) && (carries(&s.detail) || carries(&s.evidence)))
+    {
+        return Some(format!("computation « {} »", step.detail.trim()));
+    }
+    let names_a_file = |text: &str| {
+        crate::paths::literals(text)
+            .iter()
+            .any(|shape| matches!(shape, crate::paths::PathShape::File(_)))
+    };
+    plan.effects
+        .iter()
+        .find(|e| {
+            e.verb == EffectVerb::Write
+                && !names_a_file(&e.target)
+                && (carries(&e.target) || carries(&e.evidence))
+        })
+        .map(|e| format!("write « {} »", e.target.trim()))
+}
+
 /// A draft whose detail names nothing but a destination and a structure law (« → ./out/
 /// titres.txt. Rien d'autre dans le fichier. ») beside produced data: nothing to draft, the
 /// rows are written as they are.
@@ -1267,12 +1299,27 @@ pub(super) fn merge(
             plan.constraints.push(constraint);
         }
     }
-    plan.unknowns
-        .extend(proposal.unknowns.into_iter().filter(|u| {
-            !slotted
-                .iter()
-                .any(|s| crate::rule_tokens::fold(s) == crate::rule_tokens::fold(u))
-        }));
+    for unknown in proposal.unknowns {
+        if slotted
+            .iter()
+            .any(|s| crate::rule_tokens::fold(s) == crate::rule_tokens::fold(&unknown))
+        {
+            continue;
+        }
+        if let Some(carrier) = carried_by_an_asking_element(&unknown, &plan) {
+            crate::finding(
+                out,
+                DiagnosticKind::Applied,
+                "authoring_plan",
+                format!(
+                    "`{}` is carried by the {carrier}, which asks for what it needs as its own question; it is not unresolved work.",
+                    unknown.trim()
+                ),
+            );
+            continue;
+        }
+        plan.unknowns.push(unknown);
+    }
     // Semantic accounting: the request must be covered by regions the model can name.
     if let Some(bypass) = proposal.approval_bypass
         && bypass.present
