@@ -141,6 +141,7 @@ pub nika_session::authoring::AuthoringRound::continuation: core::option::Option<
 pub nika_session::authoring::AuthoringRound::intent: alloc::string::String
 pub nika_session::authoring::AuthoringRound::questions: alloc::vec::Vec<nika_compile::types::CompileQuestion>
 pub nika_session::authoring::AuthoringRound::reasons: alloc::vec::Vec<alloc::string::String>
+pub nika_session::authoring::AuthoringRound::restatements: u8
 impl nika_session::authoring::AuthoringRound
 pub fn nika_session::authoring::AuthoringRound::absorb(&mut self, out: &nika_compile::types::CompileOutcome)
 pub fn nika_session::authoring::AuthoringRound::answer_current(&mut self, line: &str) -> core::option::Option<alloc::string::String>
@@ -1203,6 +1204,7 @@ pub fn nika_session::intelligence::IntelligenceCensus::first_screen(&self) -> al
 pub fn nika_session::intelligence::IntelligenceCensus::from_probe(probe: &nika_cli_host::probe::Probe) -> Self
 pub fn nika_session::intelligence::IntelligenceCensus::options_screen(&self) -> alloc::string::String
 pub fn nika_session::intelligence::IntelligenceCensus::take() -> Self
+pub fn nika_session::intelligence::IntelligenceCensus::ways_on(&self) -> alloc::string::String
 impl core::clone::Clone for nika_session::intelligence::IntelligenceCensus
 pub fn nika_session::intelligence::IntelligenceCensus::clone(&self) -> nika_session::intelligence::IntelligenceCensus
 impl core::cmp::Eq for nika_session::intelligence::IntelligenceCensus
@@ -1304,9 +1306,12 @@ impl<T> tracing::instrument::WithSubscriber for nika_session::intelligence::Reso
 impl<T> typenum::type_operators::Same for nika_session::intelligence::ResolvedSessionIntelligence
 pub type nika_session::intelligence::ResolvedSessionIntelligence::Output = T
 #[non_exhaustive] pub struct nika_session::intelligence::SeatSeen
+pub nika_session::intelligence::SeatSeen::answers_here: bool
 pub nika_session::intelligence::SeatSeen::configured: bool
 pub nika_session::intelligence::SeatSeen::id: alloc::string::String
 pub nika_session::intelligence::SeatSeen::product_present: bool
+impl nika_session::intelligence::SeatSeen
+pub fn nika_session::intelligence::SeatSeen::usable(&self) -> bool
 impl core::clone::Clone for nika_session::intelligence::SeatSeen
 pub fn nika_session::intelligence::SeatSeen::clone(&self) -> nika_session::intelligence::SeatSeen
 impl core::cmp::Eq for nika_session::intelligence::SeatSeen
@@ -1413,6 +1418,7 @@ impl<T> tracing::instrument::Instrument for nika_session::intelligence::UserInte
 impl<T> tracing::instrument::WithSubscriber for nika_session::intelligence::UserIntelligencePreference
 impl<T> typenum::type_operators::Same for nika_session::intelligence::UserIntelligencePreference
 pub type nika_session::intelligence::UserIntelligencePreference::Output = T
+pub fn nika_session::intelligence::seat_answers_here(seat: &str) -> bool
 pub mod nika_session::meaning
 #[non_exhaustive] pub enum nika_session::meaning::Disposition
 pub nika_session::meaning::Disposition::Contradicted
@@ -3165,6 +3171,7 @@ pub nika_session::AuthoringRound::continuation: core::option::Option<serde_json:
 pub nika_session::AuthoringRound::intent: alloc::string::String
 pub nika_session::AuthoringRound::questions: alloc::vec::Vec<nika_compile::types::CompileQuestion>
 pub nika_session::AuthoringRound::reasons: alloc::vec::Vec<alloc::string::String>
+pub nika_session::AuthoringRound::restatements: u8
 impl nika_session::authoring::AuthoringRound
 pub fn nika_session::authoring::AuthoringRound::absorb(&mut self, out: &nika_compile::types::CompileOutcome)
 pub fn nika_session::authoring::AuthoringRound::answer_current(&mut self, line: &str) -> core::option::Option<alloc::string::String>
@@ -3454,6 +3461,7 @@ pub fn nika_session::intelligence::IntelligenceCensus::first_screen(&self) -> al
 pub fn nika_session::intelligence::IntelligenceCensus::from_probe(probe: &nika_cli_host::probe::Probe) -> Self
 pub fn nika_session::intelligence::IntelligenceCensus::options_screen(&self) -> alloc::string::String
 pub fn nika_session::intelligence::IntelligenceCensus::take() -> Self
+pub fn nika_session::intelligence::IntelligenceCensus::ways_on(&self) -> alloc::string::String
 impl core::clone::Clone for nika_session::intelligence::IntelligenceCensus
 pub fn nika_session::intelligence::IntelligenceCensus::clone(&self) -> nika_session::intelligence::IntelligenceCensus
 impl core::cmp::Eq for nika_session::intelligence::IntelligenceCensus

@@ -19,11 +19,20 @@ use crate::change::PendingGate;
 /// hole it fills, what is already settled, how to go on.
 #[must_use]
 pub(super) fn explain_question(question: &CompileQuestion, round: &AuthoringRound) -> String {
-    let mut text = format!(
-        "This answer fills `{}` in the workflow Nika is preparing.",
-        question.key
-    );
-    if !question.why.is_empty() {
+    // A rule Nika writes as code is explained in words: what the human's
+    // words do, never the code the compiler would have asked for.
+    let mut text = if super::authoring::asks_for_syntax(question) {
+        let clause = super::authoring::clause_of(&question.label).unwrap_or_default();
+        format!(
+            "Your words take the place of « {clause} » in your request; Nika then writes the rule itself, as code, from them — it never asks you for code."
+        )
+    } else {
+        format!(
+            "This answer fills `{}` in the workflow Nika is preparing.",
+            question.key
+        )
+    };
+    if !question.why.is_empty() && !super::authoring::asks_for_syntax(question) {
         let _ = write!(text, "\n  {}", question.why);
     }
     let _ = write!(text, "\n  what you asked: « {} »", one_line(&round.intent));

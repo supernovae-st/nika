@@ -127,6 +127,9 @@ pub struct AuthoringRound {
     pub questions: Vec<CompileQuestion>,
     /// The compiler's reasons for the open questions (its own words).
     pub reasons: Vec<String>,
+    /// How many times the human restated a clause in words in place of a
+    /// rule the compiler could only ask as code (bounded: one).
+    pub restatements: u8,
 }
 
 impl AuthoringRound {
@@ -139,6 +142,7 @@ impl AuthoringRound {
             continuation: None,
             questions: Vec::new(),
             reasons: Vec::new(),
+            restatements: 0,
         }
     }
 

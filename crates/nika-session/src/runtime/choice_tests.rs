@@ -9,7 +9,7 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use super::tests::{COPY, Failing, SMALL_TALK, Seat, UNSETTLED, ready, tree};
+use super::tests::{COPY, COPY_DEST, Failing, SMALL_TALK, Seat, UNSETTLED, ready, tree};
 use super::*;
 use crate::intelligence::{DataLocus, IntelligenceKind};
 use crate::reasoner::{NoReasoner, ScriptedReasoner};
@@ -120,6 +120,81 @@ fn choosing_no_intelligence_in_context_resumes_with_the_facts() {
     assert!(
         matches!(s.turn(SMALL_TALK), TurnOutcome::Refusal(_)),
         "an explicit none is never re-asked"
+    );
+}
+
+/// A rule the compiler can only ask as code never reaches the human as
+/// code: the clause is asked in words, the words take its place in the
+/// request and the compiler reads it again (Ready here); a clause that
+/// stays code after the words, or a clause the request does not carry as
+/// quoted, is an honest incomplete naming the way on — never « which jq
+/// expression ».
+#[test]
+fn a_rule_the_compiler_asks_as_code_is_asked_in_words_and_restated() {
+    let dir = tree();
+    std::fs::write(
+        dir.path().join("sales.csv"),
+        "date,client,amount,status\n2026-09-01,Acme,120.50,paid\n",
+    )
+    .expect("csv");
+    let mut s = SessionRuntime::open(
+        dir.path(),
+        ready(IntelligenceKind::None, DataLocus::None),
+        Box::new(NoReasoner),
+    );
+    let intent = "Read ./sales.csv, compute the total and write it to ./total.txt";
+    let TurnOutcome::Question { key, question } = s.turn(intent) else {
+        panic!("the compiler asks for the rule of « the total »");
+    };
+    assert_eq!(key, "const.rule_expression", "the compiler's own key stays");
+    assert!(
+        question.contains("in words") && question.contains("« the total »"),
+        "{question}"
+    );
+    assert!(
+        !question.to_ascii_lowercase().contains("jq") && !question.contains("expression"),
+        "no syntax is asked of a human: {question}"
+    );
+    // « why? » explains in words too, and the question still waits.
+    let TurnOutcome::Aside(aside) = s.turn("why?") else {
+        panic!("why? is an aside");
+    };
+    assert!(
+        aside.contains("never asks you for code")
+            && !aside.to_ascii_lowercase().contains("jq")
+            && !aside.contains("const.rule_expression"),
+        "{aside}"
+    );
+    assert!(s.authoring.is_some(), "the question still waits");
+    // The words take the clause's place: the request reads again, Ready.
+    let outcome = s.turn("the total of the amount column");
+    assert!(
+        matches!(outcome, TurnOutcome::Proposal { ref preview, .. } if preview.contains("total")),
+        "{outcome:?}"
+    );
+    assert!(
+        s.recent
+            .iter()
+            .any(|(_, a)| a.contains("restated « the total » in words")),
+        "{:?}",
+        s.recent
+    );
+    assert!(matches!(s.consent("no"), TurnOutcome::Facts(_)));
+    // Words that leave the rule as code: the honest incomplete, no syntax.
+    assert!(matches!(s.turn(intent), TurnOutcome::Question { .. }));
+    let TurnOutcome::Facts(text) = s.turn("something clever") else {
+        panic!("a second code question is an honest incomplete");
+    };
+    assert!(
+        text.starts_with("I read this as work but cannot build")
+            && text.contains("I never ask you for code")
+            && !text.to_ascii_lowercase().contains("jq"),
+        "{text}"
+    );
+    assert!(s.authoring.is_none(), "the round is dropped");
+    assert!(
+        !dir.path().join(COPY_DEST).exists() && !dir.path().join("total.txt").exists(),
+        "nothing written"
     );
 }
 

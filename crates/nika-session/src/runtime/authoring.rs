@@ -133,6 +133,31 @@ impl SessionRuntime {
                     return TurnOutcome::Facts(honest_incomplete(&out, None));
                 };
                 let key = question.key.clone();
+                // A rule the compiler can only ask as code is never asked
+                // as code: once, the clause is asked in words (the human's
+                // words replace it in the request); a second time, or a
+                // clause the request does not carry verbatim, is an honest
+                // incomplete that names the way on.
+                if asks_for_syntax(question) {
+                    let clause = clause_of(&question.label);
+                    let carried = clause
+                        .as_deref()
+                        .is_some_and(|c| round.intent.contains(c));
+                    if round.restatements > 0 || !carried {
+                        self.intent.unresolved.clear();
+                        let text = syntax_incomplete(clause.as_deref());
+                        self.remember(&round.intent, &text);
+                        return TurnOutcome::Facts(text);
+                    }
+                    let text = syntax_question_text(clause.as_deref().unwrap_or_default());
+                    self.intent.unresolved = vec![text.clone()];
+                    self.remember(&round.intent, &text);
+                    self.authoring = Some(round);
+                    return TurnOutcome::Question {
+                        key,
+                        question: text,
+                    };
+                }
                 let mut text = question_text(question, &round.reasons);
                 if key == "model"
                     && let AuthoringSeat::Provider { model } = &self.seat
@@ -244,6 +269,26 @@ impl SessionRuntime {
             line.to_owned()
         };
         let line = line.as_str();
+        // The clause asked in words: the human's words take its place in
+        // the request, which the compiler reads again — a fresh round (the
+        // plan read a different request), one restatement counted.
+        if round.current().is_some_and(asks_for_syntax) {
+            let clause = round
+                .current()
+                .and_then(|q| clause_of(&q.label))
+                .unwrap_or_default();
+            let intent = round.intent.replacen(&clause, line.trim(), 1);
+            let mut restated = AuthoringRound::new(intent);
+            restated.restatements = round.restatements.saturating_add(1);
+            self.remember(line, &format!("(restated « {clause} » in words)"));
+            return match compile_through(&self.seat, &restated.request()) {
+                Ok(out) => {
+                    let reading = Reading::of(out);
+                    self.settle(restated, reading)
+                }
+                Err(e) => self.machinery(&e),
+            };
+        }
         let Some(key) = round.answer_current(line) else {
             return TurnOutcome::Refusal(Refusal::new(
                 RefusalClass::WrongState,
@@ -502,6 +547,42 @@ fn question_text(question: &CompileQuestion, reasons: &[String]) -> String {
     // turn it is.
     text.push_str("\n  reply on the next line · `cancel` drops this · `why?` explains");
     text
+}
+
+/// A question that asks the human for code (a jq or CEL expression, a
+/// `const.*_expression` value): a product defect when it reaches them.
+pub(super) fn asks_for_syntax(question: &CompileQuestion) -> bool {
+    let label = question.label.to_ascii_lowercase();
+    question.key.ends_with("_expression")
+        || label.contains("jq expression")
+        || label.contains(" jq ")
+        || label.contains("cel expression")
+}
+
+/// The clause the compiler quotes in its question (between backticks),
+/// as the request carries it.
+pub(super) fn clause_of(label: &str) -> Option<String> {
+    let start = label.find('`')? + 1;
+    let end = start + label[start..].find('`')?;
+    let clause = label[start..end].trim();
+    (!clause.is_empty()).then(|| clause.to_owned())
+}
+
+/// The clause asked in words — never a syntax — with what to say and
+/// what Nika does with it.
+fn syntax_question_text(clause: &str) -> String {
+    format!(
+        "One thing I need from you, in words: how to do « {clause} ». Say it as you would to a colleague — what to keep, what to compute, over which column (e.g. « the total of the amount column » · « the rows whose status is paid »); your words take the place of « {clause} » in your request and Nika reads it again. No code is needed.\n  reply on the next line · `cancel` drops this · `why?` explains"
+    )
+}
+
+/// The honest incomplete when the rule stays code after the human's words
+/// (or the clause is not in the request as quoted): the way on, no syntax.
+fn syntax_incomplete(clause: Option<&str>) -> String {
+    let what = clause.map_or("this step".to_owned(), |c| format!("« {c} »"));
+    format!(
+        "I read this as work but cannot build {what} from your words yet: it would need a rule I can only write as code, and I never ask you for code.\n  · say the step differently — what to keep, what to compute, over which column, and where to write it\n  · or `cancel` and describe the work again\n  nothing was written"
+    )
 }
 
 /// An incomplete the human can act on: what the reader could not settle,
