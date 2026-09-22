@@ -198,6 +198,70 @@ impl SessionRuntime {
         }
     }
 
+    /// The revised proposal: the new candidate proposed, with the restated
+    /// request beside it when one was read (« read as », a paraphrase the
+    /// human can correct) and the Meaning delta — what the words changed,
+    /// the base reading's ledger against the revised one (§21).
+    fn propose_revision(
+        &mut self,
+        goal: &str,
+        out: &CompileOutcome,
+        read_as: Option<&str>,
+    ) -> TurnOutcome {
+        let delta = self
+            .last_outcome
+            .as_ref()
+            .and_then(|base| base.provenance.decision.as_ref()?.get("ledger").cloned())
+            .zip(
+                out.provenance
+                    .decision
+                    .as_ref()
+                    .and_then(|d| d.get("ledger").cloned()),
+            )
+            .and_then(|(before, after)| crate::meaning::delta(&before, &after));
+        match self.propose(goal, out) {
+            TurnOutcome::Proposal { id, preview } => {
+                let mut text = String::new();
+                if let Some(read_as) = read_as {
+                    let _ = writeln!(
+                        text,
+                        "read as: « {read_as} » (your request with the change, as Nika read it — say it differently if that is not it)"
+                    );
+                }
+                text.push_str(&preview);
+                if let Some(delta) = delta {
+                    text.push('\n');
+                    text.push_str(&delta);
+                }
+                TurnOutcome::Proposal { id, preview: text }
+            }
+            other => other,
+        }
+    }
+
+    /// The request as the human would now say it, with the change applied —
+    /// one bounded call to the chosen intelligence; `None` without one, or
+    /// when the answer is not one plain request (then the words are used as
+    /// said). A paraphrase, shown beside the proposal, never applied unseen.
+    fn restate_request(&mut self, goal: &str, change: &str) -> Option<String> {
+        if !(self.intelligence.ready && self.chosen && self.reasoner.name() != "none") {
+            return None;
+        }
+        let prompt = format!(
+            "A human asked Nika, an automation tool, for this automation: «{goal}».\nNow the human says: «{change}».\nRewrite the request as the human would now state it in full, in one or two plain sentences and in the human's own language, keeping every part they did not change and applying the change exactly (a replaced destination, schedule or step replaces the old one; it is not added beside it). Answer with the rewritten request only: no quotes, no explanation."
+        );
+        let reply = self.reasoner.reason_label(&prompt).ok()?;
+        let line = reply
+            .text
+            .lines()
+            .map(str::trim)
+            .find(|l| !l.is_empty())?
+            .trim_matches(|c: char| matches!(c, '"' | '«' | '»' | '\u{201c}' | '\u{201d}'))
+            .trim()
+            .to_owned();
+        (!line.is_empty() && line.len() <= 600 && line != goal).then_some(line)
+    }
+
     /// A change said while nothing waits and a workflow was accepted: the
     /// saved workflow is the base, the human's words the change; the
     /// revision is a new proposal beside it (the same edit door, then the
@@ -303,46 +367,41 @@ impl SessionRuntime {
             }
         };
         let settled = out.status == CompileStatus::Ready && out.candidate.is_some();
-        if !settled && matches!(self.seat, AuthoringSeat::Provider { .. }) {
-            self.activity(&Activity::now(
-                Phase::Repairing,
-                "reading your request again with the change",
-            ));
-            let again = CompileRequest::create(format!("{}. Change: {}", set.goal, change.trim()));
-            out = match compile_through(&self.seat, &again) {
-                Ok(out) => out,
-                Err(e) => {
-                    self.pending = Some(set);
-                    return self.machinery(&e);
-                }
-            };
+        // Until the compiler's revise door (contract C6) is shared truth, the
+        // request is RESTATED with the change by the chosen intelligence —
+        // the human's request as they would now say it, shown beside the new
+        // proposal so a paraphrase can be corrected — and read again through
+        // the same door (deterministic first, the seat when there is one).
+        // Without an intelligence the words are composed as said
+        // (« request. Change: … »), under a seat only.
+        let mut read_as: Option<String> = None;
+        if !settled {
+            let restated = self.restate_request(&set.goal, change.trim());
+            let seated = matches!(self.seat, AuthoringSeat::Provider { .. });
+            if restated.is_some() || seated {
+                self.activity(&Activity::now(
+                    Phase::Repairing,
+                    "reading your request again with the change",
+                ));
+                let text = restated
+                    .clone()
+                    .unwrap_or_else(|| format!("{}. Change: {}", set.goal, change.trim()));
+                let again = CompileRequest::create(text);
+                out = match compile_through(&self.seat, &again) {
+                    Ok(out) => out,
+                    Err(e) => {
+                        self.pending = Some(set);
+                        return self.machinery(&e);
+                    }
+                };
+                read_as = restated;
+            }
         }
+        let goal = read_as.clone().unwrap_or(goal);
         match Reading::of(out) {
             Reading::Ready(out) => {
                 self.remember(change, "(revised the proposal)");
-                // What the words changed in meaning: the base reading's
-                // ledger against the revised one (the Meaning delta, §21).
-                let delta = self
-                    .last_outcome
-                    .as_ref()
-                    .and_then(|base| base.provenance.decision.as_ref()?.get("ledger").cloned())
-                    .zip(
-                        out.provenance
-                            .decision
-                            .as_ref()
-                            .and_then(|d| d.get("ledger").cloned()),
-                    )
-                    .and_then(|(before, after)| crate::meaning::delta(&before, &after));
-                match self.propose(&goal, &out) {
-                    TurnOutcome::Proposal { id, preview } => TurnOutcome::Proposal {
-                        id,
-                        preview: match delta {
-                            Some(delta) => format!("{preview}\n{delta}"),
-                            None => preview,
-                        },
-                    },
-                    other => other,
-                }
+                self.propose_revision(&goal, &out, read_as.as_deref())
             }
             reading => {
                 let id = ProposalId::of(&set.preview());

@@ -12,7 +12,7 @@ use std::collections::BTreeMap;
 use super::tests::{COPY, COPY_DEST, ready, tree};
 use super::*;
 use crate::intelligence::{DataLocus, IntelligenceKind};
-use crate::reasoner::NoReasoner;
+use crate::reasoner::{NoReasoner, ScriptedReasoner};
 use crate::turn::{
     ConservativeFallback, RoutingMethod, SessionPhase, TurnAct, TurnClassifier, TurnContext,
     TurnDecision,
@@ -256,6 +256,50 @@ fn at_a_question_a_question_explains_and_the_fallback_binds() {
     assert!(text.contains("This answer fills `model`"), "{text}");
     assert!(f.pending_question().is_some(), "the question still waits");
     assert!(matches!(f.turn("mock/echo"), TurnOutcome::Proposal { .. }));
+}
+
+/// A change at the consent prompt, with an intelligence: the request is
+/// restated with the change (one bounded call, shown as « read as »), read
+/// again, and the new proposal names the new destination; the Meaning
+/// delta says what the words changed; `yes` then applies THAT proposal.
+#[test]
+fn a_change_restates_the_request_and_the_revision_names_the_new_destination() {
+    let dir = tree();
+    std::fs::create_dir_all(dir.path().join("notes")).expect("notes");
+    std::fs::write(dir.path().join("notes/brief.md"), "brief\n").expect("brief");
+    let mut s = SessionRuntime::open(
+        dir.path(),
+        ready(
+            IntelligenceKind::Api {
+                provider: "mock".to_owned(),
+            },
+            DataLocus::None,
+        ),
+        Box::new(ScriptedReasoner::new(vec![
+            "Read ./notes/brief.md and write it to ./out/copie-2.md".to_owned(),
+        ])),
+    );
+    s.with_classifier(Box::new(corpus()));
+    assert!(matches!(s.turn(COPY), TurnOutcome::Proposal { .. }));
+    let TurnOutcome::Proposal { preview, .. } =
+        s.consent("actually write it to ./out/copie-2.md instead")
+    else {
+        panic!("a revised proposal");
+    };
+    assert!(
+        preview.contains("read as: « Read ./notes/brief.md and write it to ./out/copie-2.md »"),
+        "{preview}"
+    );
+    assert!(
+        preview.contains("copie-2.md") && preview.contains("Meaning · what changed"),
+        "{preview}"
+    );
+    assert!(matches!(s.consent("yes"), TurnOutcome::Facts(ref t) if t.contains("applied")));
+    let saved = std::fs::read_to_string(dir.path().join(COPY_DEST)).expect("saved");
+    assert!(
+        saved.contains("copie-2.md") && !saved.contains("copy.md"),
+        "{saved}"
+    );
 }
 
 /// A request the deterministic reader called « not work » but the route
