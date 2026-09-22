@@ -774,11 +774,15 @@ fn a_question_at_the_consent_prompt_holds_the_proposal() {
             && text.contains("./out/copy.md"),
         "the set's own effects: {text}"
     );
+    // An open line no intelligence can read: the proposal kept, the set's
+    // own effects said, the protocol forms named — never a guess.
     let TurnOutcome::Held { preview: text, .. } = s.consent("hmm") else {
         panic!("held");
     };
     assert!(
-        text.contains("not a consent") && text.contains("still waits"),
+        text.contains("nothing changed")
+            && text.contains("when it runs:")
+            && text.contains("still waits"),
         "{text}"
     );
     assert!(!dir.path().join(COPY_DEST).exists());

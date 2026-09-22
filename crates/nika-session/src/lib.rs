@@ -27,6 +27,7 @@
 //! catalogs, the codes, the checker, the compiler, the runtime. Its
 //! identity core ([`identity`]) says so to the model in six laws.
 
+pub mod activity;
 pub mod authoring;
 pub mod broker;
 pub mod change;
@@ -43,6 +44,7 @@ mod run_view;
 pub mod runtime;
 pub mod snapshot;
 pub mod state;
+pub mod turn;
 
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]

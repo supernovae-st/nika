@@ -33,6 +33,22 @@ use crate::reasoner::SessionReasoner;
 
 /// The compiler's question for a whole replacement request (its own key).
 const CLARIFICATION_KEY: &str = "intent.clarification";
+
+/// The stronger authoring model of a provider, when the catalog holds one
+/// the preflight proved — the escalation the product law permits (quality
+/// first): `None` when the model already is the strongest, or unknown.
+#[must_use]
+pub fn stronger_model(model: &str) -> Option<&'static str> {
+    let (provider, name) = model.split_once('/')?;
+    let strongest = match provider {
+        "openai" => "openai/gpt-5.2",
+        "xai" => "xai/grok-4.7",
+        "deepseek" => "deepseek/deepseek-v4-pro",
+        "mistral" => "mistral/mistral-large-latest",
+        _ => return None,
+    };
+    (format!("{provider}/{name}") != strongest).then_some(strongest)
+}
 /// Output tokens one authoring call may spend (the compiler's ceiling; deep work needs room).
 const AUTHORING_MAX_TOKENS: u32 = 8192;
 /// Wall time one authoring call may take (the compiler's own ceiling).
@@ -329,67 +345,6 @@ pub fn is_greeting(input: &str) -> bool {
     )
 }
 
-/// A line shaped like a question or a request to explain — the
-/// conversation, not work to build (a closed lexical rule, no model).
-#[must_use]
-pub fn looks_like_discussion(input: &str) -> bool {
-    let trimmed = input.trim();
-    if trimmed.ends_with('?') {
-        return true;
-    }
-    let first = trimmed
-        .split(|c: char| c.is_whitespace() || c == ',' || c == ':')
-        .next()
-        .unwrap_or("")
-        .to_lowercase();
-    matches!(
-        first.as_str(),
-        "what"
-            | "why"
-            | "how"
-            | "which"
-            | "who"
-            | "when"
-            | "where"
-            | "is"
-            | "are"
-            | "can"
-            | "could"
-            | "does"
-            | "do"
-            | "did"
-            | "should"
-            | "would"
-            | "explain"
-            | "tell"
-            | "describe"
-            | "quoi"
-            | "pourquoi"
-            | "comment"
-            | "quel"
-            | "quelle"
-            | "quels"
-            | "quelles"
-            | "qui"
-            | "quand"
-            | "où"
-            | "est-ce"
-            | "peux-tu"
-            | "peut-on"
-            | "explique"
-            | "explique-moi"
-            | "dis-moi"
-            | "décris"
-            | "hello"
-            | "hi"
-            | "hey"
-            | "bonjour"
-            | "salut"
-            | "thanks"
-            | "merci"
-    )
-}
-
 /// What one compile outcome means for the conversation — a closed
 /// reading of the compiler's own typed fields, never of its prose.
 #[derive(Debug)]
@@ -546,6 +501,24 @@ pub fn compile_through(
 #[allow(clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+
+    /// The stronger model is the provider's strongest, never the same one twice.
+    #[test]
+    fn a_stronger_model_is_the_providers_strongest() {
+        assert_eq!(stronger_model("openai/gpt-5-mini"), Some("openai/gpt-5.2"));
+        assert_eq!(
+            stronger_model("openai/gpt-5.2"),
+            None,
+            "already the strongest"
+        );
+        assert_eq!(stronger_model("xai/grok-4.3"), Some("xai/grok-4.7"));
+        assert_eq!(
+            stronger_model("ollama/qwen3.5:4b"),
+            None,
+            "unknown provider"
+        );
+        assert_eq!(stronger_model("nonsense"), None);
+    }
     use crate::intelligence::DataLocus;
     use crate::reasoner::{NoReasoner, ProviderReasoner};
 
@@ -693,14 +666,11 @@ mod tests {
     }
 
     #[test]
-    fn cancel_words_and_discussion_shapes_are_closed_sets() {
+    fn cancel_words_and_greetings_are_closed_protocol_sets() {
         assert!(is_cancel("cancel"));
         assert!(is_cancel(" Annule "));
         assert!(!is_cancel("no"), "a no answers a question");
         assert!(!is_cancel("./notes"));
-        assert!(looks_like_discussion("what does alpha.nika do?"));
-        assert!(looks_like_discussion("Explique-moi les permits"));
-        assert!(looks_like_discussion("hello"));
         assert!(is_greeting("hello"), "the bare word");
         assert!(is_greeting(" Hello! "), "case and punctuation aside");
         assert!(is_greeting("merci."));
@@ -709,10 +679,6 @@ mod tests {
             "a sentence is not a bare greeting"
         );
         assert!(!is_greeting("hello.nika"), "a file is not a greeting");
-        assert!(!looks_like_discussion("build me a digest of the docs"));
-        assert!(!looks_like_discussion(
-            "Lis ./notes/brief.md et écris-le dans ./out/copie.md"
-        ));
     }
 
     #[test]

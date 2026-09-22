@@ -34,6 +34,7 @@ mod durable;
 mod durable_tests;
 mod history;
 mod recovery;
+mod route;
 mod schedule;
 
 /// The durable half of the conversation — decisions, not chat.
@@ -263,6 +264,12 @@ pub struct SessionRuntime {
     last_trigger: Option<TriggerRequirement>,
     /// The activation under way: its questions own the next lines.
     activation: Option<schedule::Activation>,
+    /// The bounded classifier of open language, when a door injects one
+    /// (a decision seat, a scripted one in tests); otherwise the session's
+    /// own intelligence answers the routing prompt, or the fallback.
+    classifier: Option<Box<dyn crate::turn::TurnClassifier>>,
+    /// Every non-trivial route decided in this session (`/details`).
+    routes: Vec<crate::turn::RouteRecord>,
 }
 
 /// A door's sink for progress lines (« Working through this workflow… »);
@@ -317,6 +324,8 @@ impl SessionRuntime {
             interrupted: None,
             pending_choice: false,
             last_recovery: None,
+            classifier: None,
+            routes: Vec::new(),
             last_outcome: None,
             pending_trigger: None,
             last_trigger: None,
@@ -496,6 +505,12 @@ impl SessionRuntime {
     /// door prints them; a remote host projects them. Presentation only.
     pub fn on_progress(&mut self, hook: ProgressHook) {
         self.progress = Some(hook);
+    }
+
+    /// One typed activity to the door, when one listens: the door prints
+    /// its line (the plain loop) or draws it in the busy row (the renderer).
+    pub(super) fn activity(&self, activity: &crate::activity::Activity) {
+        self.progress(&activity.line());
     }
 
     /// One truthful progress line to the door, when one listens.
@@ -860,38 +875,11 @@ impl SessionRuntime {
             );
         }
         if !is_yes(answer) {
-            // Anything that is neither a yes nor a no is a question about the
-            // proposal: answered from the set itself (what it reaches) or from
-            // the engine, and the proposal HELD — a newcomer who asks « what is
-            // permits? » at the prompt must not lose the file.
-            let lower = answer.to_lowercase();
-            let about_effects = [
-                "read",
-                "write",
-                "network",
-                "reach",
-                "when it runs",
-                "effect",
-                "spend",
-                "cost",
-                "touch",
-            ]
-            .iter()
-            .any(|w| lower.contains(w));
-            let text = if about_effects {
-                set.effects_fact()
-            } else {
-                crate::facts::answer(answer, &self.snapshot, &self.snapshot.root).unwrap_or_else(|| {
-                    "that line is not a consent — ask about the proposal (what it reads and writes · its check · a word) or answer".to_owned()
-                })
-            };
-            self.pending = Some(set);
-            return TurnOutcome::Held {
-                id,
-                preview: format!(
-                    "{text}\n(the proposal still waits · `yes` applies it · `no` discards it)"
-                ),
-            };
+            // Not a protocol token: open language. Its act is a bounded
+            // decision over the typed state and the RAW line (the door's
+            // classifier, the session's intelligence, else UNKNOWN) —
+            // never a word list, never a consent.
+            return self.route_at_consent(set, id, answer);
         }
         let applied = match set.apply_attempt() {
             Ok(applied) => applied,
@@ -1183,6 +1171,24 @@ impl SessionRuntime {
                 "the gate needs an answer — nothing answers for you",
             ));
         }
+        // A confirm gate takes its protocol tokens and nothing else: any
+        // other line is open language — a question about the gate explains
+        // it, a change belongs to the workflow (« no », then the change);
+        // neither answers the gate. Authority never comes from a reading.
+        if gate.mode == "confirm" && !is_gate_token(line) {
+            let decision = self.classify(crate::turn::SessionPhase::GatePending, line);
+            let text = match decision.act {
+                crate::turn::TurnAct::Modify | crate::turn::TurnAct::Mixed => {
+                    "the gate takes a yes or a no — a change belongs to the workflow: answer `no`, then say the change".to_owned()
+                }
+                _ => format!(
+                    "{}\n  the gate still waits · `yes` or `no` answers it",
+                    aside::explain_gate(&gate, &self.snapshot.root)
+                ),
+            };
+            self.pending_gate = Some(gate);
+            return TurnOutcome::Aside(text);
+        }
         self.answered = Some(GateId::new(&gate.trace, &gate.task));
         let answer = gate.answer_arg(line);
         self.remember("(gate)", &format!("{} answered: {answer}", gate.task));
@@ -1347,6 +1353,15 @@ fn is_quit(answer: &str) -> bool {
     matches!(answer.trim(), "/quit" | "/exit")
 }
 
+/// The whole-line tokens a confirm gate accepts — a protocol, not a
+/// reading of language (a longer line is routed, never reduced to one).
+fn is_gate_token(line: &str) -> bool {
+    matches!(
+        line.trim().to_lowercase().as_str(),
+        "yes" | "y" | "true" | "ok" | "oui" | "approve" | "no" | "n" | "false" | "non" | "deny"
+    )
+}
+
 /// The refusal line: `no` in the few words a human types for it.
 fn is_no(answer: &str) -> bool {
     matches!(
@@ -1387,6 +1402,9 @@ mod authoring_tests;
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod choice_tests;
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod route_tests;
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod tests;

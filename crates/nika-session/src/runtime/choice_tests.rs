@@ -198,6 +198,73 @@ fn a_rule_the_compiler_asks_as_code_is_asked_in_words_and_restated() {
     );
 }
 
+/// A change said at the consent prompt revises the proposal through the
+/// compiler's edit door; when the revision cannot settle (here: no seat,
+/// a change the deterministic door cannot read), the proposal still waits
+/// and the human is told in words — never « rephrase » — and a `yes`
+/// still applies the original.
+/// The route as a bounded decision (scripted here): a change, else a question.
+struct Two;
+
+impl crate::turn::TurnClassifier for Two {
+    fn classify(
+        &mut self,
+        _context: &crate::turn::TurnContext,
+        raw: &str,
+    ) -> crate::turn::TurnDecision {
+        let act = if raw.starts_with("actually") {
+            crate::turn::TurnAct::Modify
+        } else {
+            crate::turn::TurnAct::Discuss
+        };
+        crate::turn::TurnDecision::new(act, crate::turn::RoutingMethod::Model)
+    }
+}
+
+#[test]
+fn a_change_at_the_consent_prompt_revises_or_keeps_the_proposal_waiting() {
+    let dir = tree();
+    std::fs::create_dir_all(dir.path().join("notes")).expect("notes");
+    std::fs::write(dir.path().join("notes/brief.md"), "brief\n").expect("brief");
+    let mut s = SessionRuntime::open(
+        dir.path(),
+        ready(IntelligenceKind::None, DataLocus::None),
+        Box::new(NoReasoner),
+    );
+    s.with_classifier(Box::new(Two));
+    let TurnOutcome::Proposal { id, .. } = s.turn(COPY) else {
+        panic!("a proposal");
+    };
+    // A question about the proposal still holds it (as before).
+    assert!(matches!(
+        s.consent("what does it read?"),
+        TurnOutcome::Held { .. }
+    ));
+    // A change: the edit door is asked; without a seat it cannot settle a
+    // free change, so the proposal waits and the words say so.
+    let TurnOutcome::Held { id: held, preview } =
+        s.consent("actually write it to ./out/copie-2.md instead")
+    else {
+        panic!("the proposal still waits");
+    };
+    assert_eq!(held, id, "the same proposal");
+    assert!(
+        preview.contains("could not revise") && preview.contains("still waits"),
+        "{preview}"
+    );
+    assert!(
+        !preview.to_ascii_lowercase().contains("rephrase")
+            && !preview.to_ascii_lowercase().contains("jq"),
+        "no machine-owned words: {preview}"
+    );
+    assert!(s.pending_proposal().is_some());
+    assert!(
+        matches!(s.consent("yes"), TurnOutcome::Facts(ref t) if t.contains("applied")),
+        "the original still applies"
+    );
+    assert!(dir.path().join(COPY_DEST).exists());
+}
+
 /// A kept choice this machine cannot serve (an app that is here but
 /// cannot answer): the banner says so in plain words; the first line that
 /// needs an intelligence — a conversation line or work the reader cannot
