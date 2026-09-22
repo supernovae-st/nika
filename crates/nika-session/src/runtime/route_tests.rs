@@ -257,3 +257,38 @@ fn at_a_question_a_question_explains_and_the_fallback_binds() {
     assert!(f.pending_question().is_some(), "the question still waits");
     assert!(matches!(f.turn("mock/echo"), TurnOutcome::Proposal { .. }));
 }
+
+/// A request the deterministic reader called « not work » but the route
+/// calls `NEW_WORK` (a French total over a CSV, files named) is work: with no
+/// intelligence chosen yet the first screen is asked in context and the
+/// line is kept — never answered as conversation with a plan nothing builds.
+#[test]
+fn new_work_the_reader_missed_asks_for_an_intelligence_and_keeps_the_line() {
+    let dir = tree();
+    std::fs::create_dir_all(dir.path().join("data")).expect("data");
+    std::fs::write(
+        dir.path().join("data/ventes.csv"),
+        "date,montant,statut\n2026-09-01,10,payé\n",
+    )
+    .expect("csv");
+    let line = "Fais-moi le total de ce qu'on a encaissé dans ./data/ventes.csv (uniquement les ventes payées) et mets ça dans ./out/total.md";
+    let mut s = SessionRuntime::open_unchosen(
+        dir.path(),
+        crate::intelligence::IntelligenceCensus {
+            seats: vec![],
+            api_keys: vec![],
+            locals: vec![],
+        },
+        None,
+        Box::new(|_| Box::new(NoReasoner)),
+    );
+    s.with_classifier(Box::new(Scripted(BTreeMap::from([(
+        line,
+        TurnAct::NewWork,
+    )]))));
+    let out = s.turn(line);
+    assert!(
+        s.pending_choice(),
+        "the first screen is asked in context: {out:?}"
+    );
+}

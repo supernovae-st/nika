@@ -81,8 +81,14 @@ impl SessionRuntime {
                 }
                 let seat_reads = matches!(self.seat, AuthoringSeat::Provider { .. });
                 match self.classify(SessionPhase::Idle, intent).act {
-                    TurnAct::NewWork if seat_reads && named_files(intent).is_empty() => {
-                        Some(self.compile_under_seat(round))
+                    // Work the deterministic reader did not recognise, routed
+                    // as new work: the seat reads it, files named or not;
+                    // without a seat the first screen is asked in context,
+                    // as for an unsettled reading (never a conversational
+                    // paraphrase of a plan that nothing will build).
+                    TurnAct::NewWork if seat_reads => Some(self.compile_under_seat(round)),
+                    TurnAct::NewWork if !self.chosen || !self.intelligence.ready => {
+                        Some(self.ask_for_intelligence(intent, super::Need::Authoring))
                     }
                     TurnAct::Modify | TurnAct::Mixed => {
                         let saved = self.last_workflow.clone()?;
