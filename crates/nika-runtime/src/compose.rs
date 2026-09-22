@@ -586,10 +586,11 @@ const PROVIDER_TRANSPORT_CEILING: std::time::Duration = std::time::Duration::fro
 /// contradicts the local-first raison. `Disabled` is exactly the
 /// "trusted internal networks" opt-out the `nika-http` docs sanction.
 ///
-/// The config `timeout` is raised to [`PROVIDER_TRANSPORT_CEILING`]: the
-/// per-REQUEST deadline is owned by the wire layer (task `timeout:` else
-/// the per-provider default), and the 30s client default would undercut
-/// any longer budget via the idle-read guard (see the ceiling's doc).
+/// The config `timeout` is raised to the provider transport ceiling (the
+/// private `PROVIDER_TRANSPORT_CEILING`, 600 s): the per-REQUEST deadline is
+/// owned by the wire layer (task `timeout:` else the per-provider default),
+/// and the 30s client default would undercut any longer budget via the
+/// idle-read guard (see the ceiling's doc).
 /// Empirical anchor (#148 · M3 Pro): local thinking-era models legitimately
 /// exceed 30s — `qwen3.5:4b` ~43s · `qwen3.5:9b` ~87s for one structured
 /// task · cold model load adds 30-60s (the reason local classes default
