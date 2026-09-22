@@ -368,3 +368,51 @@ fn the_cannot_build_card_tells_an_authoring_failure_from_a_language_gap() {
     );
     assert!(!failed.contains("rephrase"), "never « rephrase »: {failed}");
 }
+
+/// A cloud model the catalog does not price is refused at the model
+/// question, in words, with the priced models of its provider; a priced
+/// cloud model and a local engine pass; a line that is not a model is left
+/// to the compiler. At the question itself the round keeps waiting.
+#[test]
+fn an_unpriced_cloud_model_is_refused_at_the_question_in_words() {
+    let text = super::authoring::unpriced_model_text("deepseek/deepseek-flash").expect("unpriced");
+    assert!(
+        text.contains("not priced in Nika's catalog") && text.contains("NIKA-1709"),
+        "{text}"
+    );
+    let priced_cloud = nika_catalog::all_providers()
+        .iter()
+        .filter(|p| p.requires_key)
+        .find_map(|p| {
+            p.models
+                .iter()
+                .find(|m| nika_catalog::find_pricing_scoped(p.id, m.model).is_some())
+                .map(|m| format!("{}/{}", p.id, m.model))
+        })
+        .expect("the catalog prices at least one cloud model");
+    assert!(
+        super::authoring::unpriced_model_text(&priced_cloud).is_none(),
+        "{priced_cloud}"
+    );
+    assert!(
+        super::authoring::unpriced_model_text("ollama/llama3.1").is_none(),
+        "local: unpriced by nature"
+    );
+    assert!(super::authoring::unpriced_model_text("mock/echo").is_none());
+    assert!(super::authoring::unpriced_model_text("five lines").is_none());
+    // At the question: refused in words, the round waits; a passing answer binds.
+    let (_dir, mut s) = session_with(Box::new(corpus()));
+    let TurnOutcome::Question { key, .. } = s.turn(
+        "Read ./notes/brief.md, draft a 3-bullet summary of it and write the summary to ./out/summary.md",
+    ) else {
+        panic!("the compiler asks for the model");
+    };
+    assert_eq!(key, "model");
+    let TurnOutcome::Question { key, question } = s.turn("deepseek/deepseek-flash") else {
+        panic!("refused in words, still a question");
+    };
+    assert_eq!(key, "model");
+    assert!(question.contains("not priced"), "{question}");
+    assert!(s.pending_question().is_some(), "the question still waits");
+    assert!(matches!(s.turn("mock/echo"), TurnOutcome::Proposal { .. }));
+}

@@ -604,6 +604,19 @@ impl SessionRuntime {
                 Err(e) => self.machinery(&e),
             };
         }
+        // A cloud model the catalog does not price is refused HERE, in
+        // words, with the priced models of its provider — not at run time,
+        // where a run under a spending ceiling refuses it (NIKA-1709). The
+        // typed line or the seat the empty line took: both are judged.
+        if round.current().is_some_and(|q| q.key == "model")
+            && let Some(text) = unpriced_model_text(line)
+        {
+            self.authoring = Some(round);
+            return TurnOutcome::Question {
+                key: "model".to_owned(),
+                question: text,
+            };
+        }
         let Some(key) = round.answer_current(line) else {
             return TurnOutcome::Refusal(Refusal::new(
                 RefusalClass::WrongState,
@@ -964,6 +977,53 @@ pub(super) fn cannot_express_text(out: &CompileOutcome) -> String {
         "\n  what helps: say the outcome in one sentence (what to read · what to produce · where it goes), or split the work in two requests · `/meaning` shows what was understood"
     });
     text
+}
+
+/// The words when a run model names a CLOUD model the catalog does not
+/// price: a run under a spending ceiling would refuse it (NIKA-1709), so
+/// the question says so now and names the priced models of that provider.
+/// `None` when the model is priced, when the provider is a local engine
+/// (unpriced by nature, never refused), or when the line is not
+/// `provider/model` (the compiler judges it).
+pub(super) fn unpriced_model_text(answer: &str) -> Option<String> {
+    let (provider, model) = answer.trim().split_once('/')?;
+    let row = nika_catalog::all_providers()
+        .iter()
+        .find(|p| p.id == provider || p.aliases.contains(&provider))?;
+    if !row.requires_key || nika_catalog::find_pricing_scoped(row.id, model).is_some() {
+        return None;
+    }
+    let priced: Vec<String> = row
+        .models
+        .iter()
+        .filter(|m| nika_catalog::find_pricing_scoped(row.id, m.model).is_some())
+        .map(|m| {
+            if m.id.contains('/') {
+                m.id.to_owned()
+            } else {
+                format!("{}/{}", row.id, m.id)
+            }
+        })
+        .collect();
+    let mut text = format!(
+        "`{}/{model}` is not priced in Nika's catalog: a run under a spending ceiling would refuse it (NIKA-1709 · unpriced cloud spend cannot be bounded).",
+        row.id
+    );
+    if priced.is_empty() {
+        let _ = write!(
+            text,
+            "\n  no priced model is known for `{}` yet — name a priced <provider>/<model>, or `cancel`",
+            row.id
+        );
+    } else {
+        let _ = write!(
+            text,
+            "\n  priced for `{}`: {} — name one of them (the question still waits)",
+            row.id,
+            priced.join(" · ")
+        );
+    }
+    Some(text)
 }
 
 /// How many clauses the compiler's ledger holds for this reading —

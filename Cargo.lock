@@ -5407,6 +5407,7 @@ dependencies = [
  "nika-builtin",
  "nika-cadence",
  "nika-cap",
+ "nika-catalog",
  "nika-check",
  "nika-cli-host",
  "nika-dap",
