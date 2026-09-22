@@ -362,9 +362,27 @@ fn term_name() -> Option<String> {
 /// ADR-139 · UX-2): the same runtime, the same census and kept choice, the
 /// same two run paths lent as runners; the renderer owns the terminal and
 /// hands it back around each run.
+///
+/// A terminal the renderer cannot take (`TERM=dumb` · one that never
+/// answers the cursor-position report the inline viewport anchors on)
+/// gets the plain session instead — the same session, said once on
+/// stderr, never a dead door (UX-2 · the terminal matrix).
 #[must_use]
 pub fn run_tui(theme: Theme) -> u8 {
     use nika_tui::session::{Live, Runners};
+    let mut options = nika_tui::app::Options::new(nika_tui::model::Presentation::Inline);
+    options.color = theme.color;
+    options.term = term_name();
+    let taken = match nika_tui::app::enter(&options) {
+        Ok(taken) => taken,
+        Err(error) => {
+            let _ = writeln!(
+                std::io::stderr(),
+                "nika: the renderer cannot take this terminal ({error}) · the plain session opens instead"
+            );
+            return run(theme);
+        }
+    };
     let census = IntelligenceCensus::take();
     let home = nika_cli_host::probe::home_dir();
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
@@ -376,10 +394,7 @@ pub fn run_tui(theme: Theme) -> u8 {
         }),
     };
     let live = Live::new(cwd, census, kept, home, Box::new(reasoner_for), runners);
-    let mut options = nika_tui::app::Options::new(nika_tui::model::Presentation::Inline);
-    options.color = theme.color;
-    options.term = term_name();
-    match nika_tui::app::run(live, options) {
+    match nika_tui::app::run_on(taken, live, options) {
         Ok(left) => left.code(),
         Err(error) => {
             let _ = writeln!(std::io::stderr(), "nika: {error}");

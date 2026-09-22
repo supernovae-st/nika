@@ -100,6 +100,30 @@ struct Shell<C: Conversation> {
     submitted: usize,
 }
 
+/// A terminal the renderer holds, between [`enter`] and [`run_on`].
+/// Dropping it restores the terminal.
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct Taken {
+    owner: Owner,
+    screen: Screen,
+}
+
+/// Take the terminal for the renderer: the probe (a TTY, not `TERM=dumb`),
+/// the modes, and the inline viewport's anchor (a cursor-position report
+/// the terminal must answer). The caller decides what a refusal becomes —
+/// the plain session is the same session, never a dead door.
+///
+/// # Errors
+///
+/// Not a terminal, `TERM=dumb`, or a terminal that never answered the
+/// cursor report; every mode enabled before the failure is restored.
+pub fn enter(options: &Options) -> io::Result<Taken> {
+    terminal::install_panic_hook();
+    let (owner, screen) = terminal::enter(options.presentation, options.term.as_deref())?;
+    Ok(Taken { owner, screen })
+}
+
 /// Run the shell over a conversation until it ends. The terminal is
 /// restored before this returns, on every path.
 ///
@@ -107,8 +131,22 @@ struct Shell<C: Conversation> {
 ///
 /// The terminal could not be taken (not a TTY) or a draw failed.
 pub fn run<C: Conversation>(conversation: C, options: Options) -> io::Result<Exit> {
-    terminal::install_panic_hook();
-    let (owner, screen) = terminal::enter(options.presentation, options.term.as_deref())?;
+    let taken = enter(&options)?;
+    run_on(taken, conversation, options)
+}
+
+/// Run the shell on a terminal already taken by [`enter`]. The terminal
+/// is restored before this returns, on every path.
+///
+/// # Errors
+///
+/// A draw failed.
+pub fn run_on<C: Conversation>(
+    taken: Taken,
+    conversation: C,
+    options: Options,
+) -> io::Result<Exit> {
+    let Taken { owner, screen } = taken;
     let size = crossterm::terminal::size().unwrap_or((80, 24));
     let state = UiState::new(options.presentation, options.color, size);
     let mut shell = Shell {
