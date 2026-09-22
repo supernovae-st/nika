@@ -126,6 +126,13 @@ impl Broker {
         self.rx.recv().ok()
     }
 
+    /// The next event if one is already waiting; never blocks. The shell
+    /// asks while a turn runs, so an interruption is heard before the
+    /// turn ends.
+    pub fn try_recv(&mut self) -> Option<UiEvent> {
+        self.rx.try_recv().ok()
+    }
+
     /// Park the reader: it stops touching the terminal's input until
     /// [`Broker::resume`]. Returns once the thread has acknowledged (or after
     /// one second if it never does), so the caller may query the cursor.

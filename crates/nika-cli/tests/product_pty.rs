@@ -21,7 +21,7 @@
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use expectrl::process::unix::{PtyStream, UnixProcess, WaitStatus};
 use expectrl::session::{OsSession, Session};
@@ -56,7 +56,15 @@ fn rig(tag: &str) -> (tempfile::TempDir, tempfile::TempDir) {
 
 /// Bare `nika` on a PTY in `project`, with `home` as the home.
 fn open_session(project: &Path, home: &Path) -> LoggedSession {
+    open_session_with(project, home, &[])
+}
+
+/// [`open_session`] with extra environment (a seat's endpoint and key).
+fn open_session_with(project: &Path, home: &Path, env: &[(&str, &str)]) -> LoggedSession {
     let mut cmd = Command::new(bin());
+    for (key, value) in env {
+        cmd.env(key, value);
+    }
     cmd.current_dir(project)
         .env_remove("CLICOLOR")
         .env_remove("CLICOLOR_FORCE")
@@ -767,4 +775,77 @@ fn a_composite_paste_at_the_consent_prompt_is_one_datum() {
     session.send_line("/quit").expect("quit");
     session.expect(Eof).expect("closes");
     assert_eq!(exit_code(&mut session), 0);
+}
+
+// ── T8 · interruptions while a seat is called ───────────────────────────
+
+/// A loopback endpoint that accepts and never answers: the seat call it
+/// receives stalls until the door gives up (or the caller leaves). Returns
+/// the base URL an openai-compatible route reads from `NIKA_OPENAI_BASE_URL`.
+fn stall_server() -> String {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("a loopback port");
+    let port = listener.local_addr().expect("addr").port();
+    let _ = std::thread::Builder::new()
+        .name("stall".to_owned())
+        .spawn(move || {
+            for stream in listener.incoming().flatten() {
+                let _ = std::thread::Builder::new()
+                    .name("stall-conn".to_owned())
+                    .spawn(move || {
+                        let mut sink = [0u8; 4096];
+                        let _ = std::io::Read::read(&mut &stream, &mut sink);
+                        std::thread::sleep(Duration::from_secs(120));
+                        drop(stream);
+                    });
+            }
+        });
+    format!("http://127.0.0.1:{port}")
+}
+
+/// K · the plain session during a seat call that never returns: `Ctrl+C`
+/// (the line discipline's SIGINT, the plain loop keeps no raw mode) ends
+/// the door at once; nothing was written.
+#[test]
+fn ctrl_c_during_a_stalled_seat_call_leaves_the_plain_session() {
+    let (project, home) = rig("stall-plain");
+    let base = stall_server();
+    let mut session = open_session_with(
+        project.path(),
+        home.path(),
+        &[
+            ("NIKA_OPENAI_BASE_URL", base.as_str()),
+            ("OPENAI_API_KEY", "sk-test-stall"),
+        ],
+    );
+    session
+        .send_line("/intelligence")
+        .expect("the first screen");
+    session
+        .expect("4  No AI in this conversation")
+        .expect("the choices");
+    session
+        .send_line("2 openai")
+        .expect("a metered seat on the stalling endpoint");
+    session.expect("nika ›").expect("chosen");
+    session
+        .send_line("Que penses-tu de ce projet ?")
+        .expect("a line only a seat answers");
+    std::thread::sleep(Duration::from_millis(1500));
+    let pressed = Instant::now();
+    session.send("\x03").expect("Ctrl+C");
+    session.expect(Eof).expect("the door ends");
+    let left = pressed.elapsed();
+    match session.get_process_mut().wait().expect("wait") {
+        WaitStatus::Exited(_, code) => assert_ne!(code, 0, "not a clean exit: an interruption"),
+        WaitStatus::Signaled(_, sig, _) => assert_eq!(format!("{sig:?}"), "SIGINT"),
+        other => panic!("unexpected wait status: {other:?}"),
+    }
+    assert!(
+        left < Duration::from_secs(10),
+        "the door ended without waiting for the call: {left:?}"
+    );
+    assert!(
+        !project.path().join("compiled-workflow.nika").exists(),
+        "nothing written"
+    );
 }

@@ -293,8 +293,22 @@ fn tui_command(project: &Path, home: &Path, term: &str) -> Command {
 /// child sees only makes it ask the cursor position once more, which the
 /// opener answers as a terminal would.
 fn spawn_sized(project: &Path, home: &Path, cols: u16, rows: u16) -> (TeeSession, Tee) {
-    let mut session =
-        OsSession::spawn(tui_command(project, home, "xterm-256color")).expect("pty spawn");
+    spawn_sized_with(project, home, cols, rows, &[])
+}
+
+/// [`spawn_sized`] with extra environment (a seat's endpoint and key).
+fn spawn_sized_with(
+    project: &Path,
+    home: &Path,
+    cols: u16,
+    rows: u16,
+    env: &[(&str, &str)],
+) -> (TeeSession, Tee) {
+    let mut cmd = tui_command(project, home, "xterm-256color");
+    for (key, value) in env {
+        cmd.env(key, value);
+    }
+    let mut session = OsSession::spawn(cmd).expect("pty spawn");
     session
         .get_process_mut()
         .set_window_size(cols, rows)
@@ -476,5 +490,109 @@ fn a_mute_cursor_report_falls_back_to_the_plain_session() {
     assert!(
         tee.saw("\x1b[?2004l"),
         "what the renderer enabled before giving up is restored: {text:?}"
+    );
+}
+
+// ── T8 · interruptions while a seat is called ───────────────────────────
+
+/// A loopback endpoint that accepts and never answers: the seat call it
+/// receives stalls until the door gives up (or the caller leaves). Returns
+/// the base URL an openai-compatible route reads from `NIKA_OPENAI_BASE_URL`.
+fn stall_server() -> String {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("a loopback port");
+    let port = listener.local_addr().expect("addr").port();
+    let _ = std::thread::Builder::new()
+        .name("stall".to_owned())
+        .spawn(move || {
+            for stream in listener.incoming().flatten() {
+                let _ = std::thread::Builder::new()
+                    .name("stall-conn".to_owned())
+                    .spawn(move || {
+                        let mut sink = [0u8; 4096];
+                        let _ = std::io::Read::read(&mut &stream, &mut sink);
+                        std::thread::sleep(Duration::from_secs(120));
+                        drop(stream);
+                    });
+            }
+        });
+    format!("http://127.0.0.1:{port}")
+}
+
+/// Drive the renderer to a seat call that stalls: the seat is `2 openai`
+/// on the stalling endpoint, the line is a question only a seat answers.
+fn stalled_turn(tag: &str) -> (TeeSession, Tee) {
+    let (project, home) = rig(tag);
+    let base = stall_server();
+    let (mut session, tee) = spawn_sized_with(
+        project.path(),
+        home.path(),
+        80,
+        24,
+        &[
+            ("NIKA_OPENAI_BASE_URL", base.as_str()),
+            ("OPENAI_API_KEY", "sk-test-stall"),
+        ],
+    );
+    answer_until(&mut session, &tee, 24, "automate?");
+    session.send("/intelligence\r").expect("the first screen");
+    answer_until(&mut session, &tee, 24, "conversation");
+    session
+        .send("2 openai\r")
+        .expect("a metered seat on the stalling endpoint");
+    answer_until(&mut session, &tee, 24, "metered");
+    session
+        .send("Que penses-tu de ce projet ?\r")
+        .expect("a line only a seat answers");
+    answer_until(&mut session, &tee, 24, "through");
+    std::mem::forget(project);
+    std::mem::forget(home);
+    (session, tee)
+}
+
+/// H · a seat call that never returns: one `Ctrl+C` warns in the busy row
+/// (the call cannot be recalled), a second one leaves at once with the
+/// terminal restored — never a wait for the call.
+#[test]
+fn ctrl_c_twice_leaves_a_stalled_seat_call_at_once() {
+    let (mut session, tee) = stalled_turn("stall-ctrl-c");
+    let pressed = Instant::now();
+    session.send("\x03").expect("Ctrl+C once");
+    answer_until(&mut session, &tee, 24, "again");
+    session.send("\x03").expect("Ctrl+C again");
+    session.expect(Eof).expect("the door leaves");
+    let left = pressed.elapsed();
+    assert_eq!(exit_code(&mut session), 130, "left by an interruption");
+    assert!(
+        left < Duration::from_secs(10),
+        "the door left without waiting for the call: {left:?}"
+    );
+    assert!(
+        tee.saw("\x1b[?2004l"),
+        "the terminal is restored on the way out"
+    );
+}
+
+/// I · `SIGTERM` while a seat call stalls: the door leaves at once with
+/// 143, the terminal restored, the call left to die with the process.
+#[test]
+fn sigterm_during_a_stalled_seat_call_leaves_with_143() {
+    let (mut session, tee) = stalled_turn("stall-sigterm");
+    let pid = session.get_process().pid().to_string();
+    let sent = Instant::now();
+    let killed = Command::new("kill")
+        .args(["-TERM", &pid])
+        .status()
+        .expect("kill");
+    assert!(killed.success(), "the signal was sent");
+    session.expect(Eof).expect("the door leaves");
+    let left = sent.elapsed();
+    assert_eq!(exit_code(&mut session), 143, "left by SIGTERM");
+    assert!(
+        left < Duration::from_secs(10),
+        "the door left without waiting for the call: {left:?}"
+    );
+    assert!(
+        tee.saw("\x1b[?2004l"),
+        "the terminal is restored on the way out"
     );
 }

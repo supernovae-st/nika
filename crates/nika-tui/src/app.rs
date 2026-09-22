@@ -21,6 +21,7 @@
 //! the first press arms and the second leaves. `SIGTERM` leaves at once.
 //! Every exit path restores the terminal through the one owner.
 
+use std::collections::VecDeque;
 use std::io::{self, Write as _};
 use std::sync::mpsc;
 
@@ -95,9 +96,14 @@ struct Shell<C: Conversation> {
     screen: Screen,
     state: UiState,
     composer: Composer,
-    conversation: C,
+    /// `None` only while a turn runs on its worker thread, or after an
+    /// abandoned turn (the door leaves then).
+    conversation: Option<C>,
     options: Options,
     submitted: usize,
+    /// Events read while a turn ran that were not an interruption: keys
+    /// typed ahead, a paste, a resize — replayed once the turn ends.
+    deferred: VecDeque<UiEvent>,
 }
 
 /// A terminal the renderer holds, between [`enter`] and [`run_on`].
@@ -130,7 +136,7 @@ pub fn enter(options: &Options) -> io::Result<Taken> {
 /// # Errors
 ///
 /// The terminal could not be taken (not a TTY) or a draw failed.
-pub fn run<C: Conversation>(conversation: C, options: Options) -> io::Result<Exit> {
+pub fn run<C: Conversation + 'static>(conversation: C, options: Options) -> io::Result<Exit> {
     let taken = enter(&options)?;
     run_on(taken, conversation, options)
 }
@@ -141,7 +147,7 @@ pub fn run<C: Conversation>(conversation: C, options: Options) -> io::Result<Exi
 /// # Errors
 ///
 /// A draw failed.
-pub fn run_on<C: Conversation>(
+pub fn run_on<C: Conversation + 'static>(
     taken: Taken,
     conversation: C,
     options: Options,
@@ -154,9 +160,10 @@ pub fn run_on<C: Conversation>(
         screen,
         state,
         composer: Composer::new(),
-        conversation,
+        conversation: Some(conversation),
         options,
         submitted: 0,
+        deferred: VecDeque::new(),
     };
     let broker = Broker::start();
     let outcome = shell.drive(broker);
@@ -172,18 +179,59 @@ enum Step {
     Handoff(Handoff),
 }
 
-impl<C: Conversation> Shell<C> {
+/// How a turn ended: with its beats, or abandoned by an interruption
+/// heard while it ran (the door leaves at once).
+enum TurnEnd {
+    Done(Turn),
+    Left(Exit),
+}
+
+/// What a submitted line came to.
+enum Submitted {
+    Handoff(Option<Handoff>),
+    Left(Exit),
+}
+
+fn conversation_left() -> io::Error {
+    io::Error::other("the conversation left with an abandoned turn")
+}
+
+fn is_ctrl_c(key: &KeyEvent) -> bool {
+    key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c')
+}
+
+/// The busy row while a turn runs: the turn's own label, the seconds
+/// once they count, and what an interruption does — a call to a seat
+/// cannot be recalled, so one `Ctrl+C` warns and a second one leaves.
+fn busy_text(base: Option<&str>, secs: u64, armed: bool) -> String {
+    let base = base.unwrap_or("working");
+    if armed {
+        format!(
+            "{base} · {secs}s · interrupted: the call cannot be recalled · Ctrl+C again leaves now"
+        )
+    } else if secs >= 2 {
+        format!("{base} · {secs}s · Ctrl+C twice leaves")
+    } else {
+        base.to_owned()
+    }
+}
+
+impl<C: Conversation + 'static> Shell<C> {
+    fn conversation(&mut self) -> io::Result<&mut C> {
+        self.conversation.as_mut().ok_or_else(conversation_left)
+    }
+
     fn drive(&mut self, mut broker: Broker) -> io::Result<Exit> {
-        let opening = self.conversation.open();
+        let opening = self.conversation()?.open();
         self.apply_all(opening)?;
         self.draw()?;
         loop {
-            let Some(event) = broker.recv() else {
+            let Some(event) = self.deferred.pop_front().or_else(|| broker.recv()) else {
                 broker.stop();
                 return Ok(Exit::Closed);
             };
             let step = match event {
-                UiEvent::Key(key) => self.on_key(key)?,
+                UiEvent::Key(key) => self.on_key(key, &mut broker)?,
                 UiEvent::Paste(text) => {
                     self.composer.paste(&text);
                     Step::Stay
@@ -234,7 +282,7 @@ impl<C: Conversation> Shell<C> {
         }
     }
 
-    fn on_key(&mut self, key: KeyEvent) -> io::Result<Step> {
+    fn on_key(&mut self, key: KeyEvent, broker: &mut Broker) -> io::Result<Step> {
         let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
         match key.code {
             KeyCode::Char('c') if ctrl => return self.interrupt(),
@@ -258,11 +306,11 @@ impl<C: Conversation> Shell<C> {
         }
         self.state.interrupt_armed = false;
         match self.composer.handle(key) {
-            ComposerAction::Submit(line) => {
-                if let Some(handoff) = self.submit(&line)? {
-                    return Ok(Step::Handoff(handoff));
-                }
-            }
+            ComposerAction::Submit(line) => match self.submit(&line, broker)? {
+                Submitted::Left(exit) => return Ok(Step::Leave(exit)),
+                Submitted::Handoff(Some(handoff)) => return Ok(Step::Handoff(handoff)),
+                Submitted::Handoff(None) => {}
+            },
             ComposerAction::Edited | ComposerAction::Ignored => {}
         }
         Ok(Step::Stay)
@@ -287,7 +335,7 @@ impl<C: Conversation> Shell<C> {
 
     /// The human sent a line: echo it, let the conversation answer, and
     /// report the handoff it asks for, if any.
-    fn submit(&mut self, line: &str) -> io::Result<Option<Handoff>> {
+    fn submit(&mut self, line: &str, broker: &mut Broker) -> io::Result<Submitted> {
         self.submitted += 1;
         let echo = format!("{}{}", self.state.waiting.prompt(), line.trim_end());
         self.state
@@ -307,17 +355,20 @@ impl<C: Conversation> Shell<C> {
         // worker thread while this thread draws every truthful label the
         // turn emits (« Working through this workflow… »). The turn's first
         // word clears the busy state.
-        if let Some(label) = self.conversation.busy_label(line) {
+        if let Some(label) = self.conversation()?.busy_label(line) {
             self.state.busy = Some(label);
             self.draw()?;
         }
-        let turn = self.run_turn(line)?;
+        let turn = match self.run_turn(line, broker)? {
+            TurnEnd::Done(turn) => turn,
+            TurnEnd::Left(exit) => return Ok(Submitted::Left(exit)),
+        };
         self.state.busy = None;
         self.apply_all(turn.beats)?;
         if self.options.exit_after == Some(self.submitted) {
             self.state.quit = true;
         }
-        Ok(turn.handoff)
+        Ok(Submitted::Handoff(turn.handoff))
     }
 
     /// Hand the terminal back for one piece of work and take it again. The
@@ -335,7 +386,7 @@ impl<C: Conversation> Shell<C> {
             out.flush()?;
         }
         self.owner.restore()?;
-        let beats = self.conversation.perform(handoff);
+        let beats = self.conversation()?.perform(handoff);
         let (owner, screen) =
             terminal::enter(self.state.presentation, self.options.term.as_deref())?;
         self.owner = owner;
@@ -400,44 +451,92 @@ impl<C: Conversation> Shell<C> {
         Ok(())
     }
 
-    /// One turn on a worker thread; this thread keeps the terminal live:
-    /// every busy label the turn emits is drawn as it arrives. A panic in
-    /// the turn resumes here (the panic hook has restored the terminal).
-    fn run_turn(&mut self, line: &str) -> io::Result<Turn> {
+    /// One turn on a worker thread (the conversation travels with it and
+    /// comes back with the result); this thread keeps the terminal live:
+    /// every busy label the turn emits is drawn as it arrives, the seconds
+    /// count in the row, and an interruption is HEARD while the turn runs.
+    /// A call to a seat cannot be recalled: one `Ctrl+C` warns (« again
+    /// leaves now »), a second one or `SIGTERM` leaves at once with the
+    /// terminal restored, the call left to die with the process. Keys
+    /// typed ahead wait for the turn. A panic in the turn resumes here
+    /// (the panic hook has restored the terminal).
+    fn run_turn(&mut self, line: &str, broker: &mut Broker) -> io::Result<TurnEnd> {
         let (tx, rx) = mpsc::channel::<String>();
-        let Shell {
-            conversation,
-            screen,
-            state,
-            composer,
-            ..
-        } = self;
-        let mut drawn = Ok(());
-        let outcome = std::thread::scope(|scope| {
-            let worker = scope.spawn(|| conversation.submit_with(line, &tx));
-            loop {
-                match rx.recv_timeout(BUSY_POLL) {
-                    Ok(label) => {
-                        state.busy = Some(label);
-                        if drawn.is_ok() {
-                            drawn = draw_parts(screen, state, composer);
-                        }
-                    }
-                    Err(mpsc::RecvTimeoutError::Timeout) => {
-                        if worker.is_finished() {
-                            break;
-                        }
-                    }
-                    Err(mpsc::RecvTimeoutError::Disconnected) => break,
+        let (done_tx, done_rx) = mpsc::channel::<(C, Turn)>();
+        let mut conversation = self.conversation.take().ok_or_else(conversation_left)?;
+        let line = line.to_owned();
+        // The shell keeps one sender: the busy channel never disconnects,
+        // so each wait below is one poll slice, never a spin.
+        let _pace = tx.clone();
+        let worker = std::thread::Builder::new()
+            .name("nika-tui-turn".to_owned())
+            .spawn(move || {
+                let turn = conversation.submit_with(&line, &tx);
+                let _ = done_tx.send((conversation, turn));
+            })?;
+        let started = std::time::Instant::now();
+        let mut base = self.state.busy.clone();
+        let mut armed = false;
+        let mut shown = u64::MAX;
+        loop {
+            if let Ok(label) = rx.recv_timeout(BUSY_POLL) {
+                base = Some(label);
+                shown = u64::MAX;
+            }
+            match done_rx.try_recv() {
+                Ok((conversation, turn)) => {
+                    self.conversation = Some(conversation);
+                    return Ok(TurnEnd::Done(turn));
+                }
+                Err(mpsc::TryRecvError::Disconnected) => {
+                    return match worker.join() {
+                        Ok(()) => Err(io::Error::other("the turn ended without a result")),
+                        Err(panic) => std::panic::resume_unwind(panic),
+                    };
+                }
+                Err(mpsc::TryRecvError::Empty) => {}
+            }
+            let was_armed = armed;
+            while let Some(event) = broker.try_recv() {
+                if let Some(exit) = self.hear(event, &mut armed) {
+                    return Ok(TurnEnd::Left(exit));
                 }
             }
-            worker.join()
-        });
-        drawn?;
-        match outcome {
-            Ok(turn) => Ok(turn),
-            Err(panic) => std::panic::resume_unwind(panic),
+            if armed != was_armed {
+                shown = u64::MAX;
+            }
+            let secs = started.elapsed().as_secs();
+            if secs != shown {
+                shown = secs;
+                self.state.busy = Some(busy_text(base.as_deref(), secs, armed));
+                self.draw()?;
+            }
         }
+    }
+
+    /// One event heard while a turn runs: an interruption acts now (the
+    /// exit to leave with, once armed), anything else waits for the turn.
+    fn hear(&mut self, event: UiEvent, armed: &mut bool) -> Option<Exit> {
+        match event {
+            UiEvent::Signal(Signal::Terminate) => Some(Exit::Terminated),
+            UiEvent::Closed => Some(Exit::Closed),
+            UiEvent::Signal(Signal::Interrupt) => Self::arm(armed),
+            UiEvent::Key(key) if is_ctrl_c(&key) => Self::arm(armed),
+            other => {
+                self.deferred.push_back(other);
+                None
+            }
+        }
+    }
+
+    fn arm(armed: &mut bool) -> Option<Exit> {
+        if *armed {
+            return Some(Exit::Interrupted);
+        }
+        // The caller's next tick draws the row from the turn's own label:
+        // it says what a second press does.
+        *armed = true;
+        None
     }
 
     fn draw(&mut self) -> io::Result<()> {
