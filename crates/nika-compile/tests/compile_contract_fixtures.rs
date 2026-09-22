@@ -86,6 +86,24 @@ const CASES: &[Case] = &[
         },
     },
     Case {
+        name: "money-approval-question",
+        state: "incomplete · an automatic refund is the requester's closed choice (`effect.refund.approval`: human_first | forbidden)",
+        request: || CompileRequest::create("Read ./refunds.json and refund each customer."),
+    },
+    Case {
+        name: "money-approval-answered",
+        state: "the same refund decided `human_first`: a nika:prompt gate before the refund, its policy and endpoint bound",
+        request: || {
+            CompileRequest::create("Read ./refunds.json and refund each customer.")
+                .answer("effect.refund.approval", r#""human_first""#)
+                .answer("const.refund_policy", r#"{"cap":100,"currency":"EUR"}"#)
+                .answer(
+                    "const.refund_endpoint",
+                    r#""https://refund.example.invalid/refunds""#,
+                )
+        },
+    },
+    Case {
         name: "schedule-trigger-answered",
         state: "ready · the same schedule with its binding values answered and echoed",
         request: || {
