@@ -7,12 +7,12 @@
 //! Split from `cognition.rs` at the file-LOC cap (2026-09-22); the laws are unchanged.
 
 use super::backstops::{gate_finds_its_effect, reconcile_refund_backstop, starts_with_prohibition};
-use super::words::{
-    CONVERSION_WORDS, LANGUAGE_WORDS, content_words, fold_words, only_a_place_and_a_law,
-    only_format_words, serialization_draft,
-};
 use super::{backstop, plan_record, record_ledger};
 use crate::plan::{Effect, EffectPolicy, EffectVerb, Obligation, ObligationKind, Op, Plan, Step};
+use crate::words::{
+    CONVERSION_WORDS, LANGUAGE_WORDS, content_words, fold_words, only_format_words,
+    serialization_draft,
+};
 use crate::{CompileOutcome, DiagnosticKind, QuestionType, lexicon::Reading};
 use nika_kernel::ai::provider::{ContentBlock, InferResponse, StopReason};
 use serde::Deserialize;
@@ -393,7 +393,7 @@ fn duplicate_step(
     stated: &Stated<'_>,
     out: &mut CompileOutcome,
 ) -> bool {
-    let clause = super::words::clause_key(&step.evidence);
+    let clause = crate::words::clause_key(&step.evidence);
     if clause.is_empty() {
         return false;
     }
@@ -792,7 +792,7 @@ fn one_clause_one_effect(
     stated: &mut Vec<String>,
     out: &mut CompileOutcome,
 ) -> bool {
-    let clause = super::words::clause_key(&effect.evidence);
+    let clause = crate::words::clause_key(&effect.evidence);
     if clause.is_empty() {
         return false;
     }
@@ -854,6 +854,29 @@ fn one_clause_one_effect(
     }
     stated.push(clause);
     false
+}
+
+/// A draft whose detail names nothing but a destination and a structure law (« → ./out/
+/// titres.txt. Rien d'autre dans le fichier. ») beside produced data: nothing to draft, the
+/// rows are written as they are.
+pub(super) fn only_a_place_and_a_law(detail: &str) -> bool {
+    let rest: String = detail
+        .split_whitespace()
+        .filter(|word| {
+            let word = word.trim_matches(|c: char| !c.is_alphanumeric() && c != '.' && c != '/');
+            !(word.starts_with("./")
+                || word.starts_with('/')
+                || word.starts_with('~')
+                || word == "→"
+                || word == "->")
+        })
+        .collect::<Vec<_>>()
+        .join(" ");
+    let rest = rest
+        .trim()
+        .trim_matches(|c: char| c == '.' || c == ':' || c == ',')
+        .trim();
+    !rest.is_empty() && crate::structure::binds_no_operation(rest)
 }
 
 /// The proposal joins the deterministic reading; deterministic facts win every disagreement,
@@ -920,7 +943,7 @@ pub(super) fn merge(
         .steps
         .iter()
         .filter(|s| matches!(s.op.as_str(), "draft" | "extract" | "classify" | "compute"))
-        .map(|s| super::words::clause_key(&s.evidence))
+        .map(|s| crate::words::clause_key(&s.evidence))
         .filter(|words| !words.is_empty())
         .collect();
     // The unknowns a typed rule turned into slots: asked, no longer unresolved work.
@@ -932,20 +955,20 @@ pub(super) fn merge(
         .constraints
         .iter()
         .chain(reading.plan.constraints.iter())
-        .map(|c| super::words::clause_key(c))
+        .map(|c| crate::words::clause_key(c))
         .filter(|c| !c.is_empty())
         .collect();
     let prose_clauses: Vec<String> = proposal
         .steps
         .iter()
         .filter(|s| matches!(s.op.as_str(), "draft" | "extract" | "classify"))
-        .map(|s| super::words::clause_key(&s.evidence))
+        .map(|s| crate::words::clause_key(&s.evidence))
         .filter(|c| !c.is_empty())
         .collect();
     let effect_clauses: Vec<String> = proposal
         .effects
         .iter()
-        .map(|e| super::words::clause_key(&e.evidence))
+        .map(|e| crate::words::clause_key(&e.evidence))
         .filter(|c| !c.is_empty())
         .collect();
     let mut carried_clauses: Vec<String> = Vec::new();
@@ -998,7 +1021,7 @@ pub(super) fn merge(
             op,
             Op::Extract | Op::Draft | Op::Classify | Op::Compute | Op::Search | Op::Lookup
         ) {
-            carried_clauses.push(super::words::clause_key(&step.evidence));
+            carried_clauses.push(crate::words::clause_key(&step.evidence));
         }
         // « ./out/esiti.csv con le colonne esito,numero (una riga per valore) » as a draft
         // over the very write clause, beside the computed rows and with no language word:

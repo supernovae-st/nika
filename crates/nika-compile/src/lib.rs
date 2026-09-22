@@ -96,7 +96,7 @@ mod writes;
 // ADR-137 precedent); the composer, the assembler and the preview read them at their
 // historical module paths.
 use nika_compile_reader::{
-    columns, gates, hot, lexicon, objects, paths, plan, rule_tokens, rules, unknowns,
+    columns, gates, hot, lexicon, objects, paths, plan, rule_tokens, rules, unknowns, words,
 };
 
 use std::collections::BTreeSet;

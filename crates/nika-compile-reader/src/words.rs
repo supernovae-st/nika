@@ -4,19 +4,22 @@
 //! uses for a draft that is no language work (a serialization of computed data, a number
 //! alone), the words of a conversion between formats, the phrases that keep the columns as
 //! they are, and the content words of a clause. Six languages, folded. Knowledge only:
-//! the folds that use these live in `proposal.rs`.
+//! the folds that use these live in nika-compile's `cognition/proposal.rs`. Moved here from
+//! nika-compile at the 15k prod-LOC wall (2026-09-22), unchanged.
 
 /// The key of a clause for the one-clause folds: whitespace folded, lowercased, the closing
 /// punctuation trimmed — « Poste la réponse dans le fil Slack. » and « Poste la réponse dans
 /// le fil Slack » are one clause.
-pub(super) fn clause_key(text: &str) -> String {
+#[must_use]
+pub fn clause_key(text: &str) -> String {
     fold_words(text)
         .trim_end_matches(['.', ';', ',', '!', ':'])
         .trim()
         .to_owned()
 }
 
-pub(super) fn fold_words(text: &str) -> String {
+#[must_use]
+pub fn fold_words(text: &str) -> String {
     text.split_whitespace()
         .collect::<Vec<_>>()
         .join(" ")
@@ -24,7 +27,7 @@ pub(super) fn fold_words(text: &str) -> String {
 }
 
 /// Verbs a seat uses for a draft that is no language work (six languages, folded).
-pub(super) const SERIALIZE_VERBS: &[&str] = &[
+pub const SERIALIZE_VERBS: &[&str] = &[
     "prepar",
     "prépar",
     "serializ",
@@ -58,7 +61,7 @@ pub(super) const SERIALIZE_VERBS: &[&str] = &[
     "compos",
 ];
 /// The data the draft would only carry: the rows, the file content, the result.
-pub(super) const DATA_WORDS: &[&str] = &[
+pub const DATA_WORDS: &[&str] = &[
     "csv",
     "json",
     "body",
@@ -117,7 +120,7 @@ pub(super) const DATA_WORDS: &[&str] = &[
 ];
 /// Words that make a draft language work whatever else it says: a summary, a note, a
 /// digest, a reply, a translation, a text with headings.
-pub(super) const LANGUAGE_WORDS: &[&str] = &[
+pub const LANGUAGE_WORDS: &[&str] = &[
     "compte rendu",
     "compte-rendu",
     "minutes",
@@ -188,7 +191,8 @@ pub(super) const LANGUAGE_WORDS: &[&str] = &[
 /// detail that names language work (a summary, a note, a digest, headings) stays a draft.
 /// The caller judges the seat's detail and the request's own words alike: « write just the
 /// number, nothing else » folds the draft whatever the seat called it.
-pub(super) fn serialization_draft(detail: &str) -> bool {
+#[must_use]
+pub fn serialization_draft(detail: &str) -> bool {
     let detail = fold_words(detail);
     let verb = SERIALIZE_VERBS.iter().any(|v| detail.contains(v));
     // « écrivez ce nombre seul », « scrivi solo il numero »: the computed number alone.
@@ -199,7 +203,7 @@ pub(super) fn serialization_draft(detail: &str) -> bool {
 }
 
 /// The words of a computed number, six languages, folded.
-pub(super) const NUMBER_WORDS: &[&str] = &[
+pub const NUMBER_WORDS: &[&str] = &[
     "nombre",
     "number",
     "número",
@@ -223,7 +227,7 @@ pub(super) const NUMBER_WORDS: &[&str] = &[
 ];
 
 /// « alone », « only »: the number and nothing else, six languages, folded.
-pub(super) const ONLY_WORDS: &[&str] = &[
+pub const ONLY_WORDS: &[&str] = &[
     " seul",
     " seule",
     " uniquement",
@@ -248,7 +252,7 @@ pub(super) const ONLY_WORDS: &[&str] = &[
 ];
 
 /// Words that name a conversion between formats, folded.
-pub(super) const CONVERSION_WORDS: &[&str] = &[
+pub const CONVERSION_WORDS: &[&str] = &[
     "convert",
     "conversion",
     "convertir",
@@ -284,31 +288,8 @@ pub(super) const CONVERSION_WORDS: &[&str] = &[
     "parse the json",
 ];
 
-/// A draft whose detail names nothing but a destination and a structure law (« → ./out/
-/// titres.txt. Rien d'autre dans le fichier. ») beside produced data: nothing to draft, the
-/// rows are written as they are.
-pub(super) fn only_a_place_and_a_law(detail: &str) -> bool {
-    let rest: String = detail
-        .split_whitespace()
-        .filter(|word| {
-            let word = word.trim_matches(|c: char| !c.is_alphanumeric() && c != '.' && c != '/');
-            !(word.starts_with("./")
-                || word.starts_with('/')
-                || word.starts_with('~')
-                || word == "→"
-                || word == "->")
-        })
-        .collect::<Vec<_>>()
-        .join(" ");
-    let rest = rest
-        .trim()
-        .trim_matches(|c: char| c == '.' || c == ':' || c == ',')
-        .trim();
-    !rest.is_empty() && crate::structure::binds_no_operation(rest)
-}
-
 /// Phrases that name the columns kept as they are, six languages, folded.
-pub(super) const SAME_COLUMNS: &[&str] = &[
+pub const SAME_COLUMNS: &[&str] = &[
     "same columns",
     "the same columns",
     "with the same columns",
@@ -356,7 +337,8 @@ pub(super) const SAME_COLUMNS: &[&str] = &[
 /// Whether a detail says nothing but a format the computation keeps by construction: every
 /// segment (split at commas and conjunctions) is a same-columns phrase or a lines-mode tail
 /// (« tal cual », « in order », « one per line »).
-pub(super) fn only_format_words(detail: &str) -> bool {
+#[must_use]
+pub fn only_format_words(detail: &str) -> bool {
     let lower = detail.to_lowercase();
     let segments: Vec<String> = lower
         .split([',', ';'])
@@ -374,12 +356,12 @@ pub(super) fn only_format_words(detail: &str) -> bool {
     !segments.is_empty()
         && segments
             .iter()
-            .all(|s| SAME_COLUMNS.contains(&s.as_str()) || crate::rules::by_construction_tail(s))
+            .all(|s| SAME_COLUMNS.contains(&s.as_str()) || super::rules::by_construction_tail(s))
 }
 
 /// The words of a text that carry content: four characters or more, punctuation stripped,
 /// lowercased.
-pub(super) fn content_words(text: &str) -> impl Iterator<Item = String> + '_ {
+pub fn content_words(text: &str) -> impl Iterator<Item = String> + '_ {
     text.split_whitespace()
         .map(|word| {
             word.trim_matches(|c: char| !c.is_alphanumeric())
