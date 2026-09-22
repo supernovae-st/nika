@@ -11,7 +11,7 @@ homepage.workspace     = true
 publish                = false  # Internal member of the nika-cli unit (the binary ships, the lib doesn't).
 
 [dependencies]
-tokio = { workspace = true } # explicit bounded authoring provider call
+tokio = { workspace = true, features = ["process", "io-util"] } # explicit bounded authoring provider call · process + io-util: the machine lane as a child (`lane`), frames read line by line
 nika-onboard = { path = "../nika-onboard", version = "0.120.3" } # typed Compile core; host adapter only materializes explicit Ready results
 tempfile = { workspace = true } # atomic same-directory Compile publication and scratch tests
 nika-builtin   = { path = "../nika-builtin", version = "0.120.3" }   # tool surfaces the welcome glance names
@@ -26,7 +26,7 @@ nika-providers = { path = "../nika-providers", version = "0.120.3" } # ProviderR
 nika-runtime   = { path = "../nika-runtime", version = "0.120.3" }   # trace-store shapes retention walks + WorkflowPause/Stamper (notify · ADR-111)
 nika-service-execution = { path = "../nika-service-execution", version = "0.120.3" } # the ONE access-plan resolver + probe door every door executes (One Door · wave 1b)
 nika-registry-client = { path = "../nika-registry-client", version = "0.120.3" } # canonical registry cache root for --fix provenance
-nix            = { workspace = true, features = ["fs", "feature", "user"] }   # FIFO fixtures · sysconf RAM probe · account-home lookup
+nix            = { workspace = true, features = ["fs", "feature", "user", "poll"] }   # FIFO fixtures · sysconf RAM probe · account-home lookup · the paste-burst poll (`lines`)
 nika-schema    = { path = "../nika-schema", version = "0.120.3" }    # RawWorkflow (context envelope · glance)
 nika-source    = { path = "../nika-source", version = "0.120.3" }    # lexical program-source naming (#1684)
 nika-http      = { path = "../nika-http", version = "0.120.3" }      # ReqwestHttp — the notify webhook client (ADR-111 · SSRF floor)

@@ -1462,6 +1462,83 @@ pub fn nika_cli_host::help_card::isolation_warning() -> core::option::Option<all
 pub fn nika_cli_host::help_card::isolation_warning_text(home: &str) -> alloc::string::String
 pub fn nika_cli_host::help_card::misplaced_fix_teaching() -> &'static str
 pub fn nika_cli_host::help_card::permits_teaching() -> &'static str
+pub mod nika_cli_host::lane
+pub struct nika_cli_host::lane::RunStory
+pub nika_cli_host::lane::RunStory::lines: alloc::vec::Vec<alloc::string::String>
+pub nika_cli_host::lane::RunStory::trace: core::option::Option<std::path::PathBuf>
+impl nika_cli_host::lane::RunStory
+pub fn nika_cli_host::lane::RunStory::frame(&mut self, line: &str) -> core::option::Option<alloc::string::String>
+impl core::default::Default for nika_cli_host::lane::RunStory
+pub fn nika_cli_host::lane::RunStory::default() -> nika_cli_host::lane::RunStory
+impl<D> owo_colors::OwoColorize for nika_cli_host::lane::RunStory
+impl<T, U> core::convert::Into<U> for nika_cli_host::lane::RunStory where U: core::convert::From<T>
+pub fn nika_cli_host::lane::RunStory::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::lane::RunStory where U: core::convert::Into<T>
+pub type nika_cli_host::lane::RunStory::Error = core::convert::Infallible
+pub fn nika_cli_host::lane::RunStory::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::lane::RunStory where U: core::convert::TryFrom<T>
+pub type nika_cli_host::lane::RunStory::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::lane::RunStory::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_cli_host::lane::RunStory where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::lane::RunStory::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::lane::RunStory where T: ?core::marker::Sized
+pub fn nika_cli_host::lane::RunStory::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::lane::RunStory where T: ?core::marker::Sized
+pub fn nika_cli_host::lane::RunStory::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_cli_host::lane::RunStory
+pub fn nika_cli_host::lane::RunStory::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_cli_host::lane::RunStory where T: 'static
+pub fn nika_cli_host::lane::RunStory::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::lane::RunStory where T: ?core::marker::Sized
+pub fn nika_cli_host::lane::RunStory::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::lane::RunStory::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::lane::RunStory
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::lane::RunStory
+impl<T> typenum::type_operators::Same for nika_cli_host::lane::RunStory
+pub type nika_cli_host::lane::RunStory::Output = T
+pub fn nika_cli_host::lane::drive_child(exe: &std::path::Path, args: &[alloc::string::String], root: &std::path::Path, busy: &std::sync::mpsc::Sender<alloc::string::String>, slot: &nika_cli_host::lane::ChildSlot) -> (u8, core::option::Option<std::path::PathBuf>, alloc::vec::Vec<alloc::string::String>)
+pub type nika_cli_host::lane::ChildSlot = alloc::sync::Arc<std::sync::poison::mutex::Mutex<core::option::Option<u32>>>
+pub mod nika_cli_host::lines
+pub struct nika_cli_host::lines::PerCallLines<F>
+impl<F> nika_cli_host::lines::PerCallLines<F> where F: core::ops::function::FnMut(&mut alloc::vec::Vec<u8>) -> core::io::error::Result<usize>
+pub fn nika_cli_host::lines::PerCallLines<F>::new(fill: F) -> Self
+impl<F> alloc::io::buf_read::BufRead for nika_cli_host::lines::PerCallLines<F> where F: core::ops::function::FnMut(&mut alloc::vec::Vec<u8>) -> core::io::error::Result<usize>
+pub fn nika_cli_host::lines::PerCallLines<F>::consume(&mut self, amt: usize)
+pub fn nika_cli_host::lines::PerCallLines<F>::fill_buf(&mut self) -> core::io::error::Result<&[u8]>
+impl<F> alloc::io::read::Read for nika_cli_host::lines::PerCallLines<F> where F: core::ops::function::FnMut(&mut alloc::vec::Vec<u8>) -> core::io::error::Result<usize>
+pub fn nika_cli_host::lines::PerCallLines<F>::read(&mut self, out: &mut [u8]) -> core::io::error::Result<usize>
+impl<B> bstr::io::BufReadExt for nika_cli_host::lines::PerCallLines<F> where B: alloc::io::buf_read::BufRead
+impl<D> owo_colors::OwoColorize for nika_cli_host::lines::PerCallLines<F>
+impl<R> byteorder::io::ReadBytesExt for nika_cli_host::lines::PerCallLines<F> where R: alloc::io::read::Read + ?core::marker::Sized
+impl<T, U> core::convert::Into<U> for nika_cli_host::lines::PerCallLines<F> where U: core::convert::From<T>
+pub fn nika_cli_host::lines::PerCallLines<F>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::lines::PerCallLines<F> where U: core::convert::Into<T>
+pub type nika_cli_host::lines::PerCallLines<F>::Error = core::convert::Infallible
+pub fn nika_cli_host::lines::PerCallLines<F>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::lines::PerCallLines<F> where U: core::convert::TryFrom<T>
+pub type nika_cli_host::lines::PerCallLines<F>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::lines::PerCallLines<F>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_cli_host::lines::PerCallLines<F> where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::lines::PerCallLines<F>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::lines::PerCallLines<F> where T: ?core::marker::Sized
+pub fn nika_cli_host::lines::PerCallLines<F>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::lines::PerCallLines<F> where T: ?core::marker::Sized
+pub fn nika_cli_host::lines::PerCallLines<F>::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_cli_host::lines::PerCallLines<F>
+pub fn nika_cli_host::lines::PerCallLines<F>::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_cli_host::lines::PerCallLines<F> where T: 'static
+pub fn nika_cli_host::lines::PerCallLines<F>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tendril::tendril::ReadExt for nika_cli_host::lines::PerCallLines<F> where T: alloc::io::read::Read
+pub fn nika_cli_host::lines::PerCallLines<F>::read_to_tendril<A>(&mut self, buf: &mut tendril::tendril::Tendril<tendril::fmt::Bytes, A>) -> core::result::Result<usize, core::io::error::Error> where A: tendril::tendril::Atomicity
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::lines::PerCallLines<F> where T: ?core::marker::Sized
+pub fn nika_cli_host::lines::PerCallLines<F>::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::lines::PerCallLines<F>::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::lines::PerCallLines<F>
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::lines::PerCallLines<F>
+impl<T> typenum::type_operators::Same for nika_cli_host::lines::PerCallLines<F>
+pub type nika_cli_host::lines::PerCallLines<F>::Output = T
+pub fn nika_cli_host::lines::read_burst(buf: &mut alloc::vec::Vec<u8>) -> core::io::error::Result<usize>
+pub fn nika_cli_host::lines::stdin_pending() -> bool
 pub mod nika_cli_host::literal_inputs
 #[non_exhaustive] pub struct nika_cli_host::literal_inputs::Refusal
 impl nika_cli_host::literal_inputs::Refusal

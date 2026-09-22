@@ -29,6 +29,8 @@ use nika_dap::resume::ResumeRequest;
 
 use crate::Theme;
 use crate::verbs::exit;
+use nika_cli_host::lane::{ChildSlot, drive_child};
+use nika_cli_host::lines::{PerCallLines, read_burst};
 
 /// The reasoner for a resolved choice — the seat, the provider, or none.
 fn reasoner_for(resolved: &ResolvedSessionIntelligence) -> Box<dyn SessionReasoner> {
@@ -215,96 +217,6 @@ fn handle_outcome<W: Write>(
     Ok(false)
 }
 
-/// One line from the terminal — and a pasted burst folded into ONE line.
-///
-/// Paste is data, never several submissions (UX-2 · the renderer's
-/// bracketed-paste law). The plain loop has no paste bracket, so it reads
-/// the line discipline's tell instead: when the next complete line is
-/// already waiting the instant this one was read, nobody typed it — the
-/// lines were pasted together. They join as one datum (their line ends
-/// become spaces), so « yes ⏎ run it ⏎ /quit » pasted at a consent prompt
-/// is one line that is not a consent, not three gestures. Best effort:
-/// a paste the terminal delivers in slow pieces can still split.
-fn read_burst(buf: &mut Vec<u8>) -> std::io::Result<usize> {
-    let mut stdin = std::io::stdin().lock();
-    let mut total = stdin.read_until(b'\n', buf)?;
-    while total > 0 && buf.last() == Some(&b'\n') && stdin_pending() {
-        buf.pop();
-        buf.push(b' ');
-        let more = stdin.read_until(b'\n', buf)?;
-        if more == 0 {
-            buf.push(b'\n');
-            break;
-        }
-        total += more;
-    }
-    Ok(total)
-}
-
-/// Is another line already waiting on stdin, right now (a zero wait)?
-fn stdin_pending() -> bool {
-    use std::os::fd::AsFd as _;
-
-    use nix::poll::{PollFd, PollFlags, PollTimeout, poll};
-    let stdin = std::io::stdin();
-    let mut fds = [PollFd::new(stdin.as_fd(), PollFlags::POLLIN)];
-    matches!(poll(&mut fds, PollTimeout::ZERO), Ok(n) if n > 0)
-}
-
-/// A line source that takes its lock INSIDE each read and releases it
-/// before returning: the door never holds stdin across a turn, so a run it
-/// starts can ask its own gate on the same terminal (`ask_on_tty` locks
-/// stdin too — held across the loop, that lock never came back).
-struct PerCallLines<F> {
-    fill: F,
-    buf: Vec<u8>,
-    pos: usize,
-}
-
-impl<F> PerCallLines<F>
-where
-    F: FnMut(&mut Vec<u8>) -> std::io::Result<usize>,
-{
-    fn new(fill: F) -> Self {
-        Self {
-            fill,
-            buf: Vec::new(),
-            pos: 0,
-        }
-    }
-}
-
-impl<F> std::io::Read for PerCallLines<F>
-where
-    F: FnMut(&mut Vec<u8>) -> std::io::Result<usize>,
-{
-    fn read(&mut self, out: &mut [u8]) -> std::io::Result<usize> {
-        let available = self.fill_buf()?;
-        let n = available.len().min(out.len());
-        out[..n].copy_from_slice(&available[..n]);
-        self.consume(n);
-        Ok(n)
-    }
-}
-
-impl<F> BufRead for PerCallLines<F>
-where
-    F: FnMut(&mut Vec<u8>) -> std::io::Result<usize>,
-{
-    fn fill_buf(&mut self) -> std::io::Result<&[u8]> {
-        if self.pos >= self.buf.len() {
-            self.buf.clear();
-            self.pos = 0;
-            (self.fill)(&mut self.buf)?;
-        }
-        Ok(&self.buf[self.pos..])
-    }
-
-    fn consume(&mut self, amt: usize) {
-        self.pos = (self.pos + amt).min(self.buf.len());
-    }
-}
-
 /// Print what the session observed of a run; a gate's question is printed
 /// too — the machine now waits for the answer, and the prompt says so.
 fn observed<W: Write>(output: &mut W, outcome: TurnOutcome) -> std::io::Result<()> {
@@ -394,11 +306,6 @@ fn term_name() -> Option<String> {
     std::env::var("TERM").ok()
 }
 
-/// The renderer's run child, by pid, while it runs: the door that leaves
-/// while a run is in flight ends it (SIGTERM: the engine cancels and the
-/// trace says so) instead of leaving an orphan working in the dark.
-type ChildSlot = std::sync::Arc<std::sync::Mutex<Option<u32>>>;
-
 /// The run inside the renderer's turn: this binary's own machine lane
 /// (`nika run --json`) as a child whose pipes never touch the terminal
 /// the viewport owns. Each frame the lane prints becomes one line of the
@@ -452,163 +359,7 @@ fn run_tapped(
             vec!["this binary cannot name itself".to_owned()],
         );
     };
-    let runtime = match tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-    {
-        Ok(runtime) => runtime,
-        Err(error) => {
-            return (
-                exit::ENV,
-                None,
-                vec![format!("no executor for the run: {error}")],
-            );
-        }
-    };
-    runtime.block_on(drive_child(&exe, &args, root, busy, slot))
-}
-
-/// The child's frames, one story line each, until it settles.
-async fn drive_child(
-    exe: &std::path::Path,
-    args: &[String],
-    root: &std::path::Path,
-    busy: &std::sync::mpsc::Sender<String>,
-    slot: &ChildSlot,
-) -> (u8, Option<std::path::PathBuf>, Vec<String>) {
-    use tokio::io::AsyncBufReadExt as _;
-    let mut child = match tokio::process::Command::new(exe)
-        .args(args)
-        .current_dir(root)
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::null())
-        .kill_on_drop(true)
-        .spawn()
-    {
-        Ok(child) => child,
-        Err(error) => {
-            return (
-                exit::ENV,
-                None,
-                vec![format!("the run could not start: {error}")],
-            );
-        }
-    };
-    if let Ok(mut guard) = slot.lock() {
-        *guard = child.id();
-    }
-    let mut story = RunStory::default();
-    if let Some(stdout) = child.stdout.take() {
-        let mut lines = tokio::io::BufReader::new(stdout).lines();
-        while let Ok(Some(line)) = lines.next_line().await {
-            if let Some(said) = story.frame(&line) {
-                let _ = busy.send(said);
-            }
-        }
-    }
-    let status = child.wait().await;
-    if let Ok(mut guard) = slot.lock() {
-        *guard = None;
-    }
-    let code = match status {
-        Ok(status) => status
-            .code()
-            .and_then(|c| u8::try_from(c).ok())
-            .unwrap_or(exit::ENV),
-        Err(_) => exit::ENV,
-    };
-    (code, story.trace, story.lines)
-}
-
-/// The run's story, folded from the machine lane's frames: one short
-/// line per task settle, the header, the summary, the pause — the words
-/// the busy row shows and the transcript keeps.
-#[derive(Default)]
-struct RunStory {
-    lines: Vec<String>,
-    trace: Option<std::path::PathBuf>,
-    total: usize,
-    done: usize,
-}
-
-impl RunStory {
-    /// One frame; the line it adds to the story, if any.
-    fn frame(&mut self, line: &str) -> Option<String> {
-        let frame: serde_json::Value = serde_json::from_str(line).ok()?;
-        let kind = frame.get("kind")?.as_str()?;
-        let field = |key: &str| -> Option<String> {
-            frame
-                .get("fields")?
-                .as_array()?
-                .iter()
-                .find(|f| f.get("key").and_then(|k| k.as_str()) == Some(key))?
-                .get("value")
-                .map(|v| match v {
-                    serde_json::Value::String(s) => s.clone(),
-                    other => other.to_string(),
-                })
-        };
-        let said = match kind {
-            "workflow_started" => format!("running · {}", field("workflow").unwrap_or_default()),
-            "task_scheduled" => {
-                self.total += 1;
-                return None;
-            }
-            "task_started" => format!(
-                "→ {} · {}",
-                field("task").unwrap_or_default(),
-                field("note").unwrap_or_default()
-            ),
-            "task_completed" => {
-                self.done += 1;
-                format!(
-                    "✔ {} · {} ms · {}/{}",
-                    field("task").unwrap_or_default(),
-                    field("duration_ms").unwrap_or_default(),
-                    self.done,
-                    self.total
-                )
-            }
-            "task_cache_hit" => {
-                self.done += 1;
-                format!("↺ {} · from the cache", field("task").unwrap_or_default())
-            }
-            "task_failed" => format!(
-                "✖ {} · {}",
-                field("task").unwrap_or_default(),
-                field("detail")
-                    .unwrap_or_default()
-                    .lines()
-                    .next()
-                    .unwrap_or_default()
-            ),
-            "task_skipped" => format!("· {} skipped", field("task").unwrap_or_default()),
-            "task_cancelled" => format!("· {} cancelled", field("task").unwrap_or_default()),
-            "workflow_paused" => format!(
-                "◇ paused · `{}` asks you",
-                field("task").unwrap_or_default()
-            ),
-            "workflow_completed" | "workflow_failed" | "workflow_cancelled" => format!(
-                "{} · {}/{} tasks · {} ms",
-                field("status").unwrap_or_else(|| kind.to_owned()),
-                field("tasks_ok").unwrap_or_default(),
-                field("tasks_total").unwrap_or_default(),
-                field("elapsed_ms").unwrap_or_default()
-            ),
-            "run_settled" => {
-                self.trace = frame
-                    .get("receipt")
-                    .and_then(|r| r.get("trace_path"))
-                    .and_then(|p| p.as_str())
-                    .map(std::path::PathBuf::from);
-                return None;
-            }
-            _ => return None,
-        };
-        self.lines.push(said.clone());
-        Some(said)
-    }
+    drive_child(&exe, &args, root, busy, slot)
 }
 
 /// Open the native session behind the terminal renderer (bare `nika` on a terminal ·

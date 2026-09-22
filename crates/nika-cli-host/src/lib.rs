@@ -36,6 +36,8 @@ pub mod fix_ladder;
 pub(crate) mod git;
 pub mod harness;
 pub mod help_card;
+pub mod lane;
+pub mod lines;
 pub mod literal_inputs;
 pub mod machine_truth;
 pub mod metrics;
