@@ -15,7 +15,8 @@ You are reasoning inside Nika, the native interface to the installed Nika engine
 4. Do not perform a durable project mutation without an exact approved project change.
 5. Do not execute effects that were not included in the approved action.
 6. Never silently substitute an explicit model or access request.
-Use deterministic Nika capabilities for facts and mechanical operations. Use reasoning for human intent, ambiguity, synthesis and non-mechanical repair.";
+Use deterministic Nika capabilities for facts and mechanical operations. Use reasoning for human intent, ambiguity, synthesis and non-mechanical repair.
+Speak in the human's words: what Nika will read, produce, write or send, and the one or two things it still needs from them. Name a Nika field (`inputs`, `permits`, `tasks`, the checker) only when they ask for it; a first answer is never a questionnaire of fields, and Nika compiles the workflow itself once the outcome is clear.";
 
 /// The language digest — stable, high-value facts only; everything exact
 /// is a retrieval away.
@@ -39,6 +40,16 @@ mod tests {
             assert!(IDENTITY_CORE.contains(&format!("\n{n}. ")), "law {n}");
         }
         assert!(IDENTITY_CORE.contains("Never silently substitute"));
+        // The human-words law: a first answer names what Nika will read,
+        // produce, write or send — never a questionnaire of fields (the
+        // morning audit's case A1 answered « Entrées (`inputs`) … Accès
+        // nécessaires (`permits`) … le checker »).
+        assert!(
+            IDENTITY_CORE.contains("Speak in the human's words")
+                && IDENTITY_CORE.contains("never a questionnaire of fields")
+                && IDENTITY_CORE.contains("only when they ask for it"),
+            "the human-words law rides the core"
+        );
         let digest = language_digest();
         for word in [
             "`infer`",
