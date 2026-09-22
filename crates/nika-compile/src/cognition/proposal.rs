@@ -598,6 +598,21 @@ fn one_clause_one_step(
         );
         return true;
     }
+    // « mismas columnas y mismo orden » as a validate: the computation keeps the columns and
+    // the order by construction; a model has nothing to check.
+    if matches!(op, Op::Validate | Op::Explore) && only_format_words(&step.detail) {
+        crate::finding(
+            out,
+            DiagnosticKind::Applied,
+            "authoring_plan",
+            format!(
+                "`{}` is a format the computation keeps by construction; the proposal's `{}` over it was not assembled.",
+                step.evidence.trim(),
+                step.op
+            ),
+        );
+        return true;
+    }
     if stated.write.contains(&clause) && !matches!(op, Op::Draft | Op::Compute) {
         crate::finding(
             out,
@@ -791,6 +806,76 @@ fn only_a_place_and_a_law(detail: &str) -> bool {
         .trim_matches(|c: char| c == '.' || c == ':' || c == ',')
         .trim();
     !rest.is_empty() && crate::structure::binds_no_operation(rest)
+}
+
+/// Phrases that name the columns kept as they are, six languages, folded.
+const SAME_COLUMNS: &[&str] = &[
+    "same columns",
+    "the same columns",
+    "with the same columns",
+    "all columns",
+    "every column",
+    "mêmes colonnes",
+    "memes colonnes",
+    "les mêmes colonnes",
+    "les memes colonnes",
+    "avec les mêmes colonnes",
+    "toutes les colonnes",
+    "mismas columnas",
+    "las mismas columnas",
+    "con las mismas columnas",
+    "todas las columnas",
+    "stesse colonne",
+    "le stesse colonne",
+    "con le stesse colonne",
+    "tutte le colonne",
+    "dieselben spalten",
+    "die gleichen spalten",
+    "alle spalten",
+    "mesmas colunas",
+    "as mesmas colunas",
+    "com as mesmas colunas",
+    "todas as colunas",
+    "same row order",
+    "mismo orden",
+    "el mismo orden",
+    "en el mismo orden",
+    "même ordre",
+    "meme ordre",
+    "le même ordre",
+    "dans le même ordre",
+    "stesso ordine",
+    "lo stesso ordine",
+    "nello stesso ordine",
+    "gleiche reihenfolge",
+    "dieselbe reihenfolge",
+    "mesma ordem",
+    "a mesma ordem",
+    "na mesma ordem",
+];
+
+/// Whether a detail says nothing but a format the computation keeps by construction: every
+/// segment (split at commas and conjunctions) is a same-columns phrase or a lines-mode tail
+/// (« tal cual », « in order », « one per line »).
+fn only_format_words(detail: &str) -> bool {
+    let lower = detail.to_lowercase();
+    let segments: Vec<String> = lower
+        .split([',', ';'])
+        .flat_map(|part| {
+            part.split(" y ")
+                .flat_map(|p| p.split(" and "))
+                .flat_map(|p| p.split(" et "))
+                .flat_map(|p| p.split(" e "))
+                .flat_map(|p| p.split(" und "))
+                .collect::<Vec<_>>()
+        })
+        .map(|s| s.trim().trim_end_matches('.').trim().to_owned())
+        .filter(|s| !s.is_empty())
+        .collect();
+    !segments.is_empty()
+        && segments
+            .iter()
+            .all(|s| SAME_COLUMNS.contains(&s.as_str()) || crate::rules::by_construction_tail(s))
 }
 
 /// Whether a step lies over a region the request states (the trigger clause, a safeguard's
