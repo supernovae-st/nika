@@ -163,20 +163,22 @@ fn the_renderer_takes_a_sentence_to_a_file_and_gives_the_terminal_back() {
         .expect("nika ›")
         .expect("back at the prompt: consent is never a run");
 
-    // « run it »: the shell hands the terminal back, the plain run path
-    // prints below the viewport, the renderer takes the terminal again (a
-    // fresh inline viewport asks the cursor position) and the observation
-    // is committed above the composer.
+    // « run it »: the run stays INSIDE the viewport — the door runs its
+    // own machine lane as a child, each task line shows in the busy row,
+    // the story and the observation are committed above the composer; the
+    // terminal is never handed back (no cursor re-anchor to answer).
     session.send("run it\r").expect("the explicit run line");
     session
         .expect("$0.25")
-        .expect("the ceiling is announced before the terminal is handed back");
-    answer_cursor_report(&mut session);
+        .expect("the ceiling is announced before the run");
+    session
+        .expect("write_output")
+        .expect("the run's story names its tasks");
     session
         .expect("observed")
-        .expect("the observation returns into the viewport");
-    session.expect("nika ›").expect("the prompt again");
-
+        .expect("the observation is committed into the viewport");
+    // The free prompt was already there before the run and the diff
+    // renderer never redraws an unchanged cell: the door is at the prompt.
     session.send("/quit\r").expect("quit");
     session.expect(Eof).expect("closes");
     assert_eq!(exit_code(&mut session), 0);
@@ -591,5 +593,58 @@ fn sigterm_during_a_stalled_seat_call_leaves_with_143() {
     assert!(
         tee.saw("\x1b[?2004l"),
         "the terminal is restored on the way out"
+    );
+}
+
+/// J · a gated run inside the viewport: the run pauses headless at its
+/// human gate, the gate view asks in the viewport with its own prompt,
+/// the human's `y` resumes through the same lane, the effect happens
+/// exactly once and the result says approved. No terminal handoff.
+#[test]
+fn a_gated_run_pauses_inside_the_viewport_and_the_answer_resumes_it() {
+    let (project, home) = rig("gate-in-viewport");
+    let draft = "the draft to publish\n";
+    std::fs::write(project.path().join("draft.md"), draft).expect("draft");
+    std::fs::write(
+        project.path().join("approve.nika"),
+        "nika: approve-then-write\npermits:\n  fs: { read: [\"./draft.md\"], write: [\"./final.md\"] }\n  tools: [\"nika:read\", \"nika:prompt\", \"nika:write\"]\ntasks:\n  read_draft:\n    invoke: { tool: \"nika:read\", args: { path: \"./draft.md\" } }\n  approve:\n    after: { read_draft: success }\n    invoke: { tool: \"nika:prompt\", args: { mode: confirm, message: \"Write final.md from the draft?\" } }\n  write_final:\n    after: { approve: success }\n    with: { go: \"${{ tasks.approve.output }}\", text: \"${{ tasks.read_draft.output }}\" }\n    when: \"${{ with.go == true }}\"\n    invoke: { tool: \"nika:write\", args: { path: \"./final.md\", content: \"${{ with.text }}\" } }\n",
+    )
+    .expect("gated workflow");
+    let (mut session, tee) = spawn_sized(project.path(), home.path(), 100, 30);
+    answer_until(&mut session, &tee, 30, "automate?");
+    session.send("run approve.nika\r").expect("the run line");
+    answer_until(&mut session, &tee, 30, "$0.25");
+    answer_until(&mut session, &tee, 30, "Paused");
+    assert!(
+        !project.path().join("final.md").exists(),
+        "nothing is written before the human answers"
+    );
+    answer_until(&mut session, &tee, 30, "answer");
+    session
+        .send("y\r")
+        .expect("the human answers in the viewport");
+    answer_until(&mut session, &tee, 30, "resuming");
+    answer_until(&mut session, &tee, 30, "approved");
+    answer_until(&mut session, &tee, 30, "observed");
+    session.send("/quit\r").expect("quit");
+    session.expect(Eof).expect("closes");
+    assert_eq!(exit_code(&mut session), 0);
+    assert_eq!(
+        std::fs::read_to_string(project.path().join("final.md")).expect("the effect"),
+        draft
+    );
+    let traces: Vec<_> = std::fs::read_dir(project.path().join(".nika").join("traces"))
+        .expect("traces")
+        .flatten()
+        .filter(|e| e.path().extension().is_some_and(|x| x == "ndjson"))
+        .collect();
+    assert_eq!(
+        traces.len(),
+        2,
+        "the pause and the resume each left a trace"
+    );
+    assert!(
+        !tee.saw(CURSOR_QUERY.repeat(3).as_str()),
+        "the terminal was never handed back around the run"
     );
 }

@@ -36,7 +36,7 @@ nika-pack   = { path = "../nika-pack", version = "0.120.3" }   # the embedded la
 clap        = { workspace = true }                             # verb tree (completions + man derive later)
 clap_complete = { workspace = true }                           # `nika completions <shell>` (spec §9)
 serde_json  = { workspace = true }                             # trace NDJSON parse · --json surfaces
-nix         = { workspace = true, features = ["fs", "poll"] }  # kernel advisory leases + stdout→stderr fold + the paste-burst poll of the plain session
+nix         = { workspace = true, features = ["fs", "poll", "signal"] }  # kernel advisory leases + stdout→stderr fold + the paste-burst poll of the plain session + the renderer's run child ended on leave
 # The `nika run` composer (verbs/run/compose.rs · the verb/agent/effect
 # crates) descended to `nika_runtime::compose` 2026-07-22 (the 15k wall —
 # compute descends, render stays); what remains below is what the CLI's own
@@ -60,7 +60,7 @@ nika-trace       = { path = "../nika-trace", version = "0.120.3" }         # the
 nika-mcp         = { path = "../nika-mcp", version = "0.120.3" }           # `nika mcp` — the MCP server (stdio · exposes check/explain to Cursor/Claude Desktop)
 nika-models      = { path = "../nika-models", version = "0.120.3" }        # `nika model` — the local-models unit (ONE dir · Hub pull · serve glue · descended 2026-07-12)
 nika-migrate     = { path = "../nika-migrate", version = "0.120.3" }       # the .nika envelope migrations (W1 map · W2 flow) — the fix verb's repairs (descended 2026-07-15 · size-cap · pure std)
-tokio            = { workspace = true }                                   # the bin's async entry (block the run on the executor)
+tokio            = { workspace = true, features = ["process", "io-util"] }  # the bin's async entry (block the run on the executor) · process + io-util: the renderer's run as this binary's own child (`nika run --json`), kill_on_drop, frames read line by line
 
 [features]
 # Agentic CLI adapters (Claude Code · Codex · Gemini CLI · Kimi Code ·

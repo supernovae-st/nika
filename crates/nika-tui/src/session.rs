@@ -40,29 +40,50 @@ pub type RunResume = Box<dyn Fn(&Path, &Path, &Path, &str) -> RunOutcome + Send>
 /// sink for the duration of one `submit_with`, nothing between turns.
 type BusySlot = Arc<Mutex<Option<Sender<String>>>>;
 
-/// The two plain-path runners the CLI lends to the session: a run once, a
-/// resume with the human's answer. Both print through the terminal the
-/// shell has handed back.
+/// A run driven INSIDE the turn, the terminal never handed back: the
+/// door executes through its own machine lane and hands each line of
+/// the run's story to the busy sink as it happens; the exit code, the
+/// trace the run left and the whole story come back for the observation
+/// and the transcript. (root, work, busy sink).
+pub type RunTapped =
+    Box<dyn Fn(&Path, &Work, &Sender<String>) -> (u8, Option<PathBuf>, Vec<String>) + Send>;
+
+/// The runners the CLI lends to the session. The two plain-path runners
+/// print through the terminal the shell has handed back; the tapped
+/// runner, when lent, keeps the terminal and the viewport shows the run.
 pub struct Runners {
     /// `nika run <workflow>` once, under the request's ceiling.
     pub run_once: RunOnce,
     /// `nika run --resume <trace> --answer <answer>` on the same workflow.
     pub run_resume: RunResume,
+    /// The same two runs inside the turn (the renderer's way when lent).
+    pub run_tapped: Option<RunTapped>,
 }
 
 impl std::fmt::Debug for Runners {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("Runners { run_once, run_resume }")
+        f.write_str(if self.run_tapped.is_some() {
+            "Runners { run_once, run_resume, run_tapped }"
+        } else {
+            "Runners { run_once, run_resume }"
+        })
     }
 }
 
-/// What a handoff must do, kept by the conversation until the shell asks.
+/// The work a run asks of the door: a run once, or a resume with the
+/// human's answer to a gate.
 #[derive(Debug, Clone)]
-enum Work {
+#[non_exhaustive]
+pub enum Work {
+    /// `nika run <workflow>` once, under the request's ceiling.
     Run(RunRequest),
+    /// `nika run --resume <trace> --answer <answer>` on the same workflow.
     Resume {
+        /// The workflow, relative to the root.
         workflow: PathBuf,
+        /// The paused trace.
         trace: PathBuf,
+        /// `task=value`, the human's own.
         answer: String,
     },
 }
@@ -244,6 +265,10 @@ impl Live {
                     run.max_cost_usd
                 );
                 beats.push(Beat::Say(Committed::new(Kind::Report, label.clone())));
+                if self.runners.run_tapped.is_some() {
+                    beats.extend(self.run_inline(&Work::Run(run)));
+                    return (beats, None);
+                }
                 handoff = Some(self.keep(Work::Run(run), label));
             }
             TurnOutcome::Question { question, .. } => {
@@ -259,14 +284,16 @@ impl Live {
             } => {
                 let label = format!("resuming `{}` with your answer", workflow.display());
                 beats.push(Beat::Say(Committed::new(Kind::Report, label.clone())));
-                handoff = Some(self.keep(
-                    Work::Resume {
-                        workflow,
-                        trace,
-                        answer,
-                    },
-                    label,
-                ));
+                let work = Work::Resume {
+                    workflow,
+                    trace,
+                    answer,
+                };
+                if self.runners.run_tapped.is_some() {
+                    beats.extend(self.run_inline(&work));
+                    return (beats, None);
+                }
+                handoff = Some(self.keep(work, label));
             }
             TurnOutcome::Refusal(why) => {
                 beats.push(Beat::Say(Committed::new(Kind::Refusal, why.to_string())));
@@ -287,6 +314,47 @@ impl Live {
         self.next_id += 1;
         self.pending = Some((id, work));
         Handoff { id, label }
+    }
+
+    /// The run inside the turn: the tapped runner executes while the busy
+    /// row shows each line of the run's story; the story is then
+    /// committed as one block, the observation follows (a result, a
+    /// failure, or a gate that waits for the human), the prompt returns.
+    fn run_inline(&mut self, work: &Work) -> Vec<Beat> {
+        let root = self
+            .runtime
+            .as_ref()
+            .map_or_else(|| self.cwd.clone(), |r| r.snapshot.root.clone());
+        let busy = self
+            .busy
+            .lock()
+            .ok()
+            .and_then(|guard| guard.clone())
+            .unwrap_or_else(|| std::sync::mpsc::channel().0);
+        let Some(tap) = self.runners.run_tapped.as_ref() else {
+            return Vec::new();
+        };
+        let (code, trace, story) = tap(&root, work, &busy);
+        let mut beats = Vec::new();
+        if !story.is_empty() {
+            beats.push(Beat::Say(Committed::new(Kind::Run, story.join("\n"))));
+        }
+        let Some(runtime) = self.runtime.as_mut() else {
+            beats.push(Beat::Quit);
+            return beats;
+        };
+        let outcome = runtime.observe_run(code, trace.as_deref());
+        let (more, again) = self.map(outcome);
+        beats.extend(more);
+        if again.is_some() {
+            self.pending = None;
+            beats.push(Beat::Say(Committed::new(
+                Kind::Notice,
+                "the observation asked for another run; say « run it » again when you want it",
+            )));
+            beats.push(Beat::Wait(self.waiting()));
+        }
+        beats
     }
 }
 

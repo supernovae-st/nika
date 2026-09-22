@@ -394,10 +394,227 @@ fn term_name() -> Option<String> {
     std::env::var("TERM").ok()
 }
 
-/// Open the native session behind the terminal renderer (`nika --tui` ·
+/// The renderer's run child, by pid, while it runs: the door that leaves
+/// while a run is in flight ends it (SIGTERM: the engine cancels and the
+/// trace says so) instead of leaving an orphan working in the dark.
+type ChildSlot = std::sync::Arc<std::sync::Mutex<Option<u32>>>;
+
+/// The run inside the renderer's turn: this binary's own machine lane
+/// (`nika run --json`) as a child whose pipes never touch the terminal
+/// the viewport owns. Each frame the lane prints becomes one line of the
+/// run's story, handed to the busy sink as it happens and kept for the
+/// block the transcript commits; the exit code is the child's, the trace
+/// the settle frame names. A human gate pauses headless (exit 4): the
+/// session asks it in the viewport and the answer resumes through here.
+fn run_tapped(
+    root: &std::path::Path,
+    work: &nika_tui::session::Work,
+    busy: &std::sync::mpsc::Sender<String>,
+    slot: &ChildSlot,
+) -> (u8, Option<std::path::PathBuf>, Vec<String>) {
+    use nika_tui::session::Work;
+    let mut args: Vec<String> = vec!["run".to_owned()];
+    match work {
+        Work::Run(run) => {
+            args.push(root.join(&run.workflow).display().to_string());
+            args.push("--json".to_owned());
+            args.push("--max-cost-usd".to_owned());
+            args.push(format!("{}", run.max_cost_usd));
+            for var in &run.vars {
+                args.push("--var".to_owned());
+                args.push(var.clone());
+            }
+        }
+        Work::Resume {
+            workflow,
+            trace,
+            answer,
+        } => {
+            args.push(root.join(workflow).display().to_string());
+            args.push("--json".to_owned());
+            args.push("--resume".to_owned());
+            args.push(trace.display().to_string());
+            args.push("--answer".to_owned());
+            args.push(answer.clone());
+        }
+        _ => {
+            return (
+                exit::ENV,
+                None,
+                vec!["a kind of work this door cannot run".to_owned()],
+            );
+        }
+    }
+    let Ok(exe) = std::env::current_exe() else {
+        return (
+            exit::ENV,
+            None,
+            vec!["this binary cannot name itself".to_owned()],
+        );
+    };
+    let runtime = match tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+    {
+        Ok(runtime) => runtime,
+        Err(error) => {
+            return (
+                exit::ENV,
+                None,
+                vec![format!("no executor for the run: {error}")],
+            );
+        }
+    };
+    runtime.block_on(drive_child(&exe, &args, root, busy, slot))
+}
+
+/// The child's frames, one story line each, until it settles.
+async fn drive_child(
+    exe: &std::path::Path,
+    args: &[String],
+    root: &std::path::Path,
+    busy: &std::sync::mpsc::Sender<String>,
+    slot: &ChildSlot,
+) -> (u8, Option<std::path::PathBuf>, Vec<String>) {
+    use tokio::io::AsyncBufReadExt as _;
+    let mut child = match tokio::process::Command::new(exe)
+        .args(args)
+        .current_dir(root)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .kill_on_drop(true)
+        .spawn()
+    {
+        Ok(child) => child,
+        Err(error) => {
+            return (
+                exit::ENV,
+                None,
+                vec![format!("the run could not start: {error}")],
+            );
+        }
+    };
+    if let Ok(mut guard) = slot.lock() {
+        *guard = child.id();
+    }
+    let mut story = RunStory::default();
+    if let Some(stdout) = child.stdout.take() {
+        let mut lines = tokio::io::BufReader::new(stdout).lines();
+        while let Ok(Some(line)) = lines.next_line().await {
+            if let Some(said) = story.frame(&line) {
+                let _ = busy.send(said);
+            }
+        }
+    }
+    let status = child.wait().await;
+    if let Ok(mut guard) = slot.lock() {
+        *guard = None;
+    }
+    let code = match status {
+        Ok(status) => status
+            .code()
+            .and_then(|c| u8::try_from(c).ok())
+            .unwrap_or(exit::ENV),
+        Err(_) => exit::ENV,
+    };
+    (code, story.trace, story.lines)
+}
+
+/// The run's story, folded from the machine lane's frames: one short
+/// line per task settle, the header, the summary, the pause — the words
+/// the busy row shows and the transcript keeps.
+#[derive(Default)]
+struct RunStory {
+    lines: Vec<String>,
+    trace: Option<std::path::PathBuf>,
+    total: usize,
+    done: usize,
+}
+
+impl RunStory {
+    /// One frame; the line it adds to the story, if any.
+    fn frame(&mut self, line: &str) -> Option<String> {
+        let frame: serde_json::Value = serde_json::from_str(line).ok()?;
+        let kind = frame.get("kind")?.as_str()?;
+        let field = |key: &str| -> Option<String> {
+            frame
+                .get("fields")?
+                .as_array()?
+                .iter()
+                .find(|f| f.get("key").and_then(|k| k.as_str()) == Some(key))?
+                .get("value")
+                .map(|v| match v {
+                    serde_json::Value::String(s) => s.clone(),
+                    other => other.to_string(),
+                })
+        };
+        let said = match kind {
+            "workflow_started" => format!("running · {}", field("workflow").unwrap_or_default()),
+            "task_scheduled" => {
+                self.total += 1;
+                return None;
+            }
+            "task_started" => format!(
+                "→ {} · {}",
+                field("task").unwrap_or_default(),
+                field("note").unwrap_or_default()
+            ),
+            "task_completed" => {
+                self.done += 1;
+                format!(
+                    "✔ {} · {} ms · {}/{}",
+                    field("task").unwrap_or_default(),
+                    field("duration_ms").unwrap_or_default(),
+                    self.done,
+                    self.total
+                )
+            }
+            "task_cache_hit" => {
+                self.done += 1;
+                format!("↺ {} · from the cache", field("task").unwrap_or_default())
+            }
+            "task_failed" => format!(
+                "✖ {} · {}",
+                field("task").unwrap_or_default(),
+                field("detail")
+                    .unwrap_or_default()
+                    .lines()
+                    .next()
+                    .unwrap_or_default()
+            ),
+            "task_skipped" => format!("· {} skipped", field("task").unwrap_or_default()),
+            "task_cancelled" => format!("· {} cancelled", field("task").unwrap_or_default()),
+            "workflow_paused" => format!(
+                "◇ paused · `{}` asks you",
+                field("task").unwrap_or_default()
+            ),
+            "workflow_completed" | "workflow_failed" | "workflow_cancelled" => format!(
+                "{} · {}/{} tasks · {} ms",
+                field("status").unwrap_or_else(|| kind.to_owned()),
+                field("tasks_ok").unwrap_or_default(),
+                field("tasks_total").unwrap_or_default(),
+                field("elapsed_ms").unwrap_or_default()
+            ),
+            "run_settled" => {
+                self.trace = frame
+                    .get("receipt")
+                    .and_then(|r| r.get("trace_path"))
+                    .and_then(|p| p.as_str())
+                    .map(std::path::PathBuf::from);
+                return None;
+            }
+            _ => return None,
+        };
+        self.lines.push(said.clone());
+        Some(said)
+    }
+}
+
+/// Open the native session behind the terminal renderer (bare `nika` on a terminal ·
 /// ADR-139 · UX-2): the same runtime, the same census and kept choice, the
-/// same two run paths lent as runners; the renderer owns the terminal and
-/// hands it back around each run.
+/// same two run paths lent as runners, and the tapped runner that keeps
+/// the terminal: a run shows inside the viewport, its gate asks there.
 ///
 /// A terminal the renderer cannot take (`TERM=dumb` · one that never
 /// answers the cursor-position report the inline viewport anchors on)
@@ -423,14 +640,30 @@ pub fn run_tui(theme: Theme) -> u8 {
     let home = nika_cli_host::probe::home_dir();
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     let kept = home.as_deref().and_then(UserIntelligencePreference::load);
+    let child: ChildSlot = std::sync::Arc::new(std::sync::Mutex::new(None));
+    let slot = std::sync::Arc::clone(&child);
     let runners = Runners {
         run_once: Box::new(move |root, run| run_once(root, run, theme)),
         run_resume: Box::new(move |root, workflow, trace, answer| {
             run_resume(root, workflow, trace, answer, theme)
         }),
+        run_tapped: Some(Box::new(move |root, work, busy| {
+            run_tapped(root, work, busy, &slot)
+        })),
     };
     let live = Live::new(cwd, census, kept, home, Box::new(reasoner_for), runners);
-    match nika_tui::app::run_on(taken, live, options) {
+    let left = nika_tui::app::run_on(taken, live, options);
+    // A run still in flight when the door leaves is ended, never orphaned:
+    // the engine cancels on SIGTERM and its trace says so.
+    if let Some(pid) = child.lock().ok().and_then(|guard| *guard)
+        && let Ok(pid) = i32::try_from(pid)
+    {
+        let _ = nix::sys::signal::kill(
+            nix::unistd::Pid::from_raw(pid),
+            nix::sys::signal::Signal::SIGTERM,
+        );
+    }
+    match left {
         Ok(left) => left.code(),
         Err(error) => {
             let _ = writeln!(std::io::stderr(), "nika: {error}");
