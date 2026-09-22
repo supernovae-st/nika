@@ -337,6 +337,7 @@ pub(super) fn feasibility(candidate: &Plan, floor: &Plan, intent: &str) -> Resul
         .iter()
         .filter(|c| !super::structure::binds_no_operation(c))
         .filter(|c| !restated(candidate, floor, c))
+        .filter(|c| !carried_by_an_obligation(candidate, c))
         .count();
     if carried_by_an_operation > 0 && !candidate.steps.iter().any(|s| s.op.carries_constraints()) {
         why.push(format!(
@@ -473,6 +474,44 @@ fn same_family(a: Op, b: Op) -> bool {
 /// elsewhere (an operation's or an effect's excerpt, an obligation's words, the trigger)
 /// binds nothing new: the seat listed the clause twice, once as what it is and once as a
 /// constraint, or restated a clause the reader recognized as an operation.
+/// A constraint that restates a safeguard the plan carries as an obligation (« Déduplique
+/// les événements entrants par leur identifiant ; pas de seconde action pour le même
+/// événement » beside the dedup obligation « dédoublonne le callback par identifiant ») is
+/// carried by that obligation's machinery — the admit task, the retry, the recheck — never
+/// by a prompt.
+fn carried_by_an_obligation(candidate: &Plan, constraint: &str) -> bool {
+    let folded = super::shape::fold(constraint);
+    candidate.obligations.iter().any(|o| {
+        let cues: &[&str] = match o.kind.word() {
+            "dedup" => &[
+                "dedup",
+                "dedoublonn",
+                "dedupliq",
+                "deduplic",
+                "doublon",
+                "duplicat",
+                "duplicad",
+                "doppelt",
+                "duplikat",
+            ],
+            "revision_check" => &["version"],
+            "retry_bound" => &[
+                "tentative",
+                "essai",
+                "retry",
+                "retries",
+                "attempt",
+                "versuch",
+                "tentativ",
+                "intento",
+                "reintent",
+            ],
+            _ => &[],
+        };
+        cues.iter().any(|cue| folded.contains(cue))
+    })
+}
+
 fn restated(candidate: &Plan, floor: &Plan, constraint: &str) -> bool {
     let fold = |text: &str| {
         text.split_whitespace()

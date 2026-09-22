@@ -471,7 +471,8 @@ fn one_clause_one_step(
     }
     if matches!(op, Op::Explore | Op::Validate | Op::Draft)
         && (crate::gates::named_gate(&clause).is_some()
-            || crate::gates::final_gate(&clause).is_some())
+            || crate::gates::final_gate(&clause).is_some()
+            || inside_a_gate_sentence(intent, &clause))
     {
         return folded(
             out,
@@ -527,6 +528,22 @@ fn one_clause_one_step(
         return folded(out, step, "the write the proposal states");
     }
     false
+}
+
+/// Whether the clause lies inside a sentence of the request that states a gate: « validation
+/// humaine de ce dossier précis, avant son exécution » cited as a validate is a fragment of
+/// « Mais cette action finale exige la validation humaine de ce dossier précis, avant son
+/// exécution. », the gate the effect's policy carries.
+fn inside_a_gate_sentence(intent: &str, clause: &str) -> bool {
+    !clause.is_empty()
+        && crate::lexicon::split_sentences(intent)
+            .into_iter()
+            .any(|sentence| {
+                let lower = fold_words(sentence);
+                lower.contains(clause)
+                    && (crate::gates::named_gate(&lower).is_some()
+                        || crate::gates::final_gate(&lower).is_some())
+            })
 }
 
 /// Records a fold as applied — the clause was understood, the element was not assembled a
