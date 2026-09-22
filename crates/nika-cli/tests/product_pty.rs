@@ -70,6 +70,7 @@ fn open_session_with(project: &Path, home: &Path, env: &[(&str, &str)]) -> Logge
         .env_remove("CLICOLOR_FORCE")
         .env("NO_COLOR", "1")
         .env("TERM", "xterm-256color")
+        .env("NIKA_TUI", "0")
         .env("HOME", home)
         .env("NIKA_KEYCHAIN", "off");
     let session = OsSession::spawn(cmd).expect("pty spawn");

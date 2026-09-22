@@ -7,7 +7,7 @@
 // on a terminal (ADR-139) — unreachable from every piped harness.
 #![allow(clippy::disallowed_types)]
 //! The renderer's first five seconds (UX-2 · ADR-139): a human launches
-//! `nika --tui`, the same session opens behind the inline viewport, a
+//! `nika`, the same session opens behind the inline viewport, a
 //! sentence becomes a proposal committed above the composer, `oui` lands the
 //! exact bytes and the real check runs, « run it » hands the terminal back
 //! to the plain run path and the observation returns into the viewport,
@@ -76,12 +76,11 @@ fn answer_cursor_report(session: &mut LoggedSession) {
     session.send("\x1b[24;1R").expect("answer the report");
 }
 
-/// `nika --tui` on a PTY in `project`, with `home` as the home. Returns the
+/// Bare `nika` on a PTY in `project`, with `home` as the home. Returns the
 /// session and the time the banner took to reach the terminal.
 fn open_tui(project: &Path, home: &Path) -> (LoggedSession, Duration) {
     let mut cmd = Command::new(bin());
-    cmd.arg("--tui")
-        .current_dir(project)
+    cmd.current_dir(project)
         .env_remove("CLICOLOR")
         .env_remove("CLICOLOR_FORCE")
         .env("NO_COLOR", "1")
@@ -219,7 +218,6 @@ fn help_is_answered_by_the_engine_inside_the_viewport() {
 fn tui_on_a_pipe_keeps_the_concierge_and_writes_no_escape_sequence() {
     let (project, home) = rig("pipe");
     let out = Command::new(bin())
-        .arg("--tui")
         .current_dir(project.path())
         .env("NO_COLOR", "1")
         .env("TERM", "xterm-256color")
@@ -274,11 +272,10 @@ impl Tee {
 
 type TeeSession = Session<UnixProcess, LogStream<PtyStream, Tee>>;
 
-/// The bare `nika --tui` command on a PTY in `project` with `home`.
+/// The bare `nika` command on a PTY in `project` with `home`.
 fn tui_command(project: &Path, home: &Path, term: &str) -> Command {
     let mut cmd = Command::new(bin());
-    cmd.arg("--tui")
-        .current_dir(project)
+    cmd.current_dir(project)
         .env_remove("CLICOLOR")
         .env_remove("CLICOLOR_FORCE")
         .env("NO_COLOR", "1")

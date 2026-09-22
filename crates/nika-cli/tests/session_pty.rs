@@ -95,6 +95,7 @@ fn a_pipe_is_the_concierge_and_the_tty_is_the_session() {
     cmd.current_dir(project.path())
         .env("NO_COLOR", "1")
         .env("TERM", "xterm-256color")
+        .env("NIKA_TUI", "0")
         .env("HOME", home.path());
     let session = OsSession::spawn(cmd).expect("pty spawn");
     let mut session = expectrl::session::log(session, std::io::stderr()).expect("log tee");
@@ -161,6 +162,7 @@ fn the_kept_choice_opens_the_session_without_asking() {
     cmd.current_dir(project.path())
         .env("NO_COLOR", "1")
         .env("TERM", "xterm-256color")
+        .env("NIKA_TUI", "0")
         .env("HOME", home.path());
     let session = OsSession::spawn(cmd).expect("pty spawn");
     let mut session = expectrl::session::log(session, std::io::stderr()).expect("log tee");
@@ -202,4 +204,53 @@ fn nika_thread_is_an_unrecognized_subcommand() {
         !text.contains("nika · thread") && !text.contains("nika · session"),
         "{text}"
     );
+}
+
+/// One gesture: bare `nika` on a real terminal opens the renderer (its
+/// probe asks the terminal's attributes and the cursor position before
+/// the first paint); `NIKA_TUI=0` keeps the plain loop, which asks the
+/// terminal nothing.
+#[test]
+fn bare_nika_opens_the_renderer_and_nika_tui_zero_keeps_the_plain_loop() {
+    let (project, home) = rig("bare-door");
+    let mut cmd = Command::new(bin());
+    cmd.current_dir(project.path())
+        .env_remove("NIKA_TUI")
+        .env("NO_COLOR", "1")
+        .env("TERM", "xterm-256color")
+        .env("HOME", home.path());
+    let session = OsSession::spawn(cmd).expect("pty spawn");
+    let mut session = expectrl::session::log(session, std::io::stderr()).expect("log tee");
+    session.set_expect_timeout(Some(Duration::from_secs(60)));
+    session
+        .expect("\x1b[c")
+        .expect("the renderer's probe asks the terminal's attributes: the renderer opened");
+    session.send("\x1b[?62;22c").expect("answer the attributes");
+    session
+        .expect("\x1b[6n")
+        .expect("the inline viewport asks where the cursor is");
+    session.send("\x1b[24;1R").expect("answer the report");
+    session
+        .expect("automate?")
+        .expect("the banner inside the viewport");
+    session.send("/quit\r").expect("quit in raw mode");
+    session.expect(Eof).expect("closes");
+    assert_eq!(exit_code(&mut session), 0);
+
+    let mut cmd = Command::new(bin());
+    cmd.current_dir(project.path())
+        .env("NIKA_TUI", "0")
+        .env("NO_COLOR", "1")
+        .env("TERM", "xterm-256color")
+        .env("HOME", home.path());
+    let session = OsSession::spawn(cmd).expect("pty spawn");
+    let mut session = expectrl::session::log(session, std::io::stderr()).expect("log tee");
+    session.set_expect_timeout(Some(Duration::from_secs(60)));
+    session
+        .expect("What do you want to automate?")
+        .expect("the plain loop's banner, whole");
+    session.expect("nika ›").expect("the plain prompt");
+    session.send_line("/quit").expect("quit");
+    session.expect(Eof).expect("closes");
+    assert_eq!(exit_code(&mut session), 0);
 }

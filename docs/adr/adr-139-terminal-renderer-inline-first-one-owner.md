@@ -135,7 +135,7 @@ original `tui-textarea` is frozen at ratatui 0.29).
 - The workspace gains `ratatui`, `crossterm` and `ratatui-textarea` (all
   MIT), pinned in the workspace manifest.
 - UX-2 (same day): the live conversation `nika_tui::session::Live` puts the
-  real `SessionRuntime` behind the beats, reached by `nika --tui` on an
+  real `SessionRuntime` behind the beats, reached by bare `nika` on an (amended 2026-09-22: the `--tui` flag is retired, `--plain` or `NIKA_TUI=0` keeps the plain loop) — first reached by `nika --tui` on an
   interactive terminal (the front door scans the flag beside `--json` and
   `--plain`; a pipe keeps the concierge). The loop is synchronous: the
   plain run path builds its own executor and one cannot start inside

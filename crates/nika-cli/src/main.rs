@@ -644,13 +644,25 @@ fn sdk_identity() -> std::process::ExitCode {
     std::process::ExitCode::SUCCESS
 }
 
+/// `NIKA_TUI=0` (or `off` · `false` · `plain`) keeps bare `nika` on the plain
+/// line loop: flat text for a screen reader, a recorder, a harness. A
+/// display choice, not a secret (the same allow the theme probes carry).
+#[allow(clippy::disallowed_methods)]
+fn plain_session_requested() -> bool {
+    std::env::var("NIKA_TUI").is_ok_and(|v| {
+        matches!(
+            v.trim().to_ascii_lowercase().as_str(),
+            "0" | "off" | "false" | "no" | "plain"
+        )
+    })
+}
+
 /// Bare `nika` (the session on a terminal · the concierge on a pipe), `nika --json`, `nika version` — decided
 /// before clap so a missing subcommand never clap-fails the front door.
 fn front_door(argv: &[std::ffi::OsString]) -> Option<std::process::ExitCode> {
     let mut json = false;
     let mut ascii = false;
     let mut saw_fix = false;
-    let mut tui = false;
     let mut positional: Vec<&std::ffi::OsStr> = Vec::new();
     let mut skip_value = false;
     for arg in argv {
@@ -662,7 +674,6 @@ fn front_door(argv: &[std::ffi::OsString]) -> Option<std::process::ExitCode> {
             Some("--json") => json = true,
             Some("--plain" | "--ascii") => ascii = true,
             Some("--fix") => saw_fix = true,
-            Some("--tui") => tui = true,
             Some("--color" | "--hyperlink") => skip_value = true,
             Some(s) if s.starts_with("--color=") || s.starts_with("--hyperlink=") => {}
             _ => positional.push(arg),
@@ -685,12 +696,17 @@ fn front_door(argv: &[std::ffi::OsString]) -> Option<std::process::ExitCode> {
             // session; a pipe keeps the deterministic concierge (exit 0).
             let interactive =
                 !json && std::io::stdin().is_terminal() && std::io::stdout().is_terminal();
-            // `--tui` (ADR-139 · UX-2): the same session behind the renderer,
-            // an explicit door while the plain loop's goldens stay the law.
-            Some(if interactive && tui {
-                std::process::ExitCode::from(verbs::session::run_tui(interactive_theme(theme)))
-            } else if interactive {
+            // ADR-139 · UX-2 · one gesture: on a real terminal the session
+            // opens behind the renderer (as the agent CLIs a human already
+            // knows do). The plain loop is one gesture away for flat text
+            // (`--plain`, or `NIKA_TUI=0`), and it is the automatic fallback
+            // when the renderer cannot take the terminal (`TERM=dumb`, a
+            // mute cursor report), said once on stderr by the renderer's door.
+            let plain = ascii || plain_session_requested();
+            Some(if interactive && plain {
                 std::process::ExitCode::from(verbs::session::run(interactive_theme(theme)))
+            } else if interactive {
+                std::process::ExitCode::from(verbs::session::run_tui(interactive_theme(theme)))
             } else {
                 concierge(json, theme)
             })
