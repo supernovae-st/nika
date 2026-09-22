@@ -346,6 +346,13 @@ const SERIALIZE_VERBS: &[&str] = &[
     "escrev",
     "assembl",
     "build",
+    "compo",
+    "compos",
+    "costru",
+    "constru",
+    "erstell",
+    "monta",
+    "montez",
     "construi",
     "compos",
 ];
@@ -464,10 +471,62 @@ const LANGUAGE_WORDS: &[&str] = &[
 /// detail that names language work (a summary, a note, a digest, headings) stays a draft.
 fn serialization_draft(detail: &str) -> bool {
     let detail = fold_words(detail);
-    let cue = SERIALIZE_VERBS.iter().any(|v| detail.contains(v))
-        && DATA_WORDS.iter().any(|w| detail.contains(w));
+    let verb = SERIALIZE_VERBS.iter().any(|v| detail.contains(v));
+    // « écrivez ce nombre seul », « scrivi solo il numero »: the computed number alone.
+    let number_alone = NUMBER_WORDS.iter().any(|w| detail.contains(w))
+        && ONLY_WORDS.iter().any(|w| detail.contains(w));
+    let cue = verb && (DATA_WORDS.iter().any(|w| detail.contains(w)) || number_alone);
     cue && !LANGUAGE_WORDS.iter().any(|w| detail.contains(w))
 }
+
+/// The words of a computed number, six languages, folded.
+const NUMBER_WORDS: &[&str] = &[
+    "nombre",
+    "number",
+    "número",
+    "numero",
+    "zahl",
+    "anzahl",
+    "count",
+    "total",
+    "totale",
+    "somme",
+    "suma",
+    "summe",
+    "montant",
+    "amount",
+    "résultat",
+    "resultat",
+    "result",
+    "risultato",
+    "resultado",
+    "ergebnis",
+];
+
+/// « alone », « only »: the number and nothing else, six languages, folded.
+const ONLY_WORDS: &[&str] = &[
+    " seul",
+    " seule",
+    " uniquement",
+    " rien d'autre",
+    " only",
+    " alone",
+    " nothing else",
+    " solo ",
+    " solo.",
+    " sólo",
+    " solamente",
+    " nada más",
+    " nada mas",
+    " soltanto",
+    " nient'altro",
+    " nur ",
+    " nur.",
+    " nichts anderes",
+    " apenas",
+    " somente",
+    " nada mais",
+];
 
 /// « pídeme confirmación antes de enviar » asks a person before the effect: that is the
 /// gate its policy carries, never a version to recheck. Records the fold as applied.
