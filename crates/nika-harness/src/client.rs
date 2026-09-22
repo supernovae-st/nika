@@ -523,39 +523,74 @@ mod seats {
         a.trim().eq_ignore_ascii_case(b.trim())
     }
 
-    /// The (config id, value) that names the wanted model among the option's choices, by value
-    /// or by display name.
-    pub(super) fn offered_option(option: Option<&Value>, wanted: &str) -> Option<(String, Value)> {
-        let option = option?;
-        let id = option.get("id")?.as_str()?.to_owned();
-        let choice = option.get("options")?.as_array()?.iter().find(|c| {
-            c.get("value")
+    /// Whether an offered alias stands as a whole segment of the requested name — bounded by
+    /// the name's edges or its separators (`sonnet` in `claude-sonnet-4-5`, `grok-4.7` in
+    /// `xai-grok-4.7`), never a substring (`son` matches nothing) and never a bare number.
+    fn family_word(offered: &str, wanted: &str) -> bool {
+        let offered = offered.trim();
+        if offered.is_empty() || !offered.chars().any(|c| c.is_ascii_alphabetic()) {
+            return false;
+        }
+        let haystack = wanted.to_ascii_lowercase();
+        let needle = offered.to_ascii_lowercase();
+        let boundary = |c: Option<char>| c.is_none_or(|c| !c.is_ascii_alphanumeric());
+        let mut from = 0;
+        while let Some(at) = haystack[from..].find(&needle) {
+            let start = from + at;
+            let end = start + needle.len();
+            if boundary(haystack[..start].chars().next_back())
+                && boundary(haystack[end..].chars().next())
+            {
+                return true;
+            }
+            from = end;
+        }
+        false
+    }
+
+    /// The choice that names the wanted model: exactly (value or name) first, then by its
+    /// family word.
+    fn choose<'a>(
+        choices: impl Iterator<Item = &'a Value> + Clone,
+        value_key: &str,
+        wanted: &str,
+    ) -> Option<&'a Value> {
+        let exact = choices.clone().find(|c| {
+            c.get(value_key)
                 .and_then(Value::as_str)
                 .is_some_and(|v| same(v, wanted))
                 || c.get("name")
                     .and_then(Value::as_str)
                     .is_some_and(|n| same(n, wanted))
-        })?;
+        });
+        exact.or_else(|| {
+            choices.into_iter().find(|c| {
+                c.get(value_key)
+                    .and_then(Value::as_str)
+                    .is_some_and(|v| family_word(v, wanted))
+            })
+        })
+    }
+
+    /// The (config id, value) that names the wanted model among the option's choices, by value
+    /// or by display name.
+    pub(super) fn offered_option(option: Option<&Value>, wanted: &str) -> Option<(String, Value)> {
+        let option = option?;
+        let id = option.get("id")?.as_str()?.to_owned();
+        let choice = choose(option.get("options")?.as_array()?.iter(), "value", wanted)?;
         Some((id, choice.get("value")?.clone()))
     }
 
     /// The legacy list's `modelId` that names the wanted model, by id or by display name.
     pub(super) fn offered_model(models: Option<&Value>, wanted: &str) -> Option<String> {
-        models?
-            .get("availableModels")?
-            .as_array()?
-            .iter()
-            .find(|m| {
-                m.get("modelId")
-                    .and_then(Value::as_str)
-                    .is_some_and(|v| same(v, wanted))
-                    || m.get("name")
-                        .and_then(Value::as_str)
-                        .is_some_and(|n| same(n, wanted))
-            })?
-            .get("modelId")?
-            .as_str()
-            .map(str::to_owned)
+        choose(
+            models?.get("availableModels")?.as_array()?.iter(),
+            "modelId",
+            wanted,
+        )?
+        .get("modelId")?
+        .as_str()
+        .map(str::to_owned)
     }
 
     /// Every model the agent offers, for the refusal's teaching line.
@@ -1108,6 +1143,34 @@ mod tests {
         assert_eq!(
             outcome.expect("completed").observed_model.as_deref(),
             Some("opus")
+        );
+    }
+
+    #[test]
+    fn a_requested_model_meets_an_offered_alias_by_its_family_word_never_a_substring() {
+        let models = serde_json::json!({"currentModelId":"fable","availableModels":[
+            {"modelId":"default","name":"Default (recommended)"},{"modelId":"sonnet","name":"Sonnet"},
+            {"modelId":"haiku","name":"Haiku"},{"modelId":"fable","name":"fable"}]});
+        assert_eq!(
+            seats::offered_model(Some(&models), "claude-sonnet-4-5").as_deref(),
+            Some("sonnet")
+        );
+        assert_eq!(
+            seats::offered_model(Some(&models), "Sonnet").as_deref(),
+            Some("sonnet")
+        );
+        assert_eq!(seats::offered_model(Some(&models), "claude-opus-4-6"), None);
+        assert_eq!(seats::offered_model(Some(&models), "sonnetish"), None);
+        let option = serde_json::json!({"id":"model","category":"model","currentValue":"grok-4.7",
+            "options":[{"value":"grok-4.7","name":"Grok 4.7"},{"value":"grok-4.7-build-fast","name":"Grok 4.7 Fast"}]});
+        assert_eq!(
+            seats::offered_option(Some(&option), "grok-4.7"),
+            Some(("model".to_owned(), Value::String("grok-4.7".to_owned())))
+        );
+        assert_eq!(
+            seats::offered_option(Some(&option), "xai-grok-4.7").map(|(_, v)| v),
+            Some(Value::String("grok-4.7".to_owned())),
+            "the family word may itself carry a dot"
         );
     }
 
