@@ -537,7 +537,7 @@ impl SessionRuntime {
     /// shape, bound to its key, and the same plan replayed. A cancel word
     /// drops the round; an empty line is not an answer.
     pub(super) fn answer_question_unrecorded(&mut self, line: &str) -> TurnOutcome {
-        let Some(mut round) = self.authoring.take() else {
+        let Some(round) = self.authoring.take() else {
             return TurnOutcome::Refusal(Refusal::new(
                 RefusalClass::WrongState,
                 "no authoring question waits",
@@ -580,44 +580,10 @@ impl SessionRuntime {
             line.to_owned()
         };
         let line = line.as_str();
-        // Open language at a question: its act is a bounded decision — an
-        // answer binds, a question about the question explains it (the
-        // question still waits), a change reads the request again with the
-        // human's words; without any intelligence a line is the answer.
-        let decision = self.classify(SessionPhase::QuestionPending, line);
-        // A `?` is a hint, never a veto: it decides only when nothing could
-        // judge the line — an unread question is then asked, not bound.
-        let act = if decision.act == TurnAct::Unknown
-            && decision.method == RoutingMethod::Fallback
-            && line.trim_end().ends_with('?')
-        {
-            TurnAct::Discuss
-        } else {
-            decision.act
+        let mut round = match self.route_at_question(round, line) {
+            Ok(round) => round,
+            Err(outcome) => return outcome,
         };
-        match act {
-            TurnAct::Discuss => {
-                let text = round.current().map_or_else(
-                    || "no authoring question waits".to_owned(),
-                    |q| super::aside::explain_question(q, &round),
-                );
-                self.authoring = Some(round);
-                return TurnOutcome::Aside(text);
-            }
-            TurnAct::Modify | TurnAct::Mixed | TurnAct::NewWork => {
-                return self.restate_round(&round, line);
-            }
-            TurnAct::RequestRun => {
-                self.authoring = Some(round);
-                return TurnOutcome::Aside(
-                    "answer the question or `cancel` first — a run comes once the workflow exists"
-                        .to_owned(),
-                );
-            }
-            // ANSWER, or a line the route could not read: the answer to the
-            // question asked (a short line at a question is the answer).
-            TurnAct::Answer | TurnAct::Unknown => {}
-        }
         // The clause asked in words: the human's words take its place in
         // the request, which the compiler reads again — a fresh round (the
         // plan read a different request), one restatement counted.
@@ -652,6 +618,56 @@ impl SessionRuntime {
             }
             Err(e) => self.machinery(&e),
         }
+    }
+
+    /// Open language at a question, routed: a question about the question
+    /// explains it (`Err`, the question still waits), a change or new work
+    /// reads the request again with the words (`Err`), a run is refused
+    /// (`Err`); an answer, or a line nothing could read, binds (`Ok`).
+    fn route_at_question(
+        &mut self,
+        round: AuthoringRound,
+        line: &str,
+    ) -> Result<AuthoringRound, TurnOutcome> {
+        // Open language at a question: its act is a bounded decision — an
+        // answer binds, a question about the question explains it (the
+        // question still waits), a change reads the request again with the
+        // human's words; without any intelligence a line is the answer.
+        let decision = self.classify(SessionPhase::QuestionPending, line);
+        // A `?` is a hint, never a veto: it decides only when nothing could
+        // judge the line — an unread question is then asked, not bound.
+        let act = if decision.act == TurnAct::Unknown
+            && decision.method == RoutingMethod::Fallback
+            && line.trim_end().ends_with('?')
+        {
+            TurnAct::Discuss
+        } else {
+            decision.act
+        };
+        match act {
+            TurnAct::Discuss => {
+                let text = round.current().map_or_else(
+                    || "no authoring question waits".to_owned(),
+                    |q| super::aside::explain_question(q, &round),
+                );
+                self.authoring = Some(round);
+                return Err(TurnOutcome::Aside(text));
+            }
+            TurnAct::Modify | TurnAct::Mixed | TurnAct::NewWork => {
+                return Err(self.restate_round(&round, line));
+            }
+            TurnAct::RequestRun => {
+                self.authoring = Some(round);
+                return Err(TurnOutcome::Aside(
+                    "answer the question or `cancel` first — a run comes once the workflow exists"
+                        .to_owned(),
+                ));
+            }
+            // ANSWER, or a line the route could not read: the answer to the
+            // question asked (a short line at a question is the answer).
+            TurnAct::Answer | TurnAct::Unknown => {}
+        }
+        Ok(round)
     }
 
     /// An explicit run line — `run it` · `run brief.nika with a ceiling of
