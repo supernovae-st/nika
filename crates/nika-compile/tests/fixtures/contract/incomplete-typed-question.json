@@ -1,0 +1,164 @@
+{
+  "compile_version": 1,
+  "document": {
+    "candidate": null,
+    "check_preview": null,
+    "compile_version": 1,
+    "diagnostics": [
+      {
+        "kind": "unknown",
+        "message": "Unresolved clause: write the records to ./totals.json. No requested operation was dropped; no substitute workflow was selected.",
+        "target": "intent"
+      }
+    ],
+    "provenance": {
+      "cognition": "deterministicOnly",
+      "compiler_version": "0.120.3",
+      "decision": {
+        "intent_sha256": "f5c57a314927524a3218d806aa0d3eb91374c8c0a22959838ae9a0337830b12a",
+        "ledger": [
+          {
+            "evidence": "extract the vendor and the total from each",
+            "kind": "transformation",
+            "note": null,
+            "realized_by": null,
+            "state": "unresolved"
+          },
+          {
+            "evidence": "write the records to ./totals.json",
+            "kind": "effect",
+            "note": null,
+            "realized_by": null,
+            "state": "unresolved"
+          },
+          {
+            "evidence": "write the records to ./totals.json",
+            "kind": "work",
+            "note": null,
+            "realized_by": null,
+            "state": "unresolved"
+          }
+        ],
+        "retrieval": {
+          "by_intent": [
+            {
+              "id": "fanout",
+              "kind": "skeleton",
+              "score": 16.198
+            },
+            {
+              "id": "H13",
+              "kind": "family",
+              "score": 15.066
+            },
+            {
+              "id": "bounded-batch",
+              "kind": "skeleton",
+              "score": 13.311
+            },
+            {
+              "id": "H02",
+              "kind": "family",
+              "score": 13.154
+            },
+            {
+              "id": "F25",
+              "kind": "family",
+              "score": 11.147
+            },
+            {
+              "id": "F15",
+              "kind": "family",
+              "score": 10.781
+            },
+            {
+              "id": "D24",
+              "kind": "family",
+              "score": 10.529
+            },
+            {
+              "id": "F16",
+              "kind": "family",
+              "score": 10.009
+            },
+            {
+              "id": "parallel-review",
+              "kind": "skeleton",
+              "score": 9.929
+            },
+            {
+              "id": "validate-records",
+              "kind": "skeleton",
+              "score": 9.832
+            }
+          ]
+        },
+        "route": [
+          "hot rejected: 1 unresolved clause(s)",
+          "needs cognition"
+        ]
+      },
+      "plan": {
+        "bindings": [
+          {
+            "literal": "./totals.json",
+            "role": "path"
+          },
+          {
+            "literal": "./invoices",
+            "role": "path"
+          },
+          {
+            "literal": "./totals.json",
+            "role": "path"
+          }
+        ],
+        "constraints": [],
+        "effects": [
+          {
+            "evidence": "write the records to ./totals.json",
+            "policy": "automatic",
+            "policy_literal": null,
+            "target": "./totals.json",
+            "verb": "write"
+          }
+        ],
+        "obligations": [],
+        "operations": [
+          {
+            "categories": [],
+            "detail": "./invoices/*",
+            "evidence": "Read each file in ./invoices",
+            "op": "read"
+          },
+          {
+            "categories": [],
+            "detail": "the vendor and the total from each",
+            "evidence": "extract the vendor and the total from each",
+            "op": "extract"
+          }
+        ],
+        "rules": [],
+        "trigger": null,
+        "unknowns": []
+      },
+      "skeleton": null,
+      "spec_pin": "4b6eaadde483bcc9db9c05b022afbedfb107f37e",
+      "suggested_file": null
+    },
+    "questions": [
+      {
+        "key": "intent.clarification",
+        "label": "Supply a complete replacement request including all work still wanted. It explicitly replaces the earlier intent.",
+        "mandatory": true,
+        "type": "text",
+        "why": "The compiler cannot invent this authoring value."
+      }
+    ],
+    "requested_boundary": null,
+    "requested_trigger": null,
+    "status": "incomplete"
+  },
+  "fixture": "incomplete-typed-question",
+  "state": "incomplete · a typed hole (`const.source_glob`): a directory is never read as one file"
+}

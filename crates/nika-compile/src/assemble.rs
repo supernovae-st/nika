@@ -357,21 +357,19 @@ pub(super) fn assemble(
     }
     let mut recognized: BTreeSet<String> = BTreeSet::new();
     let b = bindings::bind(plan, intent, request, out, &mut recognized);
-    super::unknown_answers(
-        request,
-        &recognized.iter().map(String::as_str).collect(),
-        out,
-    );
     // A trigger the request names is deployment, not workflow: stated beside the candidate
     // on every round, whether or not a question is still open. A sequencing head (« once the
-    // brief is read ») orders the work the program already contains and states nothing.
+    // brief is read ») orders the work the program already contains and states nothing. A
+    // schedule's binding values (timezone, missed-run and overlap policies, per-run ceiling)
+    // are asked beside it without blocking the candidate.
     let sequencing = plan.trigger.as_deref().is_some_and(|t| {
         matches!(
             super::trigger::classify(t),
             super::trigger::TriggerForm::Sequence
         )
     });
-    if !sequencing && let Some(trigger) = super::trigger::requirement(plan, b.item) {
+    if !sequencing && let Some(mut trigger) = super::trigger::requirement(plan, b.item) {
+        super::trigger::bind_schedule(&mut trigger, request, out, &mut recognized);
         super::finding(
             out,
             DiagnosticKind::Applied,
@@ -380,6 +378,11 @@ pub(super) fn assemble(
         );
         out.requested_trigger = Some(trigger);
     }
+    super::unknown_answers(
+        request,
+        &recognized.iter().map(String::as_str).collect(),
+        out,
+    );
     if repeated_effect_asked(plan, intent, &b, out) || !b.ready(plan) {
         return Ok(());
     }

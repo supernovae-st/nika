@@ -99,7 +99,7 @@ pub(in crate::server) fn outcome() -> Value {
         "questions": {"type": "array", "items": question()},
         "diagnostics": {"type": "array", "items": diagnostic()},
         "requested_boundary": {"type": ["object", "null"], "description": "The candidate's requested permits, derived by Check. Requested, never granted", "additionalProperties": true},
-        "requested_trigger": {"type": ["object", "null"], "description": "The trigger the request names (kind · source_hint · event_hint · cadence · at · payload_input · status), stated beside the candidate whose bytes carry no cadence, host or event. A requirement the operator binds through the schedule contract, never a grant or a schedule row", "additionalProperties": true},
+        "requested_trigger": {"type": ["object", "null"], "description": "The trigger the request names (kind · source_hint · event_hint · cadence · at · payload_input · status · timezone · missed · overlap · ceiling), stated beside the candidate whose bytes carry no cadence, host or event. A requirement the operator binds through the schedule contract, never a grant or a schedule row; the last four are the answered binding values (null until answered)", "additionalProperties": true},
         "check_preview": preview(),
         "provenance": provenance()
     });
@@ -118,9 +118,10 @@ fn question() -> Value {
         "properties": {
             "key": {"type": "string", "description": "Stable semantic hole path such as `const.request`, never a session id"},
             "label": {"type": "string"},
-            "type": {"type": "string", "enum": ["text", "literal"]},
+            "type": {"type": "string", "enum": ["text", "literal", "choice"], "description": "text: a JSON string · literal: one JSON value · choice: a JSON string that is the `key` of one of `options`"},
             "why": {"type": "string"},
-            "mandatory": {"type": "boolean"}
+            "mandatory": {"type": "boolean", "description": "false: the value belongs to a binding outside the program (a schedule's timezone, missed-run and overlap policies, per-run ceiling) and never blocks a ready candidate"},
+            "options": {"type": "array", "description": "Present on a choice question only: the admissible answers, keys spelled by the owning grammar", "items": {"type": "object", "required": ["key", "label"], "properties": {"key": {"type": "string"}, "label": {"type": "string"}}}}
         }
     })
 }

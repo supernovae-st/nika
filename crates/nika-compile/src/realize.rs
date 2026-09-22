@@ -68,7 +68,44 @@ pub(super) fn settle_candidate(
         );
         return Ok(());
     }
+    out.provenance.suggested_file = Some(suggested_file(plan, b));
     emit(d, out)
+}
+
+/// A kebab-case file name for the candidate: the first written file's stem (`open-sorted`),
+/// else the first outbound effect's verb, else the first operation and its object (`draft-
+/// summary`), else `compiled-workflow`; at most 40 characters, always `.nika`.
+fn suggested_file(plan: &Plan, b: &Bindings) -> String {
+    let stem = b
+        .writes
+        .first()
+        .map(|w| w.stem.clone())
+        .or_else(|| b.wired.first().map(|w| w.slug.clone()))
+        .or_else(|| {
+            plan.steps.first().map(|step| {
+                let object = super::lexicon::slug(&step.detail);
+                if object.is_empty() {
+                    step.op.word().to_owned()
+                } else {
+                    format!("{}-{object}", step.op.word())
+                }
+            })
+        })
+        .unwrap_or_else(|| "compiled-workflow".to_owned());
+    let mut kebab = String::new();
+    for c in stem.to_lowercase().chars() {
+        if c.is_ascii_alphanumeric() {
+            kebab.push(c);
+        } else if !kebab.ends_with('-') {
+            kebab.push('-');
+        }
+    }
+    let mut kebab = kebab.trim_matches('-').chars().take(40).collect::<String>();
+    kebab = kebab.trim_matches('-').to_owned();
+    if kebab.is_empty() {
+        "compiled-workflow".clone_into(&mut kebab);
+    }
+    format!("{kebab}.nika")
 }
 
 /// The effect family a gate covers: writing a file, moving money, or reaching out.

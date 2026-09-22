@@ -337,8 +337,16 @@ fn a_replayed_document_keeps_the_generation_one_shape() {
         .filter(|k| !matches!(k.as_str(), "strategy" | "plan" | "decision"))
         .cloned()
         .collect();
+    // `suggested_file` joined the provenance additively (a file name for whoever saves the
+    // candidate); the generation stays one.
     assert_eq!(
         provenance,
-        ["cognition", "compiler_version", "skeleton", "spec_pin"]
+        [
+            "cognition",
+            "compiler_version",
+            "skeleton",
+            "spec_pin",
+            "suggested_file"
+        ]
     );
 }

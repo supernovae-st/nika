@@ -144,7 +144,13 @@ fn every_document_has_exactly_the_generation_one_shape() {
             .collect();
         assert_eq!(
             keys,
-            ["cognition", "compiler_version", "skeleton", "spec_pin"],
+            [
+                "cognition",
+                "compiler_version",
+                "skeleton",
+                "spec_pin",
+                "suggested_file"
+            ],
             "{name}"
         );
         if let Some(strategy) = provenance.get("strategy") {

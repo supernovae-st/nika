@@ -93,6 +93,10 @@ fn trigger_document(trigger: &TriggerRequirement) -> Value {
         "at": trigger.at,
         "payload_input": trigger.payload_input,
         "status": trigger.status.word(),
+        "timezone": trigger.timezone,
+        "missed": trigger.missed,
+        "overlap": trigger.overlap,
+        "ceiling": trigger.ceiling,
     })
 }
 
@@ -106,16 +110,26 @@ pub fn outcome_document(out: &CompileOutcome) -> Value {
         .questions
         .iter()
         .map(|q| {
-            json!({
+            let mut question = json!({
                 "key": q.key,
                 "label": q.label,
                 "type": match q.answer_type {
                     QuestionType::Text => "text",
                     QuestionType::Literal => "literal",
+                    QuestionType::Choice => "choice",
                 },
                 "why": q.why,
                 "mandatory": q.mandatory,
-            })
+            });
+            if !q.options.is_empty() {
+                question["options"] = json!(
+                    q.options
+                        .iter()
+                        .map(|o| json!({"key": o.key, "label": o.label}))
+                        .collect::<Vec<_>>()
+                );
+            }
+            question
         })
         .collect();
     let diagnostics: Vec<Value> = out
@@ -145,6 +159,7 @@ pub fn outcome_document(out: &CompileOutcome) -> Value {
             "spec_pin": out.provenance.spec_pin,
             "skeleton": out.provenance.skeleton,
             "cognition": out.provenance.cognition.word(),
+            "suggested_file": out.provenance.suggested_file,
         },
     });
     if let Some(strategy) = out.provenance.strategy {

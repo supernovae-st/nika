@@ -28,10 +28,12 @@ marked-yaml = { workspace = true } # locate constant nodes with the canonical pa
 thiserror = { workspace = true }
 miette = { workspace = true }
 nika-error = { path = "../nika-error", version = "0.120.3" } # compiler machinery failures retain the canonical error voice
+nika-vocab = { path = "../nika-vocab", version = "0.120.3" } # the project grammar's own spellings (`manqué:`) for a schedule's binding questions
 tempfile = { workspace = true } # exclusive dest create + atomic overwrite persist
 
 [dev-dependencies]
 nix = { workspace = true, features = ["fs"] } # FIFO fixture for overwrite-refuse proof
+nika-cadence = { path = "../nika-cadence", version = "0.120.3" } # the overlap enum the trigger questions mirror: its drift test
 
 [package.metadata.lore]
 daemon        = "forgeron"
