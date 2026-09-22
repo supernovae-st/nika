@@ -106,7 +106,15 @@ impl RunStory {
     /// One frame; the line it adds to the story, if any.
     pub fn frame(&mut self, line: &str) -> Option<String> {
         let frame: serde_json::Value = serde_json::from_str(line).ok()?;
-        let kind = frame.get("kind")?.as_str()?;
+        // A run refused before its first frame speaks two other shapes on
+        // the same stream: the check verdict document (`clean: false` and
+        // its findings) and the error envelope (`{"error": {…}}`). Each
+        // is one story line naming the reason — never a silent exit.
+        let Some(kind) = frame.get("kind").and_then(serde_json::Value::as_str) else {
+            let said = refusal_line(&frame)?;
+            self.lines.push(said.clone());
+            return Some(said);
+        };
         let field = |key: &str| -> Option<String> {
             frame
                 .get("fields")?
@@ -178,5 +186,183 @@ impl RunStory {
         };
         self.lines.push(said.clone());
         Some(said)
+    }
+}
+
+/// The one line a pre-run refusal document yields: the first finding of
+/// a check verdict (with the count of the others), or the envelope's
+/// message. `None` for any other kind-less object (the story ignores it).
+fn refusal_line(frame: &serde_json::Value) -> Option<String> {
+    if let Some(findings) = frame.get("findings").and_then(serde_json::Value::as_array) {
+        if frame.get("clean").and_then(serde_json::Value::as_bool) == Some(true) {
+            return None;
+        }
+        let finding = findings.iter().find(|f| f.get("message").is_some())?;
+        let message = finding.get("message")?.as_str()?;
+        let message = message.lines().next().unwrap_or_default();
+        let code = finding
+            .get("code")
+            .and_then(serde_json::Value::as_str)
+            .map_or(String::new(), |c| format!("[{c}] "));
+        let more = findings.len().saturating_sub(1);
+        return Some(if more == 0 {
+            format!("✖ refused before the start · {code}{message}")
+        } else {
+            format!(
+                "✖ refused before the start · {code}{message} · {more} more finding(s) — `nika check` lists them"
+            )
+        });
+    }
+    let error = frame.get("error")?;
+    let message = error
+        .get("message")
+        .and_then(serde_json::Value::as_str)
+        .or_else(|| error.as_str())
+        .map_or_else(
+            || error.to_string(),
+            |m| m.lines().next().unwrap_or_default().to_owned(),
+        );
+    Some(format!("✖ refused · {message}"))
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+
+    /// The story folds the lane's frames into one line each (the header,
+    /// a task start, a settle with its count, a pause), keeps the trace
+    /// the settle names, and says nothing for a frame it does not tell.
+    #[test]
+    fn the_story_folds_the_frames_and_keeps_the_trace() {
+        let mut story = RunStory::default();
+        assert_eq!(
+            story.frame(r#"{"kind":"workflow_started","fields":[{"key":"workflow","value":"copy.nika"}]}"#).as_deref(),
+            Some("running · copy.nika")
+        );
+        assert!(
+            story
+                .frame(r#"{"kind":"task_scheduled","fields":[{"key":"task","value":"a"}]}"#)
+                .is_none()
+        );
+        assert!(
+            story
+                .frame(r#"{"kind":"task_scheduled","fields":[{"key":"task","value":"b"}]}"#)
+                .is_none()
+        );
+        assert_eq!(
+            story.frame(r#"{"kind":"task_started","fields":[{"key":"task","value":"a"},{"key":"note","value":"invoke · nika:read"}]}"#).as_deref(),
+            Some("→ a · invoke · nika:read")
+        );
+        assert_eq!(
+            story.frame(r#"{"kind":"task_completed","fields":[{"key":"task","value":"a"},{"key":"duration_ms","value":3}]}"#).as_deref(),
+            Some("✔ a · 3 ms · 1/2")
+        );
+        assert_eq!(
+            story
+                .frame(r#"{"kind":"workflow_paused","fields":[{"key":"task","value":"approve"}]}"#)
+                .as_deref(),
+            Some("◇ paused · `approve` asks you")
+        );
+        assert!(
+            story
+                .frame(r#"{"kind":"permit_checked","fields":[]}"#)
+                .is_none()
+        );
+        assert!(story.frame("not json at all").is_none());
+        assert!(
+            story
+                .frame(r#"{"kind":"run_settled","receipt":{"trace_path":".nika/traces/t.ndjson"}}"#)
+                .is_none()
+        );
+        assert_eq!(
+            story.trace.as_deref(),
+            Some(Path::new(".nika/traces/t.ndjson"))
+        );
+        assert_eq!(story.lines.len(), 4, "{:?}", story.lines);
+    }
+
+    /// A run refused before its first frame — the check verdict document
+    /// or the error envelope on the same stream — is one story line that
+    /// names the reason; a clean document and an unrelated object say nothing.
+    #[test]
+    fn a_refusal_before_the_start_names_its_reason() {
+        let mut story = RunStory::default();
+        let check = r#"{"clean":false,"findings":[{"code":"NIKA-AUTH-006","message":"invoke `nika:read` with a literal path under an absent `permits:` block (task `t`) — fix: add \"nika:read\" to permits.tools\nsecond line","severity":"error"},{"code":"NIKA-DRIFT-001","message":"x","severity":"warning"}],"report_version":1}"#;
+        assert_eq!(
+            story.frame(check).as_deref(),
+            Some(
+                "✖ refused before the start · [NIKA-AUTH-006] invoke `nika:read` with a literal path under an absent `permits:` block (task `t`) — fix: add \"nika:read\" to permits.tools · 1 more finding(s) — `nika check` lists them"
+            )
+        );
+        let parse = r#"{"clean":false,"findings":[{"gate":"PARSE","kind":"parse","message":"cannot read missing.nika: ENOENT","severity":"error"}],"parse_fatal":true}"#;
+        assert_eq!(
+            story.frame(parse).as_deref(),
+            Some("✖ refused before the start · cannot read missing.nika: ENOENT")
+        );
+        let envelope = r#"{"error":{"code":"NIKA-1709","message":"NIKA-1709 · refusing to start: the cost floor $0.01 exceeds --max-cost-usd $0.000001"}}"#;
+        assert_eq!(
+            story.frame(envelope).as_deref(),
+            Some(
+                "✖ refused · NIKA-1709 · refusing to start: the cost floor $0.01 exceeds --max-cost-usd $0.000001"
+            )
+        );
+        assert!(story.frame(r#"{"clean":true,"findings":[]}"#).is_none());
+        assert!(story.frame(r#"{"unrelated":1}"#).is_none());
+        assert_eq!(story.lines.len(), 3);
+    }
+
+    /// The lane as a child: its stdout frames become the story (and reach
+    /// the busy sink as they happen), its exit code is the child's, the
+    /// trace is the settle's, the pid slot is cleared once it ends; a
+    /// child that cannot start is the environment exit with its reason.
+    #[test]
+    fn drive_child_folds_a_real_child_and_reports_its_exit() {
+        let (busy, heard) = std::sync::mpsc::channel();
+        let slot: ChildSlot = std::sync::Arc::default();
+        let script = concat!(
+            "printf '%s\\n' '{\"kind\":\"workflow_started\",\"fields\":[{\"key\":\"workflow\",\"value\":\"w.nika\"}]}'",
+            " '{\"kind\":\"task_scheduled\",\"fields\":[]}'",
+            " '{\"kind\":\"task_completed\",\"fields\":[{\"key\":\"task\",\"value\":\"t\"},{\"key\":\"duration_ms\",\"value\":1}]}'",
+            " '{\"kind\":\"run_settled\",\"receipt\":{\"trace_path\":\".nika/traces/x.ndjson\"}}'",
+            "; printf 'noise on stderr\\n' >&2; exit 4"
+        );
+        let (code, trace, lines) = drive_child(
+            Path::new("/bin/sh"),
+            &["-c".to_owned(), script.to_owned()],
+            Path::new("/"),
+            &busy,
+            &slot,
+        );
+        assert_eq!(code, 4, "the child's own exit");
+        assert_eq!(trace.as_deref(), Some(Path::new(".nika/traces/x.ndjson")));
+        assert_eq!(
+            lines,
+            vec!["running · w.nika".to_owned(), "✔ t · 1 ms · 1/1".to_owned()]
+        );
+        let heard: Vec<String> = heard.try_iter().collect();
+        assert_eq!(
+            heard, lines,
+            "every line reached the busy sink as it happened"
+        );
+        assert!(
+            slot.lock().expect("slot").is_none(),
+            "no pid once the child ended"
+        );
+        let (code, trace, lines) = drive_child(
+            Path::new("/nonexistent/nika-lane-binary"),
+            &[],
+            Path::new("/"),
+            &busy,
+            &slot,
+        );
+        assert_eq!(code, ENV);
+        assert!(trace.is_none());
+        assert!(
+            lines
+                .first()
+                .is_some_and(|l| l.starts_with("the run could not start: ")),
+            "{lines:?}"
+        );
     }
 }

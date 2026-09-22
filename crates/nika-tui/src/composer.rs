@@ -243,6 +243,15 @@ impl Composer {
     pub fn complete(&mut self, candidates: &[String]) -> Completion {
         let text = self.text();
         let typed = text.trim_end();
+        // An empty composer: every command for the hint row, nothing
+        // inserted (discoverability, not a guess at what the human wants).
+        if typed.is_empty() {
+            return if candidates.is_empty() {
+                Completion::None
+            } else {
+                Completion::Several(candidates.to_vec())
+            };
+        }
         if !typed.starts_with('/') || typed.contains('\n') || typed.contains(' ') {
             return Completion::None;
         }
@@ -436,5 +445,10 @@ mod completion_tests {
         let mut c = Composer::new();
         c.paste("/zzz");
         assert_eq!(c.complete(&commands()), Completion::None);
+        // An empty composer lists every command and inserts nothing.
+        let mut c = Composer::new();
+        assert_eq!(c.complete(&commands()), Completion::Several(commands()));
+        assert_eq!(c.text(), "", "nothing inserted on an empty composer");
+        assert_eq!(c.complete(&[]), Completion::None);
     }
 }

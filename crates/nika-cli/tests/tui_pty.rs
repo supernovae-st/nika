@@ -682,4 +682,50 @@ fn tab_completes_a_slash_command_and_unicode_goes_through_whole() {
     session.expect(Eof).expect("closes");
     assert_eq!(exit_code(&mut session), 0);
     assert!(!tee.text().contains("panicked"), "{}", tee.text());
+    // The previous title was pushed before ours and popped at the close:
+    // the shell's own title returns.
+    // (the log stream escapes ESC as `\u{1b}`: both spellings are looked for)
+    let text = tee.text();
+    let find = |raw: &str| {
+        text.find(raw)
+            .or_else(|| text.find(&raw.replace('\x1b', "\\u{1b}")))
+    };
+    let rfind = |raw: &str| {
+        text.rfind(raw)
+            .or_else(|| text.rfind(&raw.replace('\x1b', "\\u{1b}")))
+    };
+    let pushed = find("\x1b[22;0t").expect("the title stack is pushed");
+    let set = find("\x1b]0;nika · ").expect("the title is set");
+    let popped = rfind("\x1b[23;0t").expect("the title stack is popped");
+    assert!(
+        pushed < set && set < popped,
+        "push, set, pop in that order: {pushed} {set} {popped}"
+    );
+}
+
+/// A run the door refuses before its first frame — here the cost floor
+/// (`NIKA-1709`: a priced model under a ceiling the check on disk cannot
+/// judge) — shows its reason inside the viewport, never a silent « run
+/// observed · exit 2 », and the door stays. (A finding the session's own
+/// check sees is named by the session before any lane starts.)
+#[test]
+fn a_refused_run_names_its_reason_inside_the_viewport() {
+    let (project, home) = rig("refused-run");
+    std::fs::write(
+        project.path().join("floor.nika"),
+        "nika: floor\nmodel: openai/gpt-5-mini\npermits: {}\ntasks:\n  t:\n    infer: { prompt: \"hi\", max_tokens: 5000 }\n",
+    )
+    .expect("a priced workflow");
+    let (mut session, tee) = spawn_sized(project.path(), home.path(), 100, 30);
+    answer_until(&mut session, &tee, 30, "automate?");
+    session
+        .send("run floor.nika with a ceiling of 0.000001\r")
+        .expect("the run line with a ceiling under the floor");
+    answer_until(&mut session, &tee, 30, "refused");
+    answer_until(&mut session, &tee, 30, "NIKA-1709");
+    answer_until(&mut session, &tee, 30, "observed");
+    session.send("/quit\r").expect("quit");
+    session.expect(Eof).expect("closes");
+    assert_eq!(exit_code(&mut session), 0);
+    assert!(!tee.text().contains("panicked"), "{}", tee.text());
 }

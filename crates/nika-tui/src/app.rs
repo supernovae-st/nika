@@ -182,8 +182,8 @@ pub fn run_on<C: Conversation + 'static>(
         commands: Vec::new(),
     };
     if let Some(title) = shell.options.title.as_deref() {
-        let mut out = io::stdout();
-        let _ = crossterm::execute!(out, crossterm::terminal::SetTitle(title));
+        // The previous title rides the terminal's stack; the restore pops it.
+        let _ = crate::terminal::set_title(title);
     }
     let broker = Broker::start();
     let outcome = shell.drive(broker);

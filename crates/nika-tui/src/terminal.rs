@@ -43,6 +43,24 @@ static PASTE: AtomicBool = AtomicBool::new(false);
 static FOCUS: AtomicBool = AtomicBool::new(false);
 static KITTY: AtomicBool = AtomicBool::new(false);
 static ALT: AtomicBool = AtomicBool::new(false);
+/// The terminal's title was pushed (xterm title stack · `CSI 22;0 t`)
+/// before ours was set; the restore pops it (`CSI 23;0 t`) so the shell's
+/// own title returns, on the panic path too.
+static TITLE: AtomicBool = AtomicBool::new(false);
+
+/// Name the terminal window for this session, keeping the previous title
+/// on the terminal's stack so [`restore_everything`] gives it back.
+///
+/// # Errors
+///
+/// The crossterm command failed to reach the terminal.
+pub fn set_title(title: &str) -> io::Result<()> {
+    let mut out = io::stdout();
+    write!(out, "\x1b[22;0t")?;
+    TITLE.store(true, Ordering::SeqCst);
+    crossterm::execute!(out, crossterm::terminal::SetTitle(title))?;
+    out.flush()
+}
 
 /// The inline viewport height the shell asks for at entry: the live area
 /// (pending block · composer · status) grows and shrinks inside it.
@@ -235,6 +253,9 @@ pub fn restore_everything() -> io::Result<()> {
     }
     if PASTE.swap(false, Ordering::SeqCst) {
         note(crossterm::execute!(out, DisableBracketedPaste));
+    }
+    if TITLE.swap(false, Ordering::SeqCst) {
+        note(write!(out, "\x1b[23;0t"));
     }
     note(crossterm::execute!(
         out,
