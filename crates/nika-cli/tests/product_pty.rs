@@ -699,3 +699,37 @@ fn a_stated_schedule_is_declared_only_when_activated() {
         "one declared beat, the workflow named: {text}"
     );
 }
+
+/// I · `/quit` at the consent prompt leaves the product with nothing
+/// written; the same world reopened says what it restored, and a bare
+/// `yes` with nothing pending is refused, never compiled.
+#[test]
+fn quit_at_the_consent_prompt_leaves_and_a_stray_yes_is_refused() {
+    let (project, home) = rig("quit-consent");
+    std::fs::create_dir_all(project.path().join("notes")).expect("notes");
+    std::fs::write(project.path().join("notes/brief.md"), "brief\n").expect("brief");
+    let mut session = open_session(project.path(), home.path());
+    session
+        .send_line("Lis ./notes/brief.md et écris-le dans ./out/copie.md")
+        .expect("the intent");
+    session.expect("apply? ›").expect("the consent prompt");
+    session
+        .send_line("/quit")
+        .expect("leave from the consent prompt");
+    session.expect(Eof).expect("closes");
+    assert_eq!(exit_code(&mut session), 0);
+    assert!(
+        !project.path().join("compiled-workflow.nika").exists(),
+        "leaving writes nothing"
+    );
+    let mut session = open_session(project.path(), home.path());
+    session.send_line("yes").expect("a stray yes");
+    session
+        .expect("nothing waits for a yes or a no here")
+        .expect("refused, never compiled");
+    session.expect("nika ›").expect("prompt");
+    session.send_line("/quit").expect("quit");
+    session.expect(Eof).expect("closes");
+    assert_eq!(exit_code(&mut session), 0);
+    assert!(!project.path().join("compiled-workflow.nika").exists());
+}

@@ -1422,3 +1422,63 @@ fn a_finished_run_reads_as_a_result_and_proof_reads_its_trace() {
         s.status_line()
     );
 }
+
+/// Leaving is always one line away: `/quit` at the consent prompt drops
+/// the proposal and writes nothing; at the first screen it chooses
+/// nothing; at a gate it leaves the gate waiting in its trace.
+#[test]
+fn quit_leaves_from_the_consent_prompt_the_first_screen_and_a_gate() {
+    let dir = tree();
+    let mut s = ready_with(dir.path(), vec![]);
+    assert!(matches!(s.turn(COPY), TurnOutcome::Proposal { .. }));
+    assert!(matches!(s.consent("/quit"), TurnOutcome::Quit));
+    assert!(s.pending_proposal().is_none(), "the proposal is dropped");
+    assert!(!dir.path().join(COPY_DEST).exists(), "nothing written");
+    // The first screen, asked in context on a first launch: `/exit` chooses
+    // nothing and the waiting line is never sent anywhere.
+    let first = tree();
+    let factory: ReasonerFactory = Box::new(|_| Box::new(NoReasoner));
+    let mut u =
+        SessionRuntime::open_unchosen(first.path(), IntelligenceCensus::empty(), None, factory);
+    assert!(matches!(u.turn(SMALL_TALK), TurnOutcome::Ask(_)));
+    assert!(matches!(u.choose("/exit"), TurnOutcome::Quit));
+    assert!(!u.pending_choice(), "no choice made");
+    std::fs::write(dir.path().join("draft.md"), "the draft\n").expect("draft");
+    std::fs::write(dir.path().join("gate.nika"), GATE).expect("gate");
+    assert!(matches!(
+        s.turn("run gate.nika"),
+        TurnOutcome::RunRequested { .. }
+    ));
+    let store = dir.path().join(".nika").join("traces");
+    std::fs::create_dir_all(&store).expect("store");
+    let trace = store.join("paused.ndjson");
+    std::fs::write(&trace, PAUSED).expect("trace");
+    assert!(matches!(
+        s.observe_run(4, Some(&trace)),
+        TurnOutcome::GateAsk { .. }
+    ));
+    assert!(matches!(s.answer_gate("/quit"), TurnOutcome::Quit));
+    assert!(
+        s.waiting_gate().is_some(),
+        "the gate still waits in its trace"
+    );
+}
+
+/// A bare consent word with nothing pending is refused as a wrong state:
+/// it is neither work to build nor a question, and no model reads it.
+#[test]
+fn a_bare_yes_or_no_with_nothing_pending_is_refused_never_compiled() {
+    let dir = tree();
+    let mut s = ready_with(dir.path(), vec![]);
+    for word in ["yes", "oui", "ok", "no", "non"] {
+        let TurnOutcome::Refusal(why) = s.turn(word) else {
+            panic!("`{word}` with nothing pending is refused");
+        };
+        assert_eq!(why.class, RefusalClass::WrongState, "{why}");
+        assert!(
+            why.text.contains("nothing waits for a yes or a no"),
+            "{why}"
+        );
+    }
+    assert!(!dir.path().join(COPY_DEST).exists());
+}

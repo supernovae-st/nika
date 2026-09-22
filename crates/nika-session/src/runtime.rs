@@ -509,6 +509,13 @@ impl SessionRuntime {
                 "this session cannot re-choose its intelligence — quit and open `nika` again",
             ));
         };
+        // Leaving is always one line away: no choice is made, the waiting
+        // line is dropped (never sent anywhere).
+        if is_quit(answer) {
+            self.pending_choice = false;
+            self.interrupted = None;
+            return TurnOutcome::Quit;
+        }
         // A cancel keeps going without a choice: the waiting line is dropped
         // (never sent anywhere), the previous choice stands.
         if crate::authoring::is_cancel(answer) {
@@ -667,6 +674,14 @@ impl SessionRuntime {
         if input.is_empty() {
             return TurnOutcome::Facts(String::new());
         }
+        // A consent word with nothing pending answers nothing: it is neither
+        // work to build nor a question, and it never reaches a model.
+        if is_yes(input) || is_no(input) {
+            return TurnOutcome::Refusal(Refusal::new(
+                RefusalClass::WrongState,
+                "nothing waits for a yes or a no here — a proposal asks `apply? ›` first · describe the outcome you want, or `/help`",
+            ));
+        }
         if matches!(input, "1" | "2" | "3" | "4") {
             return TurnOutcome::Facts(format!(
                 "{}\nthe intelligence is already chosen — `/intelligence` shows the first screen again and the next line picks",
@@ -795,6 +810,11 @@ impl SessionRuntime {
         let Some(set) = self.pending.take() else {
             return TurnOutcome::Refusal(self.nothing_pending());
         };
+        // Leaving is always one line away: the proposal is dropped, nothing
+        // is written (a consent is the next line, never a later session's).
+        if is_quit(answer) {
+            return TurnOutcome::Quit;
+        }
         let id = ProposalId::of(&set.preview());
         // The compiler's reading of the request, on request, the proposal
         // held: what it kept, clause by clause, is never a consent.
@@ -1123,6 +1143,12 @@ impl SessionRuntime {
         let Some(gate) = self.pending_gate.take() else {
             return TurnOutcome::Refusal(self.no_gate_waiting());
         };
+        // Leaving is always one line away: the gate keeps waiting in its
+        // paused trace (and in the record), nothing answers for the human.
+        if is_quit(line) {
+            self.pending_gate = Some(gate);
+            return TurnOutcome::Quit;
+        }
         // « why? » beside the gate: what the answer lets happen, from the
         // workflow's own bytes; the gate keeps waiting.
         if crate::authoring::is_why(line) {
@@ -1294,6 +1320,11 @@ fn ceiling_in(input: &str) -> Option<f64> {
         }
     }
     None
+}
+
+/// The door out, from any prompt.
+fn is_quit(answer: &str) -> bool {
+    matches!(answer.trim(), "/quit" | "/exit")
 }
 
 /// The refusal line: `no` in the few words a human types for it.
