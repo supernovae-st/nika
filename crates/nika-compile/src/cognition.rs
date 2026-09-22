@@ -1019,20 +1019,65 @@ const APPROVAL_BYPASS: &[&[&str]] = &[
     &["previous", "approval"],
 ];
 
+/// Negations and prohibitions in six languages: before a bypass phrase in the same
+/// sentence, they turn it into a gate.
+const NEGATIONS: &[&str] = &[
+    "not",
+    "never",
+    "nothing",
+    "no",
+    "rien",
+    "jamais",
+    "ne",
+    "aucun",
+    "aucune",
+    "interdit",
+    "interdite",
+    "nada",
+    "nunca",
+    "prohibido",
+    "prohibida",
+    "niente",
+    "mai",
+    "non",
+    "vietato",
+    "nichts",
+    "nie",
+    "niemals",
+    "nicht",
+    "verboten",
+    "nao",
+    "não",
+    "proibido",
+    "proibida",
+];
+
+/// Whether a recognized bypass phrase is stated as a bypass. The same words inside a
+/// prohibition state a gate: « rien ne doit partir sans mon accord », « never send without
+/// asking » forbid the effect until the approval, they do not skip it. The negation must
+/// precede the phrase in its own sentence; « envoie-le sans mon accord, ne me demande rien »
+/// stays a bypass.
+fn bypass_stated(lower: &str) -> bool {
+    lexicon::split_sentences(lower).into_iter().any(|sentence| {
+        let words: Vec<&str> = sentence
+            .split(|c: char| !c.is_alphabetic())
+            .filter(|w| !w.is_empty())
+            .collect();
+        APPROVAL_BYPASS.iter().any(|phrase| {
+            words.windows(phrase.len()).enumerate().any(|(at, window)| {
+                window == *phrase && !words[..at].iter().any(|w| NEGATIONS.contains(w))
+            })
+        })
+    })
+}
+
 /// A conservative EN/FR authority backstop applied to EVERY strategy. It cannot prove
 /// arbitrary-language intent preservation (the proposal's own bypass field covers other
 /// languages); it refuses the recognized bypasses and keeps recognized money movement from
 /// being assembled without a human gate.
 fn backstop(intent: &str, plan: &mut Plan) {
     let text = intent.to_lowercase();
-    let words: Vec<&str> = text
-        .split(|c: char| !c.is_alphabetic())
-        .filter(|w| !w.is_empty())
-        .collect();
-    let bypass = APPROVAL_BYPASS
-        .iter()
-        .any(|phrase| words.windows(phrase.len()).any(|window| window == *phrase));
-    if bypass {
+    if bypass_stated(&text) {
         plan.unknowns.push(
             "The request reuses, skips or presupposes an approval (recognized approval-bypass wording); the compiler never grants that authority."
                 .to_owned(),
