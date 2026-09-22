@@ -505,12 +505,19 @@ fn write_twins(effects: &[ProposedEffect]) -> Vec<String> {
 /// (« pregúntame y espera mi aprobación » as an explore) is the human gate the effect's
 /// policy carries. Neither is assembled; the fold is recorded. Returns whether the step
 /// was folded.
+/// The clauses the proposal and the reading state around a step: the write clauses, the
+/// outbound clauses (a send, a publish, a notification), the trigger, the safeguards.
+struct Stated<'a> {
+    write: &'a [String],
+    outbound: &'a [String],
+    trigger: Option<&'a str>,
+    obligations: &'a [String],
+}
+
 fn one_clause_one_step(
     step: &ProposedStep,
     op: Op,
-    write_clauses: &[String],
-    trigger: Option<&str>,
-    obligations: &[String],
+    stated: &Stated<'_>,
     intent: &str,
     out: &mut CompileOutcome,
 ) -> bool {
@@ -531,7 +538,10 @@ fn one_clause_one_step(
         );
         return true;
     }
-    if trigger.is_some_and(|trigger| over_a_region(step, &clause, trigger, intent)) {
+    if stated
+        .trigger
+        .is_some_and(|trigger| over_a_region(step, &clause, trigger, intent))
+    {
         crate::finding(
             out,
             DiagnosticKind::Applied,
@@ -548,7 +558,7 @@ fn one_clause_one_step(
     // recheck) is folded on its words alone; any other operation over a safeguard's words is
     // folded only when its detail names nothing the request states outside them.
     let look_alike = matches!(op, Op::Classify | Op::Compute | Op::Validate);
-    if obligations.iter().any(|words| {
+    if stated.obligations.iter().any(|words| {
         (look_alike && !clause.is_empty() && words.contains(&clause))
             || over_a_region(step, &clause, words, intent)
     }) {
@@ -564,7 +574,28 @@ fn one_clause_one_step(
         );
         return true;
     }
-    if write_clauses.contains(&clause) && !matches!(op, Op::Draft | Op::Compute) {
+    // « envíalas con un POST a http://…/reposicion » listed as a fetch beside the send over
+    // the same words: a retrieval over an outbound clause is that effect, never a GET.
+    if matches!(op, Op::Fetch | Op::Lookup | Op::Search)
+        && !clause.is_empty()
+        && stated
+            .outbound
+            .iter()
+            .any(|words| words.contains(&clause) || clause.contains(words))
+    {
+        crate::finding(
+            out,
+            DiagnosticKind::Applied,
+            "authoring_plan",
+            format!(
+                "`{}` is the outbound effect the request states; the proposal's `{}` over the same words was not assembled as a retrieval.",
+                step.evidence.trim(),
+                step.op
+            ),
+        );
+        return true;
+    }
+    if stated.write.contains(&clause) && !matches!(op, Op::Draft | Op::Compute) {
         crate::finding(
             out,
             DiagnosticKind::Applied,
@@ -809,6 +840,13 @@ pub(super) fn merge(
         .filter(|e| e.verb == "write")
         .map(|e| fold_words(&e.evidence))
         .collect();
+    let outbound_clauses: Vec<String> = proposal
+        .effects
+        .iter()
+        .filter(|e| matches!(e.verb.as_str(), "send" | "publish" | "notify"))
+        .map(|e| fold_words(&e.evidence))
+        .filter(|words| !words.is_empty())
+        .collect();
     let trigger = reading.plan.trigger.as_deref().map(fold_words);
     let obligation_words: Vec<String> = reading
         .plan
@@ -832,15 +870,13 @@ pub(super) fn merge(
         };
         let op = retrieval_family(op, &step, out);
         let (op, step) = line_filter_step(op, step, &mut plan, out);
-        if one_clause_one_step(
-            &step,
-            op,
-            &write_clauses,
-            trigger.as_deref(),
-            &obligation_words,
-            intent,
-            out,
-        ) {
+        let stated = Stated {
+            write: &write_clauses,
+            outbound: &outbound_clauses,
+            trigger: trigger.as_deref(),
+            obligations: &obligation_words,
+        };
+        if one_clause_one_step(&step, op, &stated, intent, out) {
             folded.push(step.evidence.clone());
             continue;
         }
