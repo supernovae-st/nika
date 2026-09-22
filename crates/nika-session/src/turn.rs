@@ -312,4 +312,99 @@ mod tests {
         assert_eq!(record.raw_hash.len(), 12);
         assert!(record.line().contains("UNKNOWN"));
     }
+
+    /// The Arena routing benchmark seam, LIVE (ignored by default): the
+    /// corpus at `NIKA_ROUTING_CORPUS` (JSONL: id · state · line · expected
+    /// · optional `automation` / `last_prompt` / `or`, a second act the row
+    /// accepts) is routed by the real
+    /// `ReasonerClassifier` over `NIKA_ROUTING_MODEL` (`<provider>/<model>`,
+    /// the key from the environment); one receipt line per row is printed
+    /// and, when `NIKA_ROUTING_RECEIPT` names a file, written as JSONL. The
+    /// routing addendum's first milestone (`milestone: true` rows) must
+    /// route exactly; the rest is measured, never asserted.
+    #[test]
+    #[ignore = "a real seat and a corpus file, by env"]
+    #[allow(
+        clippy::disallowed_methods,
+        clippy::disallowed_macros,
+        clippy::print_stdout,
+        reason = "a live harness: the corpus, the model and the receipt come by env; the receipt is printed"
+    )]
+    fn routing_corpus_under_a_real_seat() {
+        let corpus = std::env::var("NIKA_ROUTING_CORPUS").expect("NIKA_ROUTING_CORPUS");
+        let model = std::env::var("NIKA_ROUTING_MODEL").expect("NIKA_ROUTING_MODEL");
+        let text = std::fs::read_to_string(&corpus).expect("the corpus file");
+        let mut classifier = ReasonerClassifier::new(Box::new(crate::reasoner::ProviderReasoner {
+            model: model.clone(),
+            label: model.clone(),
+        }));
+        let demo = "Every weekday read the new support tickets in ./tickets.json, group the open ones by topic, draft a short brief, and ask me before sending it to Slack";
+        let mut receipts = Vec::new();
+        let (mut right, mut total, mut milestone_wrong) = (0usize, 0usize, Vec::new());
+        for line in text.lines().filter(|l| !l.trim().is_empty()) {
+            let row: serde_json::Value = serde_json::from_str(line).expect("a JSONL row");
+            let id = row["id"].as_str().unwrap_or("?").to_owned();
+            let raw = row["line"].as_str().expect("line");
+            let expected = row["expected"].as_str().expect("expected");
+            let state = row["state"].as_str().unwrap_or("idle");
+            let phase = match state {
+                "proposal_pending" => SessionPhase::ProposalPending,
+                "question_pending" => SessionPhase::QuestionPending,
+                "gate_pending" => SessionPhase::GatePending,
+                _ => SessionPhase::Idle,
+            };
+            let automation = row["automation"]
+                .as_str()
+                .map(str::to_owned)
+                .or_else(|| (state != "idle").then(|| demo.to_owned()));
+            let last_prompt =
+                row["last_prompt"]
+                    .as_str()
+                    .map(str::to_owned)
+                    .or_else(|| match phase {
+                        SessionPhase::QuestionPending => {
+                            Some("Which model should draft the brief? (provider/model)".to_owned())
+                        }
+                        SessionPhase::GatePending => {
+                            Some("Send the brief to Slack now? (yes / no)".to_owned())
+                        }
+                        SessionPhase::ProposalPending => {
+                            Some("the proposal, waiting for yes or no".to_owned())
+                        }
+                        _ => None,
+                    });
+            let ctx = TurnContext {
+                phase,
+                automation,
+                last_prompt,
+            };
+            let decision = classifier.classify(&ctx, raw);
+            let got = decision.act.label();
+            // A row may accept a second act (« yes but… » is MIXED or
+            // MODIFY: never a consent either way); the receipt keeps both.
+            let ok = got == expected || row["or"].as_str() == Some(got);
+            total += 1;
+            right += usize::from(ok);
+            if row["milestone"].as_bool() == Some(true) && !ok {
+                milestone_wrong.push(format!("{id} «{raw}» expected {expected} got {got}"));
+            }
+            println!(
+                "{} {id:<5} {state:<17} {expected:<11} → {got:<11} «{raw}»",
+                if ok { "✓" } else { "✖" }
+            );
+            receipts.push(serde_json::json!({
+                "id": id, "state": state, "expected": expected, "got": got, "ok": ok,
+                "method": format!("{:?}", decision.method), "model": model,
+            }));
+        }
+        println!("routing corpus · {right}/{total} as expected · model {model}");
+        if let Ok(path) = std::env::var("NIKA_ROUTING_RECEIPT") {
+            let body: Vec<String> = receipts.iter().map(ToString::to_string).collect();
+            std::fs::write(&path, body.join("\n") + "\n").expect("the receipt file");
+        }
+        assert!(
+            milestone_wrong.is_empty(),
+            "milestone rows misrouted: {milestone_wrong:?}"
+        );
+    }
 }
