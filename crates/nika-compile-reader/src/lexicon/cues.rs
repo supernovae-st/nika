@@ -204,6 +204,10 @@ pub(super) const TRIGGER_PREFIXES: &[&str] = &[
     "cada ",
     "cuando ",
     "a partir de ",
+    "todas as ",
+    "todos os ",
+    "sempre que ",
+    "assim que ",
 ];
 
 pub(crate) const NUMBER_WORDS: &[(&str, u32)] = &[

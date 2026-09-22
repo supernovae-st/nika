@@ -11,7 +11,7 @@
 use super::plan::Plan;
 use super::{TriggerKind, TriggerRequirement, TriggerStatus, hot};
 
-/// Words that state a daily cadence (EN · FR · IT · ES · DE, folded).
+/// Words that state a daily cadence (EN · FR · IT · ES · DE · PT, folded).
 const DAILY: &[&str] = &[
     "morning",
     "mornings",
@@ -54,6 +54,10 @@ const DAILY: &[&str] = &[
     "abend",
     "tag",
     "taglich",
+    "manha",
+    "manhas",
+    "noite",
+    "noites",
 ];
 /// Words that state a weekday cadence: every working day.
 const WEEKDAYS: &[&str] = &[
@@ -157,8 +161,9 @@ const HOURLY: &[&str] = &[
 ];
 const MINUTELY: &[&str] = &["minute", "minutes", "minuto", "minuti", "minutos"];
 
-/// Words that introduce a time of day ("at 9", "à 9h", "alle 7", "a las 8", "um 9 uhr").
-const AT: &[&str] = &["at", "a", "alle", "um", "vers", "around", "towards"];
+/// Words that introduce a time of day ("at 9", "à 9h", "alle 7", "a las 8", "um 9 uhr",
+/// "às 7h" — the Portuguese « às » folds to « as »).
+const AT: &[&str] = &["at", "a", "as", "alle", "um", "vers", "around", "towards"];
 /// Determiners that may sit between the introducer and the number ("a las 8").
 const BETWEEN: &[&str] = &["las", "les", "le", "la", "the", "l"];
 /// Units that follow a time number and belong to it, never to a cadence.
@@ -544,6 +549,7 @@ mod tests {
             ("ogni mattina alle 7", Some("daily"), Some("07:00")),
             ("cada lunes a las 8", Some("weekly"), Some("08:00")),
             ("jeden morgen um 9 uhr", Some("daily"), Some("09:00")),
+            ("todas as manhãs às 7h", Some("daily"), Some("07:00")),
             ("every day at 25", Some("daily"), None),
         ] {
             let trigger = read(phrase, false);
