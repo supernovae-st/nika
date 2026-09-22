@@ -103,3 +103,42 @@ async fn a_write_twin_of_a_create_over_the_same_words_is_that_create() {
     assert_eq!(effects.len(), 1, "{doc}");
     assert_eq!(effects[0]["verb"], "create");
 }
+
+/// sv3-41 as the seat read it: the read clause listed once as the read and once as a
+/// constraint, beside the rename the typed rule states.
+const ERTRAG: &str = "Lies ./solar/ertrag.csv, benenne die Spalte kwh in energie_kwh um (sonst nichts ändern) und schreib das Ergebnis nach ./out/ertrag-umbenannt.csv";
+
+fn ertrag_proposal() -> Value {
+    json!({"steps":[
+        {"op":"read","detail":"Lies ./solar/ertrag.csv","evidence":"Lies ./solar/ertrag.csv"},
+        {"op":"compute","detail":"benenne die Spalte kwh in energie_kwh um (sonst nichts ändern)","evidence":"benenne die Spalte kwh in energie_kwh um (sonst nichts ändern)",
+         "computation":{"present":true,"polarity":"keep","join":"and","clauses":[],"group_by":"","aggregations":[],
+                        "sort_by":"","order":"","columns":[],"derived":[],"limit":"","renames":[{"from":"kwh","to":"energie_kwh"}]}}],
+        "effects":[{"verb":"write","target":"./out/ertrag-umbenannt.csv","policy":"automatic","evidence":"schreib das Ergebnis nach ./out/ertrag-umbenannt.csv"}],
+        "obligations":[],"constraints":["Lies ./solar/ertrag.csv","sonst nichts ändern"],"unknowns":[],
+        "regions":[{"text":"Lies ./solar/ertrag.csv,","role":"operation"},{"text":"benenne die Spalte kwh in energie_kwh um (sonst nichts ändern)","role":"operation"},{"text":"und schreib das Ergebnis nach ./out/ertrag-umbenannt.csv","role":"effect"}],
+        "approval_bypass":{"present":false,"evidence":""}})
+}
+
+#[tokio::test]
+async fn a_restated_clause_is_not_a_constraint_the_ledger_files() {
+    let provider = Provider::new(ertrag_proposal());
+    let req = CompileRequest::create(ERTRAG).with_authoring_policy(policy());
+    let out = compile_with_provider(&req, &provider).await.unwrap();
+    assert!(
+        !out.diagnostics
+            .iter()
+            .any(|d| d.message.contains("`Lies ./solar/ertrag.csv`")),
+        "{out:#?}"
+    );
+    assert!(!keys(&out).contains(&"intent.clarification"), "{out:#?}");
+    let constraints = &out.provenance.plan.as_ref().unwrap()["constraints"];
+    assert!(
+        !constraints
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|c| c.as_str() == Some("Lies ./solar/ertrag.csv")),
+        "{constraints}"
+    );
+}

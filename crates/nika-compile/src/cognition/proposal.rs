@@ -208,7 +208,7 @@ pub(super) fn unanchored(intent: &str, proposal: &Proposal) -> Option<Unanchored
 /// (a step, an effect, an obligation, a constraint or a policy literal). A region consumed
 /// without an element is a clause the proposal dropped, and a dropped clause is not
 /// understood: it becomes an unknown, never a silent omission.
-fn unproduced_regions(plan: &Plan, regions: &[ProposedRegion]) -> Vec<String> {
+fn unproduced_regions(plan: &Plan, regions: &[ProposedRegion], folded: &[String]) -> Vec<String> {
     let fold = |text: &str| {
         text.split_whitespace()
             .collect::<Vec<_>>()
@@ -225,6 +225,7 @@ fn unproduced_regions(plan: &Plan, regions: &[ProposedRegion]) -> Vec<String> {
     produced.extend(plan.obligations.iter().map(|o| o.evidence.clone()));
     produced.extend(plan.constraints.iter().cloned());
     produced.extend(plan.effects.iter().filter_map(|e| e.policy_literal.clone()));
+    produced.extend(folded.iter().cloned());
     // A gate the request states (« pero pídeme confirmación antes de enviar ») is realized
     // by the human-first policy of the effect it dominates, whatever the region says.
     let gated = plan
@@ -497,6 +498,200 @@ fn write_twins(effects: &[ProposedEffect]) -> Vec<String> {
         .collect()
 }
 
+/// One clause is one step. A step proposed over a write clause that is neither the draft
+/// nor the computation of what is written (« écrire ces lignes … dans ./out/retards.csv »
+/// listed as a validate, an explore, a fetch, a lookup, a classify, an extract and a search
+/// at once) is the write the proposal already states; a step proposed over a gate phrase
+/// (« pregúntame y espera mi aprobación » as an explore) is the human gate the effect's
+/// policy carries. Neither is assembled; the fold is recorded. Returns whether the step
+/// was folded.
+fn one_clause_one_step(
+    step: &ProposedStep,
+    op: Op,
+    write_clauses: &[String],
+    trigger: Option<&str>,
+    obligations: &[String],
+    intent: &str,
+    out: &mut CompileOutcome,
+) -> bool {
+    let clause = fold_words(&step.evidence);
+    if matches!(op, Op::Explore | Op::Validate | Op::Draft)
+        && (crate::gates::named_gate(&clause).is_some()
+            || crate::gates::final_gate(&clause).is_some())
+    {
+        crate::finding(
+            out,
+            DiagnosticKind::Applied,
+            "authoring_plan",
+            format!(
+                "`{}` is the human gate the request states, carried by the effect's policy; the proposal's `{}` over the same words was not assembled.",
+                step.evidence.trim(),
+                step.op
+            ),
+        );
+        return true;
+    }
+    if trigger.is_some_and(|trigger| over_a_region(step, &clause, trigger, intent)) {
+        crate::finding(
+            out,
+            DiagnosticKind::Applied,
+            "authoring_plan",
+            format!(
+                "`{}` is the trigger the request states, recorded as requested_trigger; the proposal's `{}` over the same words was not assembled.",
+                step.evidence.trim(),
+                step.op
+            ),
+        );
+        return true;
+    }
+    // A look-alike of a safeguard (a classify or a computation for a dedup, a validate for a
+    // recheck) is folded on its words alone; any other operation over a safeguard's words is
+    // folded only when its detail names nothing the request states outside them.
+    let look_alike = matches!(op, Op::Classify | Op::Compute | Op::Validate);
+    if obligations.iter().any(|words| {
+        (look_alike && !clause.is_empty() && words.contains(&clause))
+            || over_a_region(step, &clause, words, intent)
+    }) {
+        crate::finding(
+            out,
+            DiagnosticKind::Applied,
+            "authoring_plan",
+            format!(
+                "`{}` is the safeguard the request states, carried by its obligation; the proposal's `{}` over the same words was not assembled.",
+                step.evidence.trim(),
+                step.op
+            ),
+        );
+        return true;
+    }
+    if write_clauses.contains(&clause) && !matches!(op, Op::Draft | Op::Compute) {
+        crate::finding(
+            out,
+            DiagnosticKind::Applied,
+            "authoring_plan",
+            format!(
+                "`{}` is the write the proposal states; its `{}` over the same words was not assembled.",
+                step.evidence.trim(),
+                step.op
+            ),
+        );
+        return true;
+    }
+    false
+}
+
+/// Whether a step lies over a region the request states (the trigger clause, a safeguard's
+/// words) and names nothing beyond it: its clause and the region contain one another, and
+/// no content word of its detail is anchored in the request outside the region. A lookup
+/// over « Quand le bouton Slack de validation est utilisé » whose detail is « retrouve le
+/// dossier dans `MongoDB` » is that operation, mis-anchored, never the trigger.
+fn over_a_region(step: &ProposedStep, clause: &str, region: &str, intent: &str) -> bool {
+    if clause.is_empty() || region.is_empty() {
+        return false;
+    }
+    let wider = if clause.contains(region) {
+        clause
+    } else if region.contains(clause) {
+        region
+    } else {
+        return false;
+    };
+    let quoted = |text: &str| text.chars().map(fold_quote).collect::<String>();
+    let wider = quoted(wider);
+    let rest = quoted(&fold_words(intent)).replacen(&wider, " ", 1);
+    let outside: Vec<String> = content_words(&rest).collect();
+    let inside: Vec<String> = content_words(&wider).collect();
+    content_words(&quoted(&step.detail))
+        .all(|word| !outside.contains(&word) || inside.contains(&word))
+}
+
+/// The words of a text that carry content: four characters or more, punctuation stripped,
+/// lowercased.
+fn content_words(text: &str) -> impl Iterator<Item = String> + '_ {
+    text.split_whitespace()
+        .map(|word| {
+            word.trim_matches(|c: char| !c.is_alphanumeric())
+                .to_lowercase()
+        })
+        .filter(|word| word.chars().count() >= 4)
+}
+
+/// Whether a constraint restates a clause the plan carries elsewhere: an operation's
+/// evidence or detail, an effect's evidence or target, an obligation's words, the trigger.
+fn restates_a_clause(plan: &Plan, constraint: &str) -> bool {
+    let wanted = fold_words(constraint);
+    if wanted.is_empty() {
+        return false;
+    }
+    let inside = |text: &str| {
+        let text = fold_words(text);
+        !text.is_empty() && (text.contains(&wanted) || wanted.contains(&text))
+    };
+    plan.steps
+        .iter()
+        .any(|s| inside(&s.evidence) || inside(&s.detail))
+        || plan
+            .effects
+            .iter()
+            .any(|e| inside(&e.evidence) || inside(&e.target))
+        || plan.obligations.iter().any(|o| inside(&o.evidence))
+        || plan.trigger.as_deref().is_some_and(inside)
+}
+
+/// One clause is one effect. An effect proposed over a language step's own words
+/// (« rédige un compte rendu » as a create or a write) with no path and no endpoint in its
+/// target is that step, never an action on the outside world; two effects over the same
+/// clause with kindred verbs (a publish and a send over « Poste ensuite la réponse dans le
+/// fil Slack ») are one effect, the first stands. Returns whether the effect was folded.
+fn one_clause_one_effect(
+    effect: &ProposedEffect,
+    language_clauses: &[String],
+    stated: &mut Vec<String>,
+    out: &mut CompileOutcome,
+) -> bool {
+    let clause = fold_words(&effect.evidence);
+    if clause.is_empty() {
+        return false;
+    }
+    let names_a_place = crate::paths::literals(&effect.target).iter().any(|shape| {
+        matches!(
+            shape,
+            crate::paths::PathShape::File(_)
+                | crate::paths::PathShape::Directory(_)
+                | crate::paths::PathShape::Glob(_)
+        )
+    }) || effect.target.contains("://")
+        || effect.target.contains('@');
+    if !names_a_place && language_clauses.iter().any(|words| words == &clause) {
+        crate::finding(
+            out,
+            DiagnosticKind::Applied,
+            "authoring_plan",
+            format!(
+                "`{}` is the language step the proposal states; its `{}` over the same words names no file and no endpoint and was not assembled as an effect.",
+                effect.evidence.trim(),
+                effect.verb
+            ),
+        );
+        return true;
+    }
+    if stated.contains(&clause) {
+        crate::finding(
+            out,
+            DiagnosticKind::Applied,
+            "authoring_plan",
+            format!(
+                "`{}` is one effect; the proposal's `{}` over the same words was not assembled twice.",
+                effect.evidence.trim(),
+                effect.verb
+            ),
+        );
+        return true;
+    }
+    stated.push(clause);
+    false
+}
+
 /// The proposal joins the deterministic reading; deterministic facts win every disagreement,
 /// and the proposal must account for every region of the request.
 #[allow(clippy::too_many_lines)] // one validation walk over steps, effects, obligations, regions
@@ -511,15 +706,52 @@ pub(super) fn merge(
     // reader consumed is not understanding, and the model must account for every region.
     let mut plan = reading.plan.clone();
     plan.steps = Vec::new();
+    // Every clause the merge folds (a twin, a restatement) was understood: it counts as
+    // produced in the regions accounting.
+    let mut folded: Vec<String> = Vec::new();
     let produces_data = proposal
         .steps
         .iter()
         .any(|s| matches!(s.op.as_str(), "compute" | "extract"));
+    let write_clauses: Vec<String> = proposal
+        .effects
+        .iter()
+        .filter(|e| e.verb == "write")
+        .map(|e| fold_words(&e.evidence))
+        .collect();
+    let trigger = reading.plan.trigger.as_deref().map(fold_words);
+    let obligation_words: Vec<String> = reading
+        .plan
+        .obligations
+        .iter()
+        .map(|o| fold_words(&o.evidence))
+        .chain(proposal.obligations.iter().map(|o| fold_words(&o.evidence)))
+        .filter(|words| !words.is_empty())
+        .collect();
+    let language_clauses: Vec<String> = proposal
+        .steps
+        .iter()
+        .filter(|s| matches!(s.op.as_str(), "draft" | "extract" | "classify" | "compute"))
+        .map(|s| fold_words(&s.evidence))
+        .filter(|words| !words.is_empty())
+        .collect();
     for step in proposal.steps {
         let Some(op) = Op::parse(&step.op) else {
             reject(out, "unknown operation in the proposal");
             return None;
         };
+        if one_clause_one_step(
+            &step,
+            op,
+            &write_clauses,
+            trigger.as_deref(),
+            &obligation_words,
+            intent,
+            out,
+        ) {
+            folded.push(step.evidence.clone());
+            continue;
+        }
         if op == Op::Draft && produces_data && serialization_draft(&step.detail) {
             crate::finding(
                 out,
@@ -530,6 +762,7 @@ pub(super) fn merge(
                     step.detail.trim()
                 ),
             );
+            folded.push(step.evidence.clone());
             continue;
         }
         let Some(evidence) = exact_excerpt(intent, &step.evidence) else {
@@ -561,7 +794,12 @@ pub(super) fn merge(
         plan.push_step(Step::new(op, evidence, step.detail, step.categories));
     }
     let twins = write_twins(&proposal.effects);
+    let mut stated_effects: Vec<String> = Vec::new();
     for effect in proposal.effects {
+        if one_clause_one_effect(&effect, &language_clauses, &mut stated_effects, out) {
+            folded.push(effect.evidence.clone());
+            continue;
+        }
         if effect.verb == "write"
             && twins
                 .iter()
@@ -576,6 +814,7 @@ pub(super) fn merge(
                     effect.evidence.trim()
                 ),
             );
+            folded.push(effect.evidence.clone());
             continue;
         }
         let (Some(verb), Some(policy)) = (
@@ -660,53 +899,22 @@ pub(super) fn merge(
             plan.obligations.push(Obligation::new(kind, evidence));
         }
     }
-    // A step proposed over the very words of a safeguard the request states (« dédoublonne
-    // le callback par identifiant » as a classify, « vérifie de nouveau la version courante
-    // … » as a validate) is that safeguard: its obligation carries the words, and a second
-    // element over one clause would invent an operation. The doubled step is not assembled.
-    let fold = |text: &str| {
-        text.split_whitespace()
-            .collect::<Vec<_>>()
-            .join(" ")
-            .to_lowercase()
-    };
-    // The reader states a safeguard over the clause it read (« dédoublonne … et vérifie de
-    // nouveau … »): the step's words lie inside it. Only the look-alikes of a safeguard (a
-    // classify or a computation for a dedup, a validate for a recheck) are dropped; any
-    // other operation over those words stays visible.
-    let safeguards: Vec<String> = plan
-        .obligations
-        .iter()
-        .filter(|o| {
-            matches!(
-                o.kind,
-                ObligationKind::Dedup | ObligationKind::RevisionCheck
-            )
-        })
-        .map(|o| fold(&o.evidence))
-        .collect();
-    let mut doubled = Vec::new();
-    plan.steps.retain(|step| {
-        let words = fold(&step.evidence);
-        let over_safeguard = matches!(step.op, Op::Classify | Op::Compute | Op::Validate)
-            && !words.is_empty()
-            && safeguards.iter().any(|s| s.contains(&words));
-        if over_safeguard {
-            doubled.push((step.op.word(), step.evidence.clone()));
-        }
-        !over_safeguard
-    });
-    for (op, evidence) in doubled {
-        crate::finding(
-            out,
-            DiagnosticKind::Applied,
-            "authoring_plan",
-            format!(
-                "`{evidence}` is the safeguard the request states, carried by its obligation; the proposal's `{op}` over the same words was not assembled."
-            ),
-        );
-    }
     for constraint in proposal.constraints {
+        // « Lies ./solar/ertrag.csv » listed once as the read and once as a constraint: a
+        // clause the plan carries elsewhere binds nothing new and is not a constraint.
+        if restates_a_clause(&plan, &constraint) {
+            crate::finding(
+                out,
+                DiagnosticKind::Applied,
+                "authoring_plan",
+                format!(
+                    "`{}` is a clause the plan already carries; the proposal's constraint over the same words was not filed.",
+                    constraint.trim()
+                ),
+            );
+            folded.push(constraint);
+            continue;
+        }
         if !plan.constraints.contains(&constraint) {
             plan.constraints.push(constraint);
         }
@@ -725,7 +933,7 @@ pub(super) fn merge(
     for gap in accounting_gaps(intent, &proposal.regions) {
         plan.unknowns.push(gap);
     }
-    for gap in unproduced_regions(&plan, &proposal.regions) {
+    for gap in unproduced_regions(&plan, &proposal.regions, &folded) {
         plan.unknowns.push(gap);
     }
     // A numeric rule the model demoted to guidance is an operation: promoted here so the

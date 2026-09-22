@@ -4,4 +4,5 @@
   `search` and a seat's `lookup` over the same source are one retrieval family; a `write`
   a seat proposes as the twin of a `create` over the same words, naming no file, is that
   create and never a second effect. Three requests had ended in `intent.clarification`
-  with their only candidate judged infeasible on those laws.
+  with their only candidate judged infeasible on those laws. The merge files no constraint that restates a clause the plan carries (the read
+  clause listed twice): the ledger had refused READY for it as a silent obligation.
