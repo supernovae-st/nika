@@ -216,8 +216,13 @@ pub(super) fn unanchored(intent: &str, proposal: &Proposal) -> Option<Unanchored
 /// without an element is a clause the proposal dropped, and a dropped clause is not
 /// understood: it becomes an unknown, never a silent omission.
 fn unproduced_regions(plan: &Plan, regions: &[ProposedRegion], folded: &[String]) -> Vec<String> {
+    // Typographic quotes fold to their plain twins: a region cited with « l’historique »
+    // overlaps a step whose excerpt reads « l'historique ».
     let fold = |text: &str| {
-        text.split_whitespace()
+        text.chars()
+            .map(fold_quote)
+            .collect::<String>()
+            .split_whitespace()
             .collect::<Vec<_>>()
             .join(" ")
             .to_lowercase()
@@ -365,6 +370,92 @@ struct Stated<'a> {
     outbound: &'a [String],
     trigger: Option<&'a str>,
     obligations: &'a [String],
+    /// The constraints the proposal and the reading state, keyed.
+    constraints: &'a [String],
+    /// The clauses the proposal's language steps (a draft, an extract, a classify) carry.
+    prose: &'a [String],
+    /// The clauses earlier steps of this proposal already carry, keyed.
+    carried: &'a [String],
+    /// The clauses of every effect the proposal states, keyed.
+    effects: &'a [String],
+}
+
+/// One clause is one step: a language step over a clause an earlier producing step, search
+/// or lookup already carries (« prépare une fiche d'incident » as a draft, then as an
+/// extract), an untyped computation over a clause a language step carries (« Calculer les
+/// intersections » beside the draft of the slots), a validate or an explore over a stated
+/// constraint (« Si les passages ne suffisent pas, la réponse doit le dire »), an extract, an
+/// explore or a validate over an effect's clause (« Rembourse ensuite le double débit »), a
+/// read the seat lists over the event clause and naming no place. Each is folded.
+fn duplicate_step(
+    step: &ProposedStep,
+    op: Op,
+    stated: &Stated<'_>,
+    out: &mut CompileOutcome,
+) -> bool {
+    let clause = super::words::clause_key(&step.evidence);
+    if clause.is_empty() {
+        return false;
+    }
+    // Two clauses are one when equal, or when the step's clause contains a stated clause of
+    // three words or more (« la réponse » inside the send clause is no send; « puis
+    // Rembourse ensuite le double débit » over the refund clause is the refund).
+    let one_another = |words: &String| {
+        words == &clause
+            || (words.split_whitespace().count() >= 3 && clause.contains(words.as_str()))
+    };
+    if matches!(
+        op,
+        Op::Extract | Op::Draft | Op::Classify | Op::Validate | Op::Explore
+    ) && stated.carried.contains(&clause)
+    {
+        return folded(
+            out,
+            step,
+            "a clause an earlier step of the proposal already carries",
+        );
+    }
+    // Only a compute the seat listed as such: an extract the compiler turned into a
+    // computation (a conversion, a line filter) carries its own clause and is kept.
+    let typed = step.computation.as_ref().is_some_and(|c| c.present);
+    if step.op == "compute" && op == Op::Compute && !typed && stated.prose.contains(&clause) {
+        return folded(
+            out,
+            step,
+            "a clause a language step of the proposal carries; it states no computation",
+        );
+    }
+    if matches!(op, Op::Validate | Op::Explore) && stated.constraints.iter().any(one_another) {
+        return folded(
+            out,
+            step,
+            "a constraint the request states, carried as guidance",
+        );
+    }
+    if matches!(op, Op::Extract | Op::Explore | Op::Validate)
+        && stated.effects.iter().any(one_another)
+    {
+        return folded(
+            out,
+            step,
+            "the effect the request states, never a step of its own",
+        );
+    }
+    let names_a_place =
+        !crate::paths::literals(&step.evidence).is_empty() || step.evidence.contains("://");
+    if step.op == "read"
+        && !names_a_place
+        && stated
+            .trigger
+            .is_some_and(|trigger| trigger.contains(&clause))
+    {
+        return folded(
+            out,
+            step,
+            "the event the request states; its payload arrives as `inputs.item`, nothing is read",
+        );
+    }
+    false
 }
 
 fn one_clause_one_step(
@@ -375,6 +466,9 @@ fn one_clause_one_step(
     out: &mut CompileOutcome,
 ) -> bool {
     let clause = fold_words(&step.evidence);
+    if duplicate_step(step, op, stated, out) {
+        return true;
+    }
     if matches!(op, Op::Explore | Op::Validate | Op::Draft)
         && (crate::gates::named_gate(&clause).is_some()
             || crate::gates::final_gate(&clause).is_some())
@@ -460,15 +554,22 @@ fn retrieval_family(op: Op, step: &ProposedStep, out: &mut CompileOutcome) -> Op
     if op != Op::Read {
         return op;
     }
+    // The request's own words decide whether the material is supplied (« la transcription
+    // fournie »); a seat's paraphrase (« les disponibilités fournies » for « Lis mes
+    // disponibilités ») decides nothing.
     let names_a_place = !crate::paths::literals(&step.detail).is_empty()
         || step.detail.contains("://")
-        || crate::shape::names_supplied_material(&step.evidence)
-        || crate::shape::names_supplied_material(&step.detail);
+        || crate::shape::names_supplied_material(&step.evidence);
     if names_a_place {
         return op;
     }
-    let lower = step.detail.to_lowercase();
-    match crate::lexicon::settle_retrieval(&lower, &[Op::Read, Op::Lookup, Op::Search]) {
+    // The evidence settles the family first (« lis mes disponibilités » names records the
+    // request keeps); the seat's detail only when the request's words carry no cue.
+    let family = [Op::Read, Op::Lookup, Op::Search];
+    let settled = crate::lexicon::settle_retrieval(&step.evidence.to_lowercase(), &family)
+        .filter(|settled| matches!(settled, Op::Lookup | Op::Search))
+        .or_else(|| crate::lexicon::settle_retrieval(&step.detail.to_lowercase(), &family));
+    match settled {
         Some(settled @ (Op::Lookup | Op::Search)) => {
             crate::finding(
                 out,
@@ -785,6 +886,30 @@ pub(super) fn merge(
         .collect();
     // The unknowns a typed rule turned into slots: asked, no longer unresolved work.
     let mut slotted: Vec<String> = Vec::new();
+    // The constraints stated (the proposal's and the reading's), the clauses the proposal's
+    // language steps carry, the clauses of every stated effect, and the clauses the assembled
+    // steps carry, filled as they come. All keyed.
+    let constraint_clauses: Vec<String> = proposal
+        .constraints
+        .iter()
+        .chain(reading.plan.constraints.iter())
+        .map(|c| super::words::clause_key(c))
+        .filter(|c| !c.is_empty())
+        .collect();
+    let prose_clauses: Vec<String> = proposal
+        .steps
+        .iter()
+        .filter(|s| matches!(s.op.as_str(), "draft" | "extract" | "classify"))
+        .map(|s| super::words::clause_key(&s.evidence))
+        .filter(|c| !c.is_empty())
+        .collect();
+    let effect_clauses: Vec<String> = proposal
+        .effects
+        .iter()
+        .map(|e| super::words::clause_key(&e.evidence))
+        .filter(|c| !c.is_empty())
+        .collect();
+    let mut carried_clauses: Vec<String> = Vec::new();
     // The structured formats a conversion runs between: the read's file, the write's file.
     let structured_read = proposal
         .steps
@@ -818,10 +943,23 @@ pub(super) fn merge(
             outbound: &outbound_clauses,
             trigger: trigger.as_deref(),
             obligations: &obligation_words,
+            constraints: &constraint_clauses,
+            prose: &prose_clauses,
+            carried: &carried_clauses,
+            effects: &effect_clauses,
         };
         if one_clause_one_step(&step, op, &stated, intent, out) {
             folded.push(step.evidence.clone());
             continue;
+        }
+        // A producing step, a search or a lookup carries its clause: a later language step
+        // over the same words duplicates it. A read or a fetch is material a later step works
+        // on, never a carrier.
+        if matches!(
+            op,
+            Op::Extract | Op::Draft | Op::Classify | Op::Compute | Op::Search | Op::Lookup
+        ) {
+            carried_clauses.push(super::words::clause_key(&step.evidence));
         }
         // « ./out/esiti.csv con le colonne esito,numero (una riga per valore) » as a draft
         // over the very write clause, beside the computed rows and with no language word:
@@ -1098,9 +1236,14 @@ fn accounting_gaps(intent: &str, regions: &[ProposedRegion]) -> Vec<String> {
         // steps and effects remains the floor.
         return gaps;
     }
+    // Typographic quotes fold to their plain twins on both sides: a region cited with
+    // « l’historique » covers the request's « l'historique » and the reverse.
+    let intent: String = intent.chars().map(fold_quote).collect();
+    let intent = intent.as_str();
     let mut covered = vec![false; intent.len()];
     for region in regions {
-        let text = region.text.trim();
+        let text: String = region.text.trim().chars().map(fold_quote).collect();
+        let text = text.as_str();
         if text.is_empty() {
             continue;
         }

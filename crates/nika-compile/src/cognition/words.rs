@@ -6,6 +6,16 @@
 //! they are, and the content words of a clause. Six languages, folded. Knowledge only:
 //! the folds that use these live in `proposal.rs`.
 
+/// The key of a clause for the one-clause folds: whitespace folded, lowercased, the closing
+/// punctuation trimmed — « Poste la réponse dans le fil Slack. » and « Poste la réponse dans
+/// le fil Slack » are one clause.
+pub(super) fn clause_key(text: &str) -> String {
+    fold_words(text)
+        .trim_end_matches(['.', ';', ',', '!', ':'])
+        .trim()
+        .to_owned()
+}
+
 pub(super) fn fold_words(text: &str) -> String {
     text.split_whitespace()
         .collect::<Vec<_>>()

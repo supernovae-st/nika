@@ -32,7 +32,7 @@ async fn cold_best_of_three_keeps_the_plan_the_others_agree_with() {
     invented["steps"]
         .as_array_mut()
         .unwrap()
-        .push(json!({"op":"compute","detail":"le problème","evidence":"classe le problème"}));
+        .push(json!({"op":"compute","detail":"le problème","evidence":"classe le problème","computation":{"present":true}}));
     let provider = Rotating::new(vec![
         invented.to_string(),
         plan().to_string(),

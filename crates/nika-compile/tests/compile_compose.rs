@@ -39,13 +39,11 @@ fn dropped_fetch_plan() -> Value {
     p["steps"].as_array_mut().unwrap().remove(0);
     p
 }
-/// Reads "prepare a summary" as classification too: a distinct admissible reading.
+/// Reads "prepare a summary" as a classification instead of a draft: a distinct admissible
+/// reading (one clause is one step: a classify added beside the draft would be folded).
 fn classified_fetch_plan() -> Value {
     let mut p = fetch_plan();
-    p["steps"]
-        .as_array_mut()
-        .unwrap()
-        .push(json!({"op":"classify","detail":"the page","evidence":"prepare a summary"}));
+    p["steps"][2] = json!({"op":"classify","detail":"the page","evidence":"prepare a summary"});
     p
 }
 fn rotating(plans: &[Value]) -> Rotating {

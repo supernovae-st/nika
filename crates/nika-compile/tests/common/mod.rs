@@ -112,7 +112,7 @@ pub(crate) fn disagreeing_provider() -> Rotating {
     with_compute["steps"]
         .as_array_mut()
         .unwrap()
-        .push(json!({"op":"compute","detail":"le problème","evidence":"classe le problème"}));
+        .push(json!({"op":"compute","detail":"le problème","evidence":"classe le problème","computation":{"present":true}}));
     Rotating::new(vec![
         plan().to_string(),
         with_compute.to_string(),
