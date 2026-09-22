@@ -34,6 +34,7 @@ mod anchor;
 mod backstops;
 pub(super) use backstops::starts_with_prohibition;
 mod proposal;
+mod transform;
 use proposal::{Proposal, decode, merge};
 pub(super) use proposal::{ProposedRegion, exact_excerpt, nullable_string, nullable_vec};
 
@@ -667,6 +668,23 @@ async fn call<P: ProviderInferDyn>(
     messages: Vec<Message>,
     out: &mut CompileOutcome,
 ) -> Option<(Proposal, String)> {
+    let response = call_with_schema(policy, provider, messages, plan_schema(), out).await?;
+    let text = match response.content.as_slice() {
+        [ContentBlock::Text { text }] => text.clone(),
+        _ => String::new(),
+    };
+    decode(&response, out).map(|proposal| (proposal, text))
+}
+
+/// One bounded call under any answer schema (the plan's, the transform's), accounted in the
+/// outcome's receipt: the raw response, or None with the finding recorded. Never retries.
+async fn call_with_schema<P: ProviderInferDyn>(
+    policy: &AuthoringPolicy,
+    provider: &P,
+    messages: Vec<Message>,
+    schema: Value,
+    out: &mut CompileOutcome,
+) -> Option<InferResponse> {
     out.provenance.cognition = AuthoringCognition::ExplicitProvider;
     let receipt = out
         .provenance
@@ -682,7 +700,7 @@ async fn call<P: ProviderInferDyn>(
     let start = std::time::Instant::now();
     let result = tokio::time::timeout(
         policy.timeout,
-        provider.infer(authoring_request(policy, messages)),
+        provider.infer(authoring_request(policy, messages, schema)),
     )
     .await;
     if let Some(receipt) = out.provenance.authoring.as_mut() {
@@ -719,19 +737,25 @@ async fn call<P: ProviderInferDyn>(
         receipt.output_tokens =
             Some(receipt.output_tokens.unwrap_or(0) + response.usage.output_tokens);
     }
-    let text = match response.content.as_slice() {
-        [ContentBlock::Text { text }] => text.clone(),
-        _ => String::new(),
-    };
-    decode(&response, out).map(|proposal| (proposal, text))
+    Some(response)
 }
 
 /// The bounded JSON-schema request every authoring call makes, whatever its messages.
-fn authoring_request(policy: &AuthoringPolicy, messages: Vec<Message>) -> InferRequest {
+fn authoring_request(
+    policy: &AuthoringPolicy,
+    messages: Vec<Message>,
+    schema: Value,
+) -> InferRequest {
     let mut infer = InferRequest::new(&policy.model, messages);
     infer.max_tokens = Some(policy.max_tokens);
     infer.timeout = Some(policy.timeout);
-    infer.response_format = ResponseFormat::JsonSchema(json!({
+    infer.response_format = ResponseFormat::JsonSchema(schema);
+    infer
+}
+
+/// The closed shape of a proposed plan.
+fn plan_schema() -> Value {
+    json!({
     "type":"object","additionalProperties":false,
     "required":["steps","effects","obligations","constraints","unknowns","regions","approval_bypass"],
     "properties":{
@@ -755,8 +779,7 @@ fn authoring_request(policy: &AuthoringPolicy, messages: Vec<Message>) -> InferR
             "role":{"type":"string","enum":["operation","effect","policy","obligation","constraint","context","unknown"]}}}},
         "approval_bypass":{"type":"object","additionalProperties":false,"required":["present"],"properties":{
             "present":{"type":"boolean"},"evidence":{"type":"string"}}}
-    }}));
-    infer
+    }})
 }
 
 /// COLD with N proposals, then the composer: the distinct admissible plans become a finite
@@ -786,6 +809,7 @@ async fn sampled<P: ProviderInferDyn>(
     for index in 0..policy.samples.clamp(1, 5) as usize {
         let mut scratch = super::initial();
         let proposal = propose(intent, policy, provider, &mut scratch).await;
+        let plan = proposal.and_then(|p| merge(intent, p, reading, &mut scratch));
         if let Some(receipt) = &scratch.provenance.authoring {
             calls += receipt.calls;
             elapsed_ms += receipt.elapsed_ms;
@@ -796,7 +820,6 @@ async fn sampled<P: ProviderInferDyn>(
                 output_tokens = Some(output_tokens.unwrap_or(0) + n);
             }
         }
-        let plan = proposal.and_then(|p| merge(intent, p, reading, &mut scratch));
         let findings: Vec<String> = scratch
             .diagnostics
             .iter()
@@ -942,7 +965,12 @@ async fn sampled<P: ProviderInferDyn>(
     decision["route"] = json!(route);
     out.provenance.decision = Some(decision);
     if let Some(candidate) = selected {
-        let plan = candidate.plan.clone();
+        let mut plan = candidate.plan.clone();
+        // A computation the typed stages could not state asks the seat for a verified
+        // program (treatment B), once, on the plan that will be assembled: the seat's own
+        // example is the test, the runtime's jq the judge, the receipt counts the call.
+        let answered = request.answers.contains_key("const.rule_expression");
+        transform::synthesize(intent, &mut plan, policy, provider, answered, &mut out).await;
         return settle(Strategy::Cold, &plan, intent, request, out);
     }
     if seat_declined {

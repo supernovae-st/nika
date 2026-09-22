@@ -296,6 +296,18 @@ pub struct Rule {
     /// The records are the lines of a text source, and the result is written back as
     /// lines: a removal of duplicate lines over a `.txt` file.
     lines: bool,
+    /// A program a seat wrote for a computation the typed stages cannot state, verified by
+    /// the compiler on the seat's own example before it was bound: it runs verbatim over
+    /// `.records`, and the columns it declares are the guard's fields.
+    program: Option<Program>,
+}
+
+/// A verified program and the columns it reads.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Program {
+    pub jq: String,
+    pub columns: Vec<String>,
 }
 
 /// The jq path of one column: a bare identifier as `.name`, anything else bracketed.
@@ -431,7 +443,30 @@ impl Rule {
             summary: false,
             shape,
             lines: false,
+            program: None,
         }
+    }
+    /// A rule whose computation is a verified program the seat wrote: no typed stage, the
+    /// program itself over `.records`, its declared columns as fields.
+    #[must_use]
+    pub fn program(text: &str, jq: &str, columns: Vec<String>) -> Self {
+        Self {
+            text: text.to_owned(),
+            clauses: Vec::new(),
+            junction: Junction::And,
+            summary: false,
+            shape: Shape::default(),
+            lines: false,
+            program: Some(Program {
+                jq: jq.to_owned(),
+                columns,
+            }),
+        }
+    }
+    /// The verified program the rule carries, when a seat wrote it.
+    #[must_use]
+    pub fn verified_program(&self) -> Option<&Program> {
+        self.program.as_ref()
     }
     /// The columns the computation writes, in order, when it fixes them.
     #[must_use]
@@ -511,7 +546,7 @@ impl Rule {
     /// projection, a limit, a rename or a join): a plain rule only keeps or drops rows.
     #[must_use]
     pub fn shaped(&self) -> bool {
-        self.shape != Shape::default()
+        self.shape != Shape::default() || self.program.is_some()
     }
     /// The inverse of [`Rule::to_json`], for a recorded plan replayed on an answer round.
     pub(crate) fn from_json(value: &Value) -> Option<Self> {
@@ -523,7 +558,23 @@ impl Rule {
             .map(Clause::from_json)
             .collect::<Option<Vec<_>>>()?;
         let shape = Shape::from_json(value.get("shape"))?;
-        if clauses.is_empty() && shape == Shape::default() {
+        let program = value.get("program").filter(|p| !p.is_null()).map(|p| {
+            Some(Program {
+                jq: p.get("jq")?.as_str()?.to_owned(),
+                columns: p
+                    .get("columns")?
+                    .as_array()?
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .map(str::to_owned)
+                    .collect(),
+            })
+        });
+        let program = match program {
+            Some(program) => Some(program?),
+            None => None,
+        };
+        if clauses.is_empty() && shape == Shape::default() && program.is_none() {
             return None;
         }
         let junction = match value.get("junction").and_then(Value::as_str) {
@@ -542,6 +593,7 @@ impl Rule {
             summary,
             shape,
             lines,
+            program,
         })
     }
     /// Whether the text also asked for the count and totals the summary stage computes.
@@ -553,6 +605,9 @@ impl Rule {
     /// group column, the aggregated columns, a sort or a projection on a source column (a
     /// sort or a projection on a produced name reads nothing from the source).
     pub(crate) fn fields(&self) -> Vec<String> {
+        if let Some(program) = &self.program {
+            return program.columns.clone();
+        }
         let mut out: Vec<String> = Vec::new();
         let mut push = |name: &str| {
             if !out.iter().any(|f| f == name) {
@@ -607,6 +662,9 @@ impl Rule {
     /// source, the result is written back as lines with the file's final newline.
     #[must_use]
     pub fn jq(&self) -> String {
+        if let Some(program) = &self.program {
+            return program.jq.clone();
+        }
         let base = match &self.shape.join_on {
             Some(on) => format!(
                 ".records | reduce .[1:][] as $right (.[0]; [.[] as $a | $right[] | select({k} == ($a | {k})) | $a + .])",
@@ -709,6 +767,7 @@ impl Rule {
             "summary": self.summary,
             "shape": self.shape.to_json(),
             "lines": self.lines,
+            "program": self.program.as_ref().map(|p| json!({"jq": p.jq, "columns": p.columns})),
         });
         if let [only] = self.clauses.as_slice() {
             let clause = only.to_json();
@@ -1171,6 +1230,7 @@ pub fn synthesize(text: &str, columns: &[String]) -> Option<Rule> {
         summary,
         shape,
         lines: false,
+        program: None,
     })
 }
 

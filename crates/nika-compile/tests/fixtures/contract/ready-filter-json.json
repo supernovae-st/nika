@@ -483,6 +483,7 @@
           ],
           "jq": "[.records[] | select(.status == \"open\")]",
           "lines": false,
+          "program": null,
           "shape": {
             "aggregations": [],
             "columns": [],
@@ -566,6 +567,7 @@
             ],
             "jq": "[.records[] | select(.status == \"open\")]",
             "lines": false,
+            "program": null,
             "shape": {
               "aggregations": [],
               "columns": [],

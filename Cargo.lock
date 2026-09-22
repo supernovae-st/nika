@@ -4691,10 +4691,14 @@ dependencies = [
 name = "nika-compile"
 version = "0.120.3"
 dependencies = [
+ "jaq-core",
+ "jaq-json",
+ "jaq-std",
  "marked-yaml",
  "miette",
  "nika-bm25",
  "nika-cadence",
+ "nika-cap",
  "nika-catalog",
  "nika-check",
  "nika-compile-reader",

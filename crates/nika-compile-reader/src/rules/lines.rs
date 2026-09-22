@@ -308,6 +308,7 @@ pub fn line_filter(text: &str) -> Option<Rule> {
         summary: false,
         shape: Shape::default(),
         lines: true,
+        program: None,
     })
 }
 
