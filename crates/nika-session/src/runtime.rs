@@ -459,19 +459,35 @@ impl SessionRuntime {
     /// kept. The next line chooses; `cancel` continues without one.
     pub(crate) fn ask_for_intelligence(&mut self, line: &str, need: Need) -> TurnOutcome {
         let Some(census) = &self.census else {
+            let why = self
+                .intelligence
+                .why
+                .as_deref()
+                .filter(|_| !self.intelligence.ready)
+                .unwrap_or("no conversational intelligence");
             return TurnOutcome::Refusal(Refusal::new(
                 RefusalClass::NoIntelligence,
-                "no conversational intelligence — the facts still answer (workflows · builtins · providers · check · explain) · describe work to build and Nika compiles it",
+                format!(
+                    "{why} — the facts still answer (workflows · builtins · providers · check · explain) · describe work to build and Nika compiles it"
+                ),
             ));
         };
         let why = match need {
             Need::Conversation => "to answer this in words",
             Need::Authoring => "to finish reading this request — what it read on its own is kept",
         };
+        // A kept choice this machine cannot serve is the problem, said
+        // first in plain words (the ⚠ line of the banner), before the ways on.
+        let unserved = self
+            .intelligence
+            .why
+            .as_deref()
+            .filter(|_| !self.intelligence.ready)
+            .map_or(String::new(), |w| format!("  ⚠ {w}\n"));
         self.interrupted = Some(line.to_owned());
         self.pending_choice = true;
         TurnOutcome::Ask(format!(
-            "Nika needs an intelligence for this part\n  {why}\n  your request is kept and resumes after the choice · `cancel` continues without one\n\n{}",
+            "Nika needs an intelligence for this part\n  {why}\n{unserved}  your request is kept and resumes after the choice · `cancel` continues without one\n\n{}",
             census.options_screen()
         ))
     }
@@ -732,17 +748,11 @@ impl SessionRuntime {
     /// A free-text line the chosen intelligence answers, in words only,
     /// through the broker's bundle and under the guard's reading.
     fn converse_unrecorded(&mut self, input: &str) -> TurnOutcome {
+        // A kept choice this machine cannot serve: the problem in plain
+        // words, the ways on, and the line kept for the choice — never a
+        // call on a path that cannot answer, never a silent replacement.
         if !self.intelligence.ready {
-            let why =
-                self.intelligence.why.clone().unwrap_or_else(|| {
-                    "this session has no conversational intelligence".to_owned()
-                });
-            return TurnOutcome::Refusal(Refusal::new(
-                RefusalClass::NoIntelligence,
-                format!(
-                    "{why} — the facts still answer (workflows · builtins · providers · check · explain) · describe work to build and Nika compiles it"
-                ),
-            ));
+            return self.ask_for_intelligence(input, Need::Conversation);
         }
         let named = named_files(input);
         let bundle = self.broker.bundle(
@@ -769,13 +779,10 @@ impl SessionRuntime {
             // did not happen, the ways on); the choice stands, nothing is
             // substituted.
             Err(e) => {
-                let headline = format!(
-                    "I couldn't use {} (the conversational intelligence) for this part",
-                    self.reasoner.name()
-                );
+                let what = format!("{} (the conversational intelligence)", self.reasoner.name());
                 self.recovery(
                     Some(RefusalClass::IntelligenceRefused),
-                    &headline,
+                    &what,
                     &e.to_string(),
                 )
             }
@@ -1377,6 +1384,9 @@ fn named_files(input: &str) -> Vec<String> {
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod authoring_tests;
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod choice_tests;
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod tests;

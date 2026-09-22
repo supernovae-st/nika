@@ -66,9 +66,10 @@ impl SessionRuntime {
             }
             Reading::Unsettled(out) => Some(match &self.seat {
                 AuthoringSeat::Provider { .. } => self.compile_under_seat(round),
-                // No intelligence chosen yet: the first screen is asked here,
-                // in context, and the request resumes under the choice.
-                AuthoringSeat::Deterministic { .. } if !self.chosen => {
+                // No intelligence chosen yet — or a kept choice this machine
+                // cannot serve: the first screen is asked here, in context,
+                // and the request resumes under the choice.
+                AuthoringSeat::Deterministic { .. } if !self.chosen || !self.intelligence.ready => {
                     self.ask_for_intelligence(intent, super::Need::Authoring)
                 }
                 AuthoringSeat::Deterministic { why } => {
