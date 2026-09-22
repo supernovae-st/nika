@@ -553,17 +553,20 @@ fn literals(candidate: &Plan, floor: &Plan, intent: &str, why: &mut Vec<String>)
         }
     }
     let intent_runs = digit_runs(intent);
-    for text in candidate
+    for (text, language) in candidate
         .steps
         .iter()
-        .map(|s| s.detail.as_str())
-        .chain(candidate.effects.iter().map(|e| e.target.as_str()))
+        .map(|s| (s.detail.as_str(), !matches!(s.op, Op::Compute)))
+        .chain(candidate.effects.iter().map(|e| (e.target.as_str(), false)))
     {
         for token in literal_tokens(text) {
             let present = if token.bytes().all(|b| b.is_ascii_digit()) {
                 intent_runs.contains(&token)
                     || stated_range_covers(intent, &token)
                     || number_word_covers(intent, &token)
+                    // « (cycle de correction 1) », « heading 2 »: an enumeration in a seat's
+                    // paraphrase of a language step, never a value the workflow carries.
+                    || (language && token.len() == 1)
             } else {
                 intent.contains(token.as_str()) || derived_path(&token, intent)
             };

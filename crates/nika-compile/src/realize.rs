@@ -298,7 +298,9 @@ fn realize_format(
         duty.realize(carrier, Some("realized by the structure"));
     } else if matches!(duty.kind, DutyKind::Format | DutyKind::Identity)
         && has_task("compute")
-        && (keeps_columns(&duty.evidence) || names_computed_column(&duty.evidence, d))
+        && (keeps_columns(&duty.evidence)
+            || names_computed_column(&duty.evidence, d)
+            || stated_by_rule(&duty.evidence, plan))
     {
         duty.realize(
             "compute",
@@ -323,6 +325,67 @@ fn names_computed_column(constraint: &str, d: &Doc) -> bool {
         let spaced = column.replace('_', " ");
         !column.is_empty() && (folded.contains(&column) || folded.contains(&spaced))
     })
+}
+
+/// A format the rule itself states: the rule's own words (« los tres corredores más
+/// rápidos (menor `tiempo_seg`) » promoted from the clause the rule was read from), or an
+/// ordering phrase (« del más rápido al más lento », « highest first », « croissant ») when
+/// the rule sorts. The compute task carries both.
+fn stated_by_rule(constraint: &str, plan: &Plan) -> bool {
+    let fold = |text: &str| {
+        text.split(|c: char| !c.is_alphanumeric())
+            .filter(|w| !w.is_empty())
+            .collect::<Vec<_>>()
+            .join(" ")
+            .to_lowercase()
+    };
+    let wanted = fold(constraint);
+    if wanted.is_empty() {
+        return false;
+    }
+    let inside_a_rule = plan.rules.iter().any(|rule| {
+        let text = fold(rule.text());
+        !text.is_empty() && (text.contains(&wanted) || wanted.contains(&text))
+    });
+    if inside_a_rule {
+        return true;
+    }
+    let sorted = plan
+        .rules
+        .iter()
+        .any(|rule| !rule.to_json()["shape"]["sort_by"].is_null());
+    sorted && ordering_phrase(&super::shape::fold(constraint))
+}
+
+/// An ordering phrase in six languages, folded.
+fn ordering_phrase(folded: &str) -> bool {
+    [
+        "ascending",
+        "descending",
+        "highest first",
+        "lowest first",
+        "largest first",
+        "smallest first",
+        "croissant",
+        "decroissant",
+        "du plus",
+        "de la plus",
+        "del mas",
+        "de mayor a menor",
+        "de menor a mayor",
+        "dal piu",
+        "dalla piu",
+        "aufsteigend",
+        "absteigend",
+        "vom hochsten",
+        "vom niedrigsten",
+        "do maior",
+        "do menor",
+        "crescente",
+        "decrescente",
+    ]
+    .iter()
+    .any(|cue| folded.contains(cue))
 }
 
 /// A format the computed rows honour by construction: « avec les mêmes colonnes et dans le
