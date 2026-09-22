@@ -305,17 +305,21 @@ impl RunFacts {
     }
 
     /// What left this machine, as the frames prove it: a `net` permit
-    /// decision, or a task that invoked `nika:notify`.
+    /// decision, or a task that invoked `nika:notify` and completed — each
+    /// with the evidence it rests on.
     fn sent(&self) -> Vec<String> {
         let mut out: Vec<String> = self
             .permits
             .iter()
             .filter(|p| p.plane == "net" && p.decision == "allow")
-            .map(|p| p.gate.clone())
+            .map(|p| format!("{} · MEASURED: the permit decision that let it out", p.gate))
             .collect();
         for t in &self.tasks {
             if t.state == TaskState::Ok && t.note.contains("nika:notify") {
-                out.push(format!("`{}` · nika:notify", t.id));
+                out.push(format!(
+                    "`{}` · nika:notify · MEASURED: the task completed (the receiver's side is not proven)",
+                    t.id
+                ));
             }
         }
         out.dedup();
@@ -415,10 +419,7 @@ impl RunFacts {
             let _ = write!(view, "\n  read · {path}");
         }
         for target in &sent {
-            let _ = write!(
-                view,
-                "\n  sent · {target} · MEASURED: the permit decision that let it out"
-            );
+            let _ = write!(view, "\n  sent · {target}");
         }
         for model in self.asked() {
             let _ = write!(view, "\n  asked · {model}");
