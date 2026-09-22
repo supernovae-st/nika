@@ -185,13 +185,14 @@ async fn cold_repairs_an_unanchored_excerpt_with_one_bounded_call() {
 
 #[tokio::test]
 async fn a_repair_never_buys_a_third_call_and_the_merge_still_judges_it() {
-    // The repair answers another evidence the request never wrote (a doubled letter): no
-    // third call, the anchoring refusal
-    // of the merge stands, and the receipt counts both calls.
+    // The repair answers another evidence the request never wrote (a paraphrase, not a
+    // near-miss): no third call, the anchoring refusal of the merge stands, and the receipt
+    // counts both calls.
     let mut first = plan();
     first["steps"][1]["evidence"] = json!("classe le probleme");
     let mut second = plan();
-    second["effects"][0]["evidence"] = json!("Demande un accord humain avant le rembourssement");
+    second["effects"][0]["evidence"] =
+        json!("Demande l'accord d'un humain avant tout remboursement du client");
     let provider = Rotating::new(vec![first.to_string(), second.to_string()]);
     let out = compile_with_provider(&request(), &provider).await.unwrap();
     assert_eq!(provider.calls.load(Ordering::SeqCst), 2);
@@ -203,6 +204,29 @@ async fn a_repair_never_buys_a_third_call_and_the_merge_still_judges_it() {
             .message
             .contains("an effect lacks an exact source excerpt (`refund` names")),
         "{out:#?}"
+    );
+}
+
+#[tokio::test]
+async fn a_doubled_letter_is_no_misquote_and_buys_no_repair() {
+    // « rembourssement » for « remboursement »: a near-miss citation of the request's own
+    // clause names that clause; the merge anchors it, no repair call is spent.
+    let mut near = plan();
+    near["effects"][0]["evidence"] = json!("Demande un accord humain avant le rembourssement");
+    let provider = Rotating::new(vec![near.to_string()]);
+    let out = compile_with_provider(&request(), &provider).await.unwrap();
+    assert_eq!(provider.calls.load(Ordering::SeqCst), 1, "{out:#?}");
+    assert!(
+        !out.diagnostics
+            .iter()
+            .any(|d| d.message.contains("lacks an exact source excerpt")),
+        "{out:#?}"
+    );
+    let plan = out.provenance.plan.as_ref().unwrap();
+    let evidence = plan["effects"][0]["evidence"].as_str().unwrap_or_default();
+    assert!(
+        evidence.contains("remboursement") && !evidence.contains("rembourssement"),
+        "the request's own words: {evidence}"
     );
 }
 

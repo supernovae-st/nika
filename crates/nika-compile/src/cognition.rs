@@ -30,6 +30,7 @@ use serde_json::{Value, json};
 
 mod instructions;
 use instructions::INSTRUCTIONS;
+mod anchor;
 mod backstops;
 pub(super) use backstops::starts_with_prohibition;
 mod proposal;

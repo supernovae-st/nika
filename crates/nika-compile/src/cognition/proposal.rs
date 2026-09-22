@@ -135,6 +135,9 @@ pub(crate) fn exact_excerpt(intent: &str, evidence: &str) -> Option<String> {
     if fragments.is_empty() {
         return None;
     }
+    if fragments.len() == 1 && !folded.contains(fragments[0].as_str()) {
+        return super::anchor::near_excerpt(&folded, &offsets, intent, &fragments[0]);
+    }
     let first_at = folded.find(fragments.first()?)?;
     let mut cursor = first_at + fragments.first()?.len();
     let mut last_end = cursor;
