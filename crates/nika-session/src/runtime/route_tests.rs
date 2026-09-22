@@ -336,3 +336,35 @@ fn new_work_the_reader_missed_asks_for_an_intelligence_and_keeps_the_line() {
         "the first screen is asked in context: {out:?}"
     );
 }
+
+/// The card when nothing could be built tells the two truths apart: a seat's
+/// draft the fidelity check refused is an authoring failure (say it again,
+/// another model), a deterministic reader's unsupported clause is a gap in
+/// what Nika can express — and neither blames the human's words.
+#[test]
+fn the_cannot_build_card_tells_an_authoring_failure_from_a_language_gap() {
+    let mut out = crate::authoring::compile_deterministic(
+        &nika_onboard::compile::CompileRequest::create(super::tests::UNSETTLED),
+    )
+    .expect("compiles");
+    let gap = super::authoring::cannot_express_text(&out);
+    assert!(
+        gap.starts_with("Nika cannot express this automation yet"),
+        "{gap}"
+    );
+    assert!(
+        gap.contains("what helps: say the outcome in one sentence"),
+        "{gap}"
+    );
+    out.provenance.cognition = nika_onboard::compile::AuthoringCognition::ExplicitProvider;
+    let failed = super::authoring::cannot_express_text(&out);
+    assert!(
+        failed.starts_with("Nika could not build this automation faithfully yet"),
+        "{failed}"
+    );
+    assert!(
+        failed.contains("say it again") && failed.contains("`/intelligence`"),
+        "{failed}"
+    );
+    assert!(!failed.contains("rephrase"), "never « rephrase »: {failed}");
+}

@@ -166,18 +166,7 @@ impl SessionRuntime {
     /// compiler's reasons), what helps — never a request for syntax, never
     /// « rephrase with implementation details ».
     fn cannot_express(&mut self, out: CompileOutcome) -> TurnOutcome {
-        let mut text = "Nika cannot express this automation yet — nothing was written.".to_owned();
-        let stopped = human_reasons(reasons(&out));
-        if !stopped.is_empty() {
-            text.push_str("\n  what stopped it:");
-            for reason in stopped {
-                text.push_str("\n    · ");
-                text.push_str(&reason);
-            }
-        }
-        text.push_str(
-            "\n  what helps: say the outcome in one sentence (what to read · what to produce · where it goes), or split the work in two requests · `/meaning` shows what was understood",
-        );
+        let text = cannot_express_text(&out);
         self.last_outcome = Some(out);
         TurnOutcome::Facts(text)
     }
@@ -926,6 +915,38 @@ fn question_text(question: &CompileQuestion, reasons: &[String]) -> String {
     // what the value is for; the prompt that follows (`reply ›`) says whose
     // turn it is.
     text.push_str("\n  reply on the next line · `cancel` drops this · `why?` explains");
+    text
+}
+
+/// The card when nothing could be built, in the reading's own truth: a
+/// seat's draft the compiler's fidelity check refused is an AUTHORING
+/// failure (another attempt may hold every part), never a language gap;
+/// the deterministic reader's unsupported clause is a gap in what Nika
+/// can express. Neither is the human's ambiguity (mandate: a compiler gap
+/// is never presented as user ambiguity, nor an authoring failure as a gap).
+pub(super) fn cannot_express_text(out: &CompileOutcome) -> String {
+    let authoring_failed = matches!(
+        out.provenance.cognition,
+        nika_onboard::compile::AuthoringCognition::ExplicitProvider
+    );
+    let mut text = if authoring_failed {
+        "Nika could not build this automation faithfully yet — the model's draft lost part of your request and Nika refused it; nothing was written.".to_owned()
+    } else {
+        "Nika cannot express this automation yet — nothing was written.".to_owned()
+    };
+    let stopped = human_reasons(reasons(out));
+    if !stopped.is_empty() {
+        text.push_str("\n  what stopped it:");
+        for reason in stopped {
+            text.push_str("\n    · ");
+            text.push_str(&reason);
+        }
+    }
+    text.push_str(if authoring_failed {
+        "\n  what helps: say it again (another attempt, or `/intelligence` for another model, may hold every part), or split the work in two requests · `/meaning` shows what was understood"
+    } else {
+        "\n  what helps: say the outcome in one sentence (what to read · what to produce · where it goes), or split the work in two requests · `/meaning` shows what was understood"
+    });
     text
 }
 
