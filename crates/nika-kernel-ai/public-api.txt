@@ -591,9 +591,11 @@ pub fn nika_kernel_ai::harness::HarnessOutcome::as_any(&self) -> &(dyn core::any
 pub nika_kernel_ai::harness::HarnessRequest::cwd: std::path::PathBuf
 pub nika_kernel_ai::harness::HarnessRequest::prompt: alloc::string::String
 pub nika_kernel_ai::harness::HarnessRequest::requested_model: core::option::Option<alloc::string::String>
+pub nika_kernel_ai::harness::HarnessRequest::requested_mode: core::option::Option<alloc::string::String>
 pub nika_kernel_ai::harness::HarnessRequest::system: core::option::Option<alloc::string::String>
 impl nika_kernel_ai::harness::HarnessRequest
 pub fn nika_kernel_ai::harness::HarnessRequest::new(prompt: impl core::convert::Into<alloc::string::String>, cwd: impl core::convert::Into<std::path::PathBuf>) -> Self
+pub fn nika_kernel_ai::harness::HarnessRequest::with_requested_mode(self, mode: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_kernel_ai::harness::HarnessRequest::with_requested_model(self, model: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_kernel_ai::harness::HarnessRequest::with_system(self, system: impl core::convert::Into<alloc::string::String>) -> Self
 impl core::clone::Clone for nika_kernel_ai::harness::HarnessRequest

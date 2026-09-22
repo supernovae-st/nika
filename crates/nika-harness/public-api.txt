@@ -725,6 +725,9 @@ pub fn nika_harness::wire::NewSessionParams::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::wire::NewSessionParams where T: 'static
 pub fn nika_harness::wire::NewSessionParams::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub struct nika_harness::wire::NewSessionResult
+pub nika_harness::wire::NewSessionResult::config_options: core::option::Option<serde_json::value::Value>
+pub nika_harness::wire::NewSessionResult::models: core::option::Option<serde_json::value::Value>
+pub nika_harness::wire::NewSessionResult::modes: core::option::Option<serde_json::value::Value>
 pub nika_harness::wire::NewSessionResult::session_id: alloc::string::String
 impl core::fmt::Debug for nika_harness::wire::NewSessionResult
 pub fn nika_harness::wire::NewSessionResult::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
@@ -949,6 +952,9 @@ pub fn nika_harness::wire::TextBlock::as_any(&self) -> &(dyn core::any::Any + 's
 pub const nika_harness::wire::METHOD_INITIALIZE: &str
 pub const nika_harness::wire::METHOD_REQUEST_PERMISSION: &str
 pub const nika_harness::wire::METHOD_SESSION_CANCEL: &str
+pub const nika_harness::wire::METHOD_SET_CONFIG_OPTION: &str
+pub const nika_harness::wire::METHOD_SET_MODE: &str
+pub const nika_harness::wire::METHOD_SET_MODEL: &str
 pub const nika_harness::wire::METHOD_SESSION_NEW: &str
 pub const nika_harness::wire::METHOD_SESSION_PROMPT: &str
 pub const nika_harness::wire::METHOD_SESSION_UPDATE: &str

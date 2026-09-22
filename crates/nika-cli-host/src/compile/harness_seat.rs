@@ -197,6 +197,9 @@ impl ProviderInferDyn for HarnessSeat {
         if let Some(model) = &self.requested_model {
             session = session.with_requested_model(model.clone());
         }
+        // Authoring is tool-free by contract: a plan / read-only mode when the harness has one
+        // (every ask is denied besides), so a silent read never runs either.
+        session = session.with_requested_mode("read-only");
         let refusal = |why: String| ProviderError::Other {
             reason: format!("harness `{}`: {why}", self.runtime.id),
         };

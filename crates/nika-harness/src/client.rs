@@ -67,6 +67,7 @@ pub const IDLE_TIMEOUT_SECS: u64 = 300;
 const ID_INITIALIZE: u64 = 1;
 const ID_SESSION_NEW: u64 = 2;
 const ID_PROMPT: u64 = 3;
+const ID_SESSION_SEAT: u64 = 4;
 
 /// Drive ONE delegated run over `reader`/`writer` — the stream is live
 /// immediately; the handshake and session run inside the driver task.
@@ -106,6 +107,7 @@ where
             output: String::new(),
             idle,
             pending: Vec::new(),
+            observed_model: None,
         };
         if let Err(e) = driver.run(request).await {
             // The stream may already be dropped — best-effort final word.
@@ -135,6 +137,9 @@ struct Driver<R, W> {
     /// cancel-safety note): it MUST outlive any single read future,
     /// because a `select!` may drop that future mid-line.
     pending: Vec<u8>,
+    /// The model the session serves, as the agent itself stated it (the current value of its
+    /// model option, or the one it accepted): the outcome's observed model.
+    observed_model: Option<String>,
 }
 
 impl<R, W> Driver<R, W>
@@ -174,6 +179,7 @@ where
         .await?;
         let session: wire::NewSessionResult =
             self.await_response(ID_SESSION_NEW, "session/new").await?;
+        self.seat_session(&session, &request).await?;
 
         // The system prompt has no v1 seat outside session modes — B3.1
         // folds it ahead of the user text (the wrapped-fidelity class:
@@ -323,8 +329,102 @@ where
         // stays absent (A-7), never copied from the request.
         let _ = request;
         let _ = &done.stop_reason;
-        outcome.observed_model = None;
+        outcome.observed_model = self.observed_model.take();
         outcome
+    }
+
+    /// Between `session/new` and the prompt: the model the workflow names must be one the agent
+    /// offers (a pin is a pin: an unoffered model refuses before any prompt), set through the
+    /// v1 config option when the agent advertises one, through the legacy `session/set_model`
+    /// when it advertises a `models` list; the current model is observed either way. A
+    /// requested mode (`read-only`) picks an advertised plan / read-only mode, best effort.
+    async fn seat_session(
+        &mut self,
+        session: &wire::NewSessionResult,
+        request: &HarnessRequest,
+    ) -> Result<(), HarnessError> {
+        let sid = session.session_id.clone();
+        let model_option = seats::model_option(session.config_options.as_ref());
+        self.observed_model = seats::current_model(model_option, session.models.as_ref());
+        if let Some(wanted) = seats::wanted(request.requested_model.as_deref()) {
+            if let Some((config_id, value)) = seats::offered_option(model_option, &wanted) {
+                self.send_request(
+                    ID_SESSION_SEAT,
+                    wire::METHOD_SET_CONFIG_OPTION,
+                    &wire::SetConfigOptionParams {
+                        session_id: sid.clone(),
+                        config_id,
+                        value: value.clone(),
+                    },
+                )
+                .await?;
+                let answered: Value = self
+                    .await_response(ID_SESSION_SEAT, "session/set_config_option")
+                    .await?;
+                self.observed_model = seats::current_model(
+                    seats::model_option(Some(&answered)).or(model_option),
+                    None,
+                )
+                .or_else(|| value.as_str().map(str::to_owned));
+            } else if let Some(model_id) = seats::offered_model(session.models.as_ref(), &wanted) {
+                self.send_request(
+                    ID_SESSION_SEAT,
+                    wire::METHOD_SET_MODEL,
+                    &wire::SetModelParams {
+                        session_id: sid.clone(),
+                        model_id: model_id.clone(),
+                    },
+                )
+                .await?;
+                let _: Value = self
+                    .await_response(ID_SESSION_SEAT, "session/set_model")
+                    .await?;
+                self.observed_model = Some(model_id);
+            } else {
+                return Err(HarnessError::Refused {
+                    reason: format!(
+                        "the harness offers no model `{wanted}` — it offers: {} (name one of these on `model:`, or `default` for the harness's own choice)",
+                        seats::offered_names(model_option, session.models.as_ref())
+                    ),
+                });
+            }
+        }
+        if let Some(intent) = request.requested_mode.as_deref()
+            && let Some(door) = seats::mode_door(session, intent)
+        {
+            match door {
+                seats::ModeDoor::Config { config_id, value } => {
+                    self.send_request(
+                        ID_SESSION_SEAT,
+                        wire::METHOD_SET_CONFIG_OPTION,
+                        &wire::SetConfigOptionParams {
+                            session_id: sid,
+                            config_id,
+                            value,
+                        },
+                    )
+                    .await?;
+                    let _: Value = self
+                        .await_response(ID_SESSION_SEAT, "session/set_config_option")
+                        .await?;
+                }
+                seats::ModeDoor::Mode { mode_id } => {
+                    self.send_request(
+                        ID_SESSION_SEAT,
+                        wire::METHOD_SET_MODE,
+                        &wire::SetModeParams {
+                            session_id: sid,
+                            mode_id,
+                        },
+                    )
+                    .await?;
+                    let _: Value = self
+                        .await_response(ID_SESSION_SEAT, "session/set_mode")
+                        .await?;
+                }
+            }
+        }
+        Ok(())
     }
 
     async fn send_request(
@@ -383,6 +483,183 @@ where
                 _ => {} // interleaved beats before the handshake settles
             }
         }
+    }
+}
+
+/// What a session advertises, read purely: the model option, the current model, the offered
+/// values, a mode door for an intent. Every agent measured on 2026-09-22 spells these the same
+/// way (`configOptions[{id, category, currentValue, options[{value, name}]}]`,
+/// `models{currentModelId, availableModels[{modelId, name}]}`, `modes{currentModeId,
+/// availableModes[{id, name}]}`).
+mod seats {
+    use serde_json::Value;
+
+    /// The `category: "model"` config option, when advertised.
+    pub(super) fn model_option(config_options: Option<&Value>) -> Option<&Value> {
+        config_options?
+            .as_array()?
+            .iter()
+            .find(|o| o.get("category").and_then(Value::as_str) == Some("model"))
+    }
+
+    /// The model the session serves now: the option's current value, else the legacy list's.
+    pub(super) fn current_model(option: Option<&Value>, models: Option<&Value>) -> Option<String> {
+        option
+            .and_then(|o| o.get("currentValue"))
+            .and_then(Value::as_str)
+            .or_else(|| models?.get("currentModelId")?.as_str())
+            .map(str::to_owned)
+    }
+
+    /// The model the caller wants (`provider/name` keeps its name; `default` and an empty name
+    /// leave the harness's own choice).
+    pub(super) fn wanted(requested: Option<&str>) -> Option<String> {
+        let requested = requested?.trim();
+        let name = requested.rsplit('/').next().unwrap_or(requested).trim();
+        (!name.is_empty() && !name.eq_ignore_ascii_case("default")).then(|| name.to_owned())
+    }
+
+    fn same(a: &str, b: &str) -> bool {
+        a.trim().eq_ignore_ascii_case(b.trim())
+    }
+
+    /// The (config id, value) that names the wanted model among the option's choices, by value
+    /// or by display name.
+    pub(super) fn offered_option(option: Option<&Value>, wanted: &str) -> Option<(String, Value)> {
+        let option = option?;
+        let id = option.get("id")?.as_str()?.to_owned();
+        let choice = option.get("options")?.as_array()?.iter().find(|c| {
+            c.get("value")
+                .and_then(Value::as_str)
+                .is_some_and(|v| same(v, wanted))
+                || c.get("name")
+                    .and_then(Value::as_str)
+                    .is_some_and(|n| same(n, wanted))
+        })?;
+        Some((id, choice.get("value")?.clone()))
+    }
+
+    /// The legacy list's `modelId` that names the wanted model, by id or by display name.
+    pub(super) fn offered_model(models: Option<&Value>, wanted: &str) -> Option<String> {
+        models?
+            .get("availableModels")?
+            .as_array()?
+            .iter()
+            .find(|m| {
+                m.get("modelId")
+                    .and_then(Value::as_str)
+                    .is_some_and(|v| same(v, wanted))
+                    || m.get("name")
+                        .and_then(Value::as_str)
+                        .is_some_and(|n| same(n, wanted))
+            })?
+            .get("modelId")?
+            .as_str()
+            .map(str::to_owned)
+    }
+
+    /// Every model the agent offers, for the refusal's teaching line.
+    pub(super) fn offered_names(option: Option<&Value>, models: Option<&Value>) -> String {
+        let mut names: Vec<String> = Vec::new();
+        if let Some(choices) = option
+            .and_then(|o| o.get("options"))
+            .and_then(Value::as_array)
+        {
+            names.extend(
+                choices
+                    .iter()
+                    .filter_map(|c| c.get("value").and_then(Value::as_str).map(str::to_owned)),
+            );
+        }
+        if let Some(list) = models
+            .and_then(|m| m.get("availableModels"))
+            .and_then(Value::as_array)
+        {
+            names.extend(
+                list.iter()
+                    .filter_map(|m| m.get("modelId").and_then(Value::as_str).map(str::to_owned)),
+            );
+        }
+        if names.is_empty() {
+            "(it advertises no model choice; `default` is its own)".to_owned()
+        } else {
+            names.join(" · ")
+        }
+    }
+
+    /// How a mode is set: the v1 config option when advertised, else the deprecated method.
+    pub(super) enum ModeDoor {
+        Config { config_id: String, value: Value },
+        Mode { mode_id: String },
+    }
+
+    /// Whether an advertised mode fits the intent (`read-only` → a plan / read-only mode).
+    fn fits(intent: &str, id: &str, name: &str) -> bool {
+        let id = id.to_ascii_lowercase();
+        let name = name.to_ascii_lowercase();
+        match intent {
+            "read-only" => {
+                id.ends_with("plan")
+                    || id.contains("read-only")
+                    || id.contains("read_only")
+                    || name.contains("plan")
+                    || name.contains("read only")
+                    || name.contains("read-only")
+            }
+            other => id == other.to_ascii_lowercase() || name == other.to_ascii_lowercase(),
+        }
+    }
+
+    /// The door to the mode that fits the intent, if the agent advertises one.
+    pub(super) fn mode_door(
+        session: &super::wire::NewSessionResult,
+        intent: &str,
+    ) -> Option<ModeDoor> {
+        let by_option = session
+            .config_options
+            .as_ref()
+            .and_then(Value::as_array)
+            .and_then(|options| {
+                options
+                    .iter()
+                    .find(|o| o.get("category").and_then(Value::as_str) == Some("mode"))
+            })
+            .and_then(|option| {
+                let id = option.get("id")?.as_str()?.to_owned();
+                let choice = option.get("options")?.as_array()?.iter().find(|c| {
+                    fits(
+                        intent,
+                        c.get("value").and_then(Value::as_str).unwrap_or(""),
+                        c.get("name").and_then(Value::as_str).unwrap_or(""),
+                    )
+                })?;
+                Some(ModeDoor::Config {
+                    config_id: id,
+                    value: choice.get("value")?.clone(),
+                })
+            });
+        if by_option.is_some() {
+            return by_option;
+        }
+        session
+            .modes
+            .as_ref()
+            .and_then(|m| m.get("availableModes"))
+            .and_then(Value::as_array)
+            .and_then(|modes| {
+                modes.iter().find(|m| {
+                    fits(
+                        intent,
+                        m.get("id").and_then(Value::as_str).unwrap_or(""),
+                        m.get("name").and_then(Value::as_str).unwrap_or(""),
+                    )
+                })
+            })
+            .and_then(|m| {
+                m.get("id")?.as_str().map(|id| ModeDoor::Mode {
+                    mode_id: id.to_owned(),
+                })
+            })
     }
 }
 
@@ -628,6 +905,209 @@ mod tests {
         assert!(
             outcome.usage.is_none(),
             "no usage seat on wire v1 — absent stays absent"
+        );
+    }
+
+    /// A scripted session/new answer carrying what the agent advertises, then whatever the
+    /// client sends next (a seat request, or the prompt).
+    async fn script_handshake_with(
+        reader: &mut TestReader<tokio::io::ReadHalf<tokio::io::DuplexStream>>,
+        writer: &mut tokio::io::WriteHalf<tokio::io::DuplexStream>,
+        advertised: Value,
+    ) -> Value {
+        let init = agent_read(reader).await;
+        assert_eq!(init["method"], "initialize");
+        agent_write(
+            writer,
+            &serde_json::json!({"jsonrpc":"2.0","id":init["id"],
+                "result":{"protocolVersion":1,"agentCapabilities":{}}}),
+        )
+        .await;
+        let new = agent_read(reader).await;
+        assert_eq!(new["method"], "session/new");
+        let mut result = advertised;
+        result["sessionId"] = Value::String("s-test".to_owned());
+        agent_write(
+            writer,
+            &serde_json::json!({"jsonrpc":"2.0","id":new["id"],"result":result}),
+        )
+        .await;
+        agent_read(reader).await
+    }
+
+    fn model_options(current: &str, offered: &[&str]) -> Value {
+        serde_json::json!({"configOptions":[{"id":"model","name":"Model","category":"model","type":"select",
+            "currentValue":current,
+            "options":offered.iter().map(|v| serde_json::json!({"value":v,"name":v})).collect::<Vec<_>>()}]})
+    }
+
+    async fn end_turn(writer: &mut tokio::io::WriteHalf<tokio::io::DuplexStream>, prompt: &Value) {
+        agent_write(writer, &chunk("ok")).await;
+        agent_write(
+            writer,
+            &serde_json::json!({"jsonrpc":"2.0","id":prompt["id"],"result":{"stopReason":"end_turn"}}),
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    async fn a_requested_model_is_set_through_the_config_option_before_the_prompt() {
+        let (ours, theirs) = tokio::io::duplex(64 * 1024);
+        let (client_read, client_write) = tokio::io::split(ours);
+        let (agent_read_half, agent_write_half) = tokio::io::split(theirs);
+        let agent = tokio::spawn(async move {
+            let mut r = TestReader::new(agent_read_half);
+            let mut w = agent_write_half;
+            let seat =
+                script_handshake_with(&mut r, &mut w, model_options("k3", &["k3", "k3-256k"]))
+                    .await;
+            assert_eq!(seat["method"], "session/set_config_option");
+            assert_eq!(seat["params"]["sessionId"], "s-test");
+            assert_eq!(seat["params"]["configId"], "model");
+            assert_eq!(seat["params"]["value"], "k3-256k");
+            let mut answered = model_options("k3-256k", &["k3", "k3-256k"]);
+            answered = answered["configOptions"].take();
+            agent_write(
+                &mut w,
+                &serde_json::json!({"jsonrpc":"2.0","id":seat["id"],"result":answered}),
+            )
+            .await;
+            let prompt = agent_read(&mut r).await;
+            assert_eq!(prompt["method"], "session/prompt");
+            end_turn(&mut w, &prompt).await;
+        });
+        let stream = drive(
+            client_read,
+            client_write,
+            HarnessRequest::new("hello", "/tmp").with_requested_model("kimi-code/k3-256k"),
+        );
+        let (_, outcome) = collect(stream).await;
+        agent.await.expect("scripted agent completes");
+        assert_eq!(
+            outcome.expect("completed").observed_model.as_deref(),
+            Some("k3-256k"),
+            "the accepted model is the observed one"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_model_the_harness_does_not_offer_refuses_before_any_prompt() {
+        let (ours, theirs) = tokio::io::duplex(64 * 1024);
+        let (client_read, client_write) = tokio::io::split(ours);
+        let (agent_read_half, agent_write_half) = tokio::io::split(theirs);
+        let agent = tokio::spawn(async move {
+            let mut r = TestReader::new(agent_read_half);
+            let mut w = agent_write_half;
+            let init = agent_read(&mut r).await;
+            agent_write(
+                &mut w,
+                &serde_json::json!({"jsonrpc":"2.0","id":init["id"],
+                    "result":{"protocolVersion":1,"agentCapabilities":{}}}),
+            )
+            .await;
+            let new = agent_read(&mut r).await;
+            let mut result = model_options("k3", &["k3"]);
+            result["sessionId"] = Value::String("s-test".to_owned());
+            agent_write(
+                &mut w,
+                &serde_json::json!({"jsonrpc":"2.0","id":new["id"],"result":result}),
+            )
+            .await;
+            // Nothing else: the client must refuse without a prompt.
+        });
+        let mut stream = drive(
+            client_read,
+            client_write,
+            HarnessRequest::new("hello", "/tmp").with_requested_model("kimi-code/gpt-9"),
+        );
+        let first = std::future::poll_fn(|cx| Pin::new(&mut stream).poll_next(cx)).await;
+        agent.await.expect("scripted agent completes");
+        match first {
+            Some(Err(HarnessError::Refused { reason })) => {
+                assert!(
+                    reason.contains("gpt-9") && reason.contains("k3"),
+                    "{reason}"
+                );
+            }
+            other => panic!("expected a refusal, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn without_a_requested_model_the_current_one_is_observed_and_nothing_is_set() {
+        let (ours, theirs) = tokio::io::duplex(64 * 1024);
+        let (client_read, client_write) = tokio::io::split(ours);
+        let (agent_read_half, agent_write_half) = tokio::io::split(theirs);
+        let agent = tokio::spawn(async move {
+            let mut r = TestReader::new(agent_read_half);
+            let mut w = agent_write_half;
+            let prompt =
+                script_handshake_with(&mut r, &mut w, model_options("k3", &["k3", "k3-256k"]))
+                    .await;
+            assert_eq!(
+                prompt["method"], "session/prompt",
+                "no seat request without a model"
+            );
+            end_turn(&mut w, &prompt).await;
+        });
+        let stream = drive(
+            client_read,
+            client_write,
+            HarnessRequest::new("hello", "/tmp").with_requested_model("kimi-code/default"),
+        );
+        let (_, outcome) = collect(stream).await;
+        agent.await.expect("scripted agent completes");
+        assert_eq!(
+            outcome.expect("completed").observed_model.as_deref(),
+            Some("k3")
+        );
+    }
+
+    #[tokio::test]
+    async fn a_legacy_models_list_is_set_through_session_set_model_and_a_read_only_intent_picks_plan()
+     {
+        let (ours, theirs) = tokio::io::duplex(64 * 1024);
+        let (client_read, client_write) = tokio::io::split(ours);
+        let (agent_read_half, agent_write_half) = tokio::io::split(theirs);
+        let agent = tokio::spawn(async move {
+            let mut r = TestReader::new(agent_read_half);
+            let mut w = agent_write_half;
+            let advertised = serde_json::json!({
+                "models":{"currentModelId":"sonnet","availableModels":[{"modelId":"sonnet","name":"Sonnet"},{"modelId":"opus","name":"Opus"}]},
+                "modes":{"currentModeId":"default","availableModes":[{"id":"default","name":"Default"},{"id":"plan","name":"Plan Mode"}]}
+            });
+            let seat = script_handshake_with(&mut r, &mut w, advertised).await;
+            assert_eq!(seat["method"], "session/set_model");
+            assert_eq!(seat["params"]["modelId"], "opus");
+            agent_write(
+                &mut w,
+                &serde_json::json!({"jsonrpc":"2.0","id":seat["id"],"result":{}}),
+            )
+            .await;
+            let mode = agent_read(&mut r).await;
+            assert_eq!(mode["method"], "session/set_mode");
+            assert_eq!(mode["params"]["modeId"], "plan");
+            agent_write(
+                &mut w,
+                &serde_json::json!({"jsonrpc":"2.0","id":mode["id"],"result":{}}),
+            )
+            .await;
+            let prompt = agent_read(&mut r).await;
+            assert_eq!(prompt["method"], "session/prompt");
+            end_turn(&mut w, &prompt).await;
+        });
+        let stream = drive(
+            client_read,
+            client_write,
+            HarnessRequest::new("hello", "/tmp")
+                .with_requested_model("claude-code/Opus")
+                .with_requested_mode("read-only"),
+        );
+        let (_, outcome) = collect(stream).await;
+        agent.await.expect("scripted agent completes");
+        assert_eq!(
+            outcome.expect("completed").observed_model.as_deref(),
+            Some("opus")
         );
     }
 
