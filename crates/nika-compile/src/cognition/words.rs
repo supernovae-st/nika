@@ -186,6 +186,8 @@ pub(super) const LANGUAGE_WORDS: &[&str] = &[
 /// produced (« préparer le contenu CSV filtré pour écriture », « serialize the resulting
 /// array as JSON ») is no language work: the write takes the computed rows as they are. A
 /// detail that names language work (a summary, a note, a digest, headings) stays a draft.
+/// The caller judges the seat's detail and the request's own words alike: « write just the
+/// number, nothing else » folds the draft whatever the seat called it.
 pub(super) fn serialization_draft(detail: &str) -> bool {
     let detail = fold_words(detail);
     let verb = SERIALIZE_VERBS.iter().any(|v| detail.contains(v));

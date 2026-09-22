@@ -985,7 +985,11 @@ pub(super) fn merge(
         }
         // « ./out/esiti.csv con le colonne esito,numero (una riga per valore) » as a draft
         // over the very write clause, beside the computed rows and with no language word:
-        // the rows are written as they are.
+        // the rows are written as they are. The serialization cue is read on the seat's
+        // detail and, once a computation produced the data, on the request's own words
+        // (« write just the number, nothing else »): a detail with no serializing verb hides
+        // nothing the citation states. An extract's fields are language material: a draft
+        // over them toward a prose file stays language work whatever the citation's verb.
         let write_clause_draft = placed_write_clauses.contains(&fold_words(&step.evidence))
             && !LANGUAGE_WORDS
                 .iter()
@@ -993,6 +997,7 @@ pub(super) fn merge(
         if op == Op::Draft
             && produces_data
             && (serialization_draft(&step.detail)
+                || (plan.has(Op::Compute) && serialization_draft(&step.evidence))
                 || only_a_place_and_a_law(&step.detail)
                 || write_clause_draft)
         {

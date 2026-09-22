@@ -53,13 +53,24 @@ async fn a_draft_that_only_serializes_computed_rows_is_not_assembled() {
     assert_eq!(ops, ["read", "compute"]);
 }
 
+/// The request itself asks for the note: language work, a draft. (A note the seat invents
+/// beside « écrire ces lignes … dans ./out/retards.csv » is folded: the request's words decide.)
+const PRETS_NOTE: &str = "Veuillez lire le fichier ./bibliotheque/prets.csv (colonnes pret_id, lecteur, titre, jours_retard), conserver uniquement les prêts dont le retard dépasse strictement 14 jours, et rédiger une courte note en français qui résume ces prêts en retard, avec un titre, dans ./out/retards.md.";
+
 #[tokio::test]
 async fn a_draft_that_names_language_work_stays_a_draft() {
     // The same shape with a real draft: a French note summarizing the late loans.
-    let provider = Provider::new(prets_proposal(
+    let mut proposal = prets_proposal(
         "rédiger une courte note en français qui résume les prêts en retard, avec un titre",
-    ));
-    let req = CompileRequest::create(PRETS).with_authoring_policy(policy());
+    );
+    let clause = "rédiger une courte note en français qui résume ces prêts en retard, avec un titre, dans ./out/retards.md";
+    proposal["steps"][2]["evidence"] = json!(clause);
+    proposal["effects"][0]["evidence"] = json!(clause);
+    proposal["effects"][0]["target"] = json!("./out/retards.md");
+    proposal["constraints"] = json!([]);
+    proposal["regions"][2]["text"] = json!(format!("et {clause}."));
+    let provider = Provider::new(proposal);
+    let req = CompileRequest::create(PRETS_NOTE).with_authoring_policy(policy());
     let out = compile_with_provider(&req, &provider).await.unwrap();
     assert!(keys(&out).contains(&"model"), "{out:#?}");
     let ops: Vec<String> = out.provenance.plan.as_ref().unwrap()["operations"]
