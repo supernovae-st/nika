@@ -356,3 +356,72 @@ tasks:
         "{messages:?}"
     );
 }
+
+/// A provider that keeps what it was sent: the opening message must state the observed world.
+struct Keeping {
+    answer: String,
+    sent: std::sync::Mutex<Vec<String>>,
+}
+
+impl nika_kernel::ai::provider::ProviderInferDyn for Keeping {
+    async fn infer(
+        &self,
+        request: nika_kernel::ai::provider::InferRequest,
+    ) -> Result<nika_kernel::ai::provider::InferResponse, nika_kernel::ai::provider::ProviderError>
+    {
+        use nika_kernel::ai::provider::{ContentBlock, InferResponse, StopReason, TokenUsage};
+        let texts: Vec<String> = request
+            .messages
+            .iter()
+            .flat_map(|m| {
+                m.content.iter().filter_map(|b| match b {
+                    ContentBlock::Text { text } => Some(text.clone()),
+                    _ => None,
+                })
+            })
+            .collect();
+        self.sent.lock().unwrap().extend(texts);
+        Ok(InferResponse::new(
+            vec![ContentBlock::Text {
+                text: self.answer.clone(),
+            }],
+            TokenUsage::new(10, 5),
+            StopReason::EndTurn,
+        ))
+    }
+}
+
+#[tokio::test]
+async fn the_observed_world_reaches_the_seat_as_data_in_its_opening_message() {
+    let provider = Keeping {
+        answer: answer(&candidate_a("./data/paiements.csv"), &json!([])),
+        sent: std::sync::Mutex::new(Vec::new()),
+    };
+    let world = json!({"observed": [{"path": "./data/paiements.csv", "kind": "csv", "delimiter": ";",
+        "columns": ["id", "client", "montant", "statut"], "values": {"statut": ["payé", "impayé"]}}]});
+    let req = CompileRequest::create(CASE_A)
+        .with_knowledge(world.clone())
+        .with_authoring_policy(policy(NativeMode::Only, 1));
+    let out = compile_with_provider(&req, &provider).await.unwrap();
+    assert!(
+        matches!(out.status, CompileStatus::Incomplete | CompileStatus::Ready),
+        "{out:#?}"
+    );
+    let sent = provider.sent.lock().unwrap().join("\n");
+    assert!(sent.contains("\"observed_world\""), "{sent}");
+    assert!(
+        sent.contains("\"payé\"") && sent.contains("\"statut\""),
+        "{sent}"
+    );
+    let without = CompileRequest::create(CASE_A).with_authoring_policy(policy(NativeMode::Only, 1));
+    let bare = Keeping {
+        answer: answer(&candidate_a("./data/paiements.csv"), &json!([])),
+        sent: std::sync::Mutex::new(Vec::new()),
+    };
+    let _ = compile_with_provider(&without, &bare).await.unwrap();
+    let sent = bare.sent.lock().unwrap().join("\n");
+    assert!(
+        sent.contains("\"observed_world\":null"),
+        "absent stays stated absent: {sent}"
+    );
+}

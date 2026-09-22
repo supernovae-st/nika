@@ -107,6 +107,7 @@ pub use cognition::{
     Cognition, NoProvider, compile_with_cognition, compile_with_provider, intent_sha256,
 };
 pub use materialize::{MaterializeError, materialize_ready};
+pub use nika_compile_reader::hot::{stated_destinations, stated_sources};
 pub use nika_compile_reader::text;
 pub use retrieve::{Hit, HitKind, retrieve, retrieve_by_ops};
 pub use types::{

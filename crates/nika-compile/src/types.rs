@@ -14,6 +14,10 @@ pub struct CompileRequest {
     pub(super) hot: HotPolicy,
     /// A previously produced private plan to replay for the same intent (see [`Self::with_plan`]).
     pub(super) plan: Option<serde_json::Value>,
+    /// What the caller observed about the world the request names (the shape of its stated
+    /// files: columns, keys, small value sets), stated to an authoring seat as data — see
+    /// [`Self::with_knowledge`].
+    pub(super) knowledge: Option<serde_json::Value>,
 }
 
 /// How much the deterministic reader may decide on its own. False HOT is the P0 defect:
@@ -83,6 +87,15 @@ impl CompileRequest {
         self.plan = Some(plan);
         self
     }
+    /// Facts the caller observed about the world the request names (`{"observed": [{path,
+    /// kind, columns, delimiter?, values?}]}`): an authoring seat reads them as data, names the
+    /// columns a file spells, asks for none of them and invents none. Never a row's value: the
+    /// host observes a header, a key set, the small value set of a categorical column.
+    #[must_use]
+    pub fn with_knowledge(mut self, snapshot: serde_json::Value) -> Self {
+        self.knowledge = Some(snapshot);
+        self
+    }
     /// Create from an exact skeleton or bounded support clauses. Other intents
     /// remain incomplete unless an explicit provider authoring call resolves them.
     #[must_use]
@@ -94,6 +107,7 @@ impl CompileRequest {
             authoring: None,
             hot: HotPolicy::default(),
             plan: None,
+            knowledge: None,
         }
     }
 
@@ -114,6 +128,7 @@ impl CompileRequest {
             authoring: None,
             hot: HotPolicy::default(),
             plan: None,
+            knowledge: None,
         }
     }
 
@@ -145,6 +160,7 @@ impl CompileRequest {
             authoring: None,
             hot: HotPolicy::default(),
             plan: None,
+            knowledge: None,
         }
     }
 

@@ -5,6 +5,7 @@
 mod authoring;
 #[cfg(feature = "access-harness")]
 mod harness_seat;
+mod observe;
 mod render;
 mod sidecar;
 mod typesafe;
@@ -134,6 +135,15 @@ pub fn run(args: &CompileArgs) -> VerbOutput {
     let cognition = (args.authoring_model.is_some() || args.decision_model.is_some())
         && args.base.is_none()
         && !named;
+    // An authoring seat reads the shape of the files the request names (a header, a key set,
+    // a categorical column's values — never a row), observed here under the working directory.
+    if cognition
+        && let Some(intent) = args.intent.as_deref()
+        && let Ok(cwd) = std::env::current_dir()
+        && let Some(world) = observe::world(&cwd, intent)
+    {
+        request = request.with_knowledge(world);
+    }
     // Free intents only: a skeleton, hello or an edit never produces a plan to record.
     let sha =
         (args.base.is_none() && !named).then(|| intent_sha256(&effective_intent(args, cognition)));

@@ -202,6 +202,7 @@ pub(super) async fn author<P: ProviderInferDyn>(
     let opening = json!({
         "request": intent,
         "facts_the_compiler_holds_you_to": floor(intent, reading),
+        "observed_world": request.knowledge,
         "answers_already_given": request.answers,
     });
     let mut talk = Talk {
