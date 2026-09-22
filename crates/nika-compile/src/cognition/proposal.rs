@@ -360,6 +360,11 @@ const SERIALIZE_VERBS: &[&str] = &[
 const DATA_WORDS: &[&str] = &[
     "csv",
     "json",
+    "body",
+    "cuerpo",
+    "corps",
+    "corpo",
+    "payload",
     "content",
     "contenu",
     "contenido",
@@ -412,6 +417,17 @@ const DATA_WORDS: &[&str] = &[
 /// Words that make a draft language work whatever else it says: a summary, a note, a
 /// digest, a reply, a translation, a text with headings.
 const LANGUAGE_WORDS: &[&str] = &[
+    "compte rendu",
+    "compte-rendu",
+    "minutes",
+    "verbale",
+    "protokoll",
+    "acta ",
+    "memo",
+    "email",
+    "e-mail",
+    "courriel",
+    "message",
     "summar",
     "résum",
     "resum",
@@ -1093,6 +1109,23 @@ pub(super) fn merge(
         .filter(|e| e.verb == "write")
         .map(|e| fold_words(&e.evidence))
         .collect();
+    // The write clauses whose destination is a structured file (a CSV, a JSON): a draft over
+    // such a clause beside produced rows only serializes them. A write with no path over a
+    // draft's own words is the draft (folded with the effects), and a prose destination
+    // (« una lista de reposición en ./salida/reposicion.md agrupada por proveedor ») is
+    // language work the draft does.
+    let placed_write_clauses: Vec<String> = proposal
+        .effects
+        .iter()
+        .filter(|e| {
+            e.verb == "write"
+                && crate::paths::literals(&e.target).iter().any(|shape| {
+                    matches!(shape, crate::paths::PathShape::File(path)
+                        if crate::paths::Structured::of(path).is_some())
+                })
+        })
+        .map(|e| fold_words(&e.evidence))
+        .collect();
     let outbound_clauses: Vec<String> = proposal
         .effects
         .iter()
@@ -1156,9 +1189,18 @@ pub(super) fn merge(
             folded.push(step.evidence.clone());
             continue;
         }
+        // « ./out/esiti.csv con le colonne esito,numero (una riga per valore) » as a draft
+        // over the very write clause, beside the computed rows and with no language word:
+        // the rows are written as they are.
+        let write_clause_draft = placed_write_clauses.contains(&fold_words(&step.evidence))
+            && !LANGUAGE_WORDS
+                .iter()
+                .any(|w| fold_words(&step.detail).contains(w));
         if op == Op::Draft
             && produces_data
-            && (serialization_draft(&step.detail) || only_a_place_and_a_law(&step.detail))
+            && (serialization_draft(&step.detail)
+                || only_a_place_and_a_law(&step.detail)
+                || write_clause_draft)
         {
             crate::finding(
                 out,

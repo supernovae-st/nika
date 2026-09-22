@@ -209,7 +209,10 @@ pub(super) fn typed_rule(
                 }
                 Operand::Number(canonical)
             } else {
-                let unquoted = literal.trim_matches(['"', '\'', '“', '”', '‘', '’']);
+                // « no », “no”, 'no': the quotes a request wears around a value are not the value.
+                let unquoted = literal
+                    .trim_matches(['"', '\'', '“', '”', '‘', '’', '«', '»', '‹', '›'])
+                    .trim();
                 // « temperature > "seuil d'alerte" »: the value is one the seat listed as
                 // unknown — a slot the compiler asks for, never the words compared.
                 if let Some(unknown) = unknowns
