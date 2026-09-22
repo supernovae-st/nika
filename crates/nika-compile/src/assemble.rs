@@ -345,6 +345,12 @@ pub(super) fn assemble(
     request: &CompileRequest,
     out: &mut CompileOutcome,
 ) -> Result<(), CompileError> {
+    // The requester's decisions over the plan come first (a money movement's approval):
+    // the assembler works on the decided plan; the recorded plan stays as it was read.
+    let mut recognized: BTreeSet<String> = BTreeSet::new();
+    let mut decided = plan.clone();
+    super::approval::decide(&mut decided, request, out, &mut recognized);
+    let plan = &decided;
     if refused(plan, out) {
         return Ok(());
     }
@@ -355,7 +361,6 @@ pub(super) fn assemble(
     if refused_contradiction(&stated, out) {
         return Ok(());
     }
-    let mut recognized: BTreeSet<String> = BTreeSet::new();
     let b = bindings::bind(plan, intent, request, out, &mut recognized);
     state_trigger(plan, b.item, request, out, &mut recognized);
     super::unknown_answers(

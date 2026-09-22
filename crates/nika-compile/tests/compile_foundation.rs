@@ -131,10 +131,17 @@ fn unsupported_work_is_never_silently_replaced_by_a_nearby_skeleton() {
         let out = compile(&CompileRequest::create(intent)).unwrap();
         assert_eq!(out.status, CompileStatus::Incomplete);
         assert!(out.candidate.is_none());
+        // Unknown work is a finding; an automatic money movement is the requester's
+        // closed choice (`effect.refund.approval`). Neither is a nearby skeleton.
         assert!(
             out.diagnostics
                 .iter()
                 .any(|d| d.kind == DiagnosticKind::Unknown)
+                || out
+                    .questions
+                    .iter()
+                    .any(|q| q.key == "effect.refund.approval"),
+            "{intent}: {out:#?}"
         );
     }
     let source = classified();

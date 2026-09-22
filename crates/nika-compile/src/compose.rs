@@ -287,7 +287,8 @@ fn shares_literal(a: &str, b: &str) -> bool {
 ///    (strengthening only): a human gate is never removed, a prohibition, an
 ///    indecision or a contradiction is never resolved by a model, and a policy
 ///    literal the reading found is kept;
-/// 6. money gate — an effect that moves money is never automatic;
+/// 6. money gate — (retired 2026-09-22: an automatic money movement is the assembler's
+///    closed approval question, `effect.<verb>.approval`, never an infeasibility);
 /// 7. floor obligations — every obligation the reading recognized is present;
 /// 8. literals carried — every literal the reading bound (URL, path, email, timezone)
 ///    is carried verbatim by some candidate operation or effect;
@@ -313,14 +314,6 @@ pub(super) fn feasibility(candidate: &Plan, floor: &Plan, intent: &str) -> Resul
     }
     floor_operations(candidate, floor, intent, &mut why);
     floor_effects(candidate, floor, &mut why);
-    for effect in &candidate.effects {
-        if effect.verb.moves_money() && effect.policy == EffectPolicy::Automatic {
-            why.push(format!(
-                "`{}` moves money without a prior human approval",
-                effect.verb.word()
-            ));
-        }
-    }
     for obligation in &floor.obligations {
         if !candidate
             .obligations
@@ -992,7 +985,8 @@ mod tests {
                 .any(|r| r.contains("lacks an exact nonempty excerpt")),
             "{why:?}"
         );
-        // An anchored money-moving effect without a gate is never feasible either.
+        // An anchored money-moving effect whose gate the reading found is never feasible
+        // without it; the money law itself is the assembler's approval question.
         let mut candidate = base();
         candidate.effects[0].policy = EffectPolicy::Automatic;
         let why = reasons(&candidate);
@@ -1001,11 +995,7 @@ mod tests {
                 .any(|r| r == "removed the human gate before `refund`"),
             "{why:?}"
         );
-        assert!(
-            why.iter()
-                .any(|r| r == "`refund` moves money without a prior human approval"),
-            "{why:?}"
-        );
+        assert!(!why.iter().any(|r| r.contains("moves money")), "{why:?}");
     }
 
     #[test]

@@ -20,7 +20,7 @@ use super::{
     compose::{self, Candidate},
     decide::{ChoiceOption, ChoiceQuestion, DecisionSeat, NONE_OPTION},
     lexicon::{self, Reading},
-    plan::{EffectPolicy, EffectVerb, Op, Plan, Step},
+    plan::{EffectVerb, Op, Plan, Step},
     types::Input,
 };
 use nika_kernel::ai::provider::{
@@ -1090,13 +1090,7 @@ fn backstop(intent: &str, plan: &mut Plan) {
                 .to_owned(),
         );
     }
-    for effect in &plan.effects {
-        if effect.verb.moves_money() && effect.policy == EffectPolicy::Automatic {
-            plan.unknowns.push(format!(
-                "`{}` moves money without a prior human approval; only a human-first version is constructible.",
-                effect.verb.word()
-            ));
-        }
-    }
+    // An automatic money movement is not unknown work: the assembler asks its approval
+    // as one closed choice (`effect.<verb>.approval`).
     plan.unknowns.dedup();
 }

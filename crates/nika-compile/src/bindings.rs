@@ -989,6 +989,8 @@ fn wanted(
             Some(false)
         }
         EffectPolicy::Conflict => Some(false),
+        // The approval question over an automatic money movement is open: never bound.
+        EffectPolicy::Automatic if effect.verb.moves_money() => None,
         EffectPolicy::Automatic | EffectPolicy::HumanFirst => Some(true),
         EffectPolicy::Undecided => {
             let key = format!("effect.{slug}.include");

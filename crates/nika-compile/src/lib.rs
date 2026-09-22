@@ -67,6 +67,7 @@
 
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
+mod approval;
 mod assemble;
 mod bindings;
 mod cardinality;
@@ -193,6 +194,28 @@ fn question(out: &mut CompileOutcome, key: &str, label: &str, answer_type: Quest
         why: "The compiler cannot invent this authoring value.".to_owned(),
         mandatory: true,
         options: Vec::new(),
+    });
+}
+
+/// A mandatory closed choice: the answer is one of the offered keys, and the candidate
+/// waits for it.
+fn choice_question(
+    out: &mut CompileOutcome,
+    key: &str,
+    label: &str,
+    why: &str,
+    options: Vec<types::ChoiceOffer>,
+) {
+    if out.questions.iter().any(|q| q.key == key) {
+        return;
+    }
+    out.questions.push(CompileQuestion {
+        key: key.to_owned(),
+        label: label.to_owned(),
+        answer_type: QuestionType::Choice,
+        why: why.to_owned(),
+        mandatory: true,
+        options,
     });
 }
 
