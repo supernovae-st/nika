@@ -463,7 +463,7 @@ impl<C: Conversation + 'static> Shell<C> {
         self.commit_inline()
     }
 
-    /// The terminal's title follows what waits: « nika · <project> · action
+    /// The terminal's title follows what waits: « nika · `<project>` · action
     /// required » while an answer, a consent, a choice or a gate waits on
     /// the human — persistent until resolved, never one transient bell.
     fn refresh_title(&self) {
