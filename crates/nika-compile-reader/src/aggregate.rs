@@ -245,6 +245,10 @@ pub struct Shape {
     pub derived: Vec<Derived>,
     /// Duplicates removed after the projection, the first occurrence kept in place.
     pub distinct: bool,
+    /// Duplicates removed right after the filter by the stated key columns: two rows sharing
+    /// every key are one, the first kept in place with every column (« vire les entrées qui
+    /// ont le même titre ET le même artiste qu'une entrée précédente, garde la 1ère »).
+    pub distinct_by: Vec<String>,
     /// Output keys renamed, source name to stated name (« rename country to region »).
     pub renames: Vec<(String, String)>,
 }
@@ -324,6 +328,17 @@ pub fn ranking_cue(text: &str) -> bool {
 pub(crate) const DISTINCT: &str =
     "reduce .[] as $r ([]; if any(.[]; . == $r) then . else . + [$r] end)";
 
+/// The removal of duplicates by key columns, first occurrence kept in place with every
+/// column: two rows are one when every key compares equal.
+pub(crate) fn distinct_by(keys: &[String]) -> String {
+    let same = keys
+        .iter()
+        .map(|k| format!("{key} == ($r | {key})", key = key(k)))
+        .collect::<Vec<_>>()
+        .join(" and ");
+    format!("reduce .[] as $r ([]; if any(.[]; {same}) then . else . + [$r] end)")
+}
+
 impl Shape {
     /// The shape two segments of one rule state together ("count the rows per client ; keep
     /// the 2 rows with the highest count"): each stage stated at most once, aggregates
@@ -361,6 +376,12 @@ impl Shape {
         self.distinct |= other.distinct;
         if self.distinct && self.limit.is_some() {
             return None;
+        }
+        if !self.distinct_by.is_empty() && !other.distinct_by.is_empty() {
+            return None;
+        }
+        if self.distinct_by.is_empty() {
+            self.distinct_by = other.distinct_by;
         }
         for rename in other.renames {
             if self.renames.iter().any(|(from, _)| *from == rename.0) {
@@ -425,6 +446,9 @@ impl Shape {
     /// as numbers) and the text itself otherwise; a produced name is already typed.
     pub(crate) fn lower(&self, filtered: String) -> String {
         let mut jq = filtered;
+        if !self.distinct_by.is_empty() {
+            jq = format!("{jq} | {}", distinct_by(&self.distinct_by));
+        }
         let entries = |aggregations: &[Aggregation]| {
             aggregations
                 .iter()
@@ -517,6 +541,7 @@ impl Shape {
             "columns": self.columns,
             "derived": self.derived.iter().map(Derived::to_json).collect::<Vec<_>>(),
             "distinct": self.distinct,
+            "distinct_by": self.distinct_by,
             "renames": self.renames.iter().map(|(from, to)| json!({"from": from, "to": to})).collect::<Vec<_>>(),
         })
     }
@@ -577,6 +602,19 @@ impl Shape {
             .get("distinct")
             .and_then(Value::as_bool)
             .unwrap_or(false);
+        let distinct_by = value
+            .get("distinct_by")
+            .and_then(Value::as_array)
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .map(str::trim)
+                    .filter(|k| !k.is_empty())
+                    .map(str::to_owned)
+                    .collect()
+            })
+            .unwrap_or_default();
         let renames = value.get("renames").and_then(Value::as_array).map_or_else(
             || Some(Vec::new()),
             |items| {
@@ -600,6 +638,7 @@ impl Shape {
             columns,
             derived,
             distinct,
+            distinct_by,
             renames,
         })
     }
@@ -876,6 +915,39 @@ mod tests {
         ] {
             assert_eq!(stated(text, &[]), None, "{text}");
         }
+    }
+
+    #[test]
+    fn duplicates_by_key_columns_are_removed_first_occurrence_kept() {
+        let mut shape = Shape {
+            distinct_by: vec!["titre".to_owned(), "artiste".to_owned()],
+            ..Default::default()
+        };
+        let jq = shape.lower("[.records[]]".to_owned());
+        assert_eq!(
+            jq,
+            "[.records[]] | reduce .[] as $r ([]; if any(.[]; .titre == ($r | .titre) and .artiste == ($r | .artiste)) then . else . + [$r] end)"
+        );
+        // Before the sort and the limit: a top-N after a dedup is well defined.
+        shape.sort_by = Some(("heure".to_owned(), false));
+        shape.limit = Some(2);
+        let jq = shape.lower("[.records[]]".to_owned());
+        assert!(
+            jq.find("reduce").unwrap() < jq.find("sort_by").unwrap(),
+            "{jq}"
+        );
+        // The record round-trips; two stated keys merge only when one side states them.
+        let back = Shape::from_json(Some(&shape.to_json())).expect("a shape");
+        assert_eq!(back, shape);
+        let other = Shape {
+            distinct_by: vec!["heure".to_owned()],
+            ..Default::default()
+        };
+        assert_eq!(shape.clone().merge(other), None);
+        assert_eq!(
+            Shape::default().merge(shape.clone()).map(|s| s.distinct_by),
+            Some(vec!["titre".to_owned(), "artiste".to_owned()])
+        );
     }
 
     #[test]

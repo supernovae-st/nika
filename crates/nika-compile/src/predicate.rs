@@ -37,6 +37,8 @@ pub(super) struct ProposedComputation {
     pub(super) limit: String,
     #[serde(default, deserialize_with = "nullable_renames")]
     pub(super) renames: Vec<ProposedRename>,
+    #[serde(default, deserialize_with = "super::cognition::nullable_vec")]
+    pub(super) distinct_by: Vec<String>,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -401,7 +403,20 @@ pub(super) fn typed_rule(
         }
         Some(n)
     };
+    // The key columns of a removal of duplicates: every one a column the request names.
+    let mut distinct_by = Vec::new();
+    for column in &computation.distinct_by {
+        let column = column.trim();
+        if column.is_empty() {
+            continue;
+        }
+        if !names_field(column) || distinct_by.iter().any(|k| k == column) {
+            return None;
+        }
+        distinct_by.push(column.to_owned());
+    }
     let mut shape = Shape::default();
+    shape.distinct_by = distinct_by;
     shape.group_by = group_by;
     shape.aggregations = aggregations;
     shape.sort_by = sort_by;
@@ -418,7 +433,7 @@ pub(super) fn typed_rule(
 /// The schema of a typed computation on a compute step: every key required (a strict
 /// schema needs no optional), empty strings and arrays meaning absent.
 pub(super) fn computation_schema() -> Value {
-    json!({"type":"object","additionalProperties":false,"required":["present","polarity","join","clauses","group_by","aggregations","sort_by","order","columns","derived","limit","renames"],"properties":{
+    json!({"type":"object","additionalProperties":false,"required":["present","polarity","join","clauses","group_by","aggregations","sort_by","order","columns","derived","limit","renames","distinct_by"],"properties":{
         "present":{"type":"boolean"},
         "polarity":{"type":"string","enum":["keep","drop"]},
         "join":{"type":"string","enum":["and","or"]},
@@ -437,7 +452,8 @@ pub(super) fn computation_schema() -> Value {
             "left":{"type":"string"},"right":{"type":"string"}}}},
         "limit":{"type":"string"},
         "renames":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["from","to"],"properties":{
-            "from":{"type":"string"},"to":{"type":"string"}}}}}})
+            "from":{"type":"string"},"to":{"type":"string"}}}},
+        "distinct_by":{"type":"array","items":{"type":"string"}}}})
 }
 
 #[cfg(test)]

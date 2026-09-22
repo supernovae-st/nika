@@ -26,6 +26,49 @@ use super::rule_cues::{
 mod lines;
 pub use lines::{by_construction_tail, line_filter};
 
+/// Whether a constraint only says the rows keep their order (« garde l'ordre », « keep the
+/// order », « en el mismo orden »): a computation that does not sort keeps the source order
+/// by construction, and the compute task carries the constraint. Folded, six languages.
+#[must_use]
+pub fn keeps_order(text: &str) -> bool {
+    let folded = super::hot::fold(text);
+    let padded = format!(
+        " {} ",
+        folded
+            .split(|c: char| !c.is_alphanumeric() && c != '\'')
+            .filter(|w| !w.is_empty())
+            .collect::<Vec<_>>()
+            .join(" ")
+    );
+    [
+        " garde l'ordre ",
+        " gardez l'ordre ",
+        " conserve l'ordre ",
+        " conservez l'ordre ",
+        " dans l'ordre ",
+        " meme ordre ",
+        " keep the order ",
+        " keeps the order ",
+        " keeping the order ",
+        " in order ",
+        " in the same order ",
+        " in the original order ",
+        " same order ",
+        " manten el orden ",
+        " mantener el orden ",
+        " mismo orden ",
+        " mantieni l'ordine ",
+        " stesso ordine ",
+        " reihenfolge beibehalten ",
+        " gleiche reihenfolge ",
+        " mantem a ordem ",
+        " mantenha a ordem ",
+        " mesma ordem ",
+    ]
+    .iter()
+    .any(|cue| padded.contains(cue))
+}
+
 /// The comparisons a rule may state: six over a value, three over the text of a line or a
 /// column (starts with, contains, ends with) and their negations.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -436,6 +479,7 @@ impl Rule {
         let s = &self.shape;
         let only_distinct = s.distinct
             && self.clauses.is_empty()
+            && s.distinct_by.is_empty()
             && s.join_on.is_none()
             && s.group_by.is_none()
             && s.aggregations.is_empty()
@@ -516,6 +560,9 @@ impl Rule {
             }
         };
         if let Some(key) = &self.shape.join_on {
+            push(key);
+        }
+        for key in &self.shape.distinct_by {
             push(key);
         }
         for clause in &self.clauses {

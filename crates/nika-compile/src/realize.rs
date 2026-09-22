@@ -299,6 +299,7 @@ fn realize_format(
     } else if matches!(duty.kind, DutyKind::Format | DutyKind::Identity)
         && has_task("compute")
         && (keeps_columns(&duty.evidence)
+            || super::rules::keeps_order(&duty.evidence)
             || names_computed_column(&duty.evidence, d)
             || stated_by_rule(&duty.evidence, plan))
     {
