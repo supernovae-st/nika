@@ -564,6 +564,9 @@ fn literals(candidate: &Plan, floor: &Plan, intent: &str, why: &mut Vec<String>)
                 intent_runs.contains(&token)
                     || stated_range_covers(intent, &token)
                     || number_word_covers(intent, &token)
+                    // « the incident with the most minutes », « le plus long »: a superlative
+                    // names one row, the `1` of a limit the seat wrote out.
+                    || (token == "1" && superlative_covers(intent))
                     // « (cycle de correction 1) », « heading 2 »: an enumeration in a seat's
                     // paraphrase of a language step, never a value the workflow carries.
                     || (language && token.len() == 1)
@@ -674,6 +677,73 @@ fn number_word_covers(intent: &str, number: &str) -> bool {
                 .iter()
                 .any(|(word, value)| *value == n && *word == w)
         })
+}
+
+/// Superlatives that name one row of a corpus (EN · FR · IT · ES · DE · PT, accented and
+/// folded): the `1` a seat writes as a limit beside « the most », « le plus », « el mayor »
+/// is stated by them.
+const SUPERLATIVES: &[&str] = &[
+    "most",
+    "worst",
+    "best",
+    "highest",
+    "lowest",
+    "largest",
+    "smallest",
+    "biggest",
+    "longest",
+    "shortest",
+    "latest",
+    "earliest",
+    "oldest",
+    "newest",
+    "least",
+    "le plus",
+    "la plus",
+    "les plus",
+    "le moins",
+    "la moins",
+    "il più",
+    "la più",
+    "il piu",
+    "la piu",
+    "il meno",
+    "la meno",
+    "el más",
+    "la más",
+    "el mas",
+    "la mas",
+    "el menos",
+    "la menos",
+    "mayor",
+    "menor",
+    "höchste",
+    "hochste",
+    "niedrigste",
+    "größte",
+    "grosste",
+    "kleinste",
+    "längste",
+    "langste",
+    "kürzeste",
+    "kurzeste",
+    "meisten",
+    "wenigsten",
+    "o mais",
+    "a mais",
+    "o maior",
+    "a maior",
+    "o menor",
+    "a menor",
+];
+
+/// Whether the request states a superlative: one row of its corpus, the `1` of a limit.
+fn superlative_covers(intent: &str) -> bool {
+    let folded = super::shape::fold(intent);
+    let padded = format!(" {folded} ");
+    SUPERLATIVES
+        .iter()
+        .any(|w| padded.contains(&format!(" {w} ")))
 }
 
 /// Words and dashes that join the two ends of a stated numeric range.
@@ -1075,6 +1145,18 @@ mod tests {
         assert!(number_word_covers("scrivi tre punti", "3"));
         assert!(number_word_covers("escreve três linhas", "3"));
         assert!(number_word_covers("escribe cinco viñetas", "5"));
+    }
+
+    #[test]
+    fn a_superlative_states_the_one_of_a_limit() {
+        assert!(superlative_covers(
+            "Under Worst incident, name the incident with the most minutes by its id"
+        ));
+        assert!(superlative_covers("garde l'incident le plus long"));
+        assert!(superlative_covers("la línea con el mayor retraso"));
+        assert!(superlative_covers("die Zeile mit den meisten Minuten"));
+        assert!(!superlative_covers("write three lines to ./out/a.md"));
+        assert!(!superlative_covers("almost every row"));
     }
 
     #[test]
