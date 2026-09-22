@@ -88,6 +88,16 @@ impl SessionRuntime {
                 trace.display()
             );
         }
+        if !self.routes.is_empty() {
+            let _ = write!(
+                text,
+                "\n  routes: {} open line(s) routed this session (phase · act · how · the line's hash) · last:",
+                self.routes.len()
+            );
+            for record in self.routes.iter().rev().take(5) {
+                let _ = write!(text, "\n    {}", record.line());
+            }
+        }
         text.push_str(
             "\n  none of this is a proof: `/proof` judges a run's trace · `/meaning` shows what was kept of your request",
         );

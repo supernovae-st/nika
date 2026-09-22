@@ -163,6 +163,12 @@ fn the_route_tells_a_question_from_a_change_whatever_the_first_word() {
     // A protocol token still applies — authority stays with the protocol.
     assert!(matches!(s.consent("yes"), TurnOutcome::Facts(ref t) if t.contains("applied")));
     assert!(dir.path().join(COPY_DEST).exists());
+    // The routes are instrumented: `/details` lists them (phase · act · how · hash).
+    let details = s.details();
+    assert!(
+        details.contains("routes:") && details.contains("MODIFY") && details.contains("Model"),
+        "{details}"
+    );
 }
 
 /// No intelligence to route: an open line at the consent prompt is
