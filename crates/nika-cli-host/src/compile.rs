@@ -3,6 +3,8 @@
 
 //! CLI transport and explicit materialization for the stateless Compile core.
 mod authoring;
+#[cfg(feature = "access-harness")]
+mod harness_seat;
 mod render;
 mod sidecar;
 mod typesafe;

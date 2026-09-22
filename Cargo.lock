@@ -4643,6 +4643,7 @@ dependencies = [
  "base64 0.23.1",
  "bytes",
  "clap",
+ "futures-core",
  "hmac 0.12.1",
  "jiff",
  "nika-builtin",

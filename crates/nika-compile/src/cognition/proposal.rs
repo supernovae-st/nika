@@ -227,7 +227,7 @@ pub(super) fn decode(response: &InferResponse, out: &mut CompileOutcome) -> Opti
                 DiagnosticKind::Unknown,
                 "authoring_provider",
                 format!(
-                    "The seat stopped at {spent} output cap before the plan was complete (a reasoning seat spends part of the cap on its reasoning). Raise --authoring-max-tokens (up to 8192) or seat a model that reasons less; nothing partial was assembled."
+                    "The seat stopped at {spent} output cap before the plan was complete (a reasoning seat spends part of the cap on its reasoning). Raise --authoring-max-tokens (up to 32768) or seat a model that reasons less; nothing partial was assembled."
                 ),
             );
             return None;
@@ -242,7 +242,7 @@ pub(super) fn decode(response: &InferResponse, out: &mut CompileOutcome) -> Opti
             return None;
         }
     };
-    if let Ok(plan) = serde_json::from_str(text) {
+    if let Ok(plan) = serde_json::from_str(super::first_json_object(text).unwrap_or(text)) {
         Some(plan)
     } else {
         crate::finding(

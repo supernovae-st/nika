@@ -178,6 +178,7 @@ pub fn outcome_document(out: &CompileOutcome) -> Value {
             "elapsed_ms": receipt.elapsed_ms,
             "sampling": {"temperature": null, "seed": null, "effective": "providerDefaultUnknown"},
             "context": receipt.context,
+            "backend": receipt.backend,
         });
     }
     document

@@ -433,6 +433,11 @@ pub struct AuthoringReceipt {
     /// messages, and the references sent with it (none today: recall is recorded, never
     /// sent). A journal of what the seat actually read, never of what the repository holds.
     pub context: Vec<serde_json::Value>,
+    /// The backend that answered, named by the transport that seated it: `direct_api` (a
+    /// provider of the registry, tokens metered) or `acp_harness` (the operator's own agent
+    /// harness through ACP: adapter, observed model, cost basis, no fabricated token meter).
+    /// None when the transport did not say.
+    pub backend: Option<serde_json::Value>,
 }
 
 /// Authoring provenance is not program identity or execution Proof.

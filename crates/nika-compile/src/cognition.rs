@@ -382,16 +382,56 @@ fn record_retrieval(out: &mut CompileOutcome, intent: &str, plan: Option<&Plan>)
     out.provenance.decision = Some(decision);
 }
 
-const POLICY_BOUNDS: &str = "Authoring requires an explicit model, 1..8192 output tokens, a timeout up to 120 seconds, and an intent no larger than 32768 bytes.";
+const POLICY_BOUNDS: &str = "Authoring requires an explicit model, 1..32768 output tokens, a timeout up to 600 seconds, and an intent no larger than 32768 bytes.";
 
 /// The bounds every seat call honors: an explicit model, a bounded answer, a bounded wait,
 /// a request the seat can hold.
 fn policy_bounded(policy: &AuthoringPolicy, intent: &str) -> bool {
     !policy.model.trim().is_empty()
-        && (1..=8192).contains(&policy.max_tokens)
+        && (1..=32_768).contains(&policy.max_tokens)
         && !policy.timeout.is_zero()
-        && policy.timeout <= std::time::Duration::from_secs(120)
+        && policy.timeout <= std::time::Duration::from_secs(600)
         && intent.len() <= 32_768
+}
+
+/// The first complete JSON object of a seat's text — the text itself when it is one, else
+/// the balanced `{…}` it carries (a seat that wraps its answer in prose or a fence is not a
+/// lost call). None when the text carries no balanced object.
+pub(super) fn first_json_object(text: &str) -> Option<&str> {
+    let trimmed = text.trim();
+    if trimmed.starts_with('{') && trimmed.ends_with('}') {
+        return Some(trimmed);
+    }
+    let start = text.find('{')?;
+    let mut depth: i32 = 0;
+    let mut in_string = false;
+    let mut escaped = false;
+    for (i, ch) in text[start..].char_indices() {
+        if in_string {
+            match ch {
+                '\\' if !escaped => {
+                    escaped = true;
+                    continue;
+                }
+                '"' if !escaped => in_string = false,
+                _ => {}
+            }
+            escaped = false;
+            continue;
+        }
+        match ch {
+            '"' => in_string = true,
+            '{' => depth += 1,
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(&text[start..start + i + ch.len_utf8()]);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
 }
 
 fn record_route(out: &mut CompileOutcome, route: &[String]) {
@@ -752,6 +792,7 @@ async fn call_with_schema<P: ProviderInferDyn>(
             output_tokens: None,
             elapsed_ms: 0,
             context: Vec::new(),
+            backend: None,
         });
     receipt.calls += 1;
     receipt
@@ -941,6 +982,7 @@ async fn sampled<P: ProviderInferDyn>(
         output_tokens,
         elapsed_ms,
         context,
+        backend: None,
     });
     // Distinct admissible signatures, for the sample record.
     let mut distinct: Vec<Vec<String>> = Vec::new();

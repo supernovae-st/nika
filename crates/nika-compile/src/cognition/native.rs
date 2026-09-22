@@ -293,22 +293,24 @@ async fn exchange<P: ProviderInferDyn>(
             return Round::Stop;
         }
     };
-    let answer: Answer = match serde_json::from_str(&text) {
-        Ok(answer) => answer,
-        Err(error) => {
-            talk.rounds
-                .push(json!({"round": round, "answer": format!("not a native answer: {error}")}));
-            super::super::finding(
-                out,
-                DiagnosticKind::Unknown,
-                "authoring_native",
-                format!(
-                    "The seat's answer is not a native answer ({error}); nothing was assembled."
-                ),
-            );
-            return Round::Stop;
-        }
-    };
+    let answer: Answer =
+        match serde_json::from_str(super::first_json_object(&text).unwrap_or(&text)) {
+            Ok(answer) => answer,
+            Err(error) => {
+                talk.rounds.push(
+                    json!({"round": round, "answer": format!("not a native answer: {error}")}),
+                );
+                super::super::finding(
+                    out,
+                    DiagnosticKind::Unknown,
+                    "authoring_native",
+                    format!(
+                        "The seat's answer is not a native answer ({error}); nothing was assembled."
+                    ),
+                );
+                return Round::Stop;
+            }
+        };
     let diagnostics = judge(
         intent,
         reading,
@@ -534,6 +536,15 @@ fn admitted_questions(
                 kind: "question",
                 message: format!(
                     "the question `{}` asks the human for a machine's construct; write it yourself from the request (a glob over the stated folder, the jq program, the pattern) and, when the request names no place at all, ask for the FOLDER or FILE as `const.<slug>` (a path, never a glob or a program)",
+                    question.key
+                ),
+            });
+        }
+        if slug == "channel" || slug.ends_with("_channel") {
+            return Err(Diagnostic {
+                kind: "question",
+                message: format!(
+                    "the question `{}` asks the human for a channel; a send whose destination the request leaves open is ONE placeholder, `const.send_endpoint` (an HTTPS endpoint: `nika:notify` with `channel: webhook` and `target: \"${{{{ const.send_endpoint }}}}\"`, or a `nika:fetch` POST) — the channel a request does not name is `webhook`",
                     question.key
                 ),
             });
@@ -908,5 +919,111 @@ fn seat_model(source: &mut String, request: &CompileRequest, out: &mut CompileOu
             );
             false
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn outcome() -> CompileOutcome {
+        crate::initial()
+    }
+
+    #[test]
+    fn a_refusal_or_a_provider_failure_never_escalates_and_a_machine_question_does() {
+        let mut refused = outcome();
+        refused.status = CompileStatus::Refused;
+        assert!(!escalates(&refused));
+        let mut failed = outcome();
+        crate::finding(
+            &mut failed,
+            DiagnosticKind::Unknown,
+            "authoring_provider",
+            "timed out",
+        );
+        assert!(!escalates(&failed));
+        let mut machine = outcome();
+        crate::question(
+            &mut machine,
+            "const.rule_expression",
+            "which jq?",
+            QuestionType::Text,
+        );
+        assert!(escalates(&machine));
+        let mut business = outcome();
+        crate::question(
+            &mut business,
+            "const.send_endpoint",
+            "where?",
+            QuestionType::Text,
+        );
+        assert!(!escalates(&business));
+        assert!(escalates(&outcome()));
+    }
+
+    #[test]
+    fn a_machine_construct_is_never_a_question_and_a_placeholder_must_be_declared() {
+        let candidate = "nika: x\nconst:\n  source_folder: \"\"\ntasks: {}\n";
+        let asked = |key: &str| Question {
+            key: key.to_owned(),
+            label: String::new(),
+            answer_type: "text".to_owned(),
+            why: String::new(),
+        };
+        assert!(admitted_questions(candidate, &[asked("const.source_glob")]).is_err());
+        assert!(admitted_questions(candidate, &[asked("const.filter_expression")]).is_err());
+        assert!(admitted_questions(candidate, &[asked("const.missing")]).is_err());
+        assert!(
+            admitted_questions(candidate, &[asked("const.notify_channel")]).is_err(),
+            "a channel is never a question (the live run of 2026-09-22 asked two for one send)"
+        );
+        assert!(admitted_questions(candidate, &[asked("model")]).is_err());
+        assert_eq!(
+            admitted_questions(candidate, &[asked("const.source_folder")]).map(|q| q.len()),
+            Ok(1)
+        );
+    }
+
+    #[test]
+    fn the_first_json_object_is_read_whatever_wraps_it() {
+        assert_eq!(
+            super::super::first_json_object(
+                "Sure!\n```json\n{\"a\": \"}\", \"b\": {\"c\": 1}}\n```"
+            ),
+            Some("{\"a\": \"}\", \"b\": {\"c\": 1}}")
+        );
+        assert_eq!(
+            super::super::first_json_object("  {\"a\":1}  "),
+            Some("{\"a\":1}")
+        );
+        assert_eq!(super::super::first_json_object("no object"), None);
+        assert_eq!(super::super::first_json_object("{\"open\": true"), None);
+    }
+
+    #[test]
+    fn an_answered_url_grants_its_host_without_its_port() {
+        assert_eq!(
+            host_of("https://hooks.example.invalid/recap"),
+            Some("hooks.example.invalid")
+        );
+        assert_eq!(host_of("http://127.0.0.1:8793/hook"), Some("127.0.0.1"));
+        assert_eq!(host_of("http://[::1]:8080/x"), Some("[::1]"));
+        assert_eq!(host_of("./out/report.md"), None);
+        let mut doc = json!({"permits": {"net": {"http": []}}});
+        assert!(grant_host(
+            &mut doc,
+            &json!("https://hooks.example.invalid/recap")
+        ));
+        assert!(!grant_host(
+            &mut doc,
+            &json!("https://hooks.example.invalid/again")
+        ));
+        assert_eq!(
+            doc["permits"]["net"]["http"],
+            json!(["hooks.example.invalid"])
+        );
+        let mut none = json!({"permits": {}});
+        assert!(!grant_host(&mut none, &json!("https://x.invalid/")));
     }
 }

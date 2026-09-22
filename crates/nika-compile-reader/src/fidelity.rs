@@ -324,3 +324,62 @@ pub fn tool_of<'a>(doc: &'a Value, task: &str) -> &'a str {
         .and_then(Value::as_str)
         .unwrap_or_default()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_permit_entry_covers_the_path_it_names_or_globs() {
+        assert!(covers("./data/paiements.csv", "./data/paiements.csv"));
+        assert!(covers("./data/**", "./data/paiements.csv"));
+        assert!(covers("./data/**", "./data/2026/paiements.csv"));
+        assert!(covers("./reports/*", "./reports/juillet.csv"));
+        assert!(covers("./reports/*.csv", "./reports/juillet.csv"));
+        assert!(covers("./reports/**", "./reports/"));
+        assert!(!covers("./data/**", "./out/rapport.md"));
+        assert!(!covers("./reports/*.csv", "./reports/notes.md"));
+        assert!(!covers("./data/paiements.csv", "./data/paiements.csv.bak"));
+    }
+
+    #[test]
+    fn a_path_composed_from_the_requests_words_is_not_invented() {
+        let lower = "for each slug solar-lamp, wind-chime read ./catalog/<slug>.md";
+        assert!(composed_from(lower, "./catalog/solar-lamp.md"));
+        assert!(composed_from(lower, "./catalog/*.md"));
+        assert!(!composed_from(lower, "./catalog/moon-rock.md"));
+        assert!(!composed_from(lower, "./archive/solar-lamp.md"));
+    }
+
+    #[test]
+    fn the_answered_values_are_the_texts_a_candidate_may_carry() {
+        let answers = BTreeMap::from([
+            (
+                "const.send_endpoint".to_owned(),
+                "\"https://x.invalid/h\"".to_owned(),
+            ),
+            ("const.limit".to_owned(), "5".to_owned()),
+        ]);
+        // A BTreeMap answers in key order: `const.limit` before `const.send_endpoint`.
+        assert_eq!(
+            allowed_values(&answers),
+            vec!["5".to_owned(), "https://x.invalid/h".to_owned()]
+        );
+    }
+
+    #[test]
+    fn the_effect_tasks_and_the_gates_are_read_from_the_document() {
+        let doc = serde_json::json!({"tasks": {
+            "review": {"invoke": {"tool": "nika:prompt", "args": {"message": "ok?"}}},
+            "send": {"with": {"approved": "${{ tasks.review.output }}"}, "invoke": {"tool": "nika:fetch", "args": {"url": "https://x.invalid", "method": "POST"}}},
+            "look": {"invoke": {"tool": "nika:fetch", "args": {"url": "https://x.invalid"}}},
+            "save": {"after": {"send": "success"}, "invoke": {"tool": "nika:write", "args": {"path": "./out/x.md", "content": "c"}}}
+        }});
+        let (effects, gates) = effect_and_gate_tasks(&doc);
+        assert_eq!(gates, vec!["review".to_owned()]);
+        assert_eq!(effects, vec!["save".to_owned(), "send".to_owned()]);
+        assert!(depends_on(&doc, "send", &gates));
+        assert!(depends_on(&doc, "save", &gates));
+        assert!(!depends_on(&doc, "look", &gates));
+    }
+}
