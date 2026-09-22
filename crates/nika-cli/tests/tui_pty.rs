@@ -554,13 +554,29 @@ fn stalled_turn(tag: &str) -> (TeeSession, Tee) {
 #[test]
 fn ctrl_c_twice_leaves_a_stalled_seat_call_at_once() {
     let (mut session, tee) = stalled_turn("stall-ctrl-c");
+    // Let the loader turn a few frames (one every 100 ms) before interrupting.
+    std::thread::sleep(Duration::from_millis(350));
     let pressed = Instant::now();
     session.send("\x03").expect("Ctrl+C once");
     answer_until(&mut session, &tee, 24, "again");
     session.send("\x03").expect("Ctrl+C again");
-    session.expect(Eof).expect("the door leaves");
+    if let Err(error) = session.expect(Eof) {
+        panic!(
+            "the door did not leave ({error}); the child wrote:\n{}",
+            tee.text()
+        );
+    }
     let left = pressed.elapsed();
     assert_eq!(exit_code(&mut session), 130, "left by an interruption");
+    assert!(
+        ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+            .iter()
+            .filter(|g| tee.saw(&g.to_string()))
+            .count()
+            >= 2,
+        "the loader turned while the call stalled:\n{}",
+        tee.text()
+    );
     assert!(
         left < Duration::from_secs(10),
         "the door left without waiting for the call: {left:?}"

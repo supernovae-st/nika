@@ -226,9 +226,9 @@ fn is_ctrl_c(key: &KeyEvent) -> bool {
 fn busy_text(base: Option<&str>, secs: u64, armed: bool) -> String {
     let base = base.unwrap_or("working");
     if armed {
-        format!(
-            "{base} · {secs}s · interrupted: the call cannot be recalled · Ctrl+C again leaves now"
-        )
+        // What a second press does comes FIRST: the row must say it inside
+        // an 80-column terminal, whatever the turn's own label is.
+        format!("Ctrl+C again leaves now · the call cannot be recalled · {base} · {secs}s")
     } else if secs >= 2 {
         format!("{base} · {secs}s · Ctrl+C twice leaves")
     } else {
@@ -542,13 +542,15 @@ impl<C: Conversation + 'static> Shell<C> {
             if armed != was_armed {
                 shown = u64::MAX;
             }
-            let secs = if self.options.reduced_motion {
-                0
+            let (secs, frame) = if self.options.reduced_motion {
+                (0, None)
             } else {
-                started.elapsed().as_secs()
+                let elapsed = started.elapsed();
+                (elapsed.as_secs(), Some(spinner_frame(elapsed)))
             };
-            if secs != shown {
+            if secs != shown || frame != self.state.spinner {
                 shown = secs;
+                self.state.spinner = frame;
                 self.state.busy = Some(busy_text(base.as_deref(), secs, armed));
                 self.draw()?;
             }
@@ -588,6 +590,12 @@ impl<C: Conversation + 'static> Shell<C> {
 /// How long the shell waits for a busy label before looking whether the
 /// turn finished.
 const BUSY_POLL: std::time::Duration = std::time::Duration::from_millis(50);
+
+/// The loader's frame for an elapsed time: one of the ten braille frames,
+/// the next every 100 ms (a turn's motion, never a percentage).
+fn spinner_frame(elapsed: std::time::Duration) -> u8 {
+    u8::try_from((elapsed.as_millis() / 100) % render::SPINNER.len() as u128).unwrap_or(0)
+}
 
 /// Draw the live area from the state (both presentations).
 fn draw_parts(screen: &mut Screen, state: &UiState, composer: &Composer) -> io::Result<()> {

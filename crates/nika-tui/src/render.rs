@@ -100,6 +100,9 @@ pub fn live_rows(state: &UiState, composer: &Composer, width: u16, height: u16) 
     rows.clamp(3, height.saturating_div(2).max(3))
 }
 
+/// The loader's frames (braille dots, the usual terminal spinner).
+pub const SPINNER: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+
 fn status_line(state: &UiState) -> Line<'static> {
     let dim = Style::default().add_modifier(Modifier::DIM);
     let accent = if state.color {
@@ -114,8 +117,13 @@ fn status_line(state: &UiState) -> Line<'static> {
         ));
     }
     if let Some(label) = &state.busy {
+        // The marker turns while a turn runs; still (●) under reduced motion.
+        let marker = state.spinner.map_or_else(
+            || "● ".to_owned(),
+            |f| format!("{} ", SPINNER[usize::from(f) % SPINNER.len()]),
+        );
         Line::from(vec![
-            Span::styled("● ", accent),
+            Span::styled(marker, accent),
             Span::styled(label.clone(), dim),
         ])
     } else {
@@ -249,6 +257,29 @@ mod tests {
         assert_eq!(lines[1].spans[0].content.as_ref(), "  ");
         assert_eq!(wrapped_rows(&lines, 80), 2);
         assert_eq!(wrapped_rows(&lines, 10), 4);
+    }
+
+    /// The busy row's marker turns with the loader's frame and stays the
+    /// still dot when no frame is set (reduced motion).
+    #[test]
+    fn the_busy_row_turns_the_loader_and_stays_still_without_a_frame() {
+        let mut state = UiState::new(Presentation::Inline, false, (60, 5));
+        state.busy = Some("working through your words · 3s".to_owned());
+        state.spinner = Some(3);
+        let composer = Composer::new();
+        let backend = TestBackend::new(60, 5);
+        let mut terminal = Terminal::new(backend).expect("test terminal");
+        terminal
+            .draw(|frame| draw_inline(frame, &state, &composer))
+            .expect("draw");
+        let turning = row(terminal.backend().buffer(), 0);
+        assert!(turning.starts_with("⠸ working"), "{turning:?}");
+        state.spinner = None;
+        terminal
+            .draw(|frame| draw_inline(frame, &state, &composer))
+            .expect("draw");
+        let still = row(terminal.backend().buffer(), 0);
+        assert!(still.starts_with("● working"), "{still:?}");
     }
 
     #[test]

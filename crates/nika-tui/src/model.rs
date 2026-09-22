@@ -166,6 +166,9 @@ pub struct UiState {
     pub waiting: Waiting,
     /// The busy label, when work is active.
     pub busy: Option<String>,
+    /// The loader's frame beside the busy label (`None`: still — reduced
+    /// motion, or no turn under way).
+    pub spinner: Option<u8>,
     /// Where the automation stands (the session's status line); empty when
     /// nothing is under way.
     pub status: String,
@@ -193,6 +196,7 @@ impl UiState {
             committed_inline: 0,
             waiting: Waiting::Free,
             busy: None,
+            spinner: None,
             status: String::new(),
             interrupt_armed: false,
             completion: None,
