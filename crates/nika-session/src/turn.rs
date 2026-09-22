@@ -212,10 +212,17 @@ impl TurnClassifier for ReasonerClassifier {
 }
 
 /// The bounded prompt the session's intelligence answers with one label.
+/// Its shape follows what measurably helps a single-label zero-shot
+/// classifier (2024-2026 literature, see the lane's routing note): the
+/// labels bullet-listed in a fixed order, each with its deciding cue and
+/// one contrast pair per confusion the corpus showed (a capability
+/// question vs a change · a yes with a change); MIXED decided by clauses;
+/// UNKNOWN on decidable conditions, never as a comfortable default; no
+/// reasoning asked (chain-of-thought lowers label accuracy).
 #[must_use]
 pub fn routing_prompt(context: &TurnContext, raw: &str) -> String {
     let mut p = String::from(
-        "You route ONE line a human typed in a conversation with Nika, an automation tool. Answer with exactly one label and nothing else.\n",
+        "You route ONE line a human typed in a conversation with Nika, an automation tool. Answer with exactly one label from the list and nothing else — no reasoning, no punctuation.\n",
     );
     let _ = writeln!(p, "State: {}.", context.phase.describe());
     if let Some(automation) = &context.automation {
@@ -228,9 +235,17 @@ pub fn routing_prompt(context: &TurnContext, raw: &str) -> String {
         let _ = writeln!(p, "The last thing Nika asked or showed: «{prompt}».");
     }
     let _ = writeln!(p, "The human's line: «{}».", raw.trim());
-    p.push_str(
-        "Labels: DISCUSS (a question or remark about the current automation or about Nika; nothing changes) · MODIFY (a change to the current automation, however it is phrased, even as a question) · NEW_WORK (a new, unrelated automation to build) · ANSWER (the answer to the question Nika asked) · REQUEST_RUN (asks to run it as it is) · MIXED (two of these in one line, e.g. a yes and a change) · UNKNOWN (cannot tell).\nLabel:",
-    );
+    p.push_str(concat!(
+        "Labels, in order:\n",
+        "- DISCUSS: a question or a remark about the current automation or about Nika; if Nika answered it, nothing about the automation would change. Cue: asks what/whether/why, or comments. « Can it write outside the project? » is DISCUSS; « Can you write it to ./out/final.md instead? » is MODIFY.\n",
+        "- MODIFY: asks for a change to the current automation, however it is phrased — as a question, a wish, a correction, a negation. Cue: names something that should be different (a destination, a schedule, a step, a recipient). « What I actually want is ./out/final.md » is MODIFY.\n",
+        "- NEW_WORK: describes a new automation unrelated to the current one.\n",
+        "- ANSWER: gives the value the last question asked for (a model name, a path, a number, a choice), nothing more.\n",
+        "- REQUEST_RUN: asks to run the current automation as it is, with no change in the same line.\n",
+        "- MIXED: the line carries two distinct acts, e.g. an approval or a refusal AND a change (« yes, but change the file first »), or a run AND a change (« run it, but only on Fridays »). An approval with a change is never a plain approval.\n",
+        "- UNKNOWN: only when no label fits the line, or two labels fit it equally after the cues above.\n",
+        "Label:",
+    ));
     p
 }
 
@@ -307,7 +322,8 @@ mod tests {
         let p = routing_prompt(&ctx, "  can you write it to ./out/final.md instead?  ");
         assert!(p.contains("waits for the human's yes or no"));
         assert!(p.contains("«can you write it to ./out/final.md instead?»"));
-        assert!(p.contains("MODIFY (a change") && p.ends_with("Label:"));
+        assert!(p.contains("- MODIFY: asks for a change") && p.ends_with("Label:"));
+        assert!(p.contains("no reasoning"), "no chain-of-thought is asked");
         let fallback = ConservativeFallback.classify(&ctx, "anything");
         assert_eq!(fallback.act, TurnAct::Unknown);
         assert_eq!(fallback.method, RoutingMethod::Fallback);
