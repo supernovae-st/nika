@@ -20,6 +20,8 @@
 //! runtime's own `choose` law, and the line that waited resumes after it.
 
 use std::path::{Path, PathBuf};
+use std::sync::mpsc::Sender;
+use std::sync::{Arc, Mutex};
 
 use nika_session::RunRequest;
 use nika_session::intelligence::{IntelligenceCensus, UserIntelligencePreference};
@@ -30,9 +32,13 @@ use crate::model::{Beat, Committed, Conversation, Handoff, Kind, Turn, Waiting};
 /// The exit code and the trace a run left.
 pub type RunOutcome = (u8, Option<PathBuf>);
 /// `nika run <workflow>` once, under the request's ceiling: (root, request).
-pub type RunOnce = Box<dyn Fn(&Path, &RunRequest) -> RunOutcome>;
+pub type RunOnce = Box<dyn Fn(&Path, &RunRequest) -> RunOutcome + Send>;
 /// `nika run --resume <trace> --answer <answer>`: (root, workflow, trace, answer).
-pub type RunResume = Box<dyn Fn(&Path, &Path, &Path, &str) -> RunOutcome>;
+pub type RunResume = Box<dyn Fn(&Path, &Path, &Path, &str) -> RunOutcome + Send>;
+
+/// Where the runtime's progress lines go while a turn runs: the shell's
+/// sink for the duration of one `submit_with`, nothing between turns.
+type BusySlot = Arc<Mutex<Option<Sender<String>>>>;
 
 /// The two plain-path runners the CLI lends to the session: a run once, a
 /// resume with the human's answer. Both print through the terminal the
@@ -71,6 +77,7 @@ pub struct Live {
     runners: Runners,
     pending: Option<(u64, Work)>,
     next_id: u64,
+    busy: BusySlot,
 }
 
 impl std::fmt::Debug for Live {
@@ -104,6 +111,7 @@ impl Live {
             runners,
             pending: None,
             next_id: 1,
+            busy: Arc::new(Mutex::new(None)),
         };
         live.open_runtime(kept);
         live
@@ -129,8 +137,17 @@ impl Live {
             ),
         };
         // The plain loop prints progress lines to stdout; here the viewport
-        // owns stdout, and a truthful busy state arrives in a later wave.
-        runtime.on_progress(Box::new(|_| {}));
+        // owns stdout: a progress line becomes the busy label the shell
+        // draws while the turn runs (`submit_with` arms the sink), and is
+        // dropped between turns.
+        let slot = Arc::clone(&self.busy);
+        runtime.on_progress(Box::new(move |line| {
+            if let Ok(guard) = slot.lock()
+                && let Some(tx) = guard.as_ref()
+            {
+                let _ = tx.send(line.to_owned());
+            }
+        }));
         self.runtime = Some(runtime);
     }
 
@@ -190,7 +207,10 @@ impl Live {
         let mut handoff = None;
         match outcome {
             TurnOutcome::Quit => return (vec![Beat::Quit], None),
-            TurnOutcome::Reply(text) | TurnOutcome::Facts(text) | TurnOutcome::Help(text) => {
+            TurnOutcome::Reply(text)
+            | TurnOutcome::Facts(text)
+            | TurnOutcome::Help(text)
+            | TurnOutcome::Aside(text) => {
                 if !text.is_empty() {
                     beats.push(Beat::Say(Committed::new(Kind::Reply, text)));
                 }
@@ -265,6 +285,17 @@ impl Live {
 impl Conversation for Live {
     fn open(&mut self) -> Vec<Beat> {
         self.opening_beats()
+    }
+
+    fn submit_with(&mut self, line: &str, busy: &Sender<String>) -> Turn {
+        if let Ok(mut guard) = self.busy.lock() {
+            *guard = Some(busy.clone());
+        }
+        let turn = self.submit(line);
+        if let Ok(mut guard) = self.busy.lock() {
+            *guard = None;
+        }
+        turn
     }
 
     fn submit(&mut self, line: &str) -> Turn {

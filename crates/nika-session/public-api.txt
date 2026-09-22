@@ -192,6 +192,8 @@ pub fn nika_session::authoring::compile_deterministic(request: &nika_compile::ty
 pub fn nika_session::authoring::compile_through(seat: &nika_session::authoring::AuthoringSeat, request: &nika_compile::types::CompileRequest) -> core::result::Result<nika_compile::types::CompileOutcome, nika_session::authoring::AuthoringError>
 pub fn nika_session::authoring::is_cancel(line: &str) -> bool
 pub fn nika_session::authoring::is_greeting(input: &str) -> bool
+pub fn nika_session::authoring::is_what_happened(line: &str) -> bool
+pub fn nika_session::authoring::is_why(line: &str) -> bool
 pub fn nika_session::authoring::literal_for(question: &nika_compile::types::CompileQuestion, line: &str) -> alloc::string::String
 pub fn nika_session::authoring::looks_like_discussion(input: &str) -> bool
 pub fn nika_session::authoring::reasons(out: &nika_compile::types::CompileOutcome) -> alloc::vec::Vec<alloc::string::String>
@@ -1876,7 +1878,7 @@ impl<T> tracing::instrument::Instrument for nika_session::reasoner::ScriptedReas
 impl<T> tracing::instrument::WithSubscriber for nika_session::reasoner::ScriptedReasoner
 impl<T> typenum::type_operators::Same for nika_session::reasoner::ScriptedReasoner
 pub type nika_session::reasoner::ScriptedReasoner::Output = T
-pub trait nika_session::reasoner::SessionReasoner
+pub trait nika_session::reasoner::SessionReasoner: core::marker::Send
 pub fn nika_session::reasoner::SessionReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::reasoner::SessionReasoner::name(&self) -> alloc::string::String
 pub fn nika_session::reasoner::SessionReasoner::reason(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
@@ -1907,6 +1909,7 @@ pub fn nika_session::review::render(set: &nika_session::change::ProjectChangeSet
 pub fn nika_session::review::workflow_id(candidate: &str) -> alloc::string::String
 pub mod nika_session::runtime
 #[non_exhaustive] pub enum nika_session::runtime::TurnOutcome
+pub nika_session::runtime::TurnOutcome::Aside(alloc::string::String)
 pub nika_session::runtime::TurnOutcome::Ask(alloc::string::String)
 pub nika_session::runtime::TurnOutcome::Facts(alloc::string::String)
 pub nika_session::runtime::TurnOutcome::GateAsk
@@ -2089,8 +2092,8 @@ impl<T> tracing::instrument::WithSubscriber for nika_session::runtime::SessionRu
 impl<T> typenum::type_operators::Same for nika_session::runtime::SessionRuntime
 pub type nika_session::runtime::SessionRuntime::Output = T
 pub const nika_session::runtime::HELP: &str
-pub type nika_session::runtime::ProgressHook = alloc::boxed::Box<dyn core::ops::function::Fn(&str)>
-pub type nika_session::runtime::ReasonerFactory = alloc::boxed::Box<dyn core::ops::function::Fn(&nika_session::intelligence::ResolvedSessionIntelligence) -> alloc::boxed::Box<dyn nika_session::reasoner::SessionReasoner>>
+pub type nika_session::runtime::ProgressHook = alloc::boxed::Box<(dyn core::ops::function::Fn(&str) + core::marker::Send)>
+pub type nika_session::runtime::ReasonerFactory = alloc::boxed::Box<(dyn core::ops::function::Fn(&nika_session::intelligence::ResolvedSessionIntelligence) -> alloc::boxed::Box<dyn nika_session::reasoner::SessionReasoner> + core::marker::Send)>
 pub mod nika_session::snapshot
 #[non_exhaustive] pub struct nika_session::snapshot::ProjectSnapshot
 pub nika_session::snapshot::ProjectSnapshot::ceiling: core::option::Option<f64>
@@ -2915,6 +2918,7 @@ impl<T> tracing::instrument::WithSubscriber for nika_session::outcome::RefusalCl
 impl<T> typenum::type_operators::Same for nika_session::outcome::RefusalClass
 pub type nika_session::outcome::RefusalClass::Output = T
 #[non_exhaustive] pub enum nika_session::TurnOutcome
+pub nika_session::TurnOutcome::Aside(alloc::string::String)
 pub nika_session::TurnOutcome::Ask(alloc::string::String)
 pub nika_session::TurnOutcome::Facts(alloc::string::String)
 pub nika_session::TurnOutcome::GateAsk
@@ -4278,7 +4282,7 @@ impl<T> tracing::instrument::Instrument for nika_session::change::WorkflowAudit
 impl<T> tracing::instrument::WithSubscriber for nika_session::change::WorkflowAudit
 impl<T> typenum::type_operators::Same for nika_session::change::WorkflowAudit
 pub type nika_session::change::WorkflowAudit::Output = T
-pub trait nika_session::SessionReasoner
+pub trait nika_session::SessionReasoner: core::marker::Send
 pub fn nika_session::SessionReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::SessionReasoner::name(&self) -> alloc::string::String
 pub fn nika_session::SessionReasoner::reason(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>

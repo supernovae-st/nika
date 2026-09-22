@@ -412,6 +412,156 @@ fn choosing_no_intelligence_in_context_resumes_with_the_facts() {
     );
 }
 
+/// « why? » beside an authoring question explains it from the compiler's
+/// own words and holds it: nothing is answered, the same question waits,
+/// and `cancel` still drops the round. The raw key stays out of the
+/// question's line and lives in the explanation.
+#[test]
+fn why_beside_a_question_explains_it_and_holds_it() {
+    let dir = tree();
+    std::fs::create_dir_all(dir.path().join("notes")).expect("notes");
+    std::fs::write(dir.path().join("notes/brief.md"), "brief\n").expect("brief");
+    let mut s = SessionRuntime::open(
+        dir.path(),
+        ready(IntelligenceKind::None, DataLocus::None),
+        Box::new(NoReasoner),
+    );
+    let TurnOutcome::Question { key, question } = s.turn(DRAFT) else {
+        panic!("a draft asks its model");
+    };
+    assert_eq!(key, "model");
+    assert!(
+        !question.contains("(`model`)") && question.contains("`why?` explains"),
+        "{question}"
+    );
+    let TurnOutcome::Aside(text) = s.turn("why?") else {
+        panic!("a side question is an aside");
+    };
+    assert!(
+        text.contains("fills `model`") && text.contains("the question still waits"),
+        "{text}"
+    );
+    assert!(text.contains("what you asked"), "the goal is named: {text}");
+    assert_eq!(
+        s.pending_question().map(|q| q.key.as_str()),
+        Some("model"),
+        "the aside consumed nothing"
+    );
+    assert!(matches!(s.turn("pourquoi ?"), TurnOutcome::Aside(_)));
+    assert!(matches!(s.turn("/why"), TurnOutcome::Aside(_)));
+    assert!(matches!(s.turn("cancel"), TurnOutcome::Facts(ref t) if t.contains("discarded")));
+    assert!(s.pending_question().is_none());
+    assert!(
+        matches!(s.turn("/why"), TurnOutcome::Facts(ref t) if t.contains("nothing waits")),
+        "nothing pending: a fact"
+    );
+}
+
+/// « why? » beside a run's gate says what the answer lets happen, from the
+/// workflow's own bytes, and the gate keeps waiting.
+#[test]
+fn why_beside_a_gate_explains_it_and_holds_it() {
+    let dir = tree();
+    std::fs::write(dir.path().join("draft.md"), "the draft\n").expect("draft");
+    std::fs::write(dir.path().join("gate.nika"), GATE).expect("gate");
+    let mut s = ready_with(dir.path(), vec![]);
+    assert!(matches!(
+        s.turn("run gate.nika"),
+        TurnOutcome::RunRequested { .. }
+    ));
+    let store = dir.path().join(".nika").join("traces");
+    std::fs::create_dir_all(&store).expect("store");
+    let trace = store.join("paused.ndjson");
+    std::fs::write(&trace, PAUSED).expect("trace");
+    assert!(matches!(
+        s.observe_run(4, Some(&trace)),
+        TurnOutcome::GateAsk { .. }
+    ));
+    let TurnOutcome::Aside(text) = s.answer_gate("why?") else {
+        panic!("a side question beside the gate is an aside");
+    };
+    assert!(
+        text.contains("paused at `approve`") && text.contains("write_final · nika:write"),
+        "the gated task is named from the bytes: {text}"
+    );
+    assert!(
+        text.contains("nothing after the gate has happened yet"),
+        "{text}"
+    );
+    assert!(s.waiting_gate().is_some(), "the gate still waits");
+    assert!(matches!(s.turn("/why"), TurnOutcome::Aside(_)));
+    assert!(
+        matches!(s.answer_gate("yes"), TurnOutcome::ResumeRequested { .. }),
+        "the answer after the aside resumes the run"
+    );
+}
+
+/// A path that does not answer leaves a recovery card — what happened,
+/// what is kept, what did not happen, the ways on — and « what happened? »
+/// repeats it from memory: exactly one call was made.
+#[test]
+fn a_failed_intelligence_leaves_a_recovery_card_repeated_without_a_call() {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    struct Failing(Arc<AtomicUsize>);
+    impl SessionReasoner for Failing {
+        fn name(&self) -> String {
+            "mistral API".to_owned()
+        }
+        fn reason(&mut self, _prompt: &str) -> Result<Reply, crate::reasoner::ReasonError> {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            Err(crate::reasoner::ReasonError::Provider(
+                "rate limited (HTTP 429) after 4 round-trips".to_owned(),
+            ))
+        }
+    }
+    let dir = tree();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let mut s = SessionRuntime::open(
+        dir.path(),
+        ready(
+            IntelligenceKind::Api {
+                provider: "mistral".to_owned(),
+            },
+            DataLocus::Metered {
+                provider: "mistral".to_owned(),
+            },
+        ),
+        Box::new(Failing(Arc::clone(&calls))),
+    );
+    let TurnOutcome::Refusal(card) = s.turn(SMALL_TALK) else {
+        panic!("the failure is a refusal");
+    };
+    assert_eq!(card.class, RefusalClass::IntelligenceRefused);
+    assert!(
+        card.text.contains("I couldn't use mistral API")
+            && card.text.contains("HTTP 429")
+            && card.text.contains("I still have")
+            && card.text.contains("your request: «")
+            && card
+                .text
+                .contains("Nothing was written and nothing was sent elsewhere")
+            && card.text.contains("/intelligence"),
+        "{}",
+        card.text
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    let TurnOutcome::Facts(again) = s.turn("what happened?") else {
+        panic!("the card repeats");
+    };
+    assert_eq!(again, card.text);
+    assert!(matches!(s.turn("de quoi ?"), TurnOutcome::Facts(ref t) if *t == card.text));
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        1,
+        "repeating the card never calls the path again"
+    );
+    assert!(
+        matches!(s.turn("what workflows are here?"), TurnOutcome::Facts(ref t) if t.contains("alpha.nika")),
+        "the facts still answer after a failure"
+    );
+}
+
 /// Work the deterministic reader cannot settle asks the first screen in
 /// context with the authoring reason; the choice resumes the request.
 #[test]

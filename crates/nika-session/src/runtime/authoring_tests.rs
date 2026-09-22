@@ -72,8 +72,12 @@ fn work_reaches_the_compiler_and_its_question_owns_the_next_line() {
     assert_eq!(key, "model");
     assert!(question.contains("provider/model"), "{question}");
     assert!(
-        question.contains("reply on the next line (`model`)"),
+        question.contains("reply on the next line · `cancel` drops this · `why?` explains"),
         "{question}"
+    );
+    assert!(
+        !question.contains("(`model`)"),
+        "the raw key stays out of the human's line: {question}"
     );
     assert_eq!(s.pending_question().map(|q| q.key.as_str()), Some("model"));
     assert!(s.pending_proposal().is_none());

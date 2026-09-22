@@ -22,6 +22,7 @@
 //! Every exit path restores the terminal through the one owner.
 
 use std::io::{self, Write as _};
+use std::sync::mpsc;
 
 use crossterm::cursor::MoveTo;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -29,7 +30,7 @@ use crossterm::terminal::{Clear, ClearType};
 
 use crate::composer::{Composer, ComposerAction};
 use crate::events::{Broker, Signal, UiEvent};
-use crate::model::{Beat, Committed, Conversation, Handoff, Kind, Presentation, UiState};
+use crate::model::{Beat, Committed, Conversation, Handoff, Kind, Presentation, Turn, UiState};
 use crate::render;
 use crate::terminal::{self, Owner, Screen};
 
@@ -263,14 +264,16 @@ impl<C: Conversation> Shell<C> {
             "nika-tui-proto: panic requested after {} line(s)",
             self.submitted
         );
-        // A turn is synchronous: the busy state is drawn BEFORE it runs, with
-        // the conversation's own name for the work, and the turn's first
-        // word clears it.
+        // The busy state is drawn BEFORE the turn runs, with the
+        // conversation's own name for the work; the turn then runs on a
+        // worker thread while this thread draws every truthful label the
+        // turn emits (« Working through this workflow… »). The turn's first
+        // word clears the busy state.
         if let Some(label) = self.conversation.busy_label(line) {
             self.state.busy = Some(label);
             self.draw()?;
         }
-        let turn = self.conversation.submit(line);
+        let turn = self.run_turn(line)?;
         self.state.busy = None;
         self.apply_all(turn.beats)?;
         if self.options.exit_after == Some(self.submitted) {
@@ -359,21 +362,66 @@ impl<C: Conversation> Shell<C> {
         Ok(())
     }
 
-    fn draw(&mut self) -> io::Result<()> {
-        let state = &self.state;
-        let composer = &self.composer;
-        match state.presentation {
-            Presentation::Inline => {
-                self.screen
-                    .draw(|frame| render::draw_inline(frame, state, composer))?;
+    /// One turn on a worker thread; this thread keeps the terminal live:
+    /// every busy label the turn emits is drawn as it arrives. A panic in
+    /// the turn resumes here (the panic hook has restored the terminal).
+    fn run_turn(&mut self, line: &str) -> io::Result<Turn> {
+        let (tx, rx) = mpsc::channel::<String>();
+        let Shell {
+            conversation,
+            screen,
+            state,
+            composer,
+            ..
+        } = self;
+        let mut drawn = Ok(());
+        let outcome = std::thread::scope(|scope| {
+            let worker = scope.spawn(|| conversation.submit_with(line, &tx));
+            loop {
+                match rx.recv_timeout(BUSY_POLL) {
+                    Ok(label) => {
+                        state.busy = Some(label);
+                        if drawn.is_ok() {
+                            drawn = draw_parts(screen, state, composer);
+                        }
+                    }
+                    Err(mpsc::RecvTimeoutError::Timeout) => {
+                        if worker.is_finished() {
+                            break;
+                        }
+                    }
+                    Err(mpsc::RecvTimeoutError::Disconnected) => break,
+                }
             }
-            Presentation::Focus => {
-                self.screen
-                    .draw(|frame| render::draw_focus(frame, state, composer))?;
-            }
+            worker.join()
+        });
+        drawn?;
+        match outcome {
+            Ok(turn) => Ok(turn),
+            Err(panic) => std::panic::resume_unwind(panic),
         }
-        Ok(())
     }
+
+    fn draw(&mut self) -> io::Result<()> {
+        draw_parts(&mut self.screen, &self.state, &self.composer)
+    }
+}
+
+/// How long the shell waits for a busy label before looking whether the
+/// turn finished.
+const BUSY_POLL: std::time::Duration = std::time::Duration::from_millis(50);
+
+/// Draw the live area from the state (both presentations).
+fn draw_parts(screen: &mut Screen, state: &UiState, composer: &Composer) -> io::Result<()> {
+    match state.presentation {
+        Presentation::Inline => {
+            screen.draw(|frame| render::draw_inline(frame, state, composer))?;
+        }
+        Presentation::Focus => {
+            screen.draw(|frame| render::draw_focus(frame, state, composer))?;
+        }
+    }
+    Ok(())
 }
 
 fn fresh_screen(presentation: Presentation) -> io::Result<Screen> {

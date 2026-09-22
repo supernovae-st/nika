@@ -227,6 +227,57 @@ pub fn is_cancel(line: &str) -> bool {
     )
 }
 
+/// The few words that ask WHY beside what waits (a question, a gate) —
+/// answered from the machine's state, consuming nothing. A closed set of
+/// whole lines, punctuation aside.
+#[must_use]
+pub fn is_why(line: &str) -> bool {
+    let word = line
+        .trim()
+        .trim_end_matches(['?', '!', '.', ' '])
+        .to_lowercase();
+    matches!(
+        word.as_str(),
+        "why"
+            | "/why"
+            | "why this"
+            | "why this question"
+            | "why do you ask"
+            | "explain"
+            | "explain this"
+            | "pourquoi"
+            | "pourquoi cette question"
+            | "pourquoi ça"
+            | "explique"
+            | "c'est quoi"
+            | "c'est pour quoi"
+    )
+}
+
+/// The few words that ask what just went wrong — answered by the last
+/// recovery card, from memory, never by another call.
+#[must_use]
+pub fn is_what_happened(line: &str) -> bool {
+    let word = line
+        .trim()
+        .trim_end_matches(['?', '!', '.', ' '])
+        .to_lowercase();
+    matches!(
+        word.as_str(),
+        "what happened"
+            | "what just happened"
+            | "what went wrong"
+            | "what was that"
+            | "/last"
+            | "de quoi"
+            | "quoi"
+            | "hein"
+            | "comment ça"
+            | "qu'est-ce qui s'est passé"
+            | "qu'est-ce qui se passe"
+    )
+}
+
 /// A bare greeting or thanks — the conversation's, never the compiler's
 /// (whose exact-skeleton door would read a lone `hello` as the `hello`
 /// lesson). A closed set of whole lines, punctuation aside.

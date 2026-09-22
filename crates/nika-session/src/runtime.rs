@@ -24,12 +24,14 @@ use crate::outcome::{GateId, ProposalId, Refusal, RefusalClass};
 use crate::reasoner::{ReasonError, SessionReasoner};
 use crate::snapshot::ProjectSnapshot;
 
+mod aside;
 mod authoring;
 mod durable;
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod durable_tests;
 mod history;
+mod recovery;
 
 /// The durable half of the conversation — decisions, not chat.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -117,6 +119,10 @@ pub enum TurnOutcome {
         /// `task=value`, as the human's line became it.
         answer: String,
     },
+    /// An answer BESIDE what waits (« why? » under a question or a gate):
+    /// said from the machine's own state; the question or the gate keeps
+    /// waiting, nothing is consumed, decided or applied.
+    Aside(String),
     /// The intelligence was chosen in the middle of a request: the
     /// choice's own fact, then the outcome of the line that waited for it,
     /// resumed exactly as the human typed it — never re-asked.
@@ -168,8 +174,10 @@ fn human_size(bytes: u64) -> String {
     }
 }
 
-/// How a door builds the reasoner for a resolved choice.
-pub type ReasonerFactory = Box<dyn Fn(&ResolvedSessionIntelligence) -> Box<dyn SessionReasoner>>;
+/// How a door builds the reasoner for a resolved choice (`Send`: a host may
+/// hold the runtime on a worker thread while its terminal stays live).
+pub type ReasonerFactory =
+    Box<dyn Fn(&ResolvedSessionIntelligence) -> Box<dyn SessionReasoner> + Send>;
 
 /// The session over one project, one intelligence, one reasoner.
 pub struct SessionRuntime {
@@ -211,10 +219,14 @@ pub struct SessionRuntime {
     interrupted: Option<String>,
     /// The first screen is on the table: the NEXT line is a choice.
     pending_choice: bool,
+    /// The last recovery card (a turn that could not be finished), kept so
+    /// « what happened? » repeats it without a call.
+    last_recovery: Option<String>,
 }
 
-/// A door's sink for progress lines (« Working through this workflow… »).
-pub type ProgressHook = Box<dyn Fn(&str)>;
+/// A door's sink for progress lines (« Working through this workflow… »);
+/// `Send` so the runtime may run a turn on a worker thread.
+pub type ProgressHook = Box<dyn Fn(&str) + Send>;
 
 impl std::fmt::Debug for SessionRuntime {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -262,6 +274,7 @@ impl SessionRuntime {
             chosen: true,
             interrupted: None,
             pending_choice: false,
+            last_recovery: None,
         };
         session.refresh_seat();
         session
@@ -485,6 +498,7 @@ impl SessionRuntime {
             "/quit" | "/exit" => return TurnOutcome::Quit,
             "/help" => return TurnOutcome::Help(HELP.to_owned()),
             "/status" => return TurnOutcome::Facts(self.status()),
+            "/why" => return self.explain_pending(),
             "/intelligence" => {
                 return match &self.census {
                     Some(census) => {
@@ -497,6 +511,13 @@ impl SessionRuntime {
                 };
             }
             _ => {}
+        }
+        // « what happened? » repeats the last recovery card from memory,
+        // whatever waits: it consumes nothing and calls nothing.
+        if crate::authoring::is_what_happened(input)
+            && let Some(card) = self.last_recovery()
+        {
+            return card;
         }
         // An open authoring question owns the next line — before any
         // fact, digit or model reads it (`./notes` answers « which folder »).
@@ -575,13 +596,53 @@ impl SessionRuntime {
                 RefusalClass::NoIntelligence,
                 "no conversational intelligence — the facts still answer (workflows · builtins · providers · check · explain) · `/intelligence` to choose a path",
             )),
-            Err(e) => TurnOutcome::Refusal(Refusal::new(
-                RefusalClass::IntelligenceRefused,
-                format!(
-                    "{e} — the choice stands (`/intelligence` to change it); nothing was substituted"
-                ),
-            )),
+            // The path did not answer: a recovery card (what is kept, what
+            // did not happen, the ways on); the choice stands, nothing is
+            // substituted.
+            Err(e) => {
+                let headline = format!(
+                    "I couldn't use {} (the conversational intelligence) for this part",
+                    self.reasoner.name()
+                );
+                self.recovery(
+                    Some(RefusalClass::IntelligenceRefused),
+                    &headline,
+                    &e.to_string(),
+                )
+            }
         }
+    }
+
+    /// `/why` — the aside for whatever waits: an authoring question, a
+    /// declared input, a gate, a proposal; a fact when nothing waits.
+    fn explain_pending(&self) -> TurnOutcome {
+        if let Some(round) = &self.authoring
+            && let Some(question) = round.current()
+        {
+            return TurnOutcome::Aside(aside::explain_question(question, round));
+        }
+        if let Some(inputs) = &self.run_inputs
+            && let Some(name) = inputs.first_needed()
+        {
+            return TurnOutcome::Aside(aside::explain_input(
+                inputs.workflow(),
+                name,
+                inputs.remaining(),
+            ));
+        }
+        if let Some(gate) = &self.pending_gate {
+            return TurnOutcome::Aside(aside::explain_gate(gate, &self.snapshot.root));
+        }
+        if let Some(set) = &self.pending {
+            return TurnOutcome::Aside(format!(
+                "{}\n(the proposal still waits · `yes` applies it · `no` discards it)",
+                set.effects_fact()
+            ));
+        }
+        TurnOutcome::Facts(
+            "nothing waits for you right now · describe work, ask a fact, or `run …` an accepted workflow"
+                .to_owned(),
+        )
     }
 
     /// The human's answer to a proposal: `yes` lands the set (every
@@ -858,6 +919,13 @@ impl SessionRuntime {
         let Some(gate) = self.pending_gate.take() else {
             return TurnOutcome::Refusal(self.no_gate_waiting());
         };
+        // « why? » beside the gate: what the answer lets happen, from the
+        // workflow's own bytes; the gate keeps waiting.
+        if crate::authoring::is_why(line) {
+            let text = aside::explain_gate(&gate, &self.snapshot.root);
+            self.pending_gate = Some(gate);
+            return TurnOutcome::Aside(text);
+        }
         if line.trim().is_empty() {
             self.pending_gate = Some(gate);
             return TurnOutcome::Refusal(Refusal::new(

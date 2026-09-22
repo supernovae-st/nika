@@ -496,11 +496,23 @@ fn a_bare_yes_with_nothing_pending_applies_nothing() {
         .send_line("Read ./notes/brief.md, draft a 3-bullet summary of it and write the summary to ./out/summary.md")
         .expect("work that needs a model");
     session
-        .expect("reply on the next line (`model`)")
-        .expect("the compiler's question, in its words");
+        .expect("reply on the next line · `cancel` drops this · `why?` explains")
+        .expect("the compiler's question, in its words, without its raw key");
     session
         .expect("reply ›")
         .expect("the question's own prompt");
+    // A side question beside the question: answered from the machine's
+    // state, the question still waits under its own prompt.
+    session.send_line("why?").expect("a side question");
+    session
+        .expect("This answer fills `model`")
+        .expect("the aside names the hole the value fills");
+    session
+        .expect("the question still waits")
+        .expect("the aside consumed nothing");
+    session
+        .expect("reply ›")
+        .expect("the question's prompt is back");
     session.send_line("cancel").expect("abandon");
     session
         .expect("authoring discarded")

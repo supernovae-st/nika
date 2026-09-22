@@ -29,8 +29,38 @@ const FALLBACK_ID: &str = "workflow";
 /// How many numbered twins a taken name may get before the door refuses.
 const MAX_TWINS: u32 = 99;
 
-fn parse(candidate: &str) -> Option<RawWorkflow> {
+pub(crate) fn parse(candidate: &str) -> Option<RawWorkflow> {
     nika_schema::parse(candidate, FileId::new(0), ParseMode::Strict).ok()
+}
+
+/// What one task does, in the review's words: the verb and the tool or
+/// model it names (`default_model` stands in for an `infer` without its
+/// own). From the parser, never from prose.
+pub(crate) fn task_face(task: &nika_schema::raw::RawTask, default_model: Option<&str>) -> String {
+    let what = match &task.action {
+        RawAction::Infer(infer) => match infer
+            .model
+            .as_ref()
+            .map(|m| m.value.as_str())
+            .or(default_model)
+        {
+            Some(model) => format!("infer · {model}"),
+            None => "infer · (no model named)".to_owned(),
+        },
+        RawAction::Exec(_) => "exec · runs a program".to_owned(),
+        RawAction::Agent(_) => "agent · a bounded multi-turn loop".to_owned(),
+        RawAction::Invoke(invoke) => match &invoke.target {
+            RawInvokeTarget::Tool(tool) => tool.value.clone(),
+            RawInvokeTarget::Workflow(_) => "invoke · another workflow".to_owned(),
+        },
+        _ => "(a verb this review does not name)".to_owned(),
+    };
+    let each = if task.for_each.is_some() {
+        " · for each item"
+    } else {
+        ""
+    };
+    format!("{what}{each}")
 }
 
 /// The candidate's own id (`nika:`), kebab-case as the parser accepted it.
@@ -156,30 +186,12 @@ pub fn plan_lines_in_order(candidate: &str, waves: &[Vec<usize>]) -> Vec<String>
         .filter_map(|(n, i)| wf.tasks.get(*i).map(|t| (n, t)))
         .map(|(i, task)| {
             let task = &task.value;
-            let what = match &task.action {
-                RawAction::Infer(infer) => match infer
-                    .model
-                    .as_ref()
-                    .map(|m| &m.value)
-                    .or(default_model.as_ref())
-                {
-                    Some(model) => format!("infer · {model}"),
-                    None => "infer · (no model named)".to_owned(),
-                },
-                RawAction::Exec(_) => "exec · runs a program".to_owned(),
-                RawAction::Agent(_) => "agent · a bounded multi-turn loop".to_owned(),
-                RawAction::Invoke(invoke) => match &invoke.target {
-                    RawInvokeTarget::Tool(tool) => tool.value.clone(),
-                    RawInvokeTarget::Workflow(_) => "invoke · another workflow".to_owned(),
-                },
-                _ => "(a verb this review does not name)".to_owned(),
-            };
-            let each = if task.for_each.is_some() {
-                " · for each item"
-            } else {
-                ""
-            };
-            format!("  {}. {} · {what}{each}", i + 1, task.value_id())
+            format!(
+                "  {}. {} · {}",
+                i + 1,
+                task.value_id(),
+                task_face(task, default_model.as_deref())
+            )
         })
         .collect()
 }

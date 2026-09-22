@@ -384,6 +384,7 @@ fn outcome_kind(outcome: &TurnOutcome) -> &'static str {
         TurnOutcome::RunRequested { .. } => "run_requested",
         TurnOutcome::GateAsk { .. } => "gate_ask",
         TurnOutcome::ResumeRequested { .. } => "resume_requested",
+        TurnOutcome::Aside(_) => "aside",
         TurnOutcome::Resumed { outcome, .. } => outcome_kind(outcome),
     }
 }
@@ -398,6 +399,7 @@ fn with_note(outcome: TurnOutcome, note: &str) -> TurnOutcome {
         TurnOutcome::Facts(text) => TurnOutcome::Facts(text + &line),
         TurnOutcome::Help(text) => TurnOutcome::Help(text + &line),
         TurnOutcome::Ask(text) => TurnOutcome::Ask(text + &line),
+        TurnOutcome::Aside(text) => TurnOutcome::Aside(text + &line),
         TurnOutcome::Refusal(why) => {
             TurnOutcome::Refusal(Refusal::new(why.class, why.text + &line))
         }

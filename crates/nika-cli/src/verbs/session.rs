@@ -160,7 +160,10 @@ fn handle_outcome<W: Write>(
 ) -> std::io::Result<bool> {
     match outcome {
         TurnOutcome::Quit => return Ok(true),
-        TurnOutcome::Reply(text) | TurnOutcome::Facts(text) | TurnOutcome::Help(text) => {
+        TurnOutcome::Reply(text)
+        | TurnOutcome::Facts(text)
+        | TurnOutcome::Help(text)
+        | TurnOutcome::Aside(text) => {
             if !text.is_empty() {
                 writeln!(output, "{text}")?;
             }

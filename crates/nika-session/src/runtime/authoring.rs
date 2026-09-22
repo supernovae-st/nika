@@ -16,7 +16,7 @@ use nika_onboard::compile::{CompileOutcome, CompileQuestion};
 use super::{DEFAULT_CEILING_USD, SessionRuntime, TurnOutcome, ceiling_in, named_files};
 use crate::authoring::{
     AuthoringError, AuthoringRound, AuthoringSeat, Reading, compile_deterministic, compile_through,
-    is_cancel, is_greeting, looks_like_discussion, reasons,
+    is_cancel, is_greeting, is_why, looks_like_discussion, reasons,
 };
 use crate::change::{RunRequest, check_on_disk};
 use crate::outcome::{ProposalId, Refusal, RefusalClass};
@@ -53,7 +53,7 @@ impl SessionRuntime {
         let round = AuthoringRound::new(intent);
         let out = match compile_deterministic(&round.request()) {
             Ok(out) => out,
-            Err(e) => return Some(machinery(&e)),
+            Err(e) => return Some(self.machinery(&e)),
         };
         match Reading::of(out) {
             Reading::NotWork(_) => {
@@ -92,7 +92,26 @@ impl SessionRuntime {
                 }
                 reading => self.settle(round, reading),
             },
-            Err(e) => machinery(&e),
+            Err(e) => self.machinery(&e),
+        }
+    }
+
+    /// The compiler's machinery failed under a seat, or the compiler
+    /// itself: a seat failure is a recovery (the goal is kept, the ways on
+    /// are named); a compiler failure is a refusal that names it.
+    fn machinery(&mut self, error: &AuthoringError) -> TurnOutcome {
+        match error {
+            AuthoringError::Seat(_) => self.recovery(
+                Some(RefusalClass::IntelligenceRefused),
+                "I couldn't use the authoring seat for this part",
+                &error.to_string(),
+            ),
+            AuthoringError::Compiler(_) | AuthoringError::Runtime(_) => {
+                TurnOutcome::Refusal(Refusal::new(
+                    RefusalClass::AuthoringRefused,
+                    format!("{error} · nothing was written and nothing was substituted"),
+                ))
+            }
         }
     }
 
@@ -127,17 +146,19 @@ impl SessionRuntime {
             Reading::Unsettled(out) | Reading::NotWork(out) => {
                 TurnOutcome::Facts(honest_incomplete(&out, None))
             }
-            Reading::BudgetExhausted(_) => TurnOutcome::Facts(
-                "I couldn't finish a workflow I trust within the current authoring budget — nothing was written; say it again to try once more, or narrow the request"
-                    .to_owned(),
+            // A turn the session could not finish: the recovery card (what
+            // is kept · what did not happen · the ways on), never a bare
+            // « failed ». The round is not kept: the human says it again.
+            Reading::BudgetExhausted(_) => self.recovery(
+                None,
+                "I couldn't finish a workflow I trust within the authoring budget",
+                "the budget ran out before a candidate I could stand behind; narrowing the request helps",
             ),
-            Reading::ProviderFailed(out) => TurnOutcome::Refusal(Refusal::new(
-                RefusalClass::IntelligenceRefused,
-                format!(
-                    "the authoring model did not answer — {} · nothing was substituted; say it again to retry, or `/intelligence` to change the model",
-                    reasons(&out).join(" · ")
-                ),
-            )),
+            Reading::ProviderFailed(out) => self.recovery(
+                Some(RefusalClass::IntelligenceRefused),
+                "I couldn't use the authoring model for this part",
+                &reasons(&out).join(" · "),
+            ),
             Reading::Refused(out) => TurnOutcome::Refusal(Refusal::new(
                 RefusalClass::AuthoringRefused,
                 format!(
@@ -176,6 +197,16 @@ impl SessionRuntime {
                 "no authoring question waits",
             ));
         };
+        // « why? » beside the question: what the value is for, from the
+        // compiler's own words; the question keeps waiting.
+        if is_why(line) {
+            let text = round.current().map_or_else(
+                || "no authoring question waits".to_owned(),
+                |q| super::aside::explain_question(q, &round),
+            );
+            self.authoring = Some(round);
+            return TurnOutcome::Aside(text);
+        }
         if is_cancel(line) {
             self.intent.unresolved.clear();
             self.remember(line, "(authoring discarded)");
@@ -215,7 +246,7 @@ impl SessionRuntime {
                 let reading = Reading::of(out);
                 self.settle(round, reading)
             }
-            Err(e) => machinery(&e),
+            Err(e) => self.machinery(&e),
         }
     }
 
@@ -330,6 +361,18 @@ impl SessionRuntime {
                 "no run waits on an input",
             ));
         };
+        // « why? » beside the input: what it is and who declares it; the
+        // input keeps waiting.
+        if is_why(line) {
+            let text = match inputs.first_needed() {
+                Some(name) => {
+                    super::aside::explain_input(&inputs.workflow, name, inputs.remaining())
+                }
+                None => "no input waits".to_owned(),
+            };
+            self.run_inputs = Some(inputs);
+            return TurnOutcome::Aside(text);
+        }
         if is_cancel(line) {
             self.intent.unresolved.clear();
             self.remember(line, "(run request discarded)");
@@ -362,6 +405,23 @@ pub(super) struct RunInputs {
     max_cost_usd: f64,
     needed: Vec<String>,
     given: Vec<String>,
+}
+
+impl RunInputs {
+    /// The input the next line binds, when one is still needed.
+    pub(super) fn first_needed(&self) -> Option<&str> {
+        self.needed.first().map(String::as_str)
+    }
+
+    /// The workflow the run waits to start.
+    pub(super) fn workflow(&self) -> &std::path::Path {
+        &self.workflow
+    }
+
+    /// How many inputs still wait, this one included.
+    pub(super) fn remaining(&self) -> usize {
+        self.needed.len()
+    }
 }
 
 /// The declared inputs the run must bind — from the engine's parser over
@@ -427,11 +487,10 @@ fn question_text(question: &CompileQuestion, reasons: &[String]) -> String {
             text.push_str(reason);
         }
     }
-    let _ = write!(
-        text,
-        "\n  reply on the next line (`{}`) · `cancel` drops this",
-        question.key
-    );
+    // The raw key stays out of the human's line: « why? » names it, with
+    // what the value is for; the prompt that follows (`reply ›`) says whose
+    // turn it is.
+    text.push_str("\n  reply on the next line · `cancel` drops this · `why?` explains");
     text
 }
 
@@ -468,15 +527,4 @@ pub(crate) fn human_reasons(reasons: Vec<String>) -> Vec<String> {
         kept.push(r.to_owned());
     }
     kept
-}
-
-fn machinery(error: &AuthoringError) -> TurnOutcome {
-    let class = match error {
-        AuthoringError::Seat(_) => RefusalClass::IntelligenceRefused,
-        AuthoringError::Compiler(_) | AuthoringError::Runtime(_) => RefusalClass::AuthoringRefused,
-    };
-    TurnOutcome::Refusal(Refusal::new(
-        class,
-        format!("{error} · nothing was written and nothing was substituted"),
-    ))
 }

@@ -354,17 +354,27 @@ pub struct Turn {
 }
 
 /// Whatever answers the composer: the live session runtime, or a fixture.
-pub trait Conversation {
+/// `Send`: the shell computes a turn on a worker thread so the terminal
+/// stays live (the busy state changes while a seat is called).
+pub trait Conversation: Send {
     /// The beats of the opening (banner, restored state, first prompt).
     fn open(&mut self) -> Vec<Beat>;
     /// The beats of one submitted line, and the handoff it asks for.
     fn submit(&mut self, line: &str) -> Turn;
+    /// [`Conversation::submit`], with a sink for the truthful busy labels
+    /// the turn produces WHILE it runs (« Working through this workflow… »);
+    /// the shell draws each one as it arrives. The default sends none.
+    fn submit_with(&mut self, line: &str, busy: &std::sync::mpsc::Sender<String>) -> Turn {
+        let _ = busy;
+        self.submit(line)
+    }
     /// Perform the handed-off work with the terminal handed back; the beats
     /// that follow it (the observation, the next prompt).
     fn perform(&mut self, handoff: &Handoff) -> Vec<Beat>;
     /// The work a submitted line starts, named before it runs, so the shell
-    /// shows the busy state while the turn is computed (a turn is
-    /// synchronous; nothing draws until it returns). `None` draws nothing.
+    /// shows the busy state from the first instant; the labels the turn
+    /// itself emits ([`Conversation::submit_with`]) replace it as they
+    /// arrive. `None` draws nothing.
     fn busy_label(&self, _line: &str) -> Option<String> {
         None
     }

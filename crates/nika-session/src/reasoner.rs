@@ -39,8 +39,9 @@ pub struct Reply {
     pub usage_observed: bool,
 }
 
-/// A reasoner: a name and one turn.
-pub trait SessionReasoner {
+/// A reasoner: a name and one turn. `Send`, so a host may run a turn on a
+/// worker thread while its terminal stays live (the renderer's busy state).
+pub trait SessionReasoner: Send {
     /// The path's name for the banner (`codex` · `mistral API` · `none`).
     fn name(&self) -> String;
 
