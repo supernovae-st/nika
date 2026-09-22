@@ -371,7 +371,10 @@ pub(super) fn assemble(
     if repeated_effect_asked(plan, intent, &b, out) || !b.ready(plan) {
         return Ok(());
     }
-    if plan.obligation("revision_check") && matches!(b.lookup, Need::Absent) {
+    if plan.obligation("revision_check")
+        && matches!(b.lookup, Need::Absent)
+        && matches!(b.search, Need::Absent)
+    {
         super::finding(
             out,
             DiagnosticKind::Unknown,
@@ -1334,6 +1337,12 @@ fn emit_revision_check(d: &mut Doc, plan: &Plan, b: &Bindings) {
         );
         d.tool("revision_stable", "nika:jq", json!({"input": {"before": "${{ with.before }}", "after": "${{ with.after }}"}, "expression": ".before == .after"}), Some(json!({"before": "${{ tasks.lookup_record.output }}", "after": "${{ tasks.revision_record.output }}"})), false);
         d.tool("revision_admit", "nika:assert", json!({"condition": "${{ with.stable }}", "message": "The record changed since it was read; the final action is not allowed on a stale version."}), Some(json!({"stable": "${{ tasks.revision_stable.output }}"})), false);
+    } else if plan.obligation("revision_check") && b.search.bound().is_some() {
+        // The hits are the version the answer was drafted from: the search is rerun just
+        // before the action, and changed hits are a changed version.
+        d.tool("revision_reread", "nika:grep", json!({"pattern": "${{ inputs.item }}", "path": "${{ const.search_root }}", "case_insensitive": true}), None, true);
+        d.tool("revision_stable", "nika:jq", json!({"input": {"before": "${{ with.before }}", "after": "${{ with.after }}"}, "expression": ".before == .after"}), Some(json!({"before": "${{ tasks.search_hits.output }}", "after": "${{ tasks.revision_reread.output }}"})), false);
+        d.tool("revision_admit", "nika:assert", json!({"condition": "${{ with.stable }}", "message": "The hits changed since they were searched; the final action is not allowed on a stale version."}), Some(json!({"stable": "${{ tasks.revision_stable.output }}"})), false);
     }
 }
 

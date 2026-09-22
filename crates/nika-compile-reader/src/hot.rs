@@ -420,14 +420,15 @@ pub fn unproduced_content(plan: &Plan, why: &mut Vec<String>) {
     }
 }
 
-/// A revision check rereads the record it looked up; without a lookup there is nothing
-/// retrievable to recheck.
+/// A revision check rereads the record it looked up or reruns the search whose hits it
+/// read; without a lookup and without a search there is nothing retrievable to recheck.
 pub fn unrecheckable_revision(plan: &Plan, why: &mut Vec<String>) {
     if plan
         .obligations
         .iter()
         .any(|o| matches!(o.kind, ObligationKind::RevisionCheck))
         && !plan.has(Op::Lookup)
+        && !plan.has(Op::Search)
     {
         why.push("the obligation `revision_check` has no retrievable source to recheck".to_owned());
     }
@@ -656,6 +657,16 @@ mod tests {
             why,
             ["the obligation `revision_check` has no retrievable source to recheck"]
         );
+        // A search is a retrievable source too: its hits are rerun before the action.
+        plan.steps.push(super::super::plan::Step::new(
+            Op::Search,
+            "retrouve les passages pertinents du guide interne",
+            "les passages pertinents du guide interne",
+            Vec::new(),
+        ));
+        let mut why = Vec::new();
+        unrecheckable_revision(&plan, &mut why);
+        assert!(why.is_empty(), "{why:?}");
     }
 
     #[test]
