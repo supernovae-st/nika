@@ -1170,7 +1170,31 @@ pub(super) fn merge(
             plan.obligations.push(Obligation::new(kind, evidence));
         }
     }
+    let gated = plan
+        .effects
+        .iter()
+        .any(|e| e.policy == EffectPolicy::HumanFirst);
     for constraint in proposal.constraints {
+        // « pero pídeme confirmación antes de enviar » listed as a constraint beside the send
+        // it gates: the gate the effect's policy carries, never a format duty to verify.
+        let lower = constraint.to_lowercase();
+        if gated
+            && (crate::gates::named_gate(&lower).is_some()
+                || crate::gates::final_gate(&lower).is_some()
+                || crate::gates::waiver_polarity(&lower) == Some(false))
+        {
+            crate::finding(
+                out,
+                DiagnosticKind::Applied,
+                "authoring_plan",
+                format!(
+                    "`{}` is the human gate the request states; the proposal's constraint over the same words is carried by the effect's policy and was not filed.",
+                    constraint.trim()
+                ),
+            );
+            folded.push(constraint);
+            continue;
+        }
         // « Lies ./solar/ertrag.csv » listed once as the read and once as a constraint: a
         // clause the plan carries elsewhere binds nothing new and is not a constraint.
         if restates_a_clause(&plan, &constraint) {
