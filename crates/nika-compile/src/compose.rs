@@ -23,7 +23,7 @@
 use std::cmp::Reverse;
 
 use super::lexicon::Reading;
-use super::plan::{Binding, EffectPolicy, EffectVerb, Op, Plan};
+use super::plan::{Binding, EffectPolicy, EffectVerb, Op, Plan, Step};
 use super::retrieve::Hit;
 use serde_json::{Value, json};
 
@@ -311,7 +311,7 @@ pub(super) fn feasibility(candidate: &Plan, floor: &Plan, intent: &str) -> Resul
     for unknown in &candidate.unknowns {
         why.push(format!("unresolved requested work: {unknown}"));
     }
-    floor_operations(candidate, floor, &mut why);
+    floor_operations(candidate, floor, intent, &mut why);
     floor_effects(candidate, floor, &mut why);
     for effect in &candidate.effects {
         if effect.verb.moves_money() && effect.policy == EffectPolicy::Automatic {
@@ -414,7 +414,7 @@ pub(super) fn feasibility(candidate: &Plan, floor: &Plan, intent: &str) -> Resul
 /// the operations its cue table names unambiguously; a validation, a computation or an
 /// exploration it guessed from an instruction ("fais relire", "compare") is advisory and
 /// never vetoes a proposal on its own.
-fn floor_operations(candidate: &Plan, floor: &Plan, why: &mut Vec<String>) {
+fn floor_operations(candidate: &Plan, floor: &Plan, intent: &str, why: &mut Vec<String>) {
     for step in floor
         .steps
         .iter()
@@ -427,7 +427,8 @@ fn floor_operations(candidate: &Plan, floor: &Plan, why: &mut Vec<String>) {
             || candidate
                 .effects
                 .iter()
-                .any(|e| overlaps(&e.evidence, &step.evidence));
+                .any(|e| overlaps(&e.evidence, &step.evidence))
+            || written_computation(candidate, step, intent);
         if !accounted {
             why.push(format!(
                 "dropped the recognized operation `{}` ({})",
@@ -436,6 +437,35 @@ fn floor_operations(candidate: &Plan, floor: &Plan, why: &mut Vec<String>) {
             ));
         }
     }
+}
+
+/// A `draft` the reader guessed over a write clause (« write just the number, nothing else,
+/// to ./out/x.txt ») is the write of a computed value: a candidate that computes and writes
+/// in the same sentence of the request accounts for it. Rule 10 still requires the written
+/// content to be produced by a step, so a real draft dropped for a bare write stays refused.
+fn written_computation(candidate: &Plan, step: &Step, intent: &str) -> bool {
+    if step.op != Op::Draft || !candidate.has(Op::Compute) {
+        return false;
+    }
+    let lower = intent.to_lowercase();
+    let clause = step.evidence.trim().to_lowercase();
+    super::lexicon::split_sentences(&lower)
+        .into_iter()
+        .filter(|sentence| sentence.contains(&clause))
+        .any(|sentence| {
+            candidate.effects.iter().any(|e| {
+                e.verb == EffectVerb::Write
+                    && super::paths::literals(&e.target)
+                        .into_iter()
+                        .chain(super::paths::literals(&e.evidence))
+                        .any(|shape| match shape {
+                            super::paths::PathShape::File(path) => {
+                                sentence.contains(&path.to_lowercase())
+                            }
+                            _ => false,
+                        })
+            })
+        })
 }
 
 /// Rule 5: every recognized effect stays, with its policy floor and its policy literal.

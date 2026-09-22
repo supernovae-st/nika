@@ -225,6 +225,12 @@ fn unproduced_regions(plan: &Plan, regions: &[ProposedRegion]) -> Vec<String> {
     produced.extend(plan.obligations.iter().map(|o| o.evidence.clone()));
     produced.extend(plan.constraints.iter().cloned());
     produced.extend(plan.effects.iter().filter_map(|e| e.policy_literal.clone()));
+    // A gate the request states (« pero pídeme confirmación antes de enviar ») is realized
+    // by the human-first policy of the effect it dominates, whatever the region says.
+    let gated = plan
+        .effects
+        .iter()
+        .any(|e| e.policy == EffectPolicy::HumanFirst);
     let mut gaps = Vec::new();
     for region in regions {
         let text = region.text.trim();
@@ -233,6 +239,13 @@ fn unproduced_regions(plan: &Plan, regions: &[ProposedRegion]) -> Vec<String> {
             "operation" | "effect" | "obligation" | "constraint" | "policy"
         );
         if text.is_empty() || !producing {
+            continue;
+        }
+        let lower = text.to_lowercase();
+        if gated
+            && (crate::gates::named_gate(&lower).is_some()
+                || crate::gates::final_gate(&lower).is_some())
+        {
             continue;
         }
         // A short region (a connector, a heading, a few words) never carries requested work.
@@ -452,6 +465,25 @@ fn serialization_draft(detail: &str) -> bool {
     cue && !LANGUAGE_WORDS.iter().any(|w| detail.contains(w))
 }
 
+/// « pídeme confirmación antes de enviar » asks a person before the effect: that is the
+/// gate its policy carries, never a version to recheck. Records the fold as applied.
+fn gate_phrase(evidence: &str, out: &mut CompileOutcome) -> bool {
+    let lower = evidence.to_lowercase();
+    if crate::gates::named_gate(&lower).is_none() && crate::gates::final_gate(&lower).is_none() {
+        return false;
+    }
+    crate::finding(
+        out,
+        DiagnosticKind::Applied,
+        "authoring_plan",
+        format!(
+            "`{}` is the human gate the request states, carried by the effect's policy; the proposal's `revision_check` over the same words was not assembled.",
+            evidence.trim()
+        ),
+    );
+    true
+}
+
 /// The proposal joins the deterministic reading; deterministic facts win every disagreement,
 /// and the proposal must account for every region of the request.
 #[allow(clippy::too_many_lines)] // one validation walk over steps, effects, obligations, regions
@@ -582,6 +614,7 @@ pub(super) fn merge(
         };
         let kind = match (obligation.kind.as_str(), obligation.value) {
             ("dedup", _) => ObligationKind::Dedup,
+            ("revision_check", _) if gate_phrase(&evidence, out) => continue,
             ("revision_check", _) => ObligationKind::RevisionCheck,
             ("retry_bound", Some(n)) if n > 0 => ObligationKind::RetryBound(n),
             _ => {
