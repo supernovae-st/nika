@@ -171,6 +171,8 @@ pub struct UiState {
     pub status: String,
     /// A first `Ctrl+C` was pressed: the next one leaves.
     pub interrupt_armed: bool,
+    /// Candidates a `Tab` left for the hint row, until the next key.
+    pub completion: Option<String>,
     /// Colour allowed (the theme's decision, never the renderer's).
     pub color: bool,
     /// Scroll offset of the focus transcript, in blocks from the end.
@@ -193,6 +195,7 @@ impl UiState {
             busy: None,
             status: String::new(),
             interrupt_armed: false,
+            completion: None,
             color,
             focus_scroll: 0,
             size,
@@ -386,6 +389,11 @@ pub trait Conversation: Send {
     /// arrive. `None` draws nothing.
     fn busy_label(&self, _line: &str) -> Option<String> {
         None
+    }
+    /// The slash commands this conversation answers, in its own order:
+    /// `Tab` completes them. The default knows none.
+    fn commands(&self) -> Vec<String> {
+        Vec::new()
     }
 }
 

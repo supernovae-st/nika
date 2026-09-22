@@ -49,6 +49,13 @@ pub struct Options {
     pub exit_after: Option<usize>,
     /// The caller's reading of `TERM` (`dumb` refuses).
     pub term: Option<String>,
+    /// Reduced motion (the caller's reading of `NIKA_REDUCED_MOTION`): the
+    /// busy row changes only when the turn says something new — no
+    /// seconds tick, no bell.
+    pub reduced_motion: bool,
+    /// The terminal's title while the door is open (`nika · <project>`);
+    /// `None` leaves the title alone.
+    pub title: Option<String>,
 }
 
 impl Options {
@@ -61,9 +68,15 @@ impl Options {
             panic_after: None,
             exit_after: None,
             term: None,
+            reduced_motion: false,
+            title: None,
         }
     }
 }
+
+/// A turn longer than this ends with one bell (the survey's threshold for
+/// « a tool over five seconds »): the human who looked away is called back.
+const BELL_AFTER: std::time::Duration = std::time::Duration::from_secs(5);
 
 /// Why the loop ended.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -104,6 +117,8 @@ struct Shell<C: Conversation> {
     /// Events read while a turn ran that were not an interruption: keys
     /// typed ahead, a paste, a resize — replayed once the turn ends.
     deferred: VecDeque<UiEvent>,
+    /// The conversation's slash commands, for `Tab`.
+    commands: Vec<String>,
 }
 
 /// A terminal the renderer holds, between [`enter`] and [`run_on`].
@@ -164,7 +179,12 @@ pub fn run_on<C: Conversation + 'static>(
         options,
         submitted: 0,
         deferred: VecDeque::new(),
+        commands: Vec::new(),
     };
+    if let Some(title) = shell.options.title.as_deref() {
+        let mut out = io::stdout();
+        let _ = crossterm::execute!(out, crossterm::terminal::SetTitle(title));
+    }
     let broker = Broker::start();
     let outcome = shell.drive(broker);
     shell.owner.restore()?;
@@ -222,6 +242,7 @@ impl<C: Conversation + 'static> Shell<C> {
     }
 
     fn drive(&mut self, mut broker: Broker) -> io::Result<Exit> {
+        self.commands = self.conversation()?.commands();
         let opening = self.conversation()?.open();
         self.apply_all(opening)?;
         self.draw()?;
@@ -305,12 +326,20 @@ impl<C: Conversation + 'static> Shell<C> {
             _ => {}
         }
         self.state.interrupt_armed = false;
+        self.state.completion = None;
         match self.composer.handle(key) {
             ComposerAction::Submit(line) => match self.submit(&line, broker)? {
                 Submitted::Left(exit) => return Ok(Step::Leave(exit)),
                 Submitted::Handoff(Some(handoff)) => return Ok(Step::Handoff(handoff)),
                 Submitted::Handoff(None) => {}
             },
+            ComposerAction::Complete => {
+                if let crate::composer::Completion::Several(list) =
+                    self.composer.complete(&self.commands)
+                {
+                    self.state.completion = Some(list.join("  "));
+                }
+            }
             ComposerAction::Edited | ComposerAction::Ignored => {}
         }
         Ok(Step::Stay)
@@ -359,11 +388,19 @@ impl<C: Conversation + 'static> Shell<C> {
             self.state.busy = Some(label);
             self.draw()?;
         }
+        let started = std::time::Instant::now();
         let turn = match self.run_turn(line, broker)? {
             TurnEnd::Done(turn) => turn,
             TurnEnd::Left(exit) => return Ok(Submitted::Left(exit)),
         };
         self.state.busy = None;
+        if started.elapsed() >= BELL_AFTER && !self.options.reduced_motion {
+            // One bell: the human who looked away during a long turn is
+            // called back; never for a short one, never under reduced motion.
+            let mut out = io::stdout();
+            out.write_all(b"\x07")?;
+            out.flush()?;
+        }
         self.apply_all(turn.beats)?;
         if self.options.exit_after == Some(self.submitted) {
             self.state.quit = true;
@@ -505,7 +542,11 @@ impl<C: Conversation + 'static> Shell<C> {
             if armed != was_armed {
                 shown = u64::MAX;
             }
-            let secs = started.elapsed().as_secs();
+            let secs = if self.options.reduced_motion {
+                0
+            } else {
+                started.elapsed().as_secs()
+            };
             if secs != shown {
                 shown = secs;
                 self.state.busy = Some(busy_text(base.as_deref(), secs, armed));

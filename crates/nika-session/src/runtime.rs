@@ -166,6 +166,19 @@ text                 ask, in words · these answer from the engine, no AI asked:
 /quit                close the session
 Name a workflow file in your question to let the session read it (only files under the root are ever read).";
 
+/// The slash commands the session answers, in the help card's order
+/// (the most used first, never alphabetical): a door completes them.
+pub const SLASH_COMMANDS: &[&str] = &[
+    "/help",
+    "/status",
+    "/why",
+    "/meaning",
+    "/proof",
+    "/show",
+    "/intelligence",
+    "/quit",
+];
+
 /// How many recent turns ride the next prompt.
 const RECENT_TURNS: usize = 8;
 

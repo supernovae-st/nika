@@ -359,6 +359,13 @@ impl Live {
 }
 
 impl Conversation for Live {
+    fn commands(&self) -> Vec<String> {
+        nika_session::runtime::SLASH_COMMANDS
+            .iter()
+            .map(|c| (*c).to_owned())
+            .collect()
+    }
+
     fn open(&mut self) -> Vec<Beat> {
         self.opening_beats()
     }

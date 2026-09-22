@@ -2214,6 +2214,7 @@ impl<T> tracing::instrument::WithSubscriber for nika_session::runtime::SessionRu
 impl<T> typenum::type_operators::Same for nika_session::runtime::SessionRuntime
 pub type nika_session::runtime::SessionRuntime::Output = T
 pub const nika_session::runtime::HELP: &str
+pub const nika_session::runtime::SLASH_COMMANDS: &[&str]
 pub type nika_session::runtime::ProgressHook = alloc::boxed::Box<(dyn core::ops::function::Fn(&str) + core::marker::Send)>
 pub type nika_session::runtime::ReasonerFactory = alloc::boxed::Box<(dyn core::ops::function::Fn(&nika_session::intelligence::ResolvedSessionIntelligence) -> alloc::boxed::Box<dyn nika_session::reasoner::SessionReasoner> + core::marker::Send)>
 pub mod nika_session::snapshot

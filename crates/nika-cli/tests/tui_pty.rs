@@ -648,3 +648,38 @@ fn a_gated_run_pauses_inside_the_viewport_and_the_answer_resumes_it() {
         "the terminal was never handed back around the run"
     );
 }
+
+/// K · `Tab` completes a slash command from the session's own list and
+/// the completed line runs; the title names the project. T05 · a line
+/// with an accent, an emoji and CJK goes through the composer and comes
+/// back whole in the committed echo.
+#[test]
+fn tab_completes_a_slash_command_and_unicode_goes_through_whole() {
+    let (project, home) = rig("polish");
+    let (mut session, tee) = spawn_sized(project.path(), home.path(), 100, 30);
+    answer_until(&mut session, &tee, 30, "automate?");
+    assert!(
+        tee.saw("\x1b]0;nika · "),
+        "the terminal title names the project while the door is open"
+    );
+    session
+        .send("/pro\t")
+        .expect("a partial slash command and Tab");
+    session.send("\r").expect("run the completed command");
+    answer_until(&mut session, &tee, 30, "observed");
+    session
+        .send("héllo 🦋 日本語 ünïcödé\r")
+        .expect("a line with wide and combined characters");
+    // the committed echo: a wide glyph is its own cell run (the diff moves
+    // the cursor after each), so the needle is the last word, then every
+    // glyph of the line is looked for in what the child wrote.
+    answer_until(&mut session, &tee, 30, "ünïcödé");
+    for glyph in ["héllo", "🦋", "日", "本", "語", "ünïcödé"] {
+        assert!(tee.saw(glyph), "`{glyph}` never came back:\n{}", tee.text());
+    }
+    answer_until(&mut session, &tee, 30, "conversational");
+    session.send("/quit\r").expect("quit");
+    session.expect(Eof).expect("closes");
+    assert_eq!(exit_code(&mut session), 0);
+    assert!(!tee.text().contains("panicked"), "{}", tee.text());
+}

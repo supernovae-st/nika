@@ -298,6 +298,14 @@ fn run_once(
     (verdict.code, verdict.trace)
 }
 
+/// `NIKA_REDUCED_MOTION` (any non-empty value): the busy row changes only
+/// when the turn says something new, no seconds tick, no bell. A display
+/// choice, not a secret (the same allow `term_name` carries).
+#[allow(clippy::disallowed_methods)]
+fn reduced_motion() -> bool {
+    std::env::var("NIKA_REDUCED_MOTION").is_ok_and(|v| !v.trim().is_empty())
+}
+
 /// `TERM` as the renderer's probe reads it. The `disallowed_methods` ban on
 /// `std::env::var` routes SECRET lookups through the vault; a display
 /// capability variable is not a secret (the same allow `main.rs` carries).
@@ -377,6 +385,14 @@ pub fn run_tui(theme: Theme) -> u8 {
     let mut options = nika_tui::app::Options::new(nika_tui::model::Presentation::Inline);
     options.color = theme.color;
     options.term = term_name();
+    options.reduced_motion = reduced_motion();
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    options.title = Some(format!(
+        "nika · {}",
+        cwd.file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("session")
+    ));
     let taken = match nika_tui::app::enter(&options) {
         Ok(taken) => taken,
         Err(error) => {
@@ -389,7 +405,6 @@ pub fn run_tui(theme: Theme) -> u8 {
     };
     let census = IntelligenceCensus::take();
     let home = nika_cli_host::probe::home_dir();
-    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     let kept = home.as_deref().and_then(UserIntelligencePreference::load);
     let child: ChildSlot = std::sync::Arc::new(std::sync::Mutex::new(None));
     let slot = std::sync::Arc::clone(&child);

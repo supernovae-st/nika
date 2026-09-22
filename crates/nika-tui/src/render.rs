@@ -134,8 +134,12 @@ fn status_line(state: &UiState) -> Line<'static> {
 }
 
 fn hint_line(state: &UiState) -> Line<'static> {
+    let text = state
+        .completion
+        .clone()
+        .unwrap_or_else(|| state.waiting.hint().to_owned());
     Line::from(Span::styled(
-        state.waiting.hint().to_owned(),
+        text,
         Style::default().add_modifier(Modifier::DIM),
     ))
 }
