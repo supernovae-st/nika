@@ -49,6 +49,25 @@ const NOTHING_ELSE: &[&str] = &[
     "nichts weiter",
     "nichts anderes",
     "keine weitere aktion",
+    // « stop after these steps » / « stop there »: the same closure, stated as a halt.
+    "stop after",
+    "stop there",
+    "stop here",
+    "arrete-toi apres",
+    "arrete-toi la",
+    "arretez-vous apres",
+    "arretez-vous la",
+    "detente despues",
+    "detente ahi",
+    "detente aqui",
+    "fermati dopo",
+    "fermati li",
+    "fermati qui",
+    "hor danach auf",
+    "halt danach an",
+    "para depois",
+    "pare depois",
+    "pare ai",
 ];
 
 /// No destination beyond the stated ones.

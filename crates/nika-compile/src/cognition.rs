@@ -888,6 +888,24 @@ fn decode(response: &InferResponse, out: &mut CompileOutcome) -> Option<Proposal
         {
             text
         }
+        _ if response.stop_reason == StopReason::MaxTokens => {
+            // A reasoning seat spends part of its output cap on its reasoning: 16 of 52
+            // gpt-5-mini proposals stopped at exactly 4000 output tokens (eco-60, 2026-09-22).
+            // The cap is the operator's knob; the finding names it instead of the shape.
+            let spent = response
+                .usage_reported
+                .then_some(response.usage.output_tokens)
+                .map_or_else(|| "its".to_owned(), |n| format!("{n} output tokens, its"));
+            super::finding(
+                out,
+                DiagnosticKind::Unknown,
+                "authoring_provider",
+                format!(
+                    "The seat stopped at {spent} output cap before the plan was complete (a reasoning seat spends part of the cap on its reasoning). Raise --authoring-max-tokens (up to 8192) or seat a model that reasons less; nothing partial was assembled."
+                ),
+            );
+            return None;
+        }
         _ => {
             super::finding(
                 out,
@@ -1039,6 +1057,52 @@ fn merge(
         {
             plan.obligations.push(Obligation::new(kind, evidence));
         }
+    }
+    // A step proposed over the very words of a safeguard the request states (« dédoublonne
+    // le callback par identifiant » as a classify, « vérifie de nouveau la version courante
+    // … » as a validate) is that safeguard: its obligation carries the words, and a second
+    // element over one clause would invent an operation. The doubled step is not assembled.
+    let fold = |text: &str| {
+        text.split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+            .to_lowercase()
+    };
+    // The reader states a safeguard over the clause it read (« dédoublonne … et vérifie de
+    // nouveau … »): the step's words lie inside it. Only the look-alikes of a safeguard (a
+    // classify or a computation for a dedup, a validate for a recheck) are dropped; any
+    // other operation over those words stays visible.
+    let safeguards: Vec<String> = plan
+        .obligations
+        .iter()
+        .filter(|o| {
+            matches!(
+                o.kind,
+                ObligationKind::Dedup | ObligationKind::RevisionCheck
+            )
+        })
+        .map(|o| fold(&o.evidence))
+        .collect();
+    let mut doubled = Vec::new();
+    plan.steps.retain(|step| {
+        let words = fold(&step.evidence);
+        let over_safeguard = matches!(step.op, Op::Classify | Op::Compute | Op::Validate)
+            && !words.is_empty()
+            && safeguards.iter().any(|s| s.contains(&words));
+        if over_safeguard {
+            doubled.push((step.op.word(), step.evidence.clone()));
+        }
+        !over_safeguard
+    });
+    for (op, evidence) in doubled {
+        super::finding(
+            out,
+            DiagnosticKind::Applied,
+            "authoring_plan",
+            format!(
+                "`{evidence}` is the safeguard the request states, carried by its obligation; the proposal's `{op}` over the same words was not assembled."
+            ),
+        );
     }
     for constraint in proposal.constraints {
         if !plan.constraints.contains(&constraint) {

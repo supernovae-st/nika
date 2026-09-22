@@ -197,6 +197,95 @@ async fn authoring_timeout_is_bounded_and_never_retries() {
     assert!(out.candidate.is_none());
 }
 
+/// A proposal that reads the very words of a safeguard as an operation (« dédoublonne le
+/// callback par identifiant » as a classify, « vérifie de nouveau la version courante … »
+/// as a validate) invents nothing: the obligation the reader states carries those words,
+/// and the doubled steps are not assembled. Measured on the base (E04C, gpt-5-mini): a
+/// READY with classify and validate over a request that asks for a lookup and two safeguards.
+#[tokio::test]
+async fn a_step_over_the_words_of_a_safeguard_is_the_safeguard_never_a_second_operation() {
+    let intent = "Quand le bouton Slack de validation est utilisé, retrouve le dossier dans MongoDB, dédoublonne le callback par identifiant et vérifie de nouveau la version courante du dossier avant l’action finale. Arrête-toi après ces étapes ; aucune autre action n’est demandée.";
+    let dedup = "dédoublonne le callback par identifiant";
+    let recheck = "vérifie de nouveau la version courante du dossier avant l'action finale";
+    let proposal = json!({
+        "steps": [
+            {"op": "lookup", "detail": "le dossier dans MongoDB", "evidence": "retrouve le dossier dans MongoDB"},
+            {"op": "classify", "detail": "dédoublonne le callback", "evidence": dedup},
+            {"op": "validate", "detail": "la version courante du dossier", "evidence": recheck}
+        ],
+        "effects": [],
+        "obligations": [
+            {"kind": "dedup", "evidence": dedup},
+            {"kind": "revision_check", "evidence": recheck}
+        ],
+        "constraints": [], "unknowns": []
+    });
+    let req = CompileRequest::create(intent).with_authoring_policy(policy());
+    let out = compile_with_provider(&req, &Provider::new(proposal))
+        .await
+        .unwrap();
+    let doc = outcome_document(&out);
+    let ops: Vec<&str> = doc["provenance"]["plan"]["operations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|s| s["op"].as_str())
+        .collect();
+    assert_eq!(ops, ["lookup"], "{doc:#}");
+    let kinds: Vec<&str> = doc["provenance"]["plan"]["obligations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|o| o["kind"].as_str())
+        .collect();
+    assert!(
+        kinds.contains(&"dedup") && kinds.contains(&"revision_check"),
+        "{doc:#}"
+    );
+    assert!(!keys(&out).contains(&"intent.clarification"), "{out:#?}");
+    assert!(!keys(&out).contains(&"model"), "no language step: {out:#?}");
+}
+
+/// A seat that stops at its output cap returns a truncated text: the finding names the cap
+/// and the tokens spent (the operator's knob), never a malformed shape.
+#[tokio::test]
+async fn a_seat_cut_at_its_output_cap_is_named_as_such() {
+    struct Capped;
+    impl ProviderInferDyn for Capped {
+        async fn infer(&self, _: InferRequest) -> Result<InferResponse, ProviderError> {
+            Ok(InferResponse::new(
+                vec![ContentBlock::Text {
+                    text: "{\"steps\":[{\"op\":\"lookup\",\"detail\":\"le cli".to_owned(),
+                }],
+                TokenUsage::new(1900, 4000),
+                StopReason::MaxTokens,
+            ))
+        }
+    }
+    let out = compile_with_provider(&request(), &Capped).await.unwrap();
+    assert_eq!(out.status, CompileStatus::Incomplete);
+    assert!(out.candidate.is_none());
+    let finding = out
+        .diagnostics
+        .iter()
+        .find(|d| d.target == "authoring_provider")
+        .expect("an authoring_provider finding names the cap");
+    assert!(
+        finding.message.contains("4000 output tokens"),
+        "{finding:?}"
+    );
+    assert!(
+        finding.message.contains("--authoring-max-tokens"),
+        "{finding:?}"
+    );
+    assert!(
+        !out.diagnostics
+            .iter()
+            .any(|d| d.message.contains("one complete bounded JSON text")),
+        "{out:#?}"
+    );
+}
+
 #[tokio::test]
 async fn model_cannot_omit_refund_or_insert_approval_into_automatic_refund() {
     // The deterministic reader recognized the gated refund: a proposal omitting it

@@ -805,17 +805,38 @@ fn synthesized_rule(plan: &Plan, step: &Step, intent: &str, b: &Bindings) -> Opt
     let whole = !detail.contains(" ; ");
     // A rule recorded for this very step stands for it when it is the only rule (the seat's
     // paraphrase beside the promoted constraint of the same rule); two recorded rules on a
-    // joined detail are synthesized whole, so neither stands for the other.
+    // joined detail are synthesized whole, so neither stands for the other. A rule stands
+    // for a detail only when every sentence of the detail is its own: a second sentence
+    // (« keep only the rows whose status is shipped … . Write the count of those orders per
+    // country ») states more than the rule, and a rule over one part would silently drop it.
+    let fold = |text: &str| {
+        text.split(|c: char| !c.is_alphanumeric())
+            .filter(|w| !w.is_empty())
+            .collect::<Vec<_>>()
+            .join(" ")
+            .to_lowercase()
+    };
+    let covers = |rule: &rules::Rule| {
+        let text = fold(rule.text());
+        detail
+            .split(". ")
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .all(|sentence| {
+                let sentence = fold(sentence);
+                text.contains(&sentence) || sentence.contains(&text)
+            })
+    };
     let stated = plan
         .rules
         .iter()
         .find(|rule| rule.text() == step.evidence || rule.text() == detail)
-        .filter(|_| whole || plan.rules.len() == 1)
+        .filter(|rule| (whole || plan.rules.len() == 1) && covers(rule))
         .cloned()
         .or_else(|| rules::synthesize(detail, &super::columns::columns_hint(intent)))
         .or_else(|| {
             (whole && plan.rules.len() == 1)
-                .then(|| plan.rules.first().cloned())
+                .then(|| plan.rules.first().filter(|rule| covers(rule)).cloned())
                 .flatten()
         })?;
     match &b.read {
