@@ -601,24 +601,47 @@ impl RunFacts {
 }
 
 /// The chain and seal lines `nika trace verify` says, through the ONE
-/// judge — never a second chain walker. (chain line, seal line).
+/// judge — never a second chain walker. (chain line, seal line). The
+/// judge's first line is the chain's verdict whatever its exit code: a
+/// machine without the signing key (CI, another operator) cannot judge
+/// the SEAL and exits 3, while the chain it walked is still intact.
 fn chain_verdict(trace: &Path) -> (String, String) {
     let out = nika_trace::trace_verify::verify(&trace.display().to_string());
-    let mut lines = out.text.lines().map(str::trim).filter(|l| !l.is_empty());
-    let first = shorten_hex(lines.next().unwrap_or(""));
-    if out.code != 0 {
-        return (
-            format!("chain · not judged (verify exit {}) · {first}", out.code),
-            String::new(),
-        );
-    }
+    let lines: Vec<&str> = out
+        .text
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .collect();
+    let first = shorten_hex(lines.first().copied().unwrap_or(""));
+    let chain = if first.is_empty() {
+        format!("chain · not judged (verify exit {})", out.code)
+    } else {
+        format!("chain · {first}")
+    };
     let seal = lines
+        .iter()
         .find(|l| {
-            l.starts_with("SEALED") || l.starts_with("UNSEALED") || l.starts_with("INCOMPLETE")
+            l.starts_with("SEALED")
+                || l.starts_with("UNSEALED")
+                || l.starts_with("INCOMPLETE")
+                || l.starts_with("BROKEN")
+                || l.starts_with("TORN")
         })
-        .map(|l| format!("seal · {l}"))
-        .unwrap_or_default();
-    (format!("chain · {first}"), seal)
+        .map_or_else(
+            || {
+                if out.code == 0 {
+                    String::new()
+                } else {
+                    format!(
+                        "seal · not judged on this machine (verify exit {}) · `nika trace verify` says why",
+                        out.code
+                    )
+                }
+            },
+            |l| format!("seal · {}", shorten_hex(l)),
+        );
+    (chain, seal)
 }
 
 /// The judge's line with every 64-hex digest shortened for the eye
