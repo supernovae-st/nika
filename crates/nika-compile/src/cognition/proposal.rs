@@ -588,53 +588,35 @@ fn one_clause_one_step(
         && (crate::gates::named_gate(&clause).is_some()
             || crate::gates::final_gate(&clause).is_some())
     {
-        crate::finding(
+        return folded(
             out,
-            DiagnosticKind::Applied,
-            "authoring_plan",
-            format!(
-                "`{}` is the human gate the request states, carried by the effect's policy; the proposal's `{}` over the same words was not assembled.",
-                step.evidence.trim(),
-                step.op
-            ),
+            step,
+            "the human gate the request states, carried by the effect's policy",
         );
-        return true;
     }
-    if stated
-        .trigger
-        .is_some_and(|trigger| over_a_region(step, &clause, trigger, intent))
-    {
-        crate::finding(
+    // A language step over the trigger clause is the trigger whatever it names; a retrieval
+    // over it is the trigger only when its detail names nothing beyond the clause.
+    if stated.trigger.is_some_and(|trigger| {
+        language_over_the_event(op, &clause, trigger)
+            || over_a_region(step, &clause, trigger, intent)
+    }) {
+        return folded(
             out,
-            DiagnosticKind::Applied,
-            "authoring_plan",
-            format!(
-                "`{}` is the trigger the request states, recorded as requested_trigger; the proposal's `{}` over the same words was not assembled.",
-                step.evidence.trim(),
-                step.op
-            ),
+            step,
+            "the trigger the request states, recorded as requested_trigger",
         );
-        return true;
     }
-    // A look-alike of a safeguard (a classify or a computation for a dedup, a validate for a
-    // recheck) is folded on its words alone; any other operation over a safeguard's words is
-    // folded only when its detail names nothing the request states outside them.
-    let look_alike = matches!(op, Op::Classify | Op::Compute | Op::Validate);
+    // A step whose clause lies inside a safeguard's words is the safeguard, whatever its
+    // detail; a clause spanning more than the safeguard is judged by what its detail names.
     if stated.obligations.iter().any(|words| {
-        (look_alike && !clause.is_empty() && words.contains(&clause))
+        (!clause.is_empty() && words.contains(&clause))
             || over_a_region(step, &clause, words, intent)
     }) {
-        crate::finding(
+        return folded(
             out,
-            DiagnosticKind::Applied,
-            "authoring_plan",
-            format!(
-                "`{}` is the safeguard the request states, carried by its obligation; the proposal's `{}` over the same words was not assembled.",
-                step.evidence.trim(),
-                step.op
-            ),
+            step,
+            "the safeguard the request states, carried by its obligation",
         );
-        return true;
     }
     // « envíalas con un POST a http://…/reposicion » listed as a fetch beside the send over
     // the same words: a retrieval over an outbound clause is that effect, never a GET.
@@ -645,47 +627,37 @@ fn one_clause_one_step(
             .iter()
             .any(|words| words.contains(&clause) || clause.contains(words))
     {
-        crate::finding(
+        return folded(
             out,
-            DiagnosticKind::Applied,
-            "authoring_plan",
-            format!(
-                "`{}` is the outbound effect the request states; the proposal's `{}` over the same words was not assembled as a retrieval.",
-                step.evidence.trim(),
-                step.op
-            ),
+            step,
+            "the outbound effect the request states, never a retrieval",
         );
-        return true;
     }
     // « mismas columnas y mismo orden » as a validate: the computation keeps the columns and
     // the order by construction; a model has nothing to check.
     if matches!(op, Op::Validate | Op::Explore) && only_format_words(&step.detail) {
-        crate::finding(
-            out,
-            DiagnosticKind::Applied,
-            "authoring_plan",
-            format!(
-                "`{}` is a format the computation keeps by construction; the proposal's `{}` over it was not assembled.",
-                step.evidence.trim(),
-                step.op
-            ),
-        );
-        return true;
+        return folded(out, step, "a format the computation keeps by construction");
     }
     if stated.write.contains(&clause) && !matches!(op, Op::Draft | Op::Compute) {
-        crate::finding(
-            out,
-            DiagnosticKind::Applied,
-            "authoring_plan",
-            format!(
-                "`{}` is the write the proposal states; its `{}` over the same words was not assembled.",
-                step.evidence.trim(),
-                step.op
-            ),
-        );
-        return true;
+        return folded(out, step, "the write the proposal states");
     }
     false
+}
+
+/// Records a fold as applied — the clause was understood, the element was not assembled a
+/// second time — and answers `true` for the caller to skip the step.
+fn folded(out: &mut CompileOutcome, step: &ProposedStep, role: &str) -> bool {
+    crate::finding(
+        out,
+        DiagnosticKind::Applied,
+        "authoring_plan",
+        format!(
+            "`{}` is {role}; the proposal's `{}` over the same words was not assembled.",
+            step.evidence.trim(),
+            step.op
+        ),
+    );
+    true
 }
 
 /// A proposed read of records the request names by their owner or their store (« mes
@@ -967,6 +939,19 @@ fn only_format_words(detail: &str) -> bool {
         && segments
             .iter()
             .all(|s| SAME_COLUMNS.contains(&s.as_str()) || crate::rules::by_construction_tail(s))
+}
+
+/// A language step (an extract, a draft, a classify, a validate, an explore) whose clause
+/// lies inside the trigger clause is the trigger, whatever its detail: an event is not
+/// material to extract from (« Extraire l'identifiant du callback Slack depuis le payload du
+/// bouton » over « quand le bouton Slack de validation est utilisé »).
+fn language_over_the_event(op: Op, clause: &str, trigger: &str) -> bool {
+    !clause.is_empty()
+        && matches!(
+            op,
+            Op::Extract | Op::Draft | Op::Classify | Op::Validate | Op::Explore
+        )
+        && trigger.contains(clause)
 }
 
 /// Whether a step lies over a region the request states (the trigger clause, a safeguard's
