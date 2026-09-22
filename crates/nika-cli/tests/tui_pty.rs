@@ -394,6 +394,10 @@ fn a_resize_while_a_proposal_waits_redraws_the_consent_prompt() {
         .expect("the intent");
     answer_until(&mut session, &tee, 24, "compiled-workflow.nika");
     answer_until(&mut session, &tee, 24, "apply?");
+    assert!(
+        tee.saw("· action required"),
+        "the title says « action required » while the consent waits"
+    );
     for (cols, rows) in [(60u16, 20u16), (120, 40)] {
         session
             .get_process_mut()

@@ -31,7 +31,9 @@ use crossterm::terminal::{Clear, ClearType};
 
 use crate::composer::{Composer, ComposerAction};
 use crate::events::{Broker, Signal, UiEvent};
-use crate::model::{Beat, Committed, Conversation, Handoff, Kind, Presentation, Turn, UiState};
+use crate::model::{
+    Beat, Committed, Conversation, Handoff, Kind, Presentation, Turn, UiState, Waiting,
+};
 use crate::render;
 use crate::terminal::{self, Owner, Screen};
 
@@ -223,8 +225,19 @@ fn is_ctrl_c(key: &KeyEvent) -> bool {
 /// The busy row while a turn runs: the turn's own label, the seconds
 /// once they count, and what an interruption does — a call to a seat
 /// cannot be recalled, so one `Ctrl+C` warns and a second one leaves.
-fn busy_text(base: Option<&str>, secs: u64, armed: bool) -> String {
-    let base = base.unwrap_or("working");
+/// The busy row with the last completed phase kept beside the current one
+/// (« ✓ understood 6 requirements · ● authoring »): what just finished and
+/// what Nika does now, never a percentage.
+fn busy_text_with(last_done: Option<&str>, base: Option<&str>, secs: u64, armed: bool) -> String {
+    let current = base.unwrap_or("working");
+    let joined;
+    let base = match last_done {
+        Some(done) if !current.starts_with(done) => {
+            joined = format!("{done} · {current}");
+            joined.as_str()
+        }
+        _ => current,
+    };
     if armed {
         // What a second press does comes FIRST: the row must say it inside
         // an 80-column terminal, whatever the turn's own label is.
@@ -446,7 +459,26 @@ impl<C: Conversation + 'static> Shell<C> {
                 self.draw()?;
             }
         }
+        self.refresh_title();
         self.commit_inline()
+    }
+
+    /// The terminal's title follows what waits: « nika · <project> · action
+    /// required » while an answer, a consent, a choice or a gate waits on
+    /// the human — persistent until resolved, never one transient bell.
+    fn refresh_title(&self) {
+        let Some(title) = self.options.title.as_deref() else {
+            return;
+        };
+        let waits = !matches!(self.state.waiting, Waiting::Free);
+        let full;
+        let shown = if waits {
+            full = format!("{title} · action required");
+            full.as_str()
+        } else {
+            title
+        };
+        let _ = crate::terminal::set_title(shown);
     }
 
     /// Hand every block not yet in the scrollback to the terminal (inline
@@ -513,11 +545,18 @@ impl<C: Conversation + 'static> Shell<C> {
             })?;
         let started = std::time::Instant::now();
         let mut base = self.state.busy.clone();
+        let mut last_done: Option<String> = None;
         let mut armed = false;
         let mut shown = u64::MAX;
         loop {
             if let Ok(label) = rx.recv_timeout(BUSY_POLL) {
-                base = Some(label);
+                // A finished phase (the session's ✓ line) stays beside the
+                // next current one; a current one replaces the previous.
+                if label.starts_with("✓ ") {
+                    last_done = Some(label);
+                } else {
+                    base = Some(label);
+                }
                 shown = u64::MAX;
             }
             match done_rx.try_recv() {
@@ -551,7 +590,12 @@ impl<C: Conversation + 'static> Shell<C> {
             if secs != shown || frame != self.state.spinner {
                 shown = secs;
                 self.state.spinner = frame;
-                self.state.busy = Some(busy_text(base.as_deref(), secs, armed));
+                self.state.busy = Some(busy_text_with(
+                    last_done.as_deref(),
+                    base.as_deref(),
+                    secs,
+                    armed,
+                ));
                 self.draw()?;
             }
         }
@@ -621,4 +665,36 @@ fn fresh_screen(presentation: Presentation) -> io::Result<Screen> {
         CrosstermBackend::new(io::stdout()),
         TerminalOptions { viewport },
     )
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod tests {
+    /// The busy row keeps the last completed phase beside the current one,
+    /// and the armed row puts the second press first — never a percentage.
+    #[test]
+    fn the_busy_row_keeps_the_last_done_phase_beside_the_current_one() {
+        assert_eq!(
+            super::busy_text_with(
+                Some("✓ understood 6 requirements"),
+                Some("● authoring · openai/gpt-5.2"),
+                0,
+                false
+            ),
+            "✓ understood 6 requirements · ● authoring · openai/gpt-5.2"
+        );
+        assert_eq!(
+            super::busy_text_with(None, Some("● checking"), 3, false),
+            "● checking · 3s · Ctrl+C twice leaves"
+        );
+        assert!(
+            super::busy_text_with(
+                Some("✓ understood 2 requirements"),
+                Some("● authoring"),
+                1,
+                true
+            )
+            .starts_with("Ctrl+C again leaves now")
+        );
+    }
 }

@@ -56,8 +56,10 @@ static TITLE: AtomicBool = AtomicBool::new(false);
 /// The crossterm command failed to reach the terminal.
 pub fn set_title(title: &str) -> io::Result<()> {
     let mut out = io::stdout();
-    write!(out, "\x1b[22;0t")?;
-    TITLE.store(true, Ordering::SeqCst);
+    // The previous title is pushed once; every later call only sets ours.
+    if !TITLE.swap(true, Ordering::SeqCst) {
+        write!(out, "\x1b[22;0t")?;
+    }
     crossterm::execute!(out, crossterm::terminal::SetTitle(title))?;
     out.flush()
 }
