@@ -595,6 +595,13 @@ const PROVIDER_TRANSPORT_CEILING: std::time::Duration = std::time::Duration::fro
 /// task · cold model load adds 30-60s (the reason local classes default
 /// to 300s at the wire layer · a timeout is a ceiling, not a wait).
 ///
+/// Public because the authoring transports (the CLI's `--authoring-model` /
+/// `--decision-model` seats in `nika-cli-host`) talk to the SAME provider
+/// allowlist and must inherit the same ceiling: built on the default
+/// client, an authoring call was cut at the 30s idle-read guard whatever
+/// `--authoring-timeout` asked (grok-4.7 · 408 after 30s · 2026-09-22
+/// preflight) and a local authoring seat on `127.0.0.1` was SSRF-blocked.
+///
 /// # Errors
 ///
 /// [`nika_kernel::HttpError`] when the TLS backend won't initialize.
@@ -602,7 +609,7 @@ const PROVIDER_TRANSPORT_CEILING: std::time::Duration = std::time::Duration::fro
 // would suggest is a cross-crate compile error — field assignment is the only
 // way (the same idiom nika-http's own tests use).
 #[allow(clippy::field_reassign_with_default)]
-fn provider_http() -> Result<ReqwestHttp, nika_kernel::HttpError> {
+pub fn provider_http() -> Result<ReqwestHttp, nika_kernel::HttpError> {
     let mut config = HttpConfig::default();
     config.ssrf = SsrfMode::Disabled;
     config.timeout = PROVIDER_TRANSPORT_CEILING;

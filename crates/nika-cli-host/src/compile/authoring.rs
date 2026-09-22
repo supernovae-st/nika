@@ -36,7 +36,12 @@ pub(super) fn compile(
     runtime.block_on(async {
         // Reuse the established environment/key/endpoint ladder only AFTER explicit opt-in.
         // This does not probe a keychain, select a provider, or resolve business credentials.
-        let http = nika_http::ReqwestHttp::new().map_err(|e| e.to_string())?;
+        // The PROVIDER client, not the fetch client: the same fixed allowlist of provider
+        // endpoints the runtime talks to, with its transport ceiling above the per-request
+        // deadline (the policy's timeout) and no SSRF floor (a local seat binds 127.0.0.1).
+        // The default client cut every authoring call at its 30s idle-read guard whatever
+        // `--authoring-timeout` asked, and refused a loopback seat outright.
+        let http = nika_runtime::compose::provider_http().map_err(|e| e.to_string())?;
         let registry = nika_providers::ProviderRegistry::new(
             Arc::new(http),
             nika_runtime::compose::config_from_env(),
