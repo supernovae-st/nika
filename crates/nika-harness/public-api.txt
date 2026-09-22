@@ -94,6 +94,7 @@ impl<T> nika_error::traits::AsAny for nika_harness::infer::StructuredOutputGrade
 pub fn nika_harness::infer::StructuredOutputGrade::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_harness::infer::HarnessInferOutcome
 pub nika_harness::infer::HarnessInferOutcome::attested_version: (u32, u32)
+pub nika_harness::infer::HarnessInferOutcome::observed_model: core::option::Option<alloc::string::String>
 pub nika_harness::infer::HarnessInferOutcome::output: alloc::string::String
 pub nika_harness::infer::HarnessInferOutcome::requested_model: alloc::string::String
 pub nika_harness::infer::HarnessInferOutcome::usage_observed: bool
