@@ -215,6 +215,42 @@ fn handle_outcome<W: Write>(
     Ok(false)
 }
 
+/// One line from the terminal — and a pasted burst folded into ONE line.
+///
+/// Paste is data, never several submissions (UX-2 · the renderer's
+/// bracketed-paste law). The plain loop has no paste bracket, so it reads
+/// the line discipline's tell instead: when the next complete line is
+/// already waiting the instant this one was read, nobody typed it — the
+/// lines were pasted together. They join as one datum (their line ends
+/// become spaces), so « yes ⏎ run it ⏎ /quit » pasted at a consent prompt
+/// is one line that is not a consent, not three gestures. Best effort:
+/// a paste the terminal delivers in slow pieces can still split.
+fn read_burst(buf: &mut Vec<u8>) -> std::io::Result<usize> {
+    let mut stdin = std::io::stdin().lock();
+    let mut total = stdin.read_until(b'\n', buf)?;
+    while total > 0 && buf.last() == Some(&b'\n') && stdin_pending() {
+        buf.pop();
+        buf.push(b' ');
+        let more = stdin.read_until(b'\n', buf)?;
+        if more == 0 {
+            buf.push(b'\n');
+            break;
+        }
+        total += more;
+    }
+    Ok(total)
+}
+
+/// Is another line already waiting on stdin, right now (a zero wait)?
+fn stdin_pending() -> bool {
+    use std::os::fd::AsFd as _;
+
+    use nix::poll::{PollFd, PollFlags, PollTimeout, poll};
+    let stdin = std::io::stdin();
+    let mut fds = [PollFd::new(stdin.as_fd(), PollFlags::POLLIN)];
+    matches!(poll(&mut fds, PollTimeout::ZERO), Ok(n) if n > 0)
+}
+
 /// A line source that takes its lock INSIDE each read and releases it
 /// before returning: the door never holds stdin across a turn, so a run it
 /// starts can ask its own gate on the same terminal (`ask_on_tty` locks
@@ -406,8 +442,7 @@ pub fn run_tui(theme: Theme) -> u8 {
 /// Open the native session on this terminal.
 #[must_use]
 pub fn run(theme: Theme) -> u8 {
-    let mut input =
-        PerCallLines::new(|buf: &mut Vec<u8>| std::io::stdin().lock().read_until(b'\n', buf));
+    let mut input = PerCallLines::new(read_burst);
     let mut output = std::io::stdout();
     let census = IntelligenceCensus::take();
     let home = nika_cli_host::probe::home_dir();

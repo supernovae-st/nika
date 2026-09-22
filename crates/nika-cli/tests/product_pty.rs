@@ -733,3 +733,38 @@ fn quit_at_the_consent_prompt_leaves_and_a_stray_yes_is_refused() {
     assert_eq!(exit_code(&mut session), 0);
     assert!(!project.path().join("compiled-workflow.nika").exists());
 }
+
+/// J · X13 · a composite paste « yes / run it / /quit » at the consent
+/// prompt is ONE datum: nothing is applied, nothing runs, the door stays
+/// open with the proposal still waiting; a `no` then discards it.
+#[test]
+fn a_composite_paste_at_the_consent_prompt_is_one_datum() {
+    let (project, home) = rig("paste-consent");
+    std::fs::create_dir_all(project.path().join("notes")).expect("notes");
+    std::fs::write(project.path().join("notes/brief.md"), "brief\n").expect("brief");
+    let mut session = open_session(project.path(), home.path());
+    session
+        .send_line("Lis ./notes/brief.md et écris-le dans ./out/copie.md")
+        .expect("the intent");
+    session.expect("apply? ›").expect("the consent prompt");
+    session
+        .send("yes\nrun it\n/quit\n")
+        .expect("three lines pasted as one burst");
+    session
+        .expect("not a consent")
+        .expect("the burst is one line, and that line is not a yes");
+    session
+        .expect("apply? ›")
+        .expect("the proposal still waits");
+    assert!(
+        !project.path().join("compiled-workflow.nika").exists(),
+        "nothing applied"
+    );
+    assert!(traces(project.path()).is_empty(), "nothing ran");
+    session.send_line("no").expect("discard");
+    session.expect("discarded").expect("the human's own no");
+    session.expect("nika ›").expect("prompt");
+    session.send_line("/quit").expect("quit");
+    session.expect(Eof).expect("closes");
+    assert_eq!(exit_code(&mut session), 0);
+}
