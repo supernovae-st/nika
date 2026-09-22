@@ -404,6 +404,107 @@ pub fn final_gate(lower: &str) -> Option<(usize, usize)> {
     None
 }
 
+/// Waiver openers, folded: a request that says not to ask (« non serve chiedermi conferma »,
+/// « no need to ask me », « sans me demander ») states that no gate is wanted. A waiver is
+/// never a gate; beside a contrary prohibition it is a bypass, and that refusal is the
+/// compiler's judgement, not the reader's.
+const WAIVERS: &[&str] = &[
+    "no need to",
+    "no need for",
+    "needn't",
+    "don't",
+    "do not",
+    "without asking",
+    "without checking",
+    "pas besoin de",
+    "pas la peine de",
+    "inutile de",
+    "sans me",
+    "sans demander",
+    "ne me demande pas",
+    "ne me demandez pas",
+    "no hace falta",
+    "no necesitas",
+    "no es necesario",
+    "sin preguntarme",
+    "sin pedirme",
+    "no me preguntes",
+    "no me pidas",
+    "non serve",
+    "non c'è bisogno di",
+    "non c'e bisogno di",
+    "non occorre",
+    "senza chiedermi",
+    "senza chiedere",
+    "non chiedermi",
+    "nicht nötig",
+    "nicht notwendig",
+    "musst mich nicht",
+    "ohne mich zu fragen",
+    "ohne nachzufragen",
+    "frag mich nicht",
+    "não precisa",
+    "nao precisa",
+    "não é preciso",
+    "nao e preciso",
+    "sem me perguntar",
+    "sem perguntar",
+    "não me pergunte",
+    "nao me pergunte",
+];
+
+/// The asking a waiver waives, in the forms a waiver takes (an infinitive, a clitic form):
+/// « me demander », « preguntarme », « chiedermi », « mich fragen », « me perguntar ».
+const WAIVED_ASKING: &[&str] = &[
+    "ask",
+    "asking",
+    "check",
+    "confirm",
+    "demander",
+    "prévenir",
+    "prevenir",
+    "confirmer",
+    "preguntar",
+    "preguntarme",
+    "pedir",
+    "pedirme",
+    "consultar",
+    "consultarme",
+    "chiedere",
+    "chiedermi",
+    "chiedimi",
+    "confermare",
+    "fragen",
+    "nachfragen",
+    "rückfragen",
+    "perguntar",
+    "perguntar-me",
+    "confirmar",
+];
+
+/// A clause that waives the asking: a waiver opener followed within a few words by an
+/// asking verb or an approval noun (« non serve chiedermi conferma », « no need to ask me »).
+#[must_use]
+pub fn waiver(lower: &str) -> bool {
+    let tokens = tokens(lower);
+    WAIVERS.iter().any(|opener| {
+        lower.match_indices(opener).any(|(at, _)| {
+            let end = at + opener.len();
+            let bounded = !lower[..at].ends_with(|c: char| c.is_alphanumeric())
+                && !lower[end..].starts_with(|c: char| c.is_alphanumeric());
+            bounded
+                && tokens
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, t)| t.start >= end)
+                    .take(6)
+                    .any(|(k, t)| {
+                        asking(t.word) || WAIVED_ASKING.contains(&t.word) || is_approval(&tokens, k)
+                    })
+        })
+    })
+}
+
 /// A gate that asks a person: `ask me to confirm before writing …`, `wait for my confirmation`,
 /// `demande mon accord avant d'écrire`. Returns the span of the asking phrase; what follows
 /// the span names the gated effect when a `before` connector closes the phrase.
@@ -487,6 +588,28 @@ mod tests {
 
     fn span(text: &str, found: Option<(usize, usize)>) -> &str {
         found.map_or("", |(s, e)| &text[s..e])
+    }
+
+    #[test]
+    fn a_waiver_says_not_to_ask_and_is_no_gate() {
+        for text in [
+            "non serve chiedermi conferma.",
+            "no need to ask me first",
+            "envoie-le automatiquement, sans me demander",
+            "no hace falta pedirme confirmación",
+            "musst mich nicht um erlaubnis fragen",
+            "não precisa me perguntar antes",
+        ] {
+            assert!(waiver(text), "{text}");
+        }
+        for text in [
+            "demandez-moi confirmation avant tout envoi",
+            "il ne faut jamais rien envoyer sans mon accord explicite",
+            "ask me before sending",
+            "sans me laisser le temps de lire",
+        ] {
+            assert!(!waiver(text), "{text}");
+        }
     }
 
     #[test]

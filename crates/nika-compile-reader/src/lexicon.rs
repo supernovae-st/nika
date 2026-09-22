@@ -16,6 +16,7 @@ mod copy;
 mod cues;
 mod effects;
 mod es;
+mod gating;
 mod heads;
 mod it;
 mod lines;
@@ -30,9 +31,9 @@ use super::{gates, hot, objects};
 pub use cues::settle_retrieval;
 pub(crate) use cues::{ARTICLES, OBJECT_CONNECTORS};
 use cues::{
-    CONSTRAINT_OPENERS, FINAL_GATE_MARKERS, FORBIDDEN_MARKERS, LEADING_FILLER, NAMED_GATE_MARKERS,
-    NEGATION_OPENERS, REVISION_MARKERS, SECOND_WORD_FILLERS, STOP_MARKERS, STRONG_CONNECTORS,
-    TRIGGER_PREFIXES, UNDECIDED_MARKERS, WEAK_CONNECTORS,
+    CONSTRAINT_OPENERS, DEDUP_MARKERS, FINAL_GATE_MARKERS, FORBIDDEN_MARKERS, LEADING_FILLER,
+    NAMED_GATE_MARKERS, NEGATION_OPENERS, REVISION_MARKERS, SECOND_WORD_FILLERS, STOP_MARKERS,
+    STRONG_CONNECTORS, TRIGGER_PREFIXES, UNDECIDED_MARKERS, WEAK_CONNECTORS,
 };
 pub use effects::effect_words;
 pub(crate) use effects::kindred;
@@ -581,20 +582,6 @@ fn read_prefix(prefix: &str, original: &str, reading: &mut Reading, state: &mut 
     }
 }
 
-fn gate_last_automatic(reading: &mut Reading, state: &mut ReadState) {
-    if let Some(last) = reading
-        .plan
-        .effects
-        .iter_mut()
-        .rev()
-        .find(|e| e.policy == EffectPolicy::Automatic)
-    {
-        last.policy = EffectPolicy::HumanFirst;
-    } else {
-        state.final_gate = true;
-    }
-}
-
 /// One clause and everything a settled path deferred from it: a residue re-enters as a
 /// clause of its own, seen and accounted for like any other.
 fn read_policy_or_clause(clause: &str, reading: &mut Reading, state: &mut ReadState) {
@@ -727,28 +714,7 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
     ]
     .iter()
     .any(|m| text.starts_with(m));
-    let dedup_markers = [
-        "no second action for the same",
-        "pas de seconde action",
-        "évite les doublons",
-        "évitez les doublons",
-        "avoid duplicates",
-        "déduplique",
-        "dédoublonne",
-        "deduplicate",
-        "de-duplicate",
-        "dedupe",
-        "remove duplicates",
-        "prevent duplicates",
-        "deduplica",
-        "elimina i duplicati",
-        "rimuovi i duplicati",
-        "evita i duplicati",
-        "elimina los duplicados",
-        "quita los duplicados",
-        "evita los duplicados",
-    ];
-    if !dedup_head && let Some((pos, _)) = earliest(text, &dedup_markers) {
+    if !dedup_head && let Some((pos, _)) = earliest(text, DEDUP_MARKERS) {
         read_prefix(prefix_before(text, pos), clause, reading, state);
         push_obligation(
             &mut reading.plan,
@@ -769,6 +735,12 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
         );
         return;
     }
+    // « Non serve chiedermi conferma », « no need to ask me »: a waiver is no gate. It is a
+    // policy clause; beside a contrary prohibition, the compiler refuses the bypass.
+    if gates::waiver(text) {
+        reading.policy_clauses.push(clause.to_owned());
+        return;
+    }
     // The final action requires a fresh human validation: a listed wording or the shape
     // (`only after my explicit approval`, `the write needs my approval first`).
     let listed = earliest(text, FINAL_GATE_MARKERS).map(|(p, m)| (p, p + m.len()));
@@ -782,7 +754,7 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
             verbs = effect_words(text.get(pos..end).unwrap_or_default(), &reading.columns);
         }
         if verbs.is_empty() {
-            gate_last_automatic(reading, state);
+            gating::gate_last_automatic(reading, state, gating::names_sending(text));
         } else {
             for verb in verbs {
                 push_effect(
@@ -808,7 +780,7 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
         let target = objects::destination_target(after);
         let verbs = effect_words(after, &reading.columns);
         if verbs.is_empty() {
-            gate_last_automatic(reading, state);
+            gating::gate_last_automatic(reading, state, gating::names_sending(text));
         } else {
             for verb in verbs {
                 let literal = (verb.moves_money() && literals::money_literal(clause))

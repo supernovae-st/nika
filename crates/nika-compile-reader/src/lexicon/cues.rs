@@ -543,3 +543,27 @@ pub fn settle_retrieval(
         None
     }
 }
+
+/// Words that ask for a removal of duplicates or forbid a second action for the same item,
+/// folded: an obligation of kind dedup.
+pub(super) const DEDUP_MARKERS: &[&str] = &[
+    "no second action for the same",
+    "pas de seconde action",
+    "évite les doublons",
+    "évitez les doublons",
+    "avoid duplicates",
+    "déduplique",
+    "dédoublonne",
+    "deduplicate",
+    "de-duplicate",
+    "dedupe",
+    "remove duplicates",
+    "prevent duplicates",
+    "deduplica",
+    "elimina i duplicati",
+    "rimuovi i duplicati",
+    "evita i duplicati",
+    "elimina los duplicados",
+    "quita los duplicados",
+    "evita los duplicados",
+];

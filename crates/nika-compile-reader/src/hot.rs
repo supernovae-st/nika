@@ -670,6 +670,54 @@ mod tests {
     }
 
     #[test]
+    fn a_gate_that_names_sending_gates_the_send_and_a_waiver_gates_nothing() {
+        let intent = "Lisez ./station/remontees.csv (colonnes remontee, etat), comptez les remontées dont l'état est « fermée » et écrivez ce nombre seul dans ./out/fermees.txt. Envoyez ensuite une requête POST à https://example.com/etat dont le corps est un objet JSON avec la clé fermees contenant ce nombre. Demandez-moi confirmation avant tout envoi ; rien ne doit partir sans mon accord.";
+        let reading = lexicon::read(intent);
+        let policy = |verb: EffectVerb| {
+            reading
+                .plan
+                .effects
+                .iter()
+                .find(|e| e.verb == verb)
+                .map(|e| e.policy)
+        };
+        assert_eq!(
+            policy(EffectVerb::Write),
+            Some(EffectPolicy::Automatic),
+            "{:?}",
+            reading.plan.effects
+        );
+        assert_eq!(
+            policy(EffectVerb::Send),
+            Some(EffectPolicy::HumanFirst),
+            "{:?}",
+            reading.plan.effects
+        );
+        let intent = "Nel file ./piscina/ingressi.csv ci sono le colonne giorno e ingressi. Calcola la somma di tutti gli ingressi. Scrivi il numero, e solo il numero, in ./out/totale.txt. Poi invia una richiesta POST a https://example.com/settimana con un corpo JSON che abbia la chiave totale con quel numero. Non serve chiedermi conferma.";
+        let reading = lexicon::read(intent);
+        let send = reading
+            .plan
+            .effects
+            .iter()
+            .find(|e| e.verb == EffectVerb::Send)
+            .expect("a send");
+        assert_eq!(
+            send.policy,
+            EffectPolicy::Automatic,
+            "{:?}",
+            reading.plan.effects
+        );
+        assert!(
+            reading
+                .policy_clauses
+                .iter()
+                .any(|c| c.contains("Non serve chiedermi conferma")),
+            "{:?}",
+            reading.policy_clauses
+        );
+    }
+
+    #[test]
     fn a_read_of_owned_records_is_a_lookup() {
         let intent = "Lis mes disponibilités et celles des participants, puis propose par écrit trois créneaux compatibles dans le fuseau Europe/Paris.";
         let reading = lexicon::read(intent);
