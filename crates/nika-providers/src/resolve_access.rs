@@ -487,10 +487,14 @@ pub fn refuse_pin_for_verbs<'m>(
         (pin == AccessClass::Harness.as_str())
             .then(|| first_ready_infer_harness(probes).unwrap_or(AccessClass::Harness.as_str()))
     });
+    // Admission judges the seat at the TEXT grade — the grade every one-shot proves; the infer
+    // verb re-meets the seat at the task's own need (a `schema:` asks json_schema) when it
+    // runs, with the precise witness. A text-only task on a text-grade seat (Copilot) was
+    // refused here for a schema it never asked (measured 2026-09-22, nika-076a2a91).
     if has_infer
         && let Some(seat) = seat
         && let Err(error) =
-            nika_harness::meet_infer_grade(seat, nika_harness::StructuredOutputGrade::JsonSchema)
+            nika_harness::meet_infer_grade(seat, nika_harness::StructuredOutputGrade::Text)
     {
         return Some(PinRefusal::NoPath {
             message: error.to_string(),
