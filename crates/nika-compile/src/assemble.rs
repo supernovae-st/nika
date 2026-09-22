@@ -887,11 +887,12 @@ fn emit_step(d: &mut Doc, plan: &Plan, b: &Bindings, guide: &str, step: &Step) {
         }
         Op::Compute => match b.rule.bound() {
             Some(RuleBinding::Answered(rule)) => {
-                d.root["const"]["rule_expression"] = rule.clone();
+                // The answer is the task's literal program: the Check preview compiles it
+                // (NIKA-VAR-005) instead of trusting a templated const the checker never reads.
                 d.tool(
                     "compute",
                     "nika:jq",
-                    json!({"input": d.jq_input(), "expression": "${{ const.rule_expression }}"}),
+                    json!({"input": d.jq_input(), "expression": rule.clone()}),
                     Some(d.with_all()),
                     true,
                 );
