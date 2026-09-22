@@ -387,7 +387,48 @@ const OF_WORDS: &[&str] = &[
 /// name new content the write demands? A pronoun or a generic result word refers back; so
 /// does a head noun that recurs in an earlier clause (`the count` after `count the tickets`).
 /// Anything else (`a 3-bullet summary`, `the summary` with nothing summarized before) is new.
+/// Object clitics the reader keeps attached to the verb it stripped (FR « -le », « -la »,
+/// « -les »; ES « -lo », « -la », « -los », « -las »; PT « -o », « -a », « -os », « -as »),
+/// and the identity cues an object opens with when the pronoun was glued to the verb
+/// itself (« escríbelo tal cual en … », « scrivilo così com'è in … »): what is written as it
+/// is is what was read. A bare article (« la réponse ») is a determiner, never a pronoun.
+fn object_clitic_or_identity(object_lower: &str) -> bool {
+    const CLITICS: &[&str] = &[
+        "-le", "-la", "-les", "-lo", "-los", "-las", "-o", "-a", "-os", "-as", "it",
+    ];
+    const IDENTITY: &[&str] = &[
+        "as is",
+        "as-is",
+        "verbatim",
+        "byte for byte",
+        "tel quel",
+        "telle quelle",
+        "tels quels",
+        "octet pour octet",
+        "tal cual",
+        "tal como está",
+        "così com'è",
+        "cosi com'e",
+        "così come",
+        "unverändert",
+        "unverandert",
+        "wie es ist",
+        "tal e qual",
+    ];
+    let object = object_lower.trim_start();
+    let first = object
+        .split(|c: char| c.is_whitespace() || c == ',')
+        .next()
+        .unwrap_or_default();
+    CLITICS.contains(&first) || IDENTITY.iter().any(|cue| object.starts_with(cue))
+}
+
 pub(crate) fn refers_back<'a>(object_lower: &str, earlier: impl Iterator<Item = &'a str>) -> bool {
+    // « écris-le tel quel dans … », « escríbelo en … », « escreve-o em … »: the object is the
+    // clitic pronoun glued to the verb, and it stands for the material read before.
+    if object_clitic_or_identity(object_lower) {
+        return true;
+    }
     let tokens: Vec<&str> = object_lower
         .split(|c: char| !c.is_alphanumeric() && c != '\'' && c != '-')
         .map(|t| t.trim_matches('-'))

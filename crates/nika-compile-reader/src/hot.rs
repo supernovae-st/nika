@@ -483,6 +483,20 @@ fn write_without_producer(plan: &Plan, why: &mut Vec<String>) {
         if plan.has(Op::Fetch) && super::objects::page_facet(&content).is_some() {
             continue;
         }
+        // « écris-le tel quel dans … », « write it as is to … » after a read: the object
+        // refers back to the material read, which is what the write carries.
+        let sourced = plan
+            .steps
+            .iter()
+            .any(|s| matches!(s.op, Op::Read | Op::Fetch | Op::Lookup | Op::Search));
+        if sourced
+            && super::objects::refers_back(
+                content.trim(),
+                plan.steps.iter().map(|s| s.detail.as_str()),
+            )
+        {
+            continue;
+        }
         let words = content
             .split(|c: char| !c.is_alphanumeric() && c != '-' && c != '\'')
             .filter(|w| !w.is_empty() && !LINK_WORDS.contains(w))

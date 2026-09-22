@@ -12,6 +12,7 @@
 //! AMBIGUOUS and may be settled by a bounded decision seat. Nothing here invents
 //! an operation, an effect or a policy; every element keeps its verbatim clause.
 
+mod copy;
 mod cues;
 mod effects;
 mod es;
@@ -1014,6 +1015,10 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
                 );
             }
         }
+        return true;
+    }
+    // « copy ./a.txt as is to ./out/b.txt »: a read and a write of what was read.
+    if copy::read(text, original, reading) {
         return true;
     }
     if CONSTRAINT_OPENERS.iter().any(|m| text.starts_with(m)) {
