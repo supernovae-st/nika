@@ -1250,6 +1250,8 @@ mod tests {
             title: id.to_owned(),
             patterns: patterns.iter().map(|p| (*p).to_owned()).collect(),
             score: 1.0,
+            skeleton: None,
+            signature: None,
         }
     }
 

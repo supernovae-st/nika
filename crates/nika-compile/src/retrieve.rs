@@ -60,6 +60,10 @@ pub struct Hit {
     pub patterns: Vec<String>,
     /// Raw BM25 score (corpus-relative; never normalized).
     pub score: f64,
+    /// The canonical skeleton that covers a family, or a skeleton hit's own name.
+    pub skeleton: Option<String>,
+    /// A family's structure signature (`FETCH → EXTRACT → SUMMARIZE`); none for a skeleton.
+    pub signature: Option<String>,
 }
 
 /// Recall at most `k` candidates for a free-form intent, best first.
@@ -92,6 +96,8 @@ pub fn retrieve(query: &str, k: usize) -> Vec<Hit> {
                 title: doc.title.clone(),
                 patterns: doc.patterns.clone(),
                 score,
+                skeleton: doc.skeleton.clone(),
+                signature: doc.signature.clone(),
             })
         })
         .collect()
@@ -160,6 +166,8 @@ struct Doc {
     kind: HitKind,
     title: String,
     patterns: Vec<String>,
+    skeleton: Option<String>,
+    signature: Option<String>,
 }
 
 struct Corpus {
@@ -197,6 +205,8 @@ fn build() -> Corpus {
             kind: HitKind::Family,
             title: row.title.clone(),
             patterns: row.patterns.clone(),
+            skeleton: row.skeleton.clone(),
+            signature: Some(row.signature.clone()),
         });
         texts.push(family_text(row));
     }
@@ -213,10 +223,12 @@ fn build() -> Corpus {
             text.push_str(covered);
         }
         docs.push(Doc {
-            id: name,
+            id: name.clone(),
             kind: HitKind::Skeleton,
             title: headline,
             patterns: words,
+            skeleton: Some(name),
+            signature: None,
         });
         texts.push(text);
     }

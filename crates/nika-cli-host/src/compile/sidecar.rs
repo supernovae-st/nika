@@ -96,7 +96,7 @@ pub(super) fn recordable(out: &CompileOutcome) -> bool {
     out.provenance.plan.is_some()
         && matches!(
             out.provenance.strategy,
-            Some(Strategy::Hot | Strategy::Warm | Strategy::Cold)
+            Some(Strategy::Hot | Strategy::Warm | Strategy::Cold | Strategy::Native)
         )
 }
 

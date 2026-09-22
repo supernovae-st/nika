@@ -83,7 +83,6 @@ pub(crate) mod pattern;
 mod predicate;
 mod realize;
 mod retrieve;
-mod shape;
 mod support;
 mod trigger;
 mod types;
@@ -94,8 +93,8 @@ mod writes;
 // ADR-137 precedent); the composer, the assembler and the preview read them at their
 // historical module paths.
 use nika_compile_reader::{
-    cardinality, columns, gates, hot, lexicon, objects, paths, plan, rule_tokens, rules, structure,
-    unknowns, words,
+    cardinality, columns, fidelity, gates, hot, lexicon, objects, paths, plan, rule_tokens, rules,
+    shape, structure, unknowns, words,
 };
 
 use std::collections::BTreeSet;
@@ -113,8 +112,8 @@ pub use retrieve::{Hit, HitKind, retrieve, retrieve_by_ops};
 pub use types::{
     AuthoringCognition, AuthoringPolicy, AuthoringReceipt, ChoiceOffer, CompileDiagnostic,
     CompileError, CompileOutcome, CompilePreview, CompileProvenance, CompileQuestion,
-    CompileRequest, CompileStatus, DiagnosticKind, HotPolicy, PreviewScope, QuestionType,
-    RepresentationError, Strategy, TriggerKind, TriggerRequirement, TriggerStatus,
+    CompileRequest, CompileStatus, DiagnosticKind, HotPolicy, NativeMode, PreviewScope,
+    QuestionType, RepresentationError, Strategy, TriggerKind, TriggerRequirement, TriggerStatus,
 };
 pub use wire::{COMPILE_WIRE_VERSION, outcome_document};
 

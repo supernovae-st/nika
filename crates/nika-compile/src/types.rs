@@ -305,6 +305,9 @@ pub enum Strategy {
     Warm,
     /// One generative proposal, constrained by the deterministic facts.
     Cold,
+    /// A native candidate the seat wrote from the authoring workspace's knowledge, judged by
+    /// the parser, the Check and the fidelity laws, repaired from their diagnostics.
+    Native,
 }
 
 impl Strategy {
@@ -317,6 +320,7 @@ impl Strategy {
             Self::Hot => "hot",
             Self::Warm => "warm",
             Self::Cold => "cold",
+            Self::Native => "native",
         }
     }
     /// The strategy a recorded plan names, if the word is one of ours.
@@ -327,9 +331,39 @@ impl Strategy {
             Self::Hot,
             Self::Warm,
             Self::Cold,
+            Self::Native,
         ]
         .into_iter()
         .find(|strategy| strategy.word() == word)
+    }
+}
+
+/// When the native strategy (a seat-written candidate judged by the parser, the Check and the
+/// fidelity laws) is engaged for a free intent.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum NativeMode {
+    /// Never: the private plan is the only generative path (the library's default, so that
+    /// a caller's calls stay exactly what it asked for; the CLI opts into `Escalate`).
+    #[default]
+    Off,
+    /// After the private plan ends without a candidate, fails the fidelity laws or hands
+    /// the human a machine's problem (a rewrite, a jq expression, a glob).
+    Escalate,
+    /// Straight to the native candidate, before the deterministic door and without the
+    /// private plan (the ablation, and the arena's treatment D).
+    Only,
+}
+
+impl NativeMode {
+    /// The stable machine word.
+    #[must_use]
+    pub const fn word(self) -> &'static str {
+        match self {
+            Self::Off => "off",
+            Self::Escalate => "escalate",
+            Self::Only => "only",
+        }
     }
 }
 
@@ -341,8 +375,22 @@ pub struct AuthoringPolicy {
     pub(super) max_tokens: u32,
     pub(super) timeout: std::time::Duration,
     pub(super) samples: u32,
+    pub(super) native: NativeMode,
+    pub(super) repairs: u32,
 }
 impl AuthoringPolicy {
+    /// When the native candidate is written (default: after the private plan fails a human).
+    #[must_use]
+    pub fn with_native(mut self, native: NativeMode) -> Self {
+        self.native = native;
+        self
+    }
+    /// How many repair rounds a native candidate may buy (0..=5, default 3): one call each.
+    #[must_use]
+    pub fn with_repairs(mut self, repairs: u32) -> Self {
+        self.repairs = repairs.min(5);
+        self
+    }
     /// Ask for `samples` independent proposals (1..=5) and keep the one the others agree
     /// with most; disagreement is recorded, never voted away. Each sample is one call.
     #[must_use]
@@ -359,6 +407,8 @@ impl AuthoringPolicy {
             max_tokens,
             timeout,
             samples: 1,
+            native: NativeMode::default(),
+            repairs: 3,
         }
     }
 }
@@ -378,6 +428,11 @@ pub struct AuthoringReceipt {
     pub output_tokens: Option<u64>,
     /// Wall time spent awaiting the provider, including timeout/failure.
     pub elapsed_ms: u64,
+    /// What each call received, in call order: its role (`plan` · `repair` · `transform`),
+    /// the sha256 of the instruction and of the answer schema it was given, the bytes of its
+    /// messages, and the references sent with it (none today: recall is recorded, never
+    /// sent). A journal of what the seat actually read, never of what the repository holds.
+    pub context: Vec<serde_json::Value>,
 }
 
 /// Authoring provenance is not program identity or execution Proof.

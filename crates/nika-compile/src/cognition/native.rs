@@ -1,0 +1,912 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
+//! Native authoring (treatment D of the A/B/C/D/E comparison): a strong seat writes the
+//! `.nika` candidate itself, from the authoring workspace's knowledge, and the compiler judges
+//! it as it judges any source — the strict parser, the pure Check, then deterministic fidelity
+//! laws that compare the candidate to the ORIGINAL request and the reader's floor (every
+//! source the request names is read, every destination written, every stated approval gates
+//! its effect through `nika:prompt`, no prohibited effect, no invented path or host) — and
+//! sends every refusal back as structured diagnostics for a bounded repair round. A candidate
+//! that survives is READY once its business questions are answered; one that does not is a
+//! recorded failure with its last diagnostics, never a substitute. The seat never asks a human
+//! for jq, a glob or any internal syntax: those are the compiler's diagnostics, not questions.
+
+use super::knowledge::{self, Reference};
+use super::{
+    AuthoringPolicy, CompileOutcome, CompileRequest, DiagnosticKind, QuestionType, Strategy,
+};
+use crate::fidelity::{self, Diagnostic};
+use crate::{CompileDiagnostic, CompileError, CompileQuestion, CompileStatus, lexicon::Reading};
+use nika_kernel::ai::provider::{ContentBlock, Message, ProviderInferDyn, Role, StopReason};
+use serde_json::{Value, json};
+use std::collections::BTreeSet;
+
+/// The seat's answer: the candidate, its business questions, the clauses it could not realize.
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Answer {
+    candidate: String,
+    #[serde(default, deserialize_with = "nullable_questions")]
+    questions: Vec<Question>,
+    #[serde(default, deserialize_with = "super::nullable_vec")]
+    gaps: Vec<String>,
+    #[serde(default, deserialize_with = "super::nullable_string")]
+    notes: String,
+}
+
+#[derive(serde::Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+struct Question {
+    key: String,
+    label: String,
+    #[serde(default, deserialize_with = "super::nullable_string")]
+    answer_type: String,
+    #[serde(default, deserialize_with = "super::nullable_string")]
+    why: String,
+}
+
+fn nullable_questions<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<Question>, D::Error> {
+    use serde::Deserialize as _;
+    Ok(Option::<Vec<Question>>::deserialize(d)?.unwrap_or_default())
+}
+
+fn schema() -> Value {
+    json!({"type":"object","additionalProperties":false,"required":["candidate","questions","gaps","notes"],"properties":{
+        "candidate":{"type":"string","minLength":1},
+        "questions":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["key","label","answer_type","why"],"properties":{
+            "key":{"type":"string"},"label":{"type":"string"},"answer_type":{"type":"string","enum":["text","literal"]},"why":{"type":"string"}}}},
+        "gaps":{"type":"array","items":{"type":"string"}},
+        "notes":{"type":"string"}}})
+}
+
+/// Whether a cold outcome calls for the native strategy: a question that hands the human a
+/// machine's problem (a rewrite, a jq expression, a glob), or a dead end (no candidate and
+/// nothing to answer). A cold outcome waiting on business values is not a failure.
+pub(super) fn escalates(out: &CompileOutcome) -> bool {
+    // A refusal is the floor (a bypassed approval, a literal-only policy): no door reopens it.
+    if out.status == CompileStatus::Refused {
+        return false;
+    }
+    // A seat that failed, timed out or was cut at its cap is not asked again through another
+    // door: the provider finding stands, and the calls stay bounded.
+    if out
+        .diagnostics
+        .iter()
+        .any(|d| d.target == "authoring_provider")
+    {
+        return false;
+    }
+    let machine = out.questions.iter().any(|q| {
+        matches!(
+            q.key.as_str(),
+            "intent.clarification" | "const.rule_expression" | "const.source_glob"
+        )
+    });
+    machine || (out.candidate.is_none() && out.questions.is_empty())
+}
+
+/// The floor the reader states before any seat writes: a request that reuses, skips or
+/// presupposes an approval is refused at the native door too, with zero calls.
+fn floor_refuses(reading: &Reading, out: &mut CompileOutcome) -> bool {
+    let Some(refusal) = reading
+        .plan
+        .unknowns
+        .iter()
+        .find(|u| u.contains("approval-bypass"))
+    else {
+        return false;
+    };
+    super::super::finding(
+        out,
+        DiagnosticKind::Refused,
+        "authoring_native",
+        refusal.clone(),
+    );
+    out.status = CompileStatus::Refused;
+    out.candidate = None;
+    true
+}
+
+/// The facts the reader holds the candidate to, stated to the seat as data.
+fn floor(intent: &str, reading: &Reading) -> Value {
+    let plan = &reading.plan;
+    json!({
+        "sources": crate::hot::stated_sources(intent),
+        "destinations": crate::hot::stated_destinations(intent),
+        "effects": plan.effects.iter().map(|e| json!({"verb": e.verb.word(), "target": e.target, "policy": e.policy.word()})).collect::<Vec<_>>(),
+        "obligations": plan.obligations.iter().map(|o| o.kind.word()).collect::<Vec<_>>(),
+        "trigger": plan.trigger,
+        "constraints": plan.constraints,
+    })
+}
+
+/// The status and the open questions of the cold round, kept in the record as data.
+fn cold_report(out: &CompileOutcome) -> Value {
+    let status = match out.status {
+        CompileStatus::Ready => "ready",
+        CompileStatus::Incomplete => "incomplete",
+        CompileStatus::Refused => "refused",
+    };
+    json!({
+        "status": status,
+        "questions": out.questions.iter().map(|q| q.key.clone()).collect::<Vec<_>>(),
+        "diagnostics": out.diagnostics.iter().filter(|d| d.kind != DiagnosticKind::Applied).map(|d| d.message.clone()).collect::<Vec<_>>(),
+    })
+}
+
+/// One conversation with the seat: its messages so far, the journal of every round and the
+/// last diagnostics (a repeat is no progress).
+struct Talk {
+    messages: Vec<Message>,
+    rounds: Vec<Value>,
+    last: Option<Vec<Diagnostic>>,
+    route: Vec<String>,
+    /// The values the human answered: a candidate may carry them without inventing them.
+    allowed: Vec<String>,
+}
+
+/// What the cold round left when the native door opened: its report for the record, its
+/// questions and diagnostics, kept in case the door never judges a candidate.
+struct Cold {
+    report: Value,
+    questions: Vec<CompileQuestion>,
+    diagnostics: Vec<CompileDiagnostic>,
+}
+
+/// What one round decided.
+enum Round {
+    /// The candidate passed every law.
+    Accepted(Answer),
+    /// The diagnostics went back to the seat.
+    Repair,
+    /// The seat returned the same refused candidate: the budget ends honestly.
+    Stalled,
+    /// The call failed or the answer was not decodable: nothing more to send.
+    Stop,
+}
+
+/// Author natively: the opening call, then at most `policy.repairs` repair calls, each judged
+/// by the same laws; the outcome carries the receipt of every call, the references sent and
+/// every round's diagnostics. A previous cold outcome's receipt and record are kept.
+pub(super) async fn author<P: ProviderInferDyn>(
+    intent: &str,
+    reading: &Reading,
+    policy: &AuthoringPolicy,
+    provider: &P,
+    request: &CompileRequest,
+    mut route: Vec<String>,
+    mut out: CompileOutcome,
+) -> Result<CompileOutcome, CompileError> {
+    // The cold round's own report stays in the record; the native round starts clean.
+    let cold = Cold {
+        report: cold_report(&out),
+        questions: std::mem::take(&mut out.questions),
+        diagnostics: std::mem::take(&mut out.diagnostics),
+    };
+    out.candidate = None;
+    out.status = CompileStatus::Incomplete;
+    if floor_refuses(reading, &mut out) {
+        route.push("native: refused by the floor".to_owned());
+        super::record_route(&mut out, &route);
+        out.provenance.strategy = Some(Strategy::Native);
+        return Ok(out);
+    }
+    let references = knowledge::references(intent, 2);
+    let callables = knowledge::callables(&knowledge::builtins_of(&references));
+    let sent: Vec<Value> = references
+        .iter()
+        .chain(callables.iter())
+        .map(Reference::receipt)
+        .collect();
+    let opening = json!({
+        "request": intent,
+        "facts_the_compiler_holds_you_to": floor(intent, reading),
+        "answers_already_given": request.answers,
+    });
+    let mut talk = Talk {
+        messages: vec![
+            Message::text(Role::System, system_message(&references, &callables)),
+            Message::text(Role::User, opening.to_string()),
+        ],
+        rounds: Vec::new(),
+        last: None,
+        route,
+        allowed: fidelity::allowed_values(&request.answers),
+    };
+    let mut accepted: Option<Answer> = None;
+    for round in 0..=policy.repairs.min(5) {
+        match exchange(
+            round, &mut talk, intent, reading, policy, provider, &mut out,
+        )
+        .await
+        {
+            Round::Accepted(answer) => {
+                accepted = Some(answer);
+                break;
+            }
+            Round::Repair => {}
+            Round::Stalled => {
+                talk.route.push("native: no progress".to_owned());
+                break;
+            }
+            Round::Stop => break,
+        }
+    }
+    let mut decision = out.provenance.decision.take().unwrap_or_else(|| json!({}));
+    decision["cold"] = cold.report.clone();
+    decision["native"] = json!({
+        "identity": knowledge::identity(),
+        "references": sent,
+        "rounds": talk.rounds.clone(),
+        "accepted": accepted.is_some(),
+    });
+    out.provenance.decision = Some(decision);
+    conclude(
+        intent,
+        reading,
+        request,
+        accepted.as_ref(),
+        &talk,
+        cold,
+        &mut out,
+    );
+    out.provenance.strategy = Some(Strategy::Native);
+    Ok(out)
+}
+
+/// One round: the call, the decoded answer, the judge's verdict, the journal entry, and the
+/// diagnostics sent back when the candidate is refused.
+async fn exchange<P: ProviderInferDyn>(
+    round: u32,
+    talk: &mut Talk,
+    intent: &str,
+    reading: &Reading,
+    policy: &AuthoringPolicy,
+    provider: &P,
+    out: &mut CompileOutcome,
+) -> Round {
+    let role = if round == 0 {
+        "native"
+    } else {
+        "native-repair"
+    };
+    let Some(response) =
+        super::call_with_schema(policy, provider, role, talk.messages.clone(), schema(), out).await
+    else {
+        talk.rounds.push(json!({"round": round, "call": "failed"}));
+        return Round::Stop;
+    };
+    let text = match response.content.as_slice() {
+        [ContentBlock::Text { text }] if response.stop_reason == StopReason::EndTurn => {
+            text.clone()
+        }
+        _ => {
+            talk.rounds
+                .push(json!({"round": round, "answer": "not one complete JSON text"}));
+            super::super::finding(
+                out,
+                DiagnosticKind::Unknown,
+                "authoring_native",
+                "The seat did not return one complete JSON text; nothing was assembled.",
+            );
+            return Round::Stop;
+        }
+    };
+    let answer: Answer = match serde_json::from_str(&text) {
+        Ok(answer) => answer,
+        Err(error) => {
+            talk.rounds
+                .push(json!({"round": round, "answer": format!("not a native answer: {error}")}));
+            super::super::finding(
+                out,
+                DiagnosticKind::Unknown,
+                "authoring_native",
+                format!(
+                    "The seat's answer is not a native answer ({error}); nothing was assembled."
+                ),
+            );
+            return Round::Stop;
+        }
+    };
+    let diagnostics = judge(
+        intent,
+        reading,
+        &answer.candidate,
+        &answer.questions,
+        &talk.allowed,
+    );
+    talk.rounds.push(json!({
+        "round": round,
+        "candidate_sha256": knowledge::sha256(&answer.candidate),
+        "questions": answer.questions.iter().map(|q| q.key.clone()).collect::<Vec<_>>(),
+        "gaps": answer.gaps.clone(),
+        "notes": answer.notes.clone(),
+        "diagnostics": diagnostics.iter().map(|d| json!({"kind": d.kind, "message": d.message})).collect::<Vec<_>>(),
+    }));
+    if diagnostics.is_empty() {
+        return Round::Accepted(answer);
+    }
+    if talk.last.as_ref() == Some(&diagnostics) {
+        return Round::Stalled;
+    }
+    talk.messages.push(Message::text(Role::Assistant, text));
+    talk.messages
+        .push(Message::text(Role::User, repair_message(&diagnostics)));
+    talk.last = Some(diagnostics);
+    Round::Repair
+}
+
+/// The end of the conversation: an accepted candidate settles; an exhausted budget is an
+/// honest finding and the clarification question, never a substitute workflow.
+fn conclude(
+    intent: &str,
+    reading: &Reading,
+    request: &CompileRequest,
+    accepted: Option<&Answer>,
+    talk: &Talk,
+    cold: Cold,
+    out: &mut CompileOutcome,
+) {
+    // The repair loop is visible on every transport through the diagnostics, not only in
+    // the provenance: what the judge refused, and what the seat repaired.
+    super::super::finding(
+        out,
+        DiagnosticKind::Applied,
+        "authoring_native",
+        journal_line(&talk.rounds),
+    );
+    let mut route = talk.route.clone();
+    let judged = talk
+        .rounds
+        .iter()
+        .any(|r| r.get("candidate_sha256").is_some());
+    match accepted {
+        Some(answer) => {
+            route.push("native: accepted".to_owned());
+            super::record_route(out, &route);
+            settle(
+                intent,
+                reading.plan.trigger.as_deref(),
+                &answer.candidate,
+                &answer.questions,
+                request,
+                out,
+            );
+        }
+        None if !judged => {
+            // The door never judged a candidate (a failed call, an answer that was not an
+            // answer): the previous round's questions and diagnostics stand, nothing is
+            // replaced by a clarification the human could not act on.
+            route.push("native: no candidate".to_owned());
+            super::record_route(out, &route);
+            out.questions.extend(cold.questions);
+            out.diagnostics.extend(cold.diagnostics);
+            if out.questions.is_empty() {
+                super::super::question(
+                    out,
+                    "intent.clarification",
+                    "Supply a complete replacement request including all work still wanted. It explicitly replaces the earlier intent.",
+                    QuestionType::Text,
+                );
+            }
+        }
+        None => {
+            route.push("native: exhausted".to_owned());
+            super::record_route(out, &route);
+            super::super::finding(
+                out,
+                DiagnosticKind::RequiresHuman,
+                "authoring_native",
+                "No candidate survived the fidelity laws within the repair budget; the rounds and their diagnostics are recorded, no substitute workflow was emitted.",
+            );
+            super::super::question(
+                out,
+                "intent.clarification",
+                "Supply a complete replacement request including all work still wanted. It explicitly replaces the earlier intent.",
+                QuestionType::Text,
+            );
+        }
+    }
+}
+
+/// One line a human reads: what each round of the conversation decided and why.
+fn journal_line(rounds: &[Value]) -> String {
+    let mut parts = Vec::new();
+    for round in rounds {
+        let n = round["round"].as_u64().unwrap_or_default();
+        if let Some(call) = round["call"].as_str() {
+            parts.push(format!("round {n}: the call {call}"));
+        } else if let Some(answer) = round["answer"].as_str() {
+            parts.push(format!("round {n}: {answer}"));
+        } else {
+            let diagnostics = round["diagnostics"].as_array().cloned().unwrap_or_default();
+            if diagnostics.is_empty() {
+                parts.push(format!("round {n}: accepted"));
+            } else {
+                let heads: Vec<String> = diagnostics
+                    .iter()
+                    .take(3)
+                    .map(|d| {
+                        d["message"]
+                            .as_str()
+                            .unwrap_or_default()
+                            .chars()
+                            .take(90)
+                            .collect()
+                    })
+                    .collect();
+                parts.push(format!(
+                    "round {n}: refused ({} diagnostic(s): {})",
+                    diagnostics.len(),
+                    heads.join(" · ")
+                ));
+            }
+        }
+    }
+    format!(
+        "The seat wrote {} candidate(s) from the authoring card and the recalled references; the judge read each one: {}.",
+        rounds.len(),
+        parts.join("; ")
+    )
+}
+
+fn system_message(references: &[Reference], callables: &[Reference]) -> String {
+    let mut text = String::from(knowledge::card());
+    text.push_str("\n\n# Callable contracts (the stdlib page, cut)\n");
+    for callable in callables {
+        text.push_str(&callable.text);
+        text.push_str("\n\n");
+    }
+    text.push_str("\n# References recalled for this request (priors, never prisons)\n");
+    for reference in references {
+        text.push_str("## ");
+        text.push_str(&reference.id);
+        text.push('\n');
+        if reference.kind == "skeleton" {
+            text.push_str("```yaml\n");
+            text.push_str(&reference.text);
+            text.push_str("\n```\n\n");
+        } else {
+            text.push_str(&reference.text);
+            text.push_str("\n\n");
+        }
+    }
+    text
+}
+
+fn repair_message(diagnostics: &[Diagnostic]) -> String {
+    let mut text = String::from(
+        "COMPILER DIAGNOSTICS on your candidate. Return the complete corrected JSON answer (candidate, questions, gaps, notes); fix every item, change nothing the request did not ask.\n",
+    );
+    for (n, d) in diagnostics.iter().enumerate() {
+        use std::fmt::Write as _;
+        let _ = writeln!(text, "{}. [{}] {}", n + 1, d.kind, d.message);
+    }
+    text
+}
+
+/// Slug fragments that name a machine's construct rather than a business value.
+const MACHINE_SLUGS: &[&str] = &[
+    "glob",
+    "jq",
+    "regex",
+    "regexp",
+    "expression",
+    "pattern",
+    "selector",
+    "xpath",
+    "query",
+    "cel",
+    "syntax",
+    "schema",
+];
+
+/// A candidate's questions, admitted: `const.<snake_slug>` keys only, each declared under
+/// `const:` in the candidate as a placeholder, at most eight; never a machine's construct.
+fn admitted_questions(
+    candidate: &str,
+    questions: &[Question],
+) -> Result<Vec<Question>, Diagnostic> {
+    let doc = crate::edit::literal_projection(candidate);
+    let consts = doc
+        .as_ref()
+        .and_then(|d| d.get("const"))
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_default();
+    let mut admitted = Vec::new();
+    for question in questions.iter().take(8) {
+        let Some(slug) = question.key.strip_prefix("const.") else {
+            return Err(Diagnostic {
+                kind: "question",
+                message: format!(
+                    "the question `{}` is not a `const.<snake_slug>` business value; a jq expression, a glob or any syntax is the compiler's to write, never a question",
+                    question.key
+                ),
+            });
+        };
+        // A value named after a machine's construct is the compiler's problem in a human's
+        // clothes: a glob over a stated folder, a jq program, a regex, a selector are written,
+        // never asked (the reality check of 2026-09-22 measured the jq question 5 times).
+        if MACHINE_SLUGS.iter().any(|m| slug.contains(m)) {
+            return Err(Diagnostic {
+                kind: "question",
+                message: format!(
+                    "the question `{}` asks the human for a machine's construct; write it yourself from the request (a glob over the stated folder, the jq program, the pattern) and, when the request names no place at all, ask for the FOLDER or FILE as `const.<slug>` (a path, never a glob or a program)",
+                    question.key
+                ),
+            });
+        }
+        if slug.is_empty()
+            || !slug
+                .chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+            || !consts.contains_key(slug)
+        {
+            return Err(Diagnostic {
+                kind: "question",
+                message: format!(
+                    "the question `{}` needs a snake_case slug declared under `const:` in the candidate as a placeholder (`{slug}: \"\"`)",
+                    question.key
+                ),
+            });
+        }
+        admitted.push(question.clone());
+    }
+    Ok(admitted)
+}
+
+/// The judge: the strict parser, the pure Check, then the fidelity laws against the original
+/// request and the reader's floor. Every refusal is one structured diagnostic.
+fn judge(
+    intent: &str,
+    reading: &Reading,
+    candidate: &str,
+    questions: &[Question],
+    allowed: &[String],
+) -> Vec<Diagnostic> {
+    let mut out = Vec::new();
+    let Some(doc) = admit(candidate, questions, &mut out) else {
+        return out;
+    };
+    fidelity::laws(intent, &reading.plan, &doc, allowed, &[], &mut out);
+    if let Err(diagnostic) = admitted_questions(candidate, questions) {
+        out.push(diagnostic);
+    }
+    out.dedup();
+    out
+}
+
+/// The strict parser and the pure Check (its refusals become diagnostics, the laws still
+/// run), then the literal projection the laws read; None when nothing can be read. A
+/// `nika:fetch` whose URL rides a placeholder the seat asks for (`const.<slug>` declared
+/// empty) is not refused for its unknown host: the answer grants it (`bake`).
+fn admit(candidate: &str, questions: &[Question], out: &mut Vec<Diagnostic>) -> Option<Value> {
+    let wf = match crate::parse(candidate) {
+        Ok(wf) => wf,
+        Err(error) => {
+            out.push(Diagnostic {
+                kind: "parse",
+                message: format!("the candidate does not parse: {error}"),
+            });
+            return None;
+        }
+    };
+    let doc = crate::edit::literal_projection(candidate);
+    let tolerated = doc
+        .as_ref()
+        .is_some_and(|d| placeholder_host_asked(d, questions));
+    let report = nika_check::check(&wf);
+    if !report.is_clean() {
+        let mut kept = 0;
+        for violation in report
+            .conformance
+            .iter()
+            .filter(|v| !(tolerated && v.code == "NIKA-SEC-004"))
+            .take(6)
+        {
+            out.push(Diagnostic {
+                kind: "check",
+                message: format!("{}: {}", violation.code, violation.message),
+            });
+            kept += 1;
+        }
+        for finding in report
+            .findings
+            .iter()
+            .filter(|f| matches!(f.severity, nika_check::FindingSeverity::Error))
+            .filter(|f| !(tolerated && f.code.as_deref() == Some("NIKA-SEC-004")))
+            .take(6)
+        {
+            out.push(Diagnostic {
+                kind: "check",
+                message: format!(
+                    "{}: {}",
+                    finding.code.as_deref().unwrap_or(finding.kind),
+                    finding.message
+                ),
+            });
+            kept += 1;
+        }
+        if kept == 0 && !tolerated {
+            out.push(Diagnostic {
+                kind: "check",
+                message: "the check refuses the candidate (see its report)".to_owned(),
+            });
+        }
+    }
+    if doc.is_none() && out.is_empty() {
+        out.push(Diagnostic {
+            kind: "parse",
+            message: "the candidate is not a literal YAML document".to_owned(),
+        });
+    }
+    doc
+}
+
+/// Whether a `nika:fetch` URL rides a `const.<slug>` placeholder (declared empty) that the
+/// seat asks for: its host is unknown until the answer, and the answer grants it.
+fn placeholder_host_asked(doc: &Value, questions: &[Question]) -> bool {
+    let consts = doc.get("const").and_then(Value::as_object);
+    let asked: Vec<&str> = questions
+        .iter()
+        .filter_map(|q| q.key.strip_prefix("const."))
+        .filter(|slug| {
+            consts
+                .and_then(|c| c.get(*slug))
+                .and_then(Value::as_str)
+                .is_some_and(str::is_empty)
+        })
+        .collect();
+    if asked.is_empty() {
+        return false;
+    }
+    doc.get("tasks")
+        .and_then(Value::as_object)
+        .into_iter()
+        .flatten()
+        .any(|(_, task)| {
+            task.get("invoke")
+                .and_then(|i| i.get("args"))
+                .and_then(|a| a.get("url"))
+                .and_then(Value::as_str)
+                .is_some_and(|url| {
+                    asked
+                        .iter()
+                        .any(|slug| url.contains(&format!("const.{slug}")))
+                })
+        })
+}
+
+/// An accepted candidate settles: its questions are asked (mandatory), the answered ones are
+/// baked into the candidate, the `model` answer replaces the placeholder, and the source goes
+/// through the same finish as every candidate. The record replays it with zero calls.
+fn settle(
+    intent: &str,
+    trigger: Option<&str>,
+    candidate: &str,
+    questions: &[Question],
+    request: &CompileRequest,
+    out: &mut CompileOutcome,
+) {
+    let admitted = admitted_questions(candidate, questions).unwrap_or_default();
+    let record = json!({
+        "strategy": Strategy::Native.word(),
+        "intent_sha256": super::intent_sha256(intent),
+        "source": candidate,
+        "questions": admitted.iter().map(|q| json!({"key": q.key, "label": q.label, "answer_type": q.answer_type, "why": q.why})).collect::<Vec<_>>(),
+        "trigger": trigger,
+    });
+    out.provenance.plan = Some(record.clone());
+    apply(&record, request, out);
+}
+
+/// The trigger the request states is recorded beside the candidate, never in it: the same
+/// reading the assembler makes (a cadence, a time of day, an event), bound to the schedule
+/// answers when the human gives them.
+fn record_trigger(record: &Value, request: &CompileRequest, out: &mut CompileOutcome) {
+    let Some(phrase) = record["trigger"].as_str().filter(|p| !p.trim().is_empty()) else {
+        return;
+    };
+    if matches!(
+        crate::trigger::classify(phrase),
+        crate::trigger::TriggerForm::Sequence
+    ) {
+        return;
+    }
+    let mut plan = crate::plan::Plan::default();
+    plan.trigger = Some(phrase.to_owned());
+    if let Some(mut trigger) = crate::trigger::requirement(&plan, false) {
+        let mut recognized = BTreeSet::new();
+        crate::trigger::bind_schedule(&mut trigger, request, out, &mut recognized);
+        super::super::finding(
+            out,
+            DiagnosticKind::Applied,
+            "trigger",
+            crate::trigger::note(&trigger),
+        );
+        out.requested_trigger = Some(trigger);
+    }
+}
+
+/// Replay a native record: the same candidate with this round's answers, zero calls.
+pub(super) fn replay(
+    intent: &str,
+    record: &Value,
+    request: &CompileRequest,
+    out: &mut CompileOutcome,
+) {
+    super::record_route(out, &["replayed native candidate".to_owned()]);
+    if record["intent_sha256"].as_str() != Some(super::intent_sha256(intent).as_str()) {
+        super::super::finding(
+            out,
+            DiagnosticKind::Unknown,
+            "recorded_plan",
+            "The recorded native candidate was written for another request; compile the intent again without it.",
+        );
+        return;
+    }
+    out.provenance.strategy = Some(Strategy::Native);
+    out.provenance.plan = Some(record.clone());
+    apply(record, request, out);
+}
+
+/// Bake the answers into the recorded source and finish it: every unanswered question stays
+/// mandatory and no candidate is emitted until all are answered; the `model` placeholder takes
+/// the human's model.
+fn apply(record: &Value, request: &CompileRequest, out: &mut CompileOutcome) {
+    let mut source = record["source"].as_str().unwrap_or_default().to_owned();
+    let mut open = false;
+    record_trigger(record, request, out);
+    for question in record["questions"].as_array().into_iter().flatten() {
+        let key = question["key"].as_str().unwrap_or_default();
+        if let Some(literal) = request.answers.get(key) {
+            if !bake(&mut source, question, literal, out) {
+                open = true;
+            }
+        } else {
+            open = true;
+            ask(question, out);
+        }
+    }
+    if source.contains("model: mock/echo") && !seat_model(&mut source, request, out) {
+        open = true;
+    }
+    if open {
+        // Questions stay; the candidate waits for them (the same contract as the assembler).
+        return;
+    }
+    super::super::finish(source, out);
+}
+
+/// Bake one answered question into the source's `const:`; false when it could not be.
+fn bake(source: &mut String, question: &Value, literal: &str, out: &mut CompileOutcome) -> bool {
+    let key = question["key"].as_str().unwrap_or_default();
+    let slug = key.trim_start_matches("const.");
+    let Some(value) = super::super::literal_answer(Some(literal), key, out) else {
+        return false;
+    };
+    let value = if question["answer_type"] == "literal" {
+        value
+    } else {
+        match value {
+            Value::String(s) => Value::String(s),
+            other => Value::String(other.to_string()),
+        }
+    };
+    let baked = crate::edit::literal_projection(source.as_str()).and_then(|before| {
+        let mut after = before.clone();
+        after["const"][slug] = value.clone();
+        let edited = crate::edit_source::emit(source.as_str(), &before, &after, slug)?;
+        // An answered endpoint also grants its host: the boundary is the compiler's to
+        // complete from the answer, never the seat's to guess.
+        if !grant_host(&mut after, &value) {
+            return Some(edited);
+        }
+        let before = crate::edit::literal_projection(&edited)?;
+        crate::edit_source::emit_at(&edited, &before, &after, &["permits", "net", "http"])
+    });
+    if let Some(edited) = baked {
+        *source = edited;
+        super::super::finding(
+            out,
+            DiagnosticKind::Applied,
+            key,
+            "Answer applied to the candidate's const.",
+        );
+        true
+    } else {
+        super::super::finding(
+            out,
+            DiagnosticKind::Missed,
+            key,
+            "The answer could not be baked into the candidate's const; it was not applied.",
+        );
+        false
+    }
+}
+
+/// Add the host of an answered URL to `permits.net.http` when that list exists and lacks it.
+fn grant_host(after: &mut Value, value: &Value) -> bool {
+    let Some(host) = value.as_str().and_then(host_of) else {
+        return false;
+    };
+    let Some(list) = after
+        .pointer_mut("/permits/net/http")
+        .and_then(Value::as_array_mut)
+    else {
+        return false;
+    };
+    if list.iter().any(|h| h.as_str() == Some(host)) {
+        return false;
+    }
+    list.push(Value::String(host.to_owned()));
+    true
+}
+
+/// The host of an `http(s)://` URL, without its port: the form `permits.net.http` lists (the
+/// assembler grants `url.host_str()`; the loopback declassification compares exact hosts).
+fn host_of(url: &str) -> Option<&str> {
+    let rest = url
+        .strip_prefix("https://")
+        .or_else(|| url.strip_prefix("http://"))?;
+    let end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
+    let authority = &rest[..end];
+    let host = if authority.starts_with('[') {
+        authority
+            .find(']')
+            .map_or(authority, |close| &authority[..=close])
+    } else {
+        authority.split(':').next().unwrap_or(authority)
+    };
+    (!host.is_empty()).then_some(host)
+}
+
+/// Ask one recorded business question, mandatory.
+fn ask(question: &Value, out: &mut CompileOutcome) {
+    out.questions.push(super::super::CompileQuestion {
+        key: question["key"].as_str().unwrap_or_default().to_owned(),
+        label: question["label"].as_str().unwrap_or_default().to_owned(),
+        answer_type: if question["answer_type"] == "literal" {
+            QuestionType::Literal
+        } else {
+            QuestionType::Text
+        },
+        why: question["why"]
+            .as_str()
+            .filter(|w| !w.is_empty())
+            .unwrap_or("The compiler cannot invent this business value.")
+            .to_owned(),
+        mandatory: true,
+        options: Vec::new(),
+    });
+}
+
+/// The model placeholder: the human's `model` answer replaces it; else the question is asked.
+fn seat_model(source: &mut String, request: &CompileRequest, out: &mut CompileOutcome) -> bool {
+    let Some(literal) = request.answers.get("model") else {
+        super::super::question(
+            out,
+            "model",
+            "Which model runs the language work of this workflow? Answer a `provider/name` string.",
+            QuestionType::Text,
+        );
+        return false;
+    };
+    match super::super::literal_answer(Some(literal), "model", out) {
+        Some(Value::String(model)) if model.contains('/') => {
+            *source = source.replacen("model: mock/echo", &format!("model: {model}"), 1);
+            true
+        }
+        _ => {
+            super::super::finding(
+                out,
+                DiagnosticKind::Missed,
+                "model",
+                "Answer must be a `provider/name` string.",
+            );
+            false
+        }
+    }
+}

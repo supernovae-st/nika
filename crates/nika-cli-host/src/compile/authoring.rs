@@ -6,7 +6,8 @@
 //! seats one bounded-choice capability (WARM): `typesafe/<jev>` through System
 //! One, any other `provider/name` through a closed JSON-schema enum.
 use nika_onboard::compile::{
-    AuthoringPolicy, Cognition, CompileOutcome, CompileRequest, NoProvider, compile_with_cognition,
+    AuthoringPolicy, Cognition, CompileOutcome, CompileRequest, NativeMode, NoProvider,
+    compile_with_cognition,
     decide::{DecisionSeat, ProviderChoice},
 };
 use std::{sync::Arc, time::Duration};
@@ -15,8 +16,12 @@ pub(super) fn compile(
     request: &CompileRequest,
     args: &super::CompileArgs,
 ) -> Result<CompileOutcome, String> {
-    let max_tokens = args.authoring_max_tokens.unwrap_or(2048);
-    let timeout = args.authoring_timeout.unwrap_or(30);
+    // Quality first: a reasoning seat spends its cap on its reasoning and a strong seat writes a
+    // whole candidate — the defaults are the policy's ceilings, not a thrifty guess (the product
+    // reality check of 2026-09-22 measured 7/7 gpt-5-mini probes truncated at 2048 tokens and
+    // 7/7 cut at 30 s).
+    let max_tokens = args.authoring_max_tokens.unwrap_or(8192);
+    let timeout = args.authoring_timeout.unwrap_or(120);
     if !(1..=8192).contains(&max_tokens) || !(1..=120).contains(&timeout) {
         return Err(
             "Authoring limits must be 1..8192 output tokens and 1..120 seconds.".to_owned(),
@@ -25,7 +30,13 @@ pub(super) fn compile(
     let request = match args.authoring_model.as_deref() {
         Some(model) => request.clone().with_authoring_policy(
             AuthoringPolicy::new(model, max_tokens, Duration::from_secs(timeout))
-                .with_samples(args.authoring_samples.unwrap_or(1)),
+                .with_samples(args.authoring_samples.unwrap_or(1))
+                .with_native(match args.authoring_strategy.as_deref() {
+                    Some("only") => NativeMode::Only,
+                    Some("off") => NativeMode::Off,
+                    _ => NativeMode::Escalate,
+                })
+                .with_repairs(args.authoring_repairs.unwrap_or(3)),
         ),
         None => request.clone(),
     };

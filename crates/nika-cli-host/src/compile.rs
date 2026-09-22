@@ -51,6 +51,14 @@ pub struct CompileArgs {
     /// Independent COLD proposals to compare (1..=5); each is one call. Requires the authoring model.
     #[arg(long, requires = "authoring_model")]
     pub authoring_samples: Option<u32>,
+    /// When the seat writes the candidate itself (a native `.nika` judged by the parser, the
+    /// Check and the fidelity laws): `escalate` (default) after the private plan fails a human,
+    /// `only` straight away, `off` never. Requires the authoring model.
+    #[arg(long, requires = "authoring_model", value_parser = ["escalate", "only", "off"])]
+    pub authoring_strategy: Option<String>,
+    /// Repair rounds a native candidate may buy from the compiler's diagnostics (0..=5, default 3).
+    #[arg(long, requires = "authoring_model")]
+    pub authoring_repairs: Option<u32>,
     /// Explicitly seat one bounded-decision capability (`typesafe/jev-1.13.0` or `provider/name`) for finite ambiguities.
     #[arg(long, conflicts_with_all = ["base", "list"])]
     pub decision_model: Option<String>,
