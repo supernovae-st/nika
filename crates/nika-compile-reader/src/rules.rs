@@ -23,7 +23,11 @@ use super::rule_cues::{
     RELATIVES, SUMMARY_CORE, SUMMARY_WORDS, UNIT_PHRASES, UNIT_WORDS,
 };
 
-/// The six comparisons a rule may state.
+mod lines;
+pub use lines::{by_construction_tail, line_filter};
+
+/// The comparisons a rule may state: six over a value, three over the text of a line or a
+/// column (starts with, contains, ends with) and their negations.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Comparator {
@@ -33,6 +37,12 @@ pub enum Comparator {
     Le,
     Eq,
     Ne,
+    StartsWith,
+    NotStartsWith,
+    Contains,
+    NotContains,
+    EndsWith,
+    NotEndsWith,
 }
 
 impl Comparator {
@@ -46,6 +56,12 @@ impl Comparator {
             Self::Le => Self::Gt,
             Self::Eq => Self::Ne,
             Self::Ne => Self::Eq,
+            Self::StartsWith => Self::NotStartsWith,
+            Self::NotStartsWith => Self::StartsWith,
+            Self::Contains => Self::NotContains,
+            Self::NotContains => Self::Contains,
+            Self::EndsWith => Self::NotEndsWith,
+            Self::NotEndsWith => Self::EndsWith,
         }
     }
 
@@ -59,6 +75,12 @@ impl Comparator {
             "<=" | "≤" | "le" | "lte" => Some(Self::Le),
             "==" | "=" | "eq" | "equals" => Some(Self::Eq),
             "!=" | "<>" | "≠" | "ne" => Some(Self::Ne),
+            "startswith" | "starts_with" | "^=" => Some(Self::StartsWith),
+            "!startswith" | "not_startswith" => Some(Self::NotStartsWith),
+            "contains" | "*=" => Some(Self::Contains),
+            "!contains" | "not_contains" => Some(Self::NotContains),
+            "endswith" | "ends_with" | "$=" => Some(Self::EndsWith),
+            "!endswith" | "not_endswith" => Some(Self::NotEndsWith),
             _ => None,
         }
     }
@@ -71,10 +93,29 @@ impl Comparator {
             Self::Le => "<=",
             Self::Eq => "==",
             Self::Ne => "!=",
+            Self::StartsWith => "startswith",
+            Self::NotStartsWith => "!startswith",
+            Self::Contains => "contains",
+            Self::NotContains => "!contains",
+            Self::EndsWith => "endswith",
+            Self::NotEndsWith => "!endswith",
+        }
+    }
+    /// The jq function of a text comparison and whether it is negated; `None` for a
+    /// comparison over a value.
+    const fn textual(self) -> Option<(&'static str, bool)> {
+        match self {
+            Self::StartsWith => Some(("startswith", false)),
+            Self::NotStartsWith => Some(("startswith", true)),
+            Self::Contains => Some(("contains", false)),
+            Self::NotContains => Some(("contains", true)),
+            Self::EndsWith => Some(("endswith", false)),
+            Self::NotEndsWith => Some(("endswith", true)),
+            Self::Gt | Self::Ge | Self::Lt | Self::Le | Self::Eq | Self::Ne => None,
         }
     }
     const fn numeric(self) -> bool {
-        !matches!(self, Self::Eq | Self::Ne)
+        matches!(self, Self::Gt | Self::Ge | Self::Lt | Self::Le)
     }
 }
 
@@ -213,6 +254,10 @@ pub struct Rule {
 
 /// The jq path of one column: a bare identifier as `.name`, anything else bracketed.
 pub(crate) fn key(field: &str) -> String {
+    // The record itself: a line of a text source has no columns.
+    if field == "." {
+        return ".".to_owned();
+    }
     let bare = field
         .chars()
         .next()
@@ -228,6 +273,19 @@ pub(crate) fn key(field: &str) -> String {
 impl Clause {
     fn jq(&self) -> String {
         let field = key(&self.field);
+        if let Some((function, negated)) = self.comparator.textual() {
+            let literal = match &self.value {
+                Operand::Number(text) | Operand::Text(text) => json!(text).to_string(),
+                Operand::Bool(truth) => json!(truth.to_string()).to_string(),
+                Operand::Column(other) => format!("({} | tostring)", key(other)),
+            };
+            let test = format!("({field} | tostring | {function}({literal}))");
+            return if negated {
+                format!("({test} | not)")
+            } else {
+                test
+            };
+        }
         match (&self.value, self.comparator.numeric()) {
             (Operand::Number(n), _) => {
                 format!("({field} | tonumber) {} {n}", self.comparator.symbol())
@@ -331,10 +389,13 @@ impl Rule {
         self.lines
     }
     /// The same rule over the lines of a text source, when its only work is the removal of
-    /// duplicates: a line has no columns to filter, group, sort or project. Anything else
-    /// over a text source is `None`: the human is asked.
+    /// duplicates or a filter on the line itself: a line has no columns to filter, group,
+    /// sort or project. Anything else over a text source is `None`: the human is asked.
     #[must_use]
     pub fn over_lines(&self) -> Option<Self> {
+        if self.lines {
+            return Some(self.clone());
+        }
         let s = &self.shape;
         let only_distinct = s.distinct
             && self.clauses.is_empty()
@@ -421,7 +482,9 @@ impl Rule {
             push(key);
         }
         for clause in &self.clauses {
-            push(&clause.field);
+            if clause.field != "." {
+                push(&clause.field);
+            }
             if let Operand::Column(other) = &clause.value {
                 push(other);
             }
@@ -934,6 +997,10 @@ fn segments(text: &str) -> impl Iterator<Item = &str> {
 #[must_use]
 pub fn synthesize(text: &str, columns: &[String]) -> Option<Rule> {
     let text = text.trim();
+    // « the lines that start with # »: a filter on the line itself, over a text source.
+    if let Some(rule) = line_filter(text) {
+        return Some(rule);
+    }
     let mut clauses = Vec::new();
     let mut junction: Option<Junction> = None;
     let mut summary = false;

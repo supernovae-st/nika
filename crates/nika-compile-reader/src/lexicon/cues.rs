@@ -517,3 +517,29 @@ pub(super) const CONSTRAINT_OPENERS: &[&str] = &[
     "mantén ",
     "manten ",
 ];
+/// Which retrieval a choice head settles on from its object alone: a supplied document is a
+/// read, a store, a calendar or a possessive object (« mes disponibilités ») is a lookup, a
+/// corpus is a search. `None` when the object carries no cue: the clause stays ambiguous and
+/// a bounded decision seat settles it. The merge applies the same law to a seat's `read`
+/// that names no path and no supplied material.
+#[must_use]
+pub fn settle_retrieval(
+    detail_lower: &str,
+    options: &[super::super::plan::Op],
+) -> Option<super::super::plan::Op> {
+    use super::super::plan::Op;
+    let cued = |cues: &[&str]| cues.iter().any(|c| detail_lower.contains(c));
+    if options.contains(&Op::Read) && cued(READ_CUES) {
+        Some(Op::Read)
+    } else if options.contains(&Op::Lookup) && cued(LOOKUP_CUES) && !cued(SEARCH_CUES) {
+        Some(Op::Lookup)
+    } else if options.contains(&Op::Search) && cued(SEARCH_CUES) {
+        Some(Op::Search)
+    } else if options.contains(&Op::Lookup)
+        && (cued(LOOKUP_CUES) || super::super::objects::possessive_object(detail_lower))
+    {
+        Some(Op::Lookup)
+    } else {
+        None
+    }
+}

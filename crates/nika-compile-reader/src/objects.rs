@@ -63,25 +63,29 @@ pub fn as_clause(residue: &str) -> &str {
 /// the object (`salvalo in ./x.md` reads as `in ./x.md`): the position is then 0.
 #[must_use]
 pub fn destination_at(detail_lower: &str, path_at: usize) -> Option<usize> {
-    const ANYWHERE: &[&str] = &[" to ", " into ", " dans ", " sous ", " vers "];
+    const ANYWHERE: &[&str] = &[
+        " to ", " into ", " dans ", " sous ", " vers ", " → ", " -> ",
+    ];
     const ADJACENT: &[&str] = &[
         " in ", " en ", " nel ", " nella ", " su ", " sul ", " sulla ",
     ];
     let padded = format!(" {detail_lower}");
     let path_at = path_at + 1;
-    let anywhere = ANYWHERE
+    // A connector right before the path is the destination's own (« dans l'ordre, une par
+    // ligne → ./out/titres.txt »: the arrow, never the locative « dans » before it).
+    let right_before = ANYWHERE
+        .iter()
+        .chain(ADJACENT)
+        .filter(|c| c.len() <= path_at)
+        .find(|c| padded[..path_at].ends_with(**c))
+        .map(|c| path_at - c.len());
+    if let Some(pos) = right_before {
+        return Some(pos.saturating_sub(1));
+    }
+    ANYWHERE
         .iter()
         .filter_map(|c| padded.find(c))
         .filter(|pos| *pos < path_at)
-        .min();
-    let adjacent = ADJACENT
-        .iter()
-        .filter_map(|c| padded.find(c).map(|pos| (pos, pos + c.len())))
-        .find(|(_, end)| *end == path_at)
-        .map(|(pos, _)| pos);
-    anywhere
-        .into_iter()
-        .chain(adjacent)
         .min()
         .map(|pos| pos.saturating_sub(1))
 }

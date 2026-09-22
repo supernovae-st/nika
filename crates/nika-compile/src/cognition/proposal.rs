@@ -615,6 +615,61 @@ fn retrieval_family(op: Op, step: &ProposedStep, out: &mut CompileOutcome) -> Op
     }
 }
 
+/// An extraction of whole lines by a stated pattern (« extrais toutes les lignes de titre
+/// markdown (celles qui commencent par un ou plusieurs #) ») is a line filter the compiler
+/// writes, never language work: the seat's `extract` becomes the computation and its rule
+/// is stated, so no model reads the file.
+fn line_filter_step(
+    op: Op,
+    mut step: ProposedStep,
+    plan: &mut Plan,
+    out: &mut CompileOutcome,
+) -> (Op, ProposedStep) {
+    if op != Op::Extract {
+        return (op, step);
+    }
+    let Some(rule) = crate::rules::line_filter(&step.detail) else {
+        return (op, step);
+    };
+    crate::finding(
+        out,
+        DiagnosticKind::Applied,
+        "authoring_plan",
+        format!(
+            "`{}` keeps the lines that match a stated pattern: a computation the compiler writes, never an extraction by a model.",
+            step.evidence.trim()
+        ),
+    );
+    rule.text().clone_into(&mut step.detail);
+    if !plan.rules.iter().any(|r| r.text() == rule.text()) {
+        plan.rules.push(rule);
+    }
+    (Op::Compute, step)
+}
+
+/// A draft whose detail names nothing but a destination and a structure law (« → ./out/
+/// titres.txt. Rien d'autre dans le fichier. ») beside produced data: nothing to draft, the
+/// rows are written as they are.
+fn only_a_place_and_a_law(detail: &str) -> bool {
+    let rest: String = detail
+        .split_whitespace()
+        .filter(|word| {
+            let word = word.trim_matches(|c: char| !c.is_alphanumeric() && c != '.' && c != '/');
+            !(word.starts_with("./")
+                || word.starts_with('/')
+                || word.starts_with('~')
+                || word == "→"
+                || word == "->")
+        })
+        .collect::<Vec<_>>()
+        .join(" ");
+    let rest = rest
+        .trim()
+        .trim_matches(|c: char| c == '.' || c == ':' || c == ',')
+        .trim();
+    !rest.is_empty() && crate::structure::binds_no_operation(rest)
+}
+
 /// Whether a step lies over a region the request states (the trigger clause, a safeguard's
 /// words) and names nothing beyond it: its clause and the region contain one another, and
 /// no content word of its detail is anchored in the request outside the region. A lookup
@@ -776,6 +831,7 @@ pub(super) fn merge(
             return None;
         };
         let op = retrieval_family(op, &step, out);
+        let (op, step) = line_filter_step(op, step, &mut plan, out);
         if one_clause_one_step(
             &step,
             op,
@@ -788,7 +844,10 @@ pub(super) fn merge(
             folded.push(step.evidence.clone());
             continue;
         }
-        if op == Op::Draft && produces_data && serialization_draft(&step.detail) {
+        if op == Op::Draft
+            && produces_data
+            && (serialization_draft(&step.detail) || only_a_place_and_a_law(&step.detail))
+        {
             crate::finding(
                 out,
                 DiagnosticKind::Applied,

@@ -18,6 +18,7 @@ mod effects;
 mod es;
 mod heads;
 mod it;
+mod lines;
 mod literals;
 mod slugs;
 
@@ -26,12 +27,12 @@ use super::plan::{
     Binding, Effect, EffectPolicy, EffectVerb, Obligation, ObligationKind, Op, Plan, Step,
 };
 use super::{gates, hot, objects};
+pub use cues::settle_retrieval;
 pub(crate) use cues::{ARTICLES, OBJECT_CONNECTORS};
 use cues::{
-    CONSTRAINT_OPENERS, FINAL_GATE_MARKERS, FORBIDDEN_MARKERS, LEADING_FILLER, LOOKUP_CUES,
-    NAMED_GATE_MARKERS, NEGATION_OPENERS, READ_CUES, REVISION_MARKERS, SEARCH_CUES,
-    SECOND_WORD_FILLERS, STOP_MARKERS, STRONG_CONNECTORS, TRIGGER_PREFIXES, UNDECIDED_MARKERS,
-    WEAK_CONNECTORS,
+    CONSTRAINT_OPENERS, FINAL_GATE_MARKERS, FORBIDDEN_MARKERS, LEADING_FILLER, NAMED_GATE_MARKERS,
+    NEGATION_OPENERS, REVISION_MARKERS, SECOND_WORD_FILLERS, STOP_MARKERS, STRONG_CONNECTORS,
+    TRIGGER_PREFIXES, UNDECIDED_MARKERS, WEAK_CONNECTORS,
 };
 pub use effects::effect_words;
 pub(crate) use effects::kindred;
@@ -79,29 +80,6 @@ pub struct Reading {
     /// The columns the request lists beside its source: a word among them names a column,
     /// never an effect, and the closed rule grammar reads them.
     pub columns: Vec<String>,
-}
-
-/// Which retrieval a choice head settles on from its object alone: a supplied document is a
-/// read, a store, a calendar or a possessive object (« mes disponibilités ») is a lookup, a
-/// corpus is a search. `None` when the object carries no cue: the clause stays ambiguous and
-/// a bounded decision seat settles it. The merge applies the same law to a seat's `read`
-/// that names no path and no supplied material.
-#[must_use]
-pub fn settle_retrieval(detail_lower: &str, options: &[Op]) -> Option<Op> {
-    let cued = |cues: &[&str]| cues.iter().any(|c| detail_lower.contains(c));
-    if options.contains(&Op::Read) && cued(READ_CUES) {
-        Some(Op::Read)
-    } else if options.contains(&Op::Lookup) && cued(LOOKUP_CUES) && !cued(SEARCH_CUES) {
-        Some(Op::Lookup)
-    } else if options.contains(&Op::Search) && cued(SEARCH_CUES) {
-        Some(Op::Search)
-    } else if options.contains(&Op::Lookup)
-        && (cued(LOOKUP_CUES) || objects::possessive_object(detail_lower))
-    {
-        Some(Op::Lookup)
-    } else {
-        None
-    }
 }
 
 /// A clause the closed rule grammar read whole ("count the rows per client", "merge them on
@@ -294,6 +272,10 @@ fn written_object(
     // extract mode, carried as it is, never a draft of it.
     let fetched = reading.plan.has(Op::Fetch) && objects::page_facet(object_lower).is_some();
     if refers_back || classified || fetched || (produced && objects::folds(object_lower)) {
+        return;
+    }
+    // « write the lines that start with # to ./out/titles.txt »: the kept lines.
+    if lines::written_lines(object, original, reading) {
         return;
     }
     if Structured::of(path).is_some() {
@@ -1005,10 +987,20 @@ pub fn read(intent: &str) -> Reading {
 
 /// Read one clause; returns whether it produced an operation, effect or obligation.
 #[allow(clippy::too_many_lines)] // one clause walk: negation, head, medium, then the head's arm
-fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut [String]) -> bool {
+fn read_clause(lower: &str, original: &str, reading: &mut Reading, money: &mut [String]) -> bool {
     let text = strip_filler(lower);
     if text.is_empty() {
         return false;
+    }
+    // « ./rando/guide.md : extrais … »: the clause is led by its source.
+    if lines::leading_source(original, reading, money) {
+        return true;
+    }
+    // « as they are, in order »: what a lines rule already does by construction.
+    if reading.plan.rules.iter().any(super::rules::Rule::lines)
+        && super::rules::by_construction_tail(text)
+    {
+        return true;
     }
     let negated = NEGATION_OPENERS.iter().any(|m| text.starts_with(m));
     if negated {
@@ -1254,6 +1246,12 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
         // anglais`, `un digest des notes dans ./notes`) is the material the operation
         // consumes: the read is that path (a folder is every file directly under it) and
         // the operation keeps the object the clause states, verbatim.
+        // An extraction of whole lines by a stated pattern is a line filter, never language work.
+        if matches!(head, Head::Op(Op::Extract))
+            && lines::read_extract(&detail, detail_lower, original, reading)
+        {
+            return true;
+        }
         if let Head::Op(op @ (Op::Draft | Op::Extract | Op::Classify | Op::Validate | Op::Compute)) =
             head
             && source_path(&detail, detail_lower, path)
