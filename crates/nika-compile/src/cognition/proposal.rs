@@ -580,6 +580,41 @@ fn one_clause_one_step(
     false
 }
 
+/// A proposed read of records the request names by their owner or their store (« mes
+/// disponibilités et celles des participants », « the customer record »), with no path, no
+/// endpoint and no supplied material, is a lookup: the reader's retrieval cues settle the
+/// family, and the assembler asks where the records live instead of binding the read to
+/// the material an invocation supplies and drafting from an input string.
+fn retrieval_family(op: Op, step: &ProposedStep, out: &mut CompileOutcome) -> Op {
+    if op != Op::Read {
+        return op;
+    }
+    let names_a_place = !crate::paths::literals(&step.detail).is_empty()
+        || step.detail.contains("://")
+        || crate::shape::names_supplied_material(&step.evidence)
+        || crate::shape::names_supplied_material(&step.detail);
+    if names_a_place {
+        return op;
+    }
+    let lower = step.detail.to_lowercase();
+    match crate::lexicon::settle_retrieval(&lower, &[Op::Read, Op::Lookup, Op::Search]) {
+        Some(settled @ (Op::Lookup | Op::Search)) => {
+            crate::finding(
+                out,
+                DiagnosticKind::Applied,
+                "authoring_plan",
+                format!(
+                    "`{}` names records the request keeps somewhere, never material an invocation supplies; the proposal's `read` is assembled as a `{}`.",
+                    step.evidence.trim(),
+                    settled.word()
+                ),
+            );
+            settled
+        }
+        _ => op,
+    }
+}
+
 /// Whether a step lies over a region the request states (the trigger clause, a safeguard's
 /// words) and names nothing beyond it: its clause and the region contain one another, and
 /// no content word of its detail is anchored in the request outside the region. A lookup
@@ -740,6 +775,7 @@ pub(super) fn merge(
             reject(out, "unknown operation in the proposal");
             return None;
         };
+        let op = retrieval_family(op, &step, out);
         if one_clause_one_step(
             &step,
             op,

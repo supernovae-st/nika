@@ -670,6 +670,34 @@ mod tests {
     }
 
     #[test]
+    fn a_read_of_owned_records_is_a_lookup() {
+        let intent = "Lis mes disponibilités et celles des participants, puis propose par écrit trois créneaux compatibles dans le fuseau Europe/Paris.";
+        let reading = lexicon::read(intent);
+        assert!(
+            reading.plan.steps.iter().any(|s| s.op == Op::Lookup),
+            "{:?}",
+            reading.plan.steps
+        );
+        assert!(
+            !reading.plan.steps.iter().any(|s| s.op == Op::Read),
+            "{:?}",
+            reading.plan.steps
+        );
+        assert_eq!(
+            lexicon::settle_retrieval("our open tickets", &[Op::Read, Op::Lookup]),
+            Some(Op::Lookup)
+        );
+        assert_eq!(
+            lexicon::settle_retrieval("the supplied transcript", &[Op::Read, Op::Lookup]),
+            Some(Op::Read)
+        );
+        assert_eq!(
+            lexicon::settle_retrieval("the meeting notes", &[Op::Read, Op::Lookup]),
+            None
+        );
+    }
+
+    #[test]
     fn a_url_read_then_summarize_is_admitted() {
         let intent = "Lis https://example.invalid/a puis résume le contenu";
         let reading = lexicon::read(intent);

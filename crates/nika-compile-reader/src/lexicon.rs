@@ -81,6 +81,29 @@ pub struct Reading {
     pub columns: Vec<String>,
 }
 
+/// Which retrieval a choice head settles on from its object alone: a supplied document is a
+/// read, a store, a calendar or a possessive object (« mes disponibilités ») is a lookup, a
+/// corpus is a search. `None` when the object carries no cue: the clause stays ambiguous and
+/// a bounded decision seat settles it. The merge applies the same law to a seat's `read`
+/// that names no path and no supplied material.
+#[must_use]
+pub fn settle_retrieval(detail_lower: &str, options: &[Op]) -> Option<Op> {
+    let cued = |cues: &[&str]| cues.iter().any(|c| detail_lower.contains(c));
+    if options.contains(&Op::Read) && cued(READ_CUES) {
+        Some(Op::Read)
+    } else if options.contains(&Op::Lookup) && cued(LOOKUP_CUES) && !cued(SEARCH_CUES) {
+        Some(Op::Lookup)
+    } else if options.contains(&Op::Search) && cued(SEARCH_CUES) {
+        Some(Op::Search)
+    } else if options.contains(&Op::Lookup)
+        && (cued(LOOKUP_CUES) || objects::possessive_object(detail_lower))
+    {
+        Some(Op::Lookup)
+    } else {
+        None
+    }
+}
+
 /// A clause the closed rule grammar read whole ("count the rows per client", "merge them on
 /// the id column") is a compute step carrying its rule: the words are its literals.
 fn push_rule(original: &str, rule: super::rules::Rule, reading: &mut Reading) {
@@ -1390,25 +1413,8 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
                 Some(Op::Draft)
             } else if compare && numeric.iter().any(|c| detail_lower.contains(c)) {
                 Some(Op::Compute)
-            } else if options.contains(&Op::Read)
-                && READ_CUES.iter().any(|c| detail_lower.contains(c))
-            {
-                Some(Op::Read)
-            } else if options.contains(&Op::Lookup)
-                && LOOKUP_CUES.iter().any(|c| detail_lower.contains(c))
-                && !SEARCH_CUES.iter().any(|c| detail_lower.contains(c))
-            {
-                Some(Op::Lookup)
-            } else if options.contains(&Op::Search)
-                && SEARCH_CUES.iter().any(|c| detail_lower.contains(c))
-            {
-                Some(Op::Search)
-            } else if options.contains(&Op::Lookup)
-                && LOOKUP_CUES.iter().any(|c| detail_lower.contains(c))
-            {
-                Some(Op::Lookup)
             } else {
-                None
+                settle_retrieval(detail_lower, options)
             };
             match settled {
                 Some(op) => reading.plan.push_step(Step {

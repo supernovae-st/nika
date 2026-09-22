@@ -711,6 +711,53 @@ pub fn page_facet(object: &str) -> Option<Facet> {
     }
 }
 
+/// Possessive determiners in six languages, folded: an object led by one names the
+/// requester's or a party's own records (« mes disponibilités », « our tickets »).
+const POSSESSIVES: &[&str] = &[
+    "my", "our", "your", "his", "her", "their", "mon", "ma", "mes", "notre", "nos", "votre", "vos",
+    "leur", "leurs", "mi", "mis", "nuestro", "nuestra", "nuestros", "nuestras", "tu", "tus",
+    "vuestro", "vuestra", "vuestros", "vuestras", "mio", "mia", "miei", "mie", "nostro", "nostra",
+    "nostri", "nostre", "tuo", "tua", "tuoi", "tue", "loro", "mein", "meine", "meinen", "meiner",
+    "meines", "meinem", "unser", "unsere", "unseren", "unserer", "unseres", "unserem", "dein",
+    "deine", "deinen", "deiner", "meu", "meus", "minha", "minhas", "nosso", "nossa", "nossos",
+    "nossas", "teu", "teus", "teua", "teuas",
+];
+
+/// Whether an object (folded) is led by a possessive determiner, after an optional article
+/// (« le mie disponibilità »): the requester's or a party's own records, kept somewhere,
+/// never the material an invocation supplies.
+#[must_use]
+pub fn possessive_object(object_lower: &str) -> bool {
+    let mut words = object_lower
+        .split_whitespace()
+        .map(|w| w.trim_matches(|c: char| !c.is_alphanumeric()));
+    let Some(first) = words.next() else {
+        return false;
+    };
+    if POSSESSIVES.contains(&first) {
+        return true;
+    }
+    matches!(
+        first,
+        "the"
+            | "le"
+            | "la"
+            | "les"
+            | "el"
+            | "los"
+            | "las"
+            | "il"
+            | "lo"
+            | "i"
+            | "gli"
+            | "o"
+            | "os"
+            | "as"
+    ) && words
+        .next()
+        .is_some_and(|second| POSSESSIVES.contains(&second))
+}
+
 /// Connectors that join an effect's object to its destination ("it to `<url>`", "le
 /// rapport à ops@x"), folded.
 const DESTINATION_CONNECTORS: &[&str] = &[
@@ -757,6 +804,29 @@ pub fn carried(target: &str, plan: &Plan) -> bool {
 mod tests {
     use super::super::plan::{Op, Plan, Step};
     use super::*;
+
+    #[test]
+    fn a_possessive_object_names_owned_records() {
+        for object in [
+            "mes disponibilités et celles des participants",
+            "my calendar and the participants' availability",
+            "nuestros tickets abiertos",
+            "le mie disponibilità",
+            "meine termine",
+            "os meus horários",
+        ] {
+            assert!(possessive_object(object), "{object}");
+        }
+        for object in [
+            "la transcription fournie",
+            "the supplied text",
+            "./notes/brief.md",
+            "",
+            "sur le fil slack",
+        ] {
+            assert!(!possessive_object(object), "{object}");
+        }
+    }
 
     fn plan_with(details: &[(Op, &str)]) -> Plan {
         let mut plan = Plan::default();
