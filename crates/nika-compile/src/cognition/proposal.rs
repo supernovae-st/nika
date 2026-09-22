@@ -681,6 +681,95 @@ fn line_filter_step(
     (Op::Compute, step)
 }
 
+/// Words that name a conversion between formats, folded.
+const CONVERSION_WORDS: &[&str] = &[
+    "convert",
+    "conversion",
+    "convertir",
+    "convertis",
+    "convierte",
+    "converti",
+    "konvertier",
+    "wandle",
+    "converta",
+    "json array",
+    "array json",
+    "tableau json",
+    "json-array",
+    "one object per row",
+    "un objet par ligne",
+    "un objeto por fila",
+    "un oggetto per riga",
+    "ein objekt pro zeile",
+    "um objeto por linha",
+    "row becomes",
+    "each row becomes",
+    "as json",
+    "to json",
+    "en json",
+    "in json",
+    "into json",
+    "as csv",
+    "to csv",
+    "en csv",
+    "in csv",
+    "into csv",
+    "parse the csv",
+    "parse the json",
+];
+
+/// « Parse the CSV … produce a JSON array where each CSV row becomes an object » proposed as
+/// an extract between a structured read and a structured write of another format: the
+/// conversion is the identity over the parsed records, written in the other format — a
+/// computation the compiler writes, never a model reading the rows.
+fn conversion_step(
+    op: Op,
+    mut step: ProposedStep,
+    structured_read: Option<crate::paths::Structured>,
+    structured_write: Option<crate::paths::Structured>,
+    plan: &mut Plan,
+    out: &mut CompileOutcome,
+) -> (Op, ProposedStep) {
+    if !matches!(op, Op::Extract | Op::Draft | Op::Compute) {
+        return (op, step);
+    }
+    let (Some(from), Some(to)) = (structured_read, structured_write) else {
+        return (op, step);
+    };
+    if from == to {
+        return (op, step);
+    }
+    let lower = step.detail.to_lowercase();
+    if !CONVERSION_WORDS.iter().any(|w| lower.contains(w)) {
+        return (op, step);
+    }
+    let text = if step.evidence.trim().is_empty() {
+        step.detail.trim()
+    } else {
+        step.evidence.trim()
+    };
+    let rule = crate::rules::Rule::typed(
+        text,
+        Vec::new(),
+        crate::rules::Junction::And,
+        crate::rules::Shape::default(),
+    );
+    crate::finding(
+        out,
+        DiagnosticKind::Applied,
+        "authoring_plan",
+        format!(
+            "`{}` converts the parsed records into the destination's format: a computation the compiler writes, never a model reading the rows.",
+            step.evidence.trim()
+        ),
+    );
+    rule.text().clone_into(&mut step.detail);
+    if !plan.rules.iter().any(|r| r.text() == rule.text()) {
+        plan.rules.push(rule);
+    }
+    (Op::Compute, step)
+}
+
 /// A draft whose detail names nothing but a destination and a structure law (« → ./out/
 /// titres.txt. Rien d'autre dans le fichier. ») beside produced data: nothing to draft, the
 /// rows are written as they are.
@@ -868,6 +957,25 @@ pub(super) fn merge(
         .collect();
     // The unknowns a typed rule turned into slots: asked, no longer unresolved work.
     let mut slotted: Vec<String> = Vec::new();
+    // The structured formats a conversion runs between: the read's file, the write's file.
+    let structured_read = proposal
+        .steps
+        .iter()
+        .filter(|s| s.op == "read")
+        .flat_map(|s| crate::paths::literals(&s.detail))
+        .find_map(|shape| match shape {
+            crate::paths::PathShape::File(path) => crate::paths::Structured::of(&path),
+            _ => None,
+        });
+    let structured_write = proposal
+        .effects
+        .iter()
+        .filter(|e| e.verb == "write")
+        .flat_map(|e| crate::paths::literals(&e.target))
+        .find_map(|shape| match shape {
+            crate::paths::PathShape::File(path) => crate::paths::Structured::of(&path),
+            _ => None,
+        });
     for step in proposal.steps {
         let Some(op) = Op::parse(&step.op) else {
             reject(out, "unknown operation in the proposal");
@@ -875,6 +983,8 @@ pub(super) fn merge(
         };
         let op = retrieval_family(op, &step, out);
         let (op, step) = line_filter_step(op, step, &mut plan, out);
+        let (op, step) =
+            conversion_step(op, step, structured_read, structured_write, &mut plan, out);
         let stated = Stated {
             write: &write_clauses,
             outbound: &outbound_clauses,
