@@ -32,6 +32,12 @@ use expectrl::{Eof, Expect};
 type LoggedSession = Session<UnixProcess, LogStream<PtyStream, std::io::Stderr>>;
 
 const CURSOR_QUERY: &str = "\x1b[6n";
+/// The renderer's terminal probe asks the primary device attributes
+/// (`ESC[c`, crossterm's keyboard-enhancement check) before it asks where
+/// the cursor is; a terminal answers at once, so does this harness — or
+/// the probe waits its whole 2 s on every spawn and re-entry.
+const DA_QUERY: &str = "\x1b[c";
+const DA_ANSWER: &str = "\x1b[?62;22c";
 
 fn bin() -> &'static str {
     env!("CARGO_BIN_EXE_nika")
@@ -60,6 +66,10 @@ fn rig(tag: &str) -> (tempfile::TempDir, tempfile::TempDir) {
 /// The inline viewport asks where the cursor is; a terminal answers, so
 /// does this harness (row 24 of 24).
 fn answer_cursor_report(session: &mut LoggedSession) {
+    session
+        .expect(DA_QUERY)
+        .expect("the terminal probe asks the device attributes");
+    session.send(DA_ANSWER).expect("answer the attributes");
     session
         .expect(CURSOR_QUERY)
         .expect("the inline viewport asks where the cursor is");
@@ -298,8 +308,9 @@ fn spawn_sized(project: &Path, home: &Path, cols: u16, rows: u16) -> (TeeSession
 /// Answer cursor reports until `needle` shows: a terminal answers every
 /// `ESC[6n`, whether the viewport asked at entry or after a resize.
 fn answer_until(session: &mut TeeSession, tee: &Tee, rows: u16, needle: &str) {
-    for _ in 0..4 {
+    for _ in 0..6 {
         let found = match session.expect(expectrl::Any::boxed(vec![
+            Box::new(DA_QUERY),
             Box::new(CURSOR_QUERY),
             Box::new(needle.to_owned()),
         ])) {
@@ -309,7 +320,9 @@ fn answer_until(session: &mut TeeSession, tee: &Tee, rows: u16, needle: &str) {
                 tee.text()
             ),
         };
-        if found.get(0) == Some(CURSOR_QUERY.as_bytes()) {
+        if found.get(0) == Some(DA_QUERY.as_bytes()) {
+            session.send(DA_ANSWER).expect("answer the attributes");
+        } else if found.get(0) == Some(CURSOR_QUERY.as_bytes()) {
             session
                 .send(format!("\x1b[{rows};1R"))
                 .expect("answer the report");
