@@ -76,6 +76,10 @@ impl SessionRuntime {
             // The chosen intelligence routes, through the same factory the
             // conversation's reasoner came from (a fresh one: the route
             // never consumes the conversation's own turn).
+            self.activity(&crate::activity::Activity::now(
+                crate::activity::Phase::Understanding,
+                "reading your line",
+            ));
             match self.factory.as_ref() {
                 Some(factory) => crate::turn::ReasonerClassifier::new(factory(&self.intelligence))
                     .classify(&context, raw),
