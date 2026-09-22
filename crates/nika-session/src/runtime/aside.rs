@@ -93,9 +93,11 @@ pub(super) fn explain_gate(gate: &PendingGate, root: &Path) -> String {
     text
 }
 
-/// The tasks that run after `gate` (their `after:` names it), one line
-/// each: the id and what it does, from the parser, never from prose.
-fn gated_tasks(workflow: &Path, gate: &str) -> Vec<String> {
+/// The tasks the gate holds back — their `after:` names it (the control
+/// edge) or a `with:` binding reads its output (the data edge the
+/// compiler writes: `with: { approved: tasks.<gate>.output }` + a `when:`)
+/// — one line each: the id and what it does, from the parser, never prose.
+pub(super) fn gated_tasks(workflow: &Path, gate: &str) -> Vec<String> {
     let Ok(source) = std::fs::read_to_string(workflow) else {
         return Vec::new();
     };
@@ -104,7 +106,14 @@ fn gated_tasks(workflow: &Path, gate: &str) -> Vec<String> {
     };
     wf.tasks
         .iter()
-        .filter(|t| t.value.after.iter().any(|(id, _)| id.value == gate))
+        .filter(|t| t.value.id.value != gate)
+        .filter(|t| {
+            t.value.after.iter().any(|(id, _)| id.value == gate)
+                || t.value
+                    .with
+                    .iter()
+                    .any(|(_, v)| names_task(&v.value.to_string(), gate))
+        })
         .map(|t| {
             format!(
                 "{} · {}",
@@ -113,6 +122,18 @@ fn gated_tasks(workflow: &Path, gate: &str) -> Vec<String> {
             )
         })
         .collect()
+}
+
+/// Does a binding's text read `tasks.<id>` — the data edge — and not a
+/// task whose id merely starts with it?
+fn names_task(text: &str, id: &str) -> bool {
+    let needle = format!("tasks.{id}");
+    text.match_indices(&needle).any(|(at, _)| {
+        text[at + needle.len()..]
+            .chars()
+            .next()
+            .is_none_or(|c| !(c.is_alphanumeric() || c == '_'))
+    })
 }
 
 /// A request on one line.

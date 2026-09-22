@@ -1,0 +1,20 @@
+nika: gated-copy
+permits:
+  fs: { read: ["./notes/brief.md"], write: ["./out/copie.md"] }
+  tools: ["nika:read", "nika:prompt", "nika:write"]
+tasks:
+  read_source:
+    invoke:
+      tool: "nika:read"
+      args: { path: "./notes/brief.md" }
+  approve:
+    with: { text: "${{ tasks.read_source.output }}" }
+    invoke:
+      tool: "nika:prompt"
+      args: { message: "Write the copy to ./out/copie.md?", mode: confirm }
+  write_output:
+    when: "${{ with.approved == true }}"
+    with: { text: "${{ tasks.read_source.output }}", approved: "${{ tasks.approve.output }}" }
+    invoke:
+      tool: "nika:write"
+      args: { path: "./out/copie.md", content: "${{ with.text }}" }

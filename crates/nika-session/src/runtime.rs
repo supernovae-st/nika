@@ -160,6 +160,7 @@ text                 ask, in words · these answer from the engine, no AI asked:
 /status              where you are: the project root, the intelligence and where your context goes, the authoring seat
 /why                 beside a question or a gate: what the answer is for, what it lets happen · nothing is consumed
 /meaning             what Nika kept of your request, clause by clause, from the compiler's own ledger · a proposal still waits
+/proof               after a run: what its trace proves (chain · seal · boundary · digests) and what it does not · judged by `nika trace verify`, never a second walker
 /show                while a proposal waits: print its exact bytes (the review shows the boundary)
 /help                this card
 /quit                close the session
@@ -167,6 +168,15 @@ Name a workflow file in your question to let the session read it (only files und
 
 /// How many recent turns ride the next prompt.
 const RECENT_TURNS: usize = 8;
+
+/// A trace path as the door gave it, resolved under the root when relative.
+fn under(root: &Path, trace: &Path) -> PathBuf {
+    if trace.is_absolute() {
+        trace.to_path_buf()
+    } else {
+        root.join(trace)
+    }
+}
 
 /// A byte count a human reads (`1.2 KB`, `340 B`).
 #[allow(clippy::cast_precision_loss)] // display-only: a size shown to a human, never computed with
@@ -207,6 +217,8 @@ pub struct SessionRuntime {
     answered: Option<GateId>,
     last_run: Option<(u8, String)>,
     last_workflow: Option<PathBuf>,
+    /// The trace the last observed run left (`/proof` reads it).
+    last_trace: Option<PathBuf>,
     /// The authoring round whose question the next line answers.
     authoring: Option<AuthoringRound>,
     /// The cognition the compiler may use, derived from the reasoner.
@@ -283,6 +295,7 @@ impl SessionRuntime {
             answered: None,
             last_run: None,
             last_workflow: None,
+            last_trace: None,
             authoring: None,
             seat: AuthoringSeat::Deterministic { why: None },
             progress: None,
@@ -617,6 +630,7 @@ impl SessionRuntime {
             "/status" => return TurnOutcome::Facts(self.status()),
             "/why" => return self.explain_pending(),
             "/meaning" => return self.meaning_unrecorded(),
+            "/proof" => return self.proof_unrecorded(),
             "/intelligence" => {
                 return match &self.census {
                     Some(census) => {
@@ -1055,20 +1069,52 @@ impl SessionRuntime {
     /// observation). A pause (exit 4) whose trace carries the gate
     /// becomes the question asked to the human.
     fn observe_run_unrecorded(&mut self, exit: u8, trace: Option<&Path>) -> TurnOutcome {
-        let line = self.observation_line(exit, trace);
+        let root = self.snapshot.root.clone();
+        // The trace's own frames, when the door left one this session can
+        // read: the views below say what they prove, the line stays the fact.
+        let facts = trace.and_then(|t| crate::run_view::RunFacts::read(&under(&root, t)));
+        let line = self.observation_line(exit, trace, facts.is_none());
+        self.last_trace = trace.map(Path::to_path_buf);
         if exit == 4
             && let (Some(trace), Some(workflow)) = (trace, self.last_workflow.clone())
             && let Some(gate) = PendingGate::from_trace(&workflow, trace)
         {
-            let question = gate.question();
+            let gated = aside::gated_tasks(&root.join(&workflow), &gate.task);
+            let view = facts.as_ref().map_or_else(
+                || gate.question(),
+                |f| f.gate(&workflow, &gate.message, &gate.mode, &gated),
+            );
             let id = GateId::new(&gate.trace, &gate.task);
             self.pending_gate = Some(gate);
             return TurnOutcome::GateAsk {
                 id,
-                question: format!("{line}\n{question}"),
+                question: format!("{line}\n{view}"),
             };
         }
-        TurnOutcome::Facts(line)
+        match (exit, facts, self.last_workflow.clone()) {
+            (0 | 1, Some(f), Some(workflow)) => {
+                TurnOutcome::Facts(format!("{}\n  {line}", f.result(&root, &workflow)))
+            }
+            _ => TurnOutcome::Facts(line),
+        }
+    }
+
+    /// `/proof` — what the last observed run's trace proves, through the
+    /// ONE verify door; before any run, where a proof will come from.
+    fn proof_unrecorded(&self) -> TurnOutcome {
+        let Some(trace) = &self.last_trace else {
+            return TurnOutcome::Facts(
+                "No run observed in this session yet · « run it » runs the accepted workflow once · `/proof` then reads the trace it leaves (`nika trace ls` lists earlier ones)".to_owned(),
+            );
+        };
+        match crate::run_view::RunFacts::read(&under(&self.snapshot.root, trace)) {
+            Some(facts) => TurnOutcome::Facts(facts.proof(&self.snapshot.root)),
+            None => TurnOutcome::Facts(format!(
+                "the trace `{}` cannot be read now · `nika trace verify {}` judges it from the shell",
+                trace.display(),
+                trace.display()
+            )),
+        }
     }
 
     /// The human's answer to a pending gate: the resume the door runs.
@@ -1101,7 +1147,7 @@ impl SessionRuntime {
         }
     }
 
-    fn observation_line(&mut self, exit: u8, trace: Option<&Path>) -> String {
+    fn observation_line(&mut self, exit: u8, trace: Option<&Path>, with_produced: bool) -> String {
         let meaning = match exit {
             0 => "succeeded",
             1 => "the workflow failed",
@@ -1124,7 +1170,7 @@ impl SessionRuntime {
             None => line,
         };
         let line = match (exit, self.produced_line()) {
-            (0, Some(produced)) => format!("{line}\n  {produced}"),
+            (0, Some(produced)) if with_produced => format!("{line}\n  {produced}"),
             _ => line,
         };
         self.last_run = Some((exit, line.clone()));

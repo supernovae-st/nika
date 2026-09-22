@@ -296,6 +296,15 @@ fn a_gated_effect_waits_for_the_human_and_happens_once() {
     );
     session.send_line("y").expect("the human answers");
     session
+        .expect("Done · `approve.nika`")
+        .expect("the result leads with the outcome");
+    session
+        .expect("produced · ./final.md")
+        .expect("the effect, from the permit frame");
+    session
+        .expect("approved · your answer let it go on · `approve`")
+        .expect("the approval is a fact of the trace, never an inference");
+    session
         .expect("run observed · exit 0")
         .expect("the same run completes");
     session.expect("nika ›").expect("prompt");
@@ -441,7 +450,28 @@ fn a_named_run_line_carries_its_own_ceiling() {
     session
         .expect("running `copy.nika` once · ceiling $0.05")
         .expect("the named file and the human's ceiling");
+    session
+        .expect("Done · `copy.nika`")
+        .expect("the result leads with the outcome");
+    session
+        .expect("produced · ./copy.md (6 B)")
+        .expect("what was produced, from the permit frame, with its size");
+    session
+        .expect("cost · nothing metered · no model was asked")
+        .expect("the cost is honest");
     session.expect("run observed · exit 0").expect("succeeded");
+    session.expect("nika ›").expect("prompt");
+    session.send_line("/proof").expect("the proof door");
+    session.expect("Proof · ").expect("the proof view opens");
+    session
+        .expect("chain · ")
+        .expect("the chain verdict comes from the verify door");
+    session
+        .expect("written · ./copy.md · 6 B · sha256 ")
+        .expect("the artefact re-read and digested");
+    session
+        .expect("does not prove · that the content is right")
+        .expect("the limit is said");
     session.expect("nika ›").expect("prompt");
     session.send_line("/quit").expect("quit");
     session.expect(Eof).expect("closes");

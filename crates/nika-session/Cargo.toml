@@ -30,6 +30,8 @@ nika-schema   = { path = "../nika-schema", version = "0.120.3" }      # the pars
 nika-cap      = { path = "../nika-cap", version = "0.120.3" }         # ExecPermit — the exec grant's shape in the effect rows
 nika-fs       = { path = "../nika-fs", version = "0.120.3" }          # OwnedDir::write_atomic — a change lands by temp + rename below the root's descriptor
 nika-cadence  = { path = "../nika-cadence", version = "0.120.3" }     # the arm: grammar (L0 · pure) — a cadence the session derives is validated before it is proposed
+nika-trace    = { path = "../nika-trace", version = "0.120.3" }       # trace_verify::verify — the ONE chain judge behind `/proof` (lateral L4→L4 · never back)
+nika-event    = { path = "../nika-event", version = "0.120.3" }       # source_id::sha256_hex — the digest of a file a run wrote, re-read as it is now (L0 · pure)
 
 blake3      = { workspace = true }   # the witness of the bytes a preview was built over
 serde       = { workspace = true }

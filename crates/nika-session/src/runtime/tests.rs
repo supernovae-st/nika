@@ -1335,3 +1335,90 @@ fn a_remote_host_drives_the_machine_by_identity() {
     };
     assert_eq!(no_gate.class, RefusalClass::WrongState, "{no_gate}");
 }
+
+/// The result and the proof read the trace's own frames: after the door
+/// observes a finished run whose trace this session can read, the facts
+/// lead (what was produced, read, the honest cost) and the door's line
+/// stays beneath as the remembered fact; `/proof` then judges the chain
+/// through the verify door and says what it does not prove. Before any
+/// run, `/proof` says where a proof will come from.
+#[test]
+fn a_finished_run_reads_as_a_result_and_proof_reads_its_trace() {
+    let dir = tree();
+    let mut s = ready_with(dir.path(), vec![]);
+    assert!(
+        matches!(s.turn("/proof"), TurnOutcome::Facts(ref t) if t.starts_with("No run observed in this session yet")),
+        "before any run, the door to a proof is named"
+    );
+    assert!(matches!(s.turn(COPY), TurnOutcome::Proposal { .. }));
+    assert!(matches!(s.consent("yes"), TurnOutcome::Facts(_)));
+    assert!(matches!(s.turn("run it"), TurnOutcome::RunRequested { .. }));
+    // The door ran it: a real trace of the deterministic copy (engine
+    // 0.120.3) and the file it wrote, as the door leaves them.
+    let store = dir.path().join(".nika").join("traces");
+    std::fs::create_dir_all(&store).expect("store");
+    std::fs::copy(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/traces/copy.ndjson"),
+        store.join("t.ndjson"),
+    )
+    .expect("trace");
+    std::fs::create_dir_all(dir.path().join("out")).expect("out");
+    std::fs::write(
+        dir.path().join("out/copie.md"),
+        "# Brief\n\nLe lancement passe en octobre.\n",
+    )
+    .expect("artefact");
+    let TurnOutcome::Facts(result) = s.observe_run(0, Some(Path::new(".nika/traces/t.ndjson")))
+    else {
+        panic!("an observation");
+    };
+    assert!(
+        result.starts_with(&format!(
+            "Done · `{COPY_DEST}` · 11 ms · 2 tasks ran · nothing sent elsewhere"
+        )),
+        "{result}"
+    );
+    assert!(
+        result.contains("\n  produced · ./out/copie.md (40 B)"),
+        "{result}"
+    );
+    assert!(result.contains("\n  read · ./notes/brief.md"), "{result}");
+    assert!(
+        result.contains("cost · nothing metered · no model was asked"),
+        "{result}"
+    );
+    assert!(
+        result.contains("run observed · exit 0 · succeeded · trace `.nika/traces/t.ndjson`"),
+        "the door's line stays beneath: {result}"
+    );
+    assert_eq!(
+        result.matches("produced ·").count(),
+        1,
+        "the produced fact is said once, from the frames: {result}"
+    );
+    let TurnOutcome::Facts(proof) = s.turn("/proof") else {
+        panic!("a proof");
+    };
+    assert!(proof.starts_with("Proof · "), "{proof}");
+    assert!(
+        proof.contains("\n  workflow · compiled-workflow · bytes sha256 5d1bf591…0730"),
+        "{proof}"
+    );
+    assert!(
+        proof.contains("\n  chain · OK — 13 events · chain intact · head 1cf484e5…7f01"),
+        "{proof}"
+    );
+    assert!(
+        proof.contains("written · ./out/copie.md · 40 B · sha256 "),
+        "{proof}"
+    );
+    assert!(
+        proof.contains("does not prove · that the content is right"),
+        "{proof}"
+    );
+    assert!(
+        s.status_line().starts_with("Done · the run succeeded"),
+        "{}",
+        s.status_line()
+    );
+}
