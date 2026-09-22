@@ -13,6 +13,8 @@
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
+use nika_onboard::compile::CompileOutcome;
+
 use crate::authoring::{AuthoringRound, AuthoringSeat};
 use crate::broker::ContextBroker;
 use crate::change::{Applied, PendingGate, ProjectChangeSet, RunRequest, check_on_disk};
@@ -154,6 +156,8 @@ text                 ask, in words · these answer from the engine, no AI asked:
                      · what Nika calls a node, step, trigger, secret, action · the rest goes to your chosen intelligence, in words
 /intelligence        the AI this session reasons with · asks the first screen again, the next line is your answer
 /status              where you are: the project root, the intelligence and where your context goes, the authoring seat
+/why                 beside a question or a gate: what the answer is for, what it lets happen · nothing is consumed
+/meaning             what Nika kept of your request, clause by clause, from the compiler's own ledger · a proposal still waits
 /show                while a proposal waits: print its exact bytes (the review shows the boundary)
 /help                this card
 /quit                close the session
@@ -222,6 +226,9 @@ pub struct SessionRuntime {
     /// The last recovery card (a turn that could not be finished), kept so
     /// « what happened? » repeats it without a call.
     last_recovery: Option<String>,
+    /// The compiler's last reading of the request (its ledger is the
+    /// Meaning view), kept while its question or proposal waits.
+    last_outcome: Option<CompileOutcome>,
 }
 
 /// A door's sink for progress lines (« Working through this workflow… »);
@@ -275,9 +282,91 @@ impl SessionRuntime {
             interrupted: None,
             pending_choice: false,
             last_recovery: None,
+            last_outcome: None,
         };
         session.refresh_seat();
         session
+    }
+
+    /// Where the automation stands, in one line the doors show beside the
+    /// prompt — the state that explains the next gesture, compiled from
+    /// the machine's own facts, never a concatenation of flags.
+    #[must_use]
+    pub fn status_line(&self) -> String {
+        if self.pending_choice {
+            return "Needs your choice of intelligence · the request waits".to_owned();
+        }
+        if let Some(gate) = &self.pending_gate {
+            return format!(
+                "Waiting for your answer · `{}` paused at `{}`",
+                gate.workflow.display(),
+                gate.task
+            );
+        }
+        if let Some(set) = &self.pending {
+            let files: Vec<String> = set
+                .changes
+                .iter()
+                .map(|c| format!("`{}`", c.path().display()))
+                .collect();
+            return format!(
+                "Ready for review · {} · nothing saved, nothing run",
+                files.join(" · ")
+            );
+        }
+        if let Some(question) = self.pending_question() {
+            return format!("Needs one answer · {}", question.label);
+        }
+        if let Some(name) = self.pending_input() {
+            return format!("Needs one value before it runs · `{name}`");
+        }
+        if let Some((exit, _)) = &self.last_run {
+            let word = match exit {
+                0 => "Done · the run succeeded",
+                1 => "Done · the run failed",
+                2 => "Not run · the check refused",
+                3 => "Not run · the environment refused",
+                4 => "Paused · a gate waits",
+                _ => "Done · an unknown code",
+            };
+            return match &self.last_workflow {
+                Some(w) => format!("{word} · `{}`", w.display()),
+                None => word.to_owned(),
+            };
+        }
+        if let Some(w) = &self.last_workflow {
+            return format!(
+                "Saved · checked · not active · nothing has run · `{}`",
+                w.display()
+            );
+        }
+        String::new()
+    }
+
+    /// `/meaning` — the compiler's reading of the request, clause by
+    /// clause, from its own ledger: beside a proposal it HOLDS it (a
+    /// `Held`, the consent still waits); beside a question or after an
+    /// incomplete it is an aside; never a score, never invented.
+    fn meaning_unrecorded(&mut self) -> TurnOutcome {
+        let view = match &self.last_outcome {
+            Some(out) => crate::meaning::render(out)
+                .unwrap_or_else(|| crate::meaning::UNAVAILABLE.to_owned()),
+            None => {
+                return TurnOutcome::Facts(
+                    "nothing to read yet · describe work and Nika compiles it; `/meaning` then lists what it kept of your request"
+                        .to_owned(),
+                );
+            }
+        };
+        match &self.pending {
+            Some(set) => TurnOutcome::Held {
+                id: ProposalId::of(&set.preview()),
+                preview: format!(
+                    "{view}\n(the proposal still waits · `yes` applies it · `no` discards it)"
+                ),
+            },
+            None => TurnOutcome::Aside(view),
+        }
     }
 
     /// Open a session before any intelligence is chosen (the first run):
@@ -499,6 +588,7 @@ impl SessionRuntime {
             "/help" => return TurnOutcome::Help(HELP.to_owned()),
             "/status" => return TurnOutcome::Facts(self.status()),
             "/why" => return self.explain_pending(),
+            "/meaning" => return self.meaning_unrecorded(),
             "/intelligence" => {
                 return match &self.census {
                     Some(census) => {
@@ -655,6 +745,12 @@ impl SessionRuntime {
             return TurnOutcome::Refusal(self.nothing_pending());
         };
         let id = ProposalId::of(&set.preview());
+        // The compiler's reading of the request, on request, the proposal
+        // held: what it kept, clause by clause, is never a consent.
+        if crate::authoring::is_meaning(answer) {
+            self.pending = Some(set);
+            return self.meaning_unrecorded();
+        }
         // The exact bytes, on request, the proposal held: consent stays a yes.
         if matches!(answer.trim(), "/show" | "show") {
             let preview = set.preview();

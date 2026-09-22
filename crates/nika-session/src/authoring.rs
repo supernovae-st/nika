@@ -254,6 +254,27 @@ pub fn is_why(line: &str) -> bool {
     )
 }
 
+/// The few words that ask what Nika understood of the request — the
+/// Meaning view from the compiler's ledger; beside a proposal it holds it.
+#[must_use]
+pub fn is_meaning(line: &str) -> bool {
+    let word = line
+        .trim()
+        .trim_end_matches(['?', '!', '.', ' '])
+        .to_lowercase();
+    matches!(
+        word.as_str(),
+        "/meaning"
+            | "meaning"
+            | "what did you understand"
+            | "what did you keep"
+            | "did you keep everything"
+            | "qu'as-tu compris"
+            | "qu'as-tu retenu"
+            | "tu as tout gardé"
+    )
+}
+
 /// The few words that ask what just went wrong — answered by the last
 /// recovery card, from memory, never by another call.
 #[must_use]

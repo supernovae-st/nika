@@ -35,6 +35,7 @@ pub mod facts;
 pub mod guard;
 pub mod identity;
 pub mod intelligence;
+pub mod meaning;
 pub mod outcome;
 pub mod reasoner;
 pub mod review;

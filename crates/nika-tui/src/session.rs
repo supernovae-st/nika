@@ -175,6 +175,7 @@ impl Live {
         if let Some(notice) = runtime.restore_state() {
             beats.push(Beat::Say(Committed::new(Kind::Notice, notice)));
         }
+        beats.push(Beat::Status(runtime.status_line()));
         beats.push(Beat::Wait(self.waiting()));
         beats
     }
@@ -269,6 +270,9 @@ impl Live {
             _ => {}
         }
         if handoff.is_none() {
+            if let Some(runtime) = self.runtime.as_ref() {
+                beats.push(Beat::Status(runtime.status_line()));
+            }
             beats.push(Beat::Wait(self.waiting()));
         }
         (beats, handoff)

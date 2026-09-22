@@ -16,7 +16,9 @@ use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 use nika_check::EffectivePermits;
-use nika_onboard::compile::CompileOutcome;
+use nika_onboard::compile::{
+    CompileOutcome, DiagnosticKind, TriggerKind, TriggerRequirement, TriggerStatus,
+};
 use nika_schema::raw::{RawAction, RawInvokeTarget, RawWorkflow};
 use nika_schema::{FileId, ParseMode};
 
@@ -256,11 +258,16 @@ pub fn propose(
     )
 }
 
-/// The review: what Nika proposes (the tasks · what it reaches · whether a
-/// human answers at run), then the set's own preview — the exact bytes,
-/// the check of these bytes, the effect rows — and the consent question.
-/// `bytes` is the set's preview, computed once by the caller (the
-/// proposal's identity is its witness).
+/// The review: what Nika proposes, in the order a human decides — what it
+/// DOES (the tasks, first what runs first), when it RUNS (by hand, or the
+/// schedule the request asked for, which saving never activates), what it
+/// CAN TOUCH (what the bytes reach, the human gates), what CHANGES on disk,
+/// what it still NEEDS — then the fact that nothing has run, the set's own
+/// condensed preview (the boundary, the check of these exact bytes, `/show`
+/// for every byte) and the consent question. Every line has an owner: the
+/// parser, the check, the change set, the compiler's requirements; none is
+/// prose a model wrote. `bytes` is the set's preview, computed once by the
+/// caller (the proposal's identity is its witness).
 #[must_use]
 pub fn render(set: &ProjectChangeSet, out: &CompileOutcome, bytes: &str) -> String {
     let Some(change) = set.changes.first() else {
@@ -268,6 +275,7 @@ pub fn render(set: &ProjectChangeSet, out: &CompileOutcome, bytes: &str) -> Stri
     };
     let candidate = change.content();
     let mut text = format!("Nika proposes `{}`:\n", change.path().display());
+    text.push_str("Does\n");
     let waves: &[Vec<usize>] = out
         .check_preview
         .as_ref()
@@ -276,6 +284,10 @@ pub fn render(set: &ProjectChangeSet, out: &CompileOutcome, bytes: &str) -> Stri
         text.push_str(&line);
         text.push('\n');
     }
+    text.push_str("Runs\n");
+    text.push_str(&runs_line(out.requested_trigger.as_ref()));
+    text.push('\n');
+    text.push_str("Can touch\n");
     let _ = writeln!(
         text,
         "  external effects · {}",
@@ -295,15 +307,103 @@ pub fn render(set: &ProjectChangeSet, out: &CompileOutcome, bytes: &str) -> Stri
                 .join(" · ")
         }
     );
+    text.push_str("Changes\n");
+    for c in &set.changes {
+        let lines = c.content().lines().count();
+        match c.witness() {
+            None => {
+                let _ = writeln!(text, "  + `{}` · {lines} lines · new", c.path().display());
+            }
+            Some(w) => {
+                let _ = writeln!(
+                    text,
+                    "  ~ `{}` · {lines} lines · replaces the file as it is now (witnessed {})",
+                    c.path().display(),
+                    w.short()
+                );
+            }
+        }
+    }
+    text.push_str("Needs\n");
+    text.push_str(&needs_lines(out));
+    text.push_str(
+        "Nothing has run yet · `yes` saves these exact bytes and checks them · running is its own line (« run it »)\n",
+    );
     // The boundary and the audits, not every byte: `/show` prints those.
     // The identity beside the question is what a `yes` answers.
     text.push_str(&set.preview_condensed());
     let _ = writeln!(
         text,
-        "  identity {} · `/show` for the exact bytes · `yes` applies · `no` discards",
+        "  identity {} · `/show` the exact bytes · `/meaning` your request clause by clause · `yes` applies · `no` discards",
         crate::ProposalId::of(bytes)
     );
     text
+}
+
+/// The Runs line: by hand, or the schedule the request stated — kept
+/// beside the program (saving never activates it) — or a trigger the
+/// compiler read but cannot express.
+fn runs_line(trigger: Option<&TriggerRequirement>) -> String {
+    let Some(t) = trigger else {
+        return "  when you ask (« run it ») · no schedule was asked".to_owned();
+    };
+    let quoted = t
+        .source_hint
+        .as_deref()
+        .filter(|w| !w.is_empty())
+        .map_or(String::new(), |w| format!(" (« {w} »)"));
+    if t.status == TriggerStatus::Unsupported {
+        return format!(
+            "  ! the request asks for a trigger{quoted} the compiler cannot express yet · the workflow runs when you ask"
+        );
+    }
+    match t.kind {
+        TriggerKind::Schedule => {
+            let when = match (t.cadence.as_deref(), t.at.as_deref()) {
+                (Some(c), Some(at)) => format!("{c} at {at}"),
+                (Some(c), None) => c.to_owned(),
+                (None, Some(at)) => format!("at {at}"),
+                (None, None) => "on a schedule".to_owned(),
+            };
+            format!(
+                "  ↗ {when}{quoted} · a schedule to activate AFTER saving · saving alone activates nothing"
+            )
+        }
+        TriggerKind::Webhook => format!(
+            "  ↗ on an incoming call{quoted} · a binding to set up AFTER saving · saving alone arms nothing"
+        ),
+        TriggerKind::Event => format!(
+            "  ↗ on each incoming item{quoted} · a binding to set up AFTER saving · saving alone arms nothing"
+        ),
+        // Manual, and any kind a later compiler adds: by hand.
+        _ => "  when you ask (« run it »)".to_owned(),
+    }
+}
+
+/// The Needs lines: the requirements outside the bytes and the parts of
+/// the request the compiler named as missed, unknown or refused.
+fn needs_lines(out: &CompileOutcome) -> String {
+    let mut lines = Vec::new();
+    if let Some(t) = &out.requested_trigger
+        && t.status == TriggerStatus::RequiresBinding
+    {
+        lines.push(
+            "  ↗ the schedule or trigger above · bound when you activate, not by saving".to_owned(),
+        );
+    }
+    for d in &out.diagnostics {
+        let glyph = match d.kind {
+            DiagnosticKind::Missed | DiagnosticKind::Unknown => "!",
+            DiagnosticKind::Refused => "×",
+            _ => continue,
+        };
+        lines.push(format!("  {glyph} {} · {}", d.target, d.message));
+    }
+    if lines.is_empty() {
+        "  nothing more from you\n".to_owned()
+    } else {
+        lines.join("\n") + "\n"
+    }
 }
 
 #[cfg(test)]

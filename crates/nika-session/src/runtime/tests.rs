@@ -412,6 +412,110 @@ fn choosing_no_intelligence_in_context_resumes_with_the_facts() {
     );
 }
 
+/// The review reads in sections a human decides on (Does · Runs · Can
+/// touch · Changes · Needs · nothing has run yet); `/meaning` beside the
+/// proposal lists the request clause by clause from the compiler's ledger
+/// and HOLDS the proposal; the status line names where the automation
+/// stands at every step, from the machine's own facts.
+#[test]
+fn the_review_reads_in_sections_and_meaning_holds_the_proposal() {
+    let dir = tree();
+    std::fs::create_dir_all(dir.path().join("notes")).expect("notes");
+    std::fs::write(dir.path().join("notes/brief.md"), "brief\n").expect("brief");
+    let mut s = SessionRuntime::open(
+        dir.path(),
+        ready(IntelligenceKind::None, DataLocus::None),
+        Box::new(NoReasoner),
+    );
+    assert_eq!(s.status_line(), "", "nothing under way at open");
+    let TurnOutcome::Proposal { id, preview } = s.turn(COPY) else {
+        panic!("a copy is Ready");
+    };
+    for section in [
+        "Does\n",
+        "Runs\n  when you ask (« run it »)",
+        "Can touch\n  external effects · none",
+        "human approval at run · none",
+        "Changes\n  + `compiled-workflow.nika` · ",
+        "Needs\n  nothing more from you",
+        "Nothing has run yet · `yes` saves these exact bytes",
+        "`/meaning` your request clause by clause",
+    ] {
+        assert!(
+            preview.contains(section),
+            "missing « {section} » in:\n{preview}"
+        );
+    }
+    assert!(
+        s.status_line()
+            .starts_with("Ready for review · `compiled-workflow.nika`"),
+        "{}",
+        s.status_line()
+    );
+    // Meaning beside the proposal: the ledger's clauses, the proposal held.
+    let TurnOutcome::Held {
+        id: held,
+        preview: meaning,
+    } = s.consent("/meaning")
+    else {
+        panic!("meaning holds the proposal");
+    };
+    assert_eq!(held, id);
+    assert!(
+        meaning.contains("Meaning · your request, clause by clause")
+            && meaning.contains("✓ « write it to ./out/copy.md »")
+            && meaning.contains("a task that runs (`write_output`)")
+            && meaning.contains("the proposal still waits"),
+        "{meaning}"
+    );
+    assert!(
+        !meaning.contains("1/1") && !meaning.contains('%'),
+        "no score: {meaning}"
+    );
+    assert_eq!(s.pending_proposal(), Some(id), "held, not decided");
+    assert!(matches!(
+        s.consent("what did you understand?"),
+        TurnOutcome::Held { .. }
+    ));
+    // A yes lands the bytes: the status says saved, checked, not run.
+    assert!(matches!(s.consent("yes"), TurnOutcome::Facts(ref t) if t.contains("applied")));
+    assert!(
+        s.status_line().starts_with(
+            "Saved · checked · not active · nothing has run · `compiled-workflow.nika`"
+        ),
+        "{}",
+        s.status_line()
+    );
+    // After the proposal, `/meaning` is an aside over the last reading.
+    assert!(
+        matches!(s.turn("/meaning"), TurnOutcome::Aside(ref t) if t.contains("clause by clause"))
+    );
+}
+
+/// The status line during a question names the answer the automation
+/// needs; before any work it is empty; a discussion line leaves it so.
+#[test]
+fn the_status_line_names_the_next_gesture() {
+    let dir = tree();
+    let mut s = SessionRuntime::open(
+        dir.path(),
+        ready(IntelligenceKind::None, DataLocus::None),
+        Box::new(NoReasoner),
+    );
+    assert!(matches!(s.turn(DRAFT), TurnOutcome::Question { .. }));
+    assert!(
+        s.status_line().starts_with("Needs one answer · "),
+        "{}",
+        s.status_line()
+    );
+    assert!(matches!(s.turn("cancel"), TurnOutcome::Facts(_)));
+    assert_eq!(s.status_line(), "");
+    assert!(
+        matches!(s.turn("/meaning"), TurnOutcome::Aside(ref t) if t.contains("clause by clause")),
+        "the last reading stays readable after a cancel"
+    );
+}
+
 /// « why? » beside an authoring question explains it from the compiler's
 /// own words and holds it: nothing is answered, the same question waits,
 /// and `cancel` still drops the round. The raw key stays out of the

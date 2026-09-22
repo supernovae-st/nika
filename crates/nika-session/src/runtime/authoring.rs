@@ -72,7 +72,9 @@ impl SessionRuntime {
                     self.ask_for_intelligence(intent, super::Need::Authoring)
                 }
                 AuthoringSeat::Deterministic { why } => {
-                    TurnOutcome::Facts(honest_incomplete(&out, why.as_deref()))
+                    let text = honest_incomplete(&out, why.as_deref());
+                    self.last_outcome = Some(out);
+                    TurnOutcome::Facts(text)
                 }
             }),
             reading => Some(self.settle(round, reading)),
@@ -88,7 +90,9 @@ impl SessionRuntime {
         match compile_through(&self.seat, &round.request()) {
             Ok(out) => match Reading::of(out) {
                 Reading::Unsettled(out) | Reading::NotWork(out) => {
-                    TurnOutcome::Facts(honest_incomplete(&out, None))
+                    let text = honest_incomplete(&out, None);
+                    self.last_outcome = Some(out);
+                    TurnOutcome::Facts(text)
                 }
                 reading => self.settle(round, reading),
             },
@@ -118,6 +122,8 @@ impl SessionRuntime {
     /// What a reading becomes for the human: a proposal, a question, an
     /// honest incomplete, a refusal.
     fn settle(&mut self, mut round: AuthoringRound, reading: Reading) -> TurnOutcome {
+        // The compiler's reading is what `/meaning` shows, clause by clause.
+        self.last_outcome = Some(reading.outcome().clone());
         match reading {
             Reading::Ready(out) => self.propose(&round.intent, &out),
             Reading::Questions(out) => {

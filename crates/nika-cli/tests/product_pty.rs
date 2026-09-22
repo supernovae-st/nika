@@ -529,3 +529,60 @@ fn a_bare_yes_with_nothing_pending_applies_nothing() {
         .collect();
     assert!(written.is_empty(), "nothing was written: {written:?}");
 }
+
+/// The review reads in the sections a human decides on, `/meaning` lists
+/// the request clause by clause and holds the proposal, and a `no` after
+/// it discards: nothing is written.
+#[test]
+fn the_review_reads_in_sections_and_meaning_holds_the_proposal() {
+    let (project, home) = rig("review");
+    std::fs::create_dir_all(project.path().join("notes")).expect("notes");
+    std::fs::write(project.path().join("notes/brief.md"), "# Brief\n").expect("brief");
+    let mut session = open_session(project.path(), home.path());
+    session
+        .send_line("Lis ./notes/brief.md et écris-le dans ./out/copie.md")
+        .expect("the intent");
+    session
+        .expect("Nika proposes `compiled-workflow.nika`:")
+        .expect("the review opens");
+    for section in [
+        "Does",
+        "Runs",
+        "when you ask",
+        "Can touch",
+        "human approval at run · none",
+        "Changes",
+        "+ `compiled-workflow.nika`",
+        "Needs",
+        "nothing more from you",
+        "Nothing has run yet",
+    ] {
+        session
+            .expect(section)
+            .unwrap_or_else(|e| panic!("the review names « {section} »: {e}"));
+    }
+    session.expect("apply? ›").expect("the consent prompt");
+    session.send_line("/meaning").expect("meaning");
+    session
+        .expect("Meaning · your request, clause by clause")
+        .expect("the meaning view");
+    session
+        .expect("écris-le dans ./out/copie.md")
+        .expect("the clause, in the request's own words");
+    session
+        .expect("the proposal still waits")
+        .expect("meaning holds the proposal");
+    session
+        .expect("apply? ›")
+        .expect("still the consent prompt");
+    session.send_line("no").expect("discard");
+    session.expect("discarded").expect("nothing written");
+    session.expect("nika ›").expect("prompt");
+    session.send_line("/quit").expect("quit");
+    session.expect(Eof).expect("closes");
+    assert_eq!(exit_code(&mut session), 0);
+    assert!(
+        !project.path().join("compiled-workflow.nika").exists(),
+        "a no writes nothing"
+    );
+}

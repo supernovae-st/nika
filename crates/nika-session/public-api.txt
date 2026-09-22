@@ -192,6 +192,7 @@ pub fn nika_session::authoring::compile_deterministic(request: &nika_compile::ty
 pub fn nika_session::authoring::compile_through(seat: &nika_session::authoring::AuthoringSeat, request: &nika_compile::types::CompileRequest) -> core::result::Result<nika_compile::types::CompileOutcome, nika_session::authoring::AuthoringError>
 pub fn nika_session::authoring::is_cancel(line: &str) -> bool
 pub fn nika_session::authoring::is_greeting(input: &str) -> bool
+pub fn nika_session::authoring::is_meaning(line: &str) -> bool
 pub fn nika_session::authoring::is_what_happened(line: &str) -> bool
 pub fn nika_session::authoring::is_why(line: &str) -> bool
 pub fn nika_session::authoring::literal_for(question: &nika_compile::types::CompileQuestion, line: &str) -> alloc::string::String
@@ -1411,6 +1412,124 @@ impl<T> tracing::instrument::Instrument for nika_session::intelligence::UserInte
 impl<T> tracing::instrument::WithSubscriber for nika_session::intelligence::UserIntelligencePreference
 impl<T> typenum::type_operators::Same for nika_session::intelligence::UserIntelligencePreference
 pub type nika_session::intelligence::UserIntelligencePreference::Output = T
+pub mod nika_session::meaning
+#[non_exhaustive] pub enum nika_session::meaning::Disposition
+pub nika_session::meaning::Disposition::Contradicted
+pub nika_session::meaning::Disposition::External
+pub nika_session::meaning::Disposition::Gap
+pub nika_session::meaning::Disposition::NeedsAnswer
+pub nika_session::meaning::Disposition::Refused
+pub nika_session::meaning::Disposition::Represented
+impl nika_session::meaning::Disposition
+pub fn nika_session::meaning::Disposition::glyph(self) -> &'static str
+pub fn nika_session::meaning::Disposition::word(self) -> &'static str
+impl core::clone::Clone for nika_session::meaning::Disposition
+pub fn nika_session::meaning::Disposition::clone(&self) -> nika_session::meaning::Disposition
+impl core::cmp::Eq for nika_session::meaning::Disposition
+impl core::cmp::PartialEq for nika_session::meaning::Disposition
+pub fn nika_session::meaning::Disposition::eq(&self, other: &nika_session::meaning::Disposition) -> bool
+impl core::fmt::Debug for nika_session::meaning::Disposition
+pub fn nika_session::meaning::Disposition::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_session::meaning::Disposition
+impl core::marker::StructuralPartialEq for nika_session::meaning::Disposition
+impl<D> owo_colors::OwoColorize for nika_session::meaning::Disposition
+impl<Q, K> equivalent::Equivalent<K> for nika_session::meaning::Disposition where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::meaning::Disposition::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session::meaning::Disposition where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::meaning::Disposition::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session::meaning::Disposition where U: core::convert::From<T>
+pub fn nika_session::meaning::Disposition::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session::meaning::Disposition where U: core::convert::Into<T>
+pub type nika_session::meaning::Disposition::Error = core::convert::Infallible
+pub fn nika_session::meaning::Disposition::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session::meaning::Disposition where U: core::convert::TryFrom<T>
+pub type nika_session::meaning::Disposition::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session::meaning::Disposition::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session::meaning::Disposition where T: core::clone::Clone
+pub type nika_session::meaning::Disposition::Owned = T
+pub fn nika_session::meaning::Disposition::clone_into(&self, target: &mut T)
+pub fn nika_session::meaning::Disposition::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session::meaning::Disposition where T: 'static + ?core::marker::Sized
+pub fn nika_session::meaning::Disposition::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session::meaning::Disposition where T: ?core::marker::Sized
+pub fn nika_session::meaning::Disposition::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session::meaning::Disposition where T: ?core::marker::Sized
+pub fn nika_session::meaning::Disposition::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session::meaning::Disposition where T: core::clone::Clone
+pub unsafe fn nika_session::meaning::Disposition::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session::meaning::Disposition
+pub fn nika_session::meaning::Disposition::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session::meaning::Disposition where T: core::clone::Clone
+pub fn nika_session::meaning::Disposition::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session::meaning::Disposition where T: 'static
+pub fn nika_session::meaning::Disposition::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_session::meaning::Disposition where T: core::marker::Copy
+pub fn nika_session::meaning::Disposition::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session::meaning::Disposition where T: ?core::marker::Sized
+pub fn nika_session::meaning::Disposition::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session::meaning::Disposition::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session::meaning::Disposition
+impl<T> tracing::instrument::WithSubscriber for nika_session::meaning::Disposition
+impl<T> typenum::type_operators::Same for nika_session::meaning::Disposition
+pub type nika_session::meaning::Disposition::Output = T
+#[non_exhaustive] pub struct nika_session::meaning::Clause
+pub nika_session::meaning::Clause::carrier: core::option::Option<alloc::string::String>
+pub nika_session::meaning::Clause::disposition: nika_session::meaning::Disposition
+pub nika_session::meaning::Clause::evidence: alloc::string::String
+pub nika_session::meaning::Clause::kind: alloc::string::String
+pub nika_session::meaning::Clause::note: core::option::Option<alloc::string::String>
+impl core::clone::Clone for nika_session::meaning::Clause
+pub fn nika_session::meaning::Clause::clone(&self) -> nika_session::meaning::Clause
+impl core::cmp::Eq for nika_session::meaning::Clause
+impl core::cmp::PartialEq for nika_session::meaning::Clause
+pub fn nika_session::meaning::Clause::eq(&self, other: &nika_session::meaning::Clause) -> bool
+impl core::fmt::Debug for nika_session::meaning::Clause
+pub fn nika_session::meaning::Clause::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_session::meaning::Clause
+impl<D> owo_colors::OwoColorize for nika_session::meaning::Clause
+impl<Q, K> equivalent::Equivalent<K> for nika_session::meaning::Clause where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::meaning::Clause::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session::meaning::Clause where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::meaning::Clause::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session::meaning::Clause where U: core::convert::From<T>
+pub fn nika_session::meaning::Clause::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session::meaning::Clause where U: core::convert::Into<T>
+pub type nika_session::meaning::Clause::Error = core::convert::Infallible
+pub fn nika_session::meaning::Clause::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session::meaning::Clause where U: core::convert::TryFrom<T>
+pub type nika_session::meaning::Clause::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session::meaning::Clause::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session::meaning::Clause where T: core::clone::Clone
+pub type nika_session::meaning::Clause::Owned = T
+pub fn nika_session::meaning::Clause::clone_into(&self, target: &mut T)
+pub fn nika_session::meaning::Clause::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session::meaning::Clause where T: 'static + ?core::marker::Sized
+pub fn nika_session::meaning::Clause::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session::meaning::Clause where T: ?core::marker::Sized
+pub fn nika_session::meaning::Clause::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session::meaning::Clause where T: ?core::marker::Sized
+pub fn nika_session::meaning::Clause::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session::meaning::Clause where T: core::clone::Clone
+pub unsafe fn nika_session::meaning::Clause::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session::meaning::Clause
+pub fn nika_session::meaning::Clause::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session::meaning::Clause where T: core::clone::Clone
+pub fn nika_session::meaning::Clause::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session::meaning::Clause where T: 'static
+pub fn nika_session::meaning::Clause::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session::meaning::Clause where T: ?core::marker::Sized
+pub fn nika_session::meaning::Clause::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session::meaning::Clause::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session::meaning::Clause
+impl<T> tracing::instrument::WithSubscriber for nika_session::meaning::Clause
+impl<T> typenum::type_operators::Same for nika_session::meaning::Clause
+pub type nika_session::meaning::Clause::Output = T
+pub const nika_session::meaning::UNAVAILABLE: &str
+pub fn nika_session::meaning::assurance(clause: &nika_session::meaning::Clause, candidate: core::option::Option<&str>) -> &'static str
+pub fn nika_session::meaning::clauses(out: &nika_compile::types::CompileOutcome) -> core::option::Option<alloc::vec::Vec<nika_session::meaning::Clause>>
+pub fn nika_session::meaning::clauses_of(ledger: &serde_json::value::Value) -> alloc::vec::Vec<nika_session::meaning::Clause>
+pub fn nika_session::meaning::render(out: &nika_compile::types::CompileOutcome) -> core::option::Option<alloc::string::String>
+pub fn nika_session::meaning::render_ledger(ledger: &serde_json::value::Value, candidate: core::option::Option<&str>) -> alloc::string::String
 pub mod nika_session::outcome
 #[non_exhaustive] pub enum nika_session::outcome::RefusalClass
 pub nika_session::outcome::RefusalClass::AlreadyConsumed
@@ -2058,6 +2177,7 @@ pub fn nika_session::runtime::SessionRuntime::open_with(cwd: &std::path::Path, c
 pub fn nika_session::runtime::SessionRuntime::pending_choice(&self) -> bool
 pub fn nika_session::runtime::SessionRuntime::pending_proposal(&self) -> core::option::Option<nika_session::outcome::ProposalId>
 pub fn nika_session::runtime::SessionRuntime::status(&self) -> alloc::string::String
+pub fn nika_session::runtime::SessionRuntime::status_line(&self) -> alloc::string::String
 pub fn nika_session::runtime::SessionRuntime::waiting_gate(&self) -> core::option::Option<nika_session::outcome::GateId>
 impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::authoring_seat(&self) -> &nika_session::authoring::AuthoringSeat
@@ -3974,6 +4094,7 @@ pub fn nika_session::runtime::SessionRuntime::open_with(cwd: &std::path::Path, c
 pub fn nika_session::runtime::SessionRuntime::pending_choice(&self) -> bool
 pub fn nika_session::runtime::SessionRuntime::pending_proposal(&self) -> core::option::Option<nika_session::outcome::ProposalId>
 pub fn nika_session::runtime::SessionRuntime::status(&self) -> alloc::string::String
+pub fn nika_session::runtime::SessionRuntime::status_line(&self) -> alloc::string::String
 pub fn nika_session::runtime::SessionRuntime::waiting_gate(&self) -> core::option::Option<nika_session::outcome::GateId>
 impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::authoring_seat(&self) -> &nika_session::authoring::AuthoringSeat

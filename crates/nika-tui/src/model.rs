@@ -142,6 +142,10 @@ pub enum Beat {
     /// Work is active under a seat; the label is the session's own line,
     /// never a percentage.
     Busy(String),
+    /// Where the automation stands, in the session's own words (« Ready for
+    /// review · … », « Saved · checked · not active · nothing has run »):
+    /// the status row, replaced at every turn, never a block.
+    Status(String),
     /// The session closed the door.
     Quit,
 }
@@ -162,6 +166,9 @@ pub struct UiState {
     pub waiting: Waiting,
     /// The busy label, when work is active.
     pub busy: Option<String>,
+    /// Where the automation stands (the session's status line); empty when
+    /// nothing is under way.
+    pub status: String,
     /// A first `Ctrl+C` was pressed: the next one leaves.
     pub interrupt_armed: bool,
     /// Colour allowed (the theme's decision, never the renderer's).
@@ -184,6 +191,7 @@ impl UiState {
             committed_inline: 0,
             waiting: Waiting::Free,
             busy: None,
+            status: String::new(),
             interrupt_armed: false,
             color,
             focus_scroll: 0,
@@ -204,6 +212,7 @@ impl UiState {
                 self.waiting = waiting;
             }
             Beat::Busy(label) => self.busy = Some(label),
+            Beat::Status(line) => self.status = line,
             Beat::Quit => self.quit = true,
         }
     }

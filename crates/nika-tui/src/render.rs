@@ -119,11 +119,17 @@ fn status_line(state: &UiState) -> Line<'static> {
             Span::styled(label.clone(), dim),
         ])
     } else {
+        // Where the automation stands, then the presentation's own note.
         let mode = match state.presentation {
             Presentation::Inline => "",
             Presentation::Focus => "focus · Esc returns inline · PgUp/PgDn scroll",
         };
-        Line::from(Span::styled(mode.to_owned(), dim))
+        let text = match (state.status.is_empty(), mode.is_empty()) {
+            (true, _) => mode.to_owned(),
+            (false, true) => state.status.clone(),
+            (false, false) => format!("{} · {mode}", state.status),
+        };
+        Line::from(Span::styled(text, dim))
     }
 }
 
