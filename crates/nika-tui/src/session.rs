@@ -14,10 +14,10 @@
 //! back through `observe_run`. Capturing a run's frames inside the renderer
 //! is a later wave.
 //!
-//! The first run (no kept intelligence choice) is asked through the
-//! composer under the `›` prompt with the census's own screen and `choose`
-//! law, three tries, the answer saved beside the other user files when a
-//! home exists.
+//! Without a kept intelligence choice the runtime opens all the same
+//! (`open_unchosen`): the first screen is asked through the composer under
+//! the `›` prompt the first time a turn needs an intelligence, by the
+//! runtime's own `choose` law, and the line that waited resumes after it.
 
 use std::path::{Path, PathBuf};
 
@@ -69,8 +69,6 @@ pub struct Live {
     factory: Option<ReasonerFactory>,
     runtime: Option<SessionRuntime>,
     runners: Runners,
-    choosing: bool,
-    tries: u8,
     pending: Option<(u64, Work)>,
     next_id: u64,
 }
@@ -80,14 +78,14 @@ impl std::fmt::Debug for Live {
         f.debug_struct("Live")
             .field("cwd", &self.cwd)
             .field("open", &self.runtime.is_some())
-            .field("choosing", &self.choosing)
             .finish_non_exhaustive()
     }
 }
 
 impl Live {
     /// A conversation over `cwd`. `kept` is the intelligence choice found
-    /// under the home, when one exists; without it the first screen is asked.
+    /// under the home, when one exists; without it the runtime opens
+    /// unchosen and asks the first screen when a turn needs one.
     #[must_use]
     pub fn new(
         cwd: PathBuf,
@@ -104,28 +102,32 @@ impl Live {
             factory: Some(factory),
             runtime: None,
             runners,
-            choosing: false,
-            tries: 0,
             pending: None,
             next_id: 1,
         };
-        if let Some(pref) = kept {
-            live.open_runtime(&pref);
-        }
+        live.open_runtime(kept);
         live
     }
 
-    fn open_runtime(&mut self, pref: &UserIntelligencePreference) {
+    fn open_runtime(&mut self, pref: Option<UserIntelligencePreference>) {
         let Some(factory) = self.factory.take() else {
             return;
         };
-        let mut runtime = SessionRuntime::open_with(
-            &self.cwd,
-            self.census.clone(),
-            pref,
-            self.home.as_deref(),
-            factory,
-        );
+        let mut runtime = match pref {
+            Some(pref) => SessionRuntime::open_with(
+                &self.cwd,
+                self.census.clone(),
+                &pref,
+                self.home.as_deref(),
+                factory,
+            ),
+            None => SessionRuntime::open_unchosen(
+                &self.cwd,
+                self.census.clone(),
+                self.home.as_deref(),
+                factory,
+            ),
+        };
         // The plain loop prints progress lines to stdout; here the viewport
         // owns stdout, and a truthful busy state arrives in a later wave.
         runtime.on_progress(Box::new(|_| {}));
@@ -163,9 +165,9 @@ impl Live {
     /// What the runtime waits for, by the same reading as the plain loop.
     fn waiting(&self) -> Waiting {
         let Some(runtime) = self.runtime.as_ref() else {
-            return Waiting::Choosing;
+            return Waiting::Free;
         };
-        if self.choosing {
+        if runtime.pending_choice() {
             Waiting::Choosing
         } else if runtime.pending_proposal().is_some() {
             Waiting::Proposal
@@ -182,43 +184,6 @@ impl Live {
         }
     }
 
-    fn first_run(&mut self, line: &str) -> Vec<Beat> {
-        match self.census.choose(line.trim()) {
-            Ok(pref) => {
-                let mut beats = Vec::new();
-                if let Some(home) = self.home.as_deref()
-                    && let Err(e) = pref.save(home)
-                {
-                    beats.push(Beat::Say(Committed::new(
-                        Kind::Notice,
-                        format!(
-                            "the choice could not be saved under ~/.nika: {e} · it holds for this session"
-                        ),
-                    )));
-                }
-                self.open_runtime(&pref);
-                beats.extend(self.opening_beats());
-                beats
-            }
-            Err(why) => {
-                self.tries += 1;
-                if self.tries >= 3 {
-                    return vec![
-                        Beat::Say(Committed::new(
-                            Kind::Notice,
-                            "no choice made · `nika` asks again next time; the verbs stay: nika try · nika compile · nika check · nika run",
-                        )),
-                        Beat::Quit,
-                    ];
-                }
-                vec![
-                    Beat::Say(Committed::new(Kind::Refusal, why)),
-                    Beat::Wait(Waiting::Choosing),
-                ]
-            }
-        }
-    }
-
     /// One outcome to beats, and the handoff it asks for.
     fn map(&mut self, outcome: TurnOutcome) -> (Vec<Beat>, Option<Handoff>) {
         let mut beats = Vec::new();
@@ -230,9 +195,18 @@ impl Live {
                     beats.push(Beat::Say(Committed::new(Kind::Reply, text)));
                 }
             }
+            // The first screen, in context or on `/intelligence`: the runtime
+            // now waits for the choice (`waiting()` reads it).
             TurnOutcome::Ask(screen) => {
-                self.choosing = true;
                 beats.push(Beat::Say(Committed::new(Kind::Reply, screen)));
+            }
+            // The choice landed and the waiting line resumed under it: the
+            // choice's fact, then whatever that line became.
+            TurnOutcome::Resumed { notice, outcome } => {
+                beats.push(Beat::Say(Committed::new(Kind::Notice, notice)));
+                let (rest, again) = self.map(*outcome);
+                beats.extend(rest);
+                return (beats, again);
             }
             TurnOutcome::Proposal { preview, .. } | TurnOutcome::Held { preview, .. } => {
                 beats.push(Beat::Say(Committed::new(Kind::Proposal, preview)));
@@ -290,31 +264,18 @@ impl Live {
 
 impl Conversation for Live {
     fn open(&mut self) -> Vec<Beat> {
-        if self.runtime.is_some() {
-            return self.opening_beats();
-        }
-        vec![
-            Beat::Say(Committed::new(Kind::Reply, self.census.first_screen())),
-            Beat::Wait(Waiting::Choosing),
-        ]
+        self.opening_beats()
     }
 
     fn submit(&mut self, line: &str) -> Turn {
-        if self.runtime.is_none() {
-            return Turn {
-                beats: self.first_run(line),
-                handoff: None,
-            };
-        }
         let outcome = {
-            let choosing = std::mem::take(&mut self.choosing);
             let Some(runtime) = self.runtime.as_mut() else {
                 return Turn {
                     beats: vec![Beat::Quit],
                     handoff: None,
                 };
             };
-            if choosing {
+            if runtime.pending_choice() {
                 runtime.choose(line.trim())
             } else if runtime.pending_proposal().is_some() {
                 runtime.consent(line.trim())
@@ -330,7 +291,7 @@ impl Conversation for Live {
 
     fn busy_label(&self, line: &str) -> Option<String> {
         let runtime = self.runtime.as_ref()?;
-        let label = if self.choosing {
+        let label = if runtime.pending_choice() {
             "seating the intelligence you chose"
         } else if runtime.pending_proposal().is_some() {
             if line.trim().is_empty() {

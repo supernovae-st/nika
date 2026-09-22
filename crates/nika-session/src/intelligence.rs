@@ -209,6 +209,16 @@ impl IntelligenceCensus {
     /// already have · an API · local · none), never a class name.
     #[must_use]
     pub fn first_screen(&self) -> String {
+        format!(
+            "Nika\nChoose which AI answers your questions here. You can change this later (`/intelligence`); the choice is kept at ~/.nika/session-intelligence.json.\n\n{}",
+            self.options_screen()
+        )
+    }
+
+    /// The four options alone, as this machine holds them — the part of
+    /// the first screen a contextual ask shows under its own reason.
+    #[must_use]
+    pub fn options_screen(&self) -> String {
         let seats: Vec<&str> = self
             .seats
             .iter()
@@ -231,7 +241,7 @@ impl IntelligenceCensus {
             self.locals.join(" · ")
         };
         format!(
-            "Nika\nChoose which AI answers your questions here. You can change this later (`/intelligence`); the choice is kept at ~/.nika/session-intelligence.json.\n\n  1  Use an AI app I already have (a coding assistant you are signed into)\n     {apps}\n  2  Use an API (metered · your own key)\n     {keys}\n  3  Run locally (private · on this machine)\n     {locals}\n  4  No AI in this conversation\n     Nika still answers from its own catalog: your workflows · checks · examples · builtins\n"
+            "  1  Use an AI app I already have (a coding assistant you are signed into)\n     {apps}\n  2  Use an API (metered · your own key)\n     {keys}\n  3  Run locally (private · on this machine)\n     {locals}\n  4  No AI in this conversation\n     Nika still answers from its own catalog: your workflows · checks · examples · builtins\n"
         )
     }
 

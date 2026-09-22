@@ -117,6 +117,25 @@ pub enum TurnOutcome {
         /// `task=value`, as the human's line became it.
         answer: String,
     },
+    /// The intelligence was chosen in the middle of a request: the
+    /// choice's own fact, then the outcome of the line that waited for it,
+    /// resumed exactly as the human typed it — never re-asked.
+    Resumed {
+        /// What the choice settled: the path, where the context goes, the seat.
+        notice: String,
+        /// The waiting line's outcome under the chosen intelligence.
+        outcome: Box<TurnOutcome>,
+    },
+}
+
+/// Why a turn needs the human's intelligence choice now — the reason the
+/// contextual first screen names.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Need {
+    /// A free-text line only an intelligence answers, in words.
+    Conversation,
+    /// Work the deterministic reader could not settle alone.
+    Authoring,
 }
 
 /// The help card — the few survivors, and the law that everything
@@ -128,6 +147,7 @@ text                 ask, in words · these answer from the engine, no AI asked:
                      · the builtins · the providers · an example or template for a job · a code (« explain NIKA-… »)
                      · what Nika calls a node, step, trigger, secret, action · the rest goes to your chosen intelligence, in words
 /intelligence        the AI this session reasons with · asks the first screen again, the next line is your answer
+/status              where you are: the project root, the intelligence and where your context goes, the authoring seat
 /show                while a proposal waits: print its exact bytes (the review shows the boundary)
 /help                this card
 /quit                close the session
@@ -182,6 +202,15 @@ pub struct SessionRuntime {
     progress: Option<ProgressHook>,
     /// A run request waiting on the values of the workflow's declared inputs.
     run_inputs: Option<authoring::RunInputs>,
+    /// Whether the human chose (or kept) an intelligence. Opened without one,
+    /// the session works from the engine's facts and the deterministic
+    /// compiler, and asks the first screen only when a turn needs more.
+    chosen: bool,
+    /// The line that waits for the intelligence choice: resumed as typed
+    /// once the choice is made, dropped on `cancel`.
+    interrupted: Option<String>,
+    /// The first screen is on the table: the NEXT line is a choice.
+    pending_choice: bool,
 }
 
 /// A door's sink for progress lines (« Working through this workflow… »).
@@ -230,9 +259,65 @@ impl SessionRuntime {
             seat: AuthoringSeat::Deterministic { why: None },
             progress: None,
             run_inputs: None,
+            chosen: true,
+            interrupted: None,
+            pending_choice: false,
         };
         session.refresh_seat();
         session
+    }
+
+    /// Open a session before any intelligence is chosen (the first run):
+    /// the facts answer and the deterministic compiler reads work at once;
+    /// the first screen is asked in context, the first time a turn needs an
+    /// intelligence, and the line that needed it resumes after the choice.
+    /// The census, the home and the factory are the ones `open_with` takes.
+    #[must_use]
+    pub fn open_unchosen(
+        cwd: &Path,
+        census: IntelligenceCensus,
+        home: Option<&Path>,
+        factory: ReasonerFactory,
+    ) -> Self {
+        let none = UserIntelligencePreference::new(IntelligenceKind::None, None);
+        let mut session = Self::open_with(cwd, census, &none, home, factory);
+        session.chosen = false;
+        session
+    }
+
+    /// Whether the first screen waits for its answer: the NEXT line is a
+    /// choice ([`SessionRuntime::choose`]), whatever else may wait behind it.
+    #[must_use]
+    pub fn pending_choice(&self) -> bool {
+        self.pending_choice
+    }
+
+    /// Whether an intelligence was chosen or kept for this session.
+    #[must_use]
+    pub fn intelligence_chosen(&self) -> bool {
+        self.chosen
+    }
+
+    /// The first screen, in context: why this turn needs an intelligence,
+    /// the options this machine holds, and the promise that the line is
+    /// kept. The next line chooses; `cancel` continues without one.
+    pub(crate) fn ask_for_intelligence(&mut self, line: &str, need: Need) -> TurnOutcome {
+        let Some(census) = &self.census else {
+            return TurnOutcome::Refusal(Refusal::new(
+                RefusalClass::NoIntelligence,
+                "no conversational intelligence — the facts still answer (workflows · builtins · providers · check · explain) · describe work to build and Nika compiles it",
+            ));
+        };
+        let why = match need {
+            Need::Conversation => "to answer this in words",
+            Need::Authoring => "to finish reading this request — what it read on its own is kept",
+        };
+        self.interrupted = Some(line.to_owned());
+        self.pending_choice = true;
+        TurnOutcome::Ask(format!(
+            "Nika needs an intelligence for this part\n  {why}\n  your request is kept and resumes after the choice · `cancel` continues without one\n\n{}",
+            census.options_screen()
+        ))
     }
 
     /// Where progress lines go while the compiler works under a seat: a
@@ -274,13 +359,29 @@ impl SessionRuntime {
     /// serve it, and the previous choice stands.
     fn choose_unrecorded(&mut self, answer: &str) -> TurnOutcome {
         let (Some(census), Some(factory)) = (&self.census, &self.factory) else {
+            self.pending_choice = false;
+            self.interrupted = None;
             return TurnOutcome::Refusal(Refusal::new(
                 RefusalClass::WrongState,
                 "this session cannot re-choose its intelligence — quit and open `nika` again",
             ));
         };
+        // A cancel keeps going without a choice: the waiting line is dropped
+        // (never sent anywhere), the previous choice stands.
+        if crate::authoring::is_cancel(answer) {
+            self.pending_choice = false;
+            let text = match self.interrupted.take() {
+                Some(_) => {
+                    "no intelligence chosen · your request was not sent anywhere · the facts still answer (workflows · builtins · providers · check · explain) and work Nika can read on its own compiles · `/intelligence` chooses later"
+                }
+                None => "the choice stands · `/intelligence` asks again",
+            };
+            return TurnOutcome::Facts(text.to_owned());
+        }
         let pref = match census.choose(answer) {
             Ok(pref) => pref,
+            // The screen stays on the table with the line it holds: the
+            // next line is still a choice (a typo never loses a request).
             Err(why) => {
                 return TurnOutcome::Refusal(Refusal::new(
                     RefusalClass::IntelligenceRefused,
@@ -299,11 +400,24 @@ impl SessionRuntime {
         self.reasoner = factory(&resolved);
         self.intelligence = resolved;
         self.refresh_seat();
-        TurnOutcome::Facts(format!(
+        self.chosen = true;
+        self.pending_choice = false;
+        let notice = format!(
             "{} · {kept}\n  {}",
             self.intelligence_line(),
             self.seat.line()
-        ))
+        );
+        // The line that waited resumes exactly as typed, under the choice.
+        match self.interrupted.take() {
+            Some(line) => {
+                let outcome = self.turn_unrecorded(&line);
+                TurnOutcome::Resumed {
+                    notice,
+                    outcome: Box::new(outcome),
+                }
+            }
+            None => TurnOutcome::Facts(notice),
+        }
     }
 
     /// The one line that names the path and where the context goes.
@@ -317,15 +431,44 @@ impl SessionRuntime {
         }
     }
 
-    /// The banner a terminal prints at open: the root, the path, the locus.
+    /// The banner a terminal prints at open — the human's level: the
+    /// project, the one question, how to go on. An explicit choice this
+    /// machine cannot serve is the one warning that belongs here. The
+    /// engine's own facts (the root, the path, the seat) are `/status`.
     #[must_use]
     pub fn banner(&self) -> String {
+        let project = self
+            .snapshot
+            .root
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .filter(|n| !n.is_empty())
+            .unwrap_or_else(|| self.snapshot.root.display().to_string());
+        let mut text = format!(
+            "Nika · {project}\n\nWhat do you want to automate?\n  describe the outcome · Nika asks only for what's missing · /help · /status"
+        );
+        if let Some(why) = &self.intelligence.why {
+            let _ = write!(text, "\n  ⚠ {why}");
+        }
+        text
+    }
+
+    /// Where the session stands, in the engine's words (`/status`): the
+    /// root it observed, the intelligence and where the context goes, the
+    /// seat authoring reasons with, the doors.
+    #[must_use]
+    pub fn status(&self) -> String {
         let readiness = match &self.intelligence.why {
             Some(why) => format!("\n  ⚠ {why}"),
             None => String::new(),
         };
+        let chosen = if self.chosen {
+            ""
+        } else {
+            " (not chosen yet · asked when a turn needs one · `/intelligence` chooses now)"
+        };
         format!(
-            "nika · session\n  root: {}\n  {}{readiness}\n  {}\n  /help for the card · /quit to close",
+            "session\n  root: {}\n  {}{chosen}{readiness}\n  {}\n  /help for the card · /quit to close",
             self.snapshot.root.display(),
             self.intelligence_line(),
             self.seat.line()
@@ -341,13 +484,15 @@ impl SessionRuntime {
         match input {
             "/quit" | "/exit" => return TurnOutcome::Quit,
             "/help" => return TurnOutcome::Help(HELP.to_owned()),
+            "/status" => return TurnOutcome::Facts(self.status()),
             "/intelligence" => {
                 return match &self.census {
-                    Some(census) => TurnOutcome::Ask(format!(
-                        "{}\n{}",
-                        self.intelligence_card(),
-                        census.first_screen()
-                    )),
+                    Some(census) => {
+                        let screen =
+                            format!("{}\n{}", self.intelligence_card(), census.first_screen());
+                        self.pending_choice = true;
+                        TurnOutcome::Ask(screen)
+                    }
                     None => TurnOutcome::Facts(self.intelligence_card()),
                 };
             }
@@ -386,6 +531,17 @@ impl SessionRuntime {
         if let Some(outcome) = self.author_unrecorded(input) {
             return outcome;
         }
+        // No intelligence chosen yet: this is the first turn that needs one.
+        // The first screen is asked in context and this line waits for it.
+        if !self.chosen {
+            return self.ask_for_intelligence(input, Need::Conversation);
+        }
+        self.converse_unrecorded(input)
+    }
+
+    /// A free-text line the chosen intelligence answers, in words only,
+    /// through the broker's bundle and under the guard's reading.
+    fn converse_unrecorded(&mut self, input: &str) -> TurnOutcome {
         if !self.intelligence.ready {
             let why =
                 self.intelligence.why.clone().unwrap_or_else(|| {

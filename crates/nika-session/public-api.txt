@@ -1197,6 +1197,7 @@ pub fn nika_session::intelligence::IntelligenceCensus::choose(&self, answer: &st
 pub fn nika_session::intelligence::IntelligenceCensus::empty() -> Self
 pub fn nika_session::intelligence::IntelligenceCensus::first_screen(&self) -> alloc::string::String
 pub fn nika_session::intelligence::IntelligenceCensus::from_probe(probe: &nika_cli_host::probe::Probe) -> Self
+pub fn nika_session::intelligence::IntelligenceCensus::options_screen(&self) -> alloc::string::String
 pub fn nika_session::intelligence::IntelligenceCensus::take() -> Self
 impl core::clone::Clone for nika_session::intelligence::IntelligenceCensus
 pub fn nika_session::intelligence::IntelligenceCensus::clone(&self) -> nika_session::intelligence::IntelligenceCensus
@@ -1928,6 +1929,9 @@ pub nika_session::runtime::TurnOutcome::ResumeRequested
 pub nika_session::runtime::TurnOutcome::ResumeRequested::answer: alloc::string::String
 pub nika_session::runtime::TurnOutcome::ResumeRequested::trace: std::path::PathBuf
 pub nika_session::runtime::TurnOutcome::ResumeRequested::workflow: std::path::PathBuf
+pub nika_session::runtime::TurnOutcome::Resumed
+pub nika_session::runtime::TurnOutcome::Resumed::notice: alloc::string::String
+pub nika_session::runtime::TurnOutcome::Resumed::outcome: alloc::boxed::Box<nika_session::runtime::TurnOutcome>
 pub nika_session::runtime::TurnOutcome::RunRequested
 pub nika_session::runtime::TurnOutcome::RunRequested::report: alloc::string::String
 pub nika_session::runtime::TurnOutcome::RunRequested::run: nika_session::change::RunRequest
@@ -2043,10 +2047,14 @@ impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::answer_gate_for(&mut self, id: &nika_session::outcome::GateId, line: &str) -> nika_session::runtime::TurnOutcome
 pub fn nika_session::runtime::SessionRuntime::banner(&self) -> alloc::string::String
 pub fn nika_session::runtime::SessionRuntime::consent_to(&mut self, id: &nika_session::outcome::ProposalId, answer: &str) -> nika_session::runtime::TurnOutcome
+pub fn nika_session::runtime::SessionRuntime::intelligence_chosen(&self) -> bool
 pub fn nika_session::runtime::SessionRuntime::on_progress(&mut self, hook: nika_session::runtime::ProgressHook)
 pub fn nika_session::runtime::SessionRuntime::open(cwd: &std::path::Path, intelligence: nika_session::intelligence::ResolvedSessionIntelligence, reasoner: alloc::boxed::Box<dyn nika_session::reasoner::SessionReasoner>) -> Self
+pub fn nika_session::runtime::SessionRuntime::open_unchosen(cwd: &std::path::Path, census: nika_session::intelligence::IntelligenceCensus, home: core::option::Option<&std::path::Path>, factory: nika_session::runtime::ReasonerFactory) -> Self
 pub fn nika_session::runtime::SessionRuntime::open_with(cwd: &std::path::Path, census: nika_session::intelligence::IntelligenceCensus, pref: &nika_session::intelligence::UserIntelligencePreference, home: core::option::Option<&std::path::Path>, factory: nika_session::runtime::ReasonerFactory) -> Self
+pub fn nika_session::runtime::SessionRuntime::pending_choice(&self) -> bool
 pub fn nika_session::runtime::SessionRuntime::pending_proposal(&self) -> core::option::Option<nika_session::outcome::ProposalId>
+pub fn nika_session::runtime::SessionRuntime::status(&self) -> alloc::string::String
 pub fn nika_session::runtime::SessionRuntime::waiting_gate(&self) -> core::option::Option<nika_session::outcome::GateId>
 impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::authoring_seat(&self) -> &nika_session::authoring::AuthoringSeat
@@ -2929,6 +2937,9 @@ pub nika_session::TurnOutcome::ResumeRequested
 pub nika_session::TurnOutcome::ResumeRequested::answer: alloc::string::String
 pub nika_session::TurnOutcome::ResumeRequested::trace: std::path::PathBuf
 pub nika_session::TurnOutcome::ResumeRequested::workflow: std::path::PathBuf
+pub nika_session::TurnOutcome::Resumed
+pub nika_session::TurnOutcome::Resumed::notice: alloc::string::String
+pub nika_session::TurnOutcome::Resumed::outcome: alloc::boxed::Box<nika_session::runtime::TurnOutcome>
 pub nika_session::TurnOutcome::RunRequested
 pub nika_session::TurnOutcome::RunRequested::report: alloc::string::String
 pub nika_session::TurnOutcome::RunRequested::run: nika_session::change::RunRequest
@@ -3314,6 +3325,7 @@ pub fn nika_session::intelligence::IntelligenceCensus::choose(&self, answer: &st
 pub fn nika_session::intelligence::IntelligenceCensus::empty() -> Self
 pub fn nika_session::intelligence::IntelligenceCensus::first_screen(&self) -> alloc::string::String
 pub fn nika_session::intelligence::IntelligenceCensus::from_probe(probe: &nika_cli_host::probe::Probe) -> Self
+pub fn nika_session::intelligence::IntelligenceCensus::options_screen(&self) -> alloc::string::String
 pub fn nika_session::intelligence::IntelligenceCensus::take() -> Self
 impl core::clone::Clone for nika_session::intelligence::IntelligenceCensus
 pub fn nika_session::intelligence::IntelligenceCensus::clone(&self) -> nika_session::intelligence::IntelligenceCensus
@@ -3950,10 +3962,14 @@ impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::answer_gate_for(&mut self, id: &nika_session::outcome::GateId, line: &str) -> nika_session::runtime::TurnOutcome
 pub fn nika_session::runtime::SessionRuntime::banner(&self) -> alloc::string::String
 pub fn nika_session::runtime::SessionRuntime::consent_to(&mut self, id: &nika_session::outcome::ProposalId, answer: &str) -> nika_session::runtime::TurnOutcome
+pub fn nika_session::runtime::SessionRuntime::intelligence_chosen(&self) -> bool
 pub fn nika_session::runtime::SessionRuntime::on_progress(&mut self, hook: nika_session::runtime::ProgressHook)
 pub fn nika_session::runtime::SessionRuntime::open(cwd: &std::path::Path, intelligence: nika_session::intelligence::ResolvedSessionIntelligence, reasoner: alloc::boxed::Box<dyn nika_session::reasoner::SessionReasoner>) -> Self
+pub fn nika_session::runtime::SessionRuntime::open_unchosen(cwd: &std::path::Path, census: nika_session::intelligence::IntelligenceCensus, home: core::option::Option<&std::path::Path>, factory: nika_session::runtime::ReasonerFactory) -> Self
 pub fn nika_session::runtime::SessionRuntime::open_with(cwd: &std::path::Path, census: nika_session::intelligence::IntelligenceCensus, pref: &nika_session::intelligence::UserIntelligencePreference, home: core::option::Option<&std::path::Path>, factory: nika_session::runtime::ReasonerFactory) -> Self
+pub fn nika_session::runtime::SessionRuntime::pending_choice(&self) -> bool
 pub fn nika_session::runtime::SessionRuntime::pending_proposal(&self) -> core::option::Option<nika_session::outcome::ProposalId>
+pub fn nika_session::runtime::SessionRuntime::status(&self) -> alloc::string::String
 pub fn nika_session::runtime::SessionRuntime::waiting_gate(&self) -> core::option::Option<nika_session::outcome::GateId>
 impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::authoring_seat(&self) -> &nika_session::authoring::AuthoringSeat

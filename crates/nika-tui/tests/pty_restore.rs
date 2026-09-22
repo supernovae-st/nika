@@ -80,8 +80,8 @@ fn spawn(args: &[&str]) -> (LoggedSession, Tee) {
         answer_cursor_report(&mut session);
     }
     session
-        .expect("nika · session")
-        .expect("the banner is the first thing drawn");
+        .expect("automate?")
+        .expect("the banner (the human's question) is the first thing drawn");
     session.expect("nika ›").expect("the free prompt");
     (session, tee)
 }

@@ -280,17 +280,160 @@ fn without_intelligence_the_facts_stay_free_text_is_refused_and_work_compiles() 
         "two discarded proposals and an incomplete wrote nothing"
     );
     assert!(matches!(s.turn("/quit"), TurnOutcome::Quit));
-    assert!(s.banner().contains("no conversational AI"));
-    assert_eq!(
-        s.banner().matches("no conversational AI").count(),
-        1,
-        "the path is named once: {}",
+    assert!(
+        s.banner().contains("What do you want to automate?"),
+        "the banner is the human's question: {}",
         s.banner()
     );
     assert!(
-        s.banner().contains("authoring · deterministic"),
-        "the banner names the seat authoring reasons with: {}",
+        !s.banner().contains("conversational AI") && !s.banner().contains("authoring"),
+        "the engine's facts are not on the banner: {}",
         s.banner()
+    );
+    assert!(s.status().contains("no conversational AI"));
+    assert_eq!(
+        s.status().matches("no conversational AI").count(),
+        1,
+        "the path is named once: {}",
+        s.status()
+    );
+    assert!(
+        s.status().contains("authoring · deterministic"),
+        "the status names the seat authoring reasons with: {}",
+        s.status()
+    );
+}
+
+/// The first run opens without a choice: the facts and the deterministic
+/// compiler answer at once; the first turn that needs an intelligence asks
+/// the first screen in context and keeps the line, a typo keeps it
+/// waiting, `cancel` drops it without a choice, and a choice resumes it
+/// exactly as typed under the chosen intelligence.
+#[test]
+fn an_unchosen_session_asks_in_context_and_resumes_the_waiting_line() {
+    let dir = tree();
+    let home = tempfile::tempdir().expect("home");
+    let census = IntelligenceCensus {
+        seats: vec![crate::intelligence::SeatSeen {
+            id: "codex".to_owned(),
+            product_present: true,
+            configured: true,
+        }],
+        api_keys: vec![],
+        locals: vec![],
+    };
+    let factory: ReasonerFactory = Box::new(|resolved| match &resolved.kind {
+        IntelligenceKind::None => Box::new(NoReasoner),
+        _ => Box::new(ScriptedReasoner::new(vec!["seated".to_owned()])),
+    });
+    let mut s = SessionRuntime::open_unchosen(dir.path(), census, Some(home.path()), factory);
+    assert!(!s.intelligence_chosen());
+    assert!(!s.pending_choice());
+    assert!(s.status().contains("not chosen yet"), "{}", s.status());
+    // The facts and work need no choice.
+    assert!(
+        matches!(s.turn("what workflows are here?"), TurnOutcome::Facts(ref t) if t.contains("alpha.nika"))
+    );
+    assert!(
+        matches!(s.turn(COPY), TurnOutcome::Proposal { .. }),
+        "deterministic work compiles before any choice"
+    );
+    assert!(!s.pending_choice(), "nothing asked so far");
+    // The first line only an intelligence answers asks, in context.
+    let TurnOutcome::Ask(screen) = s.turn(SMALL_TALK) else {
+        panic!("asks in context");
+    };
+    assert!(
+        screen.contains("Nika needs an intelligence for this part")
+            && screen.contains("to answer this in words")
+            && screen.contains("resumes after the choice")
+            && screen.contains("4  No AI"),
+        "{screen}"
+    );
+    assert!(
+        !screen.contains("Choose which AI"),
+        "not the cold first screen: {screen}"
+    );
+    assert!(s.pending_choice());
+    // A typo keeps the screen and the line.
+    assert!(
+        matches!(s.choose("9"), TurnOutcome::Refusal(ref r) if r.text.contains("not a choice"))
+    );
+    assert!(s.pending_choice(), "the choice still waits after a typo");
+    // A cancel drops the line, chooses nothing, and the session goes on.
+    assert!(
+        matches!(s.choose("cancel"), TurnOutcome::Facts(ref t) if t.contains("not sent anywhere"))
+    );
+    assert!(!s.pending_choice() && !s.intelligence_chosen());
+    assert!(
+        UserIntelligencePreference::load(home.path()).is_none(),
+        "nothing kept on a cancel"
+    );
+    // Asked again, a choice resumes the very line under the intelligence.
+    assert!(matches!(s.turn(SMALL_TALK), TurnOutcome::Ask(_)));
+    let TurnOutcome::Resumed { notice, outcome } = s.choose("1") else {
+        panic!("the choice resumes the waiting line");
+    };
+    assert!(
+        notice.contains("codex") && notice.contains("kept"),
+        "{notice}"
+    );
+    assert!(
+        matches!(*outcome, TurnOutcome::Reply(ref t) if t.contains("seated")),
+        "the waiting line ran under the chosen intelligence: {outcome:?}"
+    );
+    assert!(s.intelligence_chosen() && !s.pending_choice());
+    assert!(UserIntelligencePreference::load(home.path()).is_some());
+    // Chosen, the session never asks again on its own.
+    assert!(matches!(s.turn(SMALL_TALK), TurnOutcome::Reply(_)));
+}
+
+/// Choosing « no AI » in context resumes the line too: the honest refusal
+/// that names the facts, never a silent drop.
+#[test]
+fn choosing_no_intelligence_in_context_resumes_with_the_facts() {
+    let dir = tree();
+    let factory: ReasonerFactory = Box::new(|_| Box::new(NoReasoner));
+    let mut s =
+        SessionRuntime::open_unchosen(dir.path(), IntelligenceCensus::empty(), None, factory);
+    assert!(matches!(s.turn(SMALL_TALK), TurnOutcome::Ask(_)));
+    let TurnOutcome::Resumed { notice, outcome } = s.choose("4") else {
+        panic!("resumes");
+    };
+    assert!(notice.contains("no conversational AI"), "{notice}");
+    assert!(
+        matches!(*outcome, TurnOutcome::Refusal(ref r) if r.class == RefusalClass::NoIntelligence && r.text.contains("facts still answer")),
+        "{outcome:?}"
+    );
+    assert!(s.intelligence_chosen());
+    assert!(
+        matches!(s.turn(SMALL_TALK), TurnOutcome::Refusal(_)),
+        "an explicit none is never re-asked"
+    );
+}
+
+/// Work the deterministic reader cannot settle asks the first screen in
+/// context with the authoring reason; the choice resumes the request.
+#[test]
+fn unsettled_work_asks_in_context_with_the_authoring_reason() {
+    let dir = tree();
+    std::fs::write(dir.path().join("a.md"), "alpha").expect("a");
+    let factory: ReasonerFactory = Box::new(|_| Box::new(NoReasoner));
+    let mut s =
+        SessionRuntime::open_unchosen(dir.path(), IntelligenceCensus::empty(), None, factory);
+    let TurnOutcome::Ask(screen) = s.turn(UNSETTLED) else {
+        panic!("asks in context");
+    };
+    assert!(
+        screen.contains("to finish reading this request"),
+        "the authoring reason: {screen}"
+    );
+    let TurnOutcome::Resumed { outcome, .. } = s.choose("4") else {
+        panic!("resumes");
+    };
+    assert!(
+        matches!(*outcome, TurnOutcome::Facts(_)),
+        "under no seat the request is an honest incomplete: {outcome:?}"
     );
 }
 
@@ -658,17 +801,21 @@ fn an_unserved_choice_refuses_with_its_fix() {
         why: Some("`claude-code` is not installed on this machine — install it".to_owned()),
     };
     let mut s = SessionRuntime::open(dir.path(), unserved, Box::new(Seat("claude-code")));
-    assert!(s.banner().contains("⚠ `claude-code` is not installed"));
     assert!(
-        s.banner().contains("intelligence: claude-code · uses")
-            && !s.banner().contains("claude-code · claude-code"),
-        "the seat is named once: {}",
+        s.banner().contains("⚠ `claude-code` is not installed"),
+        "an unserved choice is the one warning the banner carries: {}",
         s.banner()
     );
     assert!(
-        s.banner().contains("authoring · deterministic"),
+        s.status().contains("intelligence: claude-code · uses")
+            && !s.status().contains("claude-code · claude-code"),
+        "the seat is named once: {}",
+        s.status()
+    );
+    assert!(
+        s.status().contains("authoring · deterministic"),
         "{}",
-        s.banner()
+        s.status()
     );
     assert!(
         matches!(s.turn(SMALL_TALK), TurnOutcome::Refusal(ref r) if r.text.contains("not installed"))

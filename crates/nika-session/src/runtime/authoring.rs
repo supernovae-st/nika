@@ -66,6 +66,11 @@ impl SessionRuntime {
             }
             Reading::Unsettled(out) => Some(match &self.seat {
                 AuthoringSeat::Provider { .. } => self.compile_under_seat(round),
+                // No intelligence chosen yet: the first screen is asked here,
+                // in context, and the request resumes under the choice.
+                AuthoringSeat::Deterministic { .. } if !self.chosen => {
+                    self.ask_for_intelligence(intent, super::Need::Authoring)
+                }
                 AuthoringSeat::Deterministic { why } => {
                     TurnOutcome::Facts(honest_incomplete(&out, why.as_deref()))
                 }

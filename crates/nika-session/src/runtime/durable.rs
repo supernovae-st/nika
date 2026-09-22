@@ -301,18 +301,25 @@ impl SessionRuntime {
             return self.history_failed(error);
         }
         let outcome = perform(self);
+        // A choice that resumed a waiting line is judged by that line's
+        // own outcome: the record sees what the human's request became.
+        let judged = match &outcome {
+            TurnOutcome::Resumed { outcome, .. } => outcome.as_ref(),
+            other => other,
+        };
         let effect = if matches!(operation, Operation::Consent | Operation::Gate)
             && let TurnOutcome::Refusal(Refusal {
                 class: RefusalClass::Io,
                 text,
-            }) = &outcome
+            }) = judged
         {
-            self.remember("(effect)", text);
+            let text = text.clone();
+            self.remember("(effect)", &text);
             EffectState::Unknown
         } else {
             EffectState::NoUncertaintyReported
         };
-        let run = match (&outcome, operation) {
+        let run = match (judged, operation) {
             (TurnOutcome::RunRequested { .. } | TurnOutcome::ResumeRequested { .. }, _) => {
                 RunState::AwaitingObservation
             }
@@ -377,6 +384,7 @@ fn outcome_kind(outcome: &TurnOutcome) -> &'static str {
         TurnOutcome::RunRequested { .. } => "run_requested",
         TurnOutcome::GateAsk { .. } => "gate_ask",
         TurnOutcome::ResumeRequested { .. } => "resume_requested",
+        TurnOutcome::Resumed { outcome, .. } => outcome_kind(outcome),
     }
 }
 
@@ -412,6 +420,10 @@ fn with_note(outcome: TurnOutcome, note: &str) -> TurnOutcome {
         TurnOutcome::GateAsk { id, question } => TurnOutcome::GateAsk {
             id,
             question: question + &line,
+        },
+        TurnOutcome::Resumed { notice, outcome } => TurnOutcome::Resumed {
+            notice,
+            outcome: Box::new(with_note(*outcome, note)),
         },
         other @ (TurnOutcome::Quit | TurnOutcome::ResumeRequested { .. }) => other,
     }

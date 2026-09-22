@@ -87,8 +87,10 @@ fn a_pipe_is_the_concierge_and_the_tty_is_the_session() {
         "the pipe never asks: {pipe_text}"
     );
 
-    // The TTY, first run: the first screen, the choice « 4 » (no
-    // conversational AI), the banner, a fact, the close.
+    // The TTY, first run: the session opens at once on the human's
+    // question; a fact answers with no choice made; the first line only an
+    // intelligence answers asks the first screen in context; the choice
+    // « 4 » (no conversational AI) resumes that line; the close.
     let mut cmd = Command::new(bin());
     cmd.current_dir(project.path())
         .env("NO_COLOR", "1")
@@ -98,23 +100,31 @@ fn a_pipe_is_the_concierge_and_the_tty_is_the_session() {
     let mut session = expectrl::session::log(session, std::io::stderr()).expect("log tee");
     session.set_expect_timeout(Some(Duration::from_secs(60)));
     session
-        .expect("Choose which AI answers your questions here")
-        .expect("the first run asks");
-    session
-        .expect("No AI in this conversation")
-        .expect("the fourth path");
-    session.send_line("4").expect("choose");
-    session.expect("nika · session").expect("the session opens");
-    session
-        .expect("no conversational AI")
-        .expect("the banner names the path");
+        .expect("What do you want to automate?")
+        .expect("the session opens on the question, no first screen");
     session.expect("nika ›").expect("the prompt");
     session
         .send_line("what workflows are here?")
         .expect("a fact");
     session
         .expect("alpha.nika")
-        .expect("the workflow listed, no model asked");
+        .expect("the workflow listed, no model asked, no choice made");
+    session
+        .send_line("hello there, how are you today?")
+        .expect("a line only an intelligence answers");
+    session
+        .expect("Nika needs an intelligence for this part")
+        .expect("the first screen is asked in context");
+    session
+        .expect("No AI in this conversation")
+        .expect("the fourth path");
+    session.send_line("4").expect("choose");
+    session
+        .expect("no conversational AI")
+        .expect("the choice names the path");
+    session
+        .expect("facts still answer")
+        .expect("the waiting line resumed under the choice");
     session.send_line("/quit").expect("quit");
     session.expect(Eof).expect("the session closes");
     assert_eq!(exit_code(&mut session), 0);
@@ -156,7 +166,7 @@ fn the_kept_choice_opens_the_session_without_asking() {
     let mut session = expectrl::session::log(session, std::io::stderr()).expect("log tee");
     session.set_expect_timeout(Some(Duration::from_secs(60)));
     session
-        .expect("nika · session")
+        .expect("What do you want to automate?")
         .expect("the session opens at once");
     session.send_line("/help").expect("help");
     session.expect("/intelligence").expect("the card");

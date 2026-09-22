@@ -123,7 +123,7 @@ impl Waiting {
     pub fn hint(&self) -> &'static str {
         match self {
             Self::Free => "describe work · /help · Ctrl+T focus view · Ctrl+C twice to leave",
-            Self::Choosing => "type a number · Esc keeps the current choice",
+            Self::Choosing => "type a number · `cancel` continues without a choice",
             Self::Question { .. } => "answer the question · an empty line takes the default",
             Self::Proposal => "yes applies these exact bytes · no keeps the file untouched · /show",
             Self::Gate => "approve or refuse · nothing else answers a gate",
@@ -274,7 +274,7 @@ impl Script {
         let opening = vec![
             Beat::Say(Committed::new(
                 Kind::Banner,
-                "nika · session\nauthoring · deterministic · no model is contacted until you seat one\nproject ./ · history kept under ~/.nika · /help lists the doors",
+                "Nika · demo\n\nWhat do you want to automate?\n  describe the outcome · Nika asks only for what's missing · /help · /status",
             )),
             Beat::Wait(Waiting::Free),
         ];

@@ -67,10 +67,9 @@ fn open_session(project: &Path, home: &Path) -> LoggedSession {
     let session = OsSession::spawn(cmd).expect("pty spawn");
     let mut session = expectrl::session::log(session, std::io::stderr()).expect("log tee");
     session.set_expect_timeout(Some(Duration::from_secs(120)));
-    session.expect("nika · session").expect("the session opens");
     session
-        .expect("authoring · deterministic")
-        .expect("the banner names the authoring seat");
+        .expect("What do you want to automate?")
+        .expect("the session opens on the human's question");
     session.expect("nika ›").expect("the prompt");
     session
 }

@@ -84,12 +84,9 @@ fn open_tui(project: &Path, home: &Path) -> (LoggedSession, Duration) {
     session.set_expect_timeout(Some(Duration::from_secs(120)));
     answer_cursor_report(&mut session);
     session
-        .expect("nika · session")
-        .expect("the banner is committed above the viewport");
+        .expect("automate?")
+        .expect("the banner (the human's question) is committed above the viewport");
     let first_paint = started.elapsed();
-    session
-        .expect("authoring · deterministic")
-        .expect("the banner names the authoring seat");
     session
         .expect("nika ›")
         .expect("the free prompt in the viewport");

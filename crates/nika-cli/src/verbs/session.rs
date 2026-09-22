@@ -2,11 +2,15 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! Bare `nika` on a terminal — the native session (ADR-125 · One Door ·
-//! wave 4): the first run asks the human how Nika should think with them
-//! (an AI app they already have · an API · a local engine · none), keeps
-//! the answer beside the other user files, and opens one grounded
-//! conversation over the installed engine ([`nika_session`]). No
-//! temporary workflow, no trace for a chat turn, no hidden shell.
+//! wave 4): the session opens at once on the human's question (« What do
+//! you want to automate? »); the facts and the deterministic compiler
+//! answer without any setup, and the first time a turn needs an
+//! intelligence the session asks how Nika should think with them (an AI
+//! app they already have · an API · a local engine · none), keeps the
+//! answer beside the other user files, and resumes the very line that
+//! waited. One grounded conversation over the installed engine
+//! ([`nika_session`]): no temporary workflow, no trace for a chat turn, no
+//! hidden shell.
 // The session owns a live terminal, like `run`: the prompt and the
 // replies go to that terminal directly.
 #![allow(clippy::disallowed_macros, clippy::print_stderr)]
@@ -25,40 +29,6 @@ use nika_dap::resume::ResumeRequest;
 
 use crate::Theme;
 use crate::verbs::exit;
-
-/// The first run: the census, the first screen, one answer (three tries),
-/// persisted under the home when one exists.
-fn first_run<R: BufRead, W: Write>(
-    input: &mut R,
-    output: &mut W,
-    census: &IntelligenceCensus,
-    home: Option<&std::path::Path>,
-) -> std::io::Result<Option<UserIntelligencePreference>> {
-    write!(output, "{}", census.first_screen())?;
-    for _ in 0..3 {
-        write!(output, "\n› ")?;
-        output.flush()?;
-        let mut line = String::new();
-        if input.read_line(&mut line)? == 0 {
-            return Ok(None);
-        }
-        match census.choose(line.trim()) {
-            Ok(pref) => {
-                if let Some(home) = home
-                    && let Err(e) = pref.save(home)
-                {
-                    writeln!(
-                        output,
-                        "  (the choice could not be saved under ~/.nika: {e} · it holds for this session)"
-                    )?;
-                }
-                return Ok(Some(pref));
-            }
-            Err(why) => writeln!(output, "  {why}")?,
-        }
-    }
-    Ok(None)
-}
 
 /// The reasoner for a resolved choice — the seat, the provider, or none.
 fn reasoner_for(resolved: &ResolvedSessionIntelligence) -> Box<dyn SessionReasoner> {
@@ -108,20 +78,15 @@ fn drive<R: BufRead, W: Write>(
     cwd: &std::path::Path,
     theme: Theme,
 ) -> std::io::Result<u8> {
-    let kept = home.and_then(UserIntelligencePreference::load);
-    let pref = if let Some(pref) = kept {
-        pref
-    } else if let Some(pref) = first_run(input, output, census, home)? {
-        pref
-    } else {
-        writeln!(
-            output,
-            "no choice made · `nika` asks again next time; the verbs stay: nika try · nika compile · nika check · nika run"
-        )?;
-        return Ok(exit::OK);
+    // The kept choice opens the session as chosen; without one the session
+    // opens all the same and asks the first screen in context, the first
+    // time a turn needs an intelligence.
+    let mut session = match home.and_then(UserIntelligencePreference::load) {
+        Some(pref) => {
+            SessionRuntime::open_with(cwd, census.clone(), &pref, home, Box::new(reasoner_for))
+        }
+        None => SessionRuntime::open_unchosen(cwd, census.clone(), home, Box::new(reasoner_for)),
     };
-    let mut session =
-        SessionRuntime::open_with(cwd, census.clone(), &pref, home, Box::new(reasoner_for));
     // A truthful line while the compiler works under a seat — to the
     // terminal the human watches, never a percentage, never an ETA.
     session.on_progress(Box::new(|line| {
@@ -148,13 +113,11 @@ fn drive<R: BufRead, W: Write>(
         writeln!(output, "{notice}")?;
     }
     // The line goes where the MACHINE's state says (ADR-133 · #1464): the
-    // runtime owns what waits — a proposal, a gate, an authoring question
-    // (each its own prompt: a `yes` never crosses from one to another) —
-    // and the door keeps only the one bit that is its own, the first
-    // screen it asked again.
-    let mut choosing = false;
+    // runtime owns what waits — the first screen, a proposal, a gate, an
+    // authoring question (each its own prompt: a `yes` never crosses from
+    // one to another). The door keeps no bit of its own.
     loop {
-        let prompt = if choosing {
+        let prompt = if session.pending_choice() {
             "› "
         } else if session.pending_proposal().is_some() {
             "apply? › "
@@ -171,7 +134,7 @@ fn drive<R: BufRead, W: Write>(
         if input.read_line(&mut line)? == 0 {
             return Ok(exit::OK);
         }
-        let outcome = if std::mem::take(&mut choosing) {
+        let outcome = if session.pending_choice() {
             session.choose(line.trim())
         } else if session.pending_proposal().is_some() {
             session.consent(line.trim())
@@ -180,7 +143,7 @@ fn drive<R: BufRead, W: Write>(
         } else {
             session.turn(&line)
         };
-        if handle_outcome(output, &mut session, outcome, &mut choosing, theme)? {
+        if handle_outcome(output, &mut session, outcome, theme)? {
             return Ok(exit::OK);
         }
     }
@@ -193,7 +156,6 @@ fn handle_outcome<W: Write>(
     output: &mut W,
     session: &mut SessionRuntime,
     outcome: TurnOutcome,
-    choosing: &mut bool,
     theme: Theme,
 ) -> std::io::Result<bool> {
     match outcome {
@@ -203,9 +165,12 @@ fn handle_outcome<W: Write>(
                 writeln!(output, "{text}")?;
             }
         }
-        TurnOutcome::Ask(screen) => {
-            *choosing = true;
-            writeln!(output, "{screen}")?;
+        TurnOutcome::Ask(screen) => writeln!(output, "{screen}")?,
+        // The choice landed and the line that waited for it resumed: the
+        // choice's fact first, then whatever that line became.
+        TurnOutcome::Resumed { notice, outcome } => {
+            writeln!(output, "{notice}")?;
+            return handle_outcome(output, session, *outcome, theme);
         }
         TurnOutcome::Proposal { preview, .. } | TurnOutcome::Held { preview, .. } => {
             writeln!(output, "{preview}")?;
@@ -490,11 +455,13 @@ mod tests {
         );
     }
 
-    /// The first run asks, keeps the answer under the home, opens the
-    /// session, answers a fact without any model, and closes on `/quit`.
-    /// Nothing is written into the project.
+    /// The first run opens at once on the human's question, answers a fact
+    /// without any model or setup, asks the first screen only when a turn
+    /// needs an intelligence (a typo keeps the request waiting), keeps the
+    /// answer under the home and resumes that very line. Nothing is
+    /// written into the project.
     #[test]
-    fn the_first_run_asks_once_then_the_facts_answer() {
+    fn the_first_run_opens_at_once_and_asks_only_when_a_turn_needs_it() {
         let home = tempfile::tempdir().expect("home");
         let project = tempfile::tempdir().expect("project");
         std::fs::write(
@@ -503,7 +470,9 @@ mod tests {
         )
         .expect("workflow");
         let census = IntelligenceCensus::empty();
-        let mut input = Cursor::new(b"9\n4\nwhat workflows are here?\n/quit\n".to_vec());
+        let mut input = Cursor::new(
+            b"what workflows are here?\nhello there, how are you today?\n9\n4\n/quit\n".to_vec(),
+        );
         let mut output = Vec::new();
         let code = drive(
             &mut input,
@@ -517,13 +486,25 @@ mod tests {
         assert_eq!(code, exit::OK);
         let text = String::from_utf8(output).expect("utf8");
         assert!(
-            text.contains("Choose which AI answers your questions here"),
-            "{text}"
+            text.contains("What do you want to automate?"),
+            "the session opens on the question: {text}"
+        );
+        assert!(!text.contains("nika · session"), "no engine banner: {text}");
+        let fact = text.find("hello.nika").expect("the fact answers");
+        let ask = text
+            .find("Nika needs an intelligence for this part")
+            .expect("the first screen is asked in context");
+        assert!(fact < ask, "the fact answered before any choice: {text}");
+        assert!(
+            !text[..ask].contains("Choose which AI"),
+            "nothing was asked before a turn needed it: {text}"
         );
         assert!(text.contains("`9` is not a choice"), "{text}");
-        assert!(text.contains("nika · session"), "{text}");
         assert!(text.contains("no conversational AI"), "{text}");
-        assert!(text.contains("hello.nika"), "the fact answers: {text}");
+        assert!(
+            text.contains("the facts still answer"),
+            "the waiting line resumed under the choice: {text}"
+        );
         assert!(
             UserIntelligencePreference::load(home.path()).is_some(),
             "the choice holds"
@@ -557,6 +538,7 @@ mod tests {
         assert_eq!(code, exit::OK, "EOF closes the session cleanly");
         let text = String::from_utf8(output).expect("utf8");
         assert!(!text.contains("Choose which AI"), "{text}");
+        assert!(!text.contains("Nika needs an intelligence"), "{text}");
         assert!(text.contains("/intelligence"), "the help card: {text}");
     }
 
