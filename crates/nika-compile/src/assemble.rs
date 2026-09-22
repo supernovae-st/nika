@@ -285,7 +285,14 @@ impl Doc {
 
 /// Facts that are data, not text: a CSV, YAML or TOML destination receives them through a
 /// conversion stage instead of their JSON text.
-pub(super) const DATA_FACTS: [&str; 5] = ["computed", "fields", "validation", "records", "record"];
+pub(super) const DATA_FACTS: [&str; 6] = [
+    "computed",
+    "fields",
+    "validation",
+    "records",
+    "record",
+    "summary",
+];
 
 /// Facts that are the rows of the source (or a code rule over them): the only data a
 /// CSV source's column order applies to.
