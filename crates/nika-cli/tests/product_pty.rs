@@ -586,3 +586,86 @@ fn the_review_reads_in_sections_and_meaning_holds_the_proposal() {
         "a no writes nothing"
     );
 }
+
+/// A schedule stated in the request is saved beside the program and
+/// activates nothing; « activate » asks the time zone, the missed policy
+/// and the ceiling, proposes the `nika.yaml` declaration, a yes writes
+/// it, and the machine's own `nika arm` reads one declared beat.
+#[test]
+fn a_stated_schedule_is_declared_only_when_activated() {
+    let (project, home) = rig("activate");
+    std::fs::create_dir_all(project.path().join("notes")).expect("notes");
+    std::fs::write(project.path().join("notes/brief.md"), "# Brief\n").expect("brief");
+    let mut session = open_session(project.path(), home.path());
+    session
+        .send_line("Chaque matin à 8h, lis ./notes/brief.md et écris-le dans ./out/copie.md")
+        .expect("a scheduled intent");
+    session.expect("Runs").expect("the Runs section");
+    session
+        .expect("a schedule to activate AFTER saving")
+        .expect("saving does not activate");
+    session.expect("apply? ›").expect("the consent prompt");
+    session.send_line("oui").expect("save");
+    session
+        .expect("Saved · checked · not active · nothing has run")
+        .expect("the three facts after a yes");
+    session
+        .expect("say « activate »")
+        .expect("activation is its own gesture");
+    session.expect("nika ›").expect("prompt");
+    assert!(
+        !project.path().join("nika.yaml").exists(),
+        "saving the workflow declared nothing"
+    );
+    session.send_line("activate").expect("activate");
+    session
+        .expect("Which time zone")
+        .expect("the first value the sentence did not state");
+    session.expect("reply ›").expect("its own prompt");
+    session.send_line("Europe/Paris").expect("zone");
+    session
+        .expect("If this machine is off")
+        .expect("the missed policy");
+    session.send_line("1").expect("run once when back");
+    session
+        .expect("ceiling per scheduled run")
+        .expect("the ceiling");
+    session.send_line("0.20").expect("ceiling");
+    session
+        .expect("Nika proposes to declare the schedule in `nika.yaml`")
+        .expect("a proposal, not a write");
+    session
+        .expect("TZ=Europe/Paris 0 8 * * *")
+        .expect("the cadence in the grammar's own form");
+    session.expect("apply? ›").expect("consent prompt");
+    assert!(
+        !project.path().join("nika.yaml").exists(),
+        "proposed, not written"
+    );
+    session.send_line("yes").expect("declare");
+    session
+        .expect("Declared in `nika.yaml` · not active")
+        .expect("declared is not active");
+    session.expect("nika ›").expect("prompt");
+    session.send_line("/quit").expect("quit");
+    session.expect(Eof).expect("closes");
+    assert_eq!(exit_code(&mut session), 0);
+    let arm = Command::new(bin())
+        .arg("arm")
+        .current_dir(project.path())
+        .env("NO_COLOR", "1")
+        .env("NIKA_KEYCHAIN", "off")
+        .output()
+        .expect("nika arm");
+    let text =
+        String::from_utf8_lossy(&arm.stdout).into_owned() + &String::from_utf8_lossy(&arm.stderr);
+    assert_eq!(
+        arm.status.code(),
+        Some(0),
+        "the machine reads the declaration: {text}"
+    );
+    assert!(
+        text.contains("1 beat") && text.contains("compiled-workflow.nika"),
+        "one declared beat, the workflow named: {text}"
+    );
+}

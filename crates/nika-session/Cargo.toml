@@ -29,6 +29,7 @@ nika-check    = { path = "../nika-check", version = "0.120.3" }       # CheckRep
 nika-schema   = { path = "../nika-schema", version = "0.120.3" }      # the parser — the review reads a candidate's tasks from the AST, never from prose
 nika-cap      = { path = "../nika-cap", version = "0.120.3" }         # ExecPermit — the exec grant's shape in the effect rows
 nika-fs       = { path = "../nika-fs", version = "0.120.3" }          # OwnedDir::write_atomic — a change lands by temp + rename below the root's descriptor
+nika-cadence  = { path = "../nika-cadence", version = "0.120.3" }     # the arm: grammar (L0 · pure) — a cadence the session derives is validated before it is proposed
 
 blake3      = { workspace = true }   # the witness of the bytes a preview was built over
 serde       = { workspace = true }

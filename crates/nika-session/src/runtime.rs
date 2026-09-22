@@ -13,7 +13,7 @@
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
-use nika_onboard::compile::CompileOutcome;
+use nika_onboard::compile::{CompileOutcome, TriggerRequirement};
 
 use crate::authoring::{AuthoringRound, AuthoringSeat};
 use crate::broker::ContextBroker;
@@ -34,6 +34,7 @@ mod durable;
 mod durable_tests;
 mod history;
 mod recovery;
+mod schedule;
 
 /// The durable half of the conversation — decisions, not chat.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -151,6 +152,7 @@ pub(crate) enum Need {
 pub const HELP: &str = "text                 describe work to build (« read ./notes, draft a summary, write ./out/summary.md ») · Nika compiles it,
                      asks what it cannot invent, shows the workflow, and writes it only when you say yes · consent is never a run
 run …                run the workflow you accepted, or one you name (« run brief.nika with a ceiling of 0.05 ») · a paused run asks you
+activate             declare the schedule your request asked for in nika.yaml (Nika asks the time zone, the missed policy, the ceiling) · declared is not active: a firer must run
 text                 ask, in words · these answer from the engine, no AI asked: your workflows · a file's verdict (« is X valid »)
                      · the builtins · the providers · an example or template for a job · a code (« explain NIKA-… »)
                      · what Nika calls a node, step, trigger, secret, action · the rest goes to your chosen intelligence, in words
@@ -229,6 +231,13 @@ pub struct SessionRuntime {
     /// The compiler's last reading of the request (its ledger is the
     /// Meaning view), kept while its question or proposal waits.
     last_outcome: Option<CompileOutcome>,
+    /// The schedule the pending proposal asked for (kept beside the
+    /// program); becomes `last_trigger` when the human saves that program.
+    pending_trigger: Option<TriggerRequirement>,
+    /// The schedule of the last saved workflow: what « activate » declares.
+    last_trigger: Option<TriggerRequirement>,
+    /// The activation under way: its questions own the next lines.
+    activation: Option<schedule::Activation>,
 }
 
 /// A door's sink for progress lines (« Working through this workflow… »);
@@ -283,6 +292,9 @@ impl SessionRuntime {
             pending_choice: false,
             last_recovery: None,
             last_outcome: None,
+            pending_trigger: None,
+            last_trigger: None,
+            activation: None,
         };
         session.refresh_seat();
         session
@@ -335,6 +347,9 @@ impl SessionRuntime {
             };
         }
         if let Some(w) = &self.last_workflow {
+            if let Some(declared) = schedule::declared_state(&self.snapshot.root, w) {
+                return declared;
+            }
             return format!(
                 "Saved · checked · not active · nothing has run · `{}`",
                 w.display()
@@ -618,6 +633,10 @@ impl SessionRuntime {
         if self.run_inputs.is_some() {
             return self.answer_input_unrecorded(input);
         }
+        // An activation waiting on its values owns the next line the same way.
+        if self.activation.is_some() {
+            return self.answer_activation_unrecorded(input);
+        }
         if input.is_empty() {
             return TurnOutcome::Facts(String::new());
         }
@@ -633,6 +652,11 @@ impl SessionRuntime {
         }
         if let Some(outcome) = self.run_turn(input) {
             return outcome;
+        }
+        // « activate »: the schedule the last saved workflow asked for
+        // becomes a declaration to review — never by a `yes`, never by saving.
+        if schedule::is_activate(input) {
+            return self.activate_turn();
         }
         if self.intent.goal.is_none() {
             self.intent.goal = Some(input.to_owned());
@@ -868,10 +892,18 @@ impl SessionRuntime {
         self.snapshot = ProjectSnapshot::observe(&self.snapshot.cwd);
         self.remember("(consent)", &report);
         // The workflow just accepted is the one « run it » names next —
-        // an explicit line, never this consent.
-        if let Some(first) = set.workflows().into_iter().next() {
+        // an explicit line, never this consent — and the schedule its
+        // request asked for is what « activate » declares.
+        let landed_workflow = set.workflows().into_iter().next();
+        if let Some(first) = landed_workflow.clone() {
             self.last_workflow = Some(first);
+            self.last_trigger = self.pending_trigger.take();
         }
+        let project_only = landed_workflow.is_none()
+            && set
+                .changes
+                .iter()
+                .any(|c| c.path() == std::path::Path::new("nika.yaml"));
         match set.run {
             Some(run) if all_clean => {
                 self.last_workflow = Some(run.workflow.clone());
@@ -883,8 +915,25 @@ impl SessionRuntime {
                 );
                 TurnOutcome::Facts(report)
             }
+            None if project_only => {
+                report.push_str(
+                    "\nDeclared in `nika.yaml` · not active: a firer must run on this machine\n  `nika serve` fires it while it runs · `nika arm --emit launchd --write` installs the OS unit · `nika arm` lists what is declared and proves what fired",
+                );
+                TurnOutcome::Facts(report)
+            }
             None if all_clean => {
-                report.push_str("\n  say « run it » to run it once (a ceiling is announced first)");
+                report.push_str(
+                    "\nSaved · checked · not active · nothing has run\n  say « run it » to run it once (a ceiling is announced first)",
+                );
+                if let Some(t) = &self.last_trigger
+                    && t.status == nika_onboard::compile::TriggerStatus::RequiresBinding
+                {
+                    let _ = write!(
+                        report,
+                        "\n  say « activate » to declare « {} » in `nika.yaml` (Nika asks the time zone, the missed policy and the ceiling first) · saving activated nothing",
+                        t.source_hint.as_deref().unwrap_or("the schedule")
+                    );
+                }
                 TurnOutcome::Facts(report)
             }
             None => TurnOutcome::Facts(report),

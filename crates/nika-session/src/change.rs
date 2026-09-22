@@ -388,6 +388,21 @@ impl ProjectChangeSet {
         })
     }
 
+    /// A set of one project-file change (`nika.yaml` created or replaced
+    /// whole, witnessed by the caller): no workflow bytes to audit; the
+    /// exact bytes previewed are the bytes written.
+    #[must_use]
+    pub fn project_change(root: &Path, goal: &str, change: ProjectChange) -> Self {
+        Self {
+            root: root.to_path_buf(),
+            goal: goal.to_owned(),
+            changes: vec![change],
+            run: None,
+            repairs: Vec::new(),
+            audits: Vec::new(),
+        }
+    }
+
     /// The preview: the exact bytes of every change, the repairs the
     /// ladder applied, the audit of every workflow, the run the consent
     /// would cover. Rendered from the set the apply consumes.

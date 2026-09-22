@@ -492,6 +492,164 @@ fn the_review_reads_in_sections_and_meaning_holds_the_proposal() {
     );
 }
 
+/// A schedule stated in the request is kept beside the program: saving
+/// activates nothing; « activate » asks the three values the sentence did
+/// not state (time zone · missed policy · ceiling), proposes the
+/// declaration as a project change, and a yes writes `nika.yaml` — which
+/// the cadence grammar and the project vocabulary both read back; the
+/// status then says declared, not proven active.
+///
+/// The shared first act: a daily copy stated in words, proposed, saved by
+/// a yes; the save declares nothing.
+fn saved_daily_copy(dir: &Path) -> SessionRuntime {
+    std::fs::create_dir_all(dir.join("notes")).expect("notes");
+    std::fs::write(dir.join("notes/brief.md"), "brief\n").expect("brief");
+    let mut s = SessionRuntime::open(
+        dir,
+        ready(IntelligenceKind::None, DataLocus::None),
+        Box::new(NoReasoner),
+    );
+    assert!(
+        matches!(s.turn("activate"), TurnOutcome::Refusal(ref r) if r.class == RefusalClass::WrongState),
+        "nothing to activate before a workflow is saved"
+    );
+    let TurnOutcome::Proposal { preview, .. } =
+        s.turn("Chaque matin à 8h, lis ./notes/brief.md et écris-le dans ./out/copie.md")
+    else {
+        panic!("a stated cadence is Ready with a trigger requirement beside it");
+    };
+    assert!(
+        preview.contains(
+            "↗ daily at 08:00 (« chaque matin à 8h ») · a schedule to activate AFTER saving"
+        ),
+        "{preview}"
+    );
+    assert!(
+        preview.contains("Needs\n  ↗ the schedule or trigger above · bound when you activate"),
+        "{preview}"
+    );
+    let TurnOutcome::Facts(saved) = s.consent("oui") else {
+        panic!("the yes saves the program");
+    };
+    assert!(
+        saved.contains("Saved · checked · not active · nothing has run")
+            && saved.contains("say « activate » to declare « chaque matin à 8h »"),
+        "{saved}"
+    );
+    assert!(
+        !dir.join("nika.yaml").exists(),
+        "saving the workflow declared nothing"
+    );
+    s
+}
+
+#[test]
+fn a_schedule_is_declared_only_through_the_human_s_gestures() {
+    let dir = tree();
+    let mut s = saved_daily_copy(dir.path());
+    // The activation conversation: three typed values, each its own line.
+    let TurnOutcome::Question { key, question } = s.turn("activate") else {
+        panic!("activate asks first");
+    };
+    assert_eq!(key, "project.timezone");
+    assert!(
+        question.contains("Which time zone") && question.contains("(2 more after this one)"),
+        "{question}"
+    );
+    assert!(
+        matches!(s.turn("why?"), TurnOutcome::Aside(ref t) if t.contains("Declared is not active"))
+    );
+    assert!(
+        matches!(s.turn("Paris"), TurnOutcome::Refusal(ref r) if r.text.contains("Area/City")),
+        "a bare city is not a zone"
+    );
+    let TurnOutcome::Question { key, .. } = s.turn("Europe/Paris") else {
+        panic!("the missed policy is asked next");
+    };
+    assert_eq!(key, "project.missed");
+    let TurnOutcome::Question { key, .. } = s.turn("1") else {
+        panic!("the ceiling is asked last");
+    };
+    assert_eq!(key, "project.ceiling");
+    assert!(
+        matches!(s.turn("free"), TurnOutcome::Refusal(_)),
+        "a ceiling is an amount"
+    );
+    let TurnOutcome::Proposal { id, preview } = s.turn("0.20") else {
+        panic!("the declaration is proposed, never written on the answer");
+    };
+    assert!(
+        preview.contains("Nika proposes to declare the schedule in `nika.yaml`")
+            && preview.contains("TZ=Europe/Paris 0 8 * * *")
+            && preview.contains("if missed · rattraper-une-fois")
+            && preview.contains("ceiling · $0.2 per scheduled run")
+            && preview.contains("Declared is not active"),
+        "{preview}"
+    );
+    assert_eq!(s.pending_proposal(), Some(id));
+    assert!(
+        !dir.path().join("nika.yaml").exists(),
+        "proposed, not written"
+    );
+    let TurnOutcome::Facts(declared) = s.consent("yes") else {
+        panic!("the yes writes the declaration");
+    };
+    assert!(
+        declared.contains("applied · wrote `nika.yaml`")
+            && declared.contains("Declared in `nika.yaml` · not active"),
+        "{declared}"
+    );
+    let file = std::fs::read_to_string(dir.path().join("nika.yaml")).expect("nika.yaml");
+    assert!(
+        file.contains("arm:")
+            && file.contains("workflow: compiled-workflow.nika")
+            && file.contains("cadence: \"TZ=Europe/Paris 0 8 * * *\"")
+            && file.contains("plafond: 0.2")
+            && file.contains("manqué: rattraper-une-fois"),
+        "{file}"
+    );
+}
+
+/// The declaration Nika wrote reads in both grammars (the cadence
+/// registry and the project file), the status line says declared and
+/// not proven active, and a second activation never rewrites a list.
+#[test]
+fn a_declared_schedule_reads_in_both_grammars_and_is_never_rewritten() {
+    let dir = tree();
+    let mut s = saved_daily_copy(dir.path());
+    let _ = s.turn("activate");
+    let _ = s.turn("Europe/Paris");
+    let _ = s.turn("1");
+    let TurnOutcome::Proposal { .. } = s.turn("0.20") else {
+        panic!("the declaration is proposed");
+    };
+    let TurnOutcome::Facts(_) = s.consent("yes") else {
+        panic!("the yes writes the declaration");
+    };
+    let file = std::fs::read_to_string(dir.path().join("nika.yaml")).expect("nika.yaml");
+    // Both grammars read the file Nika wrote.
+    let registry =
+        nika_cadence::parse::parse_registry(&file).expect("the cadence grammar reads it");
+    assert_eq!(registry.beat_count(), 1);
+    let (_, project) = nika_vocab::project::discover(dir.path())
+        .expect("discover")
+        .expect("a project");
+    assert_eq!(project.arm().len(), 1);
+    assert!(
+        s.status_line().starts_with("Declared · ") && s.status_line().contains("not proven active"),
+        "{}",
+        s.status_line()
+    );
+    // A second activation of the same workflow never rewrites the list.
+    assert!(matches!(s.turn("activate"), TurnOutcome::Question { .. }));
+    let _ = s.turn("Europe/Paris");
+    let _ = s.turn("2");
+    assert!(
+        matches!(s.turn("0.10"), TurnOutcome::Facts(ref t) if t.contains("already declares an `arm:` list")),
+        "an existing list is never rewritten by Nika"
+    );
+}
+
 /// The status line during a question names the answer the automation
 /// needs; before any work it is empty; a discussion line leaves it so.
 #[test]

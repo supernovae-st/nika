@@ -586,6 +586,7 @@ pub fn nika_session::change::ProjectChangeSet::apply(&self) -> core::result::Res
 pub fn nika_session::change::ProjectChangeSet::effects_fact(&self) -> alloc::string::String
 pub fn nika_session::change::ProjectChangeSet::preview(&self) -> alloc::string::String
 pub fn nika_session::change::ProjectChangeSet::preview_condensed(&self) -> alloc::string::String
+pub fn nika_session::change::ProjectChangeSet::project_change(root: &std::path::Path, goal: &str, change: nika_session::change::ProjectChange) -> Self
 pub fn nika_session::change::ProjectChangeSet::workflow_at(root: &std::path::Path, goal: &str, path: &str, content: alloc::string::String) -> core::result::Result<Self, nika_session::change::ChangeError>
 pub fn nika_session::change::ProjectChangeSet::workflows(&self) -> alloc::vec::Vec<std::path::PathBuf>
 impl core::clone::Clone for nika_session::change::ProjectChangeSet
@@ -3619,6 +3620,7 @@ pub fn nika_session::change::ProjectChangeSet::apply(&self) -> core::result::Res
 pub fn nika_session::change::ProjectChangeSet::effects_fact(&self) -> alloc::string::String
 pub fn nika_session::change::ProjectChangeSet::preview(&self) -> alloc::string::String
 pub fn nika_session::change::ProjectChangeSet::preview_condensed(&self) -> alloc::string::String
+pub fn nika_session::change::ProjectChangeSet::project_change(root: &std::path::Path, goal: &str, change: nika_session::change::ProjectChange) -> Self
 pub fn nika_session::change::ProjectChangeSet::workflow_at(root: &std::path::Path, goal: &str, path: &str, content: alloc::string::String) -> core::result::Result<Self, nika_session::change::ChangeError>
 pub fn nika_session::change::ProjectChangeSet::workflows(&self) -> alloc::vec::Vec<std::path::PathBuf>
 impl core::clone::Clone for nika_session::change::ProjectChangeSet

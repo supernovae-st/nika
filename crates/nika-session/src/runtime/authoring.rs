@@ -186,6 +186,9 @@ impl SessionRuntime {
                 self.authoring = None;
                 self.intent.unresolved.clear();
                 self.remember(goal, &format!("(proposed {id})"));
+                // The schedule the request asked for rides beside the set:
+                // « activate » declares it once the program is saved.
+                self.pending_trigger.clone_from(&out.requested_trigger);
                 self.pending = Some(set);
                 TurnOutcome::Proposal { id, preview }
             }
