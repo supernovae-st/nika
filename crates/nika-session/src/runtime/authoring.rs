@@ -211,6 +211,9 @@ impl SessionRuntime {
             .and_then(|(before, after)| crate::meaning::delta(&before, &after));
         match self.propose(goal, out) {
             TurnOutcome::Proposal { id, preview } => {
+                // The Meaning and details doors must describe the bytes now
+                // awaiting consent. Keep the earlier reading if proposal fails.
+                self.last_outcome = Some(out.clone());
                 let mut text = String::new();
                 if let Some(read_as) = read_as {
                     let _ = writeln!(

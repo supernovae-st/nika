@@ -294,6 +294,17 @@ fn a_change_restates_the_request_and_the_revision_names_the_new_destination() {
         preview.contains("copie-2.md") && preview.contains("Meaning · what changed"),
         "{preview}"
     );
+    let TurnOutcome::Held {
+        preview: meaning, ..
+    } = s.consent("/meaning")
+    else {
+        panic!("meaning must hold the revised proposal");
+    };
+    assert!(meaning.contains("copie-2.md"), "{meaning}");
+    assert!(
+        !meaning.contains("./out/copy.md"),
+        "stale reading: {meaning}"
+    );
     assert!(matches!(s.consent("yes"), TurnOutcome::Facts(ref t) if t.contains("applied")));
     let saved = std::fs::read_to_string(dir.path().join(COPY_DEST)).expect("saved");
     assert!(
