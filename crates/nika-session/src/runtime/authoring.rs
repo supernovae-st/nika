@@ -608,8 +608,11 @@ impl SessionRuntime {
         // A cloud model the catalog does not price is refused HERE, in
         // words, with the priced models of its provider — not at run time,
         // where a run under a spending ceiling refuses it (NIKA-1709). The
-        // typed line or the seat the empty line took: both are judged.
+        // seat itself is never refused: the human chose it on the first
+        // screen, told where its bytes go (a gateway row, a legacy name the
+        // vendor still serves); a ceiling-bound run says its own word.
         if round.current().is_some_and(|q| q.key == "model")
+            && !is_own_seat(&self.seat, line)
             && let Some(text) = unpriced_model_text(line)
         {
             self.authoring = Some(round);
@@ -986,6 +989,12 @@ pub(super) fn cannot_express_text(out: &CompileOutcome) -> String {
 /// `None` when the model is priced, when the provider is a local engine
 /// (unpriced by nature, never refused), or when the line is not
 /// `provider/model` (the compiler judges it).
+/// Is `line` the seat the human already chose (`<provider>/<model>`,
+/// spacing aside)? The seat is never refused at the model question.
+pub(super) fn is_own_seat(seat: &AuthoringSeat, line: &str) -> bool {
+    matches!(seat, AuthoringSeat::Provider { model } if model.trim() == line.trim())
+}
+
 pub(super) fn unpriced_model_text(answer: &str) -> Option<String> {
     let (provider, model) = answer.trim().split_once('/')?;
     let row = nika_catalog::all_providers()
@@ -998,13 +1007,7 @@ pub(super) fn unpriced_model_text(answer: &str) -> Option<String> {
         .models
         .iter()
         .filter(|m| nika_catalog::find_pricing_scoped(row.id, m.model).is_some())
-        .map(|m| {
-            if m.id.contains('/') {
-                m.id.to_owned()
-            } else {
-                format!("{}/{}", row.id, m.id)
-            }
-        })
+        .map(|m| format!("{}/{}", row.id, m.model))
         .collect();
     let mut text = format!(
         "`{}/{model}` is not priced in Nika's catalog: a run under a spending ceiling would refuse it (NIKA-1709 · unpriced cloud spend cannot be bounded).",

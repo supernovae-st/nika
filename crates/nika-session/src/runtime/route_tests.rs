@@ -381,6 +381,19 @@ fn an_unpriced_cloud_model_is_refused_at_the_question_in_words() {
         text.contains("not priced in Nika's catalog") && text.contains("NIKA-1709"),
         "{text}"
     );
+    // The hint names models as the reasoner speaks them, never a catalog row id.
+    assert!(
+        text.contains("deepseek/deepseek-flash") && !text.contains(": deepseek/flash"),
+        "{text}"
+    );
+    // The seat itself is never refused at the question, spacing aside.
+    let own = crate::authoring::AuthoringSeat::Provider {
+        model: "openai/gpt-oss-120b".to_owned(),
+    };
+    assert!(super::authoring::is_own_seat(&own, " openai/gpt-oss-120b "));
+    assert!(!super::authoring::is_own_seat(&own, "openai/gpt-5.2"));
+    let none = crate::authoring::AuthoringSeat::Deterministic { why: None };
+    assert!(!super::authoring::is_own_seat(&none, "openai/gpt-oss-120b"));
     let priced_cloud = nika_catalog::all_providers()
         .iter()
         .filter(|p| p.requires_key)
