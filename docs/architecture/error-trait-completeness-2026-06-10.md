@@ -79,6 +79,8 @@ timeout boundary (spec 03 · catchable · never retryable).
 | `ApprovalHistoryError` (nika-serve) | **transport-surface** · L4 monotonic approval-history authority refusal converted immediately into `JobStoreError` at the durable server boundary. It never crosses into the workflow/verb plane; zero NIKA registry range is owed. |
 | `ServerError` (nika-serve) | **transport-surface** · L4 HTTP listener lifecycle refusal mapped to bounded status/code JSON at the socket. It never crosses into the workflow/verb plane; zero NIKA registry range is owed (W06). |
 
+| `AuthoringContextError` (nika-session) | **wrapped-intermediate** · configuration, missing knowledge and changed-snapshot refusals become `AuthoringError::Context` before the seated authoring boundary. The Session renders this wrapper as a refusal with no write or substituted context. Its existing `AuthoringError` admission trigger still owns eventual registry classification; this intermediate enum does not mint a second range. |
+
 ## Open follow-ups (deferred-with-trigger)
 
 1. **`AuditSinkError`** (nika-kernel-core `infra/audit.rs`) — no
