@@ -374,12 +374,12 @@ fn the_child_floor_bounds_the_parent_budget_before_any_token() {
     let dir = tmp_dir("comp-budget");
     let priced = "\
 nika: spender
-model: groq/qwen/qwen3-32b
+model: openrouter/qwen/qwen3-32b
 tasks:
   think:
     infer: { prompt: \"hi\", max_tokens: 60000 }
 ";
-    let unpriced = priced.replace("groq/qwen/qwen3-32b", "mock/echo");
+    let unpriced = priced.replace("openrouter/qwen/qwen3-32b", "mock/echo");
     let parent_of = |child: &str| {
         format!(
             "nika: thrifty\ntasks:\n  call:\n    \
