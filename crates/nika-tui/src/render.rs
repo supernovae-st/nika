@@ -90,18 +90,28 @@ pub fn render_block(block: &Committed, color: bool, buf: &mut Buffer) {
         .render(buf.area, buf);
 }
 
-/// The rows of the live area at `width`: status, the prompt and composer,
-/// the hint. Clamped so the live area never eats the whole terminal.
+/// The rows of the live area at `width`: the lifecycle rail when the
+/// session reports one, the status, the prompt and composer, the hint.
+/// Clamped so the live area never eats the whole terminal.
 #[must_use]
 pub fn live_rows(state: &UiState, composer: &Composer, width: u16, height: u16) -> u16 {
     let prompt = u16::try_from(state.waiting.prompt().chars().count()).unwrap_or(8);
     let composer_rows = composer.rows(width.saturating_sub(prompt).max(8));
-    let rows = 1 + composer_rows + 1;
+    let rail = u16::from(!state.rail.is_empty());
+    let rows = rail + 1 + composer_rows + 1;
     rows.clamp(3, height.saturating_div(2).max(3))
 }
 
 /// The loader's frames (braille dots, the usual terminal spinner).
 pub const SPINNER: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+
+/// The lifecycle rail, dim like the chrome: five facts, never one badge.
+fn rail_line(state: &UiState) -> Line<'static> {
+    Line::from(Span::styled(
+        state.rail.clone(),
+        Style::default().add_modifier(Modifier::DIM),
+    ))
+}
 
 fn status_line(state: &UiState) -> Line<'static> {
     let dim = Style::default().add_modifier(Modifier::DIM);
@@ -154,12 +164,20 @@ fn hint_line(state: &UiState) -> Line<'static> {
 
 /// Draw the live area (status · prompt + composer · hint) into `area`.
 fn render_live(frame: &mut Frame<'_>, state: &UiState, composer: &Composer, area: Rect) {
-    let [status, input, hint] = Layout::vertical([
+    // The rail takes a row of its own above the status (both are full
+    // sentences; one 80-column row cannot hold them side by side) and
+    // yields it on a terminal too short for four rows.
+    let rail_rows = u16::from(!state.rail.is_empty() && area.height >= 4);
+    let [rail, status, input, hint] = Layout::vertical([
+        Constraint::Length(rail_rows),
         Constraint::Length(1),
         Constraint::Min(1),
         Constraint::Length(1),
     ])
     .areas(area);
+    if rail_rows > 0 {
+        frame.render_widget(Paragraph::new(rail_line(state)), rail);
+    }
     frame.render_widget(Paragraph::new(status_line(state)), status);
     let prompt = state.waiting.prompt();
     let prompt_width = u16::try_from(prompt.chars().count()).unwrap_or(8);
@@ -301,6 +319,37 @@ mod tests {
             row(buffer, 4).contains("answer the question"),
             "{:?}",
             row(buffer, 4)
+        );
+    }
+
+    /// The lifecycle rail sits on a row of its own above the status, the
+    /// prompt keeps its place below, and the live area grows by that row.
+    #[test]
+    fn the_rail_sits_above_the_status_row() {
+        let composer = Composer::new();
+        let mut fresh = UiState::new(Presentation::Inline, false, (80, 40));
+        let before = live_rows(&fresh, &composer, 80, 40);
+        fresh.apply(Beat::Rail("Draft ○ · Saved ○".to_owned()));
+        assert_eq!(live_rows(&fresh, &composer, 80, 40), before + 1);
+        let mut state = state_after_demo(Presentation::Inline);
+        state.apply(Beat::Rail(
+            "Draft ✓ · Saved ○ · Checked ○ · Active ○ · Run ○".to_owned(),
+        ));
+        let backend = TestBackend::new(60, 6);
+        let mut terminal = Terminal::new(backend).expect("test terminal");
+        terminal
+            .draw(|frame| draw_inline(frame, &state, &composer))
+            .expect("draw");
+        let buffer = terminal.backend().buffer();
+        assert!(
+            row(buffer, 0).starts_with("Draft ✓ · Saved ○ · Checked ○"),
+            "{:?}",
+            row(buffer, 0)
+        );
+        assert!(
+            row(buffer, 2).starts_with("reply ›"),
+            "{:?}",
+            row(buffer, 2)
         );
     }
 

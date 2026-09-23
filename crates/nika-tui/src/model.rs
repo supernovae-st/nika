@@ -146,6 +146,10 @@ pub enum Beat {
     /// review · … », « Saved · checked · not active · nothing has run »):
     /// the status row, replaced at every turn, never a block.
     Status(String),
+    /// Where the automation stands as separate facts (« Draft ✓ · Saved ✓
+    /// · Checked ✓ · Active ○ · Run ○ »): the lifecycle rail on the row
+    /// above the status, replaced at every turn — declared is never active.
+    Rail(String),
     /// The session closed the door.
     Quit,
 }
@@ -172,6 +176,8 @@ pub struct UiState {
     /// Where the automation stands (the session's status line); empty when
     /// nothing is under way.
     pub status: String,
+    /// The lifecycle rail (empty until the session reports one).
+    pub rail: String,
     /// A first `Ctrl+C` was pressed: the next one leaves.
     pub interrupt_armed: bool,
     /// Candidates a `Tab` left for the hint row, until the next key.
@@ -198,6 +204,7 @@ impl UiState {
             busy: None,
             spinner: None,
             status: String::new(),
+            rail: String::new(),
             interrupt_armed: false,
             completion: None,
             color,
@@ -220,6 +227,7 @@ impl UiState {
             }
             Beat::Busy(label) => self.busy = Some(label),
             Beat::Status(line) => self.status = line,
+            Beat::Rail(line) => self.rail = line,
             Beat::Quit => self.quit = true,
         }
     }
@@ -452,6 +460,24 @@ mod tests {
         assert_eq!(state.waiting, Waiting::Gate);
         state.apply(Beat::Quit);
         assert!(state.quit);
+    }
+
+    /// The rail beat keeps the lifecycle beside the status: each replaced
+    /// at every turn, neither a block.
+    #[test]
+    fn the_rail_beat_keeps_the_lifecycle_beside_the_status() {
+        let mut state = UiState::new(Presentation::Inline, false, (80, 24));
+        assert!(state.rail.is_empty());
+        state.apply(Beat::Rail(
+            "Draft ○ · Saved ○ · Checked ○ · Active ○ · Run ○".to_owned(),
+        ));
+        state.apply(Beat::Status("Ready for review · `x.nika`".to_owned()));
+        assert_eq!(
+            state.rail,
+            "Draft ○ · Saved ○ · Checked ○ · Active ○ · Run ○"
+        );
+        assert_eq!(state.status, "Ready for review · `x.nika`");
+        assert!(state.transcript.is_empty());
     }
 
     #[test]

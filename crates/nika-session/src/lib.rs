@@ -36,6 +36,7 @@ pub mod facts;
 pub mod guard;
 pub mod identity;
 pub mod intelligence;
+pub mod lifecycle;
 pub mod meaning;
 pub mod outcome;
 pub mod reasoner;
@@ -66,6 +67,7 @@ pub use intelligence::{
     DataLocus, IntelligenceCensus, IntelligenceKind, ResolvedSessionIntelligence,
     UserIntelligencePreference,
 };
+pub use lifecycle::{Lifecycle, LifecycleFacts, RunFact, Stage};
 pub use outcome::{GateId, ProposalId, Refusal, RefusalClass};
 pub use reasoner::{ReasonError, Reply, ScriptedReasoner, SessionReasoner};
 pub use runtime::{SessionRuntime, TurnOutcome};

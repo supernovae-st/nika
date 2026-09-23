@@ -234,6 +234,9 @@ pub struct SessionRuntime {
     answered: Option<GateId>,
     last_run: Option<(u8, String)>,
     last_workflow: Option<PathBuf>,
+    /// The check at the consent that saved the last workflow: clean, or
+    /// findings (the rail's Checked field says which).
+    last_check_clean: Option<bool>,
     /// The trace the last observed run left (`/proof` reads it).
     last_trace: Option<PathBuf>,
     /// The authoring round whose question the next line answers.
@@ -318,6 +321,7 @@ impl SessionRuntime {
             answered: None,
             last_run: None,
             last_workflow: None,
+            last_check_clean: None,
             last_trace: None,
             authoring: None,
             seat: AuthoringSeat::Deterministic { why: None },
@@ -397,6 +401,36 @@ impl SessionRuntime {
             );
         }
         String::new()
+    }
+
+    /// Where the automation stands as separate facts — the rail the
+    /// renderer keeps above the status row: DECLARED is never ACTIVE,
+    /// SAVED is never RUN, findings are not a clean check.
+    #[must_use]
+    pub fn lifecycle(&self) -> crate::lifecycle::Lifecycle {
+        let declared_active = self
+            .last_workflow
+            .as_ref()
+            .and_then(|w| schedule::declared_entry(&self.snapshot.root, w))
+            .map(|(_, active, _)| active);
+        crate::lifecycle::Lifecycle::from_facts(&crate::lifecycle::LifecycleFacts {
+            proposal_waits: self.pending.is_some(),
+            composing: self.pending_question().is_some()
+                || self.pending_input().is_some()
+                || self.pending_activation().is_some(),
+            saved: self.last_workflow.is_some(),
+            check_clean: self.last_check_clean,
+            declared_active,
+            run: if self.pending_gate.is_some() {
+                crate::lifecycle::RunFact::GateWaits
+            } else {
+                self.last_run
+                    .as_ref()
+                    .map_or(crate::lifecycle::RunFact::Nothing, |(exit, _)| {
+                        crate::lifecycle::RunFact::Exit(*exit)
+                    })
+            },
+        })
     }
 
     /// `/meaning` — the compiler's reading of the request, clause by
@@ -956,6 +990,7 @@ impl SessionRuntime {
         let landed_workflow = set.workflows().into_iter().next();
         if let Some(first) = landed_workflow.clone() {
             self.last_workflow = Some(first);
+            self.last_check_clean = Some(all_clean);
             self.last_trigger = self.pending_trigger.take();
         }
         let project_only = landed_workflow.is_none()

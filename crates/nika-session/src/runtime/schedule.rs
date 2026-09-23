@@ -371,23 +371,29 @@ pub(super) fn is_activate(line: &str) -> bool {
 /// machine's firer left a record of it — from the registry the file IS and
 /// the sidecar the firer writes, never from the session's memory.
 pub(super) fn declared_state(root: &Path, workflow: &Path) -> Option<String> {
+    let (path, active, cadence) = declared_entry(root, workflow)?;
+    let base = if active {
+        format!(
+            "Declared · `{path}` · cadence {cadence} · not proven active: a firer must run on this machine"
+        )
+    } else {
+        format!("Declared · suspended (`actif: false`) · `{path}`")
+    };
+    Some(base)
+}
+
+/// The entry that declares a workflow in `nika.yaml`: the project file's
+/// path, whether the beat is active (`actif`, true unless written false)
+/// and its cadence — `None` when nothing declares it.
+pub(super) fn declared_entry(root: &Path, workflow: &Path) -> Option<(String, bool, String)> {
     let (path, project) = nika_vocab::project::discover(root).ok().flatten()?;
     let entry = project
         .arm()
         .iter()
         .find(|e| Path::new(&e.workflow) == workflow)?;
-    let active = entry.actif.unwrap_or(true);
-    let base = if active {
-        format!(
-            "Declared · `{}` · cadence {} · not proven active: a firer must run on this machine",
-            path.display(),
-            entry.cadence
-        )
-    } else {
-        format!(
-            "Declared · suspended (`actif: false`) · `{}`",
-            path.display()
-        )
-    };
-    Some(base)
+    Some((
+        path.display().to_string(),
+        entry.actif.unwrap_or(true),
+        entry.cadence.clone(),
+    ))
 }

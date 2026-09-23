@@ -1203,3 +1203,34 @@ fn a_bare_yes_or_no_with_nothing_pending_is_refused_never_compiled() {
     }
     assert!(!dir.path().join(COPY_DEST).exists());
 }
+
+/// The lifecycle rail is compiled from the session's own facts: five
+/// pending fields on a fresh session, the draft done once a proposal
+/// waits, then Saved and Checked done for a clean consent while Active
+/// stays pending (declared is never active), and Run × after a failure.
+#[test]
+fn the_lifecycle_rail_follows_the_sessions_facts() {
+    let dir = tree();
+    let mut s = ready_with(dir.path(), vec![]);
+    assert_eq!(
+        s.lifecycle().rail(),
+        "Draft ○ · Saved ○ · Checked ○ · Active ○ · Run ○"
+    );
+    assert!(matches!(s.turn(COPY), TurnOutcome::Proposal { .. }));
+    assert_eq!(
+        s.lifecycle().rail(),
+        "Draft ✓ · Saved ○ · Checked ○ · Active ○ · Run ○"
+    );
+    s.pending = None;
+    s.last_workflow = Some(std::path::PathBuf::from("copy.nika"));
+    s.last_check_clean = Some(true);
+    assert_eq!(
+        s.lifecycle().rail(),
+        "Draft ✓ · Saved ✓ · Checked ✓ · Active ○ · Run ○"
+    );
+    s.last_run = Some((1, "the run failed".to_owned()));
+    assert_eq!(
+        s.lifecycle().rail(),
+        "Draft ✓ · Saved ✓ · Checked ✓ · Active ○ · Run ×"
+    );
+}
