@@ -37,7 +37,10 @@ use super::support::invoke;
 use super::writes::emit_writes;
 use super::{CompileError, CompileOutcome, CompileRequest, DiagnosticKind, QuestionType};
 use serde_json::{Value, json};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
+
+mod emit;
+pub(super) use emit::{Laws, emit};
 
 /// What a fact is for: prompts and anchor laws see the corpus and the derived
 /// results; code rules also see the parsed data.
@@ -1376,123 +1379,6 @@ fn emit_revision_check(d: &mut Doc, plan: &Plan, b: &Bindings) {
         d.tool("revision_stable", "nika:jq", json!({"input": {"before": "${{ with.before }}", "after": "${{ with.after }}"}, "expression": ".before == .after"}), Some(json!({"before": "${{ tasks.search_hits.output }}", "after": "${{ tasks.revision_reread.output }}"})), false);
         d.tool("revision_admit", "nika:assert", json!({"condition": "${{ with.stable }}", "message": "The hits changed since they were searched; the final action is not allowed on a stale version."}), Some(json!({"stable": "${{ tasks.revision_stable.output }}"})), false);
     }
-}
-
-/// Permits and emission: exactly what the tasks reach, then the literal round trip.
-/// The question a fidelity refusal asks: a request no door could realize as stated.
-const FIDELITY_QUESTION: &str = "Supply a complete replacement request that names what to read and where to write. It explicitly replaces the earlier intent.";
-
-/// What the fidelity laws hold every emitted candidate to: the request, its plan, the
-/// values the human answered (never invented literals).
-pub(super) struct Laws<'a> {
-    pub(super) intent: &'a str,
-    pub(super) plan: &'a Plan,
-    pub(super) answers: &'a BTreeMap<String, String>,
-}
-
-pub(super) fn emit(
-    mut d: Doc,
-    laws: &Laws<'_>,
-    out: &mut CompileOutcome,
-) -> Result<(), CompileError> {
-    d.root["permits"]["tools"] = json!(d.tools.iter().copied().collect::<Vec<_>>());
-    if !d.reads.is_empty() || !d.writes.is_empty() {
-        let mut fs = json!({});
-        if !d.reads.is_empty() {
-            fs["read"] = json!(d.reads);
-        }
-        if !d.writes.is_empty() {
-            fs["write"] = json!(d.writes);
-        }
-        d.root["permits"]["fs"] = fs;
-    }
-    if !d.hosts.is_empty() {
-        d.root["permits"]["net"] = json!({"http": d.hosts});
-    }
-    for key in ["const", "inputs"] {
-        if d.root[key]
-            .as_object()
-            .is_some_and(serde_json::Map::is_empty)
-            && let Some(map) = d.root.as_object_mut()
-        {
-            map.remove(key);
-        }
-    }
-    if d.root["outputs"]
-        .as_object()
-        .is_some_and(serde_json::Map::is_empty)
-    {
-        if let Some(fact) = d.facts.last() {
-            d.root["outputs"][fact.name] = json!(fact.template);
-        } else if d.item {
-            d.root["outputs"]["item"] = json!("${{ inputs.item }}");
-        }
-    }
-    // READY is against the request, not only against the Check: the fidelity laws refuse a
-    // candidate that drops a stated path, skips a stated approval, performs a prohibited
-    // effect or invents a path or host, at every door (recorded as `decision.fidelity`). A
-    // candidate this compile refused earlier (a door tried before this one) is superseded by
-    // this emission: its refusal and its question go, this candidate is judged afresh.
-    out.diagnostics.retain(|d| d.target != "fidelity");
-    out.questions.retain(|q| q.label != FIDELITY_QUESTION);
-    let waived: Vec<String> = out
-        .diagnostics
-        .iter()
-        .filter(|d| {
-            d.kind == DiagnosticKind::Applied
-                && d.message.ends_with("is not written, by explicit answer.")
-        })
-        .filter_map(|d| d.message.split('`').nth(1).map(str::to_owned))
-        .collect();
-    let mut refusals = Vec::new();
-    super::fidelity::laws(
-        laws.intent,
-        laws.plan,
-        &d.root,
-        &super::fidelity::allowed_values(laws.answers),
-        &waived,
-        &mut refusals,
-    );
-    refusals.dedup();
-    if !refusals.is_empty() {
-        for refusal in &refusals {
-            super::finding(
-                out,
-                DiagnosticKind::Refused,
-                "fidelity",
-                format!(
-                    "The assembled candidate fails the request: {}",
-                    refusal.message
-                ),
-            );
-        }
-        let mut decision = out.provenance.decision.take().unwrap_or_else(|| json!({}));
-        decision["fidelity"] = json!({
-            "refused": true,
-            "diagnostics": refusals.iter().map(|r| json!({"kind": r.kind, "message": r.message})).collect::<Vec<_>>(),
-        });
-        out.provenance.decision = Some(decision);
-        super::question(
-            out,
-            "intent.clarification",
-            FIDELITY_QUESTION,
-            QuestionType::Text,
-        );
-        return Ok(());
-    }
-    let source = serde_yaml_bw::to_string(&d.root).map_err(CompileError::representation)?;
-    if super::edit::literal_projection(&source).as_ref() != Some(&d.root) {
-        super::finding(
-            out,
-            DiagnosticKind::Refused,
-            "candidate",
-            "The emitted candidate did not preserve literal data.",
-        );
-        out.status = super::CompileStatus::Refused;
-        return Ok(());
-    }
-    super::finish(source, out);
-    Ok(())
 }
 
 #[cfg(test)]
