@@ -142,6 +142,9 @@ struct Talk {
     messages: Vec<Message>,
     rounds: Vec<Value>,
     last: Option<Vec<Diagnostic>>,
+    /// The last candidate the laws refused: the record keeps its text, so a refusal can be
+    /// read (a hash names nothing).
+    refused: Option<String>,
     route: Vec<String>,
     /// The values the human answered: a candidate may carry them without inventing them.
     allowed: Vec<String>,
@@ -214,6 +217,7 @@ pub(super) async fn author<P: ProviderInferDyn>(
         ],
         rounds: Vec::new(),
         last: None,
+        refused: None,
         route,
         allowed,
         observed: request.knowledge.clone(),
@@ -253,6 +257,7 @@ pub(super) async fn author<P: ProviderInferDyn>(
         "references": sent,
         "rounds": talk.rounds.clone(),
         "accepted": accepted.is_some(),
+        "refused_source": accepted.is_none().then(|| talk.refused.clone()).flatten(),
         "revision": revision.map(|(source, words)| json!({
             "base_sha256": knowledge::sha256(source),
             "change": words,
@@ -455,6 +460,7 @@ async fn exchange<P: ProviderInferDyn>(
     if diagnostics.is_empty() {
         return Round::Accepted(answer);
     }
+    talk.refused = Some(answer.candidate.clone());
     if talk.last.as_ref() == Some(&diagnostics) {
         return Round::Stalled;
     }
@@ -941,11 +947,34 @@ fn placeholder_host_asked(doc: &Value, questions: &[Question]) -> bool {
                 .and_then(|a| a.get("url").or_else(|| a.get("target")))
                 .and_then(Value::as_str)
                 .is_some_and(|url| {
-                    asked
-                        .iter()
-                        .any(|slug| url.contains(&format!("const.{slug}")))
+                    asked.iter().any(|slug| {
+                        names_placeholder(url, slug) || bound_placeholder(task, url, slug)
+                    })
                 })
         })
+}
+
+fn names_placeholder(text: &str, slug: &str) -> bool {
+    text.contains(&format!("const.{slug}"))
+}
+
+/// A URL written as `${{ with.<name> }}…` reaches the placeholder when that binding names it:
+/// the seat binds an endpoint through `with:` as often as it writes it in the argument.
+fn bound_placeholder(task: &Value, url: &str, slug: &str) -> bool {
+    let Some(rest) = url.trim_start().strip_prefix("${{") else {
+        return false;
+    };
+    let Some(name) = rest
+        .trim_start()
+        .strip_prefix("with.")
+        .and_then(|r| r.split(['}', ' ', '.', '/']).next())
+    else {
+        return false;
+    };
+    task.get("with")
+        .and_then(|w| w.get(name))
+        .and_then(Value::as_str)
+        .is_some_and(|bound| names_placeholder(bound, slug))
 }
 
 /// An accepted candidate settles: its questions are asked (mandatory), the answered ones are
@@ -1287,6 +1316,42 @@ mod tests {
         );
         assert!(!escalates(&business));
         assert!(escalates(&outcome()));
+    }
+
+    #[test]
+    fn an_asked_endpoint_is_tolerated_through_a_with_binding() {
+        let asked = |key: &str| Question {
+            key: key.to_owned(),
+            label: String::new(),
+            answer_type: String::new(),
+            why: String::new(),
+        };
+        let doc = |url: &str, bound: &str| {
+            json!({
+                "const": {"crm_endpoint": ""},
+                "tasks": {"lookup": {
+                    "with": {"endpoint": bound},
+                    "invoke": {"tool": "nika:fetch", "args": {"url": url}},
+                }},
+            })
+        };
+        let questions = vec![asked("const.crm_endpoint")];
+        assert!(placeholder_host_asked(
+            &doc("${{ with.endpoint }}/contacts", "${{ const.crm_endpoint }}"),
+            &questions
+        ));
+        assert!(placeholder_host_asked(
+            &doc("${{ const.crm_endpoint }}/contacts", "unused"),
+            &questions
+        ));
+        assert!(!placeholder_host_asked(
+            &doc("${{ with.endpoint }}", "${{ inputs.endpoint }}"),
+            &questions
+        ));
+        assert!(!placeholder_host_asked(
+            &doc("${{ with.endpoint }}", "${{ const.crm_endpoint }}"),
+            &[]
+        ));
     }
 
     #[test]

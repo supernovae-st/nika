@@ -267,6 +267,11 @@ tasks:
     assert!(out.candidate.is_none(), "{out:#?}");
     let native = native_record(&out);
     assert_eq!(native["accepted"], false, "{native:#}");
+    assert_eq!(
+        native["refused_source"].as_str(),
+        Some(ungated),
+        "a refusal keeps the refused text: {native:#}"
+    );
     let messages: Vec<String> = native["rounds"]
         .as_array()
         .unwrap()
