@@ -13,8 +13,8 @@
 //! never the whole file.
 
 use super::native::{
-    self, Answer, Prelude, Question, Talk, cold, conclude, decode, floor_refuses, judge,
-    nullable_questions, prelude, repair_message, system_message,
+    self, Answer, Prelude, Question, Talk, cold, conclude, decode, floor_refuses, judge, prelude,
+    repair_message, system_message,
 };
 use super::{AuthoringPolicy, CompileOutcome, CompileRequest, Strategy};
 use crate::fidelity::{self, Diagnostic};
@@ -27,15 +27,15 @@ use serde_json::{Value, json};
 #[derive(serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 struct SketchAnswer {
-    #[serde(default, deserialize_with = "super::nullable_string")]
+    #[serde(default, deserialize_with = "super::nullable_default")]
     name: String,
-    #[serde(default, deserialize_with = "nullable_values")]
+    #[serde(default, deserialize_with = "super::nullable_default")]
     tasks: Vec<Value>,
-    #[serde(default, deserialize_with = "nullable_questions")]
+    #[serde(default, deserialize_with = "super::nullable_default")]
     questions: Vec<Question>,
-    #[serde(default, deserialize_with = "super::nullable_vec")]
+    #[serde(default, deserialize_with = "super::nullable_default")]
     gaps: Vec<String>,
-    #[serde(default, deserialize_with = "super::nullable_string")]
+    #[serde(default, deserialize_with = "super::nullable_default")]
     notes: String,
 }
 
@@ -43,15 +43,10 @@ struct SketchAnswer {
 #[derive(serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Filling {
-    #[serde(default, deserialize_with = "nullable_values")]
+    #[serde(default, deserialize_with = "super::nullable_default")]
     fills: Vec<Value>,
-    #[serde(default, deserialize_with = "super::nullable_string")]
+    #[serde(default, deserialize_with = "super::nullable_default")]
     notes: String,
-}
-
-fn nullable_values<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<Value>, D::Error> {
-    use serde::Deserialize as _;
-    Ok(Option::<Vec<Value>>::deserialize(d)?.unwrap_or_default())
 }
 
 /// The sketch instruction in the embedded pack, read beside the card.

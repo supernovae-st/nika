@@ -26,7 +26,7 @@ use serde_json::{Value, json};
 use std::collections::BTreeSet;
 
 mod answer;
-pub(super) use answer::{Answer, Question, nullable_questions};
+pub(super) use answer::{Answer, Question};
 
 fn schema() -> Value {
     serde_json::from_str(include_str!("../../assets/native_answer_schema.json"))

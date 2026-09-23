@@ -38,7 +38,7 @@ mod proposal;
 mod sketch;
 mod transform;
 use proposal::{Proposal, decode, merge};
-pub(super) use proposal::{ProposedRegion, exact_excerpt, nullable_string, nullable_vec};
+pub(super) use proposal::{ProposedRegion, exact_excerpt, nullable_default};
 
 /// The explicit cognition a caller permits for one request. Absent seats are not consent.
 #[derive(Clone, Copy)]
@@ -517,14 +517,7 @@ fn record_route(out: &mut CompileOutcome, route: &[String]) {
 /// records it in `provenance.decision.intent_sha256` on every general-path outcome.
 #[must_use]
 pub fn intent_sha256(intent: &str) -> String {
-    use sha2::Digest as _;
-    let digest = sha2::Sha256::digest(lexicon::fold_apostrophes(intent).as_bytes());
-    let mut hex = String::with_capacity(64);
-    for byte in digest {
-        use std::fmt::Write as _;
-        let _ = write!(hex, "{byte:02x}");
-    }
-    hex
+    knowledge::sha256(&lexicon::fold_apostrophes(intent))
 }
 
 /// The provenance projection of a settled plan: the plan itself plus the strategy that

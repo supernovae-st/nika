@@ -37,7 +37,7 @@ pub(super) struct ProposedStep {
     op: String,
     detail: String,
     evidence: String,
-    #[serde(default, deserialize_with = "nullable_vec")]
+    #[serde(default, deserialize_with = "nullable_default")]
     categories: Vec<String>,
     #[serde(default)]
     computation: Option<crate::predicate::ProposedComputation>,
@@ -69,20 +69,18 @@ pub(crate) struct ProposedRegion {
 #[serde(deny_unknown_fields)]
 pub(super) struct ProposedBypass {
     present: bool,
-    #[serde(default, deserialize_with = "nullable_string")]
+    #[serde(default, deserialize_with = "nullable_default")]
     evidence: String,
 }
 
 /// A provider's strict structured-output mode may turn an optional property into an explicit
 /// `null`; the decoder reads it as the absent default rather than refusing the plan.
-pub(crate) fn nullable_vec<'de, D: serde::Deserializer<'de>>(
-    d: D,
-) -> Result<Vec<String>, D::Error> {
-    Ok(Option::<Vec<String>>::deserialize(d)?.unwrap_or_default())
-}
-
-pub(crate) fn nullable_string<'de, D: serde::Deserializer<'de>>(d: D) -> Result<String, D::Error> {
-    Ok(Option::<String>::deserialize(d)?.unwrap_or_default())
+pub(crate) fn nullable_default<'de, T, D>(d: D) -> Result<T, D::Error>
+where
+    T: Deserialize<'de> + Default,
+    D: serde::Deserializer<'de>,
+{
+    Ok(Option::<T>::deserialize(d)?.unwrap_or_default())
 }
 
 pub(crate) use crate::text::{exact_excerpt, fold_quote};

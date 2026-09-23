@@ -15,37 +15,37 @@ use super::rules::{AggOp, Aggregation, ArithOp, Derived, Shape, Term};
 #[serde(deny_unknown_fields)]
 pub(super) struct ProposedComputation {
     pub(super) present: bool,
-    #[serde(default, deserialize_with = "super::cognition::nullable_string")]
+    #[serde(default, deserialize_with = "super::cognition::nullable_default")]
     pub(super) polarity: String,
-    #[serde(default, deserialize_with = "super::cognition::nullable_string")]
+    #[serde(default, deserialize_with = "super::cognition::nullable_default")]
     pub(super) join: String,
-    #[serde(default, deserialize_with = "nullable_clauses")]
+    #[serde(default, deserialize_with = "super::cognition::nullable_default")]
     pub(super) clauses: Vec<ProposedClause>,
-    #[serde(default, deserialize_with = "super::cognition::nullable_string")]
+    #[serde(default, deserialize_with = "super::cognition::nullable_default")]
     pub(super) group_by: String,
-    #[serde(default, deserialize_with = "nullable_aggregations")]
+    #[serde(default, deserialize_with = "super::cognition::nullable_default")]
     pub(super) aggregations: Vec<ProposedAggregation>,
-    #[serde(default, deserialize_with = "super::cognition::nullable_string")]
+    #[serde(default, deserialize_with = "super::cognition::nullable_default")]
     pub(super) sort_by: String,
-    #[serde(default, deserialize_with = "super::cognition::nullable_string")]
+    #[serde(default, deserialize_with = "super::cognition::nullable_default")]
     pub(super) order: String,
-    #[serde(default, deserialize_with = "super::cognition::nullable_vec")]
+    #[serde(default, deserialize_with = "super::cognition::nullable_default")]
     pub(super) columns: Vec<String>,
-    #[serde(default, deserialize_with = "nullable_derived")]
+    #[serde(default, deserialize_with = "super::cognition::nullable_default")]
     pub(super) derived: Vec<ProposedDerived>,
-    #[serde(default, deserialize_with = "super::cognition::nullable_string")]
+    #[serde(default, deserialize_with = "super::cognition::nullable_default")]
     pub(super) limit: String,
-    #[serde(default, deserialize_with = "nullable_renames")]
+    #[serde(default, deserialize_with = "super::cognition::nullable_default")]
     pub(super) renames: Vec<ProposedRename>,
-    #[serde(default, deserialize_with = "super::cognition::nullable_vec")]
+    #[serde(default, deserialize_with = "super::cognition::nullable_default")]
     pub(super) distinct_by: Vec<String>,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct ProposedRename {
-    #[serde(default, deserialize_with = "super::cognition::nullable_string")]
+    #[serde(default, deserialize_with = "super::cognition::nullable_default")]
     pub(super) from: String,
-    #[serde(default, deserialize_with = "super::cognition::nullable_string")]
+    #[serde(default, deserialize_with = "super::cognition::nullable_default")]
     pub(super) to: String,
 }
 #[derive(Deserialize)]
@@ -54,13 +54,13 @@ pub(super) struct ProposedDerived {
     #[serde(
         rename = "as",
         default,
-        deserialize_with = "super::cognition::nullable_string"
+        deserialize_with = "super::cognition::nullable_default"
     )]
     pub(super) name: String,
     pub(super) op: String,
-    #[serde(default, deserialize_with = "super::cognition::nullable_string")]
+    #[serde(default, deserialize_with = "super::cognition::nullable_default")]
     pub(super) left: String,
-    #[serde(default, deserialize_with = "super::cognition::nullable_string")]
+    #[serde(default, deserialize_with = "super::cognition::nullable_default")]
     pub(super) right: String,
 }
 #[derive(Deserialize)]
@@ -68,47 +68,26 @@ pub(super) struct ProposedDerived {
 pub(super) struct ProposedClause {
     pub(super) field: String,
     pub(super) op: String,
-    #[serde(default, deserialize_with = "super::cognition::nullable_string")]
+    #[serde(default, deserialize_with = "super::cognition::nullable_default")]
     pub(super) value: String,
-    #[serde(default, deserialize_with = "super::cognition::nullable_string")]
+    #[serde(default, deserialize_with = "super::cognition::nullable_default")]
     pub(super) value_field: String,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct ProposedAggregation {
-    #[serde(default, deserialize_with = "super::cognition::nullable_string")]
+    #[serde(default, deserialize_with = "super::cognition::nullable_default")]
     pub(super) field: String,
     pub(super) op: String,
     #[serde(
         rename = "as",
         default,
-        deserialize_with = "super::cognition::nullable_string"
+        deserialize_with = "super::cognition::nullable_default"
     )]
     pub(super) name: String,
-    #[serde(default, deserialize_with = "super::cognition::nullable_string")]
+    #[serde(default, deserialize_with = "super::cognition::nullable_default")]
     pub(super) round: String,
 }
-fn nullable_clauses<'de, D: serde::Deserializer<'de>>(
-    d: D,
-) -> Result<Vec<ProposedClause>, D::Error> {
-    Ok(Option::<Vec<ProposedClause>>::deserialize(d)?.unwrap_or_default())
-}
-fn nullable_renames<'de, D: serde::Deserializer<'de>>(
-    d: D,
-) -> Result<Vec<ProposedRename>, D::Error> {
-    Ok(Option::<Vec<ProposedRename>>::deserialize(d)?.unwrap_or_default())
-}
-fn nullable_derived<'de, D: serde::Deserializer<'de>>(
-    d: D,
-) -> Result<Vec<ProposedDerived>, D::Error> {
-    Ok(Option::<Vec<ProposedDerived>>::deserialize(d)?.unwrap_or_default())
-}
-fn nullable_aggregations<'de, D: serde::Deserializer<'de>>(
-    d: D,
-) -> Result<Vec<ProposedAggregation>, D::Error> {
-    Ok(Option::<Vec<ProposedAggregation>>::deserialize(d)?.unwrap_or_default())
-}
-
 /// Whether the request spells the number as a word (« trois », « drei », « tre »).
 fn number_word_states(intent: &str, n: u32) -> bool {
     super::shape::fold(intent)

@@ -20,11 +20,11 @@ struct WireAnswer {
     candidate: String,
     #[serde(default)]
     candidate_lines: Vec<String>,
-    #[serde(default, deserialize_with = "nullable_questions")]
+    #[serde(default, deserialize_with = "crate::cognition::nullable_default")]
     questions: Vec<Question>,
-    #[serde(default, deserialize_with = "crate::cognition::nullable_vec")]
+    #[serde(default, deserialize_with = "crate::cognition::nullable_default")]
     gaps: Vec<String>,
-    #[serde(default, deserialize_with = "crate::cognition::nullable_string")]
+    #[serde(default, deserialize_with = "crate::cognition::nullable_default")]
     notes: String,
 }
 
@@ -65,17 +65,10 @@ impl TryFrom<WireAnswer> for Answer {
 pub(in crate::cognition) struct Question {
     pub(in crate::cognition) key: String,
     pub(in crate::cognition) label: String,
-    #[serde(default, deserialize_with = "crate::cognition::nullable_string")]
+    #[serde(default, deserialize_with = "crate::cognition::nullable_default")]
     pub(in crate::cognition) answer_type: String,
-    #[serde(default, deserialize_with = "crate::cognition::nullable_string")]
+    #[serde(default, deserialize_with = "crate::cognition::nullable_default")]
     pub(in crate::cognition) why: String,
-}
-
-pub(in crate::cognition) fn nullable_questions<'de, D: serde::Deserializer<'de>>(
-    d: D,
-) -> Result<Vec<Question>, D::Error> {
-    use serde::Deserialize as _;
-    Ok(Option::<Vec<Question>>::deserialize(d)?.unwrap_or_default())
 }
 
 #[cfg(test)]

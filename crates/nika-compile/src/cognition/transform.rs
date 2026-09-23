@@ -23,7 +23,7 @@ use serde_json::Value;
 #[serde(deny_unknown_fields)]
 pub(super) struct ProposedTransform {
     pub(super) jq: String,
-    #[serde(default, deserialize_with = "super::nullable_vec")]
+    #[serde(default, deserialize_with = "super::nullable_default")]
     pub(super) columns_read: Vec<String>,
     pub(super) example_input: Value,
     pub(super) expected_output: Value,
