@@ -2552,6 +2552,7 @@ dependencies = [
  "nika-error",
  "nika-kernel",
  "nika-types",
+ "rustix",
  "serde",
  "serde_json",
  "tempfile",
