@@ -92,15 +92,12 @@ mod tests {
 
     use super::{effective_cost, preflight};
 
-    /// #342 — the delegation idiom (`--model <p/m> --max-cost-usd <usd>`):
-    /// the file says mock (floor $0, would pass); the OVERRIDE is a priced
-    /// model whose bounded floor exceeds the budget — the gate must refuse
-    /// BEFORE any spend, exactly like the in-file form.
     #[test]
     fn a_run_seated_on_a_harness_passes_the_cap_with_an_unpriced_cloud_model() {
         // `--access codex` with a model the catalog cannot price: refused unseated, admitted
         // seated (the subscription bounds the seat; the cap meters priced builtins only).
-        let yaml = "nika: m\nmodel: \"openai/gpt-6-astra\"\ntasks:\n  \
+        // Use the runtime's deliberately unpriced canary: a real model may gain a price.
+        let yaml = "nika: m\nmodel: \"gemini/nika-b20-unpriced-canary\"\ntasks:\n  \
              a:\n    infer: { prompt: hi, max_tokens: 20 }\n";
         let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("fixture parses");
         let report = nika_check::check(&wf);
@@ -116,6 +113,10 @@ mod tests {
         );
     }
 
+    /// #342 — the delegation idiom (`--model <p/m> --max-cost-usd <usd>`):
+    /// the file says mock (floor $0, would pass); the OVERRIDE is a priced
+    /// model whose bounded floor exceeds the budget — the gate must refuse
+    /// BEFORE any spend, exactly like the in-file form.
     #[test]
     fn override_prices_the_effective_model_and_refuses_at_the_gate() {
         let yaml = "nika: m\ntasks:\n  \
