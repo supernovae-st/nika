@@ -25,36 +25,8 @@ use nika_kernel::ai::provider::{
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
 
-/// The seat's answer: the candidate, its business questions, the clauses it could not realize.
-#[derive(serde::Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(super) struct Answer {
-    pub(super) candidate: String,
-    #[serde(default, deserialize_with = "nullable_questions")]
-    pub(super) questions: Vec<Question>,
-    #[serde(default, deserialize_with = "super::nullable_vec")]
-    pub(super) gaps: Vec<String>,
-    #[serde(default, deserialize_with = "super::nullable_string")]
-    pub(super) notes: String,
-}
-
-#[derive(serde::Deserialize, Clone)]
-#[serde(deny_unknown_fields)]
-pub(super) struct Question {
-    pub(super) key: String,
-    pub(super) label: String,
-    #[serde(default, deserialize_with = "super::nullable_string")]
-    pub(super) answer_type: String,
-    #[serde(default, deserialize_with = "super::nullable_string")]
-    pub(super) why: String,
-}
-
-pub(super) fn nullable_questions<'de, D: serde::Deserializer<'de>>(
-    d: D,
-) -> Result<Vec<Question>, D::Error> {
-    use serde::Deserialize as _;
-    Ok(Option::<Vec<Question>>::deserialize(d)?.unwrap_or_default())
-}
+mod answer;
+pub(super) use answer::{Answer, Question, nullable_questions};
 
 fn schema() -> Value {
     serde_json::from_str(include_str!("../../assets/native_answer_schema.json"))
@@ -246,7 +218,10 @@ pub(super) async fn author<P: ProviderInferDyn>(
         allowed,
     } = prelude(intent, reading, request);
     let mut talk = Talk::open(
-        system_message(&references, &callables),
+        format!(
+            "{}\n\n# Native answer transport\nPrefer candidate_lines: one physical YAML line per array element, preserving indentation and blank lines; an empty final element represents a final newline. Set candidate to the empty string in line mode. Otherwise send the complete candidate string with real newlines and an empty candidate_lines array. Populate exactly one representation. Never encode structural line breaks as HTML or symbols. Keep questions, gaps and notes as specified by the card.",
+            system_message(&references, &callables)
+        ),
         opening.to_string(),
         route,
         allowed,
@@ -679,7 +654,7 @@ pub(super) fn repair_message(
     repairs: &std::collections::BTreeMap<String, Vec<String>>,
 ) -> String {
     let mut text = String::from(
-        "COMPILER DIAGNOSTICS on your candidate. Return the complete corrected JSON answer (candidate, questions, gaps, notes); fix every item, change nothing the request did not ask.\n",
+        "COMPILER DIAGNOSTICS on your candidate. Return the complete corrected JSON answer (candidate or candidate_lines, questions, gaps, notes); fix every item, change nothing the request did not ask.\n",
     );
     for (n, d) in diagnostics.iter().enumerate() {
         use std::fmt::Write as _;
@@ -883,7 +858,7 @@ fn admit(candidate: &str, questions: &[Question], out: &mut Vec<Diagnostic>) -> 
         out.push(Diagnostic {
             kind: "parse",
             message: format!(
-                "the candidate arrived as ONE line ({} characters, no newline): a `.nika` is a multi-line YAML document — write a real newline (`\\n` inside the JSON string) after every field and every task, never a space in its place",
+                "the candidate arrived as ONE line ({} characters, no newline): a `.nika` is a multi-line YAML document — write a real newline (`\\n` inside the JSON string) after every field and every task, never a space in its place; alternatively send candidate_lines, one physical line per array element, and leave candidate empty",
                 candidate.len()
             ),
         });

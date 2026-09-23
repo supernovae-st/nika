@@ -853,6 +853,36 @@ async fn a_sketch_is_judged_structurally_then_filled_and_emitted() {
 }
 
 #[tokio::test]
+async fn a_candidate_answered_in_lines_is_judged_and_replayed_without_a_call() {
+    let whole = candidate_a("./data/paiements.csv");
+    let lines: Vec<&str> = whole.split('\n').collect();
+    let text = json!({"candidate": "", "candidate_lines": lines, "questions": [], "gaps": [], "notes": "line transport"}).to_string();
+    let provider = Rotating::new(vec![text]);
+    let req = CompileRequest::create(CASE_A).with_authoring_policy(policy(NativeMode::Only, 0));
+    let out = compile_with_provider(&req, &provider).await.unwrap();
+    assert_eq!(keys(&out), ["model"], "{out:#?}");
+    assert_eq!(native_record(&out)["accepted"], true, "{out:#?}");
+    let record = out
+        .provenance
+        .plan
+        .clone()
+        .expect("accepted candidate replay record");
+    assert_eq!(
+        record["source"], whole,
+        "line transport preserves source bytes"
+    );
+    let replay = CompileRequest::create(CASE_A)
+        .with_plan(record)
+        .answer("model", r#""mock/echo""#);
+    let ready = compile(&replay).unwrap();
+    assert_eq!(ready.status, CompileStatus::Ready, "{ready:#?}");
+    assert!(
+        ready.provenance.authoring.is_none(),
+        "replay uses no provider"
+    );
+}
+
+#[tokio::test]
 async fn a_candidate_folded_onto_one_line_is_named_as_such() {
     // The whole of candidate A with every newline a space: `tasks:` is there and unreadable.
     let folded = candidate_a("./data/paiements.csv").replace('\n', " ");
@@ -864,4 +894,83 @@ async fn a_candidate_folded_onto_one_line_is_named_as_such() {
     let first = native["rounds"][0]["diagnostics"].to_string();
     assert!(first.contains("arrived as ONE line"), "{first}");
     assert!(first.contains("real newline"), "{first}");
+}
+
+#[tokio::test]
+async fn malformed_line_answers_stop_without_accepting_or_extra_calls() {
+    let good = candidate_a("./data/paiements.csv");
+    let malformed = vec![
+        json!({"candidate": good, "candidate_lines": good.split('\n').collect::<Vec<_>>()})
+            .to_string(),
+        json!({"candidate": " ", "candidate_lines": good.split('\n').collect::<Vec<_>>()})
+            .to_string(),
+        json!({"candidate_lines": [good]}).to_string(), // embedded LF, not physical lines
+        json!({"candidate_lines": ["nika: x\r", "tasks: {}"]}).to_string(),
+        json!({"candidate_lines": null}).to_string(),
+        json!({"candidate_lines": [7]}).to_string(),
+        json!({"candidate_lines": ["nika: x"], "extra": true}).to_string(),
+        r#"{"candidate":"a","candidate":"b","candidate_lines":[]}"#.to_owned(),
+        r#"{"candidate":"","candidate_lines":["a"],"candidate_lines":[]}"#.to_owned(),
+    ];
+    for bad in malformed {
+        let provider = Rotating::new(vec![bad.clone(), answer(&good, &json!([]))]);
+        let req = CompileRequest::create(CASE_A).with_authoring_policy(policy(NativeMode::Only, 2));
+        let out = compile_with_provider(&req, &provider).await.unwrap();
+        assert_ne!(out.status, CompileStatus::Ready, "{bad}: {out:#?}");
+        assert!(out.candidate.is_none(), "{bad}: {out:#?}");
+        assert_ne!(native_record(&out)["accepted"], true, "{bad}: {out:#?}");
+        assert_ne!(
+            out.provenance.plan.as_ref().map(|p| &p["strategy"]),
+            Some(&json!("native")),
+            "invalid transport must not become a native replay record"
+        );
+        assert_eq!(provider.calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+        assert!(
+            native_record(&out)["rounds"][0]["answer"]
+                .as_str()
+                .unwrap()
+                .contains("not a native answer")
+        );
+    }
+}
+
+#[tokio::test]
+async fn lines_keep_fidelity_refusal_and_bounded_repair() {
+    let wrong = candidate_a("./data/payments.csv");
+    let right = candidate_a("./data/paiements.csv");
+    let lines = |s: &str| {
+        json!({"candidate": "", "candidate_lines": s.split('\n').collect::<Vec<_>>(), "questions": [], "gaps": [], "notes": ""}).to_string()
+    };
+    let provider = Rotating::new(vec![lines(&wrong), lines(&right)]);
+    let req = CompileRequest::create(CASE_A).with_authoring_policy(policy(NativeMode::Only, 1));
+    let out = compile_with_provider(&req, &provider).await.unwrap();
+    assert_eq!(provider.calls.load(std::sync::atomic::Ordering::SeqCst), 2);
+    let native = native_record(&out);
+    assert_eq!(native["accepted"], true, "{out:#?}");
+    let first = native["rounds"][0]["diagnostics"].to_string();
+    assert!(first.contains("UNREALIZED PATH"), "{first}");
+    assert!(first.contains("INVENTED LITERAL"), "{first}");
+    assert_eq!(out.provenance.plan.as_ref().unwrap()["source"], right);
+    let ready = compile(
+        &CompileRequest::create(CASE_A)
+            .with_plan(out.provenance.plan.unwrap())
+            .answer("model", r#""mock/echo""#),
+    )
+    .unwrap();
+    assert_eq!(ready.status, CompileStatus::Ready, "{ready:#?}");
+    assert!(ready.provenance.authoring.is_none());
+    assert!(ready.check_preview.unwrap().report.is_clean());
+}
+
+#[tokio::test]
+async fn line_transport_does_not_decode_html_or_line_symbols() {
+    let source = candidate_a("./data/paiements.csv").replace(
+        "nika: paid-total-report",
+        "# literal <br/> &quot; ⏎ \\n\nnika: paid-total-report",
+    );
+    let provider = Rotating::new(vec![json!({"candidate": "", "candidate_lines": source.split('\n').collect::<Vec<_>>(), "questions": [], "gaps": [], "notes": ""}).to_string()]);
+    let req = CompileRequest::create(CASE_A).with_authoring_policy(policy(NativeMode::Only, 0));
+    let out = compile_with_provider(&req, &provider).await.unwrap();
+    assert_eq!(native_record(&out)["accepted"], true, "{out:#?}");
+    assert_eq!(out.provenance.plan.as_ref().unwrap()["source"], source);
 }
