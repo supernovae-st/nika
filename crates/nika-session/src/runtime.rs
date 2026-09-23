@@ -832,7 +832,10 @@ impl SessionRuntime {
             // did not happen, the ways on); the choice stands, nothing is
             // substituted.
             Err(e) => {
-                let what = format!("{} (the conversational intelligence)", self.reasoner.name());
+                let what = format!(
+                    "I couldn't use {} (the conversational intelligence) for this part",
+                    self.reasoner.name()
+                );
                 self.recovery(
                     Some(RefusalClass::IntelligenceRefused),
                     &what,

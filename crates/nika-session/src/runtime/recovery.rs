@@ -19,18 +19,21 @@ const KEPT_DECISIONS: usize = 3;
 const QUOTE_CHARS: usize = 140;
 
 impl SessionRuntime {
-    /// The recovery card for a failure of `what` (« the authoring model » ·
-    /// « the conversational intelligence ») with `reason`; a `class` makes
-    /// it a refusal, `None` a fact (a budget that ran out refuses nothing).
-    /// The card is kept as the last recovery so « what happened? » repeats
-    /// it without a call.
+    /// The recovery card under the caller's own `headline` (« I couldn't
+    /// use the authoring model for this part » · « I couldn't finish a
+    /// workflow I trust within the authoring budget ») with `reason`; a
+    /// `class` makes it a refusal, `None` a fact (a budget that ran out
+    /// refuses nothing). The headline is said once: the template adds the
+    /// reason, what is kept, what did not happen and the ways on. The card
+    /// is kept as the last recovery so « what happened? » repeats it
+    /// without a call.
     pub(super) fn recovery(
         &mut self,
         class: Option<RefusalClass>,
-        what: &str,
+        headline: &str,
         reason: &str,
     ) -> TurnOutcome {
-        let mut text = format!("I couldn't use {what} for this part — {reason}");
+        let mut text = format!("{headline} — {reason}");
         let kept = self.kept_lines();
         if !kept.is_empty() {
             text.push_str("\n  I still have:");

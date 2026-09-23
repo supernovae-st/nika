@@ -1234,3 +1234,33 @@ fn the_lifecycle_rail_follows_the_sessions_facts() {
         "Draft ✓ · Saved ✓ · Checked ✓ · Active ○ · Run ×"
     );
 }
+
+/// The recovery card says its headline once: the caller's words are the
+/// headline (« I couldn't use the authoring model for this part »), the
+/// template adds the reason and the ways on, never a second « I couldn't
+/// use … for this part » around them.
+#[test]
+fn the_recovery_card_says_its_headline_once() {
+    let dir = tree();
+    let mut s = ready_with(dir.path(), vec![]);
+    let TurnOutcome::Refusal(card) = s.recovery(
+        Some(RefusalClass::IntelligenceRefused),
+        "I couldn't use the authoring model for this part",
+        "the provider could not answer",
+    ) else {
+        panic!("a classed recovery is a refusal");
+    };
+    assert!(
+        card.text.starts_with(
+            "I couldn't use the authoring model for this part — the provider could not answer"
+        ),
+        "{}",
+        card.text
+    );
+    assert_eq!(card.text.matches("I couldn't use").count(), 1);
+    assert_eq!(card.text.matches("for this part").count(), 1);
+    assert!(
+        card.text
+            .contains("Nothing was written and nothing was sent elsewhere.")
+    );
+}
