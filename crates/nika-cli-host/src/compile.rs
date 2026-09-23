@@ -113,48 +113,10 @@ pub fn run(args: &CompileArgs) -> VerbOutput {
             args.json,
         );
     }
-    let mut request = if let Some(base) = &args.base {
-        let source = match std::fs::read_to_string(base) {
-            Ok(source) => source,
-            Err(error) => {
-                return render::failure("read_base", &error.to_string(), exit::ENV, args.json);
-            }
-        };
-        let request = CompileRequest::edit(source, args.change.as_deref().unwrap_or(""));
-        match args
-            .intent
-            .as_deref()
-            .map(str::trim)
-            .filter(|i| !i.is_empty())
-        {
-            // The intent beside a base is the request the base answered: the seat revises
-            // against the whole meaning, never against the change alone.
-            Some(original) => request.with_original_intent(original),
-            None => request,
-        }
-    } else {
-        let mut request = CompileRequest::create(args.intent.as_deref().unwrap_or(""));
-        if let Some(dest) = dest {
-            request = request.with_workflow_id(workflow_id(dest));
-        }
-        request
+    let mut request = match build_request(args, dest) {
+        Ok(request) => request,
+        Err(failure) => return failure,
     };
-    request = request.with_hot_policy(match args.hot_policy.as_deref() {
-        Some("legacy") => nika_onboard::compile::HotPolicy::Legacy,
-        Some("off") => nika_onboard::compile::HotPolicy::Off,
-        _ => nika_onboard::compile::HotPolicy::Strict,
-    });
-    for answer in &args.answers {
-        let Some((key, literal)) = answer.split_once('=') else {
-            return render::failure(
-                "invalid_answer",
-                "--answer expects KEY=JSON_LITERAL",
-                exit::FILE,
-                args.json,
-            );
-        };
-        request = request.answer(key, literal);
-    }
     let named = matches!(
         args.intent.as_deref().map(str::trim),
         Some("hello" | "01-hello")
@@ -206,6 +168,59 @@ pub fn run(args: &CompileArgs) -> VerbOutput {
         );
     }
     render::outcome(&outcome, written, note.as_ref(), args.json)
+}
+
+/// The request the arguments state: an edit of the base (with the original intent beside it
+/// when stated) or a creation (named after its destination), the HOT policy, the answers.
+fn build_request(args: &CompileArgs, dest: Option<&String>) -> Result<CompileRequest, VerbOutput> {
+    let mut request = if let Some(base) = &args.base {
+        let source = match std::fs::read_to_string(base) {
+            Ok(source) => source,
+            Err(error) => {
+                return Err(render::failure(
+                    "read_base",
+                    &error.to_string(),
+                    exit::ENV,
+                    args.json,
+                ));
+            }
+        };
+        let request = CompileRequest::edit(source, args.change.as_deref().unwrap_or(""));
+        match args
+            .intent
+            .as_deref()
+            .map(str::trim)
+            .filter(|i| !i.is_empty())
+        {
+            // The intent beside a base is the request the base answered: the seat revises
+            // against the whole meaning, never against the change alone.
+            Some(original) => request.with_original_intent(original),
+            None => request,
+        }
+    } else {
+        let mut request = CompileRequest::create(args.intent.as_deref().unwrap_or(""));
+        if let Some(dest) = dest {
+            request = request.with_workflow_id(workflow_id(dest));
+        }
+        request
+    };
+    request = request.with_hot_policy(match args.hot_policy.as_deref() {
+        Some("legacy") => nika_onboard::compile::HotPolicy::Legacy,
+        Some("off") => nika_onboard::compile::HotPolicy::Off,
+        _ => nika_onboard::compile::HotPolicy::Strict,
+    });
+    for answer in &args.answers {
+        let Some((key, literal)) = answer.split_once('=') else {
+            return Err(render::failure(
+                "invalid_answer",
+                "--answer expects KEY=JSON_LITERAL",
+                exit::FILE,
+                args.json,
+            ));
+        };
+        request = request.answer(key, literal);
+    }
+    Ok(request)
 }
 
 /// The intent the compiler will actually read, as the sha key must see it: the
