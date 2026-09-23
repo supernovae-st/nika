@@ -651,7 +651,39 @@ fn a_known_cli_token_without_the_binary_is_1803_not_1802() {
 
 #[cfg(feature = "access-harness")]
 #[test]
-fn a_ready_claude_agent_seat_refuses_infer_with_the_attestation_witness() {
+fn an_acp_only_seat_refuses_infer_with_the_attestation_witness() {
+    // Gemini CLI speaks ACP and has no one-shot contract the engine measured: the four
+    // conjuncts stay unproven and the witness names each of them. (Claude Code, Grok Build and
+    // Copilot prove them by their measured `-p` contracts since 076a2a91 — see the next test.)
+    let wf = parse(
+        "nika: t\nmodel: gemini/gemini-2.5-pro\ntasks:\n  s:\n    infer: { prompt: \"x\" }\n",
+    );
+    let report = nika_check::check(&wf);
+    let probe = access_probe(
+        "gemini-cli",
+        false,
+        true,
+        nika_types::access::AccessClass::Harness,
+    )
+    .with_serves(vec!["gemini".to_owned()]);
+    let err = access_pin_refusal(&wf, &report, &[probe], Some("gemini-cli"), None)
+        .expect("ACP alone is not an infer-grade proof");
+    assert!(matches!(err, RuntimeError::AccessNoPath { .. }));
+    let witness = err.to_string();
+    for term in [
+        "gemini-cli",
+        "single_turn",
+        "no_implicit_tools",
+        "structured_output",
+        "model_identity",
+    ] {
+        assert!(witness.contains(term), "missing witness term: {term}");
+    }
+}
+
+#[cfg(feature = "access-harness")]
+#[test]
+fn a_ready_claude_code_seat_is_infer_grade_by_its_one_shot_contract() {
     let wf = parse(
         "nika: t\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  s:\n    infer: { prompt: \"x\" }\n",
     );
@@ -663,19 +695,10 @@ fn a_ready_claude_agent_seat_refuses_infer_with_the_attestation_witness() {
         nika_types::access::AccessClass::Harness,
     )
     .with_serves(vec!["anthropic".to_owned()]);
-    let err = access_pin_refusal(&wf, &report, &[probe], Some("claude-code"), None)
-        .expect("ACP alone is not an infer-grade proof");
-    assert!(matches!(err, RuntimeError::AccessNoPath { .. }));
-    let witness = err.to_string();
-    for term in [
-        "claude-code",
-        "single_turn",
-        "no_implicit_tools",
-        "structured_output",
-        "model_identity",
-    ] {
-        assert!(witness.contains(term), "missing witness term: {term}");
-    }
+    assert!(
+        access_pin_refusal(&wf, &report, &[probe], Some("claude-code"), None).is_none(),
+        "claude -p --tools \"\" --max-turns 1 --json-schema proves the four conjuncts"
+    );
 }
 
 #[cfg(feature = "access-harness")]
