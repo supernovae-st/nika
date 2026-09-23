@@ -17,6 +17,7 @@ use super::{
     AuthoringPolicy, CompileOutcome, CompileRequest, DiagnosticKind, QuestionType, Strategy,
 };
 use crate::fidelity::{self, Diagnostic};
+use crate::types::{EditChange, Input};
 use crate::{CompileDiagnostic, CompileError, CompileQuestion, CompileStatus, lexicon::Reading};
 use nika_kernel::ai::provider::{ContentBlock, Message, ProviderInferDyn, Role, StopReason};
 use serde_json::{Value, json};
@@ -198,32 +199,14 @@ pub(super) async fn author<P: ProviderInferDyn>(
         out.provenance.strategy = Some(Strategy::Native);
         return Ok(out);
     }
-    let mut references = knowledge::references(intent, 2);
-    if let Some(pack) = &request.authoring_knowledge {
-        references.extend(pack.references.iter().map(|r| Reference {
-            id: r.id.clone(),
-            kind: match r.kind.as_str() {
-                "pattern" => "pattern",
-                "block" => "block",
-                "example" => "example",
-                "skill" => "skill",
-                _ => "reference",
-            },
-            text: r.text.clone(),
-        }));
-    }
-    let callables = knowledge::callables(&knowledge::builtins_of(&references));
-    let sent: Vec<Value> = references
-        .iter()
-        .chain(callables.iter())
-        .map(Reference::receipt)
-        .collect();
-    let opening = json!({
-        "request": intent,
-        "facts_the_compiler_holds_you_to": floor(intent, reading),
-        "observed_world": request.knowledge,
-        "answers_already_given": request.answers,
-    });
+    let Prelude {
+        references,
+        callables,
+        sent,
+        revision,
+        opening,
+        allowed,
+    } = prelude(intent, reading, request);
     let mut talk = Talk {
         messages: vec![
             Message::text(Role::System, system_message(&references, &callables)),
@@ -232,7 +215,7 @@ pub(super) async fn author<P: ProviderInferDyn>(
         rounds: Vec::new(),
         last: None,
         route,
-        allowed: fidelity::allowed_values(&request.answers),
+        allowed,
         observed: request.knowledge.clone(),
         repairs: request
             .authoring_knowledge
@@ -270,6 +253,15 @@ pub(super) async fn author<P: ProviderInferDyn>(
         "references": sent,
         "rounds": talk.rounds.clone(),
         "accepted": accepted.is_some(),
+        "revision": revision.map(|(source, words)| json!({
+            "base_sha256": knowledge::sha256(source),
+            "change": words,
+            "delta": accepted.as_ref().and_then(|answer| {
+                let base = crate::edit::literal_projection(source)?;
+                let revised = crate::edit::literal_projection(&answer.candidate)?;
+                Some(nika_compile_reader::candidate::delta(&base, &revised))
+            }),
+        })),
     });
     out.provenance.decision = Some(decision);
     conclude(
@@ -283,6 +275,92 @@ pub(super) async fn author<P: ProviderInferDyn>(
     );
     out.provenance.strategy = Some(Strategy::Native);
     Ok(out)
+}
+
+/// Every string scalar of a document, once: the literals a base candidate already carries.
+fn string_leaves(doc: &Value) -> Vec<String> {
+    fn walk(value: &Value, out: &mut Vec<String>) {
+        match value {
+            Value::String(s) if !s.is_empty() && !s.contains("${{") => {
+                if !out.contains(s) {
+                    out.push(s.clone());
+                }
+            }
+            Value::Array(items) => items.iter().for_each(|v| walk(v, out)),
+            Value::Object(map) => map.values().for_each(|v| walk(v, out)),
+            _ => {}
+        }
+    }
+    let mut out = Vec::new();
+    walk(doc, &mut out);
+    out
+}
+
+/// What the native round opens with: the references recalled for the request (the embedded
+/// pack's, then the knowledge door's), the callables they name, the receipt of what was sent,
+/// the revision when the request is an edit, the opening message, the literals the laws allow.
+struct Prelude<'a> {
+    references: Vec<Reference>,
+    callables: Vec<Reference>,
+    sent: Vec<Value>,
+    revision: Option<(&'a str, &'a str)>,
+    opening: Value,
+    allowed: Vec<String>,
+}
+
+fn prelude<'a>(intent: &str, reading: &Reading, request: &'a CompileRequest) -> Prelude<'a> {
+    let mut references = knowledge::references(intent, 2);
+    if let Some(pack) = &request.authoring_knowledge {
+        references.extend(pack.references.iter().map(|r| Reference {
+            id: r.id.clone(),
+            kind: match r.kind.as_str() {
+                "pattern" => "pattern",
+                "block" => "block",
+                "example" => "example",
+                "skill" => "skill",
+                _ => "reference",
+            },
+            text: r.text.clone(),
+        }));
+    }
+    let callables = knowledge::callables(&knowledge::builtins_of(&references));
+    let sent: Vec<Value> = references
+        .iter()
+        .chain(callables.iter())
+        .map(Reference::receipt)
+        .collect();
+    let revision = match &request.input {
+        Input::Edit {
+            source,
+            change: EditChange::Text(words),
+        } => Some((source.as_str(), words.as_str())),
+        _ => None,
+    };
+    let opening = json!({
+        "request": intent,
+        "facts_the_compiler_holds_you_to": floor(intent, reading),
+        "observed_world": request.knowledge,
+        "answers_already_given": request.answers,
+        "base_candidate": revision.map(|(source, _)| source),
+        "change": revision.map(|(_, words)| words),
+    });
+    let mut allowed = fidelity::allowed_values(&request.answers);
+    if let Some((source, _)) = revision {
+        // The base's own literals were the earlier request's or the human's: never invented.
+        allowed.extend(
+            crate::edit::literal_projection(source)
+                .map(|doc| string_leaves(&doc))
+                .unwrap_or_default(),
+        );
+    }
+    Prelude {
+        references,
+        callables,
+        sent,
+        revision,
+        opening,
+        allowed,
+    }
 }
 
 /// One round: the call, the decoded answer, the judge's verdict, the journal entry, and the
@@ -310,6 +388,23 @@ async fn exchange<P: ProviderInferDyn>(
     let text = match response.content.as_slice() {
         [ContentBlock::Text { text }] if response.stop_reason == StopReason::EndTurn => {
             text.clone()
+        }
+        // A reasoning seat may spend the whole authoring budget before its answer (the eco-60
+        // DeepSeek V4 Pro lane, 2026-09-22: 12/60 answers cut at exactly 16384 output tokens):
+        // the cap is named, never « not one complete JSON text ».
+        _ if response.stop_reason == StopReason::MaxTokens => {
+            talk.rounds
+                .push(json!({"round": round, "answer": "cut at the authoring cap"}));
+            super::super::finding(
+                out,
+                DiagnosticKind::Unknown,
+                "authoring_native",
+                format!(
+                    "The seat's answer was cut at the authoring cap ({} output tokens): raise --authoring-max-tokens, or seat a model that does not spend the budget on its reasoning.",
+                    response.usage.output_tokens
+                ),
+            );
+            return Round::Stop;
         }
         _ => {
             talk.rounds
@@ -405,6 +500,7 @@ fn conclude(
                 reading.plan.trigger.as_deref(),
                 &answer.candidate,
                 &answer.questions,
+                &answer.gaps,
                 request,
                 out,
             );
@@ -860,16 +956,24 @@ fn settle(
     trigger: Option<&str>,
     candidate: &str,
     questions: &[Question],
+    gaps: &[String],
     request: &CompileRequest,
     out: &mut CompileOutcome,
 ) {
     let admitted =
         admitted_questions(candidate, questions, request.knowledge.as_ref()).unwrap_or_default();
+    let gaps: Vec<&str> = gaps
+        .iter()
+        .map(|g| g.trim())
+        .filter(|g| !g.is_empty())
+        .take(8)
+        .collect();
     let mut record = json!({
         "strategy": Strategy::Native.word(),
         "intent_sha256": super::intent_sha256(intent),
         "source": candidate,
         "questions": admitted.iter().map(|q| json!({"key": q.key, "label": q.label, "answer_type": q.answer_type, "why": q.why})).collect::<Vec<_>>(),
+        "gaps": gaps,
         "trigger": trigger,
     });
     // What the candidate BUILDS, in the plan record's own vocabulary (operations · effects ·
@@ -957,11 +1061,61 @@ fn apply(record: &Value, request: &CompileRequest, out: &mut CompileOutcome) {
     if source.contains("model: mock/echo") && !seat_model(&mut source, request, out) {
         open = true;
     }
+    dispose_gaps(record, request, out);
     if open {
         // Questions stay; the candidate waits for them (the same contract as the assembler).
         return;
     }
     super::super::finish(source, out);
+}
+
+/// The clauses the seat could not realize never vanish: each is a `Missed` diagnostic on every
+/// transport (the clause verbatim, the candidate does not carry it) and an optional question
+/// `gap.<n>` the human answers — « drop » or how it should be done — recorded as the human's
+/// disposition in the decision record, never baked into the candidate (MP §3.1: nothing
+/// important silently disappears into READY).
+fn dispose_gaps(record: &Value, request: &CompileRequest, out: &mut CompileOutcome) {
+    let gaps: Vec<&str> = record["gaps"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .collect();
+    if gaps.is_empty() {
+        return;
+    }
+    let mut dispositions = Vec::new();
+    for (n, clause) in gaps.iter().enumerate() {
+        let key = format!("gap.{}", n + 1);
+        if let Some(answer) = request.answers.get(&key) {
+            dispositions.push(json!({"clause": clause, "disposition": answer}));
+            continue;
+        }
+        super::super::finding(
+            out,
+            DiagnosticKind::Missed,
+            "gap",
+            format!(
+                "the seat could not realize « {clause} »; the candidate does not carry it — answer `{key}` with \"drop\" to accept that, or say in words how it should be done"
+            ),
+        );
+        out.questions.push(super::super::CompileQuestion {
+            key,
+            label: format!(
+                "« {clause} » is not in the candidate: drop it, or say how it should be done"
+            ),
+            answer_type: QuestionType::Text,
+            why: "A clause the request states never disappears silently; the human disposes of it."
+                .to_owned(),
+            mandatory: false,
+            options: Vec::new(),
+        });
+    }
+    if !dispositions.is_empty() {
+        let mut decision = out.provenance.decision.take().unwrap_or_else(|| json!({}));
+        decision["gap_dispositions"] = json!(dispositions);
+        out.provenance.decision = Some(decision);
+    }
 }
 
 /// Bake one answered question into the source's `const:`; false when it could not be.
