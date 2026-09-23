@@ -196,7 +196,7 @@ max_output_tokens = 128000
 context_window_tokens = 1000000
 open_weights = false
 
-# ── deepseek (4 models) ──
+# ── deepseek (6 models) ──
 
 [[rules]]
 provider = "deepseek"
@@ -208,6 +208,12 @@ max_output_tokens = 384000
 context_window_tokens = 1000000
 open_weights = true
 status = "deprecated"
+
+[[rules]]
+provider = "deepseek"
+model_pattern = "deepseek-reasoner"
+input_per_million = 0.15
+output_per_million = 0.6
 
 [[rules]]
 provider = "deepseek"
@@ -239,6 +245,12 @@ cache_read_per_million = 0.003
 max_output_tokens = 384000
 context_window_tokens = 1000000
 open_weights = true
+
+[[rules]]
+provider = "deepseek"
+model_pattern = "deepseek-chat"
+input_per_million = 0.15
+output_per_million = 0.6
 
 # ── google (34 models) ──
 
