@@ -38,6 +38,7 @@ pub mod identity;
 pub mod intelligence;
 pub mod lifecycle;
 pub mod meaning;
+pub mod money;
 pub mod outcome;
 pub mod reasoner;
 pub mod review;

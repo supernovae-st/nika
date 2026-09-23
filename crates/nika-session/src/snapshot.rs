@@ -42,6 +42,9 @@ pub struct ProjectSnapshot {
     pub project_file: Option<PathBuf>,
     /// The project's spend ceiling, when the project file declares one.
     pub ceiling: Option<f64>,
+    /// Project discovery/parsing failed; absence must not silently replace
+    /// a malformed monetary default. Admission refuses until corrected.
+    pub project_error: Option<String>,
     /// The workflows the ONE walker listed under the root.
     pub workflows: Vec<WorkflowSeen>,
     /// The inventory's workflow row cap omitted entries from the emitted list.
@@ -60,9 +63,10 @@ impl ProjectSnapshot {
         let cwd = cwd.to_path_buf();
         let git_root = nika_cli_host::find_git_root(&cwd).map(|(root, _)| root);
         let root = cwd.clone();
-        let (project_file, ceiling) = match nika_vocab::project::discover(&cwd) {
-            Ok(Some((path, project))) => (Some(path), project.ceiling),
-            _ => (None, None),
+        let (project_file, ceiling, project_error) = match nika_vocab::project::discover(&cwd) {
+            Ok(Some((path, project))) => (Some(path), project.ceiling, None),
+            Ok(None) => (None, None, None),
+            Err(error) => (None, None, Some(error.to_string())),
         };
         let (facts, truncated, _, walk_truncated) = nika_dap::inventory::collect_workflows(&root);
         let workflows = facts
@@ -81,6 +85,7 @@ impl ProjectSnapshot {
             git_root,
             project_file,
             ceiling,
+            project_error,
             workflows,
             truncated,
             walk_truncated,

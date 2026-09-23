@@ -15,7 +15,7 @@ use nika_onboard::compile::{
     CompileOutcome, CompileQuestion, CompileRequest, CompileStatus, revise_intent,
 };
 
-use super::{DEFAULT_CEILING_USD, SessionRuntime, TurnOutcome, ceiling_in, named_files};
+use super::{SessionRuntime, TurnOutcome, ceiling_in, named_files};
 use crate::activity::{Activity, Phase};
 use crate::authoring::{
     AuthoringContext, AuthoringError, AuthoringRound, AuthoringSeat, Reading,
@@ -66,6 +66,9 @@ impl SessionRuntime {
         request: &CompileRequest,
         intent: &str,
     ) -> Result<CompileOutcome, AuthoringError> {
+        if self.money_blocks_cognition() {
+            return compile_deterministic(request);
+        }
         compile_in(&self.seat, &self.authoring_context, request, intent)
     }
 
@@ -147,6 +150,9 @@ impl SessionRuntime {
     /// hard it thinks is the compiler's; the human only learns that Nika
     /// is working (a truthful line, no invented detail).
     fn compile_under_seat(&mut self, round: AuthoringRound) -> TurnOutcome {
+        if self.money_blocks_cognition() {
+            return self.cognition_money_refusal();
+        }
         self.activity(&Activity::now(Phase::Authoring, self.authoring_note()));
         match round.compile(&self.seat, &self.authoring_context) {
             Ok(out) => match Reading::of(out) {
@@ -206,7 +212,7 @@ impl SessionRuntime {
         let intent = format!("{}. {}", round.intent, line.trim());
         self.remember(line, "(the request read again with these words)");
         let again = AuthoringRound::new(intent);
-        match again.compile(&self.seat, &self.authoring_context) {
+        match self.compile_request(&again.request(), &again.intent) {
             Ok(out) => {
                 let reading = Reading::of(out);
                 self.settle(again, reading)
@@ -264,6 +270,9 @@ impl SessionRuntime {
     /// when the answer is not one plain request (then the words are used as
     /// said). A paraphrase, shown beside the proposal, never applied unseen.
     fn restate_request(&mut self, goal: &str, change: &str) -> Option<String> {
+        if self.money_blocks_cognition() {
+            return None;
+        }
         if !(self.intelligence.ready && self.chosen && self.reasoner.name() != "none") {
             return None;
         }
@@ -367,7 +376,7 @@ impl SessionRuntime {
             _ => None,
         });
         let Some(base) = base else {
-            let id = ProposalId::of(&set.preview());
+            let id = self.proposal_id(&set);
             self.pending = Some(set);
             return TurnOutcome::Held {
                 id,
@@ -434,7 +443,7 @@ impl SessionRuntime {
                 self.propose_revision(&goal, &out, read_as.as_deref())
             }
             reading => {
-                let id = ProposalId::of(&set.preview());
+                let id = self.proposal_id(&set);
                 let why = human_reasons(reasons(reading.outcome())).join(" · ");
                 self.pending = Some(set);
                 TurnOutcome::Held {
@@ -563,7 +572,7 @@ impl SessionRuntime {
     fn propose(&mut self, goal: &str, out: &CompileOutcome) -> TurnOutcome {
         match review::propose(&self.snapshot.root, goal, out) {
             Ok(set) => {
-                let bytes = set.preview();
+                let bytes = self.draft_preview(&set);
                 let id = ProposalId::of(&bytes);
                 let preview = review::render(&set, out, &bytes);
                 self.authoring = None;
@@ -572,6 +581,7 @@ impl SessionRuntime {
                 // The schedule the request asked for rides beside the set:
                 // « activate » declares it once the program is saved.
                 self.pending_trigger.clone_from(&out.requested_trigger);
+                self.bind_proposal_money(&id);
                 self.pending = Some(set);
                 TurnOutcome::Proposal { id, preview }
             }
@@ -675,6 +685,12 @@ impl SessionRuntime {
     /// stronger model before « cannot express » — the product law: quality
     /// first); the deterministic seat settles what it reads.
     fn compile_again(&mut self, round: AuthoringRound) -> TurnOutcome {
+        if self.money_blocks_cognition() {
+            return match compile_deterministic(&round.request()) {
+                Ok(out) => self.settle(round, Reading::of(out)),
+                Err(e) => self.machinery(&e),
+            };
+        }
         if matches!(self.seat, AuthoringSeat::Provider { .. }) {
             return self.compile_under_seat(round);
         }
@@ -765,10 +781,7 @@ impl SessionRuntime {
         let ceiling = match ceiling_in(input) {
             Ok(ceiling) => ceiling,
             Err(reason) => {
-                return Some(TurnOutcome::Refusal(Refusal::new(
-                    RefusalClass::NotAllowed,
-                    reason,
-                )));
+                return Some(self.refuse_money(input, reason));
             }
         };
         // The run grammar is closed: the verb, the workflow named or « it »,
@@ -776,6 +789,16 @@ impl SessionRuntime {
         // Fridays ») is not a run: its act is a bounded decision, and a
         // change comes before any run.
         if !run_line_is_plain(&lower) {
+            let workflow = named_files(input)
+                .into_iter()
+                .map(PathBuf::from)
+                .find(|p| self.snapshot.root.join(p).is_file())
+                .or_else(|| self.last_workflow.clone());
+            if let Some(workflow) = workflow
+                && let Err(refusal) = self.run_money(input, &workflow, ceiling)
+            {
+                return Some(refusal);
+            }
             return match self.classify(SessionPhase::Idle, input).act {
                 TurnAct::RequestRun => Some(self.run_plain(input, ceiling)),
                 TurnAct::Modify | TurnAct::Mixed => Some(TurnOutcome::Refusal(Refusal::new(
@@ -814,15 +837,10 @@ impl SessionRuntime {
             }
             return TurnOutcome::Facts(text);
         }
-        let max_cost_usd = ceiling
-            .or(self.snapshot.ceiling)
-            .unwrap_or(DEFAULT_CEILING_USD);
-        if !max_cost_usd.is_finite() || max_cost_usd < 0.0 {
-            return TurnOutcome::Refusal(Refusal::new(
-                RefusalClass::NotAllowed,
-                "the run ceiling must be a finite, nonnegative amount in USD — correct the project ceiling or name an explicit run ceiling",
-            ));
-        }
+        let max_cost_usd = match self.run_money(input, &workflow, ceiling) {
+            Ok(amount) => amount,
+            Err(refusal) => return refusal,
+        };
         self.last_workflow = Some(workflow.clone());
         // The workflow's own declared inputs: a required one with no
         // default is asked, in the product, before the run is requested —
@@ -1287,7 +1305,7 @@ fn run_line_is_plain(lower: &str) -> bool {
     const FILLERS: &[&str] = &[
         "it", "again", "the", "workflow", "once", "now", "this", "that", "le", "la", "ça",
         "encore", "please", "stp", "svp", "with", "a", "ceiling", "of", "cap", "max", "cost",
-        "usd", "budget", "plafond", "de", "un", "une", "avec", "at", "à", "$",
+        "usd", "dollar", "dollars", "budget", "plafond", "de", "un", "une", "avec", "at", "à", "$",
     ];
     lower
         .split(|c: char| c.is_whitespace() || c == ',' || c == ':')
@@ -1304,6 +1322,7 @@ fn run_line_is_plain(lower: &str) -> bool {
                 || w.starts_with("./")
                 || w.starts_with("--max-cost-usd")
                 || w.contains('=')
+                || super::money_parse::parse(w).is_ok_and(|money| money.money_only)
                 || w.trim_start_matches('$').parse::<f64>().is_ok()
         })
 }

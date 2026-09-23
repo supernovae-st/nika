@@ -70,7 +70,9 @@ impl SessionRuntime {
     /// business), else UNKNOWN. Recorded.
     pub(super) fn classify(&mut self, phase: SessionPhase, raw: &str) -> TurnDecision {
         let context = self.turn_context(phase);
-        let decision = if let Some(classifier) = self.classifier.as_mut() {
+        let decision = if self.money_blocks_cognition() {
+            TurnDecision::new(TurnAct::Unknown, RoutingMethod::Fallback)
+        } else if let Some(classifier) = self.classifier.as_mut() {
             classifier.classify(&context, raw)
         } else if self.intelligence.ready && self.chosen {
             // The chosen intelligence routes, through the same factory the
@@ -220,6 +222,9 @@ impl SessionRuntime {
     /// document (the proposal's bytes) beside the human's line — words
     /// only, read by the guard; `None` when no intelligence answers.
     fn reason_about(&mut self, document: &str, raw: &str) -> Option<String> {
+        if self.money_blocks_cognition() {
+            return None;
+        }
         if !(self.intelligence.ready && self.chosen && self.reasoner.name() != "none") {
             return None;
         }

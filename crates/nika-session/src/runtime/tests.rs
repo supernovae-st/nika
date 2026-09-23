@@ -864,6 +864,8 @@ fn a_run_is_requested_only_on_a_clean_check() {
 fn run_money_requires_explicit_finite_unambiguous_intent() {
     let dir = tree();
     let mut s = ready_with(dir.path(), vec![]);
+    // Preparation now binds its default to the reviewed proposal.
+    s.snapshot.ceiling = Some(0.10);
     assert!(matches!(s.turn(COPY), TurnOutcome::Proposal { .. }));
     assert!(matches!(s.consent("yes"), TurnOutcome::Facts(_)));
     s.snapshot.ceiling = Some(0.10);

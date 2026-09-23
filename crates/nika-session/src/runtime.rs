@@ -34,6 +34,8 @@ mod durable;
 #[allow(clippy::expect_used, clippy::panic)]
 mod durable_tests;
 mod history;
+mod money_gate;
+mod money_parse;
 mod recovery;
 mod route;
 mod run_budget;
@@ -232,6 +234,7 @@ pub struct SessionRuntime {
     home: Option<PathBuf>,
     factory: Option<ReasonerFactory>,
     pending: Option<ProjectChangeSet>,
+    money: money_gate::MoneyState,
     pending_gate: Option<PendingGate>,
     decided: Option<ProposalId>,
     answered: Option<GateId>,
@@ -322,6 +325,7 @@ impl SessionRuntime {
             home: None,
             factory: None,
             pending: None,
+            money: money_gate::MoneyState::default(),
             pending_gate: None,
             decided: None,
             answered: None,
@@ -445,19 +449,21 @@ impl SessionRuntime {
     /// `Held`, the consent still waits); beside a question or after an
     /// incomplete it is an aside; never a score, never invented.
     fn meaning_unrecorded(&mut self) -> TurnOutcome {
-        let view = match &self.last_outcome {
-            Some(out) => crate::meaning::render(out)
-                .unwrap_or_else(|| crate::meaning::UNAVAILABLE.to_owned()),
-            None => {
-                return TurnOutcome::Facts(
-                    "nothing to read yet · describe work and Nika compiles it; `/meaning` then lists what it kept of your request"
-                        .to_owned(),
-                );
+        let view = if let Some(out) = &self.last_outcome {
+            crate::meaning::render(out).unwrap_or_else(|| crate::meaning::UNAVAILABLE.to_owned())
+        } else {
+            if self.money.current.is_some() {
+                return TurnOutcome::Aside(self.money_line());
             }
+            return TurnOutcome::Facts(
+                "nothing to read yet · describe work and Nika compiles it; `/meaning` then lists what it kept of your request"
+                    .to_owned(),
+            );
         };
+        let view = format!("{view}\n{}", self.money_line());
         match &self.pending {
             Some(set) => TurnOutcome::Held {
-                id: ProposalId::of(&set.preview()),
+                id: self.proposal_id(set),
                 preview: format!(
                     "{view}\n(the proposal still waits · `yes` applies it · `no` discards it)"
                 ),
@@ -714,11 +720,12 @@ impl SessionRuntime {
             " (not chosen yet · asked when a turn needs one · `/intelligence` chooses now)"
         };
         format!(
-            "session\n  root: {}\n  {}{chosen}{readiness}\n  {}\n  {}\n  /help for the card · /quit to close",
+            "session\n  root: {}\n  {}{chosen}{readiness}\n  {}\n  {}\n  {}\n  /help for the card · /quit to close",
             self.snapshot.root.display(),
             self.intelligence_line(),
             self.seat.line(),
-            self.authoring_context.line()
+            self.authoring_context.line(),
+            self.money_line()
         )
     }
 
@@ -727,6 +734,8 @@ impl SessionRuntime {
         // A new turn discards a pending proposal: consent is the NEXT line
         // and nothing else (the door routes that line to `consent`).
         self.pending = None;
+        self.money.pending = None;
+        let original = input;
         let input = input.trim();
         match input {
             "/quit" | "/exit" => return TurnOutcome::Quit,
@@ -759,6 +768,9 @@ impl SessionRuntime {
         // An open authoring question owns the next line — before any
         // fact, digit or model reads it (`./notes` answers « which folder »).
         if self.authoring.is_some() {
+            if let Err(refusal) = self.admit_money(original, true) {
+                return refusal;
+            }
             return self.answer_question_unrecorded(input);
         }
         // A run waiting on a declared input owns the next line the same way.
@@ -790,6 +802,9 @@ impl SessionRuntime {
             self.remember(input, &fact);
             return TurnOutcome::Facts(fact);
         }
+        if let Err(refusal) = self.admit_money(original, false) {
+            return refusal;
+        }
         if let Some(outcome) = self.run_turn(input) {
             return outcome;
         }
@@ -803,7 +818,7 @@ impl SessionRuntime {
         }
         // Work to build reaches the ONE compiler; only a line that reads as
         // no work at all goes to the conversation.
-        if let Some(outcome) = self.author_unrecorded(input) {
+        if let Some(outcome) = self.author_unrecorded(original) {
             return outcome;
         }
         // No intelligence chosen yet: this is the first turn that needs one.
@@ -817,6 +832,9 @@ impl SessionRuntime {
     /// A free-text line the chosen intelligence answers, in words only,
     /// through the broker's bundle and under the guard's reading.
     fn converse_unrecorded(&mut self, input: &str) -> TurnOutcome {
+        if self.money_blocks_cognition() {
+            return self.cognition_money_refusal();
+        }
         // A kept choice this machine cannot serve: the problem in plain
         // words, the ways on, and the line kept for the choice — never a
         // call on a path that cannot answer, never a silent replacement.
@@ -907,7 +925,7 @@ impl SessionRuntime {
         if is_quit(answer) {
             return TurnOutcome::Quit;
         }
-        let id = ProposalId::of(&set.preview());
+        let id = self.proposal_id(&set);
         // The compiler's reading of the request, on request, the proposal
         // held: what it kept, clause by clause, is never a consent.
         if crate::authoring::is_meaning(answer) {
@@ -916,7 +934,7 @@ impl SessionRuntime {
         }
         // The exact bytes, on request, the proposal held: consent stays a yes.
         if matches!(answer.trim(), "/show" | "show") {
-            let preview = set.preview();
+            let preview = self.proposal_preview(&set);
             self.pending = Some(set);
             return TurnOutcome::Held {
                 id,
@@ -936,7 +954,7 @@ impl SessionRuntime {
             // decision over the typed state and the RAW line (the door's
             // classifier, the session's intelligence, else UNKNOWN) —
             // never a word list, never a consent.
-            return self.route_at_consent(set, id, answer);
+            return self.consent_money_route(set, &id, answer);
         }
         let applied = match set.apply_attempt() {
             Ok(applied) => applied,
@@ -970,6 +988,7 @@ impl SessionRuntime {
         applied: &Applied,
         id: ProposalId,
     ) -> TurnOutcome {
+        self.save_proposal_money(&set, &id);
         let evidence = self.evidence_applied(&set, &id, applied);
         self.decided = Some(id);
         let written: Vec<String> = applied
@@ -1057,9 +1076,7 @@ impl SessionRuntime {
     /// witness of the preview's bytes).
     #[must_use]
     pub fn pending_proposal(&self) -> Option<ProposalId> {
-        self.pending
-            .as_ref()
-            .map(|set| ProposalId::of(&set.preview()))
+        self.pending.as_ref().map(|set| self.proposal_id(set))
     }
 
     /// A consent that names the proposal it answers — a remote host, a
@@ -1234,6 +1251,14 @@ impl SessionRuntime {
         // it, a change belongs to the workflow (« no », then the change);
         // neither answers the gate. Authority never comes from a reading.
         if gate.mode == "confirm" && !is_gate_token(line) {
+            if let Err(refusal) = self.admit_money(line, true) {
+                self.pending_gate = Some(gate);
+                return refusal;
+            }
+            if self.money_blocks_cognition() {
+                self.pending_gate = Some(gate);
+                return self.cognition_money_refusal();
+            }
             let decision = self.classify(crate::turn::SessionPhase::GatePending, line);
             let text = match decision.act {
                 crate::turn::TurnAct::Modify | crate::turn::TurnAct::Mixed => {
@@ -1354,9 +1379,8 @@ impl SessionRuntime {
     }
 }
 
-/// The workflow or project files an input names.
-/// The ceiling a run from the session is announced with when the project
-/// file declares none (the CLI's own default).
+/// Session's execution fallback when neither explicit money nor a project
+/// default was supplied. This does not meter conversation or authoring.
 const DEFAULT_CEILING_USD: f64 = 0.25;
 
 /// The door out, from any prompt.

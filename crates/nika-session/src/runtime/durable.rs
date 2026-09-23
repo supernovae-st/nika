@@ -100,7 +100,7 @@ impl SessionRuntime {
             && !matches!(
                 &outcome,
                 TurnOutcome::Refusal(Refusal {
-                    class: RefusalClass::StaleRevision,
+                    class: RefusalClass::StaleRevision | RefusalClass::NotAllowed,
                     ..
                 })
             );
