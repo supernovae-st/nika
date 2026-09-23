@@ -21,6 +21,9 @@ pub struct CompileRequest {
     /// The authoring pack a knowledge door composed for this intent — see
     /// [`Self::with_authoring_knowledge`].
     pub(super) authoring_knowledge: Option<AuthoringKnowledge>,
+    /// The request the base candidate answered, when the caller has it — see
+    /// [`Self::with_original_intent`]; an edit's laws read it beside the change.
+    pub(super) original_intent: Option<String>,
 }
 
 /// One reference a knowledge snapshot recalled for the seat: its kind (`pattern` · `block` ·
@@ -129,6 +132,14 @@ impl CompileRequest {
         self.authoring_knowledge = Some(pack);
         self
     }
+
+    /// The request the base candidate answered: an edit under a seat reads it beside the
+    /// change, so the laws hold the revised candidate to the whole meaning.
+    #[must_use]
+    pub fn with_original_intent(mut self, intent: impl Into<String>) -> Self {
+        self.original_intent = Some(intent.into());
+        self
+    }
     /// Create from an exact skeleton or bounded support clauses. Other intents
     /// remain incomplete unless an explicit provider authoring call resolves them.
     #[must_use]
@@ -142,6 +153,7 @@ impl CompileRequest {
             plan: None,
             knowledge: None,
             authoring_knowledge: None,
+            original_intent: None,
         }
     }
 
@@ -164,6 +176,7 @@ impl CompileRequest {
             plan: None,
             knowledge: None,
             authoring_knowledge: None,
+            original_intent: None,
         }
     }
 
@@ -197,6 +210,7 @@ impl CompileRequest {
             plan: None,
             knowledge: None,
             authoring_knowledge: None,
+            original_intent: None,
         }
     }
 

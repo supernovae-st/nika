@@ -113,6 +113,52 @@ pub fn plan_of_document(doc: &Value) -> Plan {
     plan
 }
 
+/// What a revision changed between two documents: the tasks added, removed and changed (by
+/// id, a task compared whole), the effects and operations added and removed (by their words).
+#[must_use]
+pub fn delta(base: &Value, revised: &Value) -> Value {
+    let empty = serde_json::Map::new();
+    let before = base
+        .get("tasks")
+        .and_then(Value::as_object)
+        .unwrap_or(&empty);
+    let after = revised
+        .get("tasks")
+        .and_then(Value::as_object)
+        .unwrap_or(&empty);
+    let added: Vec<&String> = after.keys().filter(|k| !before.contains_key(*k)).collect();
+    let removed: Vec<&String> = before.keys().filter(|k| !after.contains_key(*k)).collect();
+    let changed: Vec<&String> = after
+        .iter()
+        .filter(|(k, v)| before.get(*k).is_some_and(|b| b != *v))
+        .map(|(k, _)| k)
+        .collect();
+    let words = |plan: &Plan| -> (Vec<String>, Vec<String>) {
+        (
+            plan.steps.iter().map(|s| s.op.word().to_owned()).collect(),
+            plan.effects
+                .iter()
+                .map(|e| format!("{} {} ({})", e.verb.word(), e.target, e.policy.word()))
+                .collect(),
+        )
+    };
+    let (ops_before, effects_before) = words(&plan_of_document(base));
+    let (ops_after, effects_after) = words(&plan_of_document(revised));
+    let diff = |a: &[String], b: &[String]| -> Vec<String> {
+        a.iter().filter(|x| !b.contains(x)).cloned().collect()
+    };
+    serde_json::json!({
+        "tasks_added": added,
+        "tasks_removed": removed,
+        "tasks_changed": changed,
+        "operations_added": diff(&ops_after, &ops_before),
+        "operations_removed": diff(&ops_before, &ops_after),
+        "effects_added": diff(&effects_after, &effects_before),
+        "effects_removed": diff(&effects_before, &effects_after),
+        "unchanged_tasks": after.keys().filter(|k| before.get(*k) == after.get(*k)).count(),
+    })
+}
+
 fn step(op: Op, evidence: &str, detail: String) -> Step {
     Step {
         op,
@@ -270,6 +316,33 @@ mod tests {
                 "./tickets.json",
                 "http://127.0.0.1:8793/hook"
             ]
+        );
+    }
+
+    #[test]
+    fn a_delta_names_the_tasks_and_effects_a_revision_touched() {
+        let base = json!({"tasks": {
+            "read": {"invoke": {"tool": "nika:read", "args": {"path": "./tickets.json"}}},
+            "send": {"invoke": {"tool": "nika:notify", "args": {"channel": "webhook", "target": "http://127.0.0.1:8793/hook", "message": "x"}}}
+        }});
+        let revised = json!({"tasks": {
+            "read": {"invoke": {"tool": "nika:read", "args": {"path": "./tickets.json"}}},
+            "archive": {"invoke": {"tool": "nika:write", "args": {"path": "./out/recap.md", "content": "x"}}}
+        }});
+        let d = super::delta(&base, &revised);
+        assert_eq!(d["tasks_added"], json!(["archive"]), "{d:#}");
+        assert_eq!(d["tasks_removed"], json!(["send"]), "{d:#}");
+        assert_eq!(d["tasks_changed"], json!([]), "{d:#}");
+        assert_eq!(d["unchanged_tasks"], 1);
+        assert_eq!(
+            d["effects_added"],
+            json!(["write ./out/recap.md (automatic)"]),
+            "{d:#}"
+        );
+        assert_eq!(
+            d["effects_removed"],
+            json!(["notify http://127.0.0.1:8793/hook (automatic)"]),
+            "{d:#}"
         );
     }
 

@@ -32,7 +32,7 @@ pub struct CompileArgs {
     #[arg(long, short = 'o', conflicts_with = "dest", group = "destination")]
     pub output: Option<String>,
     /// Explicit accepted source for a conservative edit.
-    #[arg(long, requires = "change", conflicts_with = "intent")]
+    #[arg(long, requires = "change")]
     pub base: Option<String>,
     /// Supported edit: `Set const.NAME to JSON_LITERAL`.
     #[arg(long, requires = "base")]
@@ -41,7 +41,7 @@ pub struct CompileArgs {
     #[arg(long = "answer")]
     pub answers: Vec<String>,
     /// Explicitly permit one provider call to interpret free intent (wire generation 2).
-    #[arg(long, conflicts_with_all = ["base", "list"])]
+    #[arg(long, conflicts_with = "list")]
     pub authoring_model: Option<String>,
     /// Maximum authoring output tokens; requires explicit authoring model.
     #[arg(long, requires = "authoring_model")]
@@ -112,7 +112,18 @@ pub fn run(args: &CompileArgs) -> VerbOutput {
                 return render::failure("read_base", &error.to_string(), exit::ENV, args.json);
             }
         };
-        CompileRequest::edit(source, args.change.as_deref().unwrap_or(""))
+        let request = CompileRequest::edit(source, args.change.as_deref().unwrap_or(""));
+        match args
+            .intent
+            .as_deref()
+            .map(str::trim)
+            .filter(|i| !i.is_empty())
+        {
+            // The intent beside a base is the request the base answered: the seat revises
+            // against the whole meaning, never against the change alone.
+            Some(original) => request.with_original_intent(original),
+            None => request,
+        }
     } else {
         let mut request = CompileRequest::create(args.intent.as_deref().unwrap_or(""));
         if let Some(dest) = dest {
@@ -142,9 +153,7 @@ pub fn run(args: &CompileArgs) -> VerbOutput {
     ) || nika_pack::template_names()
         .iter()
         .any(|name| Some(name.as_str()) == args.intent.as_deref().map(str::trim));
-    let cognition = (args.authoring_model.is_some() || args.decision_model.is_some())
-        && args.base.is_none()
-        && !named;
+    let cognition = (args.authoring_model.is_some() || args.decision_model.is_some()) && !named;
     if cognition {
         request = observed_world(args, request);
     }

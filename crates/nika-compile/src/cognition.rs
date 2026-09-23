@@ -21,7 +21,7 @@ use super::{
     decide::{ChoiceOption, ChoiceQuestion, DecisionSeat, NONE_OPTION},
     lexicon::{self, Reading},
     plan::{EffectVerb, Op, Plan, Step},
-    types::Input,
+    types::{EditChange, Input},
 };
 use nika_kernel::ai::provider::{
     ContentBlock, InferRequest, InferResponse, Message, ProviderInferDyn, ResponseFormat, Role,
@@ -89,6 +89,64 @@ pub async fn compile_with_provider<P: ProviderInferDyn>(
     .await
 }
 
+/// An EDIT under a seat: the constant door first (zero calls); when the change is more than a
+/// constant and a native policy names a seat, the native door revises the base — the seat
+/// reads the base candidate and the change in words beside the request the base answered, the
+/// laws allow the base's own literals, and the outcome states the meaning delta. No seat, or a
+/// change the constant door settles: the deterministic outcome as before.
+async fn revise<P: ProviderInferDyn>(
+    request: &CompileRequest,
+    cognition: Cognition<'_, P>,
+) -> Result<CompileOutcome, CompileError> {
+    let deterministic = super::compile(request)?;
+    let Input::Edit {
+        change: EditChange::Text(words),
+        ..
+    } = &request.input
+    else {
+        return Ok(deterministic);
+    };
+    let unresolved = deterministic
+        .diagnostics
+        .iter()
+        .any(|d| d.target == "change_request");
+    let (Some(policy), Some(provider)) = (&request.authoring, cognition.provider) else {
+        return Ok(deterministic);
+    };
+    if !unresolved || policy.native == NativeMode::Off {
+        return Ok(deterministic);
+    }
+    let intent = match &request.original_intent {
+        Some(original) => format!("{original}\nChange: {words}"),
+        None => words.clone(),
+    };
+    let folded = lexicon::fold_apostrophes(&intent);
+    let mut out = super::initial();
+    if !policy_bounded(policy, &folded) {
+        super::finding(
+            &mut out,
+            DiagnosticKind::Missed,
+            "authoring_policy",
+            POLICY_BOUNDS,
+        );
+        return Ok(out);
+    }
+    let reading = lexicon::read(&folded);
+    native::author(
+        &folded,
+        &reading,
+        policy,
+        provider,
+        request,
+        vec![
+            "edit: the constant door could not settle the change; the seat revises the base"
+                .to_owned(),
+        ],
+        out,
+    )
+    .await
+}
+
 /// Compile with explicit cognition: a decision seat (WARM) and/or a generative provider (COLD).
 /// Exact skeletons, EDIT, bounded support clauses and strictly explicit intents keep the
 /// deterministic path and never call either seat.
@@ -101,7 +159,7 @@ pub async fn compile_with_cognition<P: ProviderInferDyn>(
     cognition: Cognition<'_, P>,
 ) -> Result<CompileOutcome, CompileError> {
     let Input::Create(intent) = &request.input else {
-        return super::compile(request);
+        return revise(request, cognition).await;
     };
     if matches!(intent.trim(), "hello" | "01-hello")
         || nika_pack::template_names()
