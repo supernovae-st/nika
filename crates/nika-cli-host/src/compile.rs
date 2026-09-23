@@ -74,6 +74,12 @@ pub struct CompileArgs {
     /// `NIKA_KNOWLEDGE_EXCLUDE` in the environment names one when the flag is absent.
     #[arg(long, requires = "knowledge")]
     pub knowledge_exclude: Option<String>,
+    /// A pack another builder composed for THIS intent (JSON: `identity` · `selection` ·
+    /// `references: [{kind, id, text}]` · `repairs: {code: [strategy]}`): it enters the door as
+    /// composed, identity and selection recorded verbatim, and wins over `--knowledge`.
+    /// `NIKA_KNOWLEDGE_PACK` in the environment names one when the flag is absent.
+    #[arg(long, requires = "authoring_model", conflicts_with = "knowledge")]
+    pub knowledge_pack: Option<std::path::PathBuf>,
     /// Explicitly seat one bounded-decision capability (`typesafe/jev-1.13.0` or `provider/name`) for finite ambiguities.
     #[arg(long, conflicts_with_all = ["base", "list"])]
     pub decision_model: Option<String>,
@@ -229,11 +235,22 @@ fn observed_world(args: &CompileArgs, request: CompileRequest) -> CompileRequest
     }
 }
 
-/// The knowledge door: the snapshot the flag or `NIKA_KNOWLEDGE` names (a directory, not a
+/// The knowledge door: a pre-composed pack the flag or `NIKA_KNOWLEDGE_PACK` names wins; else
+/// the snapshot the flag or `NIKA_KNOWLEDGE` names (a directory, not a
 /// secret) and the corpus the flag or `NIKA_KNOWLEDGE_EXCLUDE` names; the pack composed for the
 /// intent rides the request, the provenance names the snapshot and the selection.
 #[allow(clippy::disallowed_methods)] // a snapshot directory and a corpus name, NON-secret
 fn knowledge_door(args: &CompileArgs, request: CompileRequest) -> CompileRequest {
+    let pack = args
+        .knowledge_pack
+        .clone()
+        .or_else(|| std::env::var_os("NIKA_KNOWLEDGE_PACK").map(std::path::PathBuf::from));
+    if let Some(path) = pack.as_deref() {
+        return match knowledge::pack_from_file(path) {
+            Some(pack) => request.with_authoring_knowledge(pack),
+            None => request,
+        };
+    }
     let dir = args
         .knowledge
         .clone()

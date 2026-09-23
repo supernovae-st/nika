@@ -476,10 +476,109 @@ fn cut(text: &str, max: usize) -> String {
     format!("{}\n# … cut at {max} bytes", &text[..end])
 }
 
+/// A pack another builder composed for one intent, read from a JSON file: `identity` and
+/// `selection` verbatim, `references` as `{kind, id, text}` rows, `repairs` as diagnostic code
+/// → strategies. None when the file is not a pack (the door then composes nothing: the seat
+/// reads the card alone, and the receipt says so by carrying no knowledge).
+pub(super) fn pack_from_file(path: &Path) -> Option<AuthoringKnowledge> {
+    let text = std::fs::read_to_string(path).ok()?;
+    let value: Value = serde_json::from_str(&text).ok()?;
+    let object = value.as_object()?;
+    let references = object
+        .get("references")
+        .and_then(Value::as_array)
+        .map(|rows| {
+            rows.iter()
+                .filter_map(|row| {
+                    Some(KnowledgeReference {
+                        kind: row.get("kind")?.as_str()?.to_owned(),
+                        id: row.get("id")?.as_str()?.to_owned(),
+                        text: row.get("text")?.as_str()?.to_owned(),
+                    })
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    let repairs = object
+        .get("repairs")
+        .and_then(Value::as_object)
+        .map(|map| {
+            map.iter()
+                .map(|(code, strategies)| {
+                    let strategies = strategies
+                        .as_array()
+                        .map(|items| {
+                            items
+                                .iter()
+                                .filter_map(Value::as_str)
+                                .map(str::to_owned)
+                                .collect()
+                        })
+                        .unwrap_or_default();
+                    (code.clone(), strategies)
+                })
+                .collect::<BTreeMap<_, _>>()
+        })
+        .unwrap_or_default();
+    if references.is_empty() && repairs.is_empty() {
+        return None;
+    }
+    let mut identity = object.get("identity").cloned().unwrap_or_else(|| json!({}));
+    identity["door"] = json!({"kind": "file", "path": path.display().to_string()});
+    Some(AuthoringKnowledge {
+        identity,
+        selection: object
+            .get("selection")
+            .cloned()
+            .unwrap_or_else(|| json!({})),
+        references,
+        repairs,
+    })
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_pack_file_enters_the_door_as_composed_and_a_non_pack_does_not() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("pack.json");
+        std::fs::write(
+            &path,
+            json!({
+                "identity": {"version": "knowledge-v12", "digest": "abc", "pack_builder": "foundry/v13"},
+                "selection": {"families": ["family:triage"]},
+                "references": [
+                    {"kind": "pattern", "id": "pattern:classify-and-route", "text": "classify, then route"},
+                    {"kind": "block", "id": "block:x", "text": 7}
+                ],
+                "repairs": {"NIKA-SEC-004": ["ask the endpoint as const.<system>_endpoint"], "NIKA-X": "not a list"}
+            })
+            .to_string(),
+        )
+        .unwrap();
+        let pack = pack_from_file(&path).unwrap();
+        assert_eq!(pack.identity["pack_builder"], "foundry/v13");
+        assert_eq!(pack.identity["door"]["kind"], "file");
+        assert_eq!(pack.selection["families"][0], "family:triage");
+        assert_eq!(
+            pack.references.len(),
+            1,
+            "a row without a text is not a reference"
+        );
+        assert_eq!(pack.references[0].id, "pattern:classify-and-route");
+        assert_eq!(
+            pack.repairs["NIKA-SEC-004"][0],
+            "ask the endpoint as const.<system>_endpoint"
+        );
+        assert!(pack.repairs["NIKA-X"].is_empty());
+        std::fs::write(&path, "{\"identity\": {}}").unwrap();
+        assert!(pack_from_file(&path).is_none());
+        std::fs::write(&path, "not json").unwrap();
+        assert!(pack_from_file(&path).is_none());
+    }
 
     fn write(path: &Path, text: &str) {
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
