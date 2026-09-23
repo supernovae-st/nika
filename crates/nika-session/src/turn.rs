@@ -340,7 +340,8 @@ mod tests {
     /// The Arena routing benchmark seam, LIVE (ignored by default): the
     /// corpus at `NIKA_ROUTING_CORPUS` (JSONL: id · state · line · expected
     /// · optional `automation` / `last_prompt` / `or`, a second act the row
-    /// accepts) is routed by the real
+    /// accepts; `NIKA_ROUTING_QUIET` prints no row text, for a sealed set) is
+    /// routed by the real
     /// `ReasonerClassifier` over `NIKA_ROUTING_MODEL` (`<provider>/<model>`,
     /// the key from the environment); one receipt line per row is printed
     /// and, when `NIKA_ROUTING_RECEIPT` names a file, written as JSONL. The
@@ -357,6 +358,8 @@ mod tests {
     fn routing_corpus_under_a_real_seat() {
         let corpus = std::env::var("NIKA_ROUTING_CORPUS").expect("NIKA_ROUTING_CORPUS");
         let model = std::env::var("NIKA_ROUTING_MODEL").expect("NIKA_ROUTING_MODEL");
+        // A SEALED set is measured without printing its rows (the exposure law).
+        let quiet = std::env::var_os("NIKA_ROUTING_QUIET").is_some();
         let text = std::fs::read_to_string(&corpus).expect("the corpus file");
         let mut classifier = ReasonerClassifier::new(Box::new(crate::reasoner::ProviderReasoner {
             model: model.clone(),
@@ -412,10 +415,17 @@ mod tests {
             if row["milestone"].as_bool() == Some(true) && !ok {
                 milestone_wrong.push(format!("{id} «{raw}» expected {expected} got {got}"));
             }
-            println!(
-                "{} {id:<5} {state:<17} {expected:<11} → {got:<11} «{raw}»",
-                if ok { "✓" } else { "✖" }
-            );
+            if quiet {
+                println!(
+                    "{} {id:<5} {state:<17} {expected:<11} → {got:<11}",
+                    if ok { "✓" } else { "✖" }
+                );
+            } else {
+                println!(
+                    "{} {id:<5} {state:<17} {expected:<11} → {got:<11} «{raw}»",
+                    if ok { "✓" } else { "✖" }
+                );
+            }
             receipts.push(serde_json::json!({
                 "id": id, "state": state, "expected": expected, "got": got, "ok": ok,
                 "method": format!("{:?}", decision.method), "model": model,
