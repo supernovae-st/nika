@@ -54,7 +54,7 @@ pub(super) fn identity() -> Value {
     })
 }
 
-fn spec_pin() -> &'static str {
+pub(crate) fn spec_pin() -> &'static str {
     include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../SPEC_PIN"))
         .lines()
         .map(str::trim)

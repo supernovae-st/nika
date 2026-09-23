@@ -1113,7 +1113,14 @@ fn apply(record: &Value, request: &CompileRequest, out: &mut CompileOutcome) {
             ask(question, out);
         }
     }
-    if source.contains("model: mock/echo") && !seat_model(&mut source, request, out) {
+    // An unused envelope model is not a runtime requirement. Ask only when Check
+    // proves language work remains, including parametric fan-out calls.
+    let language_work = crate::parse(&source)
+        .is_ok_and(|wf| !nika_check::check(&wf).certificate.llm_calls.is_zero());
+    if language_work
+        && source.contains("model: mock/echo")
+        && !seat_model(&mut source, request, out)
+    {
         open = true;
     }
     dispose_gaps(record, request, out);

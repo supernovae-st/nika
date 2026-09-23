@@ -187,12 +187,7 @@ fn initial() -> CompileOutcome {
         provenance: CompileProvenance {
             authoring: None,
             compiler_version: env!("CARGO_PKG_VERSION").to_owned(),
-            spec_pin: include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../SPEC_PIN"))
-                .lines()
-                .map(str::trim)
-                .find(|line| !line.is_empty() && !line.starts_with('#'))
-                .unwrap_or("")
-                .to_owned(),
+            spec_pin: cognition::knowledge::spec_pin().to_owned(),
             skeleton: None,
             cognition: AuthoringCognition::DeterministicOnly,
             strategy: None,

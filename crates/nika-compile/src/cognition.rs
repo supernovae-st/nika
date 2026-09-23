@@ -32,7 +32,7 @@ use serde_json::{Value, json};
 mod instructions;
 use instructions::INSTRUCTIONS;
 mod backstops;
-mod knowledge;
+pub(super) mod knowledge;
 mod native;
 mod proposal;
 mod sketch;

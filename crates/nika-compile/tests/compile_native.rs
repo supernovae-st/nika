@@ -974,3 +974,48 @@ async fn line_transport_does_not_decode_html_or_line_symbols() {
     assert_eq!(native_record(&out)["accepted"], true, "{out:#?}");
     assert_eq!(out.provenance.plan.as_ref().unwrap()["source"], source);
 }
+
+#[tokio::test]
+async fn a_deterministic_native_candidate_does_not_ask_for_an_unused_model() {
+    let source = r#"nika: deterministic-copy
+model: mock/echo
+permits:
+  tools: ["nika:read", "nika:write"]
+  fs:
+    read: ["./input.txt"]
+    write: ["./output.txt"]
+tasks:
+  read:
+    invoke:
+      tool: "nika:read"
+      args: { path: "./input.txt" }
+  write:
+    with: { content: "${{ tasks.read.output }}" }
+    invoke:
+      tool: "nika:write"
+      args: { path: "./output.txt", content: "${{ with.content }}", overwrite: true }
+"#;
+    let intent = "Read ./input.txt and copy its exact contents to ./output.txt using only deterministic builtin tools.";
+    let provider = Rotating::new(vec![answer(source, &json!([]))]);
+    let request = CompileRequest::create(intent).with_authoring_policy(policy(NativeMode::Only, 0));
+    let outcome = compile_with_provider(&request, &provider).await.unwrap();
+    assert_eq!(outcome.status, CompileStatus::Ready, "{outcome:#?}");
+    assert!(outcome.questions.is_empty());
+    assert_eq!(outcome.candidate.as_deref(), Some(source));
+    assert!(
+        outcome
+            .check_preview
+            .as_ref()
+            .unwrap()
+            .report
+            .certificate
+            .llm_calls
+            .is_zero()
+    );
+    let replay =
+        compile(&CompileRequest::create(intent).with_plan(outcome.provenance.plan.unwrap()))
+            .unwrap();
+    assert_eq!(replay.status, CompileStatus::Ready, "{replay:#?}");
+    assert_eq!(replay.candidate.as_deref(), Some(source));
+    assert!(replay.provenance.authoring.is_none());
+}
