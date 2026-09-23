@@ -6563,6 +6563,8 @@ output_per_million = 0.28
 max_output_tokens = 16384
 context_window_tokens = 131072
 open_weights = true
+determinism = "best-effort"
+energy = { wh_per_mtok_out = 86.6, provenance = "independent-measured", scope = "gpu", source = "ml.energy leaderboard Dec 2025 \u00b7 B200 \u00b7 vLLM \u00b7 problem-solving \u00b7 0.3116 J/token (arXiv 2505.06371)", measured_at = "2025-12" }
 
 [[rules]]
 provider = "openrouter"

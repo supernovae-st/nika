@@ -530,7 +530,7 @@ mod tests {
     /// the SAME classification the check ladder renders.
     #[test]
     fn header_carries_cost_and_energy_aggregates() {
-        let body = "nika: agg\n\nmodel: groq/qwen/qwen3-32b\n\ntasks:\n  only:\n    infer: { prompt: \"x\", max_tokens: 1000 }\noutputs:\n  result: ${{ tasks.only.output }}\n";
+        let body = "nika: agg\n\nmodel: openrouter/qwen/qwen3-32b\n\ntasks:\n  only:\n    infer: { prompt: \"x\", max_tokens: 1000 }\noutputs:\n  result: ${{ tasks.only.output }}\n";
         let path = tmp(body);
         let out = run(
             path.to_str().expect("utf-8 tmp path"),
