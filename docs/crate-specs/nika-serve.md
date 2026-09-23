@@ -111,7 +111,7 @@ No public job mutation accepts a filesystem path. Startup paths live only in
 | `POST` | `/v1/jobs/{id}/cancel` | exactly one Bearer | idempotent terminal job result; active runs receive the engine cancellation token before durable `cancelled` settlement |
 | `GET` | `/v1/jobs/{id}/trace/verify` | exactly one Bearer | typed `unavailable` verdict; no path or invented verification while the remote trace-journal authority is absent |
 | `POST` | `/v1/compile` | exactly one Bearer | the Compile core's machine document (`compile_version` 1; 2 when a native call happened) as authoring DATA: 200 for `ready`, `incomplete` and `refused` · 422 typed protocol refusals · also 408/413/415/500/503 · 409 on a native server (below) |
-| `GET` | `/v1/openapi.json` | exactly one Bearer | OpenAPI 3.1 document of the live routes |
+| `GET` | `/v1/openapi.json` | exactly one Bearer | OpenAPI 3.1 document of the live routes (a native server's adds the compile generation-2 contract) |
 
 `/health` advertises `jobInputs` when the named job envelope accepts and
 validates literal JSON input bindings. Clients must require this capability
@@ -169,7 +169,7 @@ keeps its parser, core call, slot and request deadline, byte for byte.
 | operator seat | ONE direct provider model (a harness seat, an unknown provider or a missing key refuses startup) · strategy fixed `only`, one sample, no decision seat · bounds: output tokens per call 1..=32768 (default 8192), call timeout ≤ 600 s (120), request deadline ≤ 3600 s (300), repairs 0..=5 (3) · optional Foundry snapshot opened, verified and pinned (manifest and rows sha256) at attach through the shared `nika_cli_host::compile::{config, knowledge}` · replay store 1..=1024 rounds (32) for ≤ 24 h (30 min) · all validated in `BoundServer::attach` before bind (`ServerError::NativeAuthoring`) |
 | fresh request | `{compile_version: 2, cognition: "explicitProvider", mode: "create", intent, workflow_id?, answers?, limits?}` or `mode: "edit"` with `source` and `change` (a `change.text` requires `original_intent`; `set_constant` refuses it; `workflow_id` is create-only) · `limits: {repairs?, max_tokens?, call_timeout_ms?, deadline_ms?}` may only narrow the operator's bounds (above → `422 compile_limit`, never clamped) · `answers["intent.clarification"]` → `422 compile_new_intent_required` |
 | replay request | the same input repeated byte for byte with `cognition: "deterministicOnly"` and `replay_token` (64 lowercase hex); no `limits` · zero provider calls |
-| shape policy | the generation-1 policy plus: a literal that repeats an object key at any depth (or nests past the parser's 128 levels) → `422 malformed_compile_request`; caller-named model, endpoint, credential, path, snapshot, strategy or plan fields are unknown fields |
+| shape policy | the generation-1 policy plus: a literal that repeats an object key at any depth (or nests 128 or more arrays/objects deep, the JSON parser's recursion ceiling) → `422 malformed_compile_request`; caller-named model, endpoint, credential, path, snapshot, strategy or plan fields are unknown fields |
 | answer | 200 with the core's unchanged `outcome_document` (`compile_version` 2 iff a call happened; a skeleton, a structured constant or a replay answers 1) · `Cache-Control: no-store` · a fresh round that leaves a native plan carries `Nika-Compile-Replay: <token>` |
 | knowledge | every generation-2 round reopens the pinned snapshot and compares its manifest and rows (`409 compile_context_changed` before any call); a fresh round composes the pack for its intent (a revision's `original_intent` + change) and records the identity with the snapshot directory and files root removed; `pack_sha256` and the instruction sha256 in the receipt name what the seat read |
 | provider | a per-request client over the runtime's provider transport (`provider_http` · `ProviderRegistry`) behind a gate: at most `1 + repairs` LOGICAL calls (one `infer` each, the receipt's `calls`), none once the round must stop, and every `ProviderError` reaches the core as a fixed reason (HTTP status, rate limit, credentials refused, model not served, connection cut) — never the provider's text · one logical call may be several HTTP attempts: the transport resends the same request after a 429, 503 or 529 (at most 3 more, inside the call's timeout), so the HTTP envelope is at most `4 × (1 + repairs)` requests · the receipt's backend is `{kind: direct_api, provider, cost_basis}` |
@@ -185,9 +185,26 @@ repeats a logical call (the provider transport's own 429/503/529 resend is the
 one exception, counted as HTTP attempts, never as calls). Remote billing cannot
 be stopped by a local deadline or a shutdown. Harness seats,
 decision seats, other strategies, knowledge pack files and the observed-world
-reader are not served remotely. The committed `openapi.json` still describes
-generation 1 only: the generation-2 schema, the header and the 409 codes are
-owed in a coordinated OpenAPI/SDK update.
+reader are not served remotely.
+
+Published contract (S23). The compile door's generation-1 fragments live as
+data beside the handler (`src/server/compile/openapi.json`); the default
+server's document — the committed crate-root `openapi.json` — is unchanged and
+describes generation 1 only. A native server's live `GET /v1/openapi.json`
+merges the generation-2 contract into it (RFC 7386, from
+`src/server/compile/openapi-native.json`): the request is `oneOf`
+`CompileRequest` · `CompileRequestV2` (compile_version 2; cognition
+`explicitProvider` or `deterministicOnly` + `replay_token`; `limits` bounded
+by the absolute ceilings a seat is validated against; the create/edit and
+fresh/replay pairings as `if`/`then` rules; `additionalProperties: false`),
+the 200 answer is `oneOf` `CompileOutcome` · `CompileOutcomeV2` (its
+`provenance.authoring` receipt counts LOGICAL calls), with the
+`Nika-Compile-Replay` and `Cache-Control: no-store` headers and the
+408/409/422/500/503 codes the door answers. It names no model, endpoint,
+credential, snapshot or bound of the seat: those stay the operator's. Tests
+pin every published bound, word and ceiling to the enforced constant and
+validate the live controlled payloads against the served documents. The SDK
+update remains owed.
 
 Artifact routes return 404. No route returns the bytes of a served workflow,
 idempotency keys, request digests, event payloads, provider/tool data, paths,

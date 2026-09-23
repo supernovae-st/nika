@@ -225,9 +225,10 @@ async fn route_authenticated(
         (&Method::POST, "/v1/check") => check_snapshot(request, state).await,
         (&Method::POST, "/v1/compile") => super::compile::handle(request, state).await,
         (&Method::POST, path) if path.ends_with("/cancel") => cancel_job(path, &state).await,
-        (&Method::GET, "/v1/openapi.json") => {
-            json_response(StatusCode::OK, &super::openapi::document())
-        }
+        (&Method::GET, "/v1/openapi.json") => json_response(
+            StatusCode::OK,
+            &super::openapi::live(state.native.is_some()),
+        ),
         (&Method::GET, "/v1/workflows") => list_registry(&state).await,
         (&Method::GET, path) if path.starts_with("/v1/workflows/") => {
             workflow_metadata(path, &state).await

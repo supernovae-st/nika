@@ -47,6 +47,7 @@ uuid       = { workspace = true }
 zeroize    = { workspace = true }
 
 [dev-dependencies]
+jsonschema = { workspace = true }  # the published OpenAPI schemas validate the live compile payloads they describe (draft 2020-12 · internal refs only)
 minisign = { workspace = true }  # the in-memory run key the seal-point test signs with (custody stays out of the test)
 nika-arm = { path = "../nika-arm", version = "0.120.3", features = ["test-support"] }  # the ledger fixtures the one-firer tests write
 tempfile = { workspace = true }

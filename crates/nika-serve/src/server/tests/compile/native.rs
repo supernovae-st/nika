@@ -19,6 +19,7 @@ use super::*;
 use crate::NativeAuthoring;
 
 mod lifecycle;
+mod openapi;
 mod refusals;
 mod withheld;
 

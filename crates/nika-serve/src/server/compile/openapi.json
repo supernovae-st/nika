@@ -1,0 +1,371 @@
+{
+  "CompileOutcome": {
+    "description": "The engine-owned machine document of one authoring result — the document `nika compile --json` prints, without the CLI-only `written`. No field grants authority, writes or executes source.",
+    "properties": {
+      "candidate": {
+        "description": "Ordinary `.nika` source; may still be incomplete",
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "check_preview": {
+        "description": "The engine's pure Check report over the source only. No child file, skill, credential probe, access plan or admission was evaluated",
+        "properties": {
+          "report": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "scope": {
+            "const": "sourceOnly",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scope",
+          "report"
+        ],
+        "type": [
+          "object",
+          "null"
+        ]
+      },
+      "compile_version": {
+        "const": 1,
+        "type": "integer"
+      },
+      "diagnostics": {
+        "items": {
+          "properties": {
+            "kind": {
+              "enum": [
+                "applied",
+                "missed",
+                "unknown",
+                "requiresHuman",
+                "refused"
+              ],
+              "type": "string"
+            },
+            "message": {
+              "description": "For a reader; never parsed to recover compiler state",
+              "type": "string"
+            },
+            "target": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "target",
+            "message"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "provenance": {
+        "description": "Reproduction metadata; neither program identity nor run evidence",
+        "properties": {
+          "cognition": {
+            "const": "deterministicOnly",
+            "type": "string"
+          },
+          "compiler_version": {
+            "type": "string"
+          },
+          "skeleton": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "spec_pin": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "compiler_version",
+          "spec_pin",
+          "skeleton",
+          "cognition"
+        ],
+        "type": "object"
+      },
+      "questions": {
+        "items": {
+          "properties": {
+            "key": {
+              "description": "Stable semantic hole path such as `const.request`, never a session id",
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            },
+            "mandatory": {
+              "description": "false: the value belongs to a binding outside the program (a schedule's timezone, missed-run and overlap policies, per-run ceiling) and never blocks a ready candidate",
+              "type": "boolean"
+            },
+            "options": {
+              "description": "Present on a choice question only: the admissible answers, keys spelled by the owning grammar",
+              "items": {
+                "properties": {
+                  "key": {
+                    "type": "string"
+                  },
+                  "label": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "key",
+                  "label"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "type": {
+              "description": "text: a JSON string · literal: one JSON value · choice: a JSON string that is the `key` of one of `options`",
+              "enum": [
+                "text",
+                "literal",
+                "choice"
+              ],
+              "type": "string"
+            },
+            "why": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "key",
+            "label",
+            "type",
+            "why",
+            "mandatory"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "requested_boundary": {
+        "additionalProperties": true,
+        "description": "The candidate's requested permits, derived by Check. Requested, never granted",
+        "type": [
+          "object",
+          "null"
+        ]
+      },
+      "requested_trigger": {
+        "additionalProperties": true,
+        "description": "The trigger the request names (kind · source_hint · event_hint · cadence · at · payload_input · status · timezone · missed · overlap · ceiling), stated beside the candidate whose bytes carry no cadence, host or event. A requirement the operator binds through the schedule contract, never a grant or a schedule row; the last four are the answered binding values (null until answered)",
+        "type": [
+          "object",
+          "null"
+        ]
+      },
+      "status": {
+        "description": "Completeness of authoring, never permission to execute",
+        "enum": [
+          "ready",
+          "incomplete",
+          "refused"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "compile_version",
+      "status",
+      "candidate",
+      "questions",
+      "diagnostics",
+      "requested_boundary",
+      "requested_trigger",
+      "check_preview",
+      "provenance"
+    ],
+    "type": "object"
+  },
+  "CompileRequest": {
+    "additionalProperties": false,
+    "description": "Generation 1 of the compile request. The encoded body is limited to 1048576 bytes (or the listener's lower ceiling). Byte bounds below are UTF-8 bytes. Unknown fields, a present null, duplicate keys (including inside `answers`) and positional arrays are refused. No field names a host path: an EDIT base travels inline in `source`.",
+    "properties": {
+      "answers": {
+        "additionalProperties": true,
+        "description": "Question key → one JSON literal with its type preserved, judged exactly as sent (at most 65536 bytes each)",
+        "maxProperties": 64,
+        "propertyNames": {
+          "maxLength": 256
+        },
+        "type": "object"
+      },
+      "change": {
+        "additionalProperties": false,
+        "maxProperties": 1,
+        "minProperties": 1,
+        "properties": {
+          "set_constant": {
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "description": "Bare constant name, not a path",
+                "maxLength": 128,
+                "type": "string"
+              },
+              "value": {
+                "description": "One JSON literal, judged exactly as sent (at most 65536 bytes)"
+              }
+            },
+            "required": [
+              "name",
+              "value"
+            ],
+            "type": "object"
+          },
+          "text": {
+            "description": "`Set const.NAME to JSON_LITERAL`, or `Set const.NAME` answered through `answers`",
+            "maxLength": 4096,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "cognition": {
+        "const": "deterministicOnly",
+        "description": "The only authoring cognition of this build. Any other value is refused; no authoring model is contacted",
+        "type": "string"
+      },
+      "compile_version": {
+        "const": 1,
+        "type": "integer"
+      },
+      "intent": {
+        "maxLength": 4096,
+        "type": "string"
+      },
+      "mode": {
+        "description": "create requires `intent` and forbids `source`/`change`; edit requires `source` and `change` and forbids `intent`",
+        "enum": [
+          "create",
+          "edit"
+        ],
+        "type": "string"
+      },
+      "source": {
+        "description": "Accepted `.nika` source, inline. The caller owns source selection, revision checks and materialization",
+        "maxLength": 524288,
+        "type": "string"
+      },
+      "workflow_id": {
+        "description": "Names a created workflow. On edit the core refuses it as data: an edit cannot rename its accepted base",
+        "maxLength": 128,
+        "type": "string"
+      }
+    },
+    "required": [
+      "compile_version",
+      "mode"
+    ],
+    "type": "object"
+  },
+  "path": {
+    "post": {
+      "description": "The HTTP transport of the same Compile core as `nika compile`. Foundation scope: CREATE resolves an exact embedded skeleton name (or `hello`), EDIT changes one existing constant, answers are explicit JSON literals; any other intent is answered `incomplete` with no substitute workflow. Creates no job, run, approval or trace, writes no file, contacts no provider: ambient keys are never consent. `check_preview` is a REVIEW of the source only, never admission: POST /v1/jobs judges a candidate again. Questions carry stable keys; answering is a new request, not a session.",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/CompileRequest"
+            }
+          }
+        },
+        "required": true
+      },
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompileOutcome"
+              }
+            }
+          },
+          "description": "Authoring outcome — ready, incomplete and refused are all data"
+        },
+        "401": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Error"
+              }
+            }
+          },
+          "description": "Error envelope"
+        },
+        "408": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Error"
+              }
+            }
+          },
+          "description": "Request deadline"
+        },
+        "413": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Error"
+              }
+            }
+          },
+          "description": "Encoded body above the compile ceiling"
+        },
+        "415": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Error"
+              }
+            }
+          },
+          "description": "Content-Type or Content-Encoding refused"
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Error"
+              }
+            }
+          },
+          "description": "malformed_compile_request · compile_version_unsupported · compile_mode_unsupported · compile_cognition_unsupported · compile_limit"
+        },
+        "500": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Error"
+              }
+            }
+          },
+          "description": "Compiler machinery failure; nothing is echoed"
+        },
+        "503": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Error"
+              }
+            }
+          },
+          "description": "compile_busy — every compile slot is in use"
+        }
+      },
+      "summary": "Author a candidate workflow without running it (stateless · source-only)"
+    }
+  }
+}

@@ -1,0 +1,494 @@
+{
+  "components": {
+    "schemas": {
+      "CompileOutcomeV2": {
+        "description": "The same engine-owned machine document, generation 2: a provider call happened in this round and `provenance.authoring` is its receipt. A fresh round that needed no call (an exact skeleton, a structured constant, the support grammar) and every replay answer generation 1 (CompileOutcome). No field grants authority, writes or executes source.",
+        "properties": {
+          "candidate": {
+            "$ref": "#/components/schemas/CompileOutcome/properties/candidate"
+          },
+          "check_preview": {
+            "$ref": "#/components/schemas/CompileOutcome/properties/check_preview"
+          },
+          "compile_version": {
+            "const": 2,
+            "type": "integer"
+          },
+          "diagnostics": {
+            "$ref": "#/components/schemas/CompileOutcome/properties/diagnostics"
+          },
+          "provenance": {
+            "description": "Reproduction metadata; neither program identity nor run evidence",
+            "properties": {
+              "authoring": {
+                "additionalProperties": false,
+                "description": "Receipt of this round's provider calls; never workflow authority or run evidence",
+                "properties": {
+                  "backend": {
+                    "description": "`{kind: direct_api, provider, cost_basis}`: the provider id, never its endpoint or credential",
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  },
+                  "calls": {
+                    "description": "LOGICAL calls of the round, at most 1 + repairs. The provider transport may resend one call's HTTP request after a 429, 503 or 529 (at most 3 more attempts): HTTP attempts, never counted here",
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "context": {
+                    "description": "What each logical call received, in call order: its role, the sha256 of its instruction and answer schema, its message bytes",
+                    "items": {
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "elapsed_ms": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "input_tokens": {
+                    "description": "As the provider reported them; null when it reported none",
+                    "minimum": 0,
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "model": {
+                    "description": "The operator-seated authoring model (`provider/name`), never a caller's choice",
+                    "type": "string"
+                  },
+                  "output_tokens": {
+                    "description": "As the provider reported them; null when it reported none",
+                    "minimum": 0,
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "sampling": {
+                    "description": "Provider-default sampling: `temperature` and `seed` null, `effective` providerDefaultUnknown",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "model",
+                  "calls",
+                  "input_tokens",
+                  "output_tokens",
+                  "elapsed_ms",
+                  "sampling",
+                  "context",
+                  "backend"
+                ],
+                "type": "object"
+              },
+              "cognition": {
+                "const": "explicitProvider",
+                "type": "string"
+              },
+              "compiler_version": {
+                "type": "string"
+              },
+              "decision": {
+                "description": "Bounded decision records: the native round's references, rounds and knowledge identity (hashes and selection, no host path)",
+                "type": "object"
+              },
+              "plan": {
+                "description": "The record the round produced. A caller never sends it back: the server keeps it behind Nika-Compile-Replay",
+                "type": "object"
+              },
+              "skeleton": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "spec_pin": {
+                "type": "string"
+              },
+              "strategy": {
+                "description": "The internal strategy that settled the request (`native` for a seat-written candidate)",
+                "type": "string"
+              },
+              "suggested_file": {
+                "description": "A file name for the candidate, never a path the compiler touched",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "compiler_version",
+              "spec_pin",
+              "skeleton",
+              "cognition",
+              "authoring"
+            ],
+            "type": "object"
+          },
+          "questions": {
+            "$ref": "#/components/schemas/CompileOutcome/properties/questions"
+          },
+          "requested_boundary": {
+            "$ref": "#/components/schemas/CompileOutcome/properties/requested_boundary"
+          },
+          "requested_trigger": {
+            "$ref": "#/components/schemas/CompileOutcome/properties/requested_trigger"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CompileOutcome/properties/status"
+          }
+        },
+        "required": [
+          "compile_version",
+          "status",
+          "candidate",
+          "questions",
+          "diagnostics",
+          "requested_boundary",
+          "requested_trigger",
+          "check_preview",
+          "provenance"
+        ],
+        "type": "object"
+      },
+      "CompileRequest": {
+        "properties": {
+          "cognition": {
+            "description": "The only cognition generation 1 accepts: no authoring model is contacted. On this server the explicit provider opt-in is generation 2 (CompileRequestV2)"
+          }
+        }
+      },
+      "CompileRequestV2": {
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "mode": {
+                  "const": "create"
+                }
+              },
+              "required": [
+                "mode"
+              ]
+            },
+            "then": {
+              "not": {
+                "anyOf": [
+                  {
+                    "required": [
+                      "source"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "change"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "original_intent"
+                    ]
+                  }
+                ]
+              },
+              "required": [
+                "intent"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "mode": {
+                  "const": "edit"
+                }
+              },
+              "required": [
+                "mode"
+              ]
+            },
+            "then": {
+              "not": {
+                "anyOf": [
+                  {
+                    "required": [
+                      "intent"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "workflow_id"
+                    ]
+                  }
+                ]
+              },
+              "required": [
+                "source",
+                "change"
+              ]
+            }
+          },
+          {
+            "else": {
+              "not": {
+                "required": [
+                  "replay_token"
+                ]
+              },
+              "properties": {
+                "answers": {
+                  "not": {
+                    "required": [
+                      "intent.clarification"
+                    ]
+                  }
+                }
+              }
+            },
+            "if": {
+              "properties": {
+                "cognition": {
+                  "const": "deterministicOnly"
+                }
+              },
+              "required": [
+                "cognition"
+              ]
+            },
+            "then": {
+              "not": {
+                "required": [
+                  "limits"
+                ]
+              },
+              "required": [
+                "replay_token"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "change": {
+                  "required": [
+                    "text"
+                  ]
+                }
+              },
+              "required": [
+                "change"
+              ]
+            },
+            "then": {
+              "required": [
+                "original_intent"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "change": {
+                  "required": [
+                    "set_constant"
+                  ]
+                }
+              },
+              "required": [
+                "change"
+              ]
+            },
+            "then": {
+              "not": {
+                "required": [
+                  "original_intent"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "Generation 2 of the compile request, served only by a server whose operator seated native authoring (health `compileNativeV2`). Every generation-1 law holds: the encoded body is limited to 1048576 bytes (or the listener's lower ceiling), byte bounds are UTF-8 bytes, unknown fields, a present null, duplicate keys and positional arrays are refused. New to this generation: a literal (an `answers` value, `change.set_constant.value`) that repeats an object key at any depth, or nests 128 or more arrays/objects deep (the JSON parser's recursion ceiling), is refused. No field names a model, endpoint, credential, host path, snapshot, strategy or plan: those are the operator's, and the plan a round produced stays on the server behind its replay token. Numbers are JSON integer literals (a fraction or an exponent is refused).",
+        "properties": {
+          "answers": {
+            "$ref": "#/components/schemas/CompileRequest/properties/answers"
+          },
+          "change": {
+            "$ref": "#/components/schemas/CompileRequest/properties/change",
+            "description": "Edit only, exactly one of: `text`, a revision in any wording (not only a `Set const.NAME` sentence) that the round reads beside `original_intent`; or `set_constant`, one structured constant the core applies without a provider call"
+          },
+          "cognition": {
+            "description": "explicitProvider: one fresh round under the operator's seat (refuses `replay_token` and an `intent.clarification` answer) · deterministicOnly: a zero-call replay of a round this server kept (requires `replay_token`, refuses `limits`): it repeats the round's exact input, its `answers` may answer the round's questions, and it never carries `intent.clarification` (409 compile_replay_input_changed)",
+            "enum": [
+              "explicitProvider",
+              "deterministicOnly"
+            ],
+            "type": "string"
+          },
+          "compile_version": {
+            "const": 2,
+            "type": "integer"
+          },
+          "intent": {
+            "maxLength": 4096,
+            "type": "string"
+          },
+          "limits": {
+            "additionalProperties": false,
+            "description": "This request's narrowing of the operator's ceilings (explicitProvider only). Each value is optional and must be at most the operator's own ceiling, which is at most the maximum below; above → 422 compile_limit, never clamped. Absent values take the operator's.",
+            "properties": {
+              "call_timeout_ms": {
+                "description": "The wait for one logical call, its transport resends included",
+                "maximum": 600000,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "deadline_ms": {
+                "description": "The whole round, absolute from admission",
+                "maximum": 3600000,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "max_tokens": {
+                "description": "Output tokens per logical call",
+                "maximum": 32768,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "repairs": {
+                "description": "Repair rounds: at most 1 + repairs logical calls",
+                "maximum": 5,
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "type": "object"
+          },
+          "mode": {
+            "description": "create requires `intent` and forbids `source`, `change` and `original_intent`; edit requires `source` and `change` and forbids `intent` and `workflow_id`",
+            "enum": [
+              "create",
+              "edit"
+            ],
+            "type": "string"
+          },
+          "original_intent": {
+            "description": "The request the base answered: required with `change.text` (the round reads the change beside the whole meaning), refused with `change.set_constant`",
+            "maxLength": 4096,
+            "type": "string"
+          },
+          "replay_token": {
+            "description": "The Nika-Compile-Replay header a fresh round of THIS server run answered (deterministicOnly only). Not an execution grant",
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "source": {
+            "description": "Accepted `.nika` source, inline (edit only)",
+            "maxLength": 524288,
+            "type": "string"
+          },
+          "workflow_id": {
+            "description": "Names a created workflow (create only)",
+            "maxLength": 128,
+            "type": "string"
+          }
+        },
+        "required": [
+          "compile_version",
+          "mode",
+          "cognition"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Authenticated loopback remote execution, declarative schedules and stateless source-only authoring (POST /v1/compile never runs, admits or writes). This server's operator seated native authoring: POST /v1/compile also speaks compile_version 2 (health capability `compileNativeV2`). Artifacts, schedule list/delete/trigger/backfill, /v1/arm, and POST /v1/run are absent."
+  },
+  "paths": {
+    "/v1/compile": {
+      "post": {
+        "description": "The HTTP transport of the same Compile core as `nika compile`. Generation 1 (CompileRequest) is the foundation door, exactly as on a default server: deterministic, no provider contacted. Generation 2 (CompileRequestV2) exists only because this server's operator seated ONE native authoring model when building it (advertised by the `compileNativeV2` health capability). `cognition: explicitProvider` opts in to one fresh round under that seat: the operator chose the model, its credential, its endpoint, the knowledge snapshot and the ceilings; a request names none of them and may only narrow the ceilings through `limits` (above one → 422 compile_limit, never clamped). A round makes at most 1 + repairs LOGICAL calls (the receipt's `calls`); the provider transport may resend one call's HTTP request after a 429, 503 or 529 (at most 3 more attempts, inside that call's timeout), so a round sends at most 4 × (1 + repairs) HTTP requests. Its deadline is absolute from admission: a round that must already stop never begins, and nothing it produces after it is answered or kept. A fresh round that leaves a native plan the server keeps (its input and plan within 2097152 bytes) answers the header Nika-Compile-Replay; `cognition: deterministicOnly` with that token and the round's exact input replays it with zero calls for as long as this server run keeps it (never renewed, forgotten on restart). A lost first answer leaves no token and a new fresh round spends again: there is no idempotency key and nothing retries. Version negotiation: a server without the capability answers compile_version 2 with 422 compile_version_unsupported; the answer's compile_version is 2 exactly when a provider call happened. Creates no job, run, approval, trace, file or permission. `check_preview` is a REVIEW of the source only: POST /v1/jobs judges a candidate again. A document carrying the seat's own credential is refused whole (500 compile_disclosure_refused).",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": null,
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/CompileRequest"
+                  },
+                  {
+                    "$ref": "#/components/schemas/CompileRequestV2"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": null,
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/CompileOutcome"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CompileOutcomeV2"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Authoring outcome — ready, incomplete and refused are all data. compile_version 2 (CompileOutcomeV2) exactly when a provider call happened; every other answer, replays included, is generation 1 (CompileOutcome)",
+            "headers": {
+              "Cache-Control": {
+                "description": "no-store on every answer to a generation-2 request, fresh round or replay, whatever its compile_version",
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "Nika-Compile-Replay": {
+                "description": "Only on a fresh generation-2 round that left a native plan this server run keeps (its input and plan within 2097152 bytes; a larger round answers the same document without a token): the opaque token of that round (256 random bits, 64 lowercase hex). Present it with cognition deterministicOnly and the round's exact input; it expires on the server's clock, is never renewed, is forgotten on restart and is never reflected in a refusal. Not an execution grant and not a deduplication of paid work",
+                "schema": {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "408": {
+            "description": "request_timeout — the request deadline (body intake, generation 1, replays) · compile_deadline_exceeded — a fresh round's absolute deadline passed: its work stopped or never began, nothing was kept, and a provider call in flight may still be billed"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "compile_replay_unavailable — this server run keeps no round under that token (unknown, expired, another run) · compile_replay_input_changed — a replay repeats its round's exact input and never replaces the intent · compile_context_changed — the pinned knowledge snapshot no longer reads as pinned; nothing was sent"
+          },
+          "422": {
+            "description": "malformed_compile_request · compile_version_unsupported · compile_mode_unsupported · compile_cognition_unsupported · compile_limit · compile_new_intent_required — an intent.clarification on a fresh generation-2 round: send the replacement as a new intent"
+          },
+          "500": {
+            "description": "internal_error — compiler machinery failure, nothing is echoed · compile_disclosure_refused — the outcome would carry a withheld credential and is refused whole"
+          },
+          "503": {
+            "description": "compile_busy — every compile slot is in use · compile_replay_capacity — every kept answer round is in use; nothing was authored or spent · stopping — the server is stopping; the round stopped and nothing was kept"
+          }
+        }
+      }
+    }
+  }
+}

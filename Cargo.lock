@@ -5362,6 +5362,7 @@ dependencies = [
  "hyper",
  "hyper-util",
  "jiff",
+ "jsonschema",
  "miette",
  "minisign",
  "nika-arm",

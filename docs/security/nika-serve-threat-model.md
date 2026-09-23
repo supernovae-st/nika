@@ -79,7 +79,7 @@ alone.
 | `/v1/jobs/{opaque-id}/events` | no | no | Bearer auth; bounded SSE buffer and reconnect delay; monotonic `Last-Event-ID`; cursor-neutral heartbeats; redaction |
 | `POST /v1/jobs/{opaque-id}/cancel` | no | yes | Bearer auth before lookup; run-scoped engine token; one durable terminal receipt; idempotent replay |
 | `GET /v1/jobs/{opaque-id}/trace/verify` | no | no | Bearer auth; typed unavailable verdict until a real journal authority exists; no paths |
-| `GET /v1/openapi.json` | no | no | Bearer auth; live-route document; no credential examples or artifact paths |
+| `GET /v1/openapi.json` | no | no | Bearer auth; live-route document; no credential examples or artifact paths; a native server adds only its compile generation-2 contract, never its seat (model, endpoint, credential, snapshot, bounds) |
 | effecting `/v1/*` POST | no | yes | auth before parse; body limit; content type; idempotency before execution |
 | `POST /v1/compile` | no | no (native server: the seat's calls only) | auth before parse; its own 1 MiB body ceiling and per-field bounds; content type; bounded concurrency; returns authoring data only; generation 2 exists only under an explicit operator seat, bounded in calls, tokens, time, slots and kept rounds |
 | artifact routes | absent | — | remain absent until a held typed artifact manifest exists |
@@ -291,6 +291,15 @@ transcript is claimed where no such test existed on that SHA.
   until the CPU work ends (`server::tests::compile` exercises these boundaries;
   the shared parity corpus also pins unresolved MCP source as `incomplete`
   without MCP or provider I/O);
+- [x] published contract (S23): a default server serves the committed document
+  (generation 1 only, refusing generation 2); a native server's document adds
+  only the generation-2 contract, validates every live controlled v1/v2
+  request and answer (parity fixture, fresh, replay, revision, skeleton) and
+  refuses what the door refuses (caller-named authority, version confusion,
+  forbidden pairings) with the published codes; its ceilings are the ones a
+  seat is validated against, and a literal one array under the published
+  nesting ceiling is read while one at it is refused
+  (`server::tests::compile::native::openapi`);
 - [x] native lifetime and credentials (S19): a round admitted but started after
   its deadline never reaches the seat; a round its caller heard 408 for never
   starts later; a stopping server cancels and joins its rounds (no repair
