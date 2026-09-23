@@ -928,6 +928,7 @@ pub fn read(intent: &str) -> Reading {
             effect.policy_literal = state.money_sentences.first().cloned();
         }
     }
+    super::hot::destination_floor(intent, &mut reading.plan);
     literals::collect_bindings(intent, &mut reading.plan);
     reading
 }

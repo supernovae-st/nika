@@ -10,7 +10,7 @@
 //! escalate. The composer applies the same producer laws to every proposal.
 
 use super::lexicon::{self, Head, Reading};
-use super::plan::{EffectPolicy, EffectVerb, ObligationKind, Op, Plan};
+use super::plan::{Binding, Effect, EffectPolicy, EffectVerb, ObligationKind, Op, Plan};
 
 /// Why a reading may not be admitted as HOT, in addition to [`Reading::hot_rejections`].
 #[must_use]
@@ -61,6 +61,54 @@ pub fn unopened_sources(intent: &str, plan: &Plan) -> Vec<String> {
             )
         })
         .collect()
+}
+
+/// The named-destination floor, the mirror of the source floor: a path the request states
+/// only as a place to write (« en 3 puces dans ./out/resume.md », « → ./out/summary.md »)
+/// that no effect writes, and that rode INSIDE a producing step's clause, is written with
+/// what that step produces — the request never left the write out, it folded it into the
+/// draft. A path a read step consumes (« un digest des notes dans ./notes », « every file in
+/// ./rfc/*.md ») is material, never a destination; a glob is never a file to write; a path
+/// stated in a clause of its own (« the JSON belongs in ./out/totals.json ») stays the
+/// assembler's question — the human decides that write.
+pub fn destination_floor(intent: &str, plan: &mut Plan) {
+    for path in stated_destinations(intent) {
+        if path.contains('*') || path.contains('?') {
+            continue;
+        }
+        let consumes = |step: &super::plan::Step| {
+            matches!(step.op, Op::Read | Op::Fetch | Op::Lookup | Op::Search)
+                && step.detail.starts_with(&path)
+        };
+        if plan.steps.iter().any(consumes) {
+            continue;
+        }
+        let written = plan
+            .effects
+            .iter()
+            .any(|e| e.target.contains(&path) || e.evidence.contains(&path));
+        if written {
+            continue;
+        }
+        let Some(producer) = plan.steps.iter().find(|step| {
+            !matches!(step.op, Op::Read | Op::Fetch | Op::Lookup | Op::Search)
+                && (step.detail.contains(&path) || step.evidence.contains(&path))
+        }) else {
+            continue;
+        };
+        let evidence = super::lexicon::split_sentences(intent)
+            .into_iter()
+            .find(|s| s.contains(&path))
+            .unwrap_or(producer.evidence.as_str())
+            .to_owned();
+        plan.bindings.push(Binding::new("path", path.clone()));
+        plan.effects.push(Effect::new(
+            EffectVerb::Write,
+            path,
+            evidence,
+            EffectPolicy::Automatic,
+        ));
+    }
 }
 
 /// The source-shaped paths of the request, in order, without duplicates.
@@ -524,6 +572,69 @@ fn write_without_producer(plan: &Plan, why: &mut Vec<String>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_stated_destination_nothing_writes_is_written_by_the_floor() {
+        let intent = "Résume ./notes/brief.md en 3 puces dans ./out/resume.md";
+        let reading = lexicon::read(intent);
+        let writes: Vec<&str> = reading
+            .plan
+            .effects
+            .iter()
+            .filter(|e| e.verb == EffectVerb::Write)
+            .map(|e| e.target.as_str())
+            .collect();
+        assert_eq!(writes, ["./out/resume.md"], "{:?}", reading.plan);
+        assert!(
+            reading
+                .plan
+                .bindings
+                .iter()
+                .any(|b| b.role == "path" && b.literal == "./out/resume.md")
+        );
+        // An explicit write is not doubled.
+        let reading = lexicon::read(
+            "Lis ./notes/brief.md et écris un résumé de 3 puces dans ./out/resume.md",
+        );
+        assert_eq!(
+            reading
+                .plan
+                .effects
+                .iter()
+                .filter(|e| e.verb == EffectVerb::Write)
+                .count(),
+            1
+        );
+        // No step, no write: a destination alone is not a workflow.
+        let mut plan = Plan::default();
+        destination_floor("dans ./out/x.md", &mut plan);
+        assert!(plan.effects.is_empty());
+        // A folder a read step consumes, after a destination connector, is material.
+        let reading =
+            lexicon::read("fais-moi un digest des notes dans ./notes et écris-le dans ./digest.md");
+        let writes: Vec<&str> = reading
+            .plan
+            .effects
+            .iter()
+            .filter(|e| e.verb == EffectVerb::Write)
+            .map(|e| e.target.as_str())
+            .collect();
+        assert_eq!(writes, ["./digest.md"], "{:?}", reading.plan);
+        // A path in a clause of its own stays the assembler's question, never a floor write.
+        let reading = lexicon::read(
+            "Read ./data/orders.csv. Harmonise the totals per country; the JSON belongs in \
+             ./out/totals.json. Write a note to ./out/note.md.",
+        );
+        assert!(
+            !reading
+                .plan
+                .effects
+                .iter()
+                .any(|e| e.target == "./out/totals.json"),
+            "{:?}",
+            reading.plan
+        );
+    }
 
     #[test]
     fn a_path_is_recognized_and_prose_is_not() {
