@@ -375,7 +375,8 @@ fn the_cannot_build_card_tells_an_authoring_failure_from_a_language_gap() {
 /// to the compiler. At the question itself the round keeps waiting.
 #[test]
 fn an_unpriced_cloud_model_is_refused_at_the_question_in_words() {
-    let text = super::authoring::unpriced_model_text("deepseek/deepseek-flash").expect("unpriced");
+    let text =
+        super::authoring::unpriced_model_text("deepseek/deepseek-unpriced-v0").expect("unpriced");
     assert!(
         text.contains("not priced in Nika's catalog") && text.contains("NIKA-1709"),
         "{text}"
@@ -408,7 +409,7 @@ fn an_unpriced_cloud_model_is_refused_at_the_question_in_words() {
         panic!("the compiler asks for the model");
     };
     assert_eq!(key, "model");
-    let TurnOutcome::Question { key, question } = s.turn("deepseek/deepseek-flash") else {
+    let TurnOutcome::Question { key, question } = s.turn("deepseek/deepseek-unpriced-v0") else {
         panic!("refused in words, still a question");
     };
     assert_eq!(key, "model");

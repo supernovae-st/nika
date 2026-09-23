@@ -144,15 +144,22 @@ name = "DeepSeek"
 aliases = ["deep-seek"]
 env_var = "DEEPSEEK_API_KEY"
 key_prefixes = ["sk-"]
-default_model = "deepseek-chat"
-cheap_model = "deepseek-chat"
+default_model = "deepseek-flash"
+cheap_model = "deepseek-flash"
 requires_key = true
-description = "DeepSeek Chat and Coder models."
+description = "DeepSeek flash and pro models (V4)."
 api_dialect = "openai-chat"
 tags = ["budget", "chinese", "code", "function-calling", "open-source", "reasoning", "streaming", "structured-output"]
 # Trains by default (opt-out listed as a right, mechanism unclear) · PRC storage.
 data_policy = { trains = "yes", retention = "unspecified · PRC storage", zdr = "no", source = "https://cdn.deepseek.com/policies/en-US/deepseek-privacy-policy.html · 2026-07-29" }
 
+[[providers.models]]
+id = "flash"
+model = "deepseek-flash"
+context_window_tokens = 1000000
+max_output_tokens = 384000
+
+# Legacy name: still served by the API, no longer priced upstream (2026-09).
 [[providers.models]]
 id = "chat"
 model = "deepseek-chat"
@@ -165,7 +172,7 @@ name = "Google Gemini"
 aliases = ["google"]
 env_var = "GEMINI_API_KEY"
 default_model = "gemini-2.5-flash"
-cheap_model = "gemini-2.0-flash"
+cheap_model = "gemini-3.1-flash-lite"
 requires_key = true
 description = "Gemini Pro, Flash, and Ultra models."
 api_dialect = "gemini"
@@ -180,10 +187,10 @@ context_window_tokens = 1048576
 max_output_tokens = 8192
 
 [[providers.models]]
-id = "flash-20"
-model = "gemini-2.0-flash"
+id = "flash-lite-31"
+model = "gemini-3.1-flash-lite"
 context_window_tokens = 1048576
-max_output_tokens = 8192
+max_output_tokens = 65536
 
 [[providers]]
 id = "xai"
@@ -468,7 +475,7 @@ name = "Google Vertex AI"
 aliases = ["gcp"]
 env_var = "GOOGLE_APPLICATION_CREDENTIALS"
 default_model = "gemini-2.5-flash"
-cheap_model = "gemini-2.0-flash"
+cheap_model = "gemini-3.1-flash-lite"
 requires_key = true
 description = "GCP-managed AI gateway."
 api_dialect = "gemini"
@@ -482,7 +489,7 @@ max_output_tokens = 8192
 
 [[providers.models]]
 id = "cheap"
-model = "gemini-2.0-flash"
+model = "gemini-3.1-flash-lite"
 context_window_tokens = 1048576
 max_output_tokens = 8192
 
