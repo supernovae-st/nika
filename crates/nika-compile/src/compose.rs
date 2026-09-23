@@ -23,7 +23,7 @@
 use std::cmp::Reverse;
 
 use super::lexicon::Reading;
-use super::plan::{Binding, EffectPolicy, EffectVerb, Op, Plan};
+use super::plan::{Binding, EffectPolicy, EffectVerb, Op, Plan, Step};
 use super::retrieve::Hit;
 use serde_json::{Value, json};
 
@@ -287,7 +287,8 @@ fn shares_literal(a: &str, b: &str) -> bool {
 ///    (strengthening only): a human gate is never removed, a prohibition, an
 ///    indecision or a contradiction is never resolved by a model, and a policy
 ///    literal the reading found is kept;
-/// 6. money gate — an effect that moves money is never automatic;
+/// 6. money gate — (retired 2026-09-22: an automatic money movement is the assembler's
+///    closed approval question, `effect.<verb>.approval`, never an infeasibility);
 /// 7. floor obligations — every obligation the reading recognized is present;
 /// 8. literals carried — every literal the reading bound (URL, path, email, timezone)
 ///    is carried verbatim by some candidate operation or effect;
@@ -311,16 +312,8 @@ pub(super) fn feasibility(candidate: &Plan, floor: &Plan, intent: &str) -> Resul
     for unknown in &candidate.unknowns {
         why.push(format!("unresolved requested work: {unknown}"));
     }
-    floor_operations(candidate, floor, &mut why);
+    floor_operations(candidate, floor, intent, &mut why);
     floor_effects(candidate, floor, &mut why);
-    for effect in &candidate.effects {
-        if effect.verb.moves_money() && effect.policy == EffectPolicy::Automatic {
-            why.push(format!(
-                "`{}` moves money without a prior human approval",
-                effect.verb.word()
-            ));
-        }
-    }
     for obligation in &floor.obligations {
         if !candidate
             .obligations
@@ -343,6 +336,8 @@ pub(super) fn feasibility(candidate: &Plan, floor: &Plan, intent: &str) -> Resul
         .constraints
         .iter()
         .filter(|c| !super::structure::binds_no_operation(c))
+        .filter(|c| !restated(candidate, floor, c))
+        .filter(|c| !carried_by_an_obligation(candidate, c))
         .count();
     if carried_by_an_operation > 0 && !candidate.steps.iter().any(|s| s.op.carries_constraints()) {
         why.push(format!(
@@ -414,7 +409,7 @@ pub(super) fn feasibility(candidate: &Plan, floor: &Plan, intent: &str) -> Resul
 /// the operations its cue table names unambiguously; a validation, a computation or an
 /// exploration it guessed from an instruction ("fais relire", "compare") is advisory and
 /// never vetoes a proposal on its own.
-fn floor_operations(candidate: &Plan, floor: &Plan, why: &mut Vec<String>) {
+fn floor_operations(candidate: &Plan, floor: &Plan, intent: &str, why: &mut Vec<String>) {
     for step in floor
         .steps
         .iter()
@@ -423,11 +418,12 @@ fn floor_operations(candidate: &Plan, floor: &Plan, why: &mut Vec<String>) {
         let accounted = candidate
             .steps
             .iter()
-            .any(|s| s.op == step.op || overlaps(&s.evidence, &step.evidence))
+            .any(|s| same_family(s.op, step.op) || overlaps(&s.evidence, &step.evidence))
             || candidate
                 .effects
                 .iter()
-                .any(|e| overlaps(&e.evidence, &step.evidence));
+                .any(|e| overlaps(&e.evidence, &step.evidence))
+            || written_computation(candidate, step, intent);
         if !accounted {
             why.push(format!(
                 "dropped the recognized operation `{}` ({})",
@@ -436,6 +432,107 @@ fn floor_operations(candidate: &Plan, floor: &Plan, why: &mut Vec<String>) {
             ));
         }
     }
+}
+
+/// A `draft` the reader guessed over a write clause (« write just the number, nothing else,
+/// to ./out/x.txt ») is the write of a computed value: a candidate that computes and writes
+/// in the same sentence of the request accounts for it. Rule 10 still requires the written
+/// content to be produced by a step, so a real draft dropped for a bare write stays refused.
+fn written_computation(candidate: &Plan, step: &Step, intent: &str) -> bool {
+    if step.op != Op::Draft || !candidate.has(Op::Compute) {
+        return false;
+    }
+    let lower = intent.to_lowercase();
+    let clause = step.evidence.trim().to_lowercase();
+    super::lexicon::split_sentences(&lower)
+        .into_iter()
+        .filter(|sentence| sentence.contains(&clause))
+        .any(|sentence| {
+            candidate.effects.iter().any(|e| {
+                e.verb == EffectVerb::Write
+                    && super::paths::literals(&e.target)
+                        .into_iter()
+                        .chain(super::paths::literals(&e.evidence))
+                        .any(|shape| match shape {
+                            super::paths::PathShape::File(path) => {
+                                sentence.contains(&path.to_lowercase())
+                            }
+                            _ => false,
+                        })
+            })
+        })
+}
+
+/// The retrieval family: the reader's `search` over « retrouve le dossier dans `MongoDB` »
+/// and a seat's `lookup` over the same words retrieve the same records; the reader's
+/// word-level choice between them is no floor fact.
+fn same_family(a: Op, b: Op) -> bool {
+    a == b || matches!((a, b), (Op::Search, Op::Lookup) | (Op::Lookup, Op::Search))
+}
+
+/// A constraint that restates a clause the candidate or the reading already carries
+/// elsewhere (an operation's or an effect's excerpt, an obligation's words, the trigger)
+/// binds nothing new: the seat listed the clause twice, once as what it is and once as a
+/// constraint, or restated a clause the reader recognized as an operation.
+/// A constraint that restates a safeguard the plan carries as an obligation (« Déduplique
+/// les événements entrants par leur identifiant ; pas de seconde action pour le même
+/// événement » beside the dedup obligation « dédoublonne le callback par identifiant ») is
+/// carried by that obligation's machinery — the admit task, the retry, the recheck — never
+/// by a prompt.
+fn carried_by_an_obligation(candidate: &Plan, constraint: &str) -> bool {
+    let folded = super::shape::fold(constraint);
+    candidate.obligations.iter().any(|o| {
+        let cues: &[&str] = match o.kind.word() {
+            "dedup" => &[
+                "dedup",
+                "dedoublonn",
+                "dedupliq",
+                "deduplic",
+                "doublon",
+                "duplicat",
+                "duplicad",
+                "doppelt",
+                "duplikat",
+            ],
+            "revision_check" => &["version"],
+            "retry_bound" => &[
+                "tentative",
+                "essai",
+                "retry",
+                "retries",
+                "attempt",
+                "versuch",
+                "tentativ",
+                "intento",
+                "reintent",
+            ],
+            _ => &[],
+        };
+        cues.iter().any(|cue| folded.contains(cue))
+    })
+}
+
+fn restated(candidate: &Plan, floor: &Plan, constraint: &str) -> bool {
+    let fold = |text: &str| {
+        text.split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+            .to_lowercase()
+    };
+    let wanted = fold(constraint);
+    let inside = |text: &str| {
+        let text = fold(text);
+        !text.is_empty() && (text.contains(&wanted) || wanted.contains(&text))
+    };
+    [candidate, floor].into_iter().any(|plan| {
+        plan.steps.iter().any(|s| inside(&s.evidence))
+            || plan
+                .effects
+                .iter()
+                .any(|e| inside(&e.evidence) || inside(&e.target))
+            || plan.obligations.iter().any(|o| inside(&o.evidence))
+            || plan.trigger.as_deref().is_some_and(inside)
+    })
 }
 
 /// Rule 5: every recognized effect stays, with its policy floor and its policy literal.
@@ -495,17 +592,23 @@ fn literals(candidate: &Plan, floor: &Plan, intent: &str, why: &mut Vec<String>)
         }
     }
     let intent_runs = digit_runs(intent);
-    for text in candidate
+    for (text, language) in candidate
         .steps
         .iter()
-        .map(|s| s.detail.as_str())
-        .chain(candidate.effects.iter().map(|e| e.target.as_str()))
+        .map(|s| (s.detail.as_str(), !matches!(s.op, Op::Compute)))
+        .chain(candidate.effects.iter().map(|e| (e.target.as_str(), false)))
     {
         for token in literal_tokens(text) {
             let present = if token.bytes().all(|b| b.is_ascii_digit()) {
                 intent_runs.contains(&token)
                     || stated_range_covers(intent, &token)
                     || number_word_covers(intent, &token)
+                    // « the incident with the most minutes », « le plus long »: a superlative
+                    // names one row, the `1` of a limit the seat wrote out.
+                    || (token == "1" && superlative_covers(intent))
+                    // « (cycle de correction 1) », « heading 2 »: an enumeration in a seat's
+                    // paraphrase of a language step, never a value the workflow carries.
+                    || (language && token.len() == 1)
             } else {
                 intent.contains(token.as_str()) || derived_path(&token, intent)
             };
@@ -613,6 +716,73 @@ fn number_word_covers(intent: &str, number: &str) -> bool {
                 .iter()
                 .any(|(word, value)| *value == n && *word == w)
         })
+}
+
+/// Superlatives that name one row of a corpus (EN · FR · IT · ES · DE · PT, accented and
+/// folded): the `1` a seat writes as a limit beside « the most », « le plus », « el mayor »
+/// is stated by them.
+const SUPERLATIVES: &[&str] = &[
+    "most",
+    "worst",
+    "best",
+    "highest",
+    "lowest",
+    "largest",
+    "smallest",
+    "biggest",
+    "longest",
+    "shortest",
+    "latest",
+    "earliest",
+    "oldest",
+    "newest",
+    "least",
+    "le plus",
+    "la plus",
+    "les plus",
+    "le moins",
+    "la moins",
+    "il più",
+    "la più",
+    "il piu",
+    "la piu",
+    "il meno",
+    "la meno",
+    "el más",
+    "la más",
+    "el mas",
+    "la mas",
+    "el menos",
+    "la menos",
+    "mayor",
+    "menor",
+    "höchste",
+    "hochste",
+    "niedrigste",
+    "größte",
+    "grosste",
+    "kleinste",
+    "längste",
+    "langste",
+    "kürzeste",
+    "kurzeste",
+    "meisten",
+    "wenigsten",
+    "o mais",
+    "a mais",
+    "o maior",
+    "a maior",
+    "o menor",
+    "a menor",
+];
+
+/// Whether the request states a superlative: one row of its corpus, the `1` of a limit.
+fn superlative_covers(intent: &str) -> bool {
+    let folded = super::shape::fold(intent);
+    let padded = format!(" {folded} ");
+    SUPERLATIVES
+        .iter()
+        .any(|w| padded.contains(&format!(" {w} ")))
 }
 
 /// Words and dashes that join the two ends of a stated numeric range.
@@ -927,7 +1097,8 @@ mod tests {
                 .any(|r| r.contains("lacks an exact nonempty excerpt")),
             "{why:?}"
         );
-        // An anchored money-moving effect without a gate is never feasible either.
+        // An anchored money-moving effect whose gate the reading found is never feasible
+        // without it; the money law itself is the assembler's approval question.
         let mut candidate = base();
         candidate.effects[0].policy = EffectPolicy::Automatic;
         let why = reasons(&candidate);
@@ -936,11 +1107,7 @@ mod tests {
                 .any(|r| r == "removed the human gate before `refund`"),
             "{why:?}"
         );
-        assert!(
-            why.iter()
-                .any(|r| r == "`refund` moves money without a prior human approval"),
-            "{why:?}"
-        );
+        assert!(!why.iter().any(|r| r.contains("moves money")), "{why:?}");
     }
 
     #[test]
@@ -1017,6 +1184,18 @@ mod tests {
         assert!(number_word_covers("scrivi tre punti", "3"));
         assert!(number_word_covers("escreve três linhas", "3"));
         assert!(number_word_covers("escribe cinco viñetas", "5"));
+    }
+
+    #[test]
+    fn a_superlative_states_the_one_of_a_limit() {
+        assert!(superlative_covers(
+            "Under Worst incident, name the incident with the most minutes by its id"
+        ));
+        assert!(superlative_covers("garde l'incident le plus long"));
+        assert!(superlative_covers("la línea con el mayor retraso"));
+        assert!(superlative_covers("die Zeile mit den meisten Minuten"));
+        assert!(!superlative_covers("write three lines to ./out/a.md"));
+        assert!(!superlative_covers("almost every row"));
     }
 
     #[test]

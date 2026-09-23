@@ -37,6 +37,8 @@ pub(super) struct ProposedComputation {
     pub(super) limit: String,
     #[serde(default, deserialize_with = "nullable_renames")]
     pub(super) renames: Vec<ProposedRename>,
+    #[serde(default, deserialize_with = "super::cognition::nullable_vec")]
+    pub(super) distinct_by: Vec<String>,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -128,6 +130,32 @@ fn boolean_word(word: &str) -> Option<bool> {
     }
 }
 
+/// The const key of a value the request alludes to: its words, lowercased, ASCII letters
+/// and digits joined by underscores (« seuil d'alerte » → `seuil_d_alerte`).
+pub(super) fn slot_slug(words: &str) -> String {
+    let mut slug = String::new();
+    for c in words.to_lowercase().chars() {
+        let mapped = match c {
+            'à' | 'â' | 'ä' | 'á' | 'ã' | 'å' => 'a',
+            'é' | 'è' | 'ê' | 'ë' => 'e',
+            'î' | 'ï' | 'í' | 'ì' => 'i',
+            'ô' | 'ö' | 'ó' | 'ò' | 'õ' => 'o',
+            'ù' | 'û' | 'ü' | 'ú' => 'u',
+            'ç' => 'c',
+            'ñ' => 'n',
+            other => other,
+        };
+        if mapped.is_ascii_alphanumeric() {
+            slug.push(mapped);
+        } else if mapped == 'ß' {
+            slug.push_str("ss");
+        } else if !slug.is_empty() && !slug.ends_with('_') {
+            slug.push('_');
+        }
+    }
+    slug.trim_end_matches('_').to_owned()
+}
+
 /// A typed computation the proposal stated, validated part by part against the request:
 /// every field is a column the request names (a columns hint or a word of the text), every
 /// literal value occurs in the request, every comparator and aggregate is one of the closed
@@ -138,8 +166,10 @@ pub(super) fn typed_rule(
     intent: &str,
     evidence: &str,
     computation: &ProposedComputation,
-) -> Option<super::rules::Rule> {
+    unknowns: &[String],
+) -> Option<(super::rules::Rule, Vec<super::plan::Slot>)> {
     use super::rules::{Clause, Comparator, Junction, Operand, Rule};
+    let mut slots: Vec<super::plan::Slot> = Vec::new();
     let lower = intent.to_lowercase();
     let hint = super::columns::columns_hint(intent);
     // A source column is one the request lists when it lists its columns; only a request
@@ -181,7 +211,35 @@ pub(super) fn typed_rule(
                 }
                 Operand::Number(canonical)
             } else {
-                let unquoted = literal.trim_matches(['"', '\'', '“', '”', '‘', '’']);
+                // « no », “no”, 'no': the quotes a request wears around a value are not the value.
+                let unquoted = literal
+                    .trim_matches(['"', '\'', '“', '”', '‘', '’', '«', '»', '‹', '›'])
+                    .trim();
+                // « temperature > "seuil d'alerte" »: the value is one the seat listed as
+                // unknown — a slot the compiler asks for, never the words compared.
+                if let Some(unknown) = unknowns
+                    .iter()
+                    .find(|u| super::rule_tokens::fold(u) == super::rule_tokens::fold(unquoted))
+                {
+                    let slug = slot_slug(unknown);
+                    if slug.is_empty() {
+                        return None;
+                    }
+                    let key = format!("const.{slug}");
+                    if !slots.iter().any(|s| s.key == key) {
+                        slots.push(super::plan::Slot::new(
+                            key,
+                            unknown.trim().to_owned(),
+                            Rule::compares_numbers(comparator),
+                        ));
+                    }
+                    clauses.push(Clause::new(
+                        clause.field.trim(),
+                        comparator,
+                        Operand::Slot(slug),
+                    ));
+                    continue;
+                }
                 if unquoted.is_empty() || !lower.contains(&unquoted.to_lowercase()) {
                     return None;
                 }
@@ -345,7 +403,20 @@ pub(super) fn typed_rule(
         }
         Some(n)
     };
+    // The key columns of a removal of duplicates: every one a column the request names.
+    let mut distinct_by = Vec::new();
+    for column in &computation.distinct_by {
+        let column = column.trim();
+        if column.is_empty() {
+            continue;
+        }
+        if !names_field(column) || distinct_by.iter().any(|k| k == column) {
+            return None;
+        }
+        distinct_by.push(column.to_owned());
+    }
     let mut shape = Shape::default();
+    shape.distinct_by = distinct_by;
     shape.group_by = group_by;
     shape.aggregations = aggregations;
     shape.sort_by = sort_by;
@@ -356,13 +427,13 @@ pub(super) fn typed_rule(
     if clauses.is_empty() && shape == Shape::default() {
         return None;
     }
-    Some(Rule::typed(evidence, clauses, junction, shape))
+    Some((Rule::typed(evidence, clauses, junction, shape), slots))
 }
 
 /// The schema of a typed computation on a compute step: every key required (a strict
 /// schema needs no optional), empty strings and arrays meaning absent.
 pub(super) fn computation_schema() -> Value {
-    json!({"type":"object","additionalProperties":false,"required":["present","polarity","join","clauses","group_by","aggregations","sort_by","order","columns","derived","limit","renames"],"properties":{
+    json!({"type":"object","additionalProperties":false,"required":["present","polarity","join","clauses","group_by","aggregations","sort_by","order","columns","derived","limit","renames","distinct_by"],"properties":{
         "present":{"type":"boolean"},
         "polarity":{"type":"string","enum":["keep","drop"]},
         "join":{"type":"string","enum":["and","or"]},
@@ -381,12 +452,22 @@ pub(super) fn computation_schema() -> Value {
             "left":{"type":"string"},"right":{"type":"string"}}}},
         "limit":{"type":"string"},
         "renames":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["from","to"],"properties":{
-            "from":{"type":"string"},"to":{"type":"string"}}}}}})
+            "from":{"type":"string"},"to":{"type":"string"}}}},
+        "distinct_by":{"type":"array","items":{"type":"string"}}}})
 }
 
 #[cfg(test)]
 mod tests {
     use super::{ProposedComputation, typed_rule};
+
+    /// The typed rule alone, no unknowns to slot.
+    fn typed(
+        intent: &str,
+        evidence: &str,
+        computation: &ProposedComputation,
+    ) -> Option<crate::rules::Rule> {
+        typed_rule(intent, evidence, computation, &[]).map(|(rule, _)| rule)
+    }
     use serde_json::json;
 
     // wave28 v2-02: the seat compared a boolean column to the string "false" and jq kept no
@@ -401,7 +482,7 @@ mod tests {
         }))
         .unwrap();
         let intent = "Lê ./musica/faixas.json (id, titulo, artista, duracao_s, explicito), guarda as faixas com explicito == false ordenadas por duracao_s decrescente e escreve id e titulo em ./out/limpa.json";
-        let rule = typed_rule(
+        let rule = typed(
             intent,
             "guarda as faixas com explicito == false",
             &computation,
@@ -432,8 +513,7 @@ mod tests {
         };
         let computation = serde_json::from_value::<ProposedComputation>(proposed("3")).unwrap();
         let intent = "Read ./shop/sales.csv (columns item,units), keep the top 3 items by units, rename item to product and write ./out/top.csv";
-        let rule =
-            typed_rule(intent, "keep the top 3 items by units", &computation).expect("a rule");
+        let rule = typed(intent, "keep the top 3 items by units", &computation).expect("a rule");
         assert!(rule.jq().contains("| .[:3] |"), "{}", rule.jq());
         assert!(
             rule.jq().contains(
@@ -453,15 +533,15 @@ mod tests {
         assert_eq!(record["shape"]["renames"][0]["to"], "product");
         // A limit the request does not state is no rule; a count spelled as a word is stated.
         let unstated = serde_json::from_value::<ProposedComputation>(proposed("5")).unwrap();
-        assert!(typed_rule(intent, "keep the top 3 items by units", &unstated).is_none());
+        assert!(typed(intent, "keep the top 3 items by units", &unstated).is_none());
         let spelled = "Read ./shop/sales.csv (columns item,units), keep the three best items by units, rename item to product and write ./out/top.csv";
-        assert!(typed_rule(spelled, "keep the three best items by units", &computation).is_some());
+        assert!(typed(spelled, "keep the three best items by units", &computation).is_some());
         // No limit under a ranking word: the count is missing and must be asked.
         let ranked = serde_json::from_value::<ProposedComputation>(proposed("")).unwrap();
-        let rule = typed_rule(intent, "the top-selling items by units", &ranked).expect("a rule");
+        let rule = typed(intent, "the top-selling items by units", &ranked).expect("a rule");
         assert!(rule.ranking_without_count());
         assert!(!rule.with_limit(3).ranking_without_count());
-        let plain = typed_rule(intent, "sorted by units, descending", &ranked).expect("a rule");
+        let plain = typed(intent, "sorted by units, descending", &ranked).expect("a rule");
         assert!(!plain.ranking_without_count());
     }
 }

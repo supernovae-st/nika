@@ -81,6 +81,28 @@ fn the_fixture_names_every_door_and_each_case_once() {
     }
 }
 
+/// One question on the wire: the five keys, plus `options` on a choice.
+fn question_shape(name: &str, question: &serde_json::Map<String, Value>) {
+    let keys: Vec<_> = question.keys().map(String::as_str).collect();
+    if question["type"] == "choice" {
+        assert_eq!(
+            keys,
+            ["key", "label", "mandatory", "options", "type", "why"],
+            "{name}"
+        );
+    } else {
+        assert_eq!(keys, ["key", "label", "mandatory", "type", "why"], "{name}");
+    }
+    assert!(
+        matches!(
+            question["type"].as_str(),
+            Some("text" | "literal" | "choice")
+        ),
+        "{name}"
+    );
+    assert!(question["mandatory"].is_boolean(), "{name}");
+}
+
 #[test]
 fn every_document_has_exactly_the_generation_one_shape() {
     for (name, (_, document)) in documents() {
@@ -112,14 +134,7 @@ fn every_document_has_exactly_the_generation_one_shape() {
             "{name}"
         );
         for question in document["questions"].as_array().expect("questions") {
-            let question = question.as_object().expect("question object");
-            let keys: Vec<_> = question.keys().map(String::as_str).collect();
-            assert_eq!(keys, ["key", "label", "mandatory", "type", "why"], "{name}");
-            assert!(
-                matches!(question["type"].as_str(), Some("text" | "literal")),
-                "{name}"
-            );
-            assert!(question["mandatory"].is_boolean(), "{name}");
+            question_shape(&name, question.as_object().expect("question object"));
         }
         for diagnostic in document["diagnostics"].as_array().expect("diagnostics") {
             let diagnostic = diagnostic.as_object().expect("diagnostic object");
@@ -144,7 +159,13 @@ fn every_document_has_exactly_the_generation_one_shape() {
             .collect();
         assert_eq!(
             keys,
-            ["cognition", "compiler_version", "skeleton", "spec_pin"],
+            [
+                "cognition",
+                "compiler_version",
+                "skeleton",
+                "spec_pin",
+                "suggested_file"
+            ],
             "{name}"
         );
         if let Some(strategy) = provenance.get("strategy") {

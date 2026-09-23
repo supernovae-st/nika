@@ -1,0 +1,194 @@
+{
+  "compile_version": 1,
+  "document": {
+    "candidate": null,
+    "check_preview": null,
+    "compile_version": 1,
+    "diagnostics": [],
+    "provenance": {
+      "cognition": "deterministicOnly",
+      "compiler_version": "0.120.3",
+      "decision": {
+        "intent_sha256": "84d3fa61fcefb8be4c598537d25cf6fc3aa1b8ed2532c12b1c91f361c426c24f",
+        "ledger": [
+          {
+            "evidence": "refund each customer",
+            "kind": "effect",
+            "note": null,
+            "realized_by": null,
+            "state": "unresolved"
+          }
+        ],
+        "retrieval": {
+          "by_intent": [
+            {
+              "id": "fanout",
+              "kind": "skeleton",
+              "score": 13.981
+            },
+            {
+              "id": "bounded-batch",
+              "kind": "skeleton",
+              "score": 13.311
+            },
+            {
+              "id": "F15",
+              "kind": "family",
+              "score": 10.781
+            },
+            {
+              "id": "F16",
+              "kind": "family",
+              "score": 10.009
+            },
+            {
+              "id": "parallel-review",
+              "kind": "skeleton",
+              "score": 9.929
+            },
+            {
+              "id": "C22",
+              "kind": "family",
+              "score": 9.339
+            },
+            {
+              "id": "F29",
+              "kind": "family",
+              "score": 8.248
+            },
+            {
+              "id": "F25",
+              "kind": "family",
+              "score": 8.112
+            },
+            {
+              "id": "D24",
+              "kind": "family",
+              "score": 7.971
+            },
+            {
+              "id": "B03",
+              "kind": "family",
+              "score": 7.479
+            }
+          ],
+          "by_ops": [
+            {
+              "id": "B16",
+              "kind": "family",
+              "score": 13.498
+            },
+            {
+              "id": "H05",
+              "kind": "family",
+              "score": 7.414
+            },
+            {
+              "id": "A15",
+              "kind": "family",
+              "score": 7.377
+            },
+            {
+              "id": "A09",
+              "kind": "family",
+              "score": 7.122
+            },
+            {
+              "id": "A10",
+              "kind": "family",
+              "score": 6.556
+            },
+            {
+              "id": "document-to-fields",
+              "kind": "skeleton",
+              "score": 6.485
+            },
+            {
+              "id": "B15",
+              "kind": "family",
+              "score": 6.282
+            },
+            {
+              "id": "A13",
+              "kind": "family",
+              "score": 5.849
+            },
+            {
+              "id": "etl-state",
+              "kind": "skeleton",
+              "score": 5.823
+            },
+            {
+              "id": "A08",
+              "kind": "family",
+              "score": 5.722
+            }
+          ]
+        },
+        "route": [
+          "hot"
+        ]
+      },
+      "plan": {
+        "bindings": [
+          {
+            "literal": "./refunds.json",
+            "role": "path"
+          }
+        ],
+        "constraints": [],
+        "effects": [
+          {
+            "evidence": "refund each customer",
+            "policy": "automatic",
+            "policy_literal": null,
+            "target": "each customer",
+            "verb": "refund"
+          }
+        ],
+        "obligations": [],
+        "operations": [
+          {
+            "categories": [],
+            "detail": "./refunds.json",
+            "evidence": "Read ./refunds.json",
+            "op": "read"
+          }
+        ],
+        "rules": [],
+        "slots": [],
+        "strategy": "hot",
+        "trigger": null,
+        "unknowns": []
+      },
+      "skeleton": null,
+      "spec_pin": "4b6eaadde483bcc9db9c05b022afbedfb107f37e",
+      "strategy": "hot",
+      "suggested_file": null
+    },
+    "questions": [
+      {
+        "key": "effect.refund.approval",
+        "label": "`each customer` moves money and the request states no human approval before it. Choose `human_first` (a person approves each `refund` in a blocking gate) or `forbidden` (the workflow never runs it).",
+        "mandatory": true,
+        "options": [
+          {
+            "key": "human_first",
+            "label": "A person approves each `refund` in a blocking gate before it runs."
+          },
+          {
+            "key": "forbidden",
+            "label": "The workflow never runs the `refund`; the work before it still runs."
+          }
+        ],
+        "type": "choice",
+        "why": "The compiler never constructs an automatic money movement; only a human-first version or its omission is constructible."
+      }
+    ],
+    "requested_boundary": null,
+    "requested_trigger": null,
+    "status": "incomplete"
+  },
+  "fixture": "money-approval-question",
+  "state": "incomplete · an automatic refund is the requester's closed choice (`effect.refund.approval`: human_first | forbidden)"
+}

@@ -11,7 +11,7 @@
 use super::plan::Plan;
 use super::{TriggerKind, TriggerRequirement, TriggerStatus, hot};
 
-/// Words that state a daily cadence (EN · FR · IT · ES · DE, folded).
+/// Words that state a daily cadence (EN · FR · IT · ES · DE · PT, folded).
 const DAILY: &[&str] = &[
     "morning",
     "mornings",
@@ -54,6 +54,10 @@ const DAILY: &[&str] = &[
     "abend",
     "tag",
     "taglich",
+    "manha",
+    "manhas",
+    "noite",
+    "noites",
 ];
 /// Words that state a weekday cadence: every working day.
 const WEEKDAYS: &[&str] = &[
@@ -157,8 +161,9 @@ const HOURLY: &[&str] = &[
 ];
 const MINUTELY: &[&str] = &["minute", "minutes", "minuto", "minuti", "minutos"];
 
-/// Words that introduce a time of day ("at 9", "à 9h", "alle 7", "a las 8", "um 9 uhr").
-const AT: &[&str] = &["at", "a", "alle", "um", "vers", "around", "towards"];
+/// Words that introduce a time of day ("at 9", "à 9h", "alle 7", "a las 8", "um 9 uhr",
+/// "às 7h" — the Portuguese « às » folds to « as »).
+const AT: &[&str] = &["at", "a", "as", "alle", "um", "vers", "around", "towards"];
 /// Determiners that may sit between the introducer and the number ("a las 8").
 const BETWEEN: &[&str] = &["las", "les", "le", "la", "the", "l"];
 /// Units that follow a time number and belong to it, never to a cadence.
@@ -210,7 +215,204 @@ pub(super) fn requirement(plan: &Plan, item: bool) -> Option<TriggerRequirement>
         at,
         payload_input: item.then(|| "item".to_owned()),
         status: TriggerStatus::RequiresBinding,
+        timezone: None,
+        missed: None,
+        overlap: None,
+        ceiling: None,
     })
+}
+
+/// The overlap policies of the cadence grammar (`chevauchement:`), spelled as that grammar
+/// spells them; mirrored here with its drift test (`nika-cadence` owns the enum).
+pub(super) const OVERLAP_OPTIONS: &[(&str, &str)] = &[
+    ("sauter", "skip the new run while one still runs"),
+    ("file", "queue the new run behind the running one"),
+    ("remplacer", "replace the running run with the new one"),
+];
+
+/// The missed-run policies of the project grammar (`manqué:`), from the grammar itself.
+pub(super) fn missed_options() -> Vec<super::types::ChoiceOffer> {
+    use nika_vocab::project::MissPolicy;
+    [
+        (
+            MissPolicy::Rattraper,
+            "fire every missed slot, oldest first",
+        ),
+        (
+            MissPolicy::RattraperUneFois,
+            "fire one catch-up for the whole silence",
+        ),
+        (
+            MissPolicy::Sauter,
+            "never catch up: a skip is an event, not a run",
+        ),
+    ]
+    .into_iter()
+    .map(|(policy, label)| super::types::ChoiceOffer::new(policy.as_str(), label))
+    .collect()
+}
+
+const BINDING_WHY: &str = "A cadence is bound outside the program (the project's arm entry, `PUT /v1/schedules`); this value belongs to that binding, never to the workflow bytes. Optional here: the binding asks it if still missing.";
+
+/// The values a schedule binding needs, asked beside the candidate without blocking it:
+/// the timezone, the missed-run policy, the overlap policy and the per-run ceiling. An
+/// answer is admitted against the owning grammar's own spellings and echoed on the
+/// requirement; a wrong answer is a finding and the question stays.
+pub(super) fn bind_schedule(
+    trigger: &mut TriggerRequirement,
+    request: &super::CompileRequest,
+    out: &mut super::CompileOutcome,
+    recognized: &mut std::collections::BTreeSet<String>,
+) {
+    if trigger.kind != TriggerKind::Schedule {
+        return;
+    }
+    for key in [
+        "trigger.timezone",
+        "trigger.missed",
+        "trigger.overlap",
+        "trigger.ceiling",
+    ] {
+        recognized.insert(key.to_owned());
+    }
+    bind_timezone(trigger, request, out);
+    bind_choices(trigger, request, out);
+    bind_ceiling(trigger, request, out);
+}
+
+/// The answer a request carries for one key, decoded as a JSON literal (or nothing).
+fn answered(
+    request: &super::CompileRequest,
+    out: &mut super::CompileOutcome,
+    key: &str,
+) -> Option<serde_json::Value> {
+    let raw = request.answers.get(key).map(String::as_str)?;
+    super::literal_answer(Some(raw), key, out)
+}
+
+/// `trigger.timezone`: a nonempty IANA name.
+fn bind_timezone(
+    trigger: &mut TriggerRequirement,
+    request: &super::CompileRequest,
+    out: &mut super::CompileOutcome,
+) {
+    use super::types::{DiagnosticKind, QuestionType};
+    match answered(request, out, "trigger.timezone") {
+        Some(serde_json::Value::String(zone)) if !zone.trim().is_empty() => {
+            trigger.timezone = Some(zone.trim().to_owned());
+        }
+        Some(_) => super::finding(
+            out,
+            DiagnosticKind::Missed,
+            "trigger.timezone",
+            "Answer the timezone as a nonempty JSON string (an IANA name such as Europe/Paris).",
+        ),
+        None => {}
+    }
+    if trigger.timezone.is_none() {
+        let hint = trigger.source_hint.clone().unwrap_or_default();
+        super::optional_question(
+            out,
+            "trigger.timezone",
+            &format!("Which timezone runs `{hint}`? An IANA name such as Europe/Paris."),
+            QuestionType::Text,
+            BINDING_WHY,
+            Vec::new(),
+        );
+    }
+}
+
+/// `trigger.missed` · `trigger.overlap`: one of the owning grammar's spellings.
+fn bind_choices(
+    trigger: &mut TriggerRequirement,
+    request: &super::CompileRequest,
+    out: &mut super::CompileOutcome,
+) {
+    use super::types::{ChoiceOffer, DiagnosticKind, QuestionType};
+    let choices: [(&str, Vec<ChoiceOffer>, &str); 2] = [
+        (
+            "trigger.missed",
+            missed_options(),
+            "If the machine was off when a run was due, what happens?",
+        ),
+        (
+            "trigger.overlap",
+            OVERLAP_OPTIONS
+                .iter()
+                .map(|(key, label)| ChoiceOffer::new(*key, *label))
+                .collect(),
+            "If a run is still running when the next one is due, what happens?",
+        ),
+    ];
+    for (key, options, label) in choices {
+        let chosen = match answered(request, out, key) {
+            Some(serde_json::Value::String(word))
+                if options.iter().any(|o| o.key == word.trim()) =>
+            {
+                Some(word.trim().to_owned())
+            }
+            Some(_) => {
+                super::finding(
+                    out,
+                    DiagnosticKind::Missed,
+                    key,
+                    format!(
+                        "Answer one of the offered keys as a JSON string: {}.",
+                        options
+                            .iter()
+                            .map(|o| o.key.as_str())
+                            .collect::<Vec<_>>()
+                            .join(" · ")
+                    ),
+                );
+                None
+            }
+            None => None,
+        };
+        match (key, chosen) {
+            ("trigger.missed", Some(word)) => trigger.missed = Some(word),
+            ("trigger.overlap", Some(word)) => trigger.overlap = Some(word),
+            _ => super::optional_question(
+                out,
+                key,
+                label,
+                QuestionType::Choice,
+                BINDING_WHY,
+                options,
+            ),
+        }
+    }
+}
+
+/// `trigger.ceiling`: a positive number, kept as its canonical text.
+fn bind_ceiling(
+    trigger: &mut TriggerRequirement,
+    request: &super::CompileRequest,
+    out: &mut super::CompileOutcome,
+) {
+    use super::types::{DiagnosticKind, QuestionType};
+    match answered(request, out, "trigger.ceiling") {
+        Some(serde_json::Value::Number(n)) if n.as_f64().is_some_and(|v| v > 0.0) => {
+            trigger.ceiling = Some(n.to_string());
+        }
+        Some(_) => super::finding(
+            out,
+            DiagnosticKind::Missed,
+            "trigger.ceiling",
+            "Answer the per-run spend ceiling as a positive JSON number (USD).",
+        ),
+        None => {}
+    }
+    if trigger.ceiling.is_none() {
+        super::optional_question(
+            out,
+            "trigger.ceiling",
+            "What is the maximum spend per scheduled run, in USD?",
+            QuestionType::Literal,
+            BINDING_WHY,
+            Vec::new(),
+        );
+    }
 }
 
 /// The note the compile records beside the candidate: what was read, where it went.
@@ -347,6 +549,7 @@ mod tests {
             ("ogni mattina alle 7", Some("daily"), Some("07:00")),
             ("cada lunes a las 8", Some("weekly"), Some("08:00")),
             ("jeden morgen um 9 uhr", Some("daily"), Some("09:00")),
+            ("todas as manhãs às 7h", Some("daily"), Some("07:00")),
             ("every day at 25", Some("daily"), None),
         ] {
             let trigger = read(phrase, false);

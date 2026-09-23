@@ -5,12 +5,13 @@
 //! HTTP request, not one per fine »). Neither needs an operation to carry it: context is
 //! realized by the material it describes, a structure law by the shape of the emitted
 //! workflow, and a law the shape breaks stays unresolved so that nothing is READY against it.
+//! Moved from nika-compile to the reader at the 15k prod-LOC wall (2026-09-22), unchanged.
 
-use super::shape::fold;
+use super::rule_tokens::fold;
 
 /// A bound on the shape of the workflow, read from its form in six languages.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum Law {
+pub enum Law {
     /// No step or action beyond the stated ones.
     NothingElse,
     /// No destination beyond the stated ones.
@@ -49,6 +50,25 @@ const NOTHING_ELSE: &[&str] = &[
     "nichts weiter",
     "nichts anderes",
     "keine weitere aktion",
+    // « stop after these steps » / « stop there »: the same closure, stated as a halt.
+    "stop after",
+    "stop there",
+    "stop here",
+    "arrete-toi apres",
+    "arrete-toi la",
+    "arretez-vous apres",
+    "arretez-vous la",
+    "detente despues",
+    "detente ahi",
+    "detente aqui",
+    "fermati dopo",
+    "fermati li",
+    "fermati qui",
+    "hor danach auf",
+    "halt danach an",
+    "para depois",
+    "pare depois",
+    "pare ai",
 ];
 
 /// No destination beyond the stated ones.
@@ -324,7 +344,8 @@ fn hit(padded: &str, table: &[&str]) -> bool {
 
 /// Every structure law a clause states, strictest first. A closure beside a measurable bound
 /// (« nada más que 3 líneas ») is the bound's phrasing, not a closure.
-pub(super) fn laws(text: &str) -> Vec<Law> {
+#[must_use]
+pub fn laws(text: &str) -> Vec<Law> {
     let padded = padded(text);
     let mut out = Vec::new();
     if hit(&padded, NO_MODEL) {
@@ -346,7 +367,8 @@ pub(super) fn laws(text: &str) -> Vec<Law> {
 /// beside a noun of the material, with no effect word, no measurable bound, no prohibition
 /// and no gate in it. « The file has the columns a,b,c », « both requirements are checked on
 /// the produced file », « Le fichier ./x.csv contient les colonnes … ».
-pub(super) fn context_statement(text: &str) -> bool {
+#[must_use]
+pub fn context_statement(text: &str) -> bool {
     let padded = padded(text);
     if !hit(&padded, MATERIAL) || !hit(&padded, DECLARATIVE) {
         return false;
@@ -355,14 +377,15 @@ pub(super) fn context_statement(text: &str) -> bool {
     let columns = super::columns::columns_hint(text);
     super::lexicon::effect_words(&lower, &columns).is_empty()
         && super::cardinality::bound(text).is_none()
-        && !super::cognition::starts_with_prohibition(&lower)
+        && !super::gates::starts_with_prohibition(&lower)
         && super::gates::final_gate(&lower).is_none()
         && super::gates::named_gate(&lower).is_none()
 }
 
 /// Whether a constraint needs no operation to carry it: a context statement or a structure
 /// law. The composer's carrier rule and the deterministic door's admission skip it.
-pub(super) fn binds_no_operation(text: &str) -> bool {
+#[must_use]
+pub fn binds_no_operation(text: &str) -> bool {
     context_statement(text) || !laws(text).is_empty()
 }
 

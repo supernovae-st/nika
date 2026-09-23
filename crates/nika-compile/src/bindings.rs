@@ -11,6 +11,7 @@
 //! to that file, never a POST. A file the request names that nothing reads or
 //! writes is a question, never a silent drop.
 
+use super::cardinality::parallel_bound;
 use super::paths::{self, PathShape, Structured};
 use super::plan::{Effect, EffectPolicy, EffectVerb, Op, Plan, Step};
 use super::rules;
@@ -149,6 +150,10 @@ pub(super) struct Bindings {
     /// The classify runs once per parsed record of one structured source: the request
     /// classifies each record, and a write naming a category carries its records.
     pub classify_per_record: bool,
+    /// The answered slots (slug, value): consts the rule's jq reads under `slots`.
+    pub slots: Vec<(String, Value)>,
+    /// The slots still asked, by key.
+    pub pending_slots: Vec<String>,
 }
 
 impl Bindings {
@@ -234,6 +239,7 @@ impl Bindings {
             && self.rule.settled()
             && self.dedup.settled()
             && !self.effects_pending
+            && self.pending_slots.is_empty()
     }
 }
 
@@ -296,37 +302,6 @@ fn file_write(effect: &Effect) -> Option<String> {
     }
 }
 
-/// A numeric concurrency bound stated as a constraint ("at most 2 at a time").
-pub(super) fn parallel_bound(constraint: &str) -> Option<u32> {
-    let lower = constraint.to_lowercase();
-    let concurrent = [
-        "at a time",
-        "at once",
-        "in parallel",
-        "concurrently",
-        "simultaneously",
-        "à la fois",
-        "en parallèle",
-        "en même temps",
-        "a la vez",
-        "al mismo tiempo",
-    ]
-    .iter()
-    .any(|phrase| lower.contains(phrase));
-    if !concurrent {
-        return None;
-    }
-    let numbers: Vec<u32> = lower
-        .split(|c: char| !c.is_ascii_digit())
-        .filter(|w| !w.is_empty())
-        .filter_map(|w| w.parse().ok())
-        .collect();
-    match numbers.as_slice() {
-        [n] if *n > 0 => Some(*n),
-        _ => None,
-    }
-}
-
 /// The paths the plan writes: a destination, never a source, even when a proposal names
 /// one in the read step (`Read ./caisse.csv ; write the object to ./out/caisse.json`).
 fn written_targets(plan: &Plan) -> Vec<String> {
@@ -375,9 +350,11 @@ pub(super) fn bind(
     recognized: &mut BTreeSet<String>,
 ) -> Bindings {
     let model = bind_model(plan, request, out, recognized);
+    let located = located_json(plan);
     let lookup = Need::from_step(plan.step(Op::Lookup), |step| {
-        resolve_lookup(step, request, out, recognized)
+        resolve_lookup(step, located.as_deref(), request, out, recognized)
     });
+    let read_consumed = lookup_consumes(&lookup, located.as_deref());
     let search = Need::from_step(plan.step(Op::Search), |_| {
         recognized.insert("const.search_root".to_owned());
         answer(request, out, "const.search_root", SEARCH_LABEL, true)
@@ -386,7 +363,7 @@ pub(super) fn bind(
         bind_url(plan, request, out, recognized)
     });
     let written = written_targets(plan);
-    let read = Need::from_step(plan.step(Op::Read), |step| {
+    let read = Need::from_step(plan.step(Op::Read).filter(|_| !read_consumed), |step| {
         resolve_read(step, &written, request, out, recognized)
     });
     let absent = matches!(lookup, Need::Absent) && matches!(fetch, Need::Absent);
@@ -441,11 +418,7 @@ pub(super) fn bind(
     let classify_per_record = matches!(&read, Need::Bound(Source::File(path)) if Structured::of(path).is_some())
         && shape::per_record_classify(plan);
     if per_item.contains(&Op::Draft) {
-        for constraint in &plan.constraints {
-            if shape::structural(constraint) && !consumed.contains(constraint) {
-                consumed.push(constraint.clone());
-            }
-        }
+        consume_structural(plan, &mut consumed);
     }
     let mut b = Bindings {
         model,
@@ -463,7 +436,10 @@ pub(super) fn bind(
         item,
         per_item,
         classify_per_record,
+        slots: Vec::new(),
+        pending_slots: Vec::new(),
     };
+    bind_slots(plan, request, out, recognized, &mut b);
     b.rule = Need::from_step(plan.step(Op::Compute), |step| {
         // A rule the request states over a parsed source is code the compiler writes;
         // an explicit answer still wins, and anything outside the grammar is asked.
@@ -519,17 +495,70 @@ fn refuse_per_item_placeholder(effect: &Effect, out: &mut CompileOutcome) -> boo
     true
 }
 
+/// A structure law among the constraints is consumed by the structure, kept out of prompts.
+fn consume_structural(plan: &Plan, consumed: &mut Vec<String>) {
+    for constraint in &plan.constraints {
+        if shape::structural(constraint) && !consumed.contains(constraint) {
+            consumed.push(constraint.clone());
+        }
+    }
+}
+
+/// A value the request alludes to without stating it: asked as its const, a literal for a
+/// numeric comparison, text otherwise; never guessed.
+fn bind_slots(
+    plan: &Plan,
+    request: &CompileRequest,
+    out: &mut CompileOutcome,
+    recognized: &mut BTreeSet<String>,
+    b: &mut Bindings,
+) {
+    for slot in &plan.slots {
+        recognized.insert(slot.key.clone());
+        let label = format!(
+            "Which value is « {} »? The request alludes to it without stating it; supply the literal value.",
+            slot.label
+        );
+        match answer(request, out, &slot.key, &label, !slot.numeric) {
+            Some(value) => b.slots.push((slot.slug().to_owned(), value)),
+            None => b.pending_slots.push(slot.key.clone()),
+        }
+    }
+}
+
+/// The one JSON file the plan's read step locates: a lookup by identifier selects its
+/// record there.
+fn located_json(plan: &Plan) -> Option<String> {
+    plan.step(Op::Read)
+        .and_then(|step| paths::single_file(&step.detail))
+        .filter(|file| paths::extension(file).as_deref() == Some("json"))
+}
+
+/// Whether the lookup consumed the located file: it is then read once, by the lookup, and
+/// the record it selects is the material; a second read of the whole file would be the
+/// wrong content for « write it ».
+fn lookup_consumes(lookup: &Need<Lookup>, located: Option<&str>) -> bool {
+    matches!(
+        (lookup, located),
+        (Need::Bound(l), Some(file)) if l.by_id.is_some() && l.directory == json!(file)
+    )
+}
+
 /// The lookup step settles its directory: a detail naming one JSON file and an
 /// identifier binds the file itself and asks only which field holds the identifier (the
-/// record is selected at run time); any other detail asks for the JSON directory file and
-/// reads the record keyed by each invocation's `record_id`.
+/// record is selected at run time); a detail naming an identifier and no path selects the
+/// record in the JSON file the request's read step locates; any other detail asks for the
+/// JSON directory file and reads the record keyed by each invocation's `record_id`.
 fn resolve_lookup(
     step: &Step,
+    located: Option<&str>,
     request: &CompileRequest,
     out: &mut CompileOutcome,
     recognized: &mut BTreeSet<String>,
 ) -> Option<Lookup> {
-    if let Some(literal) = shape::lookup_by_identifier(&step.detail) {
+    let literal = shape::lookup_by_identifier(&step.detail)
+        .or_else(|| located.and_then(|file| shape::lookup_by_identifier_over(&step.detail, file)));
+    if let Some(literal) = literal {
         let field_key = format!("const.{}_id_field", literal.slug);
         recognized.insert(field_key.clone());
         let label = format!(
@@ -781,17 +810,48 @@ fn synthesized_rule(plan: &Plan, step: &Step, intent: &str, b: &Bindings) -> Opt
     let whole = !detail.contains(" ; ");
     // A rule recorded for this very step stands for it when it is the only rule (the seat's
     // paraphrase beside the promoted constraint of the same rule); two recorded rules on a
-    // joined detail are synthesized whole, so neither stands for the other.
-    let stated = plan
-        .rules
+    // joined detail are synthesized whole, so neither stands for the other. A rule stands
+    // for a VERBATIM detail only when every sentence of the detail is its own: a second
+    // sentence (« keep only the rows whose status is shipped … . Write the count of those
+    // orders per country ») states more than the rule, and a rule over one part would
+    // silently drop it. A seat's detail is its own paraphrase, not the request's sentences:
+    // its length says nothing about a second computation (the request's coverage is the
+    // accounting of its regions), so the rule anchored on its evidence stands.
+    let verbatim = super::cognition::exact_excerpt(intent, detail).is_some();
+    let fold = |text: &str| {
+        text.split(|c: char| !c.is_alphanumeric())
+            .filter(|w| !w.is_empty())
+            .collect::<Vec<_>>()
+            .join(" ")
+            .to_lowercase()
+    };
+    let covers = |rule: &rules::Rule| {
+        let text = fold(rule.text());
+        !verbatim
+            || detail
+                .split(". ")
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .all(|sentence| {
+                    let sentence = fold(sentence);
+                    text.contains(&sentence) || sentence.contains(&text)
+                })
+    };
+    let distinct = distinct_rules(plan);
+    let stated = distinct
         .iter()
         .find(|rule| rule.text() == step.evidence || rule.text() == detail)
-        .filter(|_| whole || plan.rules.len() == 1)
-        .cloned()
+        .filter(|rule| (whole || distinct.len() == 1) && covers(rule))
+        .map(|rule| (*rule).clone())
         .or_else(|| rules::synthesize(detail, &super::columns::columns_hint(intent)))
         .or_else(|| {
-            (whole && plan.rules.len() == 1)
-                .then(|| plan.rules.first().cloned())
+            (whole && distinct.len() == 1)
+                .then(|| {
+                    distinct
+                        .first()
+                        .filter(|rule| covers(rule))
+                        .map(|rule| (*rule).clone())
+                })
                 .flatten()
         })?;
     match &b.read {
@@ -804,6 +864,34 @@ fn synthesized_rule(plan: &Plan, step: &Step, intent: &str, b: &Bindings) -> Opt
         }
         _ => None,
     }
+}
+
+/// The plan's rules with the plain twins removed: the promoted constraint of a clause
+/// (« data igual a 2026-09-22 ») beside the seat's typed rule over the same clause with its
+/// output columns is one rule, not two. A plain rule (a filter with no stage after it)
+/// whose clauses and junction another rule states is that rule's twin.
+fn distinct_rules(plan: &Plan) -> Vec<&rules::Rule> {
+    let key = |rule: &rules::Rule| {
+        let json = rule.to_json();
+        (json["clauses"].clone(), json["junction"].clone())
+    };
+    let mut kept: Vec<&rules::Rule> = Vec::new();
+    for rule in &plan.rules {
+        let twin = plan
+            .rules
+            .iter()
+            .any(|other| !std::ptr::eq(other, rule) && other.shaped() && key(other) == key(rule));
+        if !rule.shaped() && twin {
+            continue;
+        }
+        if !kept
+            .iter()
+            .any(|k| k.text() == rule.text() && k.jq() == rule.jq())
+        {
+            kept.push(rule);
+        }
+    }
+    kept
 }
 
 /// The one structured format several read files share, when they do: what a join parses,
@@ -906,6 +994,8 @@ fn wanted(
             Some(false)
         }
         EffectPolicy::Conflict => Some(false),
+        // The approval question over an automatic money movement is open: never bound.
+        EffectPolicy::Automatic if effect.verb.moves_money() => None,
         EffectPolicy::Automatic | EffectPolicy::HumanFirst => Some(true),
         EffectPolicy::Undecided => {
             let key = format!("effect.{slug}.include");

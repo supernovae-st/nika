@@ -586,14 +586,22 @@ const PROVIDER_TRANSPORT_CEILING: std::time::Duration = std::time::Duration::fro
 /// contradicts the local-first raison. `Disabled` is exactly the
 /// "trusted internal networks" opt-out the `nika-http` docs sanction.
 ///
-/// The config `timeout` is raised to [`PROVIDER_TRANSPORT_CEILING`]: the
-/// per-REQUEST deadline is owned by the wire layer (task `timeout:` else
-/// the per-provider default), and the 30s client default would undercut
-/// any longer budget via the idle-read guard (see the ceiling's doc).
+/// The config `timeout` is raised to the provider transport ceiling (the
+/// private `PROVIDER_TRANSPORT_CEILING`, 600 s): the per-REQUEST deadline is
+/// owned by the wire layer (task `timeout:` else the per-provider default),
+/// and the 30s client default would undercut any longer budget via the
+/// idle-read guard (see the ceiling's doc).
 /// Empirical anchor (#148 · M3 Pro): local thinking-era models legitimately
 /// exceed 30s — `qwen3.5:4b` ~43s · `qwen3.5:9b` ~87s for one structured
 /// task · cold model load adds 30-60s (the reason local classes default
 /// to 300s at the wire layer · a timeout is a ceiling, not a wait).
+///
+/// Public because the authoring transports (the CLI's `--authoring-model` /
+/// `--decision-model` seats in `nika-cli-host`) talk to the SAME provider
+/// allowlist and must inherit the same ceiling: built on the default
+/// client, an authoring call was cut at the 30s idle-read guard whatever
+/// `--authoring-timeout` asked (grok-4.7 · 408 after 30s · 2026-09-22
+/// preflight) and a local authoring seat on `127.0.0.1` was SSRF-blocked.
 ///
 /// # Errors
 ///
@@ -602,7 +610,7 @@ const PROVIDER_TRANSPORT_CEILING: std::time::Duration = std::time::Duration::fro
 // would suggest is a cross-crate compile error — field assignment is the only
 // way (the same idiom nika-http's own tests use).
 #[allow(clippy::field_reassign_with_default)]
-fn provider_http() -> Result<ReqwestHttp, nika_kernel::HttpError> {
+pub fn provider_http() -> Result<ReqwestHttp, nika_kernel::HttpError> {
     let mut config = HttpConfig::default();
     config.ssrf = SsrfMode::Disabled;
     config.timeout = PROVIDER_TRANSPORT_CEILING;

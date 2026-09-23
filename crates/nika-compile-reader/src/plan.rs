@@ -320,6 +320,35 @@ impl Obligation {
     }
 }
 
+/// A value the request alludes to without stating it (« le seuil d'alerte », « el recargo
+/// acordado »): a rule compares to it, and the compiler asks for it as a const, never
+/// guesses it. `numeric` when the comparison is numeric.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Slot {
+    /// The question key and the const the answer is baked into (`const.<slug>`).
+    pub key: String,
+    /// The request's own words for the value.
+    pub label: String,
+    pub numeric: bool,
+}
+
+impl Slot {
+    #[must_use]
+    pub fn new(key: impl Into<String>, label: impl Into<String>, numeric: bool) -> Self {
+        Self {
+            key: key.into(),
+            label: label.into(),
+            numeric,
+        }
+    }
+    /// The slug the rule's jq reads the value under (`$in.slots.<slug>`).
+    #[must_use]
+    pub fn slug(&self) -> &str {
+        self.key.trim_start_matches("const.")
+    }
+}
+
 /// A literal copied from the intent, never reproduced by a model.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
@@ -360,6 +389,9 @@ pub struct Plan {
     /// Row filters the request states, as typed predicates the compiler validated (from the
     /// semantic frontend) or parsed (from the closed grammar); lowered to code, never asked.
     pub rules: Vec<rules::Rule>,
+    /// Values the request alludes to without stating them, asked as consts and read by
+    /// the rules that compare to them.
+    pub slots: Vec<Slot>,
 }
 
 impl Plan {
@@ -421,6 +453,7 @@ impl Plan {
             "unknowns": self.unknowns,
             "trigger": self.trigger,
             "rules": self.rules.iter().map(rules::Rule::to_json).collect::<Vec<_>>(),
+            "slots": self.slots.iter().map(|s| json!({"key": s.key, "label": s.label, "numeric": s.numeric})).collect::<Vec<_>>(),
         })
     }
     /// The faithful inverse of [`Self::to_json`]: a recorded plan (the `provenance.plan`
@@ -468,6 +501,22 @@ impl Plan {
         plan.trigger = optional_text(record, "plan", "trigger")?;
         if let Some(rules) = object.get("rules").and_then(Value::as_array) {
             plan.rules = rules.iter().filter_map(rules::Rule::from_json).collect();
+        }
+        if let Some(slots) = object.get("slots").and_then(Value::as_array) {
+            for (k, item) in slots.iter().enumerate() {
+                let field = |name: &str| {
+                    item.get(name)
+                        .and_then(Value::as_str)
+                        .map(str::to_owned)
+                        .ok_or_else(|| format!("`slots[{k}].{name}` is missing"))
+                };
+                let numeric = item
+                    .get("numeric")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false);
+                plan.slots
+                    .push(Slot::new(field("key")?, field("label")?, numeric));
+            }
         }
         Ok(plan)
     }
@@ -645,6 +694,11 @@ mod tests {
             unknowns: vec!["something else".to_owned()],
             trigger: Some("every morning".to_owned()),
             rules: Vec::new(),
+            slots: vec![Slot::new(
+                "const.alert_threshold",
+                "the alert threshold",
+                true,
+            )],
         };
         let record = plan.to_json();
         let back = Plan::from_json(&record).expect("round trip");

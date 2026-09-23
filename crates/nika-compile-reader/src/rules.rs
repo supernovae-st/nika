@@ -23,7 +23,54 @@ use super::rule_cues::{
     RELATIVES, SUMMARY_CORE, SUMMARY_WORDS, UNIT_PHRASES, UNIT_WORDS,
 };
 
-/// The six comparisons a rule may state.
+mod lines;
+pub use lines::{by_construction_tail, line_filter};
+
+/// Whether a constraint only says the rows keep their order (« garde l'ordre », « keep the
+/// order », « en el mismo orden »): a computation that does not sort keeps the source order
+/// by construction, and the compute task carries the constraint. Folded, six languages.
+#[must_use]
+pub fn keeps_order(text: &str) -> bool {
+    let folded = super::hot::fold(text);
+    let padded = format!(
+        " {} ",
+        folded
+            .split(|c: char| !c.is_alphanumeric() && c != '\'')
+            .filter(|w| !w.is_empty())
+            .collect::<Vec<_>>()
+            .join(" ")
+    );
+    [
+        " garde l'ordre ",
+        " gardez l'ordre ",
+        " conserve l'ordre ",
+        " conservez l'ordre ",
+        " dans l'ordre ",
+        " meme ordre ",
+        " keep the order ",
+        " keeps the order ",
+        " keeping the order ",
+        " in order ",
+        " in the same order ",
+        " in the original order ",
+        " same order ",
+        " manten el orden ",
+        " mantener el orden ",
+        " mismo orden ",
+        " mantieni l'ordine ",
+        " stesso ordine ",
+        " reihenfolge beibehalten ",
+        " gleiche reihenfolge ",
+        " mantem a ordem ",
+        " mantenha a ordem ",
+        " mesma ordem ",
+    ]
+    .iter()
+    .any(|cue| padded.contains(cue))
+}
+
+/// The comparisons a rule may state: six over a value, three over the text of a line or a
+/// column (starts with, contains, ends with) and their negations.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Comparator {
@@ -33,6 +80,12 @@ pub enum Comparator {
     Le,
     Eq,
     Ne,
+    StartsWith,
+    NotStartsWith,
+    Contains,
+    NotContains,
+    EndsWith,
+    NotEndsWith,
 }
 
 impl Comparator {
@@ -46,6 +99,12 @@ impl Comparator {
             Self::Le => Self::Gt,
             Self::Eq => Self::Ne,
             Self::Ne => Self::Eq,
+            Self::StartsWith => Self::NotStartsWith,
+            Self::NotStartsWith => Self::StartsWith,
+            Self::Contains => Self::NotContains,
+            Self::NotContains => Self::Contains,
+            Self::EndsWith => Self::NotEndsWith,
+            Self::NotEndsWith => Self::EndsWith,
         }
     }
 
@@ -59,6 +118,12 @@ impl Comparator {
             "<=" | "≤" | "le" | "lte" => Some(Self::Le),
             "==" | "=" | "eq" | "equals" => Some(Self::Eq),
             "!=" | "<>" | "≠" | "ne" => Some(Self::Ne),
+            "startswith" | "starts_with" | "^=" => Some(Self::StartsWith),
+            "!startswith" | "not_startswith" => Some(Self::NotStartsWith),
+            "contains" | "*=" => Some(Self::Contains),
+            "!contains" | "not_contains" => Some(Self::NotContains),
+            "endswith" | "ends_with" | "$=" => Some(Self::EndsWith),
+            "!endswith" | "not_endswith" => Some(Self::NotEndsWith),
             _ => None,
         }
     }
@@ -71,10 +136,29 @@ impl Comparator {
             Self::Le => "<=",
             Self::Eq => "==",
             Self::Ne => "!=",
+            Self::StartsWith => "startswith",
+            Self::NotStartsWith => "!startswith",
+            Self::Contains => "contains",
+            Self::NotContains => "!contains",
+            Self::EndsWith => "endswith",
+            Self::NotEndsWith => "!endswith",
+        }
+    }
+    /// The jq function of a text comparison and whether it is negated; `None` for a
+    /// comparison over a value.
+    const fn textual(self) -> Option<(&'static str, bool)> {
+        match self {
+            Self::StartsWith => Some(("startswith", false)),
+            Self::NotStartsWith => Some(("startswith", true)),
+            Self::Contains => Some(("contains", false)),
+            Self::NotContains => Some(("contains", true)),
+            Self::EndsWith => Some(("endswith", false)),
+            Self::NotEndsWith => Some(("endswith", true)),
+            Self::Gt | Self::Ge | Self::Lt | Self::Le | Self::Eq | Self::Ne => None,
         }
     }
     const fn numeric(self) -> bool {
-        !matches!(self, Self::Eq | Self::Ne)
+        matches!(self, Self::Gt | Self::Ge | Self::Lt | Self::Le)
     }
 }
 
@@ -156,6 +240,9 @@ pub enum Operand {
     Bool(bool),
     /// Another column of the same record.
     Column(String),
+    /// A value the request alludes to without stating it, read at run under
+    /// `$in.slots.<slug>` from the const the compiler asked for.
+    Slot(String),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -209,10 +296,26 @@ pub struct Rule {
     /// The records are the lines of a text source, and the result is written back as
     /// lines: a removal of duplicate lines over a `.txt` file.
     lines: bool,
+    /// A program a seat wrote for a computation the typed stages cannot state, verified by
+    /// the compiler on the seat's own example before it was bound: it runs verbatim over
+    /// `.records`, and the columns it declares are the guard's fields.
+    program: Option<Program>,
+}
+
+/// A verified program and the columns it reads.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Program {
+    pub jq: String,
+    pub columns: Vec<String>,
 }
 
 /// The jq path of one column: a bare identifier as `.name`, anything else bracketed.
 pub(crate) fn key(field: &str) -> String {
+    // The record itself: a line of a text source has no columns.
+    if field == "." {
+        return ".".to_owned();
+    }
     let bare = field
         .chars()
         .next()
@@ -228,6 +331,42 @@ pub(crate) fn key(field: &str) -> String {
 impl Clause {
     fn jq(&self) -> String {
         let field = key(&self.field);
+        if let Operand::Slot(slug) = &self.value {
+            let slot = format!("$in.slots.{slug}");
+            if let Some((function, negated)) = self.comparator.textual() {
+                let test = format!("({field} | tostring | {function}({slot} | tostring))");
+                return if negated {
+                    format!("({test} | not)")
+                } else {
+                    test
+                };
+            }
+            return if self.comparator.numeric() {
+                format!(
+                    "({field} | tonumber) {} ({slot} | tonumber)",
+                    self.comparator.symbol()
+                )
+            } else {
+                format!(
+                    "({field} | tostring) {} ({slot} | tostring)",
+                    self.comparator.symbol()
+                )
+            };
+        }
+        if let Some((function, negated)) = self.comparator.textual() {
+            let literal = match &self.value {
+                Operand::Number(text) | Operand::Text(text) => json!(text).to_string(),
+                Operand::Bool(truth) => json!(truth.to_string()).to_string(),
+                Operand::Column(other) => format!("({} | tostring)", key(other)),
+                Operand::Slot(slug) => format!("($in.slots.{slug} | tostring)"),
+            };
+            let test = format!("({field} | tostring | {function}({literal}))");
+            return if negated {
+                format!("({test} | not)")
+            } else {
+                test
+            };
+        }
         match (&self.value, self.comparator.numeric()) {
             (Operand::Number(n), _) => {
                 format!("({field} | tonumber) {} {n}", self.comparator.symbol())
@@ -244,6 +383,15 @@ impl Clause {
                 format!("{field} {} {}", self.comparator.symbol(), json!(text))
             }
             // A JSON file holds the boolean, a CSV its spelling: both are the same truth.
+            // A slot is rendered before this match; the arm keeps it exhaustive.
+            (Operand::Slot(slug), true) => format!(
+                "({field} | tonumber) {} ($in.slots.{slug} | tonumber)",
+                self.comparator.symbol()
+            ),
+            (Operand::Slot(slug), false) => format!(
+                "({field} | tostring) {} ($in.slots.{slug} | tostring)",
+                self.comparator.symbol()
+            ),
             (Operand::Bool(truth), _) => match self.comparator {
                 Comparator::Eq => format!("({field} == {truth} or {field} == \"{truth}\")"),
                 Comparator::Ne => format!("({field} != {truth} and {field} != \"{truth}\")"),
@@ -257,6 +405,7 @@ impl Clause {
             Operand::Text(t) => (t.clone(), "text"),
             Operand::Bool(b) => (b.to_string(), "bool"),
             Operand::Column(c) => (c.clone(), "column"),
+            Operand::Slot(s) => (s.clone(), "slot"),
         };
         json!({"field": self.field, "comparator": self.comparator.symbol(), "value": value, "value_kind": kind})
     }
@@ -268,6 +417,7 @@ impl Clause {
             Some("number") => Operand::Number(literal),
             Some("bool") => Operand::Bool(literal == "true"),
             Some("column") => Operand::Column(literal),
+            Some("slot") => Operand::Slot(literal),
             _ => Operand::Text(literal),
         };
         if field.is_empty() {
@@ -293,7 +443,30 @@ impl Rule {
             summary: false,
             shape,
             lines: false,
+            program: None,
         }
+    }
+    /// A rule whose computation is a verified program the seat wrote: no typed stage, the
+    /// program itself over `.records`, its declared columns as fields.
+    #[must_use]
+    pub fn program(text: &str, jq: &str, columns: Vec<String>) -> Self {
+        Self {
+            text: text.to_owned(),
+            clauses: Vec::new(),
+            junction: Junction::And,
+            summary: false,
+            shape: Shape::default(),
+            lines: false,
+            program: Some(Program {
+                jq: jq.to_owned(),
+                columns,
+            }),
+        }
+    }
+    /// The verified program the rule carries, when a seat wrote it.
+    #[must_use]
+    pub fn verified_program(&self) -> Option<&Program> {
+        self.program.as_ref()
     }
     /// The columns the computation writes, in order, when it fixes them.
     #[must_use]
@@ -331,13 +504,17 @@ impl Rule {
         self.lines
     }
     /// The same rule over the lines of a text source, when its only work is the removal of
-    /// duplicates: a line has no columns to filter, group, sort or project. Anything else
-    /// over a text source is `None`: the human is asked.
+    /// duplicates or a filter on the line itself: a line has no columns to filter, group,
+    /// sort or project. Anything else over a text source is `None`: the human is asked.
     #[must_use]
     pub fn over_lines(&self) -> Option<Self> {
+        if self.lines {
+            return Some(self.clone());
+        }
         let s = &self.shape;
         let only_distinct = s.distinct
             && self.clauses.is_empty()
+            && s.distinct_by.is_empty()
             && s.join_on.is_none()
             && s.group_by.is_none()
             && s.aggregations.is_empty()
@@ -365,6 +542,12 @@ impl Rule {
     pub fn text(&self) -> &str {
         &self.text
     }
+    /// Whether a stage follows the filter (a grouping, an aggregation, a sort, a
+    /// projection, a limit, a rename or a join): a plain rule only keeps or drops rows.
+    #[must_use]
+    pub fn shaped(&self) -> bool {
+        self.shape != Shape::default() || self.program.is_some()
+    }
     /// The inverse of [`Rule::to_json`], for a recorded plan replayed on an answer round.
     pub(crate) fn from_json(value: &Value) -> Option<Self> {
         let text = value.get("text")?.as_str()?.to_owned();
@@ -375,7 +558,23 @@ impl Rule {
             .map(Clause::from_json)
             .collect::<Option<Vec<_>>>()?;
         let shape = Shape::from_json(value.get("shape"))?;
-        if clauses.is_empty() && shape == Shape::default() {
+        let program = value.get("program").filter(|p| !p.is_null()).map(|p| {
+            Some(Program {
+                jq: p.get("jq")?.as_str()?.to_owned(),
+                columns: p
+                    .get("columns")?
+                    .as_array()?
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .map(str::to_owned)
+                    .collect(),
+            })
+        });
+        let program = match program {
+            Some(program) => Some(program?),
+            None => None,
+        };
+        if clauses.is_empty() && shape == Shape::default() && program.is_none() {
             return None;
         }
         let junction = match value.get("junction").and_then(Value::as_str) {
@@ -394,6 +593,7 @@ impl Rule {
             summary,
             shape,
             lines,
+            program,
         })
     }
     /// Whether the text also asked for the count and totals the summary stage computes.
@@ -405,6 +605,9 @@ impl Rule {
     /// group column, the aggregated columns, a sort or a projection on a source column (a
     /// sort or a projection on a produced name reads nothing from the source).
     pub(crate) fn fields(&self) -> Vec<String> {
+        if let Some(program) = &self.program {
+            return program.columns.clone();
+        }
         let mut out: Vec<String> = Vec::new();
         let mut push = |name: &str| {
             if !out.iter().any(|f| f == name) {
@@ -414,8 +617,13 @@ impl Rule {
         if let Some(key) = &self.shape.join_on {
             push(key);
         }
+        for key in &self.shape.distinct_by {
+            push(key);
+        }
         for clause in &self.clauses {
-            push(&clause.field);
+            if clause.field != "." {
+                push(&clause.field);
+            }
             if let Operand::Column(other) = &clause.value {
                 push(other);
             }
@@ -454,6 +662,9 @@ impl Rule {
     /// source, the result is written back as lines with the file's final newline.
     #[must_use]
     pub fn jq(&self) -> String {
+        if let Some(program) = &self.program {
+            return program.jq.clone();
+        }
         let base = match &self.shape.join_on {
             Some(on) => format!(
                 ".records | reduce .[1:][] as $right (.[0]; [.[] as $a | $right[] | select({k} == ($a | {k})) | $a + .])",
@@ -472,7 +683,29 @@ impl Rule {
         if self.lines {
             jq.push_str(" | join(\"\\n\") | if length > 0 then . + \"\\n\" else . end");
         }
-        jq
+        if self.slots().is_empty() {
+            jq
+        } else {
+            // The slots ride the input beside the records: `$in` keeps them in reach
+            // inside the filter, where `.` is one record.
+            format!(". as $in | {jq}")
+        }
+    }
+    /// The slugs of the slots the clauses compare to, in clause order.
+    #[must_use]
+    pub fn slots(&self) -> Vec<String> {
+        self.clauses
+            .iter()
+            .filter_map(|c| match &c.value {
+                Operand::Slot(slug) => Some(slug.clone()),
+                _ => None,
+            })
+            .collect()
+    }
+    /// Whether the comparison is over numbers.
+    #[must_use]
+    pub const fn compares_numbers(comparator: Comparator) -> bool {
+        comparator.numeric()
     }
     /// True when the records are an array whose first record carries every column the
     /// rule reads (an empty array passes): a wrong column fails loudly, never filters
@@ -534,6 +767,7 @@ impl Rule {
             "summary": self.summary,
             "shape": self.shape.to_json(),
             "lines": self.lines,
+            "program": self.program.as_ref().map(|p| json!({"jq": p.jq, "columns": p.columns})),
         });
         if let [only] = self.clauses.as_slice() {
             let clause = only.to_json();
@@ -928,6 +1162,10 @@ fn segments(text: &str) -> impl Iterator<Item = &str> {
 #[must_use]
 pub fn synthesize(text: &str, columns: &[String]) -> Option<Rule> {
     let text = text.trim();
+    // « the lines that start with # »: a filter on the line itself, over a text source.
+    if let Some(rule) = line_filter(text) {
+        return Some(rule);
+    }
     let mut clauses = Vec::new();
     let mut junction: Option<Junction> = None;
     let mut summary = false;
@@ -992,6 +1230,7 @@ pub fn synthesize(text: &str, columns: &[String]) -> Option<Rule> {
         summary,
         shape,
         lines: false,
+        program: None,
     })
 }
 

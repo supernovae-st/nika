@@ -12,11 +12,15 @@
 //! AMBIGUOUS and may be settled by a bounded decision seat. Nothing here invents
 //! an operation, an effect or a policy; every element keeps its verbatim clause.
 
+mod convert;
+mod copy;
 mod cues;
 mod effects;
 mod es;
+mod gating;
 mod heads;
 mod it;
+mod lines;
 mod literals;
 mod slugs;
 
@@ -25,18 +29,27 @@ use super::plan::{
     Binding, Effect, EffectPolicy, EffectVerb, Obligation, ObligationKind, Op, Plan, Step,
 };
 use super::{gates, hot, objects};
+pub use cues::settle_retrieval;
 pub(crate) use cues::{ARTICLES, OBJECT_CONNECTORS};
 use cues::{
-    CONSTRAINT_OPENERS, FINAL_GATE_MARKERS, FORBIDDEN_MARKERS, LEADING_FILLER, LOOKUP_CUES,
-    NAMED_GATE_MARKERS, NEGATION_OPENERS, READ_CUES, REVISION_MARKERS, SEARCH_CUES,
-    SECOND_WORD_FILLERS, STOP_MARKERS, STRONG_CONNECTORS, TRIGGER_PREFIXES, UNDECIDED_MARKERS,
-    WEAK_CONNECTORS,
+    CONSTRAINT_OPENERS, DEDUP_MARKERS, FINAL_GATE_MARKERS, FORBIDDEN_MARKERS, LEADING_FILLER,
+    NAMED_GATE_MARKERS, NEGATION_OPENERS, REVISION_MARKERS, SECOND_WORD_FILLERS, STOP_MARKERS,
+    STRONG_CONNECTORS, TRIGGER_PREFIXES, UNDECIDED_MARKERS, WEAK_CONNECTORS,
 };
 pub use effects::effect_words;
 pub(crate) use effects::kindred;
 use effects::{push_effect, push_obligation};
 pub(crate) use heads::Head;
 pub use slugs::slug;
+
+/// The number a word spells in six languages (« five », « cinq », « fünf »), for the stages
+/// that read a count.
+pub(crate) fn number_word(folded: &str) -> Option<u32> {
+    cues::NUMBER_WORDS
+        .iter()
+        .find(|(word, _)| *word == folded)
+        .map(|(_, n)| *n)
+}
 
 /// One clause the lexicon could not settle alone: a small feasible set, never a guess.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -74,10 +87,13 @@ pub struct Reading {
 /// A clause the closed rule grammar read whole ("count the rows per client", "merge them on
 /// the id column") is a compute step carrying its rule: the words are its literals.
 fn push_rule(original: &str, rule: super::rules::Rule, reading: &mut Reading) {
+    // The detail is the text the grammar read (the whole clause, or the object after a
+    // computation head such as « compute »): the admission and the binding find the rule by
+    // that very text.
     reading.plan.push_step(Step {
         op: Op::Compute,
         evidence: original.to_owned(),
-        detail: original.trim().to_owned(),
+        detail: rule.text().trim().to_owned(),
         categories: Vec::new(),
     });
     if !reading.plan.rules.iter().any(|r| r.text() == rule.text()) {
@@ -260,6 +276,10 @@ fn written_object(
     if refers_back || classified || fetched || (produced && objects::folds(object_lower)) {
         return;
     }
+    // « write the lines that start with # to ./out/titles.txt »: the kept lines.
+    if lines::written_lines(object, original, reading) {
+        return;
+    }
     if Structured::of(path).is_some() {
         reading.unresolved.push(original.to_owned());
     } else {
@@ -408,6 +428,66 @@ fn strip_filler(lower: &str) -> &str {
     }
 }
 
+/// Whether a connector opens a stage the closed grammar reads whole (« …, sort them by
+/// priority and … », « …, garde seulement les lignes dont le statut est ouvert, … »): a
+/// clause boundary the reader cuts whatever verb the stage opens with, so a computation
+/// stated after a comma never rides as the residue of the clause before it.
+fn stage_ahead(rest: &str) -> bool {
+    let end = STRONG_CONNECTORS
+        .iter()
+        .chain(WEAK_CONNECTORS.iter())
+        .filter_map(|connector| rest.find(connector))
+        .min()
+        .unwrap_or(rest.len());
+    let segment = rest.get(..end).unwrap_or_default().trim();
+    // A stated stage (a sort, a count, a projection, a rename…) or a keep-family filter the
+    // grammar reads whole; never a bare comparator (`token=…?` inside a question) nor a
+    // question: those stay in the clause that carries them.
+    if segment.is_empty() || segment.ends_with('?') {
+        return false;
+    }
+    super::stages::stated(segment, &[]).is_some()
+        || (KEEP_OPENERS.iter().any(|lead| segment.starts_with(lead))
+            && super::rules::synthesize(segment, &[]).is_some())
+}
+
+/// A connector inside a projection list (« keep only the name and email of each person »,
+/// « ne garde que le nom et l'email de chaque personne ») is no clause boundary, whatever
+/// verb the next item spells (« email » is also an effect head): the list the grammar reads
+/// whole continues across it. The keep lead is looked for before the connector, and the
+/// grammar judges the whole span up to the next connector.
+fn projection_continues(before: &str, connector: &str, rest: &str) -> bool {
+    let end = STRONG_CONNECTORS
+        .iter()
+        .chain(WEAK_CONNECTORS.iter())
+        .filter_map(|c| rest.find(c))
+        .min()
+        .unwrap_or(rest.len());
+    let tail = rest.get(..end).unwrap_or_default().trim();
+    if tail.is_empty() {
+        return false;
+    }
+    KEEP_OPENERS.iter().any(|lead| {
+        before.rfind(lead).is_some_and(|at| {
+            let span = format!("{}{connector}{tail}", before.get(at..).unwrap_or_default());
+            super::stages::stated(&span, &[]).is_some_and(|shape| !shape.columns.is_empty())
+        })
+    })
+}
+
+/// The constraint openers of the keep family: « keep only the rows whose status is open »
+/// states a computation the closed grammar reads whole, « keep the tone formal » a
+/// constraint. The grammar judges first; only what it cannot read is a constraint.
+const KEEP_OPENERS: &[&str] = &[
+    "keep ",
+    "conserve ",
+    "garde ",
+    "mantieni ",
+    "conserva ",
+    "mantén ",
+    "manten ",
+];
+
 /// Split one sentence body into clauses at connectors followed by a known head.
 fn split_clauses(sentence: &str) -> Vec<&str> {
     // A sequencing connector always opens a new clause (an unknown verb after
@@ -425,7 +505,10 @@ fn split_clauses(sentence: &str) -> Vec<&str> {
                 let at = from + pos;
                 let after = at + connector.len();
                 let rest = lower.get(after..).unwrap_or_default();
-                if always || head_of(strip_filler(rest)).is_some() {
+                let before = lower.get(..at).unwrap_or_default();
+                if (always || head_of(strip_filler(rest)).is_some() || stage_ahead(rest))
+                    && !projection_continues(before, connector, rest)
+                {
                     cuts.push((at, after));
                 }
                 from = after;
@@ -497,20 +580,6 @@ fn read_prefix(prefix: &str, original: &str, reading: &mut Reading, state: &mut 
     let owned = original_prefix.to_owned();
     for clause in split_clauses(&owned) {
         read_policy_or_clause(clause, reading, state);
-    }
-}
-
-fn gate_last_automatic(reading: &mut Reading, state: &mut ReadState) {
-    if let Some(last) = reading
-        .plan
-        .effects
-        .iter_mut()
-        .rev()
-        .find(|e| e.policy == EffectPolicy::Automatic)
-    {
-        last.policy = EffectPolicy::HumanFirst;
-    } else {
-        state.final_gate = true;
     }
 }
 
@@ -646,28 +715,7 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
     ]
     .iter()
     .any(|m| text.starts_with(m));
-    let dedup_markers = [
-        "no second action for the same",
-        "pas de seconde action",
-        "évite les doublons",
-        "évitez les doublons",
-        "avoid duplicates",
-        "déduplique",
-        "dédoublonne",
-        "deduplicate",
-        "de-duplicate",
-        "dedupe",
-        "remove duplicates",
-        "prevent duplicates",
-        "deduplica",
-        "elimina i duplicati",
-        "rimuovi i duplicati",
-        "evita i duplicati",
-        "elimina los duplicados",
-        "quita los duplicados",
-        "evita los duplicados",
-    ];
-    if !dedup_head && let Some((pos, _)) = earliest(text, &dedup_markers) {
+    if !dedup_head && let Some((pos, _)) = earliest(text, DEDUP_MARKERS) {
         read_prefix(prefix_before(text, pos), clause, reading, state);
         push_obligation(
             &mut reading.plan,
@@ -688,6 +736,21 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
         );
         return;
     }
+    // « Non serve chiedermi conferma », « no need to ask me »: a waiver is no gate. It is a
+    // policy clause; beside a contrary prohibition, the compiler refuses the bypass. A negated
+    // waiver (« mais pas sans me demander ») is the gate it denies waiving.
+    match gates::waiver_polarity(text) {
+        Some(true) => {
+            reading.policy_clauses.push(clause.to_owned());
+            return;
+        }
+        Some(false) => {
+            reading.policy_clauses.push(clause.to_owned());
+            gating::gate_last_automatic(reading, state, gating::names_sending(text));
+            return;
+        }
+        None => {}
+    }
     // The final action requires a fresh human validation: a listed wording or the shape
     // (`only after my explicit approval`, `the write needs my approval first`).
     let listed = earliest(text, FINAL_GATE_MARKERS).map(|(p, m)| (p, p + m.len()));
@@ -701,7 +764,7 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
             verbs = effect_words(text.get(pos..end).unwrap_or_default(), &reading.columns);
         }
         if verbs.is_empty() {
-            gate_last_automatic(reading, state);
+            gating::gate_last_automatic(reading, state, gating::names_sending(text));
         } else {
             for verb in verbs {
                 push_effect(
@@ -727,7 +790,7 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
         let target = objects::destination_target(after);
         let verbs = effect_words(after, &reading.columns);
         if verbs.is_empty() {
-            gate_last_automatic(reading, state);
+            gating::gate_last_automatic(reading, state, gating::names_sending(text));
         } else {
             for verb in verbs {
                 let literal = (verb.moves_money() && literals::money_literal(clause))
@@ -906,10 +969,20 @@ pub fn read(intent: &str) -> Reading {
 
 /// Read one clause; returns whether it produced an operation, effect or obligation.
 #[allow(clippy::too_many_lines)] // one clause walk: negation, head, medium, then the head's arm
-fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut [String]) -> bool {
+fn read_clause(lower: &str, original: &str, reading: &mut Reading, money: &mut [String]) -> bool {
     let text = strip_filler(lower);
     if text.is_empty() {
         return false;
+    }
+    // « ./rando/guide.md : extrais … »: the clause is led by its source.
+    if lines::leading_source(original, reading, money) {
+        return true;
+    }
+    // « as they are, in order »: what a lines rule already does by construction.
+    if reading.plan.rules.iter().any(super::rules::Rule::lines)
+        && super::rules::by_construction_tail(text)
+    {
+        return true;
     }
     let negated = NEGATION_OPENERS.iter().any(|m| text.starts_with(m));
     if negated {
@@ -941,7 +1014,22 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
         }
         return true;
     }
+    // « copy ./a.txt as is to ./out/b.txt »: a read and a write of what was read.
+    if copy::read(text, original, reading) {
+        return true;
+    }
+    // « convert ./a.csv into ./out/a.json »: the parsed records, written in the other format.
+    if convert::read(text, original, reading) {
+        return true;
+    }
     if CONSTRAINT_OPENERS.iter().any(|m| text.starts_with(m)) {
+        if KEEP_OPENERS.iter().any(|m| text.starts_with(m))
+            && !cues::question(original)
+            && let Some(rule) = super::rules::synthesize(original, &reading.columns)
+        {
+            push_rule(original, rule, reading);
+            return true;
+        }
         reading.plan.constraints.push(original.to_owned());
         return true;
     }
@@ -1045,7 +1133,13 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
     // reading a path is the supplied-document read.
     if let Some(path) = &path {
         let writes = heads::writes_to_path(phrase);
-        let saves = detail_lower.contains(" to ")
+        // « rename the country column to region and write ./sales-region.csv »: a bare path
+        // after the verb is the destination of the rows a computation produced. With no
+        // computation before it, a bare path stays a write with no content.
+        let bare = detail_lower.trim() == path.to_lowercase()
+            && reading.plan.steps.iter().any(|s| s.op == Op::Compute);
+        let saves = bare
+            || detail_lower.contains(" to ")
             || detail_lower.contains(" dans ")
             || detail_lower.contains(" into ")
             || detail_lower.contains(" sous ")
@@ -1138,6 +1232,12 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
         // anglais`, `un digest des notes dans ./notes`) is the material the operation
         // consumes: the read is that path (a folder is every file directly under it) and
         // the operation keeps the object the clause states, verbatim.
+        // An extraction of whole lines by a stated pattern is a line filter, never language work.
+        if matches!(head, Head::Op(Op::Extract))
+            && lines::read_extract(&detail, detail_lower, original, reading)
+        {
+            return true;
+        }
         if let Head::Op(op @ (Op::Draft | Op::Extract | Op::Classify | Op::Validate | Op::Compute)) =
             head
             && source_path(&detail, detail_lower, path)
@@ -1234,9 +1334,17 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
             // "trie les lignes par montant décroissant": a head the reader knows as a
             // classify whose whole clause the closed grammar reads (a sort by a stated
             // column) is that computation; "classe les tickets en bugs et features" stays
-            // a classification, the grammar reads no shape in it.
-            if *op == Op::Classify
-                && let Some(rule) = super::rules::synthesize(original, &reading.columns)
+            // a classification, the grammar reads no shape in it. A computation head
+            // (« compute the total of the amount column per client », « conserva solo las
+            // filas cuyo importe supera 200 ») is the computation its clause or its object
+            // states: the grammar reads it whole, and its words are the literals.
+            if matches!(op, Op::Classify | Op::Compute)
+                && let Some(rule) =
+                    super::rules::synthesize(original, &reading.columns).or_else(|| {
+                        (*op == Op::Compute)
+                            .then(|| super::rules::synthesize(&detail, &reading.columns))
+                            .flatten()
+                    })
             {
                 push_rule(original, rule, reading);
                 return true;
@@ -1289,25 +1397,8 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
                 Some(Op::Draft)
             } else if compare && numeric.iter().any(|c| detail_lower.contains(c)) {
                 Some(Op::Compute)
-            } else if options.contains(&Op::Read)
-                && READ_CUES.iter().any(|c| detail_lower.contains(c))
-            {
-                Some(Op::Read)
-            } else if options.contains(&Op::Lookup)
-                && LOOKUP_CUES.iter().any(|c| detail_lower.contains(c))
-                && !SEARCH_CUES.iter().any(|c| detail_lower.contains(c))
-            {
-                Some(Op::Lookup)
-            } else if options.contains(&Op::Search)
-                && SEARCH_CUES.iter().any(|c| detail_lower.contains(c))
-            {
-                Some(Op::Search)
-            } else if options.contains(&Op::Lookup)
-                && LOOKUP_CUES.iter().any(|c| detail_lower.contains(c))
-            {
-                Some(Op::Lookup)
             } else {
-                None
+                settle_retrieval(detail_lower, options)
             };
             match settled {
                 Some(op) => reading.plan.push_step(Step {

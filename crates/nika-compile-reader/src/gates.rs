@@ -404,6 +404,138 @@ pub fn final_gate(lower: &str) -> Option<(usize, usize)> {
     None
 }
 
+/// Waiver openers, folded: a request that says not to ask (« non serve chiedermi conferma »,
+/// « no need to ask me », « sans me demander ») states that no gate is wanted. A waiver is
+/// never a gate; beside a contrary prohibition it is a bypass, and that refusal is the
+/// compiler's judgement, not the reader's.
+const WAIVERS: &[&str] = &[
+    "no need to",
+    "no need for",
+    "needn't",
+    "don't",
+    "do not",
+    "without asking",
+    "without checking",
+    "pas besoin de",
+    "pas la peine de",
+    "inutile de",
+    "sans me",
+    "sans demander",
+    "ne me demande pas",
+    "ne me demandez pas",
+    "no hace falta",
+    "no necesitas",
+    "no es necesario",
+    "sin preguntarme",
+    "sin pedirme",
+    "no me preguntes",
+    "no me pidas",
+    "non serve",
+    "non c'è bisogno di",
+    "non c'e bisogno di",
+    "non occorre",
+    "senza chiedermi",
+    "senza chiedere",
+    "non chiedermi",
+    "nicht nötig",
+    "nicht notwendig",
+    "musst mich nicht",
+    "ohne mich zu fragen",
+    "ohne nachzufragen",
+    "frag mich nicht",
+    "não precisa",
+    "nao precisa",
+    "não é preciso",
+    "nao e preciso",
+    "sem me perguntar",
+    "sem perguntar",
+    "não me pergunte",
+    "nao me pergunte",
+];
+
+/// The asking a waiver waives, in the forms a waiver takes (an infinitive, a clitic form):
+/// « me demander », « preguntarme », « chiedermi », « mich fragen », « me perguntar ».
+const WAIVED_ASKING: &[&str] = &[
+    "ask",
+    "asking",
+    "check",
+    "confirm",
+    "demander",
+    "prévenir",
+    "prevenir",
+    "confirmer",
+    "preguntar",
+    "preguntarme",
+    "pedir",
+    "pedirme",
+    "consultar",
+    "consultarme",
+    "chiedere",
+    "chiedermi",
+    "chiedimi",
+    "confermare",
+    "fragen",
+    "nachfragen",
+    "rückfragen",
+    "perguntar",
+    "perguntar-me",
+    "confirmar",
+];
+
+/// Negations that flip a waiver into the gate it denies waiving (« mais pas sans me
+/// demander », « but not without asking me »), folded.
+const WAIVER_NEGATIONS: &[&str] = &[
+    "not", "never", "pas", "jamais", "no", "non", "nunca", "mai", "nicht", "nie", "niemals", "não",
+    "nao",
+];
+
+/// A waiver clause and its polarity: `Some(true)` waives the asking (« non serve chiedermi
+/// conferma », « no need to ask me »), `Some(false)` is a negated waiver — the gate it denies
+/// waiving (« mais pas sans me demander ») — and `None` is neither.
+#[must_use]
+pub fn waiver_polarity(lower: &str) -> Option<bool> {
+    let tokens = tokens(lower);
+    for opener in WAIVERS {
+        for (at, _) in lower.match_indices(opener) {
+            let end = at + opener.len();
+            let bounded = !lower[..at].ends_with(|c: char| c.is_alphanumeric())
+                && !lower[end..].starts_with(|c: char| c.is_alphanumeric());
+            if !bounded {
+                continue;
+            }
+            // « without asking », « sin preguntarme »: the opener may carry the asking itself.
+            let opener_asks = opener
+                .split_whitespace()
+                .any(|w| asking(w) || WAIVED_ASKING.contains(&w));
+            let asks = tokens
+                .iter()
+                .enumerate()
+                .filter(|(_, t)| t.start >= end)
+                .take(6)
+                .any(|(k, t)| {
+                    asking(t.word) || WAIVED_ASKING.contains(&t.word) || is_approval(&tokens, k)
+                });
+            if !(opener_asks || asks) {
+                continue;
+            }
+            let negated = tokens
+                .iter()
+                .filter(|t| t.end <= at)
+                .rev()
+                .take(2)
+                .any(|t| WAIVER_NEGATIONS.contains(&t.word.trim_matches(',')));
+            return Some(!negated);
+        }
+    }
+    None
+}
+
+/// A clause that waives the asking, not negated.
+#[must_use]
+pub fn waiver(lower: &str) -> bool {
+    waiver_polarity(lower) == Some(true)
+}
+
 /// A gate that asks a person: `ask me to confirm before writing …`, `wait for my confirmation`,
 /// `demande mon accord avant d'écrire`. Returns the span of the asking phrase; what follows
 /// the span names the gated effect when a `before` connector closes the phrase.
@@ -481,12 +613,58 @@ pub(crate) fn approval_bound(lower: &str) -> bool {
     })
 }
 
+/// Words that open a prohibition in the languages the compiler meets.
+const PROHIBITION_CUES: &[&str] = &[
+    "do not ", "don't ", "never ", "ne ", "n'", "no ", "non ", "nicht ", "keine ", "sans ",
+    "jamais ", "nunca ", "mai ", "niemals ",
+];
+
+/// A prohibition ("Do not copy …", "Ne cite pas …", "No copies …") at the head of an excerpt.
+#[must_use]
+pub fn starts_with_prohibition(text: &str) -> bool {
+    let lower = text.trim().to_lowercase();
+    PROHIBITION_CUES.iter().any(|cue| lower.starts_with(cue))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn span(text: &str, found: Option<(usize, usize)>) -> &str {
         found.map_or("", |(s, e)| &text[s..e])
+    }
+
+    #[test]
+    fn a_waiver_says_not_to_ask_and_is_no_gate() {
+        for text in [
+            "non serve chiedermi conferma.",
+            "no need to ask me first",
+            "envoie-le automatiquement, sans me demander",
+            "no hace falta pedirme confirmación",
+            "musst mich nicht um erlaubnis fragen",
+            "não precisa me perguntar antes",
+        ] {
+            assert!(waiver(text), "{text}");
+        }
+        for text in [
+            "demandez-moi confirmation avant tout envoi",
+            "il ne faut jamais rien envoyer sans mon accord explicite",
+            "ask me before sending",
+            "sans me laisser le temps de lire",
+        ] {
+            assert!(!waiver(text), "{text}");
+        }
+        // A negated waiver is the gate it denies waiving.
+        for text in [
+            "mais pas sans me demander",
+            "but not without asking me",
+            "pero no sin preguntarme",
+        ] {
+            assert_eq!(waiver_polarity(text), Some(false), "{text}");
+            assert!(!waiver(text), "{text}");
+        }
+        assert_eq!(waiver_polarity("non serve chiedermi conferma."), Some(true));
+        assert_eq!(waiver_polarity("écris-le dans ./final.md"), None);
     }
 
     #[test]

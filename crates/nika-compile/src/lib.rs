@@ -67,9 +67,9 @@
 
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
+mod approval;
 mod assemble;
 mod bindings;
-mod cardinality;
 mod cognition;
 mod compose;
 pub mod decide;
@@ -84,7 +84,6 @@ mod predicate;
 mod realize;
 mod retrieve;
 mod shape;
-mod structure;
 mod support;
 mod trigger;
 mod types;
@@ -94,7 +93,10 @@ mod writes;
 // The frozen reader and the typed plan live in the second member of this unit (the
 // ADR-137 precedent); the composer, the assembler and the preview read them at their
 // historical module paths.
-use nika_compile_reader::{columns, gates, hot, lexicon, objects, paths, plan, rule_tokens, rules};
+use nika_compile_reader::{
+    cardinality, columns, gates, hot, lexicon, objects, paths, plan, rule_tokens, rules, structure,
+    unknowns, words,
+};
 
 use std::collections::BTreeSet;
 
@@ -109,10 +111,10 @@ pub use materialize::{MaterializeError, materialize_ready};
 pub use nika_compile_reader::text;
 pub use retrieve::{Hit, HitKind, retrieve, retrieve_by_ops};
 pub use types::{
-    AuthoringCognition, AuthoringPolicy, AuthoringReceipt, CompileDiagnostic, CompileError,
-    CompileOutcome, CompilePreview, CompileProvenance, CompileQuestion, CompileRequest,
-    CompileStatus, DiagnosticKind, HotPolicy, PreviewScope, QuestionType, RepresentationError,
-    Strategy, TriggerKind, TriggerRequirement, TriggerStatus,
+    AuthoringCognition, AuthoringPolicy, AuthoringReceipt, ChoiceOffer, CompileDiagnostic,
+    CompileError, CompileOutcome, CompilePreview, CompileProvenance, CompileQuestion,
+    CompileRequest, CompileStatus, DiagnosticKind, HotPolicy, PreviewScope, QuestionType,
+    RepresentationError, Strategy, TriggerKind, TriggerRequirement, TriggerStatus,
 };
 pub use wire::{COMPILE_WIRE_VERSION, outcome_document};
 
@@ -167,6 +169,7 @@ fn initial() -> CompileOutcome {
             strategy: None,
             plan: None,
             decision: None,
+            suggested_file: None,
         },
     }
 }
@@ -191,6 +194,53 @@ fn question(out: &mut CompileOutcome, key: &str, label: &str, answer_type: Quest
         answer_type,
         why: "The compiler cannot invent this authoring value.".to_owned(),
         mandatory: true,
+        options: Vec::new(),
+    });
+}
+
+/// A mandatory closed choice: the answer is one of the offered keys, and the candidate
+/// waits for it.
+fn choice_question(
+    out: &mut CompileOutcome,
+    key: &str,
+    label: &str,
+    why: &str,
+    options: Vec<types::ChoiceOffer>,
+) {
+    if out.questions.iter().any(|q| q.key == key) {
+        return;
+    }
+    out.questions.push(CompileQuestion {
+        key: key.to_owned(),
+        label: label.to_owned(),
+        answer_type: QuestionType::Choice,
+        why: why.to_owned(),
+        mandatory: true,
+        options,
+    });
+}
+
+/// A question that does not block Ready: the value belongs to a binding outside the
+/// program bytes (a schedule's timezone, its missed-run policy), asked beside the candidate
+/// so the answer rides the same round when the operator has it.
+fn optional_question(
+    out: &mut CompileOutcome,
+    key: &str,
+    label: &str,
+    answer_type: QuestionType,
+    why: &str,
+    options: Vec<types::ChoiceOffer>,
+) {
+    if out.questions.iter().any(|q| q.key == key) {
+        return;
+    }
+    out.questions.push(CompileQuestion {
+        key: key.to_owned(),
+        label: label.to_owned(),
+        answer_type,
+        why: why.to_owned(),
+        mandatory: false,
+        options,
     });
 }
 
@@ -559,17 +609,11 @@ fn finish(source: String, out: &mut CompileOutcome) {
         .diagnostics
         .iter()
         .any(|d| d.kind != DiagnosticKind::Applied);
-    if out.status != CompileStatus::Refused
-        && out.questions.is_empty()
-        && !unresolved
-        && report.is_clean()
-    {
+    // A question that does not block Ready (a schedule's binding values) may stay open.
+    let asked = out.questions.iter().any(|q| q.mandatory);
+    if out.status != CompileStatus::Refused && !asked && !unresolved && report.is_clean() {
         out.status = CompileStatus::Ready;
-    } else if out.status != CompileStatus::Refused
-        && out.questions.is_empty()
-        && !unresolved
-        && !report.is_clean()
-    {
+    } else if out.status != CompileStatus::Refused && !asked && !unresolved && !report.is_clean() {
         // Nothing to ask and nothing else to report: the preview's own refusals are the
         // reason the candidate is not ready, and they must be visible without opening it.
         let refusals: Vec<String> = report

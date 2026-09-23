@@ -7,12 +7,12 @@
 //! the request cannot be honoured as stated and is refused, never run on a prompt that
 //! silently obeys one of them.
 
+use super::rule_tokens::{self, SIZE_UNITS};
 use super::rules::{self, Comparator};
-use super::shape;
 
 /// One bound on the produced content.
 /// Number words in six languages, folded (« três » → « tres », « fünf » → « funf »).
-pub(super) const NUMBER_WORDS: &[(&str, u32)] = &[
+pub const NUMBER_WORDS: &[(&str, u32)] = &[
     ("un", 1),
     ("une", 1),
     ("one", 1),
@@ -73,10 +73,110 @@ pub(super) const NUMBER_WORDS: &[(&str, u32)] = &[
     ("sete", 7),
     ("oito", 8),
     ("dez", 10),
+    // Beyond ten, the single words a request states a threshold or a limit with.
+    ("onze", 11),
+    ("douze", 12),
+    ("treize", 13),
+    ("quatorze", 14),
+    ("quinze", 15),
+    ("seize", 16),
+    ("vingt", 20),
+    ("trente", 30),
+    ("quarante", 40),
+    ("cinquante", 50),
+    ("soixante", 60),
+    ("cent", 100),
+    ("mille", 1000),
+    ("eleven", 11),
+    ("twelve", 12),
+    ("thirteen", 13),
+    ("fourteen", 14),
+    ("fifteen", 15),
+    ("sixteen", 16),
+    ("seventeen", 17),
+    ("eighteen", 18),
+    ("nineteen", 19),
+    ("twenty", 20),
+    ("thirty", 30),
+    ("forty", 40),
+    ("fifty", 50),
+    ("sixty", 60),
+    ("seventy", 70),
+    ("eighty", 80),
+    ("ninety", 90),
+    ("hundred", 100),
+    ("thousand", 1000),
+    ("once", 11),
+    ("doce", 12),
+    ("trece", 13),
+    ("catorce", 14),
+    ("veinte", 20),
+    ("treinta", 30),
+    ("cuarenta", 40),
+    ("cincuenta", 50),
+    ("sesenta", 60),
+    ("setenta", 70),
+    ("ochenta", 80),
+    ("noventa", 90),
+    ("cien", 100),
+    ("ciento", 100),
+    ("doscientos", 200),
+    ("trescientos", 300),
+    ("quinientos", 500),
+    ("mil", 1000),
+    ("undici", 11),
+    ("dodici", 12),
+    ("tredici", 13),
+    ("quattordici", 14),
+    ("quindici", 15),
+    ("sedici", 16),
+    ("venti", 20),
+    ("trenta", 30),
+    ("quaranta", 40),
+    ("cinquanta", 50),
+    ("sessanta", 60),
+    ("settanta", 70),
+    ("ottanta", 80),
+    ("novanta", 90),
+    ("cento", 100),
+    ("duecento", 200),
+    ("trecento", 300),
+    ("cinquecento", 500),
+    ("elf", 11),
+    ("zwolf", 12),
+    ("dreizehn", 13),
+    ("vierzehn", 14),
+    ("funfzehn", 15),
+    ("sechzehn", 16),
+    ("zwanzig", 20),
+    ("dreissig", 30),
+    ("vierzig", 40),
+    ("funfzig", 50),
+    ("sechzig", 60),
+    ("siebzig", 70),
+    ("achtzig", 80),
+    ("neunzig", 90),
+    ("hundert", 100),
+    ("zweihundert", 200),
+    ("dreihundert", 300),
+    ("funfhundert", 500),
+    ("tausend", 1000),
+    ("treze", 13),
+    ("catorze", 14),
+    ("vinte", 20),
+    ("trinta", 30),
+    ("quarenta", 40),
+    ("cinquenta", 50),
+    ("sessenta", 60),
+    ("oitenta", 80),
+    ("cem", 100),
+    ("duzentos", 200),
+    ("trezentos", 300),
+    ("quinhentos", 500),
 ];
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct Bound {
+pub struct Bound {
     /// The unit, folded and singular (`line`, `ligne`, `zeile`, `bullet`, `word`).
     pub unit: String,
     pub comparator: Comparator,
@@ -96,7 +196,8 @@ impl Bound {
         }
     }
     /// Whether both bounds can hold at once.
-    pub(super) fn compatible(&self, other: &Self) -> bool {
+    #[must_use]
+    pub fn compatible(&self, other: &Self) -> bool {
         if self.unit != other.unit {
             return true;
         }
@@ -218,16 +319,17 @@ fn phrase_in(table: &[&str], padded: &str) -> bool {
 /// word) followed within two words by a size unit, with the comparator read from the words
 /// around it (exact by default: "3 bullets" means three). A concurrency bound ("2 at a
 /// time") is structure, not content, and states none.
-pub(super) fn bound(constraint: &str) -> Option<Bound> {
-    if super::bindings::parallel_bound(constraint).is_some() {
+#[must_use]
+pub fn bound(constraint: &str) -> Option<Bound> {
+    if parallel_bound(constraint).is_some() {
         return None;
     }
-    let folded = shape::fold(constraint);
+    let folded = rule_tokens::fold(constraint);
     let words: Vec<&str> = folded
         .split(|c: char| !c.is_alphanumeric())
         .filter(|w| !w.is_empty())
         .collect();
-    let unit_at = |i: usize| words.get(i).filter(|w| shape::SIZE_UNITS.contains(w));
+    let unit_at = |i: usize| words.get(i).filter(|w| SIZE_UNITS.contains(w));
     for (index, word) in words.iter().enumerate() {
         let Some(value) = number(word) else {
             continue;
@@ -270,7 +372,7 @@ pub(super) fn bound(constraint: &str) -> Option<Bound> {
 
 /// The measure of a text a unit counts, for a run-time law over the drafted body.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum Measure {
+pub enum Measure {
     Lines,
     Bullets,
     Words,
@@ -281,7 +383,8 @@ pub(super) enum Measure {
 
 impl Measure {
     /// The measure a folded singular unit names; a page or a token measures nothing at run.
-    pub(super) fn of(unit: &str) -> Option<Self> {
+    #[must_use]
+    pub fn of(unit: &str) -> Option<Self> {
         match unit {
             "line" | "ligne" | "zeile" | "riga" | "linea" | "linha" => Some(Self::Lines),
             "bullet" | "puce" | "stichpunkt" | "aufzahlungspunkt" | "vineta" | "marcador" => {
@@ -301,7 +404,8 @@ impl Measure {
     /// jq over the body string (`.`) counting the measure: nonblank lines, bullet lines
     /// (`-`, `*`, `•` or a numbered marker), whitespace-separated words, sentences ended by
     /// `.`, `!` or `?`, characters, blank-line-separated paragraphs.
-    pub(super) const fn jq(self) -> &'static str {
+    #[must_use]
+    pub const fn jq(self) -> &'static str {
         match self {
             Self::Lines => r#"([split("\n")[] | select(test("\\S"))] | length)"#,
             Self::Bullets => {
@@ -318,7 +422,8 @@ impl Measure {
 impl Bound {
     /// The jq predicate over the body string that holds exactly when the bound does; none
     /// when the unit measures nothing at run.
-    pub(super) fn law(&self) -> Option<String> {
+    #[must_use]
+    pub fn law(&self) -> Option<String> {
         let measure = Measure::of(&self.unit)?;
         Some(format!(
             "({} {} {})",
@@ -331,7 +436,8 @@ impl Bound {
 
 /// The conjunction of every measurable bound the constraints state, with the constraints it
 /// covers, so the drafted text is judged at run and not only asked for in the prompt.
-pub(super) fn body_law(constraints: &[String]) -> Option<(String, Vec<String>)> {
+#[must_use]
+pub fn body_law(constraints: &[String]) -> Option<(String, Vec<String>)> {
     let mut laws = Vec::new();
     let mut covered = Vec::new();
     for constraint in constraints {
@@ -347,7 +453,8 @@ pub(super) fn body_law(constraints: &[String]) -> Option<(String, Vec<String>)> 
 }
 
 /// The first pair of constraints whose bounds cannot both hold, as indexes into the slice.
-pub(super) fn contradiction(constraints: &[String]) -> Option<(usize, usize)> {
+#[must_use]
+pub fn contradiction(constraints: &[String]) -> Option<(usize, usize)> {
     let bounds: Vec<(usize, Bound)> = constraints
         .iter()
         .enumerate()
@@ -361,6 +468,38 @@ pub(super) fn contradiction(constraints: &[String]) -> Option<(usize, usize)> {
         }
     }
     None
+}
+
+/// A numeric concurrency bound stated as a constraint ("at most 2 at a time").
+#[must_use]
+pub fn parallel_bound(constraint: &str) -> Option<u32> {
+    let lower = constraint.to_lowercase();
+    let concurrent = [
+        "at a time",
+        "at once",
+        "in parallel",
+        "concurrently",
+        "simultaneously",
+        "à la fois",
+        "en parallèle",
+        "en même temps",
+        "a la vez",
+        "al mismo tiempo",
+    ]
+    .iter()
+    .any(|phrase| lower.contains(phrase));
+    if !concurrent {
+        return None;
+    }
+    let numbers: Vec<u32> = lower
+        .split(|c: char| !c.is_ascii_digit())
+        .filter(|w| !w.is_empty())
+        .filter_map(|w| w.parse().ok())
+        .collect();
+    match numbers.as_slice() {
+        [n] if *n > 0 => Some(*n),
+        _ => None,
+    }
 }
 
 #[cfg(test)]

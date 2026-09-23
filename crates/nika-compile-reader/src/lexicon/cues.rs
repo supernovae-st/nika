@@ -204,9 +204,13 @@ pub(super) const TRIGGER_PREFIXES: &[&str] = &[
     "cada ",
     "cuando ",
     "a partir de ",
+    "todas as ",
+    "todos os ",
+    "sempre que ",
+    "assim que ",
 ];
 
-pub(super) const NUMBER_WORDS: &[(&str, u32)] = &[
+pub(crate) const NUMBER_WORDS: &[(&str, u32)] = &[
     ("un", 1),
     ("une", 1),
     ("one", 1),
@@ -516,4 +520,54 @@ pub(super) const CONSTRAINT_OPENERS: &[&str] = &[
     "deja ",
     "mantén ",
     "manten ",
+];
+/// Which retrieval a choice head settles on from its object alone: a supplied document is a
+/// read, a store, a calendar or a possessive object (« mes disponibilités ») is a lookup, a
+/// corpus is a search. `None` when the object carries no cue: the clause stays ambiguous and
+/// a bounded decision seat settles it. The merge applies the same law to a seat's `read`
+/// that names no path and no supplied material.
+#[must_use]
+pub fn settle_retrieval(
+    detail_lower: &str,
+    options: &[super::super::plan::Op],
+) -> Option<super::super::plan::Op> {
+    use super::super::plan::Op;
+    let cued = |cues: &[&str]| cues.iter().any(|c| detail_lower.contains(c));
+    if options.contains(&Op::Read) && cued(READ_CUES) {
+        Some(Op::Read)
+    } else if options.contains(&Op::Lookup) && cued(LOOKUP_CUES) && !cued(SEARCH_CUES) {
+        Some(Op::Lookup)
+    } else if options.contains(&Op::Search) && cued(SEARCH_CUES) {
+        Some(Op::Search)
+    } else if options.contains(&Op::Lookup)
+        && (cued(LOOKUP_CUES) || super::super::objects::possessive_object(detail_lower))
+    {
+        Some(Op::Lookup)
+    } else {
+        None
+    }
+}
+
+/// Words that ask for a removal of duplicates or forbid a second action for the same item,
+/// folded: an obligation of kind dedup.
+pub(super) const DEDUP_MARKERS: &[&str] = &[
+    "no second action for the same",
+    "pas de seconde action",
+    "évite les doublons",
+    "évitez les doublons",
+    "avoid duplicates",
+    "déduplique",
+    "dédoublonne",
+    "deduplicate",
+    "de-duplicate",
+    "dedupe",
+    "remove duplicates",
+    "prevent duplicates",
+    "deduplica",
+    "elimina i duplicati",
+    "rimuovi i duplicati",
+    "evita i duplicati",
+    "elimina los duplicados",
+    "quita los duplicados",
+    "evita los duplicados",
 ];

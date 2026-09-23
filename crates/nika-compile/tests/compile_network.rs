@@ -42,7 +42,15 @@ fn ready(intent: &str) -> Value {
 fn hot_with_model(intent: &str) -> Value {
     let out = compile(&CompileRequest::create(intent)).expect("compile");
     assert_eq!(out.provenance.strategy, Some(Strategy::Hot), "{out:#?}");
-    assert_eq!(keys(&out), ["model"], "{out:#?}");
+    // The seat is the one mandatory question; a schedule's binding values may ride beside
+    // it as optional questions.
+    let mandatory: Vec<&str> = out
+        .questions
+        .iter()
+        .filter(|q| q.mandatory)
+        .map(|q| q.key.as_str())
+        .collect();
+    assert_eq!(mandatory, ["model"], "{out:#?}");
     let out = compile(&CompileRequest::create(intent).answer("model", r#""mock/echo""#))
         .expect("compile");
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
@@ -368,7 +376,19 @@ fn a_stated_cadence_is_a_trigger_requirement_beside_the_candidate_never_in_its_b
     let intent = "Every morning at 9, read ./inbox/*.md and write a digest to ./digest.md";
     // The first round (the seat is still asked) already states the requirement.
     let out = compile(&CompileRequest::create(intent)).unwrap();
-    assert_eq!(keys(&out), ["model"], "{out:#?}");
+    // The seat is the one mandatory question; the schedule's binding values ride beside it
+    // as optional ones (timezone, missed, overlap, ceiling), never blocking the candidate.
+    let mandatory: Vec<&str> = out
+        .questions
+        .iter()
+        .filter(|q| q.mandatory)
+        .map(|q| q.key.as_str())
+        .collect();
+    assert_eq!(mandatory, ["model"], "{out:#?}");
+    assert!(
+        keys(&out).contains(&"trigger.timezone") && keys(&out).contains(&"trigger.missed"),
+        "{out:#?}"
+    );
     let trigger = out.requested_trigger.as_ref().expect("requested_trigger");
     assert_eq!(trigger.kind, TriggerKind::Schedule);
     assert_eq!(trigger.source_hint.as_deref(), Some("every morning at 9"));
@@ -410,7 +430,13 @@ fn a_stated_cadence_is_a_trigger_requirement_beside_the_candidate_never_in_its_b
         "Chaque lundi à 8h30, lis ./notes/*.md et écris un digest dans ./digest.md",
     ))
     .unwrap();
-    assert_eq!(keys(&out), ["model"], "{out:#?}");
+    let mandatory: Vec<&str> = out
+        .questions
+        .iter()
+        .filter(|q| q.mandatory)
+        .map(|q| q.key.as_str())
+        .collect();
+    assert_eq!(mandatory, ["model"], "{out:#?}");
     let trigger = out.requested_trigger.as_ref().expect("requested_trigger");
     assert_eq!(trigger.cadence.as_deref(), Some("weekly"));
     assert_eq!(trigger.at.as_deref(), Some("08:30"));

@@ -285,7 +285,14 @@ impl Doc {
 
 /// Facts that are data, not text: a CSV, YAML or TOML destination receives them through a
 /// conversion stage instead of their JSON text.
-pub(super) const DATA_FACTS: [&str; 5] = ["computed", "fields", "validation", "records", "record"];
+pub(super) const DATA_FACTS: [&str; 6] = [
+    "computed",
+    "fields",
+    "validation",
+    "records",
+    "record",
+    "summary",
+];
 
 /// Facts that are the rows of the source (or a code rule over them): the only data a
 /// CSV source's column order applies to.
@@ -345,6 +352,12 @@ pub(super) fn assemble(
     request: &CompileRequest,
     out: &mut CompileOutcome,
 ) -> Result<(), CompileError> {
+    // The requester's decisions over the plan come first (a money movement's approval):
+    // the assembler works on the decided plan; the recorded plan stays as it was read.
+    let mut recognized: BTreeSet<String> = BTreeSet::new();
+    let mut decided = plan.clone();
+    super::approval::decide(&mut decided, request, out, &mut recognized);
+    let plan = &decided;
     if refused(plan, out) {
         return Ok(());
     }
@@ -355,35 +368,20 @@ pub(super) fn assemble(
     if refused_contradiction(&stated, out) {
         return Ok(());
     }
-    let mut recognized: BTreeSet<String> = BTreeSet::new();
     let b = bindings::bind(plan, intent, request, out, &mut recognized);
+    state_trigger(plan, b.item, request, out, &mut recognized);
     super::unknown_answers(
         request,
         &recognized.iter().map(String::as_str).collect(),
         out,
     );
-    // A trigger the request names is deployment, not workflow: stated beside the candidate
-    // on every round, whether or not a question is still open. A sequencing head (« once the
-    // brief is read ») orders the work the program already contains and states nothing.
-    let sequencing = plan.trigger.as_deref().is_some_and(|t| {
-        matches!(
-            super::trigger::classify(t),
-            super::trigger::TriggerForm::Sequence
-        )
-    });
-    if !sequencing && let Some(trigger) = super::trigger::requirement(plan, b.item) {
-        super::finding(
-            out,
-            DiagnosticKind::Applied,
-            "trigger",
-            super::trigger::note(&trigger),
-        );
-        out.requested_trigger = Some(trigger);
-    }
     if repeated_effect_asked(plan, intent, &b, out) || !b.ready(plan) {
         return Ok(());
     }
-    if plan.obligation("revision_check") && matches!(b.lookup, Need::Absent) {
+    if plan.obligation("revision_check")
+        && matches!(b.lookup, Need::Absent)
+        && matches!(b.search, Need::Absent)
+    {
         super::finding(
             out,
             DiagnosticKind::Unknown,
@@ -399,6 +397,9 @@ pub(super) fn assemble(
     let mut d = Doc::new(id, b.item);
     if let Some(model) = &b.model {
         d.root["model"] = model.clone();
+    }
+    for (slug, value) in &b.slots {
+        d.root["const"][slug] = value.clone();
     }
     emit_lookup(&mut d, &b);
     emit_read(&mut d, plan, &b);
@@ -431,6 +432,36 @@ pub(super) fn assemble(
         d.tool("dedup_record", "nika:write", json!({"path": "${{ const.state_file }}", "content": "${{ with.next }}", "overwrite": true, "create_dirs": true}), Some(json!({"next": "${{ tasks.dedup_next.output }}"})), false);
     }
     settle_candidate(plan, &b, d, out)
+}
+
+/// A trigger the request names is deployment, not workflow: stated beside the candidate
+/// on every round, whether or not a question is still open. A sequencing head (« once the
+/// brief is read ») orders the work the program already contains and states nothing. A
+/// schedule's binding values (timezone, missed-run and overlap policies, per-run ceiling)
+/// are asked beside it without blocking the candidate.
+fn state_trigger(
+    plan: &Plan,
+    item: bool,
+    request: &CompileRequest,
+    out: &mut CompileOutcome,
+    recognized: &mut BTreeSet<String>,
+) {
+    let sequencing = plan.trigger.as_deref().is_some_and(|t| {
+        matches!(
+            super::trigger::classify(t),
+            super::trigger::TriggerForm::Sequence
+        )
+    });
+    if !sequencing && let Some(mut trigger) = super::trigger::requirement(plan, item) {
+        super::trigger::bind_schedule(&mut trigger, request, out, recognized);
+        super::finding(
+            out,
+            DiagnosticKind::Applied,
+            "trigger",
+            super::trigger::note(&trigger),
+        );
+        out.requested_trigger = Some(trigger);
+    }
 }
 
 /// The one review task every gated effect waits for when the request states one approval.
@@ -856,11 +887,12 @@ fn emit_step(d: &mut Doc, plan: &Plan, b: &Bindings, guide: &str, step: &Step) {
         }
         Op::Compute => match b.rule.bound() {
             Some(RuleBinding::Answered(rule)) => {
-                d.root["const"]["rule_expression"] = rule.clone();
+                // The answer is the task's literal program: the Check preview compiles it
+                // (NIKA-VAR-005) instead of trusting a templated const the checker never reads.
                 d.tool(
                     "compute",
                     "nika:jq",
-                    json!({"input": d.jq_input(), "expression": "${{ const.rule_expression }}"}),
+                    json!({"input": d.jq_input(), "expression": rule.clone()}),
                     Some(d.with_all()),
                     true,
                 );
@@ -935,7 +967,18 @@ fn emit_synthesized_rule(d: &mut Doc, plan: &Plan, rule: &super::rules::Rule) {
         || "${{ tasks.parse_source.output }}".to_owned(),
         |f| f.template.clone(),
     );
-    let input = json!({"records": "${{ with.records }}"});
+    let mut input = json!({"records": "${{ with.records }}"});
+    if !plan.slots.is_empty() {
+        // The values the request alludes to ride beside the records, from their consts.
+        let mut slots = serde_json::Map::new();
+        for slot in &plan.slots {
+            slots.insert(
+                slot.slug().to_owned(),
+                json!(format!("${{{{ {} }}}}", slot.key)),
+            );
+        }
+        input["slots"] = Value::Object(slots);
+    }
     d.tool(
         "compute_guard",
         "nika:jq",
@@ -1316,6 +1359,12 @@ fn emit_revision_check(d: &mut Doc, plan: &Plan, b: &Bindings) {
         );
         d.tool("revision_stable", "nika:jq", json!({"input": {"before": "${{ with.before }}", "after": "${{ with.after }}"}, "expression": ".before == .after"}), Some(json!({"before": "${{ tasks.lookup_record.output }}", "after": "${{ tasks.revision_record.output }}"})), false);
         d.tool("revision_admit", "nika:assert", json!({"condition": "${{ with.stable }}", "message": "The record changed since it was read; the final action is not allowed on a stale version."}), Some(json!({"stable": "${{ tasks.revision_stable.output }}"})), false);
+    } else if plan.obligation("revision_check") && b.search.bound().is_some() {
+        // The hits are the version the answer was drafted from: the search is rerun just
+        // before the action, and changed hits are a changed version.
+        d.tool("revision_reread", "nika:grep", json!({"pattern": "${{ inputs.item }}", "path": "${{ const.search_root }}", "case_insensitive": true}), None, true);
+        d.tool("revision_stable", "nika:jq", json!({"input": {"before": "${{ with.before }}", "after": "${{ with.after }}"}, "expression": ".before == .after"}), Some(json!({"before": "${{ tasks.search_hits.output }}", "after": "${{ tasks.revision_reread.output }}"})), false);
+        d.tool("revision_admit", "nika:assert", json!({"condition": "${{ with.stable }}", "message": "The hits changed since they were searched; the final action is not allowed on a stale version."}), Some(json!({"stable": "${{ tasks.revision_stable.output }}"})), false);
     }
 }
 

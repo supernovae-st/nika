@@ -188,6 +188,30 @@ pub enum QuestionType {
     Text,
     /// A literal JSON value. Its Nika type is also checked after emission.
     Literal,
+    /// A JSON string that is the `key` of one of the question's own [`CompileQuestion::options`].
+    Choice,
+}
+
+/// One admissible answer of a [`QuestionType::Choice`] question: its key, as the answer is
+/// written, and its human label. The keys are the owning grammar's own spellings.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ChoiceOffer {
+    /// The answer, verbatim (`rattraper-une-fois`).
+    pub key: String,
+    /// What choosing it means.
+    pub label: String,
+}
+
+impl ChoiceOffer {
+    /// One admissible answer.
+    #[must_use]
+    pub fn new(key: impl Into<String>, label: impl Into<String>) -> Self {
+        Self {
+            key: key.into(),
+            label: label.into(),
+        }
+    }
 }
 
 /// A stable question shared by future TTY, SDK and Serve adapters.
@@ -204,6 +228,8 @@ pub struct CompileQuestion {
     pub why: String,
     /// Whether this question blocks Ready.
     pub mandatory: bool,
+    /// The admissible answers of a [`QuestionType::Choice`] question; empty for any other.
+    pub options: Vec<ChoiceOffer>,
 }
 
 /// What happened to a requested part of authoring.
@@ -343,7 +369,8 @@ impl AuthoringPolicy {
 pub struct AuthoringReceipt {
     /// Explicit model requested for this authoring attempt.
     pub model: String,
-    /// Provider calls attempted; this slice permits exactly one per request.
+    /// Provider calls attempted: one per proposal sample, plus at most one bounded repair
+    /// call per sample when the proposal cited an evidence the request never wrote.
     pub calls: u32,
     /// Reported input tokens, or unknown when the provider omitted usage.
     pub input_tokens: Option<u64>,
@@ -373,6 +400,9 @@ pub struct CompileProvenance {
     pub plan: Option<serde_json::Value>,
     /// Bounded decision records (seat, questions, choices, reported usage), when a seat was asked.
     pub decision: Option<serde_json::Value>,
+    /// A file name for the candidate, derived from what it writes or does (`open-sorted.nika`):
+    /// a suggestion for whoever saves it, never a path the compiler touched.
+    pub suggested_file: Option<String>,
 }
 
 /// What starts a run of the candidate, when the request names it ("Every morning at 9,
@@ -400,6 +430,17 @@ pub struct TriggerRequirement {
     pub payload_input: Option<String>,
     /// Whether the requirement is met by the candidate alone or needs a binding.
     pub status: TriggerStatus,
+    /// The IANA timezone answered for the cadence (`trigger.timezone`), when answered.
+    pub timezone: Option<String>,
+    /// The missed-run policy answered (`trigger.missed`): one of the project grammar's own
+    /// spellings (`manqué:`), when answered.
+    pub missed: Option<String>,
+    /// The overlap policy answered (`trigger.overlap`): one of the cadence grammar's own
+    /// spellings (`chevauchement:`), when answered.
+    pub overlap: Option<String>,
+    /// The per-run spend ceiling answered (`trigger.ceiling`): the positive JSON number, as
+    /// its canonical text (`0.1`, `2`).
+    pub ceiling: Option<String>,
 }
 
 /// How a request expects runs of its candidate to start.

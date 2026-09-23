@@ -28,10 +28,19 @@ marked-yaml = { workspace = true } # locate constant nodes with the canonical pa
 thiserror = { workspace = true }
 miette = { workspace = true }
 nika-error = { path = "../nika-error", version = "0.120.3" } # compiler machinery failures retain the canonical error voice
+nika-vocab = { path = "../nika-vocab", version = "0.120.3" } # the project grammar's own spellings (`manqué:`) for a schedule's binding questions
 tempfile = { workspace = true } # exclusive dest create + atomic overwrite persist
+# The transform verifier runs a seat's program on the seat's own example with the SAME jaq
+# stack and capability policy the runtime `nika:jq` installs (mirrored, as nika-check-analyzer
+# mirrors it: the layering hosts no shared engine below both).
+jaq-core = { workspace = true }
+jaq-std  = { workspace = true }
+jaq-json = { workspace = true }
+nika-cap = { path = "../nika-cap", version = "0.120.3" }
 
 [dev-dependencies]
 nix = { workspace = true, features = ["fs"] } # FIFO fixture for overwrite-refuse proof
+nika-cadence = { path = "../nika-cadence", version = "0.120.3" } # the overlap enum the trigger questions mirror: its drift test
 
 [package.metadata.lore]
 daemon        = "forgeron"

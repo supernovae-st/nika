@@ -63,25 +63,29 @@ pub fn as_clause(residue: &str) -> &str {
 /// the object (`salvalo in ./x.md` reads as `in ./x.md`): the position is then 0.
 #[must_use]
 pub fn destination_at(detail_lower: &str, path_at: usize) -> Option<usize> {
-    const ANYWHERE: &[&str] = &[" to ", " into ", " dans ", " sous ", " vers "];
+    const ANYWHERE: &[&str] = &[
+        " to ", " into ", " dans ", " sous ", " vers ", " → ", " -> ",
+    ];
     const ADJACENT: &[&str] = &[
         " in ", " en ", " nel ", " nella ", " su ", " sul ", " sulla ",
     ];
     let padded = format!(" {detail_lower}");
     let path_at = path_at + 1;
-    let anywhere = ANYWHERE
+    // A connector right before the path is the destination's own (« dans l'ordre, une par
+    // ligne → ./out/titres.txt »: the arrow, never the locative « dans » before it).
+    let right_before = ANYWHERE
+        .iter()
+        .chain(ADJACENT)
+        .filter(|c| c.len() <= path_at)
+        .find(|c| padded[..path_at].ends_with(**c))
+        .map(|c| path_at - c.len());
+    if let Some(pos) = right_before {
+        return Some(pos.saturating_sub(1));
+    }
+    ANYWHERE
         .iter()
         .filter_map(|c| padded.find(c))
         .filter(|pos| *pos < path_at)
-        .min();
-    let adjacent = ADJACENT
-        .iter()
-        .filter_map(|c| padded.find(c).map(|pos| (pos, pos + c.len())))
-        .find(|(_, end)| *end == path_at)
-        .map(|(pos, _)| pos);
-    anywhere
-        .into_iter()
-        .chain(adjacent)
         .min()
         .map(|pos| pos.saturating_sub(1))
 }
@@ -387,7 +391,48 @@ const OF_WORDS: &[&str] = &[
 /// name new content the write demands? A pronoun or a generic result word refers back; so
 /// does a head noun that recurs in an earlier clause (`the count` after `count the tickets`).
 /// Anything else (`a 3-bullet summary`, `the summary` with nothing summarized before) is new.
+/// Object clitics the reader keeps attached to the verb it stripped (FR « -le », « -la »,
+/// « -les »; ES « -lo », « -la », « -los », « -las »; PT « -o », « -a », « -os », « -as »),
+/// and the identity cues an object opens with when the pronoun was glued to the verb
+/// itself (« escríbelo tal cual en … », « scrivilo così com'è in … »): what is written as it
+/// is is what was read. A bare article (« la réponse ») is a determiner, never a pronoun.
+fn object_clitic_or_identity(object_lower: &str) -> bool {
+    const CLITICS: &[&str] = &[
+        "-le", "-la", "-les", "-lo", "-los", "-las", "-o", "-a", "-os", "-as", "it",
+    ];
+    const IDENTITY: &[&str] = &[
+        "as is",
+        "as-is",
+        "verbatim",
+        "byte for byte",
+        "tel quel",
+        "telle quelle",
+        "tels quels",
+        "octet pour octet",
+        "tal cual",
+        "tal como está",
+        "così com'è",
+        "cosi com'e",
+        "così come",
+        "unverändert",
+        "unverandert",
+        "wie es ist",
+        "tal e qual",
+    ];
+    let object = object_lower.trim_start();
+    let first = object
+        .split(|c: char| c.is_whitespace() || c == ',')
+        .next()
+        .unwrap_or_default();
+    CLITICS.contains(&first) || IDENTITY.iter().any(|cue| object.starts_with(cue))
+}
+
 pub(crate) fn refers_back<'a>(object_lower: &str, earlier: impl Iterator<Item = &'a str>) -> bool {
+    // « écris-le tel quel dans … », « escríbelo en … », « escreve-o em … »: the object is the
+    // clitic pronoun glued to the verb, and it stands for the material read before.
+    if object_clitic_or_identity(object_lower) {
+        return true;
+    }
     let tokens: Vec<&str> = object_lower
         .split(|c: char| !c.is_alphanumeric() && c != '\'' && c != '-')
         .map(|t| t.trim_matches('-'))
@@ -670,6 +715,53 @@ pub fn page_facet(object: &str) -> Option<Facet> {
     }
 }
 
+/// Possessive determiners in six languages, folded: an object led by one names the
+/// requester's or a party's own records (« mes disponibilités », « our tickets »).
+const POSSESSIVES: &[&str] = &[
+    "my", "our", "your", "his", "her", "their", "mon", "ma", "mes", "notre", "nos", "votre", "vos",
+    "leur", "leurs", "mi", "mis", "nuestro", "nuestra", "nuestros", "nuestras", "tu", "tus",
+    "vuestro", "vuestra", "vuestros", "vuestras", "mio", "mia", "miei", "mie", "nostro", "nostra",
+    "nostri", "nostre", "tuo", "tua", "tuoi", "tue", "loro", "mein", "meine", "meinen", "meiner",
+    "meines", "meinem", "unser", "unsere", "unseren", "unserer", "unseres", "unserem", "dein",
+    "deine", "deinen", "deiner", "meu", "meus", "minha", "minhas", "nosso", "nossa", "nossos",
+    "nossas", "teu", "teus", "teua", "teuas",
+];
+
+/// Whether an object (folded) is led by a possessive determiner, after an optional article
+/// (« le mie disponibilità »): the requester's or a party's own records, kept somewhere,
+/// never the material an invocation supplies.
+#[must_use]
+pub fn possessive_object(object_lower: &str) -> bool {
+    let mut words = object_lower
+        .split_whitespace()
+        .map(|w| w.trim_matches(|c: char| !c.is_alphanumeric()));
+    let Some(first) = words.next() else {
+        return false;
+    };
+    if POSSESSIVES.contains(&first) {
+        return true;
+    }
+    matches!(
+        first,
+        "the"
+            | "le"
+            | "la"
+            | "les"
+            | "el"
+            | "los"
+            | "las"
+            | "il"
+            | "lo"
+            | "i"
+            | "gli"
+            | "o"
+            | "os"
+            | "as"
+    ) && words
+        .next()
+        .is_some_and(|second| POSSESSIVES.contains(&second))
+}
+
 /// Connectors that join an effect's object to its destination ("it to `<url>`", "le
 /// rapport à ops@x"), folded.
 const DESTINATION_CONNECTORS: &[&str] = &[
@@ -716,6 +808,29 @@ pub fn carried(target: &str, plan: &Plan) -> bool {
 mod tests {
     use super::super::plan::{Op, Plan, Step};
     use super::*;
+
+    #[test]
+    fn a_possessive_object_names_owned_records() {
+        for object in [
+            "mes disponibilités et celles des participants",
+            "my calendar and the participants' availability",
+            "nuestros tickets abiertos",
+            "le mie disponibilità",
+            "meine termine",
+            "os meus horários",
+        ] {
+            assert!(possessive_object(object), "{object}");
+        }
+        for object in [
+            "la transcription fournie",
+            "the supplied text",
+            "./notes/brief.md",
+            "",
+            "sur le fil slack",
+        ] {
+            assert!(!possessive_object(object), "{object}");
+        }
+    }
 
     fn plan_with(details: &[(Op, &str)]) -> Plan {
         let mut plan = Plan::default();

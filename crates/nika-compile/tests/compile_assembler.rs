@@ -410,8 +410,9 @@ async fn a_numeric_rule_stated_in_the_request_needs_no_rule_question() {
     let doc = document(&answered);
     assert_eq!(
         tasks(&doc)["compute"]["invoke"]["args"]["expression"],
-        "${{ const.rule_expression }}"
+        serde_json::from_str::<Value>(RULE.1).unwrap()
     );
+    assert!(doc["const"].get("rule_expression").is_none(), "{doc:#}");
     assert!(tasks(&doc).get("compute_guard").is_none(), "{doc:#}");
     assert!(
         answered.provenance.decision.as_ref().unwrap()["rule"].is_null(),

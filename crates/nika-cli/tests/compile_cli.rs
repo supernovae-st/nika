@@ -85,7 +85,10 @@ fn explicit_authoring_is_bounded_and_ambient_credentials_do_not_opt_in() {
     );
     let document = result(&explicit);
     assert_eq!(document["compile_version"], 2, "{document}");
-    assert_eq!(document["provenance"]["authoring"]["calls"], 1);
+    // One proposal call, plus at most ONE bounded repair call when the mock's evidence is
+    // not an excerpt of the request (the verifier's counterexample goes back once).
+    let calls = document["provenance"]["authoring"]["calls"].as_u64();
+    assert!(matches!(calls, Some(1 | 2)), "{document}");
     assert_ne!(
         document["status"], "ready",
         "a schema mock is not a semantic witness"
@@ -104,6 +107,56 @@ fn explicit_authoring_is_bounded_and_ambient_credentials_do_not_opt_in() {
     );
     assert_eq!(invalid.status.code(), Some(3));
     assert!(result(&invalid)["error"].is_object());
+}
+
+/// The authoring seat rides the PROVIDER client (the runtime's fixed endpoint allowlist,
+/// no SSRF floor, a transport ceiling above the requested timeout), never the fetch
+/// client: a local seat on `127.0.0.1` reaches its socket and reports the socket's own
+/// refusal, not an SSRF refusal — and the same client no longer cuts a cloud authoring
+/// call at the fetch client's 30 s idle-read guard (the grok-4.7 408 of the preflight).
+#[test]
+fn authoring_seat_uses_the_provider_client_not_the_fetch_client() {
+    let room = tempfile::tempdir().expect("room");
+    let intent = "Review this customer request and harmonise the tone of the support reply";
+    let out = command(room.path())
+        // port 1 refuses at once; the fetch client would refuse the loopback literal itself
+        .env("NIKA_OLLAMA_BASE_URL", "http://127.0.0.1:1")
+        .args([
+            "compile",
+            intent,
+            "--authoring-model",
+            "ollama/qwen3.5:4b",
+            "--authoring-timeout",
+            "5",
+            "--json",
+        ])
+        .output()
+        .expect("CLI");
+    let document = result(&out);
+    assert_eq!(document["compile_version"], 2, "{document}");
+    assert_eq!(
+        document["provenance"]["authoring"]["calls"], 1,
+        "{document}"
+    );
+    assert_ne!(document["status"], "ready");
+    let provider_finding = document["diagnostics"]
+        .as_array()
+        .expect("diagnostics")
+        .iter()
+        .find(|d| d["target"] == "authoring_provider")
+        .unwrap_or_else(|| panic!("no authoring_provider finding: {document}"));
+    let message = provider_finding["message"]
+        .as_str()
+        .expect("message")
+        .to_lowercase();
+    assert!(
+        !message.contains("ssrf") && !message.contains("private"),
+        "the provider client must not SSRF-block a loopback seat: {message}"
+    );
+    assert!(
+        message.contains("check the provider endpoint"),
+        "the socket's own refusal is the finding: {message}"
+    );
 }
 
 #[test]
