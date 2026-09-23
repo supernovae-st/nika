@@ -391,13 +391,24 @@ fn uncataloged_dot_variant_plus_cap_refuses_to_start() {
     assert!(msg.contains("0.020000"), "the armed cap rides");
 }
 
-/// The issue's « excellent behavior — keep it »: the cataloged seat
-/// spelling `anthropic/claude-opus-4-1` prices a $0.057600 floor (768
-/// output tokens × $75/M) that refuses the $0.02 cap — the floor arm,
-/// with its exact teaching text, unchanged.
+/// The issue's « excellent behavior — keep it »: a cataloged seat
+/// spelling (`anthropic/claude-fable-5-1`) prices a floor (768 output
+/// tokens × the catalog's output price) that refuses the $0.02 cap — the
+/// floor arm, with its exact teaching text and the exact figure. The
+/// figure is read from the catalog, never pinned: upstream moves prices
+/// and retires seats (claude-opus-4-1 went in the 2026-09 refresh); the
+/// law is that the floor rides in the message to the cent.
 #[test]
 fn cataloged_prefixed_twin_keeps_the_1709_floor_refusal() {
-    let wf = parse(&gauntlet_wf("anthropic/claude-opus-4-1"));
+    let out_per_million = nika_catalog::find_pricing_scoped("anthropic", "claude-fable-5-1")
+        .expect("the twin is cataloged and priced")
+        .output_per_million;
+    let floor = 768.0 * out_per_million / 1_000_000.0;
+    assert!(
+        floor > 0.02,
+        "the seat's floor must exceed the cap: {floor}"
+    );
+    let wf = parse(&gauntlet_wf("anthropic/claude-fable-5-1"));
     let report = nika_check::check(&wf);
     assert!(report.is_clean());
     let err = gates(
@@ -411,9 +422,10 @@ fn cataloged_prefixed_twin_keeps_the_1709_floor_refusal() {
     .expect_err("the priced floor refuses the tiny cap");
     assert_eq!(err.spec_code(), "NIKA-1709");
     let msg = err.to_string();
+    let expected = format!("unavoidable cost floor ${floor:.6}");
     assert!(
-        msg.contains("unavoidable cost floor $0.057600"),
-        "the floor arm's own text, kept verbatim"
+        msg.contains(&expected),
+        "the floor arm's own text, kept verbatim: expected « {expected} » in {msg}"
     );
 }
 

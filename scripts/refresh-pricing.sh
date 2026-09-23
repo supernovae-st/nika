@@ -121,10 +121,19 @@ def status_of(m: dict):
 # historical table (values verified 2026-07-06). The integrity gate
 # (validate::provider_models_have_pricing) holds through upstream churn;
 # retiring these requires the default_model canon to move first.
+#
+# Served-but-unlisted: the vendor aliases DeepSeek's chat/completions
+# still answers although its /models list and pricing page dropped them
+# (verified 2026-09-23 · one token each · both answer `"model":
+# "deepseek-flash"`). Priced as the model they resolve to — the
+# deepseek-flash row above — so a human naming the alias they know is
+# bounded at the run door instead of refused NIKA-1709 as unpriced.
 SUPPLEMENTS = [
     ("anthropic", "claude-sonnet-4", 3.0, 15.0),
     ("xai", "grok-3", 3.0, 15.0),
     ("xai", "grok-3-mini-fast", 0.6, 4.0),
+    ("deepseek", "deepseek-chat", 0.15, 0.6),
+    ("deepseek", "deepseek-reasoner", 0.15, 0.6),
 ]
 
 rules = []

@@ -101,9 +101,9 @@ fn work_reaches_the_compiler_and_its_question_owns_the_next_line() {
         preview.starts_with("Nika proposes `compiled-workflow.nika`:"),
         "{preview}"
     );
-    assert!(preview.contains("· nika:read"), "{preview}");
+    assert!(preview.contains("· reads a file"), "{preview}");
     assert!(preview.contains("infer · mock/echo"), "{preview}");
-    assert!(preview.contains("· nika:write"), "{preview}");
+    assert!(preview.contains("· writes a file"), "{preview}");
     assert!(
         preview.contains("human approval at run · none"),
         "{preview}"
@@ -275,7 +275,10 @@ fn an_intent_the_reader_cannot_settle_is_an_honest_incomplete_without_a_seat() {
         text.starts_with("I read this as work but cannot build it yet"),
         "{text}"
     );
-    assert!(text.contains("rephrase"), "{text}");
+    assert!(
+        text.contains("say what to read") && !text.contains("rephrase"),
+        "never « rephrase »: {text}"
+    );
     assert!(s.pending_question().is_none());
     assert!(s.pending_proposal().is_none());
     assert!(workflows(root.path()).is_empty());

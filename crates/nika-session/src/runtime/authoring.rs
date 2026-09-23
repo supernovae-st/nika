@@ -475,12 +475,9 @@ impl SessionRuntime {
                 }
                 let mut text = question_text(question, &round.reasons);
                 if key == "model"
-                    && let AuthoringSeat::Provider { model } = &self.seat
+                    && let Some(offer) = seat_offer(&self.seat)
                 {
-                    let _ = write!(
-                        text,
-                        "\n  Enter takes your seat `{model}` · or name another <provider>/<model>"
-                    );
+                    let _ = write!(text, "\n  {offer}");
                 }
                 self.intent.unresolved = vec![question.label.clone()];
                 self.remember(&round.intent, &text);
@@ -600,19 +597,16 @@ impl SessionRuntime {
             let mut restated = AuthoringRound::new(intent);
             restated.restatements = round.restatements.saturating_add(1);
             self.remember(line, &format!("(restated « {clause} » in words)"));
-            return match compile_through(&self.seat, &restated.request()) {
-                Ok(out) => {
-                    let reading = Reading::of(out);
-                    self.settle(restated, reading)
-                }
-                Err(e) => self.machinery(&e),
-            };
+            return self.compile_again(restated);
         }
         // A cloud model the catalog does not price is refused HERE, in
         // words, with the priced models of its provider — not at run time,
         // where a run under a spending ceiling refuses it (NIKA-1709). The
-        // typed line or the seat the empty line took: both are judged.
+        // seat itself is never refused: the human chose it on the first
+        // screen, told where its bytes go (a gateway row, a legacy name the
+        // vendor still serves); a ceiling-bound run says its own word.
         if round.current().is_some_and(|q| q.key == "model")
+            && !is_own_seat(&self.seat, line)
             && let Some(text) = unpriced_model_text(line)
         {
             self.authoring = Some(round);
@@ -628,6 +622,17 @@ impl SessionRuntime {
             ));
         };
         self.remember(line, &format!("(answered {key})"));
+        self.compile_again(round)
+    }
+
+    /// The round compiled again after an answer or a restatement: a
+    /// provider seat climbs the same ladder as the request itself (the
+    /// stronger model before « cannot express » — the product law: quality
+    /// first); the deterministic seat settles what it reads.
+    fn compile_again(&mut self, round: AuthoringRound) -> TurnOutcome {
+        if matches!(self.seat, AuthoringSeat::Provider { .. }) {
+            return self.compile_under_seat(round);
+        }
         match compile_through(&self.seat, &round.request()) {
             Ok(out) => {
                 let reading = Reading::of(out);
@@ -989,7 +994,37 @@ pub(super) fn cannot_express_text(out: &CompileOutcome) -> String {
 /// `None` when the model is priced, when the provider is a local engine
 /// (unpriced by nature, never refused), or when the line is not
 /// `provider/model` (the compiler judges it).
+/// Is `line` the seat the human already chose (`<provider>/<model>`,
+/// spacing aside)? The seat is never refused at the model question.
+pub(super) fn is_own_seat(seat: &AuthoringSeat, line: &str) -> bool {
+    matches!(seat, AuthoringSeat::Provider { model } if model.trim() == line.trim())
+}
+
 pub(super) fn unpriced_model_text(answer: &str) -> Option<String> {
+    let (row, model, priced) = unpriced_cloud(answer)?;
+    let mut text = format!(
+        "`{row}/{model}` is not priced in Nika's catalog: a run under a spending ceiling would refuse it (NIKA-1709 · unpriced cloud spend cannot be bounded)."
+    );
+    if priced.is_empty() {
+        let _ = write!(
+            text,
+            "\n  no priced model is known for `{row}` yet — name a priced <provider>/<model>, or `cancel`"
+        );
+    } else {
+        let _ = write!(
+            text,
+            "\n  priced for `{row}`: {} — name one of them (the question still waits)",
+            priced.join(" · ")
+        );
+    }
+    Some(text)
+}
+
+/// A CLOUD model the catalog does not price, as (the provider's row id,
+/// the model, the priced models of that provider). `None` when the model
+/// is priced, when the provider is a local engine (unpriced by nature,
+/// never refused), or when the line is not `provider/model`.
+fn unpriced_cloud(answer: &str) -> Option<(String, String, Vec<String>)> {
     let (provider, model) = answer.trim().split_once('/')?;
     let row = nika_catalog::all_providers()
         .iter()
@@ -997,37 +1032,39 @@ pub(super) fn unpriced_model_text(answer: &str) -> Option<String> {
     if !row.requires_key || nika_catalog::find_pricing_scoped(row.id, model).is_some() {
         return None;
     }
-    let priced: Vec<String> = row
+    let priced = row
         .models
         .iter()
         .filter(|m| nika_catalog::find_pricing_scoped(row.id, m.model).is_some())
-        .map(|m| {
-            if m.id.contains('/') {
-                m.id.to_owned()
-            } else {
-                format!("{}/{}", row.id, m.id)
-            }
-        })
+        .map(|m| format!("{}/{}", row.id, m.model))
         .collect();
-    let mut text = format!(
-        "`{}/{model}` is not priced in Nika's catalog: a run under a spending ceiling would refuse it (NIKA-1709 · unpriced cloud spend cannot be bounded).",
-        row.id
-    );
-    if priced.is_empty() {
+    Some((row.id.to_owned(), model.to_owned(), priced))
+}
+
+/// The seat's offer under the model question: Enter takes it, or another
+/// `<provider>/<model>`. A seat the catalog does not price says so HERE,
+/// before Enter, with the priced models of its provider — the seat is
+/// never refused (the human chose it on the first screen), and a run under
+/// a spending ceiling would refuse it later (NIKA-1709) at the run door,
+/// where the human used to hear it for the first time. `None` without a
+/// seat.
+pub(super) fn seat_offer(seat: &AuthoringSeat) -> Option<String> {
+    let AuthoringSeat::Provider { model } = seat else {
+        return None;
+    };
+    let mut offer = format!("Enter takes your seat `{model}` · or name another <provider>/<model>");
+    if let Some((row, _, priced)) = unpriced_cloud(model) {
         let _ = write!(
-            text,
-            "\n  no priced model is known for `{}` yet — name a priced <provider>/<model>, or `cancel`",
-            row.id
+            offer,
+            "\n  `{model}` is not priced in Nika's catalog: a run under a spending ceiling would refuse it (NIKA-1709)"
         );
-    } else {
-        let _ = write!(
-            text,
-            "\n  priced for `{}`: {} — name one of them (the question still waits)",
-            row.id,
-            priced.join(" · ")
-        );
+        if priced.is_empty() {
+            let _ = write!(offer, " · no priced model is known for `{row}` yet");
+        } else {
+            let _ = write!(offer, " · priced for `{row}`: {}", priced.join(" · "));
+        }
     }
-    Some(text)
+    Some(offer)
 }
 
 /// How many clauses the compiler's ledger holds for this reading —
@@ -1102,7 +1139,7 @@ fn honest_incomplete(out: &CompileOutcome, why: Option<&str>) -> String {
     }
     text.push_str("\n  ");
     text.push_str(why.unwrap_or(
-        "rephrase with what to read, what to produce and where to write it, e.g. « read ./docs, draft a digest and write it to ./digest.md »",
+        "say what to read, what to produce and where to write it, e.g. « read ./docs, draft a digest and write it to ./digest.md »",
     ));
     text
 }

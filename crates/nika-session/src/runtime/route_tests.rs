@@ -392,6 +392,19 @@ fn an_unpriced_cloud_model_is_refused_at_the_question_in_words() {
         text.contains("not priced in Nika's catalog") && text.contains("NIKA-1709"),
         "{text}"
     );
+    // The hint names models as the reasoner speaks them, never a catalog row id.
+    assert!(
+        text.contains("deepseek/deepseek-flash") && !text.contains(": deepseek/flash"),
+        "{text}"
+    );
+    // The seat itself is never refused at the question, spacing aside.
+    let own = crate::authoring::AuthoringSeat::Provider {
+        model: "openai/gpt-oss-120b".to_owned(),
+    };
+    assert!(super::authoring::is_own_seat(&own, " openai/gpt-oss-120b "));
+    assert!(!super::authoring::is_own_seat(&own, "openai/gpt-5.2"));
+    let none = crate::authoring::AuthoringSeat::Deterministic { why: None };
+    assert!(!super::authoring::is_own_seat(&none, "openai/gpt-oss-120b"));
     let priced_cloud = nika_catalog::all_providers()
         .iter()
         .filter(|p| p.requires_key)
@@ -453,4 +466,46 @@ fn a_compiler_reason_is_said_in_the_humans_words() {
     );
     assert_eq!(said[3], "Unresolved clause: do something clever with it");
     assert!(said.iter().all(|s| !s.contains("Candidate")), "{said:?}");
+}
+
+/// The seat's offer under the model question says when the seat is not
+/// priced — before Enter, with the priced models of its provider — and
+/// never refuses it: the words are an offer, not a waiting question.
+#[test]
+fn the_seat_offer_says_before_enter_when_the_seat_is_unpriced() {
+    let own = crate::authoring::AuthoringSeat::Provider {
+        model: "deepseek/deepseek-unpriced-v0".to_owned(),
+    };
+    let offer = super::authoring::seat_offer(&own).expect("a provider seat is offered");
+    assert!(
+        offer
+            .starts_with("Enter takes your seat `deepseek/deepseek-unpriced-v0` · or name another"),
+        "{offer}"
+    );
+    assert!(
+        offer.contains("`deepseek/deepseek-unpriced-v0` is not priced in Nika's catalog")
+            && offer.contains("NIKA-1709")
+            && offer.contains("priced for `deepseek`: deepseek/deepseek-flash"),
+        "{offer}"
+    );
+    assert!(
+        !offer.contains("the question still waits"),
+        "an offer, never a refusal: {offer}"
+    );
+    let priced = crate::authoring::AuthoringSeat::Provider {
+        model: "deepseek/deepseek-flash".to_owned(),
+    };
+    let offer = super::authoring::seat_offer(&priced).expect("offered");
+    assert!(!offer.contains("not priced"), "{offer}");
+    let local = crate::authoring::AuthoringSeat::Provider {
+        model: "ollama/llama3.1".to_owned(),
+    };
+    assert!(
+        !super::authoring::seat_offer(&local)
+            .expect("offered")
+            .contains("not priced"),
+        "local: unpriced by nature"
+    );
+    let none = crate::authoring::AuthoringSeat::Deterministic { why: None };
+    assert!(super::authoring::seat_offer(&none).is_none());
 }

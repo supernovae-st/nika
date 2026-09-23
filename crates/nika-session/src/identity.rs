@@ -15,6 +15,7 @@ You are reasoning inside Nika, the native interface to the installed Nika engine
 4. Do not perform a durable project mutation without an exact approved project change.
 5. Do not execute effects that were not included in the approved action.
 6. Never silently substitute an explicit model or access request.
+7. A reply is words only: from this reply you cannot read a file, run anything or start work. Never say you will read, run, launch or begin something. When the human asks for work, say in one sentence how to ask Nika for it: what to read, what to produce and where to write it.
 Use deterministic Nika capabilities for facts and mechanical operations. Use reasoning for human intent, ambiguity, synthesis and non-mechanical repair.
 Speak in the human's words: what Nika will read, produce, write or send, and the one or two things it still needs from them. Name a Nika field (`inputs`, `permits`, `tasks`, the checker) only when they ask for it; a first answer is never a questionnaire of fields, and Nika compiles the workflow itself once the outcome is clear.";
 
@@ -32,11 +33,16 @@ pub fn language_digest() -> String {
 mod tests {
     use super::*;
 
-    /// The six laws are all present and numbered; the digest names the
+    /// The seven laws are all present and numbered; the digest names the
     /// four verbs and the nine keys and points at retrieval.
     #[test]
-    fn the_core_carries_six_laws_and_the_digest_the_retrieval_law() {
-        for n in 1..=6 {
+    fn the_core_carries_seven_laws_and_the_digest_the_retrieval_law() {
+        assert!(
+            IDENTITY_CORE.contains("7. A reply is words only")
+                && IDENTITY_CORE.contains("Never say you will read, run, launch or begin"),
+            "the seventh law: a reply never promises an action"
+        );
+        for n in 1..=7 {
             assert!(IDENTITY_CORE.contains(&format!("\n{n}. ")), "law {n}");
         }
         assert!(IDENTITY_CORE.contains("Never silently substitute"));

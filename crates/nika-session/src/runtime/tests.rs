@@ -663,7 +663,7 @@ fn why_beside_a_gate_explains_it_and_holds_it() {
         panic!("a side question beside the gate is an aside");
     };
     assert!(
-        text.contains("paused at `approve`") && text.contains("write_final · nika:write"),
+        text.contains("paused at `approve`") && text.contains("write_final · writes a file"),
         "the gated task is named from the bytes: {text}"
     );
     assert!(
