@@ -399,7 +399,7 @@ fn opens_with_produced_noun(object_lower: &str) -> bool {
         .skip_while(|t| ARTICLES.contains(t))
         .take_while(|t| !OF.contains(t))
         .take(3)
-        .any(|t| hot::PRODUCED_NOUNS.contains(&t))
+        .any(|t| hot::PRODUCED_NOUNS.lines().any(|n| n == t))
 }
 
 /// Whether the local path an object names is its material rather than a destination: a
@@ -928,6 +928,7 @@ pub fn read(intent: &str) -> Reading {
             effect.policy_literal = state.money_sentences.first().cloned();
         }
     }
+    super::hot::destination_floor(intent, &mut reading.plan);
     literals::collect_bindings(intent, &mut reading.plan);
     reading
 }

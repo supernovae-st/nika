@@ -622,13 +622,39 @@ async fn a_change_in_words_revises_the_base_under_the_seat_and_states_the_delta(
         )
         .replace("http: []", "http: [\"127.0.0.1\"]");
     let req = CompileRequest::edit(
-        accepted,
+        accepted.clone(),
         "write the recap to ./out/recap.md instead of sending it",
     )
     .with_original_intent(RECAP_INTENT)
     .with_authoring_policy(policy(NativeMode::Only, 1))
     .answer("model", r#""mock/echo""#);
     let out = compile_with_provider(&req, &provider).await.unwrap();
+    // The answer round of the same revision replays the record with zero calls (the CLI keys
+    // it by the revision's intent), READY with the answer baked in.
+    let record = out.provenance.plan.clone().expect("the revision's record");
+    let replayed = compile(
+        &CompileRequest::edit(
+            accepted.clone(),
+            "write the recap to ./out/recap.md instead of sending it",
+        )
+        .with_original_intent(RECAP_INTENT)
+        .with_plan(record)
+        .answer("model", r#""mock/echo""#),
+    )
+    .unwrap();
+    assert_eq!(replayed.status, CompileStatus::Ready, "{replayed:#?}");
+    assert!(
+        replayed
+            .candidate
+            .as_deref()
+            .unwrap()
+            .contains("./out/recap.md"),
+        "{replayed:#?}"
+    );
+    assert!(
+        replayed.provenance.authoring.is_none(),
+        "zero calls: {replayed:#?}"
+    );
     assert_eq!(
         provider.calls.load(std::sync::atomic::Ordering::SeqCst),
         1,
@@ -728,4 +754,114 @@ async fn a_gap_the_seat_reports_never_vanishes_and_the_human_disposes_of_it() {
         !replayed.candidate.as_deref().unwrap().contains("Notion"),
         "never baked into the candidate"
     );
+}
+
+#[tokio::test]
+async fn a_sketch_is_judged_structurally_then_filled_and_emitted() {
+    let intent =
+        "Lis ./tickets.json, résume les tickets ouverts et écris le résumé dans ./out/recap.md";
+    // Round 0 sketches a read of a file the request never states; round 1 is right; round 2
+    // fills the two required holes of the four the accepted sketch leaves (the summary's schema
+    // and the write's content template beside its binding are optional).
+    let task = |id: &str, verb: &str, tool: Option<&str>, extra: Value| {
+        let mut t = json!({"id": id, "verb": verb, "purpose": id});
+        if let Some(tool) = tool {
+            t["tool"] = json!(tool);
+        }
+        for (k, v) in extra.as_object().unwrap() {
+            t[k] = v.clone();
+        }
+        t
+    };
+    let sketch = |source: &str| {
+        json!({"name": "recap-tickets", "tasks": [
+            task("read_tickets", "invoke", Some("nika:read"), json!({"reads": [source]})),
+            task("open_only", "invoke", Some("nika:jq"), json!({"with": [{"name": "document", "from": "read_tickets"}]})),
+            task("summarize", "infer", None, json!({"with": [{"name": "tickets", "from": "open_only"}]})),
+            task("write_recap", "invoke", Some("nika:write"), json!({"writes": ["./out/recap.md"], "with": [{"name": "text", "from": "summarize"}]})),
+        ], "questions": [], "gaps": [], "notes": "read → filter → summarize → write"})
+        .to_string()
+    };
+    let fills = json!({"fills": [
+        {"task": "open_only", "field": "expression", "value": "fromjson | map(select(.status == \"open\"))"},
+        {"task": "summarize", "field": "prompt", "value": "Résume ces tickets ouverts sans rien inventer: ${{ with.tickets }}"}
+    ], "notes": "two holes"})
+    .to_string();
+    let provider = Rotating::new(vec![
+        sketch("./data/tickets.json"),
+        sketch("./tickets.json"),
+        fills,
+    ]);
+    let req = CompileRequest::create(intent).with_authoring_policy(policy(NativeMode::Sketch, 2));
+    let out = compile_with_provider(&req, &provider).await.unwrap();
+    assert_eq!(keys(&out), ["model"], "{out:#?}");
+    let native = native_record(&out);
+    assert_eq!(native["accepted"], true, "{native:#}");
+    assert_eq!(
+        native["sketch"],
+        json!({"accepted": true, "tasks": 4, "holes": 4}),
+        "{native:#}"
+    );
+    let rounds = native["rounds"].as_array().unwrap();
+    assert_eq!(rounds.len(), 3, "{native:#}");
+    assert_eq!(rounds[0]["phase"], "sketch");
+    let first = rounds[0]["diagnostics"].to_string();
+    assert!(first.contains("./data/tickets.json"), "{first}");
+    assert!(
+        rounds[1]["diagnostics"].as_array().unwrap().is_empty(),
+        "{native:#}"
+    );
+    assert_eq!(rounds[2]["phase"], "fill");
+    assert_eq!(rounds[2]["fills"], 2);
+    assert!(
+        rounds[2]["diagnostics"].as_array().unwrap().is_empty(),
+        "{native:#}"
+    );
+    let receipt = out.provenance.authoring.as_ref().unwrap();
+    assert_eq!(receipt.calls, 3);
+    assert_eq!(receipt.context[0]["call"], "sketch");
+    assert_eq!(receipt.context[1]["call"], "sketch-repair");
+    assert_eq!(receipt.context[2]["call"], "fill");
+    // The document is the compiler's: permits by construction, bindings from the edges.
+    let record = out.provenance.plan.clone().unwrap();
+    let source = record["source"].as_str().unwrap();
+    assert!(
+        source.contains("nika:jq")
+            && source.contains("./tickets.json")
+            && source.contains("./out/recap.md"),
+        "{source}"
+    );
+    assert!(!source.contains("nika:fetch"), "{source}");
+    // The answer round replays the record with zero calls: READY and checked.
+    let replayed = compile(
+        &CompileRequest::create(intent)
+            .with_plan(record)
+            .answer("model", r#""mock/echo""#),
+    )
+    .unwrap();
+    assert_eq!(replayed.status, CompileStatus::Ready, "{replayed:#?}");
+    let candidate = replayed.candidate.as_deref().unwrap();
+    assert!(
+        candidate.contains("model: mock/echo") && candidate.contains("nika:jq"),
+        "{candidate}"
+    );
+    assert!(
+        replayed.check_preview.as_ref().unwrap().report.is_clean(),
+        "{replayed:#?}"
+    );
+    assert!(replayed.provenance.authoring.is_none());
+}
+
+#[tokio::test]
+async fn a_candidate_folded_onto_one_line_is_named_as_such() {
+    // The whole of candidate A with every newline a space: `tasks:` is there and unreadable.
+    let folded = candidate_a("./data/paiements.csv").replace('\n', " ");
+    let provider = Rotating::new(vec![answer(&folded, &json!([]))]);
+    let req = CompileRequest::create(CASE_A).with_authoring_policy(policy(NativeMode::Only, 0));
+    let out = compile_with_provider(&req, &provider).await.unwrap();
+    assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
+    let native = native_record(&out);
+    let first = native["rounds"][0]["diagnostics"].to_string();
+    assert!(first.contains("arrived as ONE line"), "{first}");
+    assert!(first.contains("real newline"), "{first}");
 }

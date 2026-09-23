@@ -22,6 +22,7 @@
 
 use std::cmp::Reverse;
 
+use super::cardinality;
 use super::lexicon::Reading;
 use super::plan::{Binding, EffectPolicy, EffectVerb, Op, Plan, Step};
 use super::retrieve::Hit;
@@ -591,7 +592,7 @@ fn literals(candidate: &Plan, floor: &Plan, intent: &str, why: &mut Vec<String>)
             ));
         }
     }
-    let intent_runs = digit_runs(intent);
+    let intent_runs = cardinality::digit_runs(intent);
     for (text, language) in candidate
         .steps
         .iter()
@@ -601,11 +602,11 @@ fn literals(candidate: &Plan, floor: &Plan, intent: &str, why: &mut Vec<String>)
         for token in literal_tokens(text) {
             let present = if token.bytes().all(|b| b.is_ascii_digit()) {
                 intent_runs.contains(&token)
-                    || stated_range_covers(intent, &token)
+                    || cardinality::stated_range_covers(intent, &token)
                     || number_word_covers(intent, &token)
                     // « the incident with the most minutes », « le plus long »: a superlative
                     // names one row, the `1` of a limit the seat wrote out.
-                    || (token == "1" && superlative_covers(intent))
+                    || (token == "1" && cardinality::superlative_covers(intent))
                     // « (cycle de correction 1) », « heading 2 »: an enumeration in a seat's
                     // paraphrase of a language step, never a value the workflow carries.
                     || (language && token.len() == 1)
@@ -672,7 +673,7 @@ fn literal_tokens(text: &str) -> Vec<String> {
         if url || path || email {
             out.push(token.to_owned());
         } else if token.bytes().any(|b| b.is_ascii_digit()) {
-            out.extend(digit_runs(token));
+            out.extend(cardinality::digit_runs(token));
         }
     }
     out
@@ -695,7 +696,8 @@ fn derived_path(token: &str, intent: &str) -> bool {
     components.peek().is_some()
         && components.all(|part| {
             intent.contains(part)
-                || (part.bytes().all(|b| b.is_ascii_digit()) && stated_range_covers(intent, part))
+                || (part.bytes().all(|b| b.is_ascii_digit())
+                    && cardinality::stated_range_covers(intent, part))
         })
 }
 
@@ -716,142 +718,6 @@ fn number_word_covers(intent: &str, number: &str) -> bool {
                 .iter()
                 .any(|(word, value)| *value == n && *word == w)
         })
-}
-
-/// Superlatives that name one row of a corpus (EN · FR · IT · ES · DE · PT, accented and
-/// folded): the `1` a seat writes as a limit beside « the most », « le plus », « el mayor »
-/// is stated by them.
-const SUPERLATIVES: &[&str] = &[
-    "most",
-    "worst",
-    "best",
-    "highest",
-    "lowest",
-    "largest",
-    "smallest",
-    "biggest",
-    "longest",
-    "shortest",
-    "latest",
-    "earliest",
-    "oldest",
-    "newest",
-    "least",
-    "le plus",
-    "la plus",
-    "les plus",
-    "le moins",
-    "la moins",
-    "il più",
-    "la più",
-    "il piu",
-    "la piu",
-    "il meno",
-    "la meno",
-    "el más",
-    "la más",
-    "el mas",
-    "la mas",
-    "el menos",
-    "la menos",
-    "mayor",
-    "menor",
-    "höchste",
-    "hochste",
-    "niedrigste",
-    "größte",
-    "grosste",
-    "kleinste",
-    "längste",
-    "langste",
-    "kürzeste",
-    "kurzeste",
-    "meisten",
-    "wenigsten",
-    "o mais",
-    "a mais",
-    "o maior",
-    "a maior",
-    "o menor",
-    "a menor",
-];
-
-/// Whether the request states a superlative: one row of its corpus, the `1` of a limit.
-fn superlative_covers(intent: &str) -> bool {
-    let folded = super::shape::fold(intent);
-    let padded = format!(" {folded} ");
-    SUPERLATIVES
-        .iter()
-        .any(|w| padded.contains(&format!(" {w} ")))
-}
-
-/// Words and dashes that join the two ends of a stated numeric range.
-const RANGE_LINKS: &[&str] = &[
-    "to", "through", "thru", "à", "a", "au", "jusqu'à", "hasta", "bis", "fino a", "-", "–", "—",
-    "…", "...", "..",
-];
-
-/// Whether the request states a numeric range that covers `number` ("01 to 04", "1 à 4",
-/// "chapters 1-4", "fiche-01 … fiche-04"): two digit runs joined by a range word or dash.
-/// A number inside a stated range is derived from the request, not invented.
-fn stated_range_covers(intent: &str, number: &str) -> bool {
-    let Ok(n) = number.parse::<u64>() else {
-        return false;
-    };
-    let lower = intent.to_lowercase();
-    let runs: Vec<(usize, usize)> = {
-        let mut out = Vec::new();
-        let mut start: Option<usize> = None;
-        for (i, ch) in lower.char_indices() {
-            match (ch.is_ascii_digit(), start) {
-                (true, None) => start = Some(i),
-                (false, Some(s)) => {
-                    out.push((s, i));
-                    start = None;
-                }
-                _ => {}
-            }
-        }
-        if let Some(s) = start {
-            out.push((s, lower.len()));
-        }
-        out
-    };
-    runs.windows(2).any(|pair| {
-        let (a_start, a_end) = pair[0];
-        let (b_start, b_end) = pair[1];
-        let Some(between) = lower.get(a_end..b_start) else {
-            return false;
-        };
-        let between = between.trim();
-        let link = between
-            .split_whitespace()
-            .map(|w| w.trim_matches(|c: char| c == '`' || c == '"' || c == '\''))
-            .collect::<Vec<_>>();
-        let linked = between.len() <= 12
-            && (RANGE_LINKS.contains(&between) || link.iter().any(|w| RANGE_LINKS.contains(w)));
-        if !linked {
-            return false;
-        }
-        match (
-            lower
-                .get(a_start..a_end)
-                .and_then(|s| s.parse::<u64>().ok()),
-            lower
-                .get(b_start..b_end)
-                .and_then(|s| s.parse::<u64>().ok()),
-        ) {
-            (Some(lo), Some(hi)) => lo <= n && n <= hi && hi.saturating_sub(lo) <= 64,
-            _ => false,
-        }
-    })
-}
-
-fn digit_runs(text: &str) -> Vec<String> {
-    text.split(|c: char| !c.is_ascii_digit())
-        .filter(|run| !run.is_empty())
-        .map(str::to_owned)
-        .collect()
 }
 
 /// A plan's structural signature: operation words, effect verb:policy words, obligation words.
@@ -1162,12 +1028,15 @@ mod tests {
     #[test]
     fn a_number_inside_a_stated_range_is_derived_not_invented() {
         let intent = "Résume les fiches ./fiches/fiche-01.md à fiche-04.md, chapters 1 to 4, then write ./out/x.md";
-        assert!(stated_range_covers(intent, "02"));
-        assert!(stated_range_covers(intent, "3"));
-        assert!(!stated_range_covers(intent, "07"));
+        assert!(cardinality::stated_range_covers(intent, "02"));
+        assert!(cardinality::stated_range_covers(intent, "3"));
+        assert!(!cardinality::stated_range_covers(intent, "07"));
         assert!(derived_path("./fiches/fiche-03.md", intent));
         assert!(!derived_path("./fiches/fiche-09.md", intent));
-        assert!(!stated_range_covers("write 150 words to ./out/a.md", "42"));
+        assert!(!cardinality::stated_range_covers(
+            "write 150 words to ./out/a.md",
+            "42"
+        ));
     }
 
     #[test]
@@ -1188,14 +1057,22 @@ mod tests {
 
     #[test]
     fn a_superlative_states_the_one_of_a_limit() {
-        assert!(superlative_covers(
+        assert!(cardinality::superlative_covers(
             "Under Worst incident, name the incident with the most minutes by its id"
         ));
-        assert!(superlative_covers("garde l'incident le plus long"));
-        assert!(superlative_covers("la línea con el mayor retraso"));
-        assert!(superlative_covers("die Zeile mit den meisten Minuten"));
-        assert!(!superlative_covers("write three lines to ./out/a.md"));
-        assert!(!superlative_covers("almost every row"));
+        assert!(cardinality::superlative_covers(
+            "garde l'incident le plus long"
+        ));
+        assert!(cardinality::superlative_covers(
+            "la línea con el mayor retraso"
+        ));
+        assert!(cardinality::superlative_covers(
+            "die Zeile mit den meisten Minuten"
+        ));
+        assert!(!cardinality::superlative_covers(
+            "write three lines to ./out/a.md"
+        ));
+        assert!(!cardinality::superlative_covers("almost every row"));
     }
 
     #[test]

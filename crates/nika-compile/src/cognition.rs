@@ -19,8 +19,9 @@ use super::{
     CompileRequest, DiagnosticKind, HotPolicy, NativeMode, QuestionType, Strategy,
     compose::{self, Candidate},
     decide::{ChoiceOption, ChoiceQuestion, DecisionSeat, NONE_OPTION},
+    gates::backstop,
     lexicon::{self, Reading},
-    plan::{EffectVerb, Op, Plan, Step},
+    plan::{Op, Plan, Step},
     types::{EditChange, Input},
 };
 use nika_kernel::ai::provider::{
@@ -34,6 +35,7 @@ mod backstops;
 mod knowledge;
 mod native;
 mod proposal;
+mod sketch;
 mod transform;
 use proposal::{Proposal, decode, merge};
 pub(super) use proposal::{ProposedRegion, exact_excerpt, nullable_string, nullable_vec};
@@ -100,7 +102,7 @@ async fn revise<P: ProviderInferDyn>(
 ) -> Result<CompileOutcome, CompileError> {
     let deterministic = super::compile(request)?;
     let Input::Edit {
-        change: EditChange::Text(words),
+        change: EditChange::Text(_),
         ..
     } = &request.input
     else {
@@ -116,11 +118,9 @@ async fn revise<P: ProviderInferDyn>(
     if !unresolved || policy.native == NativeMode::Off {
         return Ok(deterministic);
     }
-    let intent = match &request.original_intent {
-        Some(original) => format!("{original}\nChange: {words}"),
-        None => words.clone(),
+    let Some(folded) = super::revise_intent(request) else {
+        return Ok(deterministic);
     };
-    let folded = lexicon::fold_apostrophes(&intent);
     let mut out = super::initial();
     if !policy_bounded(policy, &folded) {
         super::finding(
@@ -216,7 +216,7 @@ pub async fn compile_with_cognition<P: ProviderInferDyn>(
     // The ablation and the arena's treatment D: straight to the native candidate, before the
     // deterministic door and without the private plan, under the same bounds as COLD.
     if let (Some(policy), Some(provider)) = (&request.authoring, cognition.provider)
-        && policy.native == NativeMode::Only
+        && matches!(policy.native, NativeMode::Only | NativeMode::Sketch)
     {
         if !policy_bounded(policy, &effective_intent) {
             super::finding(
@@ -226,6 +226,19 @@ pub async fn compile_with_cognition<P: ProviderInferDyn>(
                 POLICY_BOUNDS,
             );
             return Ok(out);
+        }
+        if policy.native == NativeMode::Sketch {
+            route.push("native: sketch".to_owned());
+            return sketch::author(
+                &effective_intent,
+                &reading,
+                policy,
+                provider,
+                &assembly_request,
+                route,
+                out,
+            )
+            .await;
         }
         route.push("native: only".to_owned());
         return native::author(
@@ -942,31 +955,12 @@ fn authoring_request(
 
 /// The closed shape of a proposed plan.
 fn plan_schema() -> Value {
-    json!({
-    "type":"object","additionalProperties":false,
-    "required":["steps","effects","obligations","constraints","unknowns","regions","approval_bypass"],
-    "properties":{
-        "steps":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["op","detail","evidence"],"properties":{
-            "op":{"type":"string","enum":Op::ALL.iter().map(|o| o.word()).collect::<Vec<_>>()},
-            "detail":{"type":"string"},"evidence":{"type":"string","minLength":1},
-            "categories":{"type":"array","items":{"type":"string"}},
-            "computation": super::predicate::computation_schema()}}},
-        "effects":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["verb","target","policy","evidence"],"properties":{
-            "verb":{"type":"string","enum":["create","send","publish","update","notify","refund","pay","order","merge","delete","write","effect"]},
-            "target":{"type":"string"},
-            "policy":{"type":"string","enum":["automatic","human_first","forbidden","unspecified","conflict"]},
-            "evidence":{"type":"string","minLength":1}}}},
-        "obligations":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["kind","evidence"],"properties":{
-            "kind":{"type":"string","enum":["dedup","retry_bound","revision_check"]},
-            "value":{"type":["integer","null"]},"evidence":{"type":"string","minLength":1}}}},
-        "constraints":{"type":"array","items":{"type":"string"}},
-        "unknowns":{"type":"array","items":{"type":"string"}},
-        "regions":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["text","role"],"properties":{
-            "text":{"type":"string","minLength":1},
-            "role":{"type":"string","enum":["operation","effect","policy","obligation","constraint","context","unknown"]}}}},
-        "approval_bypass":{"type":"object","additionalProperties":false,"required":["present"],"properties":{
-            "present":{"type":"boolean"},"evidence":{"type":"string"}}}
-    }})
+    let mut schema: Value = serde_json::from_str(include_str!("../assets/plan_schema.json"))
+        .unwrap_or_else(|_| json!({"type": "object"}));
+    let step = &mut schema["properties"]["steps"]["items"]["properties"];
+    step["op"]["enum"] = json!(Op::ALL.iter().map(|o| o.word()).collect::<Vec<_>>());
+    step["computation"] = super::predicate::computation_schema();
+    schema
 }
 
 /// COLD with N proposals, then the composer: the distinct admissible plans become a finite
@@ -1223,101 +1217,4 @@ async fn sampled<P: ProviderInferDyn>(
         }
     }
     Ok(out)
-}
-
-/// Recognized EN/FR approval-bypass phrases, matched as whole-word sequences.
-const APPROVAL_BYPASS: &[&[&str]] = &[
-    &["without", "approval"],
-    &["without", "asking"],
-    &["do", "not", "ask"],
-    &["sans", "mon", "accord"],
-    &["sans", "accord"],
-    &["ne", "pas", "demander"],
-    &["approved", "yesterday"],
-    &["approval", "from", "yesterday"],
-    &["yesterday", "s", "approval"],
-    &["validé", "hier"],
-    &["validée", "hier"],
-    &["approuvé", "hier"],
-    &["approuvée", "hier"],
-    &["accord", "d", "hier"],
-    &["accord", "hier"],
-    &["prior", "approval"],
-    &["previous", "approval"],
-];
-
-/// Negations and prohibitions in six languages: before a bypass phrase in the same
-/// sentence, they turn it into a gate.
-const NEGATIONS: &[&str] = &[
-    "not",
-    "never",
-    "nothing",
-    "no",
-    "rien",
-    "jamais",
-    "ne",
-    "aucun",
-    "aucune",
-    "interdit",
-    "interdite",
-    "nada",
-    "nunca",
-    "prohibido",
-    "prohibida",
-    "niente",
-    "mai",
-    "non",
-    "vietato",
-    "nichts",
-    "nie",
-    "niemals",
-    "nicht",
-    "verboten",
-    "nao",
-    "não",
-    "proibido",
-    "proibida",
-];
-
-/// Whether a recognized bypass phrase is stated as a bypass. The same words inside a
-/// prohibition state a gate: « rien ne doit partir sans mon accord », « never send without
-/// asking » forbid the effect until the approval, they do not skip it. The negation must
-/// precede the phrase in its own sentence; « envoie-le sans mon accord, ne me demande rien »
-/// stays a bypass.
-fn bypass_stated(lower: &str) -> bool {
-    lexicon::split_sentences(lower).into_iter().any(|sentence| {
-        let words: Vec<&str> = sentence
-            .split(|c: char| !c.is_alphabetic())
-            .filter(|w| !w.is_empty())
-            .collect();
-        APPROVAL_BYPASS.iter().any(|phrase| {
-            words.windows(phrase.len()).enumerate().any(|(at, window)| {
-                window == *phrase && !words[..at].iter().any(|w| NEGATIONS.contains(w))
-            })
-        })
-    })
-}
-
-/// A conservative EN/FR authority backstop applied to EVERY strategy. It cannot prove
-/// arbitrary-language intent preservation (the proposal's own bypass field covers other
-/// languages); it refuses the recognized bypasses and keeps recognized money movement from
-/// being assembled without a human gate.
-fn backstop(intent: &str, plan: &mut Plan) {
-    let text = intent.to_lowercase();
-    if bypass_stated(&text) {
-        plan.unknowns.push(
-            "The request reuses, skips or presupposes an approval (recognized approval-bypass wording); the compiler never grants that authority."
-                .to_owned(),
-        );
-    }
-    let refund_words = text.contains("refund") || text.contains("rembours");
-    if refund_words && !plan.effects.iter().any(|e| e.verb == EffectVerb::Refund) {
-        plan.unknowns.push(
-            "The request mentions a refund that no recognized effect carries; a refund is never dropped silently."
-                .to_owned(),
-        );
-    }
-    // An automatic money movement is not unknown work: the assembler asks its approval
-    // as one closed choice (`effect.<verb>.approval`).
-    plan.unknowns.dedup();
 }

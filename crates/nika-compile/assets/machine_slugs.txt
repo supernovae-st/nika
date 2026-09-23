@@ -1,0 +1,12 @@
+glob
+jq
+regex
+regexp
+expression
+pattern
+selector
+xpath
+query
+cel
+syntax
+schema

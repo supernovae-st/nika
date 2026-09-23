@@ -25,7 +25,8 @@ fn head_bounds(body_lower: &str, prefix: &str) -> Option<(usize, usize)> {
     for piece in tail.split_inclusive(' ') {
         let folded = hot::fold(piece);
         let word = folded.trim_matches(|c: char| !c.is_alphanumeric());
-        let cadence = CADENCE_WORDS.contains(&word) || words::day_part_compound(word).is_some();
+        let cadence =
+            CADENCE_WORDS.lines().any(|c| c == word) || words::day_part_compound(word).is_some();
         let clock = end.is_some() && (clock_token(word) || CLOCK_SUFFIXES.contains(&word));
         let filler =
             HEAD_FILLERS.contains(&word) || clock_token(word) || number_word(word).is_some();

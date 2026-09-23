@@ -10,7 +10,7 @@
 //! escalate. The composer applies the same producer laws to every proposal.
 
 use super::lexicon::{self, Head, Reading};
-use super::plan::{EffectPolicy, EffectVerb, ObligationKind, Op, Plan};
+use super::plan::{Binding, Effect, EffectPolicy, EffectVerb, ObligationKind, Op, Plan};
 
 /// Why a reading may not be admitted as HOT, in addition to [`Reading::hot_rejections`].
 #[must_use]
@@ -61,6 +61,54 @@ pub fn unopened_sources(intent: &str, plan: &Plan) -> Vec<String> {
             )
         })
         .collect()
+}
+
+/// The named-destination floor, the mirror of the source floor: a path the request states
+/// only as a place to write (« en 3 puces dans ./out/resume.md », « → ./out/summary.md »)
+/// that no effect writes, and that rode INSIDE a producing step's clause, is written with
+/// what that step produces — the request never left the write out, it folded it into the
+/// draft. A path a read step consumes (« un digest des notes dans ./notes », « every file in
+/// ./rfc/*.md ») is material, never a destination; a glob is never a file to write; a path
+/// stated in a clause of its own (« the JSON belongs in ./out/totals.json ») stays the
+/// assembler's question — the human decides that write.
+pub fn destination_floor(intent: &str, plan: &mut Plan) {
+    for path in stated_destinations(intent) {
+        if path.contains('*') || path.contains('?') {
+            continue;
+        }
+        let consumes = |step: &super::plan::Step| {
+            matches!(step.op, Op::Read | Op::Fetch | Op::Lookup | Op::Search)
+                && step.detail.starts_with(&path)
+        };
+        if plan.steps.iter().any(consumes) {
+            continue;
+        }
+        let written = plan
+            .effects
+            .iter()
+            .any(|e| e.target.contains(&path) || e.evidence.contains(&path));
+        if written {
+            continue;
+        }
+        let Some(producer) = plan.steps.iter().find(|step| {
+            !matches!(step.op, Op::Read | Op::Fetch | Op::Lookup | Op::Search)
+                && (step.detail.contains(&path) || step.evidence.contains(&path))
+        }) else {
+            continue;
+        };
+        let evidence = super::lexicon::split_sentences(intent)
+            .into_iter()
+            .find(|s| s.contains(&path))
+            .unwrap_or(producer.evidence.as_str())
+            .to_owned();
+        plan.bindings.push(Binding::new("path", path.clone()));
+        plan.effects.push(Effect::new(
+            EffectVerb::Write,
+            path,
+            evidence,
+            EffectPolicy::Automatic,
+        ));
+    }
 }
 
 /// The source-shaped paths of the request, in order, without duplicates.
@@ -300,104 +348,7 @@ const LINK_WORDS: &[&str] = &[
 /// Nouns that name content a step must produce before an effect can carry it (EN · FR ·
 /// ES · IT · PT · DE), in their diacritic-folded lowercase form. The reader shares the
 /// table: a make head (`fais-moi`, `fammi`) drafts only one of these.
-pub(crate) const PRODUCED_NOUNS: &[&str] = &[
-    "bilan",
-    "compte-rendu",
-    "sintesi",
-    "sommario",
-    "sinopsis",
-    "reply",
-    "replies",
-    "report",
-    "reports",
-    "summary",
-    "summaries",
-    "digest",
-    "digests",
-    "brief",
-    "briefs",
-    "note",
-    "notes",
-    "message",
-    "messages",
-    "blurb",
-    "blurbs",
-    "draft",
-    "drafts",
-    "translation",
-    "translations",
-    "recap",
-    "recaps",
-    "memo",
-    "memos",
-    "answer",
-    "response",
-    "reponse",
-    "reponses",
-    "rapport",
-    "rapports",
-    "resume",
-    "resumes",
-    "synthese",
-    "syntheses",
-    "brouillon",
-    "brouillons",
-    "traduction",
-    "traductions",
-    "recapitulatif",
-    "respuesta",
-    "respuestas",
-    "informe",
-    "informes",
-    "resumen",
-    "resumenes",
-    "mensaje",
-    "mensajes",
-    "borrador",
-    "borradores",
-    "traduccion",
-    "traducciones",
-    "nota",
-    "notas",
-    "risposta",
-    "risposte",
-    "rapporto",
-    "rapporti",
-    "riassunto",
-    "riassunti",
-    "messaggio",
-    "messaggi",
-    "bozza",
-    "bozze",
-    "traduzione",
-    "traduzioni",
-    "resposta",
-    "respostas",
-    "relatorio",
-    "relatorios",
-    "resumo",
-    "resumos",
-    "mensagem",
-    "mensagens",
-    "rascunho",
-    "rascunhos",
-    "traducao",
-    "traducoes",
-    "antwort",
-    "antworten",
-    "bericht",
-    "berichte",
-    "zusammenfassung",
-    "zusammenfassungen",
-    "nachricht",
-    "nachrichten",
-    "entwurf",
-    "entwurfe",
-    "ubersetzung",
-    "ubersetzungen",
-    "notiz",
-    "notizen",
-];
+pub(crate) const PRODUCED_NOUNS: &str = include_str!("../assets/produced_nouns.txt");
 
 /// Cues that an effect carries existing material unchanged: a source step is then its
 /// producer. Matched as whole words or whole phrases on the folded text.
@@ -462,7 +413,7 @@ fn produced_noun(text: &str) -> Option<String> {
         .filter(|w| !w.is_empty());
     words
         .zip(folded_words)
-        .find(|(_, folded)| PRODUCED_NOUNS.contains(folded))
+        .find(|(_, folded)| PRODUCED_NOUNS.lines().any(|n| n == *folded))
         .map(|(word, _)| word.to_owned())
 }
 
@@ -621,6 +572,69 @@ fn write_without_producer(plan: &Plan, why: &mut Vec<String>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_stated_destination_nothing_writes_is_written_by_the_floor() {
+        let intent = "Résume ./notes/brief.md en 3 puces dans ./out/resume.md";
+        let reading = lexicon::read(intent);
+        let writes: Vec<&str> = reading
+            .plan
+            .effects
+            .iter()
+            .filter(|e| e.verb == EffectVerb::Write)
+            .map(|e| e.target.as_str())
+            .collect();
+        assert_eq!(writes, ["./out/resume.md"], "{:?}", reading.plan);
+        assert!(
+            reading
+                .plan
+                .bindings
+                .iter()
+                .any(|b| b.role == "path" && b.literal == "./out/resume.md")
+        );
+        // An explicit write is not doubled.
+        let reading = lexicon::read(
+            "Lis ./notes/brief.md et écris un résumé de 3 puces dans ./out/resume.md",
+        );
+        assert_eq!(
+            reading
+                .plan
+                .effects
+                .iter()
+                .filter(|e| e.verb == EffectVerb::Write)
+                .count(),
+            1
+        );
+        // No step, no write: a destination alone is not a workflow.
+        let mut plan = Plan::default();
+        destination_floor("dans ./out/x.md", &mut plan);
+        assert!(plan.effects.is_empty());
+        // A folder a read step consumes, after a destination connector, is material.
+        let reading =
+            lexicon::read("fais-moi un digest des notes dans ./notes et écris-le dans ./digest.md");
+        let writes: Vec<&str> = reading
+            .plan
+            .effects
+            .iter()
+            .filter(|e| e.verb == EffectVerb::Write)
+            .map(|e| e.target.as_str())
+            .collect();
+        assert_eq!(writes, ["./digest.md"], "{:?}", reading.plan);
+        // A path in a clause of its own stays the assembler's question, never a floor write.
+        let reading = lexicon::read(
+            "Read ./data/orders.csv. Harmonise the totals per country; the JSON belongs in \
+             ./out/totals.json. Write a note to ./out/note.md.",
+        );
+        assert!(
+            !reading
+                .plan
+                .effects
+                .iter()
+                .any(|e| e.target == "./out/totals.json"),
+            "{:?}",
+            reading.plan
+        );
+    }
 
     #[test]
     fn a_path_is_recognized_and_prose_is_not() {

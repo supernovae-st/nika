@@ -23,11 +23,9 @@ pub(crate) struct Laws<'a> {
     pub(crate) answers: &'a BTreeMap<String, String>,
 }
 
-pub(crate) fn emit(
-    mut d: Doc,
-    laws: &Laws<'_>,
-    out: &mut CompileOutcome,
-) -> Result<(), CompileError> {
+/// The permits are exactly what the tasks reach: the tools invoked, the paths read and
+/// written, the hosts fetched — derived, never written by hand.
+fn emit_permits(d: &mut Doc) {
     d.root["permits"]["tools"] = json!(d.tools.iter().copied().collect::<Vec<_>>());
     if !d.reads.is_empty() || !d.writes.is_empty() {
         let mut fs = json!({});
@@ -42,6 +40,14 @@ pub(crate) fn emit(
     if !d.hosts.is_empty() {
         d.root["permits"]["net"] = json!({"http": d.hosts});
     }
+}
+
+pub(crate) fn emit(
+    mut d: Doc,
+    laws: &Laws<'_>,
+    out: &mut CompileOutcome,
+) -> Result<(), CompileError> {
+    emit_permits(&mut d);
     for key in ["const", "inputs"] {
         if d.root[key]
             .as_object()

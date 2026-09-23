@@ -433,27 +433,8 @@ pub(super) fn typed_rule(
 /// The schema of a typed computation on a compute step: every key required (a strict
 /// schema needs no optional), empty strings and arrays meaning absent.
 pub(super) fn computation_schema() -> Value {
-    json!({"type":"object","additionalProperties":false,"required":["present","polarity","join","clauses","group_by","aggregations","sort_by","order","columns","derived","limit","renames","distinct_by"],"properties":{
-        "present":{"type":"boolean"},
-        "polarity":{"type":"string","enum":["keep","drop"]},
-        "join":{"type":"string","enum":["and","or"]},
-        "clauses":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["field","op","value","value_field"],"properties":{
-            "field":{"type":"string"},"op":{"type":"string","enum":["gt","ge","lt","le","eq","ne"]},
-            "value":{"type":"string"},"value_field":{"type":"string"}}}},
-        "group_by":{"type":"string"},
-        "aggregations":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["field","op","as","round"],"properties":{
-            "field":{"type":"string"},"op":{"type":"string","enum":["sum","count","avg","min","max"]},
-            "as":{"type":"string"},"round":{"type":"string"}}}},
-        "sort_by":{"type":"string"},
-        "order":{"type":"string","enum":["asc","desc",""]},
-        "columns":{"type":"array","items":{"type":"string"}},
-        "derived":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["as","op","left","right"],"properties":{
-            "as":{"type":"string"},"op":{"type":"string","enum":["sub","add","mul","div"]},
-            "left":{"type":"string"},"right":{"type":"string"}}}},
-        "limit":{"type":"string"},
-        "renames":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["from","to"],"properties":{
-            "from":{"type":"string"},"to":{"type":"string"}}}},
-        "distinct_by":{"type":"array","items":{"type":"string"}}}})
+    serde_json::from_str(include_str!("../assets/computation_schema.json"))
+        .unwrap_or_else(|_| json!({"type": "object"}))
 }
 
 #[cfg(test)]

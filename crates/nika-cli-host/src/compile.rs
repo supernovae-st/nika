@@ -12,7 +12,7 @@ mod sidecar;
 mod typesafe;
 
 use crate::output::{VerbOutput, exit};
-use nika_onboard::compile::{CompileRequest, CompileStatus, compile, intent_sha256};
+use nika_onboard::compile::{CompileRequest, CompileStatus, compile, intent_sha256, revise_intent};
 use std::io::Write as _;
 use std::path::Path;
 
@@ -57,8 +57,10 @@ pub struct CompileArgs {
     pub authoring_samples: Option<u32>,
     /// When the seat writes the candidate itself (a native `.nika` judged by the parser, the
     /// Check and the fidelity laws): `escalate` (default) after the private plan fails a human,
-    /// `only` straight away, `off` never. Requires the authoring model.
-    #[arg(long, requires = "authoring_model", value_parser = ["escalate", "only", "off"])]
+    /// `only` straight away, `sketch` (structure first: the seat sketches tasks, edges and gates,
+    /// then fills typed holes, the compiler emits the file and derives the permits), `off`
+    /// never. Requires the authoring model.
+    #[arg(long, requires = "authoring_model", value_parser = ["escalate", "only", "sketch", "off"])]
     pub authoring_strategy: Option<String>,
     /// Repair rounds a native candidate may buy from the compiler's diagnostics (0..=5, default 3).
     #[arg(long, requires = "authoring_model")]
@@ -72,6 +74,12 @@ pub struct CompileArgs {
     /// `NIKA_KNOWLEDGE_EXCLUDE` in the environment names one when the flag is absent.
     #[arg(long, requires = "knowledge")]
     pub knowledge_exclude: Option<String>,
+    /// A pack another builder composed for THIS intent (JSON: `identity` · `selection` ·
+    /// `references: [{kind, id, text}]` · `repairs: {code: [strategy]}`): it enters the door as
+    /// composed, identity and selection recorded verbatim, and wins over `--knowledge`.
+    /// `NIKA_KNOWLEDGE_PACK` in the environment names one when the flag is absent.
+    #[arg(long, requires = "authoring_model", conflicts_with = "knowledge")]
+    pub knowledge_pack: Option<std::path::PathBuf>,
     /// Explicitly seat one bounded-decision capability (`typesafe/jev-1.13.0` or `provider/name`) for finite ambiguities.
     #[arg(long, conflicts_with_all = ["base", "list"])]
     pub decision_model: Option<String>,
@@ -105,48 +113,10 @@ pub fn run(args: &CompileArgs) -> VerbOutput {
             args.json,
         );
     }
-    let mut request = if let Some(base) = &args.base {
-        let source = match std::fs::read_to_string(base) {
-            Ok(source) => source,
-            Err(error) => {
-                return render::failure("read_base", &error.to_string(), exit::ENV, args.json);
-            }
-        };
-        let request = CompileRequest::edit(source, args.change.as_deref().unwrap_or(""));
-        match args
-            .intent
-            .as_deref()
-            .map(str::trim)
-            .filter(|i| !i.is_empty())
-        {
-            // The intent beside a base is the request the base answered: the seat revises
-            // against the whole meaning, never against the change alone.
-            Some(original) => request.with_original_intent(original),
-            None => request,
-        }
-    } else {
-        let mut request = CompileRequest::create(args.intent.as_deref().unwrap_or(""));
-        if let Some(dest) = dest {
-            request = request.with_workflow_id(workflow_id(dest));
-        }
-        request
+    let mut request = match build_request(args, dest) {
+        Ok(request) => request,
+        Err(failure) => return failure,
     };
-    request = request.with_hot_policy(match args.hot_policy.as_deref() {
-        Some("legacy") => nika_onboard::compile::HotPolicy::Legacy,
-        Some("off") => nika_onboard::compile::HotPolicy::Off,
-        _ => nika_onboard::compile::HotPolicy::Strict,
-    });
-    for answer in &args.answers {
-        let Some((key, literal)) = answer.split_once('=') else {
-            return render::failure(
-                "invalid_answer",
-                "--answer expects KEY=JSON_LITERAL",
-                exit::FILE,
-                args.json,
-            );
-        };
-        request = request.answer(key, literal);
-    }
     let named = matches!(
         args.intent.as_deref().map(str::trim),
         Some("hello" | "01-hello")
@@ -162,9 +132,12 @@ pub fn run(args: &CompileArgs) -> VerbOutput {
     if cognition && args.authoring_model.is_some() {
         request = knowledge_door(args, request);
     }
-    // Free intents only: a skeleton, hello or an edit never produces a plan to record.
-    let sha =
-        (args.base.is_none() && !named).then(|| intent_sha256(&effective_intent(args, cognition)));
+    // Free intents and revisions in words carry a record (a creation's plan, a revision's
+    // native candidate); a skeleton, hello or a structured edit never does.
+    let sha = (!named).then(|| match revise_intent(&request) {
+        Some(intent) => intent_sha256(&intent),
+        None => intent_sha256(&effective_intent(args, cognition)),
+    });
     let (request, note) = sidecar::replay(sha.as_deref(), args, request);
     let result = if cognition {
         authoring::compile(&request, args)
@@ -197,6 +170,59 @@ pub fn run(args: &CompileArgs) -> VerbOutput {
     render::outcome(&outcome, written, note.as_ref(), args.json)
 }
 
+/// The request the arguments state: an edit of the base (with the original intent beside it
+/// when stated) or a creation (named after its destination), the HOT policy, the answers.
+fn build_request(args: &CompileArgs, dest: Option<&String>) -> Result<CompileRequest, VerbOutput> {
+    let mut request = if let Some(base) = &args.base {
+        let source = match std::fs::read_to_string(base) {
+            Ok(source) => source,
+            Err(error) => {
+                return Err(render::failure(
+                    "read_base",
+                    &error.to_string(),
+                    exit::ENV,
+                    args.json,
+                ));
+            }
+        };
+        let request = CompileRequest::edit(source, args.change.as_deref().unwrap_or(""));
+        match args
+            .intent
+            .as_deref()
+            .map(str::trim)
+            .filter(|i| !i.is_empty())
+        {
+            // The intent beside a base is the request the base answered: the seat revises
+            // against the whole meaning, never against the change alone.
+            Some(original) => request.with_original_intent(original),
+            None => request,
+        }
+    } else {
+        let mut request = CompileRequest::create(args.intent.as_deref().unwrap_or(""));
+        if let Some(dest) = dest {
+            request = request.with_workflow_id(workflow_id(dest));
+        }
+        request
+    };
+    request = request.with_hot_policy(match args.hot_policy.as_deref() {
+        Some("legacy") => nika_onboard::compile::HotPolicy::Legacy,
+        Some("off") => nika_onboard::compile::HotPolicy::Off,
+        _ => nika_onboard::compile::HotPolicy::Strict,
+    });
+    for answer in &args.answers {
+        let Some((key, literal)) = answer.split_once('=') else {
+            return Err(render::failure(
+                "invalid_answer",
+                "--answer expects KEY=JSON_LITERAL",
+                exit::FILE,
+                args.json,
+            ));
+        };
+        request = request.answer(key, literal);
+    }
+    Ok(request)
+}
+
 /// The intent the compiler will actually read, as the sha key must see it: the
 /// `intent.clarification` answer replaces the intent, but only through the cognition
 /// door, which is the only door that consumes that answer.
@@ -227,11 +253,22 @@ fn observed_world(args: &CompileArgs, request: CompileRequest) -> CompileRequest
     }
 }
 
-/// The knowledge door: the snapshot the flag or `NIKA_KNOWLEDGE` names (a directory, not a
+/// The knowledge door: a pre-composed pack the flag or `NIKA_KNOWLEDGE_PACK` names wins; else
+/// the snapshot the flag or `NIKA_KNOWLEDGE` names (a directory, not a
 /// secret) and the corpus the flag or `NIKA_KNOWLEDGE_EXCLUDE` names; the pack composed for the
 /// intent rides the request, the provenance names the snapshot and the selection.
 #[allow(clippy::disallowed_methods)] // a snapshot directory and a corpus name, NON-secret
 fn knowledge_door(args: &CompileArgs, request: CompileRequest) -> CompileRequest {
+    let pack = args
+        .knowledge_pack
+        .clone()
+        .or_else(|| std::env::var_os("NIKA_KNOWLEDGE_PACK").map(std::path::PathBuf::from));
+    if let Some(path) = pack.as_deref() {
+        return match knowledge::pack_from_file(path) {
+            Some(pack) => request.with_authoring_knowledge(pack),
+            None => request,
+        };
+    }
     let dir = args
         .knowledge
         .clone()

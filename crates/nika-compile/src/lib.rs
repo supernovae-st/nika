@@ -94,7 +94,7 @@ mod writes;
 // historical module paths.
 use nika_compile_reader::{
     cardinality, columns, fidelity, gates, hot, lexicon, objects, paths, plan, rule_tokens, rules,
-    shape, structure, unknowns, words,
+    shape, sketch, structure, unknowns, words,
 };
 
 use std::collections::BTreeSet;
@@ -140,11 +140,39 @@ pub fn compile(request: &CompileRequest) -> Result<CompileOutcome, CompileError>
         }
         return Ok(outcome);
     }
+    // An answer round of a revision replays the record its seat round produced (zero calls),
+    // as a creation's does: the revised source with the answers baked in.
+    if let (Input::Edit { .. }, Some(record)) = (&request.input, &request.plan)
+        && record.get("strategy").and_then(Value::as_str) == Some(types::Strategy::Native.word())
+        && let Some(intent) = revise_intent(request)
+    {
+        cognition::replay(&intent, record, request, &mut outcome)?;
+        return Ok(outcome);
+    }
     match &request.input {
         Input::Create(intent) => create(intent, request, &mut outcome)?,
         Input::Edit { source, change } => edit(source, change, request, &mut outcome)?,
     }
     Ok(outcome)
+}
+
+/// The intent a revision in words reads under a seat: the original request when the caller
+/// states it, then the change — folded as every intent is. `None` for a creation or a
+/// structured edit. The host keys the revision's record by it; the door authors from it.
+#[must_use]
+pub fn revise_intent(request: &CompileRequest) -> Option<String> {
+    let Input::Edit {
+        change: types::EditChange::Text(words),
+        ..
+    } = &request.input
+    else {
+        return None;
+    };
+    let intent = match &request.original_intent {
+        Some(original) => format!("{original}\nChange: {words}"),
+        None => words.clone(),
+    };
+    Some(lexicon::fold_apostrophes(&intent))
 }
 
 fn initial() -> CompileOutcome {

@@ -53,6 +53,7 @@ fn with_policy(
                 .with_samples(args.authoring_samples.unwrap_or(1))
                 .with_native(match args.authoring_strategy.as_deref() {
                     Some("only") => NativeMode::Only,
+                    Some("sketch") => NativeMode::Sketch,
                     Some("off") => NativeMode::Off,
                     _ => NativeMode::Escalate,
                 })
@@ -90,37 +91,8 @@ pub(super) fn compile(
         .build()
         .map_err(|e| e.to_string())?;
     runtime.block_on(async {
-        // Reuse the established environment/key/endpoint ladder only AFTER explicit opt-in.
-        // This does not probe a keychain, select a provider, or resolve business credentials.
-        // The PROVIDER client, not the fetch client: the same fixed allowlist of provider
-        // endpoints the runtime talks to, with its transport ceiling above the per-request
-        // deadline (the policy's timeout) and no SSRF floor (a local seat binds 127.0.0.1).
-        // The default client cut every authoring call at its 30s idle-read guard whatever
-        // `--authoring-timeout` asked, and refused a loopback seat outright.
-        let http = nika_runtime::compose::provider_http().map_err(|e| e.to_string())?;
-        let registry = nika_providers::ProviderRegistry::new(
-            Arc::new(http),
-            nika_runtime::compose::config_from_env(),
-        );
-        // A `<harness>/<model>` seat is the operator's own agent through ACP (the addendum's
-        // authoring backend); every other `provider/model` is a provider of the registry. The
-        // receipt says which answered.
-        #[cfg(feature = "access-harness")]
-        let harness = match args.authoring_model.as_deref() {
-            Some(model) if super::harness_seat::HarnessSeat::names_a_harness(model) => {
-                Some(super::harness_seat::HarnessSeat::meet(model)?)
-            }
-            _ => None,
-        };
-        #[cfg(not(feature = "access-harness"))]
-        let harness: Option<NoProvider> = if names_a_harness(args) {
-            return Err(
-                "this binary was built without the access-harness feature; a harness cannot seat authoring"
-                    .to_owned(),
-            );
-        } else {
-            None
-        };
+        let registry = provider_registry()?;
+        let harness = harness_seat(args)?;
         let provider = match args.authoring_model.as_deref() {
             Some(model) if harness.is_none() => {
                 Some(registry.resolve(model).map_err(|e| e.to_string())?)
@@ -190,6 +162,49 @@ pub(super) fn compile(
         stamp_backend(&mut outcome, args, described);
         Ok(outcome)
     })
+}
+
+/// The provider registry over the PROVIDER client, not the fetch client: the same fixed
+/// allowlist of provider endpoints the runtime talks to, with its transport ceiling above the
+/// per-request deadline (the policy's timeout) and no SSRF floor (a local seat binds
+/// 127.0.0.1). The default client cut every authoring call at its 30s idle-read guard whatever
+/// `--authoring-timeout` asked, and refused a loopback seat outright. Reached only AFTER the
+/// explicit opt-in; it does not probe a keychain, select a provider, or resolve business
+/// credentials.
+fn provider_registry() -> Result<nika_providers::ProviderRegistry<nika_http::ReqwestHttp>, String> {
+    let http = nika_runtime::compose::provider_http().map_err(|e| e.to_string())?;
+    Ok(nika_providers::ProviderRegistry::new(
+        Arc::new(http),
+        nika_runtime::compose::config_from_env(),
+    ))
+}
+
+/// A `<harness>/<model>` seat is the operator's own agent through ACP (the addendum's
+/// authoring backend); every other `provider/model` is a provider of the registry. The
+/// receipt says which answered.
+#[cfg(feature = "access-harness")]
+fn harness_seat(
+    args: &super::CompileArgs,
+) -> Result<Option<super::harness_seat::HarnessSeat>, String> {
+    Ok(match args.authoring_model.as_deref() {
+        Some(model) if super::harness_seat::HarnessSeat::names_a_harness(model) => {
+            Some(super::harness_seat::HarnessSeat::meet(model)?)
+        }
+        _ => None,
+    })
+}
+
+/// Without the access-harness feature a harness cannot seat authoring: the refusal is named,
+/// never a silent provider fallback.
+#[cfg(not(feature = "access-harness"))]
+fn harness_seat(args: &super::CompileArgs) -> Result<Option<NoProvider>, String> {
+    if names_a_harness(args) {
+        return Err(
+            "this binary was built without the access-harness feature; a harness cannot seat authoring"
+                .to_owned(),
+        );
+    }
+    Ok(None)
 }
 
 /// The typesafe decision seat, when `--decision-model typesafe/<jev>` names it.

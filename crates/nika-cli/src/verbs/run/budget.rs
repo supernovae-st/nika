@@ -32,6 +32,7 @@ pub(super) fn preflight(
     model_override: Option<&str>,
     max_cost_usd: Option<f64>,
     output_json: bool,
+    seated_on_harness: bool,
 ) -> Result<(), u8> {
     let Some(budget) = max_cost_usd else {
         return Ok(());
@@ -44,10 +45,21 @@ pub(super) fn preflight(
             &effective
         }
     };
-    if let Some(err) = nika_runtime::budget_floor_refusal(wf, report, Some(budget), model_override)
-    {
+    if let Some(err) = nika_runtime::budget_floor_refusal_seated(
+        wf,
+        report,
+        Some(budget),
+        model_override,
+        seated_on_harness,
+    ) {
         super::epilogue::emit_diagnostic(&err.to_string(), output_json);
         return Err(exit::FILE);
+    }
+    if seated_on_harness && !output_json {
+        eprintln!(
+            "⚠ --max-cost-usd {budget}: the run is seated on a harness — its subscription \
+             bounds the seat's own spend; the cap meters the priced builtins only"
+        );
     }
     if cost.has_unbounded {
         eprintln!(
@@ -85,6 +97,26 @@ mod tests {
     /// model whose bounded floor exceeds the budget — the gate must refuse
     /// BEFORE any spend, exactly like the in-file form.
     #[test]
+    fn a_run_seated_on_a_harness_passes_the_cap_with_an_unpriced_cloud_model() {
+        // `--access codex` with a model the catalog cannot price: refused unseated, admitted
+        // seated (the subscription bounds the seat; the cap meters priced builtins only).
+        let yaml = "nika: m\nmodel: \"openai/gpt-6-astra\"\ntasks:\n  \
+             a:\n    infer: { prompt: hi, max_tokens: 20 }\n";
+        let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("fixture parses");
+        let report = nika_check::check(&wf);
+        assert_eq!(
+            preflight(&wf, &report, None, Some(0.05), false, false),
+            Err(crate::verbs::exit::FILE),
+            "unseated, an unpriced cloud model under a cap refuses"
+        );
+        assert_eq!(
+            preflight(&wf, &report, None, Some(0.05), false, true),
+            Ok(()),
+            "seated on a harness, the same run proceeds"
+        );
+    }
+
+    #[test]
     fn override_prices_the_effective_model_and_refuses_at_the_gate() {
         let yaml = "nika: m\ntasks:\n  \
              a:\n    infer: { prompt: hi, max_tokens: 1000000, model: \"mock/echo\" }\n";
@@ -106,6 +138,7 @@ mod tests {
             Some("anthropic/claude-sonnet-5"),
             Some(0.000_001),
             false,
+            false,
         );
         assert_eq!(
             refused,
@@ -115,7 +148,7 @@ mod tests {
         // The exact same call WITHOUT the override passes — the file's
         // mock floor is zero (the pre-#342 behavior, still correct there).
         assert_eq!(
-            preflight(&wf, &report, None, Some(0.000_001), false),
+            preflight(&wf, &report, None, Some(0.000_001), false, false),
             Ok(())
         );
     }
@@ -133,7 +166,14 @@ mod tests {
             "the FILE's floor alone would refuse"
         );
         assert_eq!(
-            preflight(&wf, &report, Some("mock/echo"), Some(0.000_001), false),
+            preflight(
+                &wf,
+                &report,
+                Some("mock/echo"),
+                Some(0.000_001),
+                false,
+                false
+            ),
             Ok(()),
             "the effective (mock) floor is zero — no refusal"
         );
@@ -173,12 +213,12 @@ mod tests {
         let report = nika_check::check(&wf);
         assert!(report.is_clean(), "fixture checks clean: {report:?}");
         assert_eq!(
-            preflight(&wf, &report, None, Some(0.001), false),
+            preflight(&wf, &report, None, Some(0.001), false, false),
             Err(crate::verbs::exit::FILE),
             "xAI image floor $0.02 refuses cap $0.001 before any HTTP"
         );
         assert_eq!(
-            preflight(&wf, &report, None, Some(1.00), false),
+            preflight(&wf, &report, None, Some(1.00), false, false),
             Ok(()),
             "cap 1.00 admits the $0.02 floor"
         );
@@ -194,7 +234,7 @@ mod tests {
         .expect("fixture parses");
         let report = nika_check::check(&wf);
         assert_eq!(
-            preflight(&wf, &report, None, Some(0.001), false),
+            preflight(&wf, &report, None, Some(0.001), false, false),
             Ok(()),
             "mock image is unpriced — rehearsal under a tight cap stays legal"
         );

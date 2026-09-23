@@ -6,6 +6,8 @@
 //! writing` land as the same runtime gate without one phrase per wording.
 
 /// Words that mean approval when they close a gate phrase.
+use super::plan::{EffectVerb, Plan};
+
 const APPROVAL_NOUNS: &[&str] = &[
     "approval",
     "approvals",
@@ -624,6 +626,106 @@ const PROHIBITION_CUES: &[&str] = &[
 pub fn starts_with_prohibition(text: &str) -> bool {
     let lower = text.trim().to_lowercase();
     PROHIBITION_CUES.iter().any(|cue| lower.starts_with(cue))
+}
+
+/// Recognized EN/FR approval-bypass phrases, matched as whole-word sequences.
+const APPROVAL_BYPASS: &[&[&str]] = &[
+    &["without", "approval"],
+    &["without", "asking"],
+    &["do", "not", "ask"],
+    &["sans", "mon", "accord"],
+    &["sans", "accord"],
+    &["ne", "pas", "demander"],
+    &["approved", "yesterday"],
+    &["approval", "from", "yesterday"],
+    &["yesterday", "s", "approval"],
+    &["validé", "hier"],
+    &["validée", "hier"],
+    &["approuvé", "hier"],
+    &["approuvée", "hier"],
+    &["accord", "d", "hier"],
+    &["accord", "hier"],
+    &["prior", "approval"],
+    &["previous", "approval"],
+];
+
+/// Negations and prohibitions in six languages: before a bypass phrase in the same
+/// sentence, they turn it into a gate.
+const NEGATIONS: &[&str] = &[
+    "not",
+    "never",
+    "nothing",
+    "no",
+    "rien",
+    "jamais",
+    "ne",
+    "aucun",
+    "aucune",
+    "interdit",
+    "interdite",
+    "nada",
+    "nunca",
+    "prohibido",
+    "prohibida",
+    "niente",
+    "mai",
+    "non",
+    "vietato",
+    "nichts",
+    "nie",
+    "niemals",
+    "nicht",
+    "verboten",
+    "nao",
+    "não",
+    "proibido",
+    "proibida",
+];
+
+/// Whether a recognized bypass phrase is stated as a bypass. The same words inside a
+/// prohibition state a gate: « rien ne doit partir sans mon accord », « never send without
+/// asking » forbid the effect until the approval, they do not skip it. The negation must
+/// precede the phrase in its own sentence; « envoie-le sans mon accord, ne me demande rien »
+/// stays a bypass.
+#[must_use]
+pub fn bypass_stated(lower: &str) -> bool {
+    crate::lexicon::split_sentences(lower)
+        .into_iter()
+        .any(|sentence| {
+            let words: Vec<&str> = sentence
+                .split(|c: char| !c.is_alphabetic())
+                .filter(|w| !w.is_empty())
+                .collect();
+            APPROVAL_BYPASS.iter().any(|phrase| {
+                words.windows(phrase.len()).enumerate().any(|(at, window)| {
+                    window == *phrase && !words[..at].iter().any(|w| NEGATIONS.contains(w))
+                })
+            })
+        })
+}
+
+/// A conservative EN/FR authority backstop applied to EVERY strategy. It cannot prove
+/// arbitrary-language intent preservation (the proposal's own bypass field covers other
+/// languages); it refuses the recognized bypasses and keeps recognized money movement from
+/// being assembled without a human gate.
+pub fn backstop(intent: &str, plan: &mut Plan) {
+    let text = intent.to_lowercase();
+    if bypass_stated(&text) {
+        plan.unknowns.push(
+            "The request reuses, skips or presupposes an approval (recognized approval-bypass wording); the compiler never grants that authority."
+                .to_owned(),
+        );
+    }
+    let refund_words = text.contains("refund") || text.contains("rembours");
+    if refund_words && !plan.effects.iter().any(|e| e.verb == EffectVerb::Refund) {
+        plan.unknowns.push(
+            "The request mentions a refund that no recognized effect carries; a refund is never dropped silently."
+                .to_owned(),
+        );
+    }
+    // An automatic money movement is not unknown work: the assembler asks its approval
+    // as one closed choice (`effect.<verb>.approval`).
+    plan.unknowns.dedup();
 }
 
 #[cfg(test)]

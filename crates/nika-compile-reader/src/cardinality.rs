@@ -502,6 +502,145 @@ pub fn parallel_bound(constraint: &str) -> Option<u32> {
     }
 }
 
+/// Superlatives that name one row of a corpus (EN · FR · IT · ES · DE · PT, accented and
+/// folded): the `1` a seat writes as a limit beside « the most », « le plus », « el mayor »
+/// is stated by them.
+const SUPERLATIVES: &[&str] = &[
+    "most",
+    "worst",
+    "best",
+    "highest",
+    "lowest",
+    "largest",
+    "smallest",
+    "biggest",
+    "longest",
+    "shortest",
+    "latest",
+    "earliest",
+    "oldest",
+    "newest",
+    "least",
+    "le plus",
+    "la plus",
+    "les plus",
+    "le moins",
+    "la moins",
+    "il più",
+    "la più",
+    "il piu",
+    "la piu",
+    "il meno",
+    "la meno",
+    "el más",
+    "la más",
+    "el mas",
+    "la mas",
+    "el menos",
+    "la menos",
+    "mayor",
+    "menor",
+    "höchste",
+    "hochste",
+    "niedrigste",
+    "größte",
+    "grosste",
+    "kleinste",
+    "längste",
+    "langste",
+    "kürzeste",
+    "kurzeste",
+    "meisten",
+    "wenigsten",
+    "o mais",
+    "a mais",
+    "o maior",
+    "a maior",
+    "o menor",
+    "a menor",
+];
+
+/// Whether the request states a superlative: one row of its corpus, the `1` of a limit.
+#[must_use]
+pub fn superlative_covers(intent: &str) -> bool {
+    let folded = crate::shape::fold(intent);
+    let padded = format!(" {folded} ");
+    SUPERLATIVES
+        .iter()
+        .any(|w| padded.contains(&format!(" {w} ")))
+}
+
+/// Words and dashes that join the two ends of a stated numeric range.
+const RANGE_LINKS: &[&str] = &[
+    "to", "through", "thru", "à", "a", "au", "jusqu'à", "hasta", "bis", "fino a", "-", "–", "—",
+    "…", "...", "..",
+];
+
+/// Whether the request states a numeric range that covers `number` ("01 to 04", "1 à 4",
+/// "chapters 1-4", "fiche-01 … fiche-04"): two digit runs joined by a range word or dash.
+/// A number inside a stated range is derived from the request, not invented.
+#[must_use]
+pub fn stated_range_covers(intent: &str, number: &str) -> bool {
+    let Ok(n) = number.parse::<u64>() else {
+        return false;
+    };
+    let lower = intent.to_lowercase();
+    let runs: Vec<(usize, usize)> = {
+        let mut out = Vec::new();
+        let mut start: Option<usize> = None;
+        for (i, ch) in lower.char_indices() {
+            match (ch.is_ascii_digit(), start) {
+                (true, None) => start = Some(i),
+                (false, Some(s)) => {
+                    out.push((s, i));
+                    start = None;
+                }
+                _ => {}
+            }
+        }
+        if let Some(s) = start {
+            out.push((s, lower.len()));
+        }
+        out
+    };
+    runs.windows(2).any(|pair| {
+        let (a_start, a_end) = pair[0];
+        let (b_start, b_end) = pair[1];
+        let Some(between) = lower.get(a_end..b_start) else {
+            return false;
+        };
+        let between = between.trim();
+        let link = between
+            .split_whitespace()
+            .map(|w| w.trim_matches(|c: char| c == '`' || c == '"' || c == '\''))
+            .collect::<Vec<_>>();
+        let linked = between.len() <= 12
+            && (RANGE_LINKS.contains(&between) || link.iter().any(|w| RANGE_LINKS.contains(w)));
+        if !linked {
+            return false;
+        }
+        match (
+            lower
+                .get(a_start..a_end)
+                .and_then(|s| s.parse::<u64>().ok()),
+            lower
+                .get(b_start..b_end)
+                .and_then(|s| s.parse::<u64>().ok()),
+        ) {
+            (Some(lo), Some(hi)) => lo <= n && n <= hi && hi.saturating_sub(lo) <= 64,
+            _ => false,
+        }
+    })
+}
+
+#[must_use]
+pub fn digit_runs(text: &str) -> Vec<String> {
+    text.split(|c: char| !c.is_ascii_digit())
+        .filter(|run| !run.is_empty())
+        .map(str::to_owned)
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
