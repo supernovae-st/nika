@@ -17,17 +17,76 @@ const PEEK_BYTES: usize = 64 * 1024;
 /// A file larger than this is described by its head only (never read whole).
 const WHOLE_JSON_BYTES: u64 = 8 * 1024 * 1024;
 
-/// The observations of every stated source that exists under `cwd`, or nothing.
+/// The most files observed inside one stated folder.
+const FOLDER_FILES: usize = 8;
+
+/// The observations of every stated path that exists under `cwd`, or nothing. A stated
+/// folder (« les trois fichiers de ventes dans ./reports/ ») contributes its tabular and JSON
+/// files, sorted by name, the first eight. Sources and destinations alike: the reader hears
+/// « dans ./reports/ » as a destination connector, and a destination that already exists
+/// has a shape worth stating too.
 pub(super) fn world(cwd: &Path, intent: &str) -> Option<Value> {
-    let observed: Vec<Value> = nika_onboard::compile::stated_sources(intent)
+    let mut stated = nika_onboard::compile::stated_sources(intent);
+    for path in nika_onboard::compile::stated_destinations(intent) {
+        if !stated.contains(&path) {
+            stated.push(path);
+        }
+    }
+    let observed: Vec<Value> = stated
         .iter()
-        .filter_map(|path| observe(cwd, path))
+        .flat_map(|path| {
+            let mut rows = Vec::new();
+            if let Some(row) = observe(cwd, path) {
+                rows.push(row);
+            } else {
+                rows.extend(observe_folder(cwd, path));
+            }
+            rows
+        })
         .collect();
     (!observed.is_empty()).then(|| json!({ "observed": observed }))
 }
 
-/// One stated path: under the working directory, a regular file, a tabular or JSON format.
-fn observe(cwd: &Path, stated: &str) -> Option<Value> {
+/// The files of a stated folder, each observed as if stated: `./reports/juillet.csv`.
+fn observe_folder(cwd: &Path, stated: &str) -> Vec<Value> {
+    let Some(full) = under_cwd(cwd, stated) else {
+        return Vec::new();
+    };
+    if !full.is_dir() {
+        return Vec::new();
+    }
+    let Ok(entries) = std::fs::read_dir(&full) else {
+        return Vec::new();
+    };
+    let mut names: Vec<String> = entries
+        .filter_map(Result::ok)
+        .filter(|e| e.path().is_file())
+        .filter_map(|e| e.file_name().to_str().map(str::to_owned))
+        .filter(|name| {
+            Path::new(name)
+                .extension()
+                .and_then(|e| e.to_str())
+                .is_some_and(|e| {
+                    matches!(
+                        e.to_ascii_lowercase().as_str(),
+                        "csv" | "tsv" | "json" | "jsonl"
+                    )
+                })
+        })
+        .collect();
+    names.sort();
+    let folder = stated.trim_end_matches('/');
+    let folder = folder.strip_prefix("./").unwrap_or(folder);
+    names
+        .iter()
+        .take(FOLDER_FILES)
+        .filter_map(|name| observe(cwd, &format!("./{folder}/{name}")))
+        .collect()
+}
+
+/// The stated path resolved under the working directory, or None for an absolute path or
+/// one that climbs out.
+fn under_cwd(cwd: &Path, stated: &str) -> Option<std::path::PathBuf> {
     let relative = Path::new(stated.strip_prefix("./").unwrap_or(stated));
     if relative.is_absolute()
         || relative
@@ -36,7 +95,12 @@ fn observe(cwd: &Path, stated: &str) -> Option<Value> {
     {
         return None;
     }
-    let full = cwd.join(relative);
+    Some(cwd.join(relative))
+}
+
+/// One stated path: under the working directory, a regular file, a tabular or JSON format.
+fn observe(cwd: &Path, stated: &str) -> Option<Value> {
+    let full = under_cwd(cwd, stated)?;
     let meta = std::fs::metadata(&full).ok()?;
     if !meta.is_file() {
         return None;
@@ -295,6 +359,51 @@ mod tests {
             row["values"].get("montant").is_none(),
             "four amounts in four rows are free values"
         );
+    }
+
+    #[test]
+    fn a_stated_folder_contributes_its_tabular_files_sorted_and_bounded() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("reports")).unwrap();
+        for name in ["septembre.csv", "juillet.csv", "aout.csv"] {
+            std::fs::write(
+                dir.path().join("reports").join(name),
+                "region,ventes\nNord,1200\nSud,800\n",
+            )
+            .unwrap();
+        }
+        std::fs::write(dir.path().join("reports/notes.md"), "not a table").unwrap();
+        let seen = super::world(
+            dir.path(),
+            "prends les trois fichiers de ventes mensuelles dans ./reports/ (juillet, août, septembre), additionne les ventes par région",
+        )
+        .expect("observed");
+        let rows = seen["observed"].as_array().unwrap();
+        let paths: Vec<&str> = rows.iter().filter_map(|r| r["path"].as_str()).collect();
+        assert_eq!(
+            paths,
+            [
+                "./reports/aout.csv",
+                "./reports/juillet.csv",
+                "./reports/septembre.csv"
+            ],
+            "{seen}"
+        );
+        assert!(
+            rows.iter()
+                .all(|r| r["columns"] == json!(["region", "ventes"])),
+            "{seen}"
+        );
+        for n in 0..12 {
+            std::fs::write(
+                dir.path().join(format!("reports/x{n:02}.csv")),
+                "a,b\n1,2\n",
+            )
+            .unwrap();
+        }
+        let seen = super::world(dir.path(), "lis ./reports/").expect("observed");
+        assert_eq!(seen["observed"].as_array().unwrap().len(), FOLDER_FILES);
+        assert!(super::world(dir.path(), "lis ../reports/").is_none());
     }
 
     #[test]
