@@ -361,11 +361,19 @@ where
                 let answered: Value = self
                     .await_response(ID_SESSION_SEAT, "session/set_config_option")
                     .await?;
-                self.observed_model = seats::current_model(
-                    seats::model_option(Some(&answered)).or(model_option),
-                    None,
-                )
-                .or_else(|| value.as_str().map(str::to_owned));
+                // ACP returns an object containing the complete configuration, not the
+                // array itself. Never recycle session/new's stale currentValue or promote
+                // the requested value into an observation when the peer did not confirm it.
+                self.observed_model =
+                    seats::current_model(seats::model_option(answered.get("configOptions")), None);
+                if self.observed_model.as_deref() != value.as_str() || self.observed_model.is_none()
+                {
+                    return Err(HarnessError::Refused {
+                        reason: format!(
+                            "the harness did not confirm requested model `{wanted}` after selection"
+                        ),
+                    });
+                }
             } else if let Some(model_id) = seats::offered_model(session.models.as_ref(), &wanted) {
                 self.send_request(
                     ID_SESSION_SEAT,
@@ -1000,8 +1008,7 @@ mod tests {
             assert_eq!(seat["params"]["sessionId"], "s-test");
             assert_eq!(seat["params"]["configId"], "model");
             assert_eq!(seat["params"]["value"], "k3-256k");
-            let mut answered = model_options("k3-256k", &["k3", "k3-256k"]);
-            answered = answered["configOptions"].take();
+            let answered = model_options("k3-256k", &["k3", "k3-256k"]);
             agent_write(
                 &mut w,
                 &serde_json::json!({"jsonrpc":"2.0","id":seat["id"],"result":answered}),
