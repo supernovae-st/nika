@@ -153,10 +153,11 @@ pub fn allowed_values(answers: &BTreeMap<String, String>) -> Vec<String> {
 
 /// Whether one `permits.fs` entry covers a path: the path itself, a directory glob
 /// (`./data/**`, `./reports/*`), or a pattern whose fixed head and tail the path carries.
+/// A leading `./` names the same relative path; parent components are never collapsed.
 #[must_use]
 pub fn covers(entry: &str, path: &str) -> bool {
-    let path = path.trim_end_matches('/');
-    let entry = entry.trim_end_matches('/');
+    let path = path.trim_start_matches("./").trim_end_matches('/');
+    let entry = entry.trim_start_matches("./").trim_end_matches('/');
     if entry == path {
         return true;
     }
@@ -489,6 +490,29 @@ mod tests {
         assert!(!covers("./data/**", "./out/rapport.md"));
         assert!(!covers("./reports/*.csv", "./reports/notes.md"));
         assert!(!covers("./data/paiements.csv", "./data/paiements.csv.bak"));
+    }
+
+    #[test]
+    fn explicit_current_directory_is_the_same_relative_path() {
+        let doc = serde_json::json!({"permits": {"fs": {
+            "read": ["./entree.txt"], "write": ["./sortie.txt"]
+        }}});
+        let mut diagnostics = Vec::new();
+        stated_paths(
+            "Copie entree.txt dans sortie.txt.",
+            &doc,
+            &[],
+            &mut diagnostics,
+        );
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        assert!(covers("entree.txt", "./entree.txt"));
+        assert!(covers("././entree.txt", "entree.txt"));
+        assert!(covers("./data/**", "data/a.txt"));
+        assert!(covers("data/*.csv", "./data/a.csv"));
+        assert!(!covers("./entree.txt", "../entree.txt"));
+        assert!(!covers("./entree.txt", "/entree.txt"));
+        assert!(!covers("./entree.txt", "dir/../entree.txt"));
+        assert!(!covers("./entree.txt", ".entree.txt"));
     }
 
     #[test]
