@@ -132,6 +132,7 @@ pub fn laws(
     stated_paths(intent, doc, waived, out);
     approvals(plan, doc, out);
     invented_gates(plan, doc, out);
+    dropped_effects(plan, doc, out);
     prohibitions(plan, doc, out);
     invented(intent, &literals, allowed, out);
 }
@@ -268,6 +269,47 @@ pub fn invented_gates(plan: &Plan, doc: &Value, out: &mut Vec<Diagnostic>) {
     }
 }
 
+/// Law 22: an effect the request states is a task. A write is judged by its stated path; every
+/// other effect (a send, a creation, an update, a payment…) the plan carries and the request
+/// does not forbid must be carried by an effect task — a `nika:fetch` that is not a GET, a
+/// `nika:notify`, a `nika:emit`, or an `mcp:` tool. A candidate that reads, drafts and asks but
+/// never sends (measured 2026-09-23, « ask me before anything is sent ») is refused by name:
+/// nothing silently disappears.
+pub fn dropped_effects(plan: &Plan, doc: &Value, out: &mut Vec<Diagnostic>) {
+    let stated: Vec<&crate::plan::Effect> = plan
+        .effects
+        .iter()
+        .filter(|e| {
+            e.verb != EffectVerb::Write
+                && !matches!(e.policy, EffectPolicy::Forbidden | EffectPolicy::Conflict)
+        })
+        .collect();
+    if stated.is_empty() {
+        return;
+    }
+    let (effects, _) = effect_and_gate_tasks(doc);
+    let carried = !effects.is_empty()
+        || doc
+            .get("tasks")
+            .and_then(Value::as_object)
+            .into_iter()
+            .flatten()
+            .any(|(id, _)| tool_of(doc, id).starts_with("mcp:"));
+    if carried {
+        return;
+    }
+    for effect in stated {
+        out.push(Diagnostic {
+            kind: "effect",
+            message: format!(
+                "DROPPED EFFECT: the request states `{}` (« {} ») and no task carries it — no `nika:fetch` beyond GET, no `nika:notify`, no `nika:emit`, no `mcp:` tool. Realize it (a destination the request leaves open is ONE `const.<name>_endpoint` question), never drop it.",
+                effect.verb.word(),
+                effect.evidence.trim()
+            ),
+        });
+    }
+}
+
 /// Law 4: an effect the request forbids is absent.
 pub fn prohibitions(plan: &Plan, doc: &Value, out: &mut Vec<Diagnostic>) {
     let (effects, _) = effect_and_gate_tasks(doc);
@@ -358,6 +400,49 @@ pub fn tool_of<'a>(doc: &'a Value, task: &str) -> &'a str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_stated_send_no_task_carries_is_dropped_and_a_carried_one_is_not() {
+        let mut plan = Plan::default();
+        plan.effects.push(crate::plan::Effect::new(
+            crate::plan::EffectVerb::Send,
+            "the brief",
+            "ask me before anything is sent",
+            EffectPolicy::HumanFirst,
+        ));
+        let dropped = serde_json::json!({"tasks": {
+            "draft": {"infer": {"prompt": "brief"}},
+            "review": {"with": {"brief": "${{ tasks.draft.output }}"}, "invoke": {"tool": "nika:prompt", "args": {"message": "Send?"}}}
+        }});
+        let mut out = Vec::new();
+        dropped_effects(&plan, &dropped, &mut out);
+        assert_eq!(out.len(), 1, "{out:?}");
+        assert!(
+            out[0].message.contains("DROPPED EFFECT") && out[0].message.contains("`send`"),
+            "{}",
+            out[0].message
+        );
+        let carried = serde_json::json!({"tasks": {
+            "draft": {"infer": {"prompt": "brief"}},
+            "send": {"with": {"brief": "${{ tasks.draft.output }}"}, "invoke": {"tool": "nika:fetch", "args": {"url": "${{ const.send_endpoint }}", "method": "POST"}}}
+        }});
+        let mut out = Vec::new();
+        dropped_effects(&plan, &carried, &mut out);
+        assert!(out.is_empty(), "{out:?}");
+        let mut forbidden = Plan::default();
+        forbidden.effects.push(crate::plan::Effect::new(
+            crate::plan::EffectVerb::Send,
+            "the brief",
+            "never send it",
+            EffectPolicy::Forbidden,
+        ));
+        let mut out = Vec::new();
+        dropped_effects(&forbidden, &dropped, &mut out);
+        assert!(
+            out.is_empty(),
+            "a forbidden effect is rightly absent: {out:?}"
+        );
+    }
 
     #[test]
     fn a_gate_the_request_never_states_is_invented_and_a_stated_one_is_not() {
