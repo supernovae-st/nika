@@ -52,7 +52,7 @@ pub(crate) fn task_face(task: &nika_schema::raw::RawTask, default_model: Option<
         RawAction::Exec(_) => "exec · runs a program".to_owned(),
         RawAction::Agent(_) => "agent · a bounded multi-turn loop".to_owned(),
         RawAction::Invoke(invoke) => match &invoke.target {
-            RawInvokeTarget::Tool(tool) => tool.value.clone(),
+            RawInvokeTarget::Tool(tool) => builtin_face(&tool.value),
             RawInvokeTarget::Workflow(_) => "invoke · another workflow".to_owned(),
         },
         _ => "(a verb this review does not name)".to_owned(),
@@ -63,6 +63,45 @@ pub(crate) fn task_face(task: &nika_schema::raw::RawTask, default_model: Option<
         ""
     };
     format!("{what}{each}")
+}
+
+/// A builtin's face in the review's words: what it does, never its id —
+/// `jq`, `glob` or `assert` are machine words to the human who asked for
+/// a brief, and `/show` keeps the bytes. A tool this review does not
+/// know (an MCP tool, a builtin newer than this list) keeps its id.
+fn builtin_face(tool: &str) -> String {
+    match tool {
+        "nika:read" => "reads a file",
+        "nika:write" => "writes a file",
+        "nika:edit" => "edits a file",
+        "nika:glob" => "lists files",
+        "nika:grep" => "searches text",
+        "nika:jq" => "shapes the data",
+        "nika:json_diff" => "compares data",
+        "nika:json_merge_patch" => "merges data",
+        "nika:validate" => "validates data",
+        "nika:assert" => "checks a condition",
+        "nika:decide" => "decides a branch",
+        "nika:done" => "marks the work done",
+        "nika:prompt" => "asks a human",
+        "nika:fetch" => "fetches from the web",
+        "nika:notify" => "sends a notification",
+        "nika:emit" => "emits an event",
+        "nika:log" => "logs a line",
+        "nika:wait" => "waits",
+        "nika:date" => "reads the clock",
+        "nika:uuid" => "makes an id",
+        "nika:hash" => "hashes data",
+        "nika:convert" => "converts a document",
+        "nika:compose" => "composes a document",
+        "nika:inspect" => "inspects a workflow",
+        "nika:chart" => "draws a chart",
+        "nika:image_generate" => "generates an image",
+        "nika:image_fx" => "transforms an image",
+        "nika:tts_generate" => "speaks text aloud",
+        _ => tool,
+    }
+    .to_owned()
 }
 
 /// The candidate's own id (`nika:`), kebab-case as the parser accepted it.
@@ -440,13 +479,33 @@ mod tests {
         );
     }
 
+    /// A builtin's face is what it does; an unknown tool keeps its id.
+    #[test]
+    fn a_builtin_face_is_what_it_does_never_its_id() {
+        assert_eq!(builtin_face("nika:jq"), "shapes the data");
+        assert_eq!(builtin_face("nika:read"), "reads a file");
+        assert_eq!(builtin_face("mcp:slack/post"), "mcp:slack/post");
+        for tool in [
+            "nika:jq",
+            "nika:glob",
+            "nika:grep",
+            "nika:assert",
+            "nika:prompt",
+        ] {
+            assert!(!builtin_face(tool).contains(':'), "{tool}");
+        }
+    }
+
     #[test]
     fn the_plan_lines_come_from_the_parser() {
         let out = ready("Read ./notes/brief.md and write it to ./out/copy.md");
         let lines = plan_lines(out.candidate.as_deref().expect("candidate"));
         assert_eq!(lines.len(), 2, "{lines:?}");
-        assert!(lines[0].contains("read_source · nika:read"), "{lines:?}");
-        assert!(lines[1].contains("write_output · nika:write"), "{lines:?}");
+        assert!(lines[0].contains("read_source · reads a file"), "{lines:?}");
+        assert!(
+            lines[1].contains("write_output · writes a file"),
+            "{lines:?}"
+        );
         assert!(gate_tasks(out.candidate.as_deref().expect("candidate")).is_empty());
         assert_eq!(
             plan_lines("not: a workflow"),
@@ -476,7 +535,7 @@ mod tests {
             "{review}"
         );
         assert!(
-            review.contains("read_source · nika:read · for each item"),
+            review.contains("read_source · reads a file · for each item"),
             "{review}"
         );
         assert!(review.contains("external effects · none"), "{review}");
@@ -535,6 +594,6 @@ mod tests {
             review.contains("external effects · network · hooks.slack.com · runs · echo"),
             "{review}"
         );
-        assert!(review.contains("4. human · nika:prompt"), "{review}");
+        assert!(review.contains("4. human · asks a human"), "{review}");
     }
 }

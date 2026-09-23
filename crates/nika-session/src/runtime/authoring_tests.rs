@@ -101,9 +101,9 @@ fn work_reaches_the_compiler_and_its_question_owns_the_next_line() {
         preview.starts_with("Nika proposes `compiled-workflow.nika`:"),
         "{preview}"
     );
-    assert!(preview.contains("· nika:read"), "{preview}");
+    assert!(preview.contains("· reads a file"), "{preview}");
     assert!(preview.contains("infer · mock/echo"), "{preview}");
-    assert!(preview.contains("· nika:write"), "{preview}");
+    assert!(preview.contains("· writes a file"), "{preview}");
     assert!(
         preview.contains("human approval at run · none"),
         "{preview}"
