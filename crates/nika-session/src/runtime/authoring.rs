@@ -1112,12 +1112,62 @@ pub(crate) fn human_reasons(reasons: Vec<String>) -> Vec<String> {
     for reason in reasons {
         let r = reason.trim();
         let machine = r.contains("semantic plan") || r.ends_with(": .") || r.ends_with(':');
-        if machine || r.is_empty() || kept.iter().any(|k| k == r) {
+        if machine || r.is_empty() {
             continue;
         }
-        kept.push(r.to_owned());
+        let said = human_reason(r);
+        if kept.contains(&said) {
+            continue;
+        }
+        kept.push(said);
     }
     kept
+}
+
+/// One compiler reason in the human's words — the compiler's fidelity
+/// grammar is a closed set (« Candidate N is not feasible: … », « dropped
+/// the recognized operation `x` (evidence) », « the path `p` is no longer
+/// carried … », « the literal `v` is not in the request »); any other line
+/// is kept as the compiler said it.
+fn human_reason(raw: &str) -> String {
+    let r = raw.trim().trim_end_matches('.');
+    let r = match r.find("is not feasible: ") {
+        Some(at) if r.starts_with("Candidate ") => &r[at + "is not feasible: ".len()..],
+        _ => r,
+    };
+    let quoted = |s: &str| -> Option<(String, String)> {
+        let start = s.find('`')?;
+        let end = s[start + 1..].find('`')? + start + 1;
+        Some((s[start + 1..end].to_owned(), s[end + 1..].to_owned()))
+    };
+    if let Some(rest) = r.strip_prefix("dropped the recognized operation ")
+        && let Some((op, tail)) = quoted(rest)
+    {
+        let evidence = tail
+            .trim()
+            .trim_start_matches('(')
+            .trim_end_matches(')')
+            .trim_end_matches(',')
+            .trim();
+        return if evidence.is_empty() {
+            format!("the draft lost the « {op} » step")
+        } else {
+            format!("the draft lost « {evidence} » (the {op} step)")
+        };
+    }
+    if let Some(rest) = r.strip_prefix("the path ")
+        && let Some((path, tail)) = quoted(rest)
+        && tail.contains("no longer carried")
+    {
+        return format!("the draft dropped « {path} »: nothing reads or writes it any more");
+    }
+    if let Some(rest) = r.strip_prefix("the literal ")
+        && let Some((value, tail)) = quoted(rest)
+        && tail.contains("not in the request")
+    {
+        return format!("the draft invented a value (« {value} ») your request never gave");
+    }
+    r.to_owned()
 }
 
 /// Whether a run line is the closed grammar and nothing more: the verb,

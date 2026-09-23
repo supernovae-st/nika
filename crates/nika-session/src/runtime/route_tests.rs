@@ -416,3 +416,29 @@ fn an_unpriced_cloud_model_is_refused_at_the_question_in_words() {
     assert!(s.pending_question().is_some(), "the question still waits");
     assert!(matches!(s.turn("mock/echo"), TurnOutcome::Proposal { .. }));
 }
+
+/// The compiler's fidelity grammar reaches the human in words: what the
+/// draft lost, dropped or invented — never « Candidate 0 is not feasible ».
+#[test]
+fn a_compiler_reason_is_said_in_the_humans_words() {
+    let said = super::authoring::human_reasons(vec![
+        "Candidate 0 is not feasible: dropped the recognized operation `draft` (draft a short brief,).".to_owned(),
+        "Candidate 0 is not feasible: the path `./tickets.json` is no longer carried by any operation or effect.".to_owned(),
+        "Candidate 0 is not feasible: the literal `00` is not in the request.".to_owned(),
+        "Unresolved clause: do something clever with it.".to_owned(),
+    ]);
+    assert_eq!(
+        said[0],
+        "the draft lost « draft a short brief » (the draft step)"
+    );
+    assert_eq!(
+        said[1],
+        "the draft dropped « ./tickets.json »: nothing reads or writes it any more"
+    );
+    assert_eq!(
+        said[2],
+        "the draft invented a value (« 00 ») your request never gave"
+    );
+    assert_eq!(said[3], "Unresolved clause: do something clever with it");
+    assert!(said.iter().all(|s| !s.contains("Candidate")), "{said:?}");
+}
