@@ -198,28 +198,7 @@ fn rows() -> Result<Vec<AdapterRow>, HarnessError> {
             directory_auth: None,
             package: "opencode-ai (brew install opencode · npm i -g opencode-ai · https://opencode.ai/docs/acp)",
         },
-        AdapterRow {
-            // The maintained adapter is `@agentclientprotocol/codex-acp` (1.13.0 measured
-            // 2026-09-22: `agentInfo.name` → `@agentclientprotocol/codex-acp`, auth methods
-            // api-key · chat-gpt, models gpt-6-astra[…]); the `@zed-industries/codex-acp`
-            // package (0.16.0, same bin name, answers `codex-acp`) is deprecated on npm and
-            // still accepted by the pin. `npm i -g` puts the bin on PATH (the npx-on-the-spec
-            // form does NOT link these packages' bins — measured 2026-08-07). No working
-            // version flag — the probe is the initialize self-report. The 0.16.0 model
-            // override (`-c model=gpt-5.5`, 2026-08-07) is retired: the adapter's own default
-            // is the vendor's current model, and a run names its model through the session.
-            adapter: HarnessAdapter::new("codex", "codex-acp")?
-                .with_identities(vec!["Codex".to_owned()])
-                .with_handshake_probe()
-                .with_version_pin(VersionPin::new((0, 16), 1)),
-            serves: &["openai"],
-            auth: AuthProbe::Command {
-                command: "codex",
-                args: &["login", "status"],
-            },
-            directory_auth: None,
-            package: "@agentclientprotocol/codex-acp (npm i -g · wraps the codex CLI's own auth · @zed-industries/codex-acp is deprecated)",
-        },
+        codex_row()?,
         AdapterRow {
             // Measured 2026-09-22 (GitHub Copilot CLI 1.0.77, ACP public preview): `copilot
             // --acp` over stdio, `agentInfo.name` → `Copilot`, modes agent · plan · autopilot
@@ -261,7 +240,8 @@ fn rows() -> Result<Vec<AdapterRow>, HarnessError> {
             adapter: HarnessAdapter::new("claude-code", "claude-agent-acp")?
                 .with_identities(vec!["Claude Agent".to_owned()])
                 .with_handshake_probe()
-                .with_version_pin(VersionPin::new((0, 23), 0)),
+                .with_version_pin(VersionPin::new((0, 23), 0))
+                .with_passthrough_env(vec!["CLAUDE_CONFIG_DIR".to_owned()]),
             serves: &["anthropic"],
             auth: AuthProbe::Command {
                 command: "claude",
@@ -271,6 +251,32 @@ fn rows() -> Result<Vec<AdapterRow>, HarnessError> {
             package: "@agentclientprotocol/claude-agent-acp (npm i -g · wraps the claude CLI's own auth · @zed-industries/claude-agent-acp is deprecated)",
         },
     ])
+}
+
+fn codex_row() -> Result<AdapterRow, HarnessError> {
+    Ok(AdapterRow {
+        // The maintained adapter is `@agentclientprotocol/codex-acp` (1.13.0 measured
+        // 2026-09-22: `agentInfo.name` → `@agentclientprotocol/codex-acp`, auth methods
+        // api-key · chat-gpt, models gpt-6-astra[…]); the `@zed-industries/codex-acp`
+        // package (0.16.0, same bin name, answers `codex-acp`) is deprecated on npm and
+        // still accepted by the pin. `npm i -g` puts the bin on PATH (the npx-on-the-spec
+        // form does NOT link these packages' bins — measured 2026-08-07). No working
+        // version flag — the probe is the initialize self-report. The 0.16.0 model
+        // override (`-c model=gpt-5.5`, 2026-08-07) is retired: the adapter's own default
+        // is the vendor's current model, and a run names its model through the session.
+        adapter: HarnessAdapter::new("codex", "codex-acp")?
+            .with_identities(vec!["Codex".to_owned()])
+            .with_handshake_probe()
+            .with_version_pin(VersionPin::new((0, 16), 1))
+            .with_passthrough_env(vec!["CODEX_HOME".to_owned()]),
+        serves: &["openai"],
+        auth: AuthProbe::Command {
+            command: "codex",
+            args: &["login", "status"],
+        },
+        directory_auth: None,
+        package: "@agentclientprotocol/codex-acp (npm i -g · wraps the codex CLI's own auth · @zed-industries/codex-acp is deprecated)",
+    })
 }
 
 #[cfg(test)]
