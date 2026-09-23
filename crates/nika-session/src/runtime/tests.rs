@@ -1264,3 +1264,35 @@ fn the_recovery_card_says_its_headline_once() {
             .contains("Nothing was written and nothing was sent elsewhere.")
     );
 }
+
+/// The failure card names the seat the turn ran on (the authoring seat's
+/// model) so a 404 or a refusal says what it was about; a session with no
+/// seat names none.
+#[test]
+fn the_recovery_card_names_the_seat_it_failed_on() {
+    let dir = tree();
+    let mut s = ready_with(dir.path(), vec![]);
+    let TurnOutcome::Refusal(bare) = s.recovery(
+        Some(RefusalClass::IntelligenceRefused),
+        "I couldn't use the authoring model for this part",
+        "provider endpoint or model not found (HTTP 404)",
+    ) else {
+        panic!("a classed recovery is a refusal");
+    };
+    assert!(!bare.text.contains("seat:"), "{}", bare.text);
+    s.seat = crate::authoring::AuthoringSeat::Provider {
+        model: "openai/gpt-5.2".to_owned(),
+    };
+    let TurnOutcome::Refusal(named) = s.recovery(
+        Some(RefusalClass::IntelligenceRefused),
+        "I couldn't use the authoring model for this part",
+        "provider endpoint or model not found (HTTP 404)",
+    ) else {
+        panic!("a classed recovery is a refusal");
+    };
+    assert!(
+        named.text.contains("(HTTP 404)\n  seat: openai/gpt-5.2"),
+        "{}",
+        named.text
+    );
+}

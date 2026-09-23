@@ -11,6 +11,7 @@
 use std::fmt::Write as _;
 
 use super::{SessionRuntime, TurnOutcome};
+use crate::authoring::AuthoringSeat;
 use crate::outcome::{Refusal, RefusalClass};
 
 /// How many decisions the card lists before « … ».
@@ -34,6 +35,9 @@ impl SessionRuntime {
         reason: &str,
     ) -> TurnOutcome {
         let mut text = format!("{headline} — {reason}");
+        if let Some(seat) = self.seat_line() {
+            let _ = write!(text, "\n  {seat}");
+        }
         let kept = self.kept_lines();
         if !kept.is_empty() {
             text.push_str("\n  I still have:");
@@ -50,6 +54,21 @@ impl SessionRuntime {
             Some(class) => TurnOutcome::Refusal(Refusal::new(class, text)),
             None => TurnOutcome::Facts(text),
         }
+    }
+
+    /// The seat the failed turn ran on, and the gateway its bytes went to
+    /// when the provider's base URL is overridden — « seat: openai/gpt-5.2
+    /// · through api.scaleway.ai »: what a 404 or a refusal was about.
+    fn seat_line(&self) -> Option<String> {
+        let model = match &self.seat {
+            AuthoringSeat::Provider { model } => model.clone(),
+            AuthoringSeat::Deterministic { .. } => self.reasoner.authoring_model()?,
+        };
+        let provider = model.split('/').next().unwrap_or(&model).to_owned();
+        let through = crate::authoring::gateway_host(&provider)
+            .map(|host| format!(" · through {host}"))
+            .unwrap_or_default();
+        Some(format!("seat: {model}{through}"))
     }
 
     /// What survives a failed turn, in the human's own words: the request,
