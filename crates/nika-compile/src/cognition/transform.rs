@@ -506,6 +506,40 @@ mod tests {
     use super::*;
 
     #[test]
+    fn literal_lookup_matches_numeric_identifiers_without_rewriting_string_ids() {
+        let select = |rows: Value, id: &str| {
+            run(
+                crate::laws::SELECT_BY_FIELD,
+                &json!({"directory": rows.to_string(), "field": "id", "id": id}),
+            )
+            .unwrap()
+        };
+        let numeric = json!({"id": 42, "subject": "the requested record"});
+        assert_eq!(
+            select(json!([{"id": 7}, numeric.clone(), {"id": 420}]), "42"),
+            numeric
+        );
+        let padded = json!({"id": "042", "subject": "a distinct identifier"});
+        assert_eq!(select(json!([numeric, padded.clone()]), "042"), padded);
+        assert_eq!(
+            select(json!([{"id": "42", "value": "first"}, {"id": 42}]), "42"),
+            json!({"id": "42", "value": "first"})
+        );
+        assert_eq!(
+            select(json!([{"id": true}, {"id": null}, {}]), "true"),
+            Value::Null
+        );
+        assert_eq!(
+            select(json!([{"id": "T-42"}]), "T-42"),
+            json!({"id": "T-42"})
+        );
+        assert_eq!(
+            select(json!({"42": {"value": "keyed"}}), "42"),
+            json!({"value": "keyed"})
+        );
+    }
+
+    #[test]
     fn the_program_scanners_read_names_strings_and_numbers_outside_strings() {
         let program = r#"[.records[] | select(.status == "paid" and (.amount | tonumber) > 120.5)] | .[0:10]"#;
         assert_eq!(read_names(program), ["records", "status", "amount"]);

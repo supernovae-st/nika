@@ -55,9 +55,9 @@ pub(super) fn draft_law() -> String {
 /// The record keyed by the invocation's `record_id` in an object directory.
 pub(super) const SELECT_BY_KEY: &str = ". as $lookup | ($lookup.directory | fromjson)[$lookup.id]";
 
-/// The one record whose field equals the literal identifier: the first match in an array
-/// directory, the keyed entry in an object directory.
-pub(super) const SELECT_BY_FIELD: &str = ". as $l | ($l.directory | fromjson) | if type == \"array\" then (map(select(type == \"object\" and .[$l.field] == $l.id)) | .[0]) else .[$l.id] end";
+/// The first record whose field equals the literal identifier or its canonical numeric
+/// spelling in an array directory; the keyed entry in an object directory.
+pub(super) const SELECT_BY_FIELD: &str = ". as $l | ($l.directory | fromjson) | if type == \"array\" then (map(select(type == \"object\" and (.[$l.field] == $l.id or ((.[$l.field] | type) == \"number\" and (.[$l.field] | tostring) == $l.id)))) | .[0]) else .[$l.id] end";
 
 /// The header order of a CSV source: its first line, `\r` trimmed, split on commas,
 /// the surrounding double quotes stripped from each cell. A quoted header holding a
