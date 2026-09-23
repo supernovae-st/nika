@@ -12,7 +12,7 @@ mod sidecar;
 mod typesafe;
 
 use crate::output::{VerbOutput, exit};
-use nika_onboard::compile::{CompileRequest, CompileStatus, compile, intent_sha256};
+use nika_onboard::compile::{CompileRequest, CompileStatus, compile, intent_sha256, revise_intent};
 use std::io::Write as _;
 use std::path::Path;
 
@@ -170,9 +170,12 @@ pub fn run(args: &CompileArgs) -> VerbOutput {
     if cognition && args.authoring_model.is_some() {
         request = knowledge_door(args, request);
     }
-    // Free intents only: a skeleton, hello or an edit never produces a plan to record.
-    let sha =
-        (args.base.is_none() && !named).then(|| intent_sha256(&effective_intent(args, cognition)));
+    // Free intents and revisions in words carry a record (a creation's plan, a revision's
+    // native candidate); a skeleton, hello or a structured edit never does.
+    let sha = (!named).then(|| match revise_intent(&request) {
+        Some(intent) => intent_sha256(&intent),
+        None => intent_sha256(&effective_intent(args, cognition)),
+    });
     let (request, note) = sidecar::replay(sha.as_deref(), args, request);
     let result = if cognition {
         authoring::compile(&request, args)

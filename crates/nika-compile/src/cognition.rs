@@ -102,7 +102,7 @@ async fn revise<P: ProviderInferDyn>(
 ) -> Result<CompileOutcome, CompileError> {
     let deterministic = super::compile(request)?;
     let Input::Edit {
-        change: EditChange::Text(words),
+        change: EditChange::Text(_),
         ..
     } = &request.input
     else {
@@ -118,11 +118,9 @@ async fn revise<P: ProviderInferDyn>(
     if !unresolved || policy.native == NativeMode::Off {
         return Ok(deterministic);
     }
-    let intent = match &request.original_intent {
-        Some(original) => format!("{original}\nChange: {words}"),
-        None => words.clone(),
+    let Some(folded) = super::revise_intent(request) else {
+        return Ok(deterministic);
     };
-    let folded = lexicon::fold_apostrophes(&intent);
     let mut out = super::initial();
     if !policy_bounded(policy, &folded) {
         super::finding(

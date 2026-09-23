@@ -622,13 +622,39 @@ async fn a_change_in_words_revises_the_base_under_the_seat_and_states_the_delta(
         )
         .replace("http: []", "http: [\"127.0.0.1\"]");
     let req = CompileRequest::edit(
-        accepted,
+        accepted.clone(),
         "write the recap to ./out/recap.md instead of sending it",
     )
     .with_original_intent(RECAP_INTENT)
     .with_authoring_policy(policy(NativeMode::Only, 1))
     .answer("model", r#""mock/echo""#);
     let out = compile_with_provider(&req, &provider).await.unwrap();
+    // The answer round of the same revision replays the record with zero calls (the CLI keys
+    // it by the revision's intent), READY with the answer baked in.
+    let record = out.provenance.plan.clone().expect("the revision's record");
+    let replayed = compile(
+        &CompileRequest::edit(
+            accepted.clone(),
+            "write the recap to ./out/recap.md instead of sending it",
+        )
+        .with_original_intent(RECAP_INTENT)
+        .with_plan(record)
+        .answer("model", r#""mock/echo""#),
+    )
+    .unwrap();
+    assert_eq!(replayed.status, CompileStatus::Ready, "{replayed:#?}");
+    assert!(
+        replayed
+            .candidate
+            .as_deref()
+            .unwrap()
+            .contains("./out/recap.md"),
+        "{replayed:#?}"
+    );
+    assert!(
+        replayed.provenance.authoring.is_none(),
+        "zero calls: {replayed:#?}"
+    );
     assert_eq!(
         provider.calls.load(std::sync::atomic::Ordering::SeqCst),
         1,
