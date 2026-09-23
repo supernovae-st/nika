@@ -102,10 +102,13 @@ pub(super) fn explain_gate(gate: &PendingGate, root: &Path) -> String {
     text
 }
 
-/// The tasks the gate holds back — their `after:` names it (the control
-/// edge) or a `with:` binding reads its output (the data edge the
-/// compiler writes: `with: { approved: tasks.<gate>.output }` + a `when:`)
-/// — one line each: the id and what it does, from the parser, never prose.
+/// The tasks the gate holds back, at any depth — their `after:` names it
+/// (the control edge) or a `with:` binding reads its output (the data edge
+/// the compiler writes: `with: { approved: tasks.<gate>.output }` + a
+/// `when:`), and every task that follows one of those in turn: two effects
+/// behind one gate are both shown, whatever their depth. One line each,
+/// in the workflow's order: the id and what it does, from the parser,
+/// never prose.
 pub(super) fn gated_tasks(workflow: &Path, gate: &str) -> Vec<String> {
     let Ok(source) = std::fs::read_to_string(workflow) else {
         return Vec::new();
@@ -113,16 +116,28 @@ pub(super) fn gated_tasks(workflow: &Path, gate: &str) -> Vec<String> {
     let Some(wf) = crate::review::parse(&source) else {
         return Vec::new();
     };
-    wf.tasks
-        .iter()
-        .filter(|t| t.value.id.value != gate)
-        .filter(|t| {
-            t.value.after.iter().any(|(id, _)| id.value == gate)
+    let mut held: Vec<String> = vec![gate.to_owned()];
+    let mut frontier: Vec<String> = vec![gate.to_owned()];
+    while let Some(upstream) = frontier.pop() {
+        for t in &wf.tasks {
+            let id = &t.value.id.value;
+            if held.contains(id) {
+                continue;
+            }
+            let follows = t.value.after.iter().any(|(a, _)| a.value == upstream)
                 || t.value
                     .with
                     .iter()
-                    .any(|(_, v)| names_task(&v.value.to_string(), gate))
-        })
+                    .any(|(_, v)| names_task(&v.value.to_string(), &upstream));
+            if follows {
+                held.push(id.clone());
+                frontier.push(id.clone());
+            }
+        }
+    }
+    wf.tasks
+        .iter()
+        .filter(|t| t.value.id.value != gate && held.contains(&t.value.id.value))
         .map(|t| {
             format!(
                 "{} · {}",
@@ -148,4 +163,29 @@ fn names_task(text: &str, id: &str) -> bool {
 /// A request on one line.
 fn one_line(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+
+    /// Two effects behind one gate are both listed, whatever their depth:
+    /// the task after the gate and the task that reads that task's output;
+    /// a task the gate does not hold back is not listed (A10 · P-153).
+    #[test]
+    fn a_gate_lists_every_task_it_holds_back_at_any_depth() {
+        let dir = tempfile::tempdir().expect("tmp");
+        let workflow = dir.path().join("gated.nika");
+        std::fs::write(
+            &workflow,
+            "nika: gated\npermits: { fs: { write: [\"./out/a.md\", \"./out/b.md\"] }, tools: [\"nika:prompt\", \"nika:write\"] }\ntasks:\n  approve:\n    invoke: { tool: \"nika:prompt\", args: { mode: confirm, message: \"Write both?\" } }\n  first:\n    after: { approve: success }\n    invoke: { tool: \"nika:write\", args: { path: \"./out/a.md\", content: \"a\" } }\n  second:\n    with: { done: \"${{ tasks.first.output }}\" }\n    invoke: { tool: \"nika:write\", args: { path: \"./out/b.md\", content: \"${{ with.done }}\" } }\n  aside:\n    invoke: { tool: \"nika:write\", args: { path: \"./out/a.md\", content: \"free\" } }\n",
+        )
+        .expect("workflow");
+        let ids: Vec<String> = gated_tasks(&workflow, "approve")
+            .iter()
+            .map(|line| line.split(" · ").next().unwrap_or("").to_owned())
+            .collect();
+        assert_eq!(ids, ["first", "second"]);
+    }
 }
