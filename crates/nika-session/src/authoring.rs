@@ -66,16 +66,35 @@ pub fn stronger_model_under(model: &str, openai_base_overridden: bool) -> Option
 /// registry — the same fact the run path uses, never a second env read.
 #[must_use]
 pub fn openai_base_overridden() -> bool {
-    let Ok(http) = crate::reasoner::provider_http() else {
-        return false;
-    };
+    gateway_host("openai").is_some()
+}
+
+/// The host a provider's calls really go to when its base URL is
+/// overridden (an OpenAI-compatible gateway such as Scaleway's, a local
+/// server): `Some(host)` when the effective URL's host differs from the
+/// provider profile's own; `None` when the provider talks to its own API.
+/// Read through the engine's registry — the fact the run path uses.
+#[must_use]
+pub fn gateway_host(provider: &str) -> Option<String> {
+    let http = crate::reasoner::provider_http().ok()?;
     let registry = nika_providers::ProviderRegistry::new(
         Arc::new(http),
         nika_runtime::compose::config_from_env(),
     );
-    !registry
-        .effective_base_url("openai")
-        .is_some_and(|url| url.contains("api.openai.com"))
+    let effective = host_of(registry.effective_base_url(provider)?);
+    let seed = registry
+        .profiles()
+        .iter()
+        .find(|p| p.id == nika_providers::canonical_provider(provider))
+        .map(|p| host_of(p.base_url))?;
+    (effective != seed).then_some(effective)
+}
+
+/// The host part of a URL (`https://api.scaleway.ai/v1` → `api.scaleway.ai`).
+#[must_use]
+pub fn host_of(url: &str) -> String {
+    let rest = url.split("://").nth(1).unwrap_or(url);
+    rest.split('/').next().unwrap_or(rest).to_owned()
 }
 /// Output tokens one authoring call may spend (the compiler's ceiling; deep work needs room).
 const AUTHORING_MAX_TOKENS: u32 = 8192;
@@ -545,6 +564,8 @@ mod tests {
             Some("gemini/gemini-2.5-pro")
         );
         assert_eq!(stronger_model_under("gemini/gemini-2.5-pro", false), None);
+        assert_eq!(host_of("https://api.scaleway.ai/v1"), "api.scaleway.ai");
+        assert_eq!(host_of("http://127.0.0.1:11434/v1/chat"), "127.0.0.1:11434");
         // Through an OpenAI-compatible gateway the provider's flagship is not served: no escalation.
         assert_eq!(stronger_model_under("openai/gpt-oss-120b", true), None);
         assert_eq!(

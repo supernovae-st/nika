@@ -308,7 +308,7 @@ impl IntelligenceCensus {
         let keys = if self.api_keys.is_empty() {
             "no key in the environment".to_owned()
         } else {
-            self.api_keys.join(" · ")
+            annotated_keys(&self.api_keys, &crate::authoring::gateway_host)
         };
         let locals = if self.locals.is_empty() {
             "none reachable".to_owned()
@@ -415,6 +415,14 @@ pub enum DataLocus {
         /// The provider.
         provider: String,
     },
+    /// Through an OpenAI-compatible gateway: the provider id names the
+    /// wire, the host names where the bytes go.
+    Gateway {
+        /// The provider id the wire speaks.
+        provider: String,
+        /// The host the base URL override points at.
+        host: String,
+    },
     /// Stays on this machine.
     Local,
     /// Nothing leaves: no model reasons.
@@ -432,12 +440,42 @@ impl DataLocus {
             Self::Metered { provider } => format!(
                 "{provider} API · metered · project context you ask Nika to reason over is sent to {provider}"
             ),
+            Self::Gateway { provider, host } => format!(
+                "{provider}-compatible gateway · {host} · metered · project context you ask Nika to reason over is sent to {host}, not to {provider}"
+            ),
             Self::Local => "local · private · project context stays on this machine".to_owned(),
             Self::None => {
                 "no conversational AI · nothing leaves this machine · the facts stay".to_owned()
             }
         }
     }
+}
+
+/// The locus of a metered provider: its own API, or the gateway its base
+/// URL is overridden to — the human is told where the bytes go.
+fn metered_or_gateway(provider: &str) -> DataLocus {
+    match crate::authoring::gateway_host(provider) {
+        Some(host) => DataLocus::Gateway {
+            provider: provider.to_owned(),
+            host,
+        },
+        None => DataLocus::Metered {
+            provider: provider.to_owned(),
+        },
+    }
+}
+
+/// The API keys as the first screen lists them, a gateway named beside
+/// the provider whose calls it carries (« openai (through api.scaleway.ai) »).
+#[must_use]
+pub fn annotated_keys(keys: &[String], host_of: &dyn Fn(&str) -> Option<String>) -> String {
+    keys.iter()
+        .map(|k| match host_of(k) {
+            Some(host) => format!("{k} (through {host})"),
+            None => k.clone(),
+        })
+        .collect::<Vec<_>>()
+        .join(" · ")
 }
 
 /// The intelligence the session runs with — the choice judged against
@@ -510,18 +548,10 @@ impl ResolvedSessionIntelligence {
             }
             IntelligenceKind::Api { provider } => {
                 if census.api_keys.iter().any(|k| k == provider) {
-                    (
-                        DataLocus::Metered {
-                            provider: provider.clone(),
-                        },
-                        true,
-                        None,
-                    )
+                    (metered_or_gateway(provider), true, None)
                 } else {
                     (
-                        DataLocus::Metered {
-                            provider: provider.clone(),
-                        },
+                        metered_or_gateway(provider),
                         false,
                         Some(format!(
                             "no key for `{provider}` in the environment — `export <VAR>=…` (`nika doctor` names the variable), or `/intelligence` to choose another path"
@@ -558,6 +588,27 @@ impl ResolvedSessionIntelligence {
 #[allow(clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+
+    /// Under an OpenAI-compatible gateway the words name the host the bytes
+    /// go to, never the provider whose wire is spoken; the key list says so too.
+    #[test]
+    fn a_gateway_is_named_where_the_bytes_go() {
+        let locus = DataLocus::Gateway {
+            provider: "openai".to_owned(),
+            host: "api.scaleway.ai".to_owned(),
+        };
+        let line = locus.line();
+        assert!(
+            line.starts_with("openai-compatible gateway · api.scaleway.ai")
+                && line.contains("sent to api.scaleway.ai, not to openai"),
+            "{line}"
+        );
+        let keys = vec!["openai".to_owned(), "mistral".to_owned()];
+        let text = annotated_keys(&keys, &|p| {
+            (p == "openai").then(|| "api.scaleway.ai".to_owned())
+        });
+        assert_eq!(text, "openai (through api.scaleway.ai) · mistral");
+    }
 
     fn census() -> IntelligenceCensus {
         IntelligenceCensus {
