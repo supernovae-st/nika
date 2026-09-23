@@ -102,6 +102,9 @@ pub enum ServerError {
     /// A scheduled run did not reach durable terminal observation in bounds.
     #[error("scheduled execution observation timed out")]
     ScheduledObservationTimeout,
+    /// The operator's native authoring seat cannot be honored; nothing was bound.
+    #[error("native authoring refused: {0}")]
+    NativeAuthoring(super::NativeAuthoringError),
 }
 
 #[derive(Debug, Clone, Copy)]

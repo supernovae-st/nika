@@ -13,6 +13,7 @@ use nika_onboard::compile::{CompileRequest, compile as native_compile, outcome_d
 
 use super::*;
 
+mod native;
 mod refusals;
 
 const FIXTURE: &str =

@@ -45,6 +45,9 @@ use crate::{
 
 use auth::BearerToken;
 use cancel::{ActiveCancellations, CancellationRegistration};
+pub use compile::{
+    NativeAuthoring, NativeAuthoringArgs, NativeAuthoringError, seat_native_authoring,
+};
 pub use config::{
     DEFAULT_MAX_COST_USD, ResidentClock, ResidentConfig, ServerConfig, ServerLimits,
     SystemResidentClock,
@@ -319,6 +322,8 @@ struct AppState {
     /// Authoring CPU slots (#1670). A permit lives inside the blocking compile
     /// closure, so a timed-out request cannot free a slot still in use.
     compile_slots: Arc<Semaphore>,
+    /// The operator's native authoring seat (compile generation 2), when configured.
+    native: Option<Arc<compile::Seat>>,
     token: BearerToken,
     store: StoreHandle,
     /// The backend's journal directory (see
@@ -572,6 +577,12 @@ impl BoundServer {
             authority.state.workflow_root.get().map(PathBuf::as_path),
             config.workflow_root(),
         );
+        let native = match config.native_authoring() {
+            Some(seat) => Some(Arc::new(
+                compile::Seat::open(seat).map_err(ServerError::NativeAuthoring)?,
+            )),
+            None => None,
+        };
         let listener = TcpListener::bind(config.bind())
             .await
             .map_err(|error| ServerError::Listener(error.kind()))?;
@@ -583,6 +594,7 @@ impl BoundServer {
             compile_slots: Arc::new(Semaphore::new(
                 authority.state.limits.max_compile_requests(),
             )),
+            native,
             token: prepared.token,
             store: authority.state.store.clone(),
             journal_dir: authority.state.backend.trace_journal_dir(),
@@ -886,11 +898,15 @@ where
     drop(listener);
     connections.abort_all();
     while connections.join_next().await.is_some() {}
+    // Native authoring rounds stop with the server and settle before it returns (S19).
+    let native = compile::settle(&http_state, authority.state.limits.shutdown_grace()).await;
     if !schedule_done {
         let _ = schedule_stop.send(true);
     }
     let schedule_task = (!schedule_done).then_some(schedule_task);
-    finish_authority(authority, executions, fatal, schedule_task).await
+    finish_authority(authority, executions, fatal, schedule_task)
+        .await
+        .and(native)
 }
 
 fn schedule_failure(

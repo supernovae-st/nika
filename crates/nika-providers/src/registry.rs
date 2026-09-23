@@ -303,6 +303,15 @@ impl<H> ResolvedProvider<H> {
         &self.wire_model
     }
 
+    /// The credential this provider sends — the key the operator injected for its canonical
+    /// id, resolved by [`ProviderRegistry::resolve`] — for a composition root that must
+    /// withhold it from what it returns. `None` when the provider is keyless. The [`Secret`]
+    /// stays redacted in `Debug`; nothing here prints or logs it.
+    #[must_use]
+    pub fn key(&self) -> Option<&Secret> {
+        self.key.as_ref()
+    }
+
     /// Does this provider's STRICT structured mode reject UNDERSPECIFIED
     /// schemas (an object without `properties` · an array without
     /// `items`)? Delegates to the wire-family source of truth

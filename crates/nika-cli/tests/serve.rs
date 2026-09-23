@@ -393,3 +393,515 @@ fn missing_project_refuses_before_binding_or_creating_resident_state() {
         "refusal creates no resident state"
     );
 }
+
+// ── Native authoring on the compile door (S06): the operator's explicit seat ──
+
+/// The one-line HTTP exchange the native tests need: status, lowercase headers, body.
+#[cfg(unix)]
+fn http(address: &str, request: &str) -> (u16, String, String) {
+    use std::io::Read as _;
+    let mut stream = std::net::TcpStream::connect(address).expect("connect serve");
+    stream.write_all(request.as_bytes()).expect("request");
+    let mut bytes = Vec::new();
+    stream.read_to_end(&mut bytes).expect("response");
+    let text = String::from_utf8(bytes).expect("UTF-8 response");
+    let (head, body) = text.split_once("\r\n\r\n").expect("HTTP boundary");
+    let status = head
+        .split_whitespace()
+        .nth(1)
+        .and_then(|s| s.parse().ok())
+        .expect("status");
+    (status, head.to_ascii_lowercase(), body.to_owned())
+}
+
+#[cfg(unix)]
+fn compile_post(address: &str, token: &str, body: &str) -> (u16, String, String) {
+    http(
+        address,
+        &format!(
+            "POST /v1/compile HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\nContent-Type: application/json\r\nAuthorization: Bearer {token}\r\nContent-Length: {}\r\n\r\n{body}",
+            body.len()
+        ),
+    )
+}
+
+/// A seat on the OpenAI-compatible wire answering every request with `text`; the bodies kept.
+/// A seat on the OpenAI-compatible wire answering every request with `text` — the first one
+/// held until released when `park_first` — keeping every body and `Authorization` header.
+#[cfg(unix)]
+struct Seat {
+    port: u16,
+    bodies: std::sync::Arc<std::sync::Mutex<Vec<serde_json::Value>>>,
+    authorizations: std::sync::Arc<std::sync::Mutex<Vec<String>>>,
+    entered: std::sync::mpsc::Receiver<()>,
+    release: std::sync::mpsc::Sender<()>,
+}
+
+#[cfg(unix)]
+fn read_seat_request(stream: &mut std::net::TcpStream) -> Option<(serde_json::Value, String)> {
+    use std::io::Read as _;
+    let mut buffer = Vec::new();
+    let mut chunk = [0_u8; 8192];
+    let head_end = loop {
+        let n = stream.read(&mut chunk).ok()?;
+        if n == 0 {
+            return None;
+        }
+        buffer.extend_from_slice(&chunk[..n]);
+        if let Some(at) = buffer.windows(4).position(|w| w == b"\r\n\r\n") {
+            break at + 4;
+        }
+    };
+    let head = String::from_utf8_lossy(&buffer[..head_end]).into_owned();
+    let header = |wanted: &str| {
+        head.lines().find_map(|line| {
+            let (name, value) = line.split_once(':')?;
+            name.eq_ignore_ascii_case(wanted)
+                .then(|| value.trim().to_owned())
+        })
+    };
+    let length: usize = header("content-length")
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(0);
+    let authorization = header("authorization").unwrap_or_default();
+    while buffer.len() < head_end + length {
+        match stream.read(&mut chunk) {
+            Ok(0) | Err(_) => break,
+            Ok(n) => buffer.extend_from_slice(&chunk[..n]),
+        }
+    }
+    let body = serde_json::from_slice(buffer.get(head_end..head_end + length)?).ok()?;
+    Some((body, authorization))
+}
+
+#[cfg(unix)]
+fn seat(text: String, park_first: bool) -> Seat {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("seat");
+    let port = listener.local_addr().expect("seat address").port();
+    let bodies = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let authorizations = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let (arrived, entered) = std::sync::mpsc::channel();
+    let (release, released) = std::sync::mpsc::channel::<()>();
+    let (seen, presented) = (
+        std::sync::Arc::clone(&bodies),
+        std::sync::Arc::clone(&authorizations),
+    );
+    // The loopback seat's accept loop: a test harness thread, never production.
+    #[allow(clippy::disallowed_methods)]
+    std::thread::spawn(move || {
+        for (index, stream) in listener.incoming().enumerate() {
+            let Ok(mut stream) = stream else { continue };
+            let Some((body, authorization)) = read_seat_request(&mut stream) else {
+                continue;
+            };
+            seen.lock().expect("bodies").push(body);
+            presented.lock().expect("headers").push(authorization);
+            if park_first && index == 0 {
+                let _ = arrived.send(());
+                let _ = released.recv();
+            }
+            let reply = serde_json::json!({
+                "id": "chatcmpl-s06", "object": "chat.completion",
+                "choices": [{"index": 0, "message": {"role": "assistant", "content": text}, "finish_reason": "stop"}],
+                "usage": {"prompt_tokens": 900, "completion_tokens": 100, "total_tokens": 1000},
+            })
+            .to_string();
+            let _ = write!(
+                stream,
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{reply}",
+                reply.len()
+            );
+        }
+    });
+    Seat {
+        port,
+        bodies,
+        authorizations,
+        entered,
+        release,
+    }
+}
+
+const TOKEN_VALUE: &str = "test-only-credential-material-0123456789";
+
+/// The owner-only Bearer file every native test serves with.
+#[cfg(unix)]
+fn secure_token(dir: &std::path::Path) {
+    use std::os::unix::fs::PermissionsExt as _;
+    let token = dir.join("token");
+    std::fs::write(&token, TOKEN_VALUE).expect("token");
+    std::fs::set_permissions(&token, std::fs::Permissions::from_mode(0o600)).expect("mode");
+}
+
+#[cfg(unix)]
+fn free_address() -> String {
+    let probe = std::net::TcpListener::bind("127.0.0.1:0").expect("free port");
+    format!("127.0.0.1:{}", probe.local_addr().expect("address").port())
+}
+
+/// `nika serve` seating a native authoring model (`seat` flags) in a clean environment (`env`).
+#[cfg(unix)]
+fn native_serve(
+    dir: &std::path::Path,
+    address: &str,
+    seat: &[&str],
+    env: &[(&str, &str)],
+) -> std::process::Child {
+    let home = dir.join("home");
+    std::fs::create_dir_all(&home).expect("home");
+    let mut command = bin();
+    command
+        .args([
+            "serve",
+            "--bind",
+            address,
+            "--workflows",
+            "workflows",
+            "--token-file",
+            "token",
+        ])
+        .args(seat)
+        .current_dir(dir)
+        .env_clear()
+        .env("PATH", "/usr/bin:/bin")
+        .env("HOME", &home)
+        .env("NIKA_KEYCHAIN", "off")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
+    for (name, value) in env {
+        command.env(name, value);
+    }
+    command.spawn().expect("spawn serve")
+}
+
+/// The public health body, once the listener answers it.
+#[cfg(unix)]
+fn healthy(address: &str, child: &mut std::process::Child) -> String {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+    loop {
+        if std::net::TcpStream::connect(address).is_ok() {
+            let (status, _, body) = http(
+                address,
+                "GET /health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+            );
+            if status == 200 {
+                return body;
+            }
+        }
+        if std::time::Instant::now() >= deadline {
+            let _ = child.kill();
+            panic!("serve never became healthy");
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+}
+
+/// SIGTERM, then the exit code of a clean stop.
+#[cfg(unix)]
+fn terminate(child: &mut std::process::Child) -> Option<i32> {
+    let pid = nix::unistd::Pid::from_raw(i32::try_from(child.id()).expect("pid"));
+    nix::sys::signal::kill(pid, nix::sys::signal::Signal::SIGTERM).expect("kill -TERM");
+    let stop = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    loop {
+        if let Some(status) = child.try_wait().expect("wait") {
+            return status.code();
+        }
+        if std::time::Instant::now() >= stop {
+            let _ = child.kill();
+            panic!("serve ignored SIGTERM");
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+}
+
+const NATIVE_INTENT: &str = "Read ./a.md and do something clever with it, then write ./b.md";
+
+/// A candidate for [`NATIVE_INTENT`] whose run model is the placeholder the compiler asks for.
+fn native_candidate() -> String {
+    "nika: clever-rewrite\nmodel: mock/echo\npermits:\n  tools: [\"nika:read\", \"nika:write\"]\n  fs:\n    read: [\"./a.md\"]\n    write: [\"./b.md\"]\ntasks:\n  read_source:\n    invoke:\n      tool: \"nika:read\"\n      args: { path: \"./a.md\" }\n  transform:\n    with: { text: \"${{ tasks.read_source.output }}\" }\n    infer:\n      max_tokens: 600\n      prompt: \"Rewrite this text in a clever way, inventing nothing: ${{ with.text }}\"\n  write_result:\n    with: { content: \"${{ tasks.transform.output }}\" }\n    invoke:\n      tool: \"nika:write\"\n      args: { path: \"./b.md\", content: \"${{ with.content }}\" }\n".to_owned()
+}
+
+#[test]
+fn serve_help_names_the_native_authoring_seat_and_it_needs_the_listener() {
+    let help = bin().args(["serve", "--help"]).output().expect("help");
+    let text = String::from_utf8_lossy(&help.stdout);
+    for flag in [
+        "--authoring-model",
+        "--authoring-max-tokens",
+        "--authoring-timeout",
+        "--authoring-deadline",
+        "--authoring-repairs",
+        "--knowledge",
+        "--knowledge-exclude",
+    ] {
+        assert!(text.contains(flag), "{flag}: {text}");
+    }
+    let refused = bin()
+        .args(["serve", "--authoring-model", "vllm/s06-seat"])
+        .env("NIKA_KEYCHAIN", "off")
+        .output()
+        .expect("usage refusal");
+    assert_eq!(refused.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&refused.stderr).contains("--bind"));
+}
+
+/// An operator's seat the server cannot honor refuses before the listener binds.
+#[cfg(unix)]
+#[test]
+fn an_invalid_native_seat_refuses_before_binding() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let dir = project("native-refused", DAILY_3AM, &[("doctor.nika", TRUE)]);
+    let token = dir.join("token");
+    std::fs::write(&token, "test-only-credential-material-0123456789").expect("token");
+    std::fs::set_permissions(&token, std::fs::Permissions::from_mode(0o600)).expect("mode");
+    // Keep the port occupied: reaching bind would produce another refusal.
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("port canary");
+    let address = listener.local_addr().expect("address").to_string();
+    for (flags, why) in [
+        (["--authoring-model", "claude-code/default"], "harness"),
+        (["--authoring-repairs", "9"], "repair rounds must be 0..=5"),
+    ] {
+        let mut args = vec![
+            "serve",
+            "--bind",
+            address.as_str(),
+            "--workflows",
+            "workflows",
+            "--token-file",
+            "token",
+        ];
+        if flags[0] != "--authoring-model" {
+            args.extend(["--authoring-model", "vllm/s06-seat"]);
+        }
+        args.extend(flags);
+        let out = bin()
+            .args(&args)
+            .current_dir(&dir)
+            .env("NIKA_KEYCHAIN", "off")
+            .output()
+            .expect("serve refusal");
+        let text = format!(
+            "{}{}",
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr)
+        );
+        assert_eq!(out.status.code(), Some(1), "{text}");
+        assert!(text.contains("native authoring refused"), "{text}");
+        assert!(text.contains(why), "{text}");
+        assert!(
+            !text.contains("listener failed"),
+            "never reached bind: {text}"
+        );
+    }
+    drop(listener);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// The real binary, a real Bearer, a controlled seat: the operator's flag seats it, a caller
+/// opts in, the kept round replays with zero calls, and nothing is run or written.
+#[cfg(unix)]
+#[test]
+fn serve_authors_natively_over_http_only_for_an_explicit_caller() {
+    let answer = serde_json::json!({
+        "candidate": native_candidate(), "questions": [], "gaps": [], "notes": "s06",
+    })
+    .to_string();
+    let seat = seat(answer, false);
+    let bodies = std::sync::Arc::clone(&seat.bodies);
+    let dir = project("native-http", DAILY_3AM, &[("doctor.nika", TRUE)]);
+    secure_token(&dir);
+    let token_value = TOKEN_VALUE;
+    let address = free_address();
+    let base = format!("127.0.0.1:{}", seat.port);
+    let mut child = native_serve(
+        &dir,
+        &address,
+        &[
+            "--authoring-model",
+            "vllm/s06-seat",
+            "--authoring-repairs",
+            "0",
+            "--authoring-max-tokens",
+            "2048",
+        ],
+        &[("NIKA_VLLM_BASE_URL", base.as_str())],
+    );
+    let health = healthy(&address, &mut child);
+    assert!(health.contains("compileNativeV2"), "{health}");
+    assert!(
+        !health.contains("s06-seat"),
+        "the seat is never public: {health}"
+    );
+
+    // An old request never reaches the seat.
+    let (status, _, body) = compile_post(
+        &address,
+        token_value,
+        r#"{"compile_version":1,"mode":"create","intent":"hello"}"#,
+    );
+    assert_eq!(status, 200, "{body}");
+    assert_eq!(bodies.lock().expect("bodies").len(), 0);
+
+    // An explicit caller: one call under the operator's model and bound.
+    let fresh = serde_json::json!({
+        "compile_version": 2, "mode": "create", "cognition": "explicitProvider",
+        "intent": NATIVE_INTENT,
+    })
+    .to_string();
+    let (status, head, body) = compile_post(&address, token_value, &fresh);
+    assert_eq!(status, 200, "{body}");
+    let document: serde_json::Value = serde_json::from_str(&body).expect("document");
+    assert_eq!(document["compile_version"], 2, "{document:#}");
+    assert_eq!(
+        document["provenance"]["authoring"]["model"],
+        "vllm/s06-seat"
+    );
+    assert_eq!(document["provenance"]["authoring"]["calls"], 1);
+    let token_line = head
+        .lines()
+        .find_map(|l| l.strip_prefix("nika-compile-replay:"))
+        .expect("a kept round")
+        .trim()
+        .to_owned();
+    {
+        let received = bodies.lock().expect("bodies");
+        assert_eq!(received.len(), 1);
+        assert_eq!(received[0]["model"], "s06-seat");
+        assert_eq!(received[0]["max_tokens"].as_u64(), Some(2048));
+    }
+    // The answer round: the kept plan, zero calls.
+    let replay = serde_json::json!({
+        "compile_version": 2, "mode": "create", "cognition": "deterministicOnly",
+        "replay_token": token_line, "intent": NATIVE_INTENT,
+        "answers": {"model": "mistral/mistral-small-latest"},
+    })
+    .to_string();
+    let (status, _, body) = compile_post(&address, token_value, &replay);
+    assert_eq!(status, 200, "{body}");
+    let replayed: serde_json::Value = serde_json::from_str(&body).expect("replayed");
+    assert_eq!(replayed["status"], "ready", "{replayed:#}");
+    assert_eq!(bodies.lock().expect("bodies").len(), 1, "zero calls");
+    assert!(!dir.join("b.md").exists() && !dir.join(".nika/traces").exists());
+    assert!(
+        !dir.join("clever-rewrite.nika").exists(),
+        "nothing materialized"
+    );
+
+    let code = terminate(&mut child);
+    assert_eq!(code, Some(0));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// The key the seat's provider resolves through the environment's own precedence
+/// (`NIKA_MISTRAL_API_KEY` over `MISTRAL_API_KEY`) is the key it sends and the key withheld.
+#[cfg(unix)]
+#[test]
+fn the_key_the_environment_resolves_for_the_seat_is_withheld() {
+    const PREFERRED: &str = "synthetic-S19-preferred-key-424242";
+    const CONVENTIONAL: &str = "synthetic-S19-conventional-key-777777";
+    let echoing = native_candidate().replace(
+        "inventing nothing",
+        &format!("inventing nothing, signed {PREFERRED}"),
+    );
+    let answer = serde_json::json!({
+        "candidate": echoing, "questions": [], "gaps": [], "notes": "s19",
+    })
+    .to_string();
+    let seat = seat(answer, false);
+    let dir = project("native-precedence", DAILY_3AM, &[("doctor.nika", TRUE)]);
+    secure_token(&dir);
+    let address = free_address();
+    let base = format!("http://127.0.0.1:{}/v1/chat/completions", seat.port);
+    let mut child = native_serve(
+        &dir,
+        &address,
+        &[
+            "--authoring-model",
+            "mistral/s19-seat",
+            "--authoring-repairs",
+            "0",
+        ],
+        &[
+            ("NIKA_MISTRAL_BASE_URL", base.as_str()),
+            ("NIKA_MISTRAL_API_KEY", PREFERRED),
+            ("MISTRAL_API_KEY", CONVENTIONAL),
+        ],
+    );
+    let _health = healthy(&address, &mut child);
+    let fresh = serde_json::json!({
+        "compile_version": 2, "mode": "create", "cognition": "explicitProvider",
+        "intent": NATIVE_INTENT,
+    })
+    .to_string();
+    let (status, head, body) = compile_post(&address, TOKEN_VALUE, &fresh);
+    assert_eq!(status, 500, "{body}");
+    assert!(body.contains("compile_disclosure_refused"), "{body}");
+    assert!(!body.contains(PREFERRED), "{body}");
+    assert!(!head.contains("nika-compile-replay"), "nothing kept");
+    assert_eq!(
+        *seat.authorizations.lock().expect("headers"),
+        vec![format!("Bearer {PREFERRED}")],
+        "the environment's own precedence chose the key sent"
+    );
+    assert_eq!(terminate(&mut child), Some(0));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// SIGTERM while a native round waits on its provider: the server stops the round and exits
+/// cleanly, and the released provider answer buys no repair call.
+#[cfg(unix)]
+#[test]
+fn serve_stops_a_pending_native_round_on_sigterm_without_a_repair() {
+    let broken = serde_json::json!({
+        "candidate": "nika: broken\ntasks: {}\n", "questions": [], "gaps": [], "notes": "s19",
+    })
+    .to_string();
+    let seat = seat(broken, true);
+    let dir = project("native-sigterm", DAILY_3AM, &[("doctor.nika", TRUE)]);
+    secure_token(&dir);
+    let address = free_address();
+    let base = format!("127.0.0.1:{}", seat.port);
+    let mut child = native_serve(
+        &dir,
+        &address,
+        &[
+            "--authoring-model",
+            "vllm/s06-seat",
+            "--authoring-repairs",
+            "1",
+        ],
+        &[("NIKA_VLLM_BASE_URL", base.as_str())],
+    );
+    let _health = healthy(&address, &mut child);
+    let fresh = serde_json::json!({
+        "compile_version": 2, "mode": "create", "cognition": "explicitProvider",
+        "intent": NATIVE_INTENT,
+    })
+    .to_string();
+    let mut caller = std::net::TcpStream::connect(&address).expect("connect serve");
+    write!(
+        caller,
+        "POST /v1/compile HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\nContent-Type: application/json\r\nAuthorization: Bearer {TOKEN_VALUE}\r\nContent-Length: {}\r\n\r\n{fresh}",
+        fresh.len()
+    )
+    .expect("request");
+    seat.entered
+        .recv_timeout(std::time::Duration::from_secs(30))
+        .expect("the seat received the round");
+    let stopping = std::time::Instant::now();
+    assert_eq!(
+        terminate(&mut child),
+        Some(0),
+        "a clean stop with a round pending"
+    );
+    assert!(stopping.elapsed() < std::time::Duration::from_secs(15));
+    let _ = seat.release.send(());
+    std::thread::sleep(std::time::Duration::from_millis(500));
+    assert_eq!(
+        seat.bodies.lock().expect("bodies").len(),
+        1,
+        "no repair call after SIGTERM"
+    );
+    drop(caller);
+    let _ = std::fs::remove_dir_all(dir);
+}

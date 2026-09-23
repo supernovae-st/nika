@@ -30,9 +30,10 @@ pub use schedule::{
 };
 pub use server::{
     BoundServer, CredentialRefuse, DEFAULT_MAX_COST_USD, ExecutionBackend, ExecutionDisposition,
-    ExecutionOutcome, PreparedScheduledRun, ResidentAuthority, ResidentClock, ResidentConfig,
+    ExecutionOutcome, NativeAuthoring, NativeAuthoringArgs, NativeAuthoringError,
+    PreparedScheduledRun, ResidentAuthority, ResidentClock, ResidentConfig,
     ResidentExecutionBackend, ResidentExecutionCoordinator, ServerConfig, ServerError,
     ServerLaunchRefuse, ServerLimits, SystemResidentClock, launch_operator_message,
-    optional_server_config, process_shutdown, serve_http, serve_resident, serve_resident_process,
-    server_operator_message,
+    optional_server_config, process_shutdown, seat_native_authoring, serve_http, serve_resident,
+    serve_resident_process, server_operator_message,
 };

@@ -65,6 +65,8 @@ pub struct ServeArgs {
     /// Durable job-state root. Defaults to `<cwd>/.nika/serve`.
     #[arg(long, value_name = "DIR")]
     pub state_root: Option<PathBuf>,
+    #[command(flatten)]
+    pub(crate) authoring: nika_serve::NativeAuthoringArgs,
 }
 /// The injected edges — `Zoned::now` + `tokio::time::sleep`, or the
 /// harness's scripted clock whose sleep ADVANCES it (trap ② avoided).
@@ -108,6 +110,8 @@ fn go(args: &ServeArgs) -> Result<VerbOutput, VerbOutput> {
     )
     .map_err(nika_serve::launch_operator_message)
     .map_err(&fail)?;
+    let http = nika_serve::seat_native_authoring(http, &args.authoring)
+        .map_err(|error| fail(format!("serve · {error}")))?;
     let now = instant(args.now.as_deref()).map_err(&fail)?;
     let until = instant(args.until.as_deref()).map_err(&fail)?;
     if now.is_some() && !args.once && until.is_none() {
@@ -739,6 +743,7 @@ mod tests {
             allow_remote: false,
             token_file: None,
             state_root: None,
+            authoring: nika_serve::NativeAuthoringArgs::default(),
         }
     }
 
@@ -911,6 +916,7 @@ mod tests {
             allow_remote: false,
             token_file: None,
             state_root: None,
+            authoring: nika_serve::NativeAuthoringArgs::default(),
         };
         let out = run(&args);
         assert_eq!(out.code, exit::WORKFLOW, "{}", out.text);

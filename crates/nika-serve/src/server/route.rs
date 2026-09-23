@@ -149,7 +149,10 @@ pub(crate) async fn handle(
     state: Arc<AppState>,
 ) -> Result<Response<ResponseBody>, Infallible> {
     let response = if request.uri().path() == "/health" && request.method() == Method::GET {
-        json_response(StatusCode::OK, &HealthResponse::current(true))
+        json_response(
+            StatusCode::OK,
+            &HealthResponse::current(true, state.native.is_some()),
+        )
     } else if request.uri().path().starts_with("/v1/") {
         protected(request, state).await
     } else {
@@ -171,6 +174,14 @@ async fn protected(request: Request<Incoming>, state: Arc<AppState>) -> Response
     if request.method() == Method::GET && sse::is_events_path(request.uri().path()) {
         return sse::handle(request, state).await;
     }
+    // A native authoring round outlives the request deadline: on a server that seats one,
+    // the compile door applies that deadline itself (intake · generation 1 · replay).
+    if state.native.is_some()
+        && request.method() == Method::POST
+        && request.uri().path() == "/v1/compile"
+    {
+        return super::compile::handle_on_native_server(request, state).await;
+    }
     match tokio::time::timeout(
         state.limits.request_timeout(),
         route_authenticated(request, state),
@@ -178,13 +189,16 @@ async fn protected(request: Request<Incoming>, state: Arc<AppState>) -> Response
     .await
     {
         Ok(response) => response,
-        Err(_) => ApiError::new(
-            StatusCode::REQUEST_TIMEOUT,
-            "request_timeout",
-            "request did not complete before the deadline",
-        )
-        .into_response(),
+        Err(_) => request_timeout().into_response(),
     }
+}
+
+pub(super) const fn request_timeout() -> ApiError {
+    ApiError::new(
+        StatusCode::REQUEST_TIMEOUT,
+        "request_timeout",
+        "request did not complete before the deadline",
+    )
 }
 
 async fn route_authenticated(
