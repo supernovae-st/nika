@@ -17,19 +17,34 @@
 //! explicit [`AuthoringPolicy`] on that same model; a harness seat or no
 //! intelligence keeps authoring deterministic. Ambient keys are never
 //! consent; nothing here selects a provider the human did not name.
+//!
+//! Under a provider seat the policy carries the session's
+//! [`AuthoringContext`] — the strategy (when the seat writes the candidate
+//! itself, the same default as `nika compile`: escalate) and the Foundry
+//! knowledge snapshot pinned when the session opened, its pack composed for
+//! each request and verified before a byte is sent. What the session
+//! attached is stamped beside the compiler's own record
+//! (`decision.session.authoring`): the pinned identity, the pack's digest,
+//! the references, and whether the native door presented them to the seat.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::Duration;
 
+use nika_cli_host::compile::knowledge::{PACK_BUILDER, pack_sha256};
+use nika_event::source_id::sha256_hex;
 use nika_onboard::compile::{
-    AuthoringPolicy, Cognition, CompileError, CompileOutcome, CompileQuestion, CompileRequest,
-    CompileStatus, DiagnosticKind, QuestionType, compile, compile_with_cognition,
+    AuthoringKnowledge, AuthoringPolicy, Cognition, CompileError, CompileOutcome, CompileQuestion,
+    CompileRequest, CompileStatus, DiagnosticKind, QuestionType, Strategy, compile,
+    compile_with_cognition,
 };
-use serde_json::Value;
+use serde_json::{Value, json};
 
 use crate::intelligence::{IntelligenceKind, ResolvedSessionIntelligence};
 use crate::reasoner::SessionReasoner;
+
+mod context;
+pub use context::{AuthoringContext, AuthoringContextError, KnowledgePin};
 
 /// The compiler's question for a whole replacement request (its own key).
 const CLARIFICATION_KEY: &str = "intent.clarification";
@@ -153,7 +168,9 @@ impl AuthoringSeat {
             Self::Deterministic { .. } => {
                 "authoring · deterministic (exact intents only)".to_owned()
             }
-            Self::Provider { model } => format!("authoring · {model} (one call per fresh intent)"),
+            Self::Provider { model } => {
+                format!("authoring · {model} (bounded calls per fresh intent)")
+            }
         }
     }
 }
@@ -172,6 +189,11 @@ pub enum AuthoringError {
     /// The session's own async runtime.
     #[error("the session runtime failed: {0}")]
     Runtime(String),
+    /// The session's authoring configuration cannot be honored (a knowledge
+    /// source that is not a snapshot, is stale or changed under the session;
+    /// knowledge named under `off`; an unknown strategy): nothing was sent.
+    #[error("the authoring configuration cannot be used: {0}")]
+    Context(#[from] AuthoringContextError),
 }
 
 /// One authoring conversation over ONE intent: the answers the human gave
@@ -193,6 +215,11 @@ pub struct AuthoringRound {
     /// How many times the human restated a clause in words in place of a
     /// rule the compiler could only ask as code (bounded: one).
     pub restatements: u8,
+    /// The session's record of the knowledge the call that authored
+    /// `continuation` presented to the seat (the pinned identity, the pack's
+    /// digest, its references): carried to every answer round that replays
+    /// it, so the candidate keeps naming what it was authored from.
+    pub knowledge: Option<Value>,
 }
 
 impl AuthoringRound {
@@ -206,7 +233,42 @@ impl AuthoringRound {
             questions: Vec::new(),
             reasons: Vec::new(),
             restatements: 0,
+            knowledge: None,
         }
+    }
+
+    /// The intent the compiler reads for this round: an answered
+    /// `intent.clarification` replaces the request (the compiler's own law),
+    /// else the request as stated.
+    #[must_use]
+    pub fn effective_intent(&self) -> String {
+        self.answers
+            .get(CLARIFICATION_KEY)
+            .and_then(|literal| serde_json::from_str::<Value>(literal).ok())
+            .and_then(|value| value.as_str().map(str::to_owned))
+            .filter(|text| !text.trim().is_empty())
+            .unwrap_or_else(|| self.intent.clone())
+    }
+
+    /// This round through the seat under the session's authoring context: a
+    /// fresh round composes the knowledge pack for the intent the compiler
+    /// reads; an answer round replays its recorded plan (zero calls) and
+    /// carries the knowledge record of the round that authored it.
+    ///
+    /// # Errors
+    /// As [`compile_in`].
+    pub fn compile(
+        &self,
+        seat: &AuthoringSeat,
+        context: &AuthoringContext,
+    ) -> Result<CompileOutcome, AuthoringError> {
+        let intent = self.effective_intent();
+        let attach = if self.continuation.is_some() {
+            Attach::Carried(self.knowledge.as_ref())
+        } else {
+            Attach::Compose(&intent)
+        };
+        compile_attached(seat, context, &self.request(), attach)
     }
 
     /// The typed request this round is: the intent, every answer, the
@@ -224,11 +286,16 @@ impl AuthoringRound {
     }
 
     /// Keep what the outcome settled: the plan once a strategy settled it
-    /// (a plan that still carries unknown work is never replayed), the
-    /// mandatory questions in the compiler's order, its reasons.
+    /// (a plan that still carries unknown work is never replayed) with the
+    /// knowledge record of the call that authored it when the native door
+    /// presented a pack, the mandatory questions in the compiler's order,
+    /// its reasons.
     pub fn absorb(&mut self, out: &CompileOutcome) {
         if self.continuation.is_none() && out.provenance.strategy.is_some() {
             self.continuation.clone_from(&out.provenance.plan);
+            if self.continuation.is_some() {
+                self.knowledge = presented_knowledge(out);
+            }
         }
         self.questions = out
             .questions
@@ -502,10 +569,9 @@ pub fn compile_deterministic(request: &CompileRequest) -> Result<CompileOutcome,
     Ok(compile(request)?)
 }
 
-/// Compile one request through the seat: the deterministic ladder first
-/// (the compiler's own order), then ONE explicitly permitted call on the
-/// seat's model when the seat is a provider and the ladder needs it. A
-/// deterministic seat never contacts a model.
+/// Compile one request through the seat under the default context (the
+/// escalate strategy, no knowledge): [`compile_in`] with nothing configured.
+/// A deterministic seat never contacts a model.
 ///
 /// # Errors
 /// The compiler's machinery, an unresolvable seat, or the session's runtime.
@@ -513,14 +579,206 @@ pub fn compile_through(
     seat: &AuthoringSeat,
     request: &CompileRequest,
 ) -> Result<CompileOutcome, AuthoringError> {
+    compile_attached(
+        seat,
+        &AuthoringContext::default(),
+        request,
+        Attach::Compose(""),
+    )
+}
+
+/// Compile one request through the seat under the session's authoring
+/// context: a deterministic seat compiles deterministically (zero calls; the
+/// context and its knowledge are never read); a provider seat carries the
+/// context's strategy on its one policy (the deterministic ladder first, the
+/// compiler's own order) and, when a snapshot is pinned, the pack composed for
+/// `intent` — the request as the compiler reads it (a revision's request with
+/// its change) — verified against the pin first. The outcome carries the
+/// session's record of what it attached (`decision.session.authoring`).
+///
+/// # Errors
+/// The compiler's machinery, an unresolvable seat, the session's runtime, or
+/// a context that cannot be honored ([`AuthoringError::Context`]: nothing
+/// was sent).
+pub fn compile_in(
+    seat: &AuthoringSeat,
+    context: &AuthoringContext,
+    request: &CompileRequest,
+    intent: &str,
+) -> Result<CompileOutcome, AuthoringError> {
+    compile_attached(seat, context, request, Attach::Compose(intent))
+}
+
+/// What knowledge one seated compile attaches: a pack composed for an
+/// intent, or the record carried from the round that authored a replayed
+/// candidate (a replay presents nothing).
+#[derive(Clone, Copy)]
+enum Attach<'a> {
+    Compose(&'a str),
+    Carried(Option<&'a Value>),
+}
+
+fn compile_attached(
+    seat: &AuthoringSeat,
+    context: &AuthoringContext,
+    request: &CompileRequest,
+    attach: Attach<'_>,
+) -> Result<CompileOutcome, AuthoringError> {
     let AuthoringSeat::Provider { model } = seat else {
         return compile_deterministic(request);
     };
-    let request = request.clone().with_authoring_policy(AuthoringPolicy::new(
-        model,
-        AUTHORING_MAX_TOKENS,
-        AUTHORING_TIMEOUT,
-    ));
+    if let Some(why) = context.refusal() {
+        return Err(AuthoringError::Context(why.clone()));
+    }
+    let mut request = request.clone().with_authoring_policy(
+        AuthoringPolicy::new(model, AUTHORING_MAX_TOKENS, AUTHORING_TIMEOUT)
+            .with_native(context.strategy()),
+    );
+    let pack = match attach {
+        Attach::Compose(intent) => context.compose(intent)?,
+        Attach::Carried(_) => None,
+    };
+    if let Some(pack) = &pack {
+        request = request.with_authoring_knowledge(pack.clone());
+    }
+    let mut out = seated(model, &request)?;
+    let knowledge = match (attach, &pack, context.knowledge()) {
+        (Attach::Compose(_), Some(pack), Some(pin)) => Some(composed_record(pin, pack, &out)),
+        (Attach::Carried(record), _, _) => record.map(carried_record),
+        _ => None,
+    };
+    stamp(&mut out, context, knowledge.as_ref());
+    Ok(out)
+}
+
+/// The session's record of the pack it attached to one call: the pinned
+/// identity, the builder, the pack's digest, every reference (kind · id ·
+/// bytes · sha256), whether the compiler's native door presented it to the
+/// seat (its own record names the same pack digest) and, when it did, the
+/// instruction digest of every call that carried it.
+fn composed_record(pin: &KnowledgePin, pack: &AuthoringKnowledge, out: &CompileOutcome) -> Value {
+    let digest = pack
+        .identity
+        .pointer("/door/pack_sha256")
+        .and_then(Value::as_str)
+        .map_or_else(|| pack_sha256(pack), str::to_owned);
+    let presented = out
+        .provenance
+        .decision
+        .as_ref()
+        .and_then(|d| d.pointer("/native/knowledge/identity/door/pack_sha256"))
+        .and_then(Value::as_str)
+        == Some(digest.as_str());
+    let calls: Vec<Value> = out
+        .provenance
+        .authoring
+        .as_ref()
+        .filter(|_| presented)
+        .map(|receipt| {
+            receipt
+                .context
+                .iter()
+                .filter(|call| {
+                    call.get("call")
+                        .and_then(Value::as_str)
+                        .is_some_and(reads_knowledge)
+                })
+                .map(|call| json!({"call": call["call"], "instruction_sha256": call["instruction_sha256"]}))
+                .collect()
+        })
+        .unwrap_or_default();
+    let why = (!presented).then(|| match out.provenance.strategy {
+        Some(strategy) if strategy != Strategy::Native => format!(
+            "the request settled on the {} path; only the native door reads knowledge",
+            strategy.word()
+        ),
+        _ => "the native door did not present the pack to the seat".to_owned(),
+    });
+    // What authored with the pack — the round's receipt in brief — kept with the record, so a
+    // candidate an answer round replays (zero calls) still names its model, host and usage.
+    let seat = out
+        .provenance
+        .authoring
+        .as_ref()
+        .filter(|_| presented)
+        .map(|receipt| {
+            json!({
+                "model": receipt.model,
+                "calls": receipt.calls,
+                "input_tokens": receipt.input_tokens,
+                "output_tokens": receipt.output_tokens,
+                "elapsed_ms": receipt.elapsed_ms,
+                "backend": receipt.backend,
+            })
+        });
+    json!({
+        "identity": pin.record(),
+        "pack_builder": PACK_BUILDER,
+        "pack_sha256": digest,
+        "references": pack.references.iter().map(|r| json!({
+            "kind": r.kind,
+            "id": r.id,
+            "bytes": r.text.len(),
+            "sha256": sha256_hex(r.text.as_bytes()),
+        })).collect::<Vec<_>>(),
+        "repairs": pack.repairs.len(),
+        "presented": presented,
+        "why": why,
+        "calls": calls,
+        "seat": seat,
+        "carried": false,
+    })
+}
+
+/// The calls of the native door — the only ones whose instruction carries the
+/// pack: the native candidate, the sketch and its fills, and their repairs.
+fn reads_knowledge(call: &str) -> bool {
+    ["native", "sketch", "fill"]
+        .iter()
+        .any(|door| call == *door || call.starts_with(&format!("{door}-")))
+}
+
+/// The record of the round that authored a replayed candidate, carried: this
+/// call presented nothing and called nobody.
+fn carried_record(record: &Value) -> Value {
+    let mut carried = record.clone();
+    if let Some(map) = carried.as_object_mut() {
+        map.insert("carried".to_owned(), Value::Bool(true));
+    }
+    carried
+}
+
+/// The session's knowledge record in an outcome when the native door
+/// presented the pack (what an answer round carries).
+fn presented_knowledge(out: &CompileOutcome) -> Option<Value> {
+    let record = out
+        .provenance
+        .decision
+        .as_ref()?
+        .pointer("/session/authoring/knowledge")?;
+    (record.get("presented") == Some(&Value::Bool(true))).then(|| record.clone())
+}
+
+/// Stamp the session's record beside the compiler's (`decision.session`), as a
+/// host transport stamps its backend into the receipt: the strategy and its
+/// source, the knowledge attached (or none).
+fn stamp(out: &mut CompileOutcome, context: &AuthoringContext, knowledge: Option<&Value>) {
+    let record = json!({"authoring": {
+        "strategy": context.strategy().word(),
+        "source": context.source(),
+        "knowledge": knowledge,
+    }});
+    let mut decision = out.provenance.decision.take().unwrap_or_else(|| json!({}));
+    if let Some(map) = decision.as_object_mut() {
+        map.insert("session".to_owned(), record);
+    }
+    out.provenance.decision = Some(decision);
+}
+
+/// One request on the provider seat the human chose: the provider plane's
+/// client (SSRF off · the transport ceiling), the registry over the ONE env
+/// boundary, the compiler's cognition with that provider.
+fn seated(model: &str, request: &CompileRequest) -> Result<CompileOutcome, AuthoringError> {
     // The provider plane's client (SSRF off · the transport ceiling), as
     // the conversation's reasoner and the engine's run path use.
     let http = crate::reasoner::provider_http().map_err(AuthoringError::Seat)?;
@@ -535,13 +793,36 @@ pub fn compile_through(
         .enable_all()
         .build()
         .map_err(|e| AuthoringError::Runtime(e.to_string()))?;
-    Ok(runtime.block_on(compile_with_cognition(
-        &request,
+    // The compile future carries a whole `CompileOutcome`: boxed so this
+    // frame stays small (clippy::large_futures), as the CLI host does.
+    let mut out = runtime.block_on(Box::pin(compile_with_cognition(
+        request,
         Cognition {
             provider: Some(&provider),
             seat: None,
         },
-    ))?)
+    )))?;
+    // The receipt names its backend as the CLI's does, with the host the
+    // calls really went to (an overridden base URL is a gateway: said).
+    if let Some(receipt) = out.provenance.authoring.as_mut() {
+        let id = model.split('/').next().unwrap_or(model);
+        let host = registry.effective_base_url(id).map(host_of);
+        let seed = registry
+            .profiles()
+            .iter()
+            .find(|p| p.id == nika_providers::canonical_provider(id))
+            .map(|p| host_of(p.base_url));
+        receipt.backend.get_or_insert_with(|| {
+            json!({
+                "kind": "direct_api",
+                "provider": id,
+                "host": host,
+                "base_url_overridden": host.is_some() && host != seed,
+                "cost_basis": "measured_by_tokens_at_catalog_price",
+            })
+        });
+    }
+    Ok(out)
 }
 
 #[cfg(test)]
@@ -739,6 +1020,61 @@ mod tests {
             "a sentence is not a bare greeting"
         );
         assert!(!is_greeting("hello.nika"), "a file is not a greeting");
+    }
+
+    /// A round keeps the knowledge record of the call that authored its
+    /// continuation only when the native door presented the pack; the
+    /// record it carries says it was carried.
+    #[test]
+    fn a_round_keeps_the_knowledge_its_candidate_was_authored_from() {
+        let knowledge = |presented: bool| {
+            let mut out =
+                compile_deterministic(&CompileRequest::create("chain")).expect("compiles");
+            out.provenance.strategy = Some(Strategy::Native);
+            out.provenance.plan = Some(json!({"strategy": "native"}));
+            out.provenance.decision = Some(json!({"session": {"authoring": {"knowledge": {
+                "presented": presented,
+                "pack_sha256": "abc",
+            }}}}));
+            let mut round = AuthoringRound::new("x");
+            round.absorb(&out);
+            assert!(round.continuation.is_some());
+            round.knowledge
+        };
+        let kept = knowledge(true).expect("presented: kept");
+        assert_eq!(kept["pack_sha256"], "abc");
+        assert_eq!(
+            knowledge(false),
+            None,
+            "attached but never read: nothing to carry"
+        );
+        assert_eq!(carried_record(&kept)["carried"], true);
+        assert_eq!(carried_record(&kept)["pack_sha256"], "abc");
+        // A clarification answered replaces the request the pack is composed for.
+        let mut round = AuthoringRound::new("the first words");
+        assert_eq!(round.effective_intent(), "the first words");
+        round.answers.insert(
+            CLARIFICATION_KEY.to_owned(),
+            "\"the whole request\"".to_owned(),
+        );
+        assert_eq!(round.effective_intent(), "the whole request");
+    }
+
+    #[test]
+    fn only_the_native_doors_calls_read_knowledge() {
+        for call in [
+            "native",
+            "native-repair",
+            "sketch",
+            "sketch-repair",
+            "fill",
+            "fill-repair",
+        ] {
+            assert!(reads_knowledge(call), "{call}");
+        }
+        for call in ["plan", "repair", "transform", "natives"] {
+            assert!(!reads_knowledge(call), "{call}");
+        }
     }
 
     #[test]

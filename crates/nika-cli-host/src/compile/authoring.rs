@@ -40,23 +40,19 @@ fn caps(args: &super::CompileArgs) -> Result<(u32, u64), String> {
     Ok((max_tokens, timeout))
 }
 
-/// The request with its authoring policy, when a seat is named.
+/// The request with its authoring policy, when a seat is named: the strategy is the one the
+/// shared configuration resolved (the flag over the environment, else escalate).
 fn with_policy(
     request: &CompileRequest,
     args: &super::CompileArgs,
-    max_tokens: u32,
-    timeout: u64,
+    (max_tokens, timeout): (u32, u64),
+    strategy: NativeMode,
 ) -> CompileRequest {
     match args.authoring_model.as_deref() {
         Some(model) => request.clone().with_authoring_policy(
             AuthoringPolicy::new(model, max_tokens, Duration::from_secs(timeout))
                 .with_samples(args.authoring_samples.unwrap_or(1))
-                .with_native(match args.authoring_strategy.as_deref() {
-                    Some("only") => NativeMode::Only,
-                    Some("sketch") => NativeMode::Sketch,
-                    Some("off") => NativeMode::Off,
-                    _ => NativeMode::Escalate,
-                })
+                .with_native(strategy)
                 .with_repairs(args.authoring_repairs.unwrap_or(3)),
         ),
         None => request.clone(),
@@ -83,9 +79,10 @@ fn stamp_backend(
 pub(super) fn compile(
     request: &CompileRequest,
     args: &super::CompileArgs,
+    strategy: NativeMode,
 ) -> Result<CompileOutcome, String> {
     let (max_tokens, timeout) = caps(args)?;
-    let request = with_policy(request, args, max_tokens, timeout);
+    let request = with_policy(request, args, (max_tokens, timeout), strategy);
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()

@@ -12,14 +12,25 @@
 //! identity carries the snapshot's version and digest and this builder's version. Foundry
 //! measured the effect of such a pack on the reference engineer (2026-09-22: 1/20 → 17/20
 //! on twenty generalization intents); this door lets the compiler's own seat read it.
+//!
+//! Verified: a Foundry manifest pins the sha256 of every file under its knowledge root
+//! (`files`, keyed by the path under that root). Every row file the door holds and every file
+//! it presents is compared to that pin before a byte reaches a seat: a snapshot whose bytes are
+//! not the ones its identity names (the root changed after the export, a row edited) is refused
+//! as stale, never presented under that identity; a file the manifest does not pin is presented
+//! as unverified and named so in the record. The pack's own digest (every reference and repair
+//! principle it can present) rides the identity's `door` record. One door: `nika compile
+//! --knowledge` and the session compose through this code.
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
+use nika_event::source_id::sha256_hex;
 use nika_onboard::compile::{AuthoringKnowledge, KnowledgeReference};
 use serde_json::{Value, json};
 
-/// This builder's version, stated beside the snapshot digest.
-pub(super) const PACK_BUILDER: &str = "nika-compile/knowledge-door-v1";
+/// This builder's version, stated beside the snapshot digest (v2: every presented byte is
+/// verified against the manifest's pins, and the pack states its own digest).
+pub const PACK_BUILDER: &str = "nika-compile/knowledge-door-v2";
 const FAMILIES: usize = 3;
 const PATTERNS: usize = 8;
 const BLOCKS: usize = 4;
@@ -32,52 +43,207 @@ const PACK_BYTES: usize = 40 * 1024;
 /// The most repair principles one repair round carries.
 const PRINCIPLES: usize = 3;
 
-/// A snapshot on disk: its manifest, the rows by kind, the relations by source id.
-pub(super) struct Snapshot {
+/// Why the knowledge door refused a source: a named source is never replaced by no knowledge.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum KnowledgeError {
+    /// The directory holds no readable Foundry snapshot manifest.
+    NotASnapshot {
+        /// The directory named.
+        dir: PathBuf,
+        /// What was missing or unreadable.
+        why: String,
+    },
+    /// A file the door read is not the file its manifest pins: the snapshot is stale.
+    Stale {
+        /// The snapshot's version, as its manifest names it.
+        version: String,
+        /// The file, as the manifest names it (a path under the knowledge root).
+        file: String,
+        /// The sha256 the manifest pins.
+        expected: String,
+        /// The sha256 of the bytes read.
+        found: String,
+    },
+    /// The file is not a knowledge pack.
+    NotAPack {
+        /// The file named.
+        file: PathBuf,
+        /// Why.
+        why: String,
+    },
+}
+
+impl std::fmt::Display for KnowledgeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NotASnapshot { dir, why } => {
+                write!(f, "`{}` is not a knowledge snapshot ({why})", dir.display())
+            }
+            Self::Stale {
+                version,
+                file,
+                expected,
+                found,
+            } => write!(
+                f,
+                "knowledge snapshot `{version}` is stale: `{file}` reads sha256 {found:.12}…, its manifest pins {expected:.12}… — export the snapshot again, or name one its files still match"
+            ),
+            Self::NotAPack { file, why } => {
+                write!(f, "`{}` is not a knowledge pack ({why})", file.display())
+            }
+        }
+    }
+}
+
+impl std::error::Error for KnowledgeError {}
+
+/// A snapshot on disk: its manifest and its pins, the rows by kind (every row file compared to
+/// its pin), the relations by source id.
+#[derive(Debug)]
+pub struct Snapshot {
     dir: PathBuf,
     files_root: Option<PathBuf>,
     manifest: Value,
     rows: BTreeMap<String, Vec<Value>>,
     relations: Vec<Value>,
+    /// The manifest's pins: a path under the knowledge root → its sha256.
+    pins: BTreeMap<String, String>,
+    /// Every row file held, by name: the sha256 of the bytes read, and whether a pin covered it.
+    row_files: BTreeMap<String, (String, bool)>,
+    /// The sha256 of the manifest's bytes as read — computed here, unlike the `digest` the
+    /// manifest declares (the exporter's, never recomputed by this door).
+    manifest_sha256: String,
 }
 
 impl Snapshot {
-    /// Open a snapshot directory; None when it carries no readable manifest.
-    #[must_use]
-    pub(super) fn open(dir: &Path) -> Option<Self> {
-        let manifest: Value =
-            serde_json::from_str(&std::fs::read_to_string(dir.join("manifest.json")).ok()?).ok()?;
+    /// Open a snapshot directory: its manifest, then every row file, each compared to the
+    /// manifest's pin (`knowledge/<file>` under the knowledge root).
+    ///
+    /// # Errors
+    /// No readable manifest ([`KnowledgeError::NotASnapshot`]), or a row file whose bytes are not
+    /// the ones the manifest pins ([`KnowledgeError::Stale`]).
+    pub fn open(dir: &Path) -> Result<Self, KnowledgeError> {
+        let not = |why: String| KnowledgeError::NotASnapshot {
+            dir: dir.to_path_buf(),
+            why,
+        };
+        let text = std::fs::read_to_string(dir.join("manifest.json"))
+            .map_err(|e| not(format!("manifest.json: {e}")))?;
+        let manifest: Value = serde_json::from_str(&text)
+            .map_err(|e| not(format!("manifest.json is not JSON: {e}")))?;
+        if !manifest.is_object() {
+            return Err(not("manifest.json is not a JSON object".to_owned()));
+        }
+        let pins: BTreeMap<String, String> = manifest
+            .get("files")
+            .and_then(Value::as_object)
+            .map(|files| {
+                files
+                    .iter()
+                    .filter_map(|(path, sha)| Some((path.clone(), sha.as_str()?.to_owned())))
+                    .collect()
+            })
+            .unwrap_or_default();
+        let version = manifest_text(&manifest, "knowledge_version").unwrap_or("unversioned");
+        let mut names: Vec<String> = std::fs::read_dir(dir)
+            .map_err(|e| not(e.to_string()))?
+            .filter_map(Result::ok)
+            .filter_map(|entry| entry.file_name().to_str().map(str::to_owned))
+            .collect();
+        names.sort();
         let mut rows = BTreeMap::new();
-        for entry in std::fs::read_dir(dir).ok()?.filter_map(Result::ok) {
-            let path = entry.path();
-            let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+        let mut relations = Vec::new();
+        let mut row_files = BTreeMap::new();
+        for name in names {
+            // The exporter's row files, one JSONL per kind (the lowercase suffix it writes).
+            let Some(kind) = name.strip_suffix(".jsonl") else {
                 continue;
             };
-            if let Some(kind_file) = name.strip_suffix(".jsonl")
-                && kind_file != "relations"
-            {
-                rows.insert(kind_file.to_owned(), jsonl(&path));
+            let bytes = std::fs::read(dir.join(&name)).map_err(|e| not(format!("{name}: {e}")))?;
+            let sha = sha256_hex(&bytes);
+            let pinned = verify(&pins, version, &format!("knowledge/{name}"), &sha)?;
+            let parsed = jsonl(&String::from_utf8_lossy(&bytes));
+            if kind == "relations" {
+                relations = parsed;
+            } else {
+                rows.insert(kind.to_owned(), parsed);
             }
+            row_files.insert(name, (sha, pinned));
         }
-        let relations = jsonl(&dir.join("relations.jsonl"));
-        Some(Self {
+        Ok(Self {
             files_root: files_root(dir),
             dir: dir.to_path_buf(),
             manifest,
             rows,
             relations,
+            pins,
+            row_files,
+            manifest_sha256: sha256_hex(text.as_bytes()),
         })
     }
 
-    /// The snapshot's identity for the provenance record: version, digest, pins, builder.
+    /// The snapshot's version, as its manifest names it.
     #[must_use]
-    pub(super) fn identity(&self) -> Value {
+    pub fn version(&self) -> Option<&str> {
+        manifest_text(&self.manifest, "knowledge_version")
+    }
+
+    /// The digest the manifest DECLARES (the exporter's): stated, never recomputed here — the
+    /// integrity this door computes is [`Self::manifest_sha256`] and the per-file pins.
+    #[must_use]
+    pub fn digest(&self) -> Option<&str> {
+        manifest_text(&self.manifest, "digest")
+    }
+
+    /// The sha256 of the manifest's bytes as this door read them: any change to the manifest
+    /// (a re-pinned file under the same declared version and digest) changes it.
+    #[must_use]
+    pub fn manifest_sha256(&self) -> &str {
+        &self.manifest_sha256
+    }
+
+    /// The digest of the row files as the door read them (each name and sha256, in name
+    /// order): the identity of the rows held, pinned or not.
+    #[must_use]
+    pub fn rows_sha256(&self) -> String {
+        use std::fmt::Write as _;
+        let lines = self
+            .row_files
+            .iter()
+            .fold(String::new(), |mut lines, (name, (sha, _))| {
+                let _ = writeln!(lines, "{name} {sha}");
+                lines
+            });
+        sha256_hex(lines.as_bytes())
+    }
+
+    /// The snapshot's identity for the provenance record: version and declared digest (the
+    /// manifest's words), the manifest's and the rows' sha256 (computed here), the builder, and
+    /// what the door verified.
+    #[must_use]
+    pub fn identity(&self) -> Value {
+        let unpinned: Vec<&str> = self
+            .row_files
+            .iter()
+            .filter(|(_, (_, pinned))| !pinned)
+            .map(|(name, _)| name.as_str())
+            .collect();
         json!({
             "version": self.manifest.get("knowledge_version").cloned().unwrap_or(Value::Null),
             "digest": self.manifest.get("digest").cloned().unwrap_or(Value::Null),
             "source_commit": self.manifest.get("source_commit").cloned().unwrap_or(Value::Null),
             "pack_builder": PACK_BUILDER,
             "dir": self.dir.display().to_string(),
+            "manifest_sha256": self.manifest_sha256,
+            "rows_sha256": self.rows_sha256(),
+            "verification": {
+                "digest": "declared by the manifest, not recomputed",
+                "manifest_pins": self.pins.len(),
+                "row_files": self.row_files.len(),
+                "row_files_unpinned": unpinned,
+                "files_root": self.files_root.as_ref().map(|p| p.display().to_string()),
+            },
         })
     }
 
@@ -127,31 +293,66 @@ impl Snapshot {
             .collect()
     }
 
-    /// A referenced file's text, bounded, or None when the snapshot's files root is unknown
-    /// or the file is absent.
-    fn file_text(&self, relative: &str) -> Option<String> {
-        let root = self.files_root.as_ref()?;
-        let text = std::fs::read_to_string(root.join(relative)).ok()?;
-        Some(cut(&text, FILE_BYTES))
+    /// A referenced file's text, bounded, compared to its pin first; None when the snapshot's
+    /// files root is unknown or the file is absent (the composition records the absence).
+    fn file_text(
+        &self,
+        relative: &str,
+        composition: &mut Composition,
+    ) -> Result<Option<String>, KnowledgeError> {
+        let Some(root) = self.files_root.as_ref() else {
+            return Ok(None);
+        };
+        let Ok(bytes) = std::fs::read(root.join(relative)) else {
+            composition.absent.push(relative.to_owned());
+            return Ok(None);
+        };
+        let version = self.version().unwrap_or("unversioned");
+        if verify(&self.pins, version, relative, &sha256_hex(&bytes))? {
+            composition.verified += 1;
+        } else {
+            composition.unpinned.push(relative.to_owned());
+        }
+        Ok(String::from_utf8(bytes)
+            .ok()
+            .map(|text| cut(&text, FILE_BYTES)))
     }
 
     /// The authoring pack for one intent: the references the seat reads, the selection
-    /// record, the identity. `exclude_corpus` keeps a benchmark honest: no example of the
-    /// case's own corpus is recalled.
-    #[must_use]
-    pub(super) fn pack(&self, intent: &str, exclude_corpus: Option<&str>) -> AuthoringKnowledge {
+    /// record, the identity with the pack's own digest. `exclude_corpus` keeps a benchmark
+    /// honest: no example of the case's own corpus is recalled.
+    ///
+    /// # Errors
+    /// A referenced file whose bytes are not the ones the manifest pins
+    /// ([`KnowledgeError::Stale`]): no pack is composed from a stale snapshot.
+    pub fn pack(
+        &self,
+        intent: &str,
+        exclude_corpus: Option<&str>,
+    ) -> Result<AuthoringKnowledge, KnowledgeError> {
         let mut composition = Composition::new(intent);
         let families = self.recall_families(intent, &mut composition);
-        self.recall_shapes(intent, &families, &mut composition);
-        self.recall_examples(intent, exclude_corpus, &mut composition);
-        self.recall_skill(&families, &mut composition);
+        self.recall_shapes(intent, &families, &mut composition)?;
+        self.recall_examples(intent, exclude_corpus, &mut composition)?;
+        self.recall_skill(&families, &mut composition)?;
         composition.selection["bytes"] = json!(PACK_BYTES - composition.budget);
-        AuthoringKnowledge {
+        composition.selection["files"] = json!({
+            "verified": composition.verified,
+            "unpinned": composition.unpinned,
+            "absent": composition.absent,
+        });
+        let mut pack = AuthoringKnowledge {
             identity: self.identity(),
             selection: composition.selection,
             references: composition.references,
             repairs: self.repair_index(),
-        }
+        };
+        pack.identity["door"] = json!({
+            "kind": "snapshot",
+            "builder": PACK_BUILDER,
+            "pack_sha256": pack_sha256(&pack),
+        });
+        Ok(pack)
     }
 
     /// 1 · the families by BM25 over their need, title and facets.
@@ -173,7 +374,7 @@ impl Snapshot {
         intent: &str,
         families: &[(String, f64)],
         composition: &mut Composition,
-    ) {
+    ) -> Result<(), KnowledgeError> {
         let mut patterns: BTreeMap<String, String> = BTreeMap::new();
         for (family, _) in families {
             for pack in self.targets(family, "RECOMMENDS") {
@@ -210,7 +411,7 @@ impl Snapshot {
             }
         }
         for (block, why) in blocks.iter().take(BLOCKS) {
-            let Some((row, text)) = self.row_with_file(block) else {
+            let Some((row, text)) = self.row_with_file(block, composition)? else {
                 continue;
             };
             composition.select("blocks", block, why);
@@ -222,6 +423,7 @@ impl Snapshot {
             );
             composition.take("block", block, text);
         }
+        Ok(())
     }
 
     /// 5 · the examples that read alike, never one of the case's own corpus.
@@ -230,7 +432,7 @@ impl Snapshot {
         intent: &str,
         exclude_corpus: Option<&str>,
         composition: &mut Composition,
-    ) {
+    ) -> Result<(), KnowledgeError> {
         let examples: Vec<&Value> = self
             .rows("examples")
             .iter()
@@ -241,7 +443,7 @@ impl Snapshot {
         for (id, score) in rank(intent, examples.iter().copied(), EXAMPLES, |r| {
             text_of(r, &["intent", "title"])
         }) {
-            let Some((row, text)) = self.row_with_file(&id) else {
+            let Some((row, text)) = self.row_with_file(&id, composition)? else {
                 continue;
             };
             composition.select("examples", &id, &format!("bm25 {score:.2}"));
@@ -252,10 +454,15 @@ impl Snapshot {
             );
             composition.take("example", &id, text);
         }
+        Ok(())
     }
 
     /// 6 · the leading family's skill.
-    fn recall_skill(&self, families: &[(String, f64)], composition: &mut Composition) {
+    fn recall_skill(
+        &self,
+        families: &[(String, f64)],
+        composition: &mut Composition,
+    ) -> Result<(), KnowledgeError> {
         for (family, _) in families.iter().take(SKILLS) {
             let Some(skill) = self
                 .rows("skills")
@@ -269,22 +476,28 @@ impl Snapshot {
                 .and_then(Value::as_str)
                 .unwrap_or_default()
                 .to_owned();
-            let Some((_, text)) = self.row_with_file(&id) else {
+            let Some((_, text)) = self.row_with_file(&id, composition)? else {
                 continue;
             };
             composition.select("skills", &id, &format!("leading family {family}"));
             composition.take("skill", &id, text);
         }
+        Ok(())
     }
 
     /// A row and the text of the file it names, or None when either is absent.
-    fn row_with_file(&self, id: &str) -> Option<(&Value, String)> {
-        let row = self.row(id)?;
-        let text = row
-            .get("file")
-            .and_then(Value::as_str)
-            .and_then(|f| self.file_text(f))?;
-        Some((row, text))
+    fn row_with_file(
+        &self,
+        id: &str,
+        composition: &mut Composition,
+    ) -> Result<Option<(&Value, String)>, KnowledgeError> {
+        let Some(row) = self.row(id) else {
+            return Ok(None);
+        };
+        let Some(file) = row.get("file").and_then(Value::as_str) else {
+            return Ok(None);
+        };
+        Ok(self.file_text(file, composition)?.map(|text| (row, text)))
     }
 
     /// The repair principles by diagnostic code (`diagnostic:<CODE> --SUGGESTS_REPAIR-->
@@ -321,11 +534,53 @@ impl Snapshot {
     }
 }
 
-/// The pack under composition: the selection record, the references taken, the bytes left.
+/// A manifest's text field, when it states one.
+fn manifest_text<'a>(manifest: &'a Value, key: &str) -> Option<&'a str> {
+    manifest.get(key).and_then(Value::as_str)
+}
+
+/// Compare the bytes read at `path` to the manifest's pin: `Ok(true)` when a pin covers it and
+/// matches, `Ok(false)` when no pin covers it, a stale refusal when the pin differs.
+fn verify(
+    pins: &BTreeMap<String, String>,
+    version: &str,
+    path: &str,
+    found: &str,
+) -> Result<bool, KnowledgeError> {
+    match pins.get(path) {
+        Some(expected) if expected.eq_ignore_ascii_case(found) => Ok(true),
+        Some(expected) => Err(KnowledgeError::Stale {
+            version: version.to_owned(),
+            file: path.to_owned(),
+            expected: expected.clone(),
+            found: found.to_owned(),
+        }),
+        None => Ok(false),
+    }
+}
+
+/// The digest of what a pack can present to a seat: every reference (kind · id · the sha256 of
+/// its text, in the seat's order) and every repair principle by diagnostic code.
+#[must_use]
+pub fn pack_sha256(pack: &AuthoringKnowledge) -> String {
+    let references: Vec<Value> = pack
+        .references
+        .iter()
+        .map(|r| json!([r.kind, r.id, sha256_hex(r.text.as_bytes())]))
+        .collect();
+    let record = json!({"references": references, "repairs": pack.repairs});
+    sha256_hex(record.to_string().as_bytes())
+}
+
+/// The pack under composition: the selection record, the references taken, the bytes left, the
+/// files verified, unpinned and absent.
 struct Composition {
     selection: Value,
     references: Vec<KnowledgeReference>,
     budget: usize,
+    verified: usize,
+    unpinned: Vec<String>,
+    absent: Vec<String>,
 }
 
 impl Composition {
@@ -342,6 +597,9 @@ impl Composition {
             }),
             references: Vec::new(),
             budget: PACK_BYTES,
+            verified: 0,
+            unpinned: Vec::new(),
+            absent: Vec::new(),
         }
     }
 
@@ -378,10 +636,8 @@ fn files_root(dir: &Path) -> Option<PathBuf> {
     None
 }
 
-fn jsonl(path: &Path) -> Vec<Value> {
-    std::fs::read_to_string(path)
-        .unwrap_or_default()
-        .lines()
+fn jsonl(text: &str) -> Vec<Value> {
+    text.lines()
         .filter(|l| !l.trim().is_empty())
         .filter_map(|l| serde_json::from_str(l).ok())
         .collect()
@@ -478,12 +734,22 @@ fn cut(text: &str, max: usize) -> String {
 
 /// A pack another builder composed for one intent, read from a JSON file: `identity` and
 /// `selection` verbatim, `references` as `{kind, id, text}` rows, `repairs` as diagnostic code
-/// → strategies. None when the file is not a pack (the door then composes nothing: the seat
-/// reads the card alone, and the receipt says so by carrying no knowledge).
-pub(super) fn pack_from_file(path: &Path) -> Option<AuthoringKnowledge> {
-    let text = std::fs::read_to_string(path).ok()?;
-    let value: Value = serde_json::from_str(&text).ok()?;
-    let object = value.as_object()?;
+/// → strategies; the identity gains the door's record (`door`: the file and the pack's digest).
+/// `Ok(None)` when the file holds no reference and no repair (the seat reads the card alone,
+/// and the receipt says so by carrying no knowledge).
+///
+/// # Errors
+/// A file that cannot be read, is not JSON or is not an object ([`KnowledgeError::NotAPack`]).
+pub fn pack_from_file(path: &Path) -> Result<Option<AuthoringKnowledge>, KnowledgeError> {
+    let not = |why: String| KnowledgeError::NotAPack {
+        file: path.to_path_buf(),
+        why,
+    };
+    let text = std::fs::read_to_string(path).map_err(|e| not(e.to_string()))?;
+    let value: Value = serde_json::from_str(&text).map_err(|e| not(format!("not JSON: {e}")))?;
+    let object = value
+        .as_object()
+        .ok_or_else(|| not("not a JSON object".to_owned()))?;
     let references = object
         .get("references")
         .and_then(Value::as_array)
@@ -521,11 +787,15 @@ pub(super) fn pack_from_file(path: &Path) -> Option<AuthoringKnowledge> {
         })
         .unwrap_or_default();
     if references.is_empty() && repairs.is_empty() {
-        return None;
+        return Ok(None);
     }
-    let mut identity = object.get("identity").cloned().unwrap_or_else(|| json!({}));
-    identity["door"] = json!({"kind": "file", "path": path.display().to_string()});
-    Some(AuthoringKnowledge {
+    // A declared identity that is not an object is kept whole beside the door's record.
+    let identity = match object.get("identity") {
+        Some(declared @ Value::Object(_)) => declared.clone(),
+        Some(declared) => json!({ "declared": declared }),
+        None => json!({}),
+    };
+    let mut pack = AuthoringKnowledge {
         identity,
         selection: object
             .get("selection")
@@ -533,11 +803,17 @@ pub(super) fn pack_from_file(path: &Path) -> Option<AuthoringKnowledge> {
             .unwrap_or_else(|| json!({})),
         references,
         repairs,
-    })
+    };
+    pack.identity["door"] = json!({
+        "kind": "file",
+        "path": path.display().to_string(),
+        "pack_sha256": pack_sha256(&pack),
+    });
+    Ok(Some(pack))
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
 
@@ -559,9 +835,14 @@ mod tests {
             .to_string(),
         )
         .unwrap();
-        let pack = pack_from_file(&path).unwrap();
+        let pack = pack_from_file(&path).unwrap().unwrap();
         assert_eq!(pack.identity["pack_builder"], "foundry/v13");
         assert_eq!(pack.identity["door"]["kind"], "file");
+        assert_eq!(
+            pack.identity["door"]["pack_sha256"].as_str().map(str::len),
+            Some(64),
+            "the door states the digest of what the pack can present"
+        );
         assert_eq!(pack.selection["families"][0], "family:triage");
         assert_eq!(
             pack.references.len(),
@@ -575,9 +856,30 @@ mod tests {
         );
         assert!(pack.repairs["NIKA-X"].is_empty());
         std::fs::write(&path, "{\"identity\": {}}").unwrap();
-        assert!(pack_from_file(&path).is_none());
+        assert_eq!(
+            pack_from_file(&path).unwrap(),
+            None,
+            "an empty pack carries no knowledge"
+        );
         std::fs::write(&path, "not json").unwrap();
-        assert!(pack_from_file(&path).is_none());
+        assert!(matches!(
+            pack_from_file(&path),
+            Err(KnowledgeError::NotAPack { .. })
+        ));
+        assert!(matches!(
+            pack_from_file(&dir.path().join("absent.json")),
+            Err(KnowledgeError::NotAPack { .. })
+        ));
+        // A declared identity that is not an object is kept, never a panic.
+        std::fs::write(
+            &path,
+            json!({"identity": "v13", "references": [{"kind": "pattern", "id": "p", "text": "t"}]})
+                .to_string(),
+        )
+        .unwrap();
+        let pack = pack_from_file(&path).unwrap().unwrap();
+        assert_eq!(pack.identity["declared"], "v13");
+        assert_eq!(pack.identity["door"]["kind"], "file");
     }
 
     fn write(path: &Path, text: &str) {
@@ -585,16 +887,57 @@ mod tests {
         std::fs::write(path, text).unwrap();
     }
 
+    /// The row files of the miniature snapshot, by name.
+    const ROW_FILES: [&str; 8] = [
+        "families.jsonl",
+        "pattern_packs.jsonl",
+        "patterns.jsonl",
+        "blocks.jsonl",
+        "examples.jsonl",
+        "skills.jsonl",
+        "repair_principles.jsonl",
+        "relations.jsonl",
+    ];
+
+    /// The files under the miniature knowledge root the rows name.
+    const ROOT_FILES: [&str; 4] = [
+        "blocks/digest.nika",
+        "examples/tickets-digest/workflow.nika",
+        "examples/sealed/workflow.nika",
+        "skills/scheduled-digest/SKILL.md",
+    ];
+
+    /// The manifest the Foundry exporter writes: every row file pinned under `knowledge/`,
+    /// every file of the root pinned under its own path.
+    fn pin_manifest(root: &Path, snap: &Path) {
+        let mut files = serde_json::Map::new();
+        for name in ROW_FILES {
+            let bytes = std::fs::read(snap.join(name)).unwrap();
+            files.insert(format!("knowledge/{name}"), json!(sha256_hex(&bytes)));
+        }
+        for relative in ROOT_FILES {
+            let bytes = std::fs::read(root.join("foundry").join(relative)).unwrap();
+            files.insert(relative.to_owned(), json!(sha256_hex(&bytes)));
+        }
+        write(
+            &snap.join("manifest.json"),
+            &json!({
+                "knowledge_version": "knowledge-t",
+                "digest": "abc123",
+                "source_commit": "deadbeef",
+                "kinds": {"family": 2},
+                "files": files,
+            })
+            .to_string(),
+        );
+    }
+
     /// A miniature snapshot in the bench layout: `foundry/{blocks,examples,skills}` beside
-    /// `.local/foundry/snapshots/knowledge-t/`.
+    /// `.local/foundry/snapshots/knowledge-t/`, its manifest pinning every file.
     fn snapshot() -> (tempfile::TempDir, PathBuf) {
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path();
         let snap = root.join(".local/foundry/snapshots/knowledge-t");
-        write(
-            &snap.join("manifest.json"),
-            r#"{"knowledge_version": "knowledge-t", "digest": "abc123", "source_commit": "deadbeef", "kinds": {"family": 2}}"#,
-        );
         write(
             &snap.join("families.jsonl"),
             concat!(
@@ -667,8 +1010,12 @@ mod tests {
             &root.join("foundry/skills/scheduled-digest/SKILL.md"),
             "# Scheduled digest\nWhen: a cadence and a channel.\n",
         );
+        pin_manifest(root, &snap);
         (dir, snap)
     }
+
+    const DIGEST_INTENT: &str =
+        "Chaque lundi matin, envoie-moi un récapitulatif des tickets ouverts de ./tickets.json";
 
     #[test]
     fn the_pack_recalls_the_family_its_patterns_blocks_examples_and_skill_and_states_why() {
@@ -677,10 +1024,9 @@ mod tests {
         assert_eq!(snapshot.identity()["version"], "knowledge-t");
         assert_eq!(snapshot.identity()["digest"], "abc123");
         assert_eq!(snapshot.identity()["pack_builder"], PACK_BUILDER);
-        let pack = snapshot.pack(
-            "Chaque lundi matin, envoie-moi un récapitulatif des tickets ouverts de ./tickets.json",
-            Some("sealed"),
-        );
+        assert_eq!(snapshot.version(), Some("knowledge-t"));
+        assert_eq!(snapshot.digest(), Some("abc123"));
+        let pack = snapshot.pack(DIGEST_INTENT, Some("sealed")).expect("pack");
         let kinds: Vec<(&str, &str)> = pack
             .references
             .iter()
@@ -725,11 +1071,136 @@ mod tests {
     }
 
     #[test]
+    fn every_presented_byte_is_the_snapshots_and_the_pack_states_its_digest() {
+        let (_dir, snap) = snapshot();
+        let snapshot = Snapshot::open(&snap).expect("opens");
+        let identity = snapshot.identity();
+        assert_eq!(identity["verification"]["row_files"], 8);
+        assert_eq!(
+            identity["verification"]["row_files_unpinned"],
+            json!([]),
+            "every row file is pinned and matched"
+        );
+        assert_eq!(identity["rows_sha256"], json!(snapshot.rows_sha256()));
+        assert_eq!(
+            identity["manifest_sha256"].as_str().map(str::len),
+            Some(64),
+            "the manifest's own bytes, computed"
+        );
+        assert_eq!(
+            identity["verification"]["digest"],
+            "declared by the manifest, not recomputed"
+        );
+        let pack = snapshot.pack(DIGEST_INTENT, Some("sealed")).expect("pack");
+        assert_eq!(
+            pack.selection["files"]["verified"], 3,
+            "the block, the example and the skill were compared to their pins: {}",
+            pack.selection["files"]
+        );
+        assert_eq!(pack.selection["files"]["unpinned"], json!([]));
+        let digest = pack.identity["door"]["pack_sha256"].as_str().unwrap();
+        assert_eq!(digest, pack_sha256(&pack));
+        // The same snapshot and intent compose the same pack, byte for byte.
+        let again = snapshot.pack(DIGEST_INTENT, Some("sealed")).expect("pack");
+        assert_eq!(again, pack);
+        // Another intent presents other bytes, and says so.
+        let other = snapshot
+            .pack("Read ./a.csv, keep rows, total amounts", None)
+            .expect("pack");
+        assert_ne!(other.identity["door"]["pack_sha256"], json!(digest));
+    }
+
+    #[test]
+    fn a_row_file_edited_after_the_export_is_refused_as_stale() {
+        let (_dir, snap) = snapshot();
+        write(
+            &snap.join("patterns.jsonl"),
+            r#"{"id": "pattern:summarize", "kind": "pattern", "title": "Summarize", "purpose": "An edited purpose."}"#,
+        );
+        match Snapshot::open(&snap) {
+            Err(KnowledgeError::Stale { version, file, .. }) => {
+                assert_eq!(version, "knowledge-t");
+                assert_eq!(file, "knowledge/patterns.jsonl");
+            }
+            other => panic!("an edited row file is stale: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_presented_file_changed_in_the_root_is_refused_as_stale_never_presented() {
+        let (dir, snap) = snapshot();
+        let before = Snapshot::open(&snap).expect("opens");
+        write(
+            &dir.path().join("foundry/blocks/digest.nika"),
+            "nika: digest-edited-after-export\ntasks: {}\n",
+        );
+        // Re-pinned by a new export under the SAME declared version and digest, the snapshot is
+        // consistent again — and only the manifest's own bytes say it is not the same snapshot.
+        pin_manifest(dir.path(), &snap);
+        let repinned = Snapshot::open(&snap).expect("consistent");
+        assert!(repinned.pack(DIGEST_INTENT, Some("sealed")).is_ok());
+        assert_eq!(
+            (repinned.version(), repinned.digest()),
+            (before.version(), before.digest())
+        );
+        assert_eq!(repinned.rows_sha256(), before.rows_sha256());
+        assert_ne!(repinned.manifest_sha256(), before.manifest_sha256());
+        // Back to a stale snapshot: the old manifest, the edited block.
+        std::fs::write(
+            snap.join("manifest.json"),
+            serde_json::to_string(&before.manifest).unwrap(),
+        )
+        .unwrap();
+        let snapshot = Snapshot::open(&snap).expect("the rows still match");
+        let error = snapshot
+            .pack(DIGEST_INTENT, Some("sealed"))
+            .expect_err("the block's bytes are not the snapshot's");
+        match &error {
+            KnowledgeError::Stale { file, .. } => assert_eq!(file, "blocks/digest.nika"),
+            other => panic!("stale: {other:?}"),
+        }
+        assert!(error.to_string().contains("is stale"), "{error}");
+    }
+
+    #[test]
+    fn a_manifest_that_pins_nothing_is_presented_as_unverified_and_says_so() {
+        let (_dir, snap) = snapshot();
+        write(
+            &snap.join("manifest.json"),
+            r#"{"knowledge_version": "hand-made", "digest": "d"}"#,
+        );
+        let snapshot = Snapshot::open(&snap).expect("opens");
+        assert_eq!(
+            snapshot.identity()["verification"]["row_files_unpinned"]
+                .as_array()
+                .map(Vec::len),
+            Some(8)
+        );
+        let pack = snapshot.pack(DIGEST_INTENT, Some("sealed")).expect("pack");
+        assert_eq!(pack.selection["files"]["verified"], 0);
+        assert_eq!(
+            pack.selection["files"]["unpinned"].as_array().map(Vec::len),
+            Some(3),
+            "{}",
+            pack.selection["files"]
+        );
+    }
+
+    #[test]
     fn a_directory_without_a_manifest_is_no_snapshot_and_a_stranger_intent_recalls_little() {
         let dir = tempfile::tempdir().unwrap();
-        assert!(Snapshot::open(dir.path()).is_none());
+        assert!(matches!(
+            Snapshot::open(dir.path()),
+            Err(KnowledgeError::NotASnapshot { .. })
+        ));
+        write(&dir.path().join("manifest.json"), "[1, 2]");
+        let error = Snapshot::open(dir.path()).unwrap_err();
+        assert!(error.to_string().contains("not a JSON object"), "{error}");
         let (_dir, snap) = snapshot();
-        let pack = Snapshot::open(&snap).unwrap().pack("zzz qqq", None);
+        let pack = Snapshot::open(&snap)
+            .unwrap()
+            .pack("zzz qqq", None)
+            .unwrap();
         assert!(
             pack.references.iter().all(|r| r.kind != "example"),
             "{:?}",

@@ -3,9 +3,10 @@
 
 //! CLI transport and explicit materialization for the stateless Compile core.
 mod authoring;
+pub mod config;
 #[cfg(feature = "access-harness")]
 mod harness_seat;
-mod knowledge;
+pub mod knowledge;
 mod observe;
 mod render;
 mod sidecar;
@@ -46,7 +47,8 @@ pub struct CompileArgs {
     /// Maximum authoring output tokens; requires explicit authoring model.
     #[arg(long, requires = "authoring_model")]
     pub authoring_max_tokens: Option<u32>,
-    /// Authoring timeout in seconds, at most 120; no retries.
+    /// Timeout of each authoring call in seconds (the private plan's and every native call
+    /// alike): 120 by default, 300 for a harness seat, at most 600; a call is never retried.
     #[arg(long, requires = "authoring_model")]
     pub authoring_timeout: Option<u64>,
     /// HOT admission contract: strict (default), legacy (pre-refactor, ablation) or off (never HOT for prose).
@@ -70,9 +72,10 @@ pub struct CompileArgs {
     /// `NIKA_KNOWLEDGE` in the environment names one when the flag is absent.
     #[arg(long, requires = "authoring_model")]
     pub knowledge: Option<std::path::PathBuf>,
-    /// A corpus whose examples the knowledge door never recalls (a benchmark's own);
+    /// A corpus whose examples the knowledge door never recalls (a benchmark's own), for the
+    /// snapshot `--knowledge` or `NIKA_KNOWLEDGE` names; refused when neither names one.
     /// `NIKA_KNOWLEDGE_EXCLUDE` in the environment names one when the flag is absent.
-    #[arg(long, requires = "knowledge")]
+    #[arg(long, requires = "authoring_model")]
     pub knowledge_exclude: Option<String>,
     /// A pack another builder composed for THIS intent (JSON: `identity` · `selection` ·
     /// `references: [{kind, id, text}]` · `repairs: {code: [strategy]}`): it enters the door as
@@ -124,13 +127,40 @@ pub fn run(args: &CompileArgs) -> VerbOutput {
         .iter()
         .any(|name| Some(name.as_str()) == args.intent.as_deref().map(str::trim));
     let cognition = (args.authoring_model.is_some() || args.decision_model.is_some()) && !named;
+    // The authoring configuration (the strategy · the knowledge source): the flags over the
+    // environment, through the parser every door shares; read only when an authoring seat is
+    // named — the deterministic door never reads it.
+    let authoring_config = if cognition && args.authoring_model.is_some() {
+        match config::resolve(
+            &explicit_settings(args),
+            &config::AuthoringSettings::from_env(),
+        ) {
+            Ok(config) => Some(config),
+            Err(error) => {
+                return render::failure(
+                    "authoring_config",
+                    &error.to_string(),
+                    exit::ENV,
+                    args.json,
+                );
+            }
+        }
+    } else {
+        None
+    };
     if cognition {
         request = observed_world(args, request);
     }
-    // The knowledge door: the snapshot the flag or the environment names, its pack for this
-    // intent composed here and stated to the seat beside the card.
-    if cognition && args.authoring_model.is_some() {
-        request = knowledge_door(args, request);
+    // The knowledge door: the source the configuration names, its pack for the intent the
+    // compiler reads composed here and stated to the seat beside the card; a source that
+    // cannot be honored refuses, never a silent card alone.
+    if let Some(config) = &authoring_config {
+        request = match knowledge_door(config, args, request) {
+            Ok(request) => request,
+            Err(error) => {
+                return render::failure("knowledge", &error.to_string(), exit::ENV, args.json);
+            }
+        };
     }
     // Free intents and revisions in words carry a record (a creation's plan, a revision's
     // native candidate); a skeleton, hello or a structured edit never does.
@@ -140,7 +170,10 @@ pub fn run(args: &CompileArgs) -> VerbOutput {
     });
     let (request, note) = sidecar::replay(sha.as_deref(), args, request);
     let result = if cognition {
-        authoring::compile(&request, args)
+        let strategy = authoring_config
+            .as_ref()
+            .map_or(config::DEFAULT_STRATEGY, |config| config.strategy);
+        authoring::compile(&request, args, strategy)
     } else {
         compile(&request).map_err(|error| error.to_string())
     };
@@ -253,38 +286,57 @@ fn observed_world(args: &CompileArgs, request: CompileRequest) -> CompileRequest
     }
 }
 
-/// The knowledge door: a pre-composed pack the flag or `NIKA_KNOWLEDGE_PACK` names wins; else
-/// the snapshot the flag or `NIKA_KNOWLEDGE` names (a directory, not a
-/// secret) and the corpus the flag or `NIKA_KNOWLEDGE_EXCLUDE` names; the pack composed for the
-/// intent rides the request, the provenance names the snapshot and the selection.
-#[allow(clippy::disallowed_methods)] // a snapshot directory and a corpus name, NON-secret
-fn knowledge_door(args: &CompileArgs, request: CompileRequest) -> CompileRequest {
-    let pack = args
-        .knowledge_pack
-        .clone()
-        .or_else(|| std::env::var_os("NIKA_KNOWLEDGE_PACK").map(std::path::PathBuf::from));
-    if let Some(path) = pack.as_deref() {
-        return match knowledge::pack_from_file(path) {
-            Some(pack) => request.with_authoring_knowledge(pack),
-            None => request,
-        };
+/// The door's own explicit words: the strategy, the snapshot, the pack, and the excluded corpus —
+/// the exclusion held whichever side names the snapshot (a held-out corpus named on the command
+/// line guards the snapshot `NIKA_KNOWLEDGE` names too).
+fn explicit_settings(args: &CompileArgs) -> config::AuthoringSettings {
+    let mut settings = config::AuthoringSettings::none();
+    if let Some(word) = &args.authoring_strategy {
+        settings = settings.with_strategy(word.clone());
     }
-    let dir = args
-        .knowledge
-        .clone()
-        .or_else(|| std::env::var_os("NIKA_KNOWLEDGE").map(std::path::PathBuf::from));
-    let exclude = args
-        .knowledge_exclude
-        .clone()
-        .or_else(|| std::env::var("NIKA_KNOWLEDGE_EXCLUDE").ok());
-    let (Some(intent), Some(dir)) = (args.intent.as_deref(), dir.as_deref()) else {
-        return request;
-    };
-    match knowledge::Snapshot::open(dir) {
-        Some(snapshot) => {
-            request.with_authoring_knowledge(snapshot.pack(intent, exclude.as_deref()))
+    if let Some(dir) = &args.knowledge {
+        settings = settings.with_knowledge(dir.clone(), None);
+    }
+    if let Some(file) = &args.knowledge_pack {
+        settings = settings.with_knowledge_pack(file.clone());
+    }
+    if let Some(corpus) = &args.knowledge_exclude {
+        settings = settings.with_knowledge_exclude(corpus.clone());
+    }
+    settings
+}
+
+/// The knowledge door: a pre-composed pack enters as composed (an empty one carries no
+/// knowledge); a snapshot composes the pack for the intent the compiler reads (a revision's
+/// request with its change, a clarification's replacement), every presented byte verified
+/// against the snapshot's manifest. The provenance names the snapshot and the selection.
+///
+/// # Errors
+/// A pack that is not a pack, a directory that is not a snapshot, a stale snapshot.
+fn knowledge_door(
+    config: &config::AuthoringConfig,
+    args: &CompileArgs,
+    request: CompileRequest,
+) -> Result<CompileRequest, knowledge::KnowledgeError> {
+    match &config.knowledge {
+        None => Ok(request),
+        Some(config::KnowledgeSource::Pack { file }) => {
+            Ok(match knowledge::pack_from_file(file)? {
+                Some(pack) => request.with_authoring_knowledge(pack),
+                None => request,
+            })
         }
-        None => request,
+        Some(config::KnowledgeSource::Snapshot {
+            dir,
+            exclude_corpus,
+        }) => {
+            let intent = revise_intent(&request).unwrap_or_else(|| effective_intent(args, true));
+            if intent.trim().is_empty() {
+                return Ok(request);
+            }
+            let pack = knowledge::Snapshot::open(dir)?.pack(&intent, exclude_corpus.as_deref())?;
+            Ok(request.with_authoring_knowledge(pack))
+        }
     }
 }
 
@@ -346,4 +398,92 @@ fn materialize(dest: &Path, candidate: &str, force: bool) -> std::io::Result<()>
         }
     })?;
     Ok(())
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod tests {
+    use super::*;
+    use clap::Parser as _;
+
+    #[derive(clap::Parser)]
+    struct Door {
+        #[command(flatten)]
+        args: CompileArgs,
+    }
+
+    fn parse(argv: &[&str]) -> CompileArgs {
+        Door::try_parse_from(std::iter::once("compile").chain(argv.iter().copied()))
+            .expect("the door parses")
+            .args
+    }
+
+    /// A held-out corpus named on the command line guards the snapshot the environment names:
+    /// the door's own resolver carries it whatever side names the snapshot, and refuses it when
+    /// no snapshot is named at all — never a silent, unguarded evaluation.
+    #[test]
+    fn an_explicit_exclusion_reaches_the_environments_snapshot_through_the_door() {
+        let args = parse(&[
+            "Read ./a.md and do something clever with it, then write ./b.md",
+            "--authoring-model",
+            "mock/echo",
+            "--knowledge-exclude",
+            "heldout",
+        ]);
+        assert_eq!(args.knowledge, None, "no snapshot flag");
+        let env = config::AuthoringSettings::none().with_knowledge("/env/snapshot", None);
+        let resolved = config::resolve(&explicit_settings(&args), &env).expect("resolves");
+        assert_eq!(
+            resolved.knowledge,
+            Some(config::KnowledgeSource::Snapshot {
+                dir: std::path::PathBuf::from("/env/snapshot"),
+                exclude_corpus: Some("heldout".to_owned()),
+            })
+        );
+        assert_eq!(resolved.strategy, config::DEFAULT_STRATEGY);
+        // The flag's snapshot keeps it the same way.
+        let args = parse(&[
+            "x",
+            "--authoring-model",
+            "mock/echo",
+            "--knowledge",
+            "/flag/snapshot",
+            "--knowledge-exclude",
+            "heldout",
+            "--authoring-strategy",
+            "only",
+        ]);
+        let resolved = config::resolve(
+            &explicit_settings(&args),
+            &config::AuthoringSettings::none(),
+        )
+        .expect("resolves");
+        assert_eq!(
+            resolved.knowledge,
+            Some(config::KnowledgeSource::Snapshot {
+                dir: std::path::PathBuf::from("/flag/snapshot"),
+                exclude_corpus: Some("heldout".to_owned()),
+            })
+        );
+        assert_eq!(resolved.strategy, nika_onboard::compile::NativeMode::Only);
+        // No snapshot anywhere: the exclusion is refused, not dropped.
+        let args = parse(&[
+            "x",
+            "--authoring-model",
+            "mock/echo",
+            "--knowledge-exclude",
+            "heldout",
+        ]);
+        assert_eq!(
+            config::resolve(
+                &explicit_settings(&args),
+                &config::AuthoringSettings::none()
+            ),
+            Err(config::ConfigError::ExclusionWithoutSnapshot {
+                corpus: "heldout".to_owned()
+            })
+        );
+        // The exclusion still needs an authoring seat, as every knowledge flag does.
+        assert!(Door::try_parse_from(["compile", "x", "--knowledge-exclude", "heldout"]).is_err());
+    }
 }
