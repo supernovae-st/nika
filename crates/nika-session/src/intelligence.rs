@@ -369,27 +369,33 @@ impl IntelligenceCensus {
                 ))
             }
             "2" => {
-                let provider = match name {
-                    Some(n) => n,
-                    None => self.api_keys.first().cloned().ok_or_else(|| {
-                        "no API key in the environment — `export <PROVIDER>_API_KEY=…` (`nika doctor` names the variable) or pick 1, 3 or 4".to_owned()
-                    })?,
+                let (provider, model) = match name {
+                    Some(n) => split_seat(&n),
+                    None => (
+                        self.api_keys.first().cloned().ok_or_else(|| {
+                            "no API key in the environment — `export <PROVIDER>_API_KEY=…` (`nika doctor` names the variable) or pick 1, 3 or 4".to_owned()
+                        })?,
+                        None,
+                    ),
                 };
                 Ok(UserIntelligencePreference::new(
                     IntelligenceKind::Api { provider },
-                    None,
+                    model,
                 ))
             }
             "3" => {
-                let provider = match name {
-                    Some(n) => n,
-                    None => self.locals.first().cloned().ok_or_else(|| {
-                        "no local engine reachable — start one (ollama · lmstudio · llamacpp · localai · vllm) or pick 1, 2 or 4".to_owned()
-                    })?,
+                let (provider, model) = match name {
+                    Some(n) => split_seat(&n),
+                    None => (
+                        self.locals.first().cloned().ok_or_else(|| {
+                            "no local engine reachable — start one (ollama · lmstudio · llamacpp · localai · vllm) or pick 1, 2 or 4".to_owned()
+                        })?,
+                        None,
+                    ),
                 };
                 Ok(UserIntelligencePreference::new(
                     IntelligenceKind::Local { provider },
-                    None,
+                    model,
                 ))
             }
             "4" => Ok(UserIntelligencePreference::new(
@@ -398,6 +404,19 @@ impl IntelligenceCensus {
             )),
             other => Err(format!("`{other}` is not a choice — answer 1, 2, 3 or 4")),
         }
+    }
+}
+
+/// A choice's name as the human typed it: `openai` names the provider;
+/// `openai/gpt-oss-120b` names the provider AND the model (a gateway row,
+/// a cheaper seat), the model kept whole as `<provider>/<name>` — the form
+/// the catalog and the reasoner speak. An empty side is no model.
+fn split_seat(name: &str) -> (String, Option<String>) {
+    match name.split_once('/') {
+        Some((provider, model)) if !provider.is_empty() && !model.is_empty() => {
+            (provider.to_owned(), Some(name.to_owned()))
+        }
+        _ => (name.to_owned(), None),
     }
 }
 
@@ -608,6 +627,33 @@ mod tests {
             (p == "openai").then(|| "api.scaleway.ai".to_owned())
         });
         assert_eq!(text, "openai (through api.scaleway.ai) · mistral");
+    }
+
+    /// The first screen takes a model with the provider: « 2 openai/gpt-oss-120b »
+    /// names the provider openai and keeps the model whole (the form the
+    /// reasoner speaks); « 2 mistral » names no model; a local engine the same.
+    #[test]
+    fn a_choice_may_name_the_model_with_the_provider() {
+        let c = census();
+        let named = c.choose("2 openai/gpt-oss-120b").expect("api");
+        assert_eq!(
+            named.kind,
+            IntelligenceKind::Api {
+                provider: "openai".to_owned()
+            }
+        );
+        assert_eq!(named.model.as_deref(), Some("openai/gpt-oss-120b"));
+        let bare = c.choose("2 mistral").expect("api");
+        assert_eq!(bare.model, None);
+        let local = c.choose("3 ollama/llama3.3").expect("local");
+        assert_eq!(
+            local.kind,
+            IntelligenceKind::Local {
+                provider: "ollama".to_owned()
+            }
+        );
+        assert_eq!(local.model.as_deref(), Some("ollama/llama3.3"));
+        assert_eq!(split_seat("openai/"), ("openai/".to_owned(), None));
     }
 
     fn census() -> IntelligenceCensus {
