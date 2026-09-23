@@ -594,13 +594,7 @@ impl SessionRuntime {
             let mut restated = AuthoringRound::new(intent);
             restated.restatements = round.restatements.saturating_add(1);
             self.remember(line, &format!("(restated « {clause} » in words)"));
-            return match compile_through(&self.seat, &restated.request()) {
-                Ok(out) => {
-                    let reading = Reading::of(out);
-                    self.settle(restated, reading)
-                }
-                Err(e) => self.machinery(&e),
-            };
+            return self.compile_again(restated);
         }
         // A cloud model the catalog does not price is refused HERE, in
         // words, with the priced models of its provider — not at run time,
@@ -625,6 +619,17 @@ impl SessionRuntime {
             ));
         };
         self.remember(line, &format!("(answered {key})"));
+        self.compile_again(round)
+    }
+
+    /// The round compiled again after an answer or a restatement: a
+    /// provider seat climbs the same ladder as the request itself (the
+    /// stronger model before « cannot express » — the product law: quality
+    /// first); the deterministic seat settles what it reads.
+    fn compile_again(&mut self, round: AuthoringRound) -> TurnOutcome {
+        if matches!(self.seat, AuthoringSeat::Provider { .. }) {
+            return self.compile_under_seat(round);
+        }
         match compile_through(&self.seat, &round.request()) {
             Ok(out) => {
                 let reading = Reading::of(out);
