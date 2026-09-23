@@ -302,6 +302,8 @@ impl<T> typenum::type_operators::Same for nika_session::authoring::AuthoringRoun
 pub type nika_session::authoring::AuthoringRound::Output = T
 pub fn nika_session::authoring::compile_deterministic(request: &nika_compile::types::CompileRequest) -> core::result::Result<nika_compile::types::CompileOutcome, nika_session::authoring::AuthoringError>
 pub fn nika_session::authoring::compile_through(seat: &nika_session::authoring::AuthoringSeat, request: &nika_compile::types::CompileRequest) -> core::result::Result<nika_compile::types::CompileOutcome, nika_session::authoring::AuthoringError>
+pub fn nika_session::authoring::gateway_host(provider: &str) -> core::option::Option<alloc::string::String>
+pub fn nika_session::authoring::host_of(url: &str) -> alloc::string::String
 pub fn nika_session::authoring::is_cancel(line: &str) -> bool
 pub fn nika_session::authoring::is_greeting(input: &str) -> bool
 pub fn nika_session::authoring::is_meaning(line: &str) -> bool
@@ -1193,6 +1195,9 @@ pub const nika_session::identity::IDENTITY_CORE: &str
 pub fn nika_session::identity::language_digest() -> alloc::string::String
 pub mod nika_session::intelligence
 #[non_exhaustive] pub enum nika_session::intelligence::DataLocus
+pub nika_session::intelligence::DataLocus::Gateway
+pub nika_session::intelligence::DataLocus::Gateway::host: alloc::string::String
+pub nika_session::intelligence::DataLocus::Gateway::provider: alloc::string::String
 pub nika_session::intelligence::DataLocus::Local
 pub nika_session::intelligence::DataLocus::Metered
 pub nika_session::intelligence::DataLocus::Metered::provider: alloc::string::String
@@ -1531,7 +1536,241 @@ impl<T> tracing::instrument::Instrument for nika_session::intelligence::UserInte
 impl<T> tracing::instrument::WithSubscriber for nika_session::intelligence::UserIntelligencePreference
 impl<T> typenum::type_operators::Same for nika_session::intelligence::UserIntelligencePreference
 pub type nika_session::intelligence::UserIntelligencePreference::Output = T
+pub fn nika_session::intelligence::annotated_keys(keys: &[alloc::string::String], host_of: &dyn core::ops::function::Fn(&str) -> core::option::Option<alloc::string::String>) -> alloc::string::String
 pub fn nika_session::intelligence::seat_answers_here(seat: &str) -> bool
+pub mod nika_session::lifecycle
+#[non_exhaustive] pub enum nika_session::lifecycle::RunFact
+pub nika_session::lifecycle::RunFact::Exit(u8)
+pub nika_session::lifecycle::RunFact::GateWaits
+pub nika_session::lifecycle::RunFact::Nothing
+impl core::clone::Clone for nika_session::lifecycle::RunFact
+pub fn nika_session::lifecycle::RunFact::clone(&self) -> nika_session::lifecycle::RunFact
+impl core::cmp::Eq for nika_session::lifecycle::RunFact
+impl core::cmp::PartialEq for nika_session::lifecycle::RunFact
+pub fn nika_session::lifecycle::RunFact::eq(&self, other: &nika_session::lifecycle::RunFact) -> bool
+impl core::default::Default for nika_session::lifecycle::RunFact
+pub fn nika_session::lifecycle::RunFact::default() -> nika_session::lifecycle::RunFact
+impl core::fmt::Debug for nika_session::lifecycle::RunFact
+pub fn nika_session::lifecycle::RunFact::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_session::lifecycle::RunFact
+impl core::marker::StructuralPartialEq for nika_session::lifecycle::RunFact
+impl<D> owo_colors::OwoColorize for nika_session::lifecycle::RunFact
+impl<Q, K> equivalent::Equivalent<K> for nika_session::lifecycle::RunFact where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::lifecycle::RunFact::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session::lifecycle::RunFact where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::lifecycle::RunFact::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session::lifecycle::RunFact where U: core::convert::From<T>
+pub fn nika_session::lifecycle::RunFact::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session::lifecycle::RunFact where U: core::convert::Into<T>
+pub type nika_session::lifecycle::RunFact::Error = core::convert::Infallible
+pub fn nika_session::lifecycle::RunFact::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session::lifecycle::RunFact where U: core::convert::TryFrom<T>
+pub type nika_session::lifecycle::RunFact::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session::lifecycle::RunFact::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session::lifecycle::RunFact where T: core::clone::Clone
+pub type nika_session::lifecycle::RunFact::Owned = T
+pub fn nika_session::lifecycle::RunFact::clone_into(&self, target: &mut T)
+pub fn nika_session::lifecycle::RunFact::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session::lifecycle::RunFact where T: 'static + ?core::marker::Sized
+pub fn nika_session::lifecycle::RunFact::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session::lifecycle::RunFact where T: ?core::marker::Sized
+pub fn nika_session::lifecycle::RunFact::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session::lifecycle::RunFact where T: ?core::marker::Sized
+pub fn nika_session::lifecycle::RunFact::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session::lifecycle::RunFact where T: core::clone::Clone
+pub unsafe fn nika_session::lifecycle::RunFact::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session::lifecycle::RunFact
+pub fn nika_session::lifecycle::RunFact::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session::lifecycle::RunFact where T: core::clone::Clone
+pub fn nika_session::lifecycle::RunFact::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session::lifecycle::RunFact where T: 'static
+pub fn nika_session::lifecycle::RunFact::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_session::lifecycle::RunFact where T: core::marker::Copy
+pub fn nika_session::lifecycle::RunFact::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session::lifecycle::RunFact where T: ?core::marker::Sized
+pub fn nika_session::lifecycle::RunFact::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session::lifecycle::RunFact::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session::lifecycle::RunFact
+impl<T> tracing::instrument::WithSubscriber for nika_session::lifecycle::RunFact
+impl<T> typenum::type_operators::Same for nika_session::lifecycle::RunFact
+pub type nika_session::lifecycle::RunFact::Output = T
+#[non_exhaustive] pub enum nika_session::lifecycle::Stage
+pub nika_session::lifecycle::Stage::Attention
+pub nika_session::lifecycle::Stage::Declared
+pub nika_session::lifecycle::Stage::Done
+pub nika_session::lifecycle::Stage::Failed
+pub nika_session::lifecycle::Stage::Paused
+pub nika_session::lifecycle::Stage::Pending
+pub nika_session::lifecycle::Stage::Working
+impl nika_session::lifecycle::Stage
+pub const fn nika_session::lifecycle::Stage::glyph(self) -> char
+impl core::clone::Clone for nika_session::lifecycle::Stage
+pub fn nika_session::lifecycle::Stage::clone(&self) -> nika_session::lifecycle::Stage
+impl core::cmp::Eq for nika_session::lifecycle::Stage
+impl core::cmp::PartialEq for nika_session::lifecycle::Stage
+pub fn nika_session::lifecycle::Stage::eq(&self, other: &nika_session::lifecycle::Stage) -> bool
+impl core::fmt::Debug for nika_session::lifecycle::Stage
+pub fn nika_session::lifecycle::Stage::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_session::lifecycle::Stage
+impl core::marker::StructuralPartialEq for nika_session::lifecycle::Stage
+impl<D> owo_colors::OwoColorize for nika_session::lifecycle::Stage
+impl<Q, K> equivalent::Equivalent<K> for nika_session::lifecycle::Stage where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::lifecycle::Stage::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session::lifecycle::Stage where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::lifecycle::Stage::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session::lifecycle::Stage where U: core::convert::From<T>
+pub fn nika_session::lifecycle::Stage::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session::lifecycle::Stage where U: core::convert::Into<T>
+pub type nika_session::lifecycle::Stage::Error = core::convert::Infallible
+pub fn nika_session::lifecycle::Stage::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session::lifecycle::Stage where U: core::convert::TryFrom<T>
+pub type nika_session::lifecycle::Stage::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session::lifecycle::Stage::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session::lifecycle::Stage where T: core::clone::Clone
+pub type nika_session::lifecycle::Stage::Owned = T
+pub fn nika_session::lifecycle::Stage::clone_into(&self, target: &mut T)
+pub fn nika_session::lifecycle::Stage::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session::lifecycle::Stage where T: 'static + ?core::marker::Sized
+pub fn nika_session::lifecycle::Stage::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session::lifecycle::Stage where T: ?core::marker::Sized
+pub fn nika_session::lifecycle::Stage::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session::lifecycle::Stage where T: ?core::marker::Sized
+pub fn nika_session::lifecycle::Stage::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session::lifecycle::Stage where T: core::clone::Clone
+pub unsafe fn nika_session::lifecycle::Stage::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session::lifecycle::Stage
+pub fn nika_session::lifecycle::Stage::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session::lifecycle::Stage where T: core::clone::Clone
+pub fn nika_session::lifecycle::Stage::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session::lifecycle::Stage where T: 'static
+pub fn nika_session::lifecycle::Stage::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_session::lifecycle::Stage where T: core::marker::Copy
+pub fn nika_session::lifecycle::Stage::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session::lifecycle::Stage where T: ?core::marker::Sized
+pub fn nika_session::lifecycle::Stage::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session::lifecycle::Stage::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session::lifecycle::Stage
+impl<T> tracing::instrument::WithSubscriber for nika_session::lifecycle::Stage
+impl<T> typenum::type_operators::Same for nika_session::lifecycle::Stage
+pub type nika_session::lifecycle::Stage::Output = T
+#[non_exhaustive] pub struct nika_session::lifecycle::Lifecycle
+pub nika_session::lifecycle::Lifecycle::active: nika_session::lifecycle::Stage
+pub nika_session::lifecycle::Lifecycle::checked: nika_session::lifecycle::Stage
+pub nika_session::lifecycle::Lifecycle::draft: nika_session::lifecycle::Stage
+pub nika_session::lifecycle::Lifecycle::run: nika_session::lifecycle::Stage
+pub nika_session::lifecycle::Lifecycle::saved: nika_session::lifecycle::Stage
+impl nika_session::lifecycle::Lifecycle
+pub fn nika_session::lifecycle::Lifecycle::from_facts(facts: &nika_session::lifecycle::LifecycleFacts) -> Self
+pub fn nika_session::lifecycle::Lifecycle::rail(&self) -> alloc::string::String
+impl core::clone::Clone for nika_session::lifecycle::Lifecycle
+pub fn nika_session::lifecycle::Lifecycle::clone(&self) -> nika_session::lifecycle::Lifecycle
+impl core::cmp::Eq for nika_session::lifecycle::Lifecycle
+impl core::cmp::PartialEq for nika_session::lifecycle::Lifecycle
+pub fn nika_session::lifecycle::Lifecycle::eq(&self, other: &nika_session::lifecycle::Lifecycle) -> bool
+impl core::fmt::Debug for nika_session::lifecycle::Lifecycle
+pub fn nika_session::lifecycle::Lifecycle::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_session::lifecycle::Lifecycle
+impl core::marker::StructuralPartialEq for nika_session::lifecycle::Lifecycle
+impl<D> owo_colors::OwoColorize for nika_session::lifecycle::Lifecycle
+impl<Q, K> equivalent::Equivalent<K> for nika_session::lifecycle::Lifecycle where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::lifecycle::Lifecycle::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session::lifecycle::Lifecycle where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::lifecycle::Lifecycle::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session::lifecycle::Lifecycle where U: core::convert::From<T>
+pub fn nika_session::lifecycle::Lifecycle::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session::lifecycle::Lifecycle where U: core::convert::Into<T>
+pub type nika_session::lifecycle::Lifecycle::Error = core::convert::Infallible
+pub fn nika_session::lifecycle::Lifecycle::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session::lifecycle::Lifecycle where U: core::convert::TryFrom<T>
+pub type nika_session::lifecycle::Lifecycle::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session::lifecycle::Lifecycle::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session::lifecycle::Lifecycle where T: core::clone::Clone
+pub type nika_session::lifecycle::Lifecycle::Owned = T
+pub fn nika_session::lifecycle::Lifecycle::clone_into(&self, target: &mut T)
+pub fn nika_session::lifecycle::Lifecycle::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session::lifecycle::Lifecycle where T: 'static + ?core::marker::Sized
+pub fn nika_session::lifecycle::Lifecycle::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session::lifecycle::Lifecycle where T: ?core::marker::Sized
+pub fn nika_session::lifecycle::Lifecycle::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session::lifecycle::Lifecycle where T: ?core::marker::Sized
+pub fn nika_session::lifecycle::Lifecycle::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session::lifecycle::Lifecycle where T: core::clone::Clone
+pub unsafe fn nika_session::lifecycle::Lifecycle::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session::lifecycle::Lifecycle
+pub fn nika_session::lifecycle::Lifecycle::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session::lifecycle::Lifecycle where T: core::clone::Clone
+pub fn nika_session::lifecycle::Lifecycle::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session::lifecycle::Lifecycle where T: 'static
+pub fn nika_session::lifecycle::Lifecycle::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_session::lifecycle::Lifecycle where T: core::marker::Copy
+pub fn nika_session::lifecycle::Lifecycle::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session::lifecycle::Lifecycle where T: ?core::marker::Sized
+pub fn nika_session::lifecycle::Lifecycle::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session::lifecycle::Lifecycle::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session::lifecycle::Lifecycle
+impl<T> tracing::instrument::WithSubscriber for nika_session::lifecycle::Lifecycle
+impl<T> typenum::type_operators::Same for nika_session::lifecycle::Lifecycle
+pub type nika_session::lifecycle::Lifecycle::Output = T
+#[non_exhaustive] pub struct nika_session::lifecycle::LifecycleFacts
+pub nika_session::lifecycle::LifecycleFacts::check_clean: core::option::Option<bool>
+pub nika_session::lifecycle::LifecycleFacts::composing: bool
+pub nika_session::lifecycle::LifecycleFacts::declared_active: core::option::Option<bool>
+pub nika_session::lifecycle::LifecycleFacts::proposal_waits: bool
+pub nika_session::lifecycle::LifecycleFacts::run: nika_session::lifecycle::RunFact
+pub nika_session::lifecycle::LifecycleFacts::saved: bool
+impl nika_session::lifecycle::LifecycleFacts
+pub fn nika_session::lifecycle::LifecycleFacts::new() -> Self
+impl core::clone::Clone for nika_session::lifecycle::LifecycleFacts
+pub fn nika_session::lifecycle::LifecycleFacts::clone(&self) -> nika_session::lifecycle::LifecycleFacts
+impl core::cmp::Eq for nika_session::lifecycle::LifecycleFacts
+impl core::cmp::PartialEq for nika_session::lifecycle::LifecycleFacts
+pub fn nika_session::lifecycle::LifecycleFacts::eq(&self, other: &nika_session::lifecycle::LifecycleFacts) -> bool
+impl core::default::Default for nika_session::lifecycle::LifecycleFacts
+pub fn nika_session::lifecycle::LifecycleFacts::default() -> nika_session::lifecycle::LifecycleFacts
+impl core::fmt::Debug for nika_session::lifecycle::LifecycleFacts
+pub fn nika_session::lifecycle::LifecycleFacts::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_session::lifecycle::LifecycleFacts
+impl core::marker::StructuralPartialEq for nika_session::lifecycle::LifecycleFacts
+impl<D> owo_colors::OwoColorize for nika_session::lifecycle::LifecycleFacts
+impl<Q, K> equivalent::Equivalent<K> for nika_session::lifecycle::LifecycleFacts where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::lifecycle::LifecycleFacts::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session::lifecycle::LifecycleFacts where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::lifecycle::LifecycleFacts::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session::lifecycle::LifecycleFacts where U: core::convert::From<T>
+pub fn nika_session::lifecycle::LifecycleFacts::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session::lifecycle::LifecycleFacts where U: core::convert::Into<T>
+pub type nika_session::lifecycle::LifecycleFacts::Error = core::convert::Infallible
+pub fn nika_session::lifecycle::LifecycleFacts::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session::lifecycle::LifecycleFacts where U: core::convert::TryFrom<T>
+pub type nika_session::lifecycle::LifecycleFacts::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session::lifecycle::LifecycleFacts::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session::lifecycle::LifecycleFacts where T: core::clone::Clone
+pub type nika_session::lifecycle::LifecycleFacts::Owned = T
+pub fn nika_session::lifecycle::LifecycleFacts::clone_into(&self, target: &mut T)
+pub fn nika_session::lifecycle::LifecycleFacts::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session::lifecycle::LifecycleFacts where T: 'static + ?core::marker::Sized
+pub fn nika_session::lifecycle::LifecycleFacts::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session::lifecycle::LifecycleFacts where T: ?core::marker::Sized
+pub fn nika_session::lifecycle::LifecycleFacts::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session::lifecycle::LifecycleFacts where T: ?core::marker::Sized
+pub fn nika_session::lifecycle::LifecycleFacts::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session::lifecycle::LifecycleFacts where T: core::clone::Clone
+pub unsafe fn nika_session::lifecycle::LifecycleFacts::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session::lifecycle::LifecycleFacts
+pub fn nika_session::lifecycle::LifecycleFacts::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session::lifecycle::LifecycleFacts where T: core::clone::Clone
+pub fn nika_session::lifecycle::LifecycleFacts::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session::lifecycle::LifecycleFacts where T: 'static
+pub fn nika_session::lifecycle::LifecycleFacts::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_session::lifecycle::LifecycleFacts where T: core::marker::Copy
+pub fn nika_session::lifecycle::LifecycleFacts::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session::lifecycle::LifecycleFacts where T: ?core::marker::Sized
+pub fn nika_session::lifecycle::LifecycleFacts::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session::lifecycle::LifecycleFacts::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session::lifecycle::LifecycleFacts
+impl<T> tracing::instrument::WithSubscriber for nika_session::lifecycle::LifecycleFacts
+impl<T> typenum::type_operators::Same for nika_session::lifecycle::LifecycleFacts
+pub type nika_session::lifecycle::LifecycleFacts::Output = T
 pub mod nika_session::meaning
 #[non_exhaustive] pub enum nika_session::meaning::Disposition
 pub nika_session::meaning::Disposition::Contradicted
@@ -2300,6 +2539,7 @@ pub fn nika_session::runtime::SessionRuntime::answer_gate_for(&mut self, id: &ni
 pub fn nika_session::runtime::SessionRuntime::banner(&self) -> alloc::string::String
 pub fn nika_session::runtime::SessionRuntime::consent_to(&mut self, id: &nika_session::outcome::ProposalId, answer: &str) -> nika_session::runtime::TurnOutcome
 pub fn nika_session::runtime::SessionRuntime::intelligence_chosen(&self) -> bool
+pub fn nika_session::runtime::SessionRuntime::lifecycle(&self) -> nika_session::lifecycle::Lifecycle
 pub fn nika_session::runtime::SessionRuntime::on_progress(&mut self, hook: nika_session::runtime::ProgressHook)
 pub fn nika_session::runtime::SessionRuntime::open(cwd: &std::path::Path, intelligence: nika_session::intelligence::ResolvedSessionIntelligence, reasoner: alloc::boxed::Box<dyn nika_session::reasoner::SessionReasoner>) -> Self
 pub fn nika_session::runtime::SessionRuntime::open_unchosen(cwd: &std::path::Path, census: nika_session::intelligence::IntelligenceCensus, home: core::option::Option<&std::path::Path>, factory: nika_session::runtime::ReasonerFactory) -> Self
@@ -2827,6 +3067,7 @@ pub type nika_session::turn::ReasonerClassifier::Output = T
 #[non_exhaustive] pub struct nika_session::turn::RouteRecord
 pub nika_session::turn::RouteRecord::act: nika_session::turn::TurnAct
 pub nika_session::turn::RouteRecord::method: nika_session::turn::RoutingMethod
+pub nika_session::turn::RouteRecord::note: core::option::Option<alloc::string::String>
 pub nika_session::turn::RouteRecord::phase: nika_session::turn::SessionPhase
 pub nika_session::turn::RouteRecord::raw_hash: alloc::string::String
 impl nika_session::turn::RouteRecord
@@ -2931,8 +3172,10 @@ pub type nika_session::turn::TurnContext::Output = T
 #[non_exhaustive] pub struct nika_session::turn::TurnDecision
 pub nika_session::turn::TurnDecision::act: nika_session::turn::TurnAct
 pub nika_session::turn::TurnDecision::method: nika_session::turn::RoutingMethod
+pub nika_session::turn::TurnDecision::note: core::option::Option<alloc::string::String>
 pub nika_session::turn::TurnDecision::secondary: alloc::vec::Vec<nika_session::turn::TurnAct>
 impl nika_session::turn::TurnDecision
+pub fn nika_session::turn::TurnDecision::failed(reason: &str) -> Self
 pub const fn nika_session::turn::TurnDecision::new(act: nika_session::turn::TurnAct, method: nika_session::turn::RoutingMethod) -> Self
 impl core::clone::Clone for nika_session::turn::TurnDecision
 pub fn nika_session::turn::TurnDecision::clone(&self) -> nika_session::turn::TurnDecision
@@ -3139,6 +3382,9 @@ impl<T> tracing::instrument::WithSubscriber for nika_session::consent::ConsentDe
 impl<T> typenum::type_operators::Same for nika_session::consent::ConsentDecision
 pub type nika_session::consent::ConsentDecision::Output = T
 #[non_exhaustive] pub enum nika_session::DataLocus
+pub nika_session::DataLocus::Gateway
+pub nika_session::DataLocus::Gateway::host: alloc::string::String
+pub nika_session::DataLocus::Gateway::provider: alloc::string::String
 pub nika_session::DataLocus::Local
 pub nika_session::DataLocus::Metered
 pub nika_session::DataLocus::Metered::provider: alloc::string::String
@@ -3581,6 +3827,120 @@ impl<T> tracing::instrument::Instrument for nika_session::outcome::RefusalClass
 impl<T> tracing::instrument::WithSubscriber for nika_session::outcome::RefusalClass
 impl<T> typenum::type_operators::Same for nika_session::outcome::RefusalClass
 pub type nika_session::outcome::RefusalClass::Output = T
+#[non_exhaustive] pub enum nika_session::RunFact
+pub nika_session::RunFact::Exit(u8)
+pub nika_session::RunFact::GateWaits
+pub nika_session::RunFact::Nothing
+impl core::clone::Clone for nika_session::lifecycle::RunFact
+pub fn nika_session::lifecycle::RunFact::clone(&self) -> nika_session::lifecycle::RunFact
+impl core::cmp::Eq for nika_session::lifecycle::RunFact
+impl core::cmp::PartialEq for nika_session::lifecycle::RunFact
+pub fn nika_session::lifecycle::RunFact::eq(&self, other: &nika_session::lifecycle::RunFact) -> bool
+impl core::default::Default for nika_session::lifecycle::RunFact
+pub fn nika_session::lifecycle::RunFact::default() -> nika_session::lifecycle::RunFact
+impl core::fmt::Debug for nika_session::lifecycle::RunFact
+pub fn nika_session::lifecycle::RunFact::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_session::lifecycle::RunFact
+impl core::marker::StructuralPartialEq for nika_session::lifecycle::RunFact
+impl<D> owo_colors::OwoColorize for nika_session::lifecycle::RunFact
+impl<Q, K> equivalent::Equivalent<K> for nika_session::lifecycle::RunFact where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::lifecycle::RunFact::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session::lifecycle::RunFact where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::lifecycle::RunFact::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session::lifecycle::RunFact where U: core::convert::From<T>
+pub fn nika_session::lifecycle::RunFact::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session::lifecycle::RunFact where U: core::convert::Into<T>
+pub type nika_session::lifecycle::RunFact::Error = core::convert::Infallible
+pub fn nika_session::lifecycle::RunFact::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session::lifecycle::RunFact where U: core::convert::TryFrom<T>
+pub type nika_session::lifecycle::RunFact::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session::lifecycle::RunFact::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session::lifecycle::RunFact where T: core::clone::Clone
+pub type nika_session::lifecycle::RunFact::Owned = T
+pub fn nika_session::lifecycle::RunFact::clone_into(&self, target: &mut T)
+pub fn nika_session::lifecycle::RunFact::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session::lifecycle::RunFact where T: 'static + ?core::marker::Sized
+pub fn nika_session::lifecycle::RunFact::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session::lifecycle::RunFact where T: ?core::marker::Sized
+pub fn nika_session::lifecycle::RunFact::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session::lifecycle::RunFact where T: ?core::marker::Sized
+pub fn nika_session::lifecycle::RunFact::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session::lifecycle::RunFact where T: core::clone::Clone
+pub unsafe fn nika_session::lifecycle::RunFact::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session::lifecycle::RunFact
+pub fn nika_session::lifecycle::RunFact::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session::lifecycle::RunFact where T: core::clone::Clone
+pub fn nika_session::lifecycle::RunFact::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session::lifecycle::RunFact where T: 'static
+pub fn nika_session::lifecycle::RunFact::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_session::lifecycle::RunFact where T: core::marker::Copy
+pub fn nika_session::lifecycle::RunFact::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session::lifecycle::RunFact where T: ?core::marker::Sized
+pub fn nika_session::lifecycle::RunFact::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session::lifecycle::RunFact::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session::lifecycle::RunFact
+impl<T> tracing::instrument::WithSubscriber for nika_session::lifecycle::RunFact
+impl<T> typenum::type_operators::Same for nika_session::lifecycle::RunFact
+pub type nika_session::lifecycle::RunFact::Output = T
+#[non_exhaustive] pub enum nika_session::Stage
+pub nika_session::Stage::Attention
+pub nika_session::Stage::Declared
+pub nika_session::Stage::Done
+pub nika_session::Stage::Failed
+pub nika_session::Stage::Paused
+pub nika_session::Stage::Pending
+pub nika_session::Stage::Working
+impl nika_session::lifecycle::Stage
+pub const fn nika_session::lifecycle::Stage::glyph(self) -> char
+impl core::clone::Clone for nika_session::lifecycle::Stage
+pub fn nika_session::lifecycle::Stage::clone(&self) -> nika_session::lifecycle::Stage
+impl core::cmp::Eq for nika_session::lifecycle::Stage
+impl core::cmp::PartialEq for nika_session::lifecycle::Stage
+pub fn nika_session::lifecycle::Stage::eq(&self, other: &nika_session::lifecycle::Stage) -> bool
+impl core::fmt::Debug for nika_session::lifecycle::Stage
+pub fn nika_session::lifecycle::Stage::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_session::lifecycle::Stage
+impl core::marker::StructuralPartialEq for nika_session::lifecycle::Stage
+impl<D> owo_colors::OwoColorize for nika_session::lifecycle::Stage
+impl<Q, K> equivalent::Equivalent<K> for nika_session::lifecycle::Stage where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::lifecycle::Stage::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session::lifecycle::Stage where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::lifecycle::Stage::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session::lifecycle::Stage where U: core::convert::From<T>
+pub fn nika_session::lifecycle::Stage::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session::lifecycle::Stage where U: core::convert::Into<T>
+pub type nika_session::lifecycle::Stage::Error = core::convert::Infallible
+pub fn nika_session::lifecycle::Stage::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session::lifecycle::Stage where U: core::convert::TryFrom<T>
+pub type nika_session::lifecycle::Stage::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session::lifecycle::Stage::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session::lifecycle::Stage where T: core::clone::Clone
+pub type nika_session::lifecycle::Stage::Owned = T
+pub fn nika_session::lifecycle::Stage::clone_into(&self, target: &mut T)
+pub fn nika_session::lifecycle::Stage::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session::lifecycle::Stage where T: 'static + ?core::marker::Sized
+pub fn nika_session::lifecycle::Stage::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session::lifecycle::Stage where T: ?core::marker::Sized
+pub fn nika_session::lifecycle::Stage::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session::lifecycle::Stage where T: ?core::marker::Sized
+pub fn nika_session::lifecycle::Stage::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session::lifecycle::Stage where T: core::clone::Clone
+pub unsafe fn nika_session::lifecycle::Stage::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session::lifecycle::Stage
+pub fn nika_session::lifecycle::Stage::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session::lifecycle::Stage where T: core::clone::Clone
+pub fn nika_session::lifecycle::Stage::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session::lifecycle::Stage where T: 'static
+pub fn nika_session::lifecycle::Stage::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_session::lifecycle::Stage where T: core::marker::Copy
+pub fn nika_session::lifecycle::Stage::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session::lifecycle::Stage where T: ?core::marker::Sized
+pub fn nika_session::lifecycle::Stage::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session::lifecycle::Stage::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session::lifecycle::Stage
+impl<T> tracing::instrument::WithSubscriber for nika_session::lifecycle::Stage
+impl<T> typenum::type_operators::Same for nika_session::lifecycle::Stage
+pub type nika_session::lifecycle::Stage::Output = T
 #[non_exhaustive] pub enum nika_session::TurnOutcome
 pub nika_session::TurnOutcome::Aside(alloc::string::String)
 pub nika_session::TurnOutcome::Ask(alloc::string::String)
@@ -4097,6 +4457,124 @@ impl<T> tracing::instrument::Instrument for nika_session::guard::KnownWorld
 impl<T> tracing::instrument::WithSubscriber for nika_session::guard::KnownWorld
 impl<T> typenum::type_operators::Same for nika_session::guard::KnownWorld
 pub type nika_session::guard::KnownWorld::Output = T
+#[non_exhaustive] pub struct nika_session::Lifecycle
+pub nika_session::Lifecycle::active: nika_session::lifecycle::Stage
+pub nika_session::Lifecycle::checked: nika_session::lifecycle::Stage
+pub nika_session::Lifecycle::draft: nika_session::lifecycle::Stage
+pub nika_session::Lifecycle::run: nika_session::lifecycle::Stage
+pub nika_session::Lifecycle::saved: nika_session::lifecycle::Stage
+impl nika_session::lifecycle::Lifecycle
+pub fn nika_session::lifecycle::Lifecycle::from_facts(facts: &nika_session::lifecycle::LifecycleFacts) -> Self
+pub fn nika_session::lifecycle::Lifecycle::rail(&self) -> alloc::string::String
+impl core::clone::Clone for nika_session::lifecycle::Lifecycle
+pub fn nika_session::lifecycle::Lifecycle::clone(&self) -> nika_session::lifecycle::Lifecycle
+impl core::cmp::Eq for nika_session::lifecycle::Lifecycle
+impl core::cmp::PartialEq for nika_session::lifecycle::Lifecycle
+pub fn nika_session::lifecycle::Lifecycle::eq(&self, other: &nika_session::lifecycle::Lifecycle) -> bool
+impl core::fmt::Debug for nika_session::lifecycle::Lifecycle
+pub fn nika_session::lifecycle::Lifecycle::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_session::lifecycle::Lifecycle
+impl core::marker::StructuralPartialEq for nika_session::lifecycle::Lifecycle
+impl<D> owo_colors::OwoColorize for nika_session::lifecycle::Lifecycle
+impl<Q, K> equivalent::Equivalent<K> for nika_session::lifecycle::Lifecycle where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::lifecycle::Lifecycle::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session::lifecycle::Lifecycle where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::lifecycle::Lifecycle::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session::lifecycle::Lifecycle where U: core::convert::From<T>
+pub fn nika_session::lifecycle::Lifecycle::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session::lifecycle::Lifecycle where U: core::convert::Into<T>
+pub type nika_session::lifecycle::Lifecycle::Error = core::convert::Infallible
+pub fn nika_session::lifecycle::Lifecycle::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session::lifecycle::Lifecycle where U: core::convert::TryFrom<T>
+pub type nika_session::lifecycle::Lifecycle::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session::lifecycle::Lifecycle::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session::lifecycle::Lifecycle where T: core::clone::Clone
+pub type nika_session::lifecycle::Lifecycle::Owned = T
+pub fn nika_session::lifecycle::Lifecycle::clone_into(&self, target: &mut T)
+pub fn nika_session::lifecycle::Lifecycle::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session::lifecycle::Lifecycle where T: 'static + ?core::marker::Sized
+pub fn nika_session::lifecycle::Lifecycle::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session::lifecycle::Lifecycle where T: ?core::marker::Sized
+pub fn nika_session::lifecycle::Lifecycle::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session::lifecycle::Lifecycle where T: ?core::marker::Sized
+pub fn nika_session::lifecycle::Lifecycle::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session::lifecycle::Lifecycle where T: core::clone::Clone
+pub unsafe fn nika_session::lifecycle::Lifecycle::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session::lifecycle::Lifecycle
+pub fn nika_session::lifecycle::Lifecycle::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session::lifecycle::Lifecycle where T: core::clone::Clone
+pub fn nika_session::lifecycle::Lifecycle::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session::lifecycle::Lifecycle where T: 'static
+pub fn nika_session::lifecycle::Lifecycle::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_session::lifecycle::Lifecycle where T: core::marker::Copy
+pub fn nika_session::lifecycle::Lifecycle::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session::lifecycle::Lifecycle where T: ?core::marker::Sized
+pub fn nika_session::lifecycle::Lifecycle::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session::lifecycle::Lifecycle::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session::lifecycle::Lifecycle
+impl<T> tracing::instrument::WithSubscriber for nika_session::lifecycle::Lifecycle
+impl<T> typenum::type_operators::Same for nika_session::lifecycle::Lifecycle
+pub type nika_session::lifecycle::Lifecycle::Output = T
+#[non_exhaustive] pub struct nika_session::LifecycleFacts
+pub nika_session::LifecycleFacts::check_clean: core::option::Option<bool>
+pub nika_session::LifecycleFacts::composing: bool
+pub nika_session::LifecycleFacts::declared_active: core::option::Option<bool>
+pub nika_session::LifecycleFacts::proposal_waits: bool
+pub nika_session::LifecycleFacts::run: nika_session::lifecycle::RunFact
+pub nika_session::LifecycleFacts::saved: bool
+impl nika_session::lifecycle::LifecycleFacts
+pub fn nika_session::lifecycle::LifecycleFacts::new() -> Self
+impl core::clone::Clone for nika_session::lifecycle::LifecycleFacts
+pub fn nika_session::lifecycle::LifecycleFacts::clone(&self) -> nika_session::lifecycle::LifecycleFacts
+impl core::cmp::Eq for nika_session::lifecycle::LifecycleFacts
+impl core::cmp::PartialEq for nika_session::lifecycle::LifecycleFacts
+pub fn nika_session::lifecycle::LifecycleFacts::eq(&self, other: &nika_session::lifecycle::LifecycleFacts) -> bool
+impl core::default::Default for nika_session::lifecycle::LifecycleFacts
+pub fn nika_session::lifecycle::LifecycleFacts::default() -> nika_session::lifecycle::LifecycleFacts
+impl core::fmt::Debug for nika_session::lifecycle::LifecycleFacts
+pub fn nika_session::lifecycle::LifecycleFacts::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_session::lifecycle::LifecycleFacts
+impl core::marker::StructuralPartialEq for nika_session::lifecycle::LifecycleFacts
+impl<D> owo_colors::OwoColorize for nika_session::lifecycle::LifecycleFacts
+impl<Q, K> equivalent::Equivalent<K> for nika_session::lifecycle::LifecycleFacts where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::lifecycle::LifecycleFacts::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session::lifecycle::LifecycleFacts where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::lifecycle::LifecycleFacts::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session::lifecycle::LifecycleFacts where U: core::convert::From<T>
+pub fn nika_session::lifecycle::LifecycleFacts::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session::lifecycle::LifecycleFacts where U: core::convert::Into<T>
+pub type nika_session::lifecycle::LifecycleFacts::Error = core::convert::Infallible
+pub fn nika_session::lifecycle::LifecycleFacts::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session::lifecycle::LifecycleFacts where U: core::convert::TryFrom<T>
+pub type nika_session::lifecycle::LifecycleFacts::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session::lifecycle::LifecycleFacts::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session::lifecycle::LifecycleFacts where T: core::clone::Clone
+pub type nika_session::lifecycle::LifecycleFacts::Owned = T
+pub fn nika_session::lifecycle::LifecycleFacts::clone_into(&self, target: &mut T)
+pub fn nika_session::lifecycle::LifecycleFacts::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session::lifecycle::LifecycleFacts where T: 'static + ?core::marker::Sized
+pub fn nika_session::lifecycle::LifecycleFacts::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session::lifecycle::LifecycleFacts where T: ?core::marker::Sized
+pub fn nika_session::lifecycle::LifecycleFacts::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session::lifecycle::LifecycleFacts where T: ?core::marker::Sized
+pub fn nika_session::lifecycle::LifecycleFacts::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session::lifecycle::LifecycleFacts where T: core::clone::Clone
+pub unsafe fn nika_session::lifecycle::LifecycleFacts::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session::lifecycle::LifecycleFacts
+pub fn nika_session::lifecycle::LifecycleFacts::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session::lifecycle::LifecycleFacts where T: core::clone::Clone
+pub fn nika_session::lifecycle::LifecycleFacts::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session::lifecycle::LifecycleFacts where T: 'static
+pub fn nika_session::lifecycle::LifecycleFacts::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_session::lifecycle::LifecycleFacts where T: core::marker::Copy
+pub fn nika_session::lifecycle::LifecycleFacts::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session::lifecycle::LifecycleFacts where T: ?core::marker::Sized
+pub fn nika_session::lifecycle::LifecycleFacts::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session::lifecycle::LifecycleFacts::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session::lifecycle::LifecycleFacts
+impl<T> tracing::instrument::WithSubscriber for nika_session::lifecycle::LifecycleFacts
+impl<T> typenum::type_operators::Same for nika_session::lifecycle::LifecycleFacts
+pub type nika_session::lifecycle::LifecycleFacts::Output = T
 pub struct nika_session::PendingGate
 pub nika_session::PendingGate::message: alloc::string::String
 pub nika_session::PendingGate::mode: alloc::string::String
@@ -4635,6 +5113,7 @@ pub fn nika_session::runtime::SessionRuntime::answer_gate_for(&mut self, id: &ni
 pub fn nika_session::runtime::SessionRuntime::banner(&self) -> alloc::string::String
 pub fn nika_session::runtime::SessionRuntime::consent_to(&mut self, id: &nika_session::outcome::ProposalId, answer: &str) -> nika_session::runtime::TurnOutcome
 pub fn nika_session::runtime::SessionRuntime::intelligence_chosen(&self) -> bool
+pub fn nika_session::runtime::SessionRuntime::lifecycle(&self) -> nika_session::lifecycle::Lifecycle
 pub fn nika_session::runtime::SessionRuntime::on_progress(&mut self, hook: nika_session::runtime::ProgressHook)
 pub fn nika_session::runtime::SessionRuntime::open(cwd: &std::path::Path, intelligence: nika_session::intelligence::ResolvedSessionIntelligence, reasoner: alloc::boxed::Box<dyn nika_session::reasoner::SessionReasoner>) -> Self
 pub fn nika_session::runtime::SessionRuntime::open_unchosen(cwd: &std::path::Path, census: nika_session::intelligence::IntelligenceCensus, home: core::option::Option<&std::path::Path>, factory: nika_session::runtime::ReasonerFactory) -> Self
