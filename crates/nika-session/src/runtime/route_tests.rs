@@ -89,6 +89,41 @@ fn session_with(classifier: Box<dyn TurnClassifier>) -> (tempfile::TempDir, Sess
     (dir, s)
 }
 
+#[test]
+fn a_cancel_label_discards_the_proposal_without_granting_any_effect() {
+    let (dir, mut s) = session_with(Box::new(Scripted(BTreeMap::from([(
+        "Ne fais rien ; annule cette proposition.",
+        TurnAct::parse("CANCEL"),
+    )]))));
+    let TurnOutcome::Proposal { id, .. } = s.turn(COPY) else {
+        panic!("proposal");
+    };
+    let outcome = s.consent("Ne fais rien ; annule cette proposition.");
+    assert!(
+        matches!(outcome, TurnOutcome::Facts(ref text) if text.contains("discarded")),
+        "{outcome:?}"
+    );
+    assert!(s.pending_proposal().is_none());
+    assert!(matches!(s.consent_to(&id, "yes"), TurnOutcome::Refusal(_)));
+    assert!(!dir.path().join(COPY_DEST).exists());
+}
+
+#[test]
+fn a_cancel_label_drops_the_question_instead_of_binding_an_answer() {
+    let (_dir, mut s) = session_with(Box::new(Scripted(BTreeMap::from([(
+        "I no longer want this workflow.",
+        TurnAct::parse("CANCEL"),
+    )]))));
+    assert!(matches!(s.turn("Read ./notes/brief.md, draft a 3-bullet summary of it and write the summary to ./out/summary.md"), TurnOutcome::Question { .. }));
+    let outcome = s.turn("I no longer want this workflow.");
+    assert!(
+        matches!(outcome, TurnOutcome::Facts(ref text) if text.contains("discarded")),
+        "{outcome:?}"
+    );
+    assert!(s.pending_question().is_none());
+    assert!(s.pending_proposal().is_none());
+}
+
 /// The addendum's first milestone: a proposal waits; a question does not
 /// change it; a change is a revision (the raw words, the proposal kept
 /// when the revision cannot settle); a MODIFY that starts with « what »

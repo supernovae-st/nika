@@ -712,6 +712,14 @@ impl SessionRuntime {
             decision.act
         };
         match act {
+            TurnAct::Cancel => {
+                self.intent.unresolved.clear();
+                self.remember(line, "(authoring discarded)");
+                return Err(TurnOutcome::Facts(
+                    "authoring discarded · nothing was written · describe the work again when ready"
+                        .to_owned(),
+                ));
+            }
             TurnAct::Discuss => {
                 let text = round.current().map_or_else(
                     || "no authoring question waits".to_owned(),

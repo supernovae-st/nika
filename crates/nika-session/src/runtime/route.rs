@@ -149,6 +149,12 @@ impl SessionRuntime {
         }
         let decision = self.classify(SessionPhase::ProposalPending, raw);
         match decision.act {
+            TurnAct::Cancel => {
+                self.decided = Some(id);
+                super::TurnOutcome::Facts(
+                    "discarded · nothing was written · ask again for the change when ready".to_owned(),
+                )
+            }
             TurnAct::Modify | TurnAct::Mixed => self.revise_pending(set, raw),
             TurnAct::Discuss => self.discuss_pending(set, id, raw),
             TurnAct::RequestRun => self.hold_pending(

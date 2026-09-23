@@ -505,7 +505,7 @@ impl ProjectChangeSet {
             );
         }
         out.push_str(
-            "apply this? (yes · anything else discards it · nothing is written until you say yes)",
+            "apply this? (yes applies · no discards · questions keep it pending · nothing is written until you say yes)",
         );
         out
     }

@@ -897,7 +897,7 @@ impl SessionRuntime {
     /// witness checked before the first write · atomic writes · nothing
     /// outside the set), the real check follows every workflow written,
     /// and a run the human asked for is requested ONLY when that check is
-    /// clean. Anything else discards the set; nothing is written.
+    /// clean. A no discards the set; other lines route without granting consent.
     fn consent_unrecorded(&mut self, answer: &str) -> TurnOutcome {
         let Some(set) = self.pending.take() else {
             return TurnOutcome::Refusal(self.nothing_pending());
@@ -1077,7 +1077,7 @@ impl SessionRuntime {
             Some(_) => self.consent(answer),
             None if self.decided.as_ref() == Some(id) => TurnOutcome::Refusal(Refusal::new(
                 RefusalClass::AlreadyConsumed,
-                format!("the proposal {id} was already decided — its effect happened once"),
+                format!("the proposal {id} was already decided — nothing is pending"),
             )),
             None => TurnOutcome::Refusal(Refusal::new(
                 RefusalClass::WrongState,

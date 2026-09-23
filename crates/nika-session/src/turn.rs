@@ -7,7 +7,7 @@
 //! open language: the typed session state and the RAW line go to a
 //! bounded classifier (the session's intelligence, one label; a decision
 //! seat later) that says which act it is — discuss, modify, new work,
-//! answer, a run, mixed, or unknown — and the runtime acts on the act
+//! answer, a run, cancel, mixed, or unknown — and the runtime acts on the act
 //! with the human's own words, never a paraphrase. A classification is
 //! never a consent: authority stays with the protocol tokens and the
 //! typed state. When no intelligence can judge, the fallback is UNKNOWN
@@ -30,6 +30,8 @@ pub enum TurnAct {
     Answer,
     /// A request to run the current automation.
     RequestRun,
+    /// Discard the whole pending proposal or authoring request; never grants an effect.
+    Cancel,
     /// Several acts in one line (« yes but change the file first »).
     Mixed,
     /// The classifier could not tell — the runtime keeps everything as is.
@@ -46,18 +48,20 @@ impl TurnAct {
             Self::NewWork => "NEW_WORK",
             Self::Answer => "ANSWER",
             Self::RequestRun => "REQUEST_RUN",
+            Self::Cancel => "CANCEL",
             Self::Mixed => "MIXED",
             Self::Unknown => "UNKNOWN",
         }
     }
 
     /// Every act, in the order the classifier is told them.
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 8] = [
         Self::Discuss,
         Self::Modify,
         Self::NewWork,
         Self::Answer,
         Self::RequestRun,
+        Self::Cancel,
         Self::Mixed,
         Self::Unknown,
     ];
@@ -263,6 +267,7 @@ pub fn routing_prompt(context: &TurnContext, raw: &str) -> String {
         "- NEW_WORK: describes a new automation unrelated to the current one.\n",
         "- ANSWER: gives the value the last question asked for (a model name, a path, a number, a choice), nothing more.\n",
         "- REQUEST_RUN: asks to run the current automation as it is, with no change in the same line.\n",
+        "- CANCEL: asks to discard the whole pending proposal or authoring request, with no replacement work. This removes pending work only; it never runs, saves, deletes a saved workflow or answers a run gate. Removing one step while keeping the workflow is MODIFY; asking what cancellation does is DISCUSS.\n",
         "- MIXED: the line carries two distinct acts, e.g. an approval or a refusal AND a change (« yes, but change the file first »), or a run AND a change (« run it, but only on Fridays »). An approval with a change is never a plain approval.\n",
         "- UNKNOWN: only when no label fits the line, or two labels fit it equally after the cues above.\n",
         "Label:",
@@ -332,6 +337,8 @@ mod tests {
         );
         assert_eq!(TurnAct::parse("NEW_WORK"), TurnAct::NewWork);
         assert_eq!(TurnAct::parse("REQUEST_RUN"), TurnAct::RequestRun);
+        assert_eq!(TurnAct::parse("CANCEL"), TurnAct::Cancel);
+        assert_eq!(TurnAct::parse("CANCELLED"), TurnAct::Unknown);
         assert_eq!(
             TurnAct::parse("MODIFYING"),
             TurnAct::Unknown,
