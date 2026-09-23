@@ -144,6 +144,9 @@ struct Talk {
     route: Vec<String>,
     /// The values the human answered: a candidate may carry them without inventing them.
     allowed: Vec<String>,
+    /// The repair principles a knowledge snapshot wires to diagnostic codes, for the repair
+    /// message.
+    repairs: std::collections::BTreeMap<String, Vec<String>>,
     /// The observed world of the stated files, when the host read one: a column, field, key
     /// or value name is stated there, never asked.
     observed: Option<Value>,
@@ -195,7 +198,20 @@ pub(super) async fn author<P: ProviderInferDyn>(
         out.provenance.strategy = Some(Strategy::Native);
         return Ok(out);
     }
-    let references = knowledge::references(intent, 2);
+    let mut references = knowledge::references(intent, 2);
+    if let Some(pack) = &request.authoring_knowledge {
+        references.extend(pack.references.iter().map(|r| Reference {
+            id: r.id.clone(),
+            kind: match r.kind.as_str() {
+                "pattern" => "pattern",
+                "block" => "block",
+                "example" => "example",
+                "skill" => "skill",
+                _ => "reference",
+            },
+            text: r.text.clone(),
+        }));
+    }
     let callables = knowledge::callables(&knowledge::builtins_of(&references));
     let sent: Vec<Value> = references
         .iter()
@@ -218,6 +234,11 @@ pub(super) async fn author<P: ProviderInferDyn>(
         route,
         allowed: fidelity::allowed_values(&request.answers),
         observed: request.knowledge.clone(),
+        repairs: request
+            .authoring_knowledge
+            .as_ref()
+            .map(|pack| pack.repairs.clone())
+            .unwrap_or_default(),
     };
     let mut accepted: Option<Answer> = None;
     for round in 0..=policy.repairs.min(5) {
@@ -242,6 +263,10 @@ pub(super) async fn author<P: ProviderInferDyn>(
     decision["cold"] = cold.report.clone();
     decision["native"] = json!({
         "identity": knowledge::identity(),
+        "knowledge": request.authoring_knowledge.as_ref().map(|pack| json!({
+            "identity": pack.identity,
+            "selection": pack.selection,
+        })),
         "references": sent,
         "rounds": talk.rounds.clone(),
         "accepted": accepted.is_some(),
@@ -339,8 +364,10 @@ async fn exchange<P: ProviderInferDyn>(
         return Round::Stalled;
     }
     talk.messages.push(Message::text(Role::Assistant, text));
-    talk.messages
-        .push(Message::text(Role::User, repair_message(&diagnostics)));
+    talk.messages.push(Message::text(
+        Role::User,
+        repair_message(&diagnostics, &talk.repairs),
+    ));
     talk.last = Some(diagnostics);
     Round::Repair
 }
@@ -483,7 +510,10 @@ fn system_message(references: &[Reference], callables: &[Reference]) -> String {
     text
 }
 
-fn repair_message(diagnostics: &[Diagnostic]) -> String {
+fn repair_message(
+    diagnostics: &[Diagnostic],
+    repairs: &std::collections::BTreeMap<String, Vec<String>>,
+) -> String {
     let mut text = String::from(
         "COMPILER DIAGNOSTICS on your candidate. Return the complete corrected JSON answer (candidate, questions, gaps, notes); fix every item, change nothing the request did not ask.\n",
     );
@@ -491,7 +521,35 @@ fn repair_message(diagnostics: &[Diagnostic]) -> String {
         use std::fmt::Write as _;
         let _ = writeln!(text, "{}. [{}] {}", n + 1, d.kind, d.message);
     }
+    // The repair principles the knowledge snapshot wires to the codes these diagnostics
+    // name (Foundry, 2026-09-23: the weakest seat 9 → 13 correct with them beside the
+    // findings); a capable seat repairs from the message alone.
+    let mut principles: Vec<&str> = Vec::new();
+    for code in diagnostics.iter().flat_map(|d| codes_in(&d.message)) {
+        for line in repairs.get(&code).into_iter().flatten() {
+            if !principles.contains(&line.as_str()) && principles.len() < 6 {
+                principles.push(line);
+            }
+        }
+    }
+    if !principles.is_empty() {
+        text.push_str("\nRepair knowledge for these findings:\n");
+        for line in principles {
+            text.push_str("- ");
+            text.push_str(line);
+            text.push('\n');
+        }
+    }
     text
+}
+
+/// The diagnostic codes a message names (`NIKA-PARSE-022`, `NIKA-AUTH-006`).
+fn codes_in(message: &str) -> Vec<String> {
+    message
+        .split(|c: char| !(c.is_ascii_alphanumeric() || c == '-'))
+        .filter(|w| w.starts_with("NIKA-") && w.len() >= 10)
+        .map(|w| w.trim_end_matches('-').to_owned())
+        .collect()
 }
 
 /// Slug fragments that name a machine's construct rather than a business value.
@@ -807,13 +865,23 @@ fn settle(
 ) {
     let admitted =
         admitted_questions(candidate, questions, request.knowledge.as_ref()).unwrap_or_default();
-    let record = json!({
+    let mut record = json!({
         "strategy": Strategy::Native.word(),
         "intent_sha256": super::intent_sha256(intent),
         "source": candidate,
         "questions": admitted.iter().map(|q| json!({"key": q.key, "label": q.label, "answer_type": q.answer_type, "why": q.why})).collect::<Vec<_>>(),
         "trigger": trigger,
     });
+    // What the candidate BUILDS, in the plan record's own vocabulary (operations · effects ·
+    // obligations · bindings), so provenance reads the native strategy as it reads the
+    // others; `operations_from` says the reading is of the bytes, not of the intent.
+    if let Some(doc) = crate::edit::literal_projection(candidate) {
+        let built = nika_compile_reader::candidate::plan_of_document(&doc).to_json();
+        for key in ["operations", "effects", "obligations", "bindings"] {
+            record[key] = built[key].clone();
+        }
+        record["operations_from"] = json!("candidate");
+    }
     out.provenance.plan = Some(record.clone());
     apply(&record, request, out);
 }

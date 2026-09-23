@@ -107,14 +107,15 @@ pub use cognition::{
     Cognition, NoProvider, compile_with_cognition, compile_with_provider, intent_sha256,
 };
 pub use materialize::{MaterializeError, materialize_ready};
-pub use nika_compile_reader::hot::{stated_destinations, stated_sources};
+pub use nika_compile_reader::hot::{fold, stated_destinations, stated_sources};
 pub use nika_compile_reader::text;
 pub use retrieve::{Hit, HitKind, retrieve, retrieve_by_ops};
 pub use types::{
-    AuthoringCognition, AuthoringPolicy, AuthoringReceipt, ChoiceOffer, CompileDiagnostic,
-    CompileError, CompileOutcome, CompilePreview, CompileProvenance, CompileQuestion,
-    CompileRequest, CompileStatus, DiagnosticKind, HotPolicy, NativeMode, PreviewScope,
-    QuestionType, RepresentationError, Strategy, TriggerKind, TriggerRequirement, TriggerStatus,
+    AuthoringCognition, AuthoringKnowledge, AuthoringPolicy, AuthoringReceipt, ChoiceOffer,
+    CompileDiagnostic, CompileError, CompileOutcome, CompilePreview, CompileProvenance,
+    CompileQuestion, CompileRequest, CompileStatus, DiagnosticKind, HotPolicy, KnowledgeReference,
+    NativeMode, PreviewScope, QuestionType, RepresentationError, Strategy, TriggerKind,
+    TriggerRequirement, TriggerStatus,
 };
 pub use wire::{COMPILE_WIRE_VERSION, outcome_document};
 

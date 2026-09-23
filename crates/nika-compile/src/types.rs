@@ -18,6 +18,30 @@ pub struct CompileRequest {
     /// files: columns, keys, small value sets), stated to an authoring seat as data — see
     /// [`Self::with_knowledge`].
     pub(super) knowledge: Option<serde_json::Value>,
+    /// The authoring pack a knowledge door composed for this intent — see
+    /// [`Self::with_authoring_knowledge`].
+    pub(super) authoring_knowledge: Option<AuthoringKnowledge>,
+}
+
+/// One reference a knowledge snapshot recalled for the seat: its kind (`pattern` · `block` ·
+/// `example` · `skill`), its id in the snapshot and the text the seat reads.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct KnowledgeReference {
+    pub kind: String,
+    pub id: String,
+    pub text: String,
+}
+
+/// The authoring pack a knowledge door composed for one intent from a versioned snapshot:
+/// the references the seat reads beside the card, the repair principles by diagnostic code
+/// for the repair rounds, the snapshot's identity (version · digest · builder) and the
+/// selection record (every recalled row and why) for the provenance.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct AuthoringKnowledge {
+    pub identity: serde_json::Value,
+    pub selection: serde_json::Value,
+    pub references: Vec<KnowledgeReference>,
+    pub repairs: std::collections::BTreeMap<String, Vec<String>>,
 }
 
 /// How much the deterministic reader may decide on its own. False HOT is the P0 defect:
@@ -96,6 +120,15 @@ impl CompileRequest {
         self.knowledge = Some(snapshot);
         self
     }
+
+    /// The authoring pack a knowledge door composed for this intent: its references reach
+    /// the seat beside the card, its repair principles reach the repair rounds, its identity
+    /// and selection reach the provenance (`decision.native.knowledge`).
+    #[must_use]
+    pub fn with_authoring_knowledge(mut self, pack: AuthoringKnowledge) -> Self {
+        self.authoring_knowledge = Some(pack);
+        self
+    }
     /// Create from an exact skeleton or bounded support clauses. Other intents
     /// remain incomplete unless an explicit provider authoring call resolves them.
     #[must_use]
@@ -108,6 +141,7 @@ impl CompileRequest {
             hot: HotPolicy::default(),
             plan: None,
             knowledge: None,
+            authoring_knowledge: None,
         }
     }
 
@@ -129,6 +163,7 @@ impl CompileRequest {
             hot: HotPolicy::default(),
             plan: None,
             knowledge: None,
+            authoring_knowledge: None,
         }
     }
 
@@ -161,6 +196,7 @@ impl CompileRequest {
             hot: HotPolicy::default(),
             plan: None,
             knowledge: None,
+            authoring_knowledge: None,
         }
     }
 

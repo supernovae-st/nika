@@ -39,6 +39,7 @@
 
 pub mod aggregate;
 mod anchor;
+pub mod candidate;
 pub mod cardinality;
 pub mod columns;
 pub mod fidelity;

@@ -5,6 +5,7 @@
 mod authoring;
 #[cfg(feature = "access-harness")]
 mod harness_seat;
+mod knowledge;
 mod observe;
 mod render;
 mod sidecar;
@@ -62,6 +63,15 @@ pub struct CompileArgs {
     /// Repair rounds a native candidate may buy from the compiler's diagnostics (0..=5, default 3).
     #[arg(long, requires = "authoring_model")]
     pub authoring_repairs: Option<u32>,
+    /// A knowledge snapshot directory (manifest.json · one JSONL per kind · relations.jsonl): the seat
+    /// reads the pack composed for this intent beside the card; the provenance names the snapshot.
+    /// `NIKA_KNOWLEDGE` in the environment names one when the flag is absent.
+    #[arg(long, requires = "authoring_model")]
+    pub knowledge: Option<std::path::PathBuf>,
+    /// A corpus whose examples the knowledge door never recalls (a benchmark's own);
+    /// `NIKA_KNOWLEDGE_EXCLUDE` in the environment names one when the flag is absent.
+    #[arg(long, requires = "knowledge")]
+    pub knowledge_exclude: Option<String>,
     /// Explicitly seat one bounded-decision capability (`typesafe/jev-1.13.0` or `provider/name`) for finite ambiguities.
     #[arg(long, conflicts_with_all = ["base", "list"])]
     pub decision_model: Option<String>,
@@ -135,14 +145,13 @@ pub fn run(args: &CompileArgs) -> VerbOutput {
     let cognition = (args.authoring_model.is_some() || args.decision_model.is_some())
         && args.base.is_none()
         && !named;
-    // An authoring seat reads the shape of the files the request names (a header, a key set,
-    // a categorical column's values — never a row), observed here under the working directory.
-    if cognition
-        && let Some(intent) = args.intent.as_deref()
-        && let Ok(cwd) = std::env::current_dir()
-        && let Some(world) = observe::world(&cwd, intent)
-    {
-        request = request.with_knowledge(world);
+    if cognition {
+        request = observed_world(args, request);
+    }
+    // The knowledge door: the snapshot the flag or the environment names, its pack for this
+    // intent composed here and stated to the seat beside the card.
+    if cognition && args.authoring_model.is_some() {
+        request = knowledge_door(args, request);
     }
     // Free intents only: a skeleton, hello or an edit never produces a plan to record.
     let sha =
@@ -195,6 +204,42 @@ fn effective_intent(args: &CompileArgs, cognition: bool) -> String {
         .filter_map(|value| value.as_str().map(str::to_owned))
         .find(|text| !text.trim().is_empty())
         .unwrap_or(intent)
+}
+
+/// An authoring seat reads the shape of the files the request names (a header, a key set, a
+/// categorical column's values — never a row), observed under the working directory.
+fn observed_world(args: &CompileArgs, request: CompileRequest) -> CompileRequest {
+    match (args.intent.as_deref(), std::env::current_dir()) {
+        (Some(intent), Ok(cwd)) => match observe::world(&cwd, intent) {
+            Some(world) => request.with_knowledge(world),
+            None => request,
+        },
+        _ => request,
+    }
+}
+
+/// The knowledge door: the snapshot the flag or `NIKA_KNOWLEDGE` names (a directory, not a
+/// secret) and the corpus the flag or `NIKA_KNOWLEDGE_EXCLUDE` names; the pack composed for the
+/// intent rides the request, the provenance names the snapshot and the selection.
+#[allow(clippy::disallowed_methods)] // a snapshot directory and a corpus name, NON-secret
+fn knowledge_door(args: &CompileArgs, request: CompileRequest) -> CompileRequest {
+    let dir = args
+        .knowledge
+        .clone()
+        .or_else(|| std::env::var_os("NIKA_KNOWLEDGE").map(std::path::PathBuf::from));
+    let exclude = args
+        .knowledge_exclude
+        .clone()
+        .or_else(|| std::env::var("NIKA_KNOWLEDGE_EXCLUDE").ok());
+    let (Some(intent), Some(dir)) = (args.intent.as_deref(), dir.as_deref()) else {
+        return request;
+    };
+    match knowledge::Snapshot::open(dir) {
+        Some(snapshot) => {
+            request.with_authoring_knowledge(snapshot.pack(intent, exclude.as_deref()))
+        }
+        None => request,
+    }
 }
 
 fn workflow_id(dest: &str) -> String {

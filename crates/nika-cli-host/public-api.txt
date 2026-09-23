@@ -195,6 +195,8 @@ pub nika_cli_host::compile::CompileArgs::fresh: bool
 pub nika_cli_host::compile::CompileArgs::hot_policy: core::option::Option<alloc::string::String>
 pub nika_cli_host::compile::CompileArgs::intent: core::option::Option<alloc::string::String>
 pub nika_cli_host::compile::CompileArgs::json: bool
+pub nika_cli_host::compile::CompileArgs::knowledge: core::option::Option<std::path::PathBuf>
+pub nika_cli_host::compile::CompileArgs::knowledge_exclude: core::option::Option<alloc::string::String>
 pub nika_cli_host::compile::CompileArgs::list: bool
 pub nika_cli_host::compile::CompileArgs::output: core::option::Option<alloc::string::String>
 impl clap_builder::derive::Args for nika_cli_host::compile::CompileArgs
