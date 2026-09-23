@@ -144,6 +144,9 @@ struct Talk {
     route: Vec<String>,
     /// The values the human answered: a candidate may carry them without inventing them.
     allowed: Vec<String>,
+    /// The observed world of the stated files, when the host read one: a column, field, key
+    /// or value name is stated there, never asked.
+    observed: Option<Value>,
 }
 
 /// What the cold round left when the native door opened: its report for the record, its
@@ -214,6 +217,7 @@ pub(super) async fn author<P: ProviderInferDyn>(
         last: None,
         route,
         allowed: fidelity::allowed_values(&request.answers),
+        observed: request.knowledge.clone(),
     };
     let mut accepted: Option<Answer> = None;
     for round in 0..=policy.repairs.min(5) {
@@ -318,6 +322,7 @@ async fn exchange<P: ProviderInferDyn>(
         &answer.candidate,
         &answer.questions,
         &talk.allowed,
+        talk.observed.as_ref(),
     );
     talk.rounds.push(json!({
         "round": round,
@@ -505,12 +510,74 @@ const MACHINE_SLUGS: &[&str] = &[
     "schema",
 ];
 
+/// Slug endings that name a column, field, key or value of a file — stated by the observed
+/// world when the host read the file, never asked then.
+const STRUCTURE_SLUGS: &[&str] = &[
+    "_column",
+    "_col",
+    "_field",
+    "_key",
+    "_header",
+    "_attribute",
+    "_property",
+    "_value",
+    "_values",
+];
+
+/// The observed world in one line — `./tickets.json: id, status, topic (status: closed | open)`
+/// — or None when the host read no stated file.
+fn observed_names(observed: Option<&Value>) -> Option<String> {
+    let observed = observed?;
+    let rows = observed
+        .get("observed")
+        .and_then(Value::as_array)
+        .or_else(|| observed.as_array())?;
+    let lines: Vec<String> = rows
+        .iter()
+        .filter_map(|row| {
+            let path = row.get("path")?.as_str()?;
+            let columns: Vec<&str> = row
+                .get("columns")?
+                .as_array()?
+                .iter()
+                .filter_map(Value::as_str)
+                .collect();
+            let values: Vec<String> = row
+                .get("values")
+                .and_then(Value::as_object)
+                .map(|values| {
+                    values
+                        .iter()
+                        .map(|(column, set)| {
+                            let set: Vec<&str> = set
+                                .as_array()
+                                .map(|s| s.iter().filter_map(Value::as_str).collect())
+                                .unwrap_or_default();
+                            format!("{column}: {}", set.join(" | "))
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            let values = if values.is_empty() {
+                String::new()
+            } else {
+                format!(" ({})", values.join("; "))
+            };
+            Some(format!("{path}: {}{values}", columns.join(", ")))
+        })
+        .collect();
+    (!lines.is_empty()).then(|| lines.join(" · "))
+}
+
 /// A candidate's questions, admitted: `const.<snake_slug>` keys only, each declared under
-/// `const:` in the candidate as a placeholder, at most eight; never a machine's construct.
+/// `const:` in the candidate as a placeholder, at most eight; never a machine's construct;
+/// never a name the observed world states.
 fn admitted_questions(
     candidate: &str,
     questions: &[Question],
+    observed: Option<&Value>,
 ) -> Result<Vec<Question>, Diagnostic> {
+    let world = observed_names(observed);
     let doc = crate::edit::literal_projection(candidate);
     let consts = doc
         .as_ref()
@@ -537,6 +604,20 @@ fn admitted_questions(
                 kind: "question",
                 message: format!(
                     "the question `{}` asks the human for a machine's construct; write it yourself from the request (a glob over the stated folder, the jq program, the pattern) and, when the request names no place at all, ask for the FOLDER or FILE as `const.<slug>` (a path, never a glob or a program)",
+                    question.key
+                ),
+            });
+        }
+        // A column, field, key or value name of a file the host read is stated in the
+        // observed world, never asked (2026-09-22 22:5xZ, claude-code/sonnet: `const.status_field`,
+        // `const.open_value`, `const.region_column` beside the observed header and value set).
+        if let Some(world) = world.as_deref()
+            && STRUCTURE_SLUGS.iter().any(|s| slug.ends_with(s))
+        {
+            return Err(Diagnostic {
+                kind: "question",
+                message: format!(
+                    "the question `{}` asks the human for a column, field, key or value name; the observed world states them — {world} — write those exact names and values into the candidate, never a question",
                     question.key
                 ),
             });
@@ -577,13 +658,14 @@ fn judge(
     candidate: &str,
     questions: &[Question],
     allowed: &[String],
+    observed: Option<&Value>,
 ) -> Vec<Diagnostic> {
     let mut out = Vec::new();
     let Some(doc) = admit(candidate, questions, &mut out) else {
         return out;
     };
     fidelity::laws(intent, &reading.plan, &doc, allowed, &[], &mut out);
-    if let Err(diagnostic) = admitted_questions(candidate, questions) {
+    if let Err(diagnostic) = admitted_questions(candidate, questions, observed) {
         out.push(diagnostic);
     }
     out.dedup();
@@ -723,7 +805,8 @@ fn settle(
     request: &CompileRequest,
     out: &mut CompileOutcome,
 ) {
-    let admitted = admitted_questions(candidate, questions).unwrap_or_default();
+    let admitted =
+        admitted_questions(candidate, questions, request.knowledge.as_ref()).unwrap_or_default();
     let record = json!({
         "strategy": Strategy::Native.word(),
         "intent_sha256": super::intent_sha256(intent),
@@ -993,16 +1076,36 @@ mod tests {
             answer_type: "text".to_owned(),
             why: String::new(),
         };
-        assert!(admitted_questions(candidate, &[asked("const.source_glob")]).is_err());
-        assert!(admitted_questions(candidate, &[asked("const.filter_expression")]).is_err());
-        assert!(admitted_questions(candidate, &[asked("const.missing")]).is_err());
+        assert!(admitted_questions(candidate, &[asked("const.source_glob")], None).is_err());
+        assert!(admitted_questions(candidate, &[asked("const.filter_expression")], None).is_err());
+        assert!(admitted_questions(candidate, &[asked("const.missing")], None).is_err());
         assert!(
-            admitted_questions(candidate, &[asked("const.notify_channel")]).is_err(),
+            admitted_questions(candidate, &[asked("const.notify_channel")], None).is_err(),
             "a channel is never a question (the live run of 2026-09-22 asked two for one send)"
         );
-        assert!(admitted_questions(candidate, &[asked("model")]).is_err());
+        assert!(admitted_questions(candidate, &[asked("model")], None).is_err());
+        // A name the observed world states is never a question; without an observed world the
+        // same slug is a declared placeholder like any other.
+        let shaped = "nika: x\nconst:\n  status_field: \"\"\n  region_column: \"\"\ntasks: {}\n";
+        let world = json!({"observed": [{"path": "./tickets.json", "kind": "json", "columns": ["id", "status", "topic"], "values": {"status": ["closed", "open"]}}]});
+        let Err(refused) = admitted_questions(shaped, &[asked("const.status_field")], Some(&world))
+        else {
+            panic!("a field name the observed world states is refused");
+        };
+        assert!(
+            refused
+                .message
+                .contains("./tickets.json: id, status, topic (status: closed | open)"),
+            "{}",
+            refused.message
+        );
+        assert!(admitted_questions(shaped, &[asked("const.region_column")], Some(&world)).is_err());
         assert_eq!(
-            admitted_questions(candidate, &[asked("const.source_folder")]).map(|q| q.len()),
+            admitted_questions(shaped, &[asked("const.status_field")], None).map(|q| q.len()),
+            Ok(1)
+        );
+        assert_eq!(
+            admitted_questions(candidate, &[asked("const.source_folder")], None).map(|q| q.len()),
             Ok(1)
         );
     }
