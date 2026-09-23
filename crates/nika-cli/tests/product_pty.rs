@@ -244,7 +244,7 @@ fn a_fan_out_over_a_folder_lands_one_combined_file() {
     let mut session = open_session(project.path(), home.path());
     session.send_line(intent).expect("the intent");
     session
-        .expect("· nika:read · for each item")
+        .expect("· reads a file · for each item")
         .expect("the review shows the fan-out from the parser");
     session.expect("apply? ›").expect("the consent prompt");
     session.send_line("yes").expect("consent");
