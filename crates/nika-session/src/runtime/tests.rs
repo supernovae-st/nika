@@ -837,19 +837,6 @@ fn a_run_is_requested_only_on_a_clean_check() {
         (run.max_cost_usd - 0.05).abs() < f64::EPSILON,
         "the ceiling named in the run line"
     );
-    assert_eq!(
-        ceiling_in("create it and run it once with a ceiling of 0.05"),
-        Some(0.05)
-    );
-    assert_eq!(ceiling_in("run it, cap $0.10 please"), Some(0.10));
-    assert_eq!(ceiling_in("run it --max-cost-usd 1"), Some(1.0));
-    assert_eq!(ceiling_in("run it --max-cost-usd=0.5"), Some(0.5));
-    assert_eq!(ceiling_in("run it once"), None, "no number, the default");
-    assert_eq!(
-        ceiling_in("write 3 tasks and run it"),
-        None,
-        "a count is not a ceiling"
-    );
     let TurnOutcome::Facts(observed) = s.observe_run(0, Some(Path::new(".nika/traces/t.ndjson")))
     else {
         panic!("an observation");
@@ -869,6 +856,70 @@ fn a_run_is_requested_only_on_a_clean_check() {
         "{report}"
     );
     assert!(report.contains("NIKA-AUTH-006"), "{report}");
+}
+
+/// Budget parsing is exercised through the public turn door, on a
+/// checked workflow, so a parser error cannot silently use the default.
+#[test]
+fn run_money_requires_explicit_finite_unambiguous_intent() {
+    let dir = tree();
+    let mut s = ready_with(dir.path(), vec![]);
+    assert!(matches!(s.turn(COPY), TurnOutcome::Proposal { .. }));
+    assert!(matches!(s.consent("yes"), TurnOutcome::Facts(_)));
+    s.snapshot.ceiling = Some(0.10);
+    for line in [
+        "run it $NaN",
+        "run it $inf",
+        "run it $-1",
+        "run it $1e999",
+        "run it with a ceiling of NaN",
+        "run it --max-cost-usd=-1",
+        "run it --max-cost-usd NaN",
+        "run it --max-cost-usd=oops",
+        "run it --max-cost-usd",
+        "run it --max-cost-usd-extra=1",
+        "run it with a budget",
+        "run it with a ceiling of $0.10 and cap $20",
+        "run it at 9",
+        "run it at 9:00",
+        "run it at 9am",
+        "lance ça à 9",
+        "run it 3 times",
+        "run it with a ceiling of $0.10 at 9",
+    ] {
+        let outcome = s.turn(line);
+        assert!(
+            matches!(outcome, TurnOutcome::Refusal(_)),
+            "{line}: {outcome:?}"
+        );
+        assert!(s.pending_input().is_none(), "no pending run: {line}");
+    }
+    for (line, expected) in [
+        ("run it", 0.10),
+        ("run it, cap $0.25 please", 0.25),
+        ("run it with a ceiling of 0.05", 0.05),
+        ("run it --max-cost-usd=0.5", 0.5),
+        ("run it --max-cost-usd 1", 1.0),
+        ("run it budget 0", 0.0),
+        ("lance ça avec un plafond de $0.05", 0.05),
+        ("run it with a ceiling of $0.50 usd", 0.5),
+    ] {
+        let TurnOutcome::RunRequested { run, .. } = s.turn(line) else {
+            panic!("explicit valid money should request a run: {line}");
+        };
+        assert!((run.max_cost_usd - expected).abs() < f64::EPSILON, "{line}");
+    }
+    // A project amount is a default, not an unspoken invocation cap.
+    s.snapshot.ceiling = Some(f64::NAN);
+    assert!(matches!(s.turn("run it"), TurnOutcome::Refusal(_)));
+    assert!(matches!(
+        s.turn("run it cap $0"),
+        TurnOutcome::RunRequested { .. }
+    ));
+    assert!(
+        !dir.path().join("out/copy.md").exists(),
+        "a request never executes here"
+    );
 }
 
 /// A paused run returns to the session as a question; the human's line

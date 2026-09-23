@@ -36,6 +36,9 @@ mod durable_tests;
 mod history;
 mod recovery;
 mod route;
+mod run_budget;
+
+use run_budget::ceiling_in;
 mod schedule;
 
 /// The durable half of the conversation — decisions, not chat.
@@ -1342,53 +1345,6 @@ impl SessionRuntime {
 /// The ceiling a run from the session is announced with when the project
 /// file declares none (the CLI's own default).
 const DEFAULT_CEILING_USD: f64 = 0.25;
-
-/// The ceiling the human named in their own words — « with a ceiling of
-/// 0.05 » · « cap 0.10 » · « max cost 1 » · « $0.05 » · `--max-cost-usd 0.05`
-/// — or none.
-fn ceiling_in(input: &str) -> Option<f64> {
-    let tokens: Vec<&str> = input.split_whitespace().collect();
-    for (i, raw) in tokens.iter().enumerate() {
-        let token = raw.trim_matches(|c: char| matches!(c, ',' | '(' | ')'));
-        let token = token
-            .strip_suffix('.')
-            .filter(|t| t.parse::<f64>().is_ok())
-            .unwrap_or(token);
-        if let Some(dollars) = token.strip_prefix('$')
-            && let Ok(v) = dollars.parse::<f64>()
-        {
-            return Some(v);
-        }
-        if let Some(v) = token
-            .strip_prefix("--max-cost-usd=")
-            .and_then(|v| v.parse::<f64>().ok())
-        {
-            return Some(v);
-        }
-        let previous = i.checked_sub(1).map(|p| tokens[p].to_lowercase());
-        let after_a_ceiling_word = previous.as_deref().is_some_and(|p| {
-            matches!(
-                p,
-                "ceiling"
-                    | "cap"
-                    | "cost"
-                    | "usd"
-                    | "--max-cost-usd"
-                    | "of"
-                    | "to"
-                    | "at"
-                    | "under"
-            )
-        });
-        if after_a_ceiling_word
-            && let Ok(v) = token.trim_start_matches('$').parse::<f64>()
-            && v >= 0.0
-        {
-            return Some(v);
-        }
-    }
-    None
-}
 
 /// The door out, from any prompt.
 fn is_quit(answer: &str) -> bool {

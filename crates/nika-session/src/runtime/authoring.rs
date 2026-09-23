@@ -707,13 +707,24 @@ impl SessionRuntime {
         ) {
             return None;
         }
+        // A label from the conversational router cannot turn an invalid
+        // amount (or an unqualified time/count) into permission to run.
+        let ceiling = match ceiling_in(input) {
+            Ok(ceiling) => ceiling,
+            Err(reason) => {
+                return Some(TurnOutcome::Refusal(Refusal::new(
+                    RefusalClass::NotAllowed,
+                    reason,
+                )));
+            }
+        };
         // The run grammar is closed: the verb, the workflow named or « it »,
         // a ceiling. A line that carries more (« run it, but only on
         // Fridays ») is not a run: its act is a bounded decision, and a
         // change comes before any run.
         if !run_line_is_plain(&lower) {
             return match self.classify(SessionPhase::Idle, input).act {
-                TurnAct::RequestRun => Some(self.run_plain(input)),
+                TurnAct::RequestRun => Some(self.run_plain(input, ceiling)),
                 TurnAct::Modify | TurnAct::Mixed => Some(TurnOutcome::Refusal(Refusal::new(
                     RefusalClass::WrongState,
                     "a run with a change in it — say the change first (in a sentence), review the new workflow, then « run it »",
@@ -721,12 +732,12 @@ impl SessionRuntime {
                 _ => None,
             };
         }
-        Some(self.run_plain(input))
+        Some(self.run_plain(input, ceiling))
     }
 
     /// The closed run line: the verb, the file or the last accepted
     /// workflow, the ceiling.
-    fn run_plain(&mut self, input: &str) -> TurnOutcome {
+    fn run_plain(&mut self, input: &str, ceiling: Option<f64>) -> TurnOutcome {
         let root = self.snapshot.root.clone();
         let named = named_files(input)
             .into_iter()
@@ -750,9 +761,15 @@ impl SessionRuntime {
             }
             return TurnOutcome::Facts(text);
         }
-        let max_cost_usd = ceiling_in(input)
+        let max_cost_usd = ceiling
             .or(self.snapshot.ceiling)
             .unwrap_or(DEFAULT_CEILING_USD);
+        if !max_cost_usd.is_finite() || max_cost_usd < 0.0 {
+            return TurnOutcome::Refusal(Refusal::new(
+                RefusalClass::NotAllowed,
+                "the run ceiling must be a finite, nonnegative amount in USD — correct the project ceiling or name an explicit run ceiling",
+            ));
+        }
         self.last_workflow = Some(workflow.clone());
         // The workflow's own declared inputs: a required one with no
         // default is asked, in the product, before the run is requested —
