@@ -39,6 +39,9 @@ use super::{CompileError, CompileOutcome, CompileRequest, DiagnosticKind, Questi
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
 
+mod emit;
+pub(super) use emit::{Laws, emit};
+
 /// What a fact is for: prompts and anchor laws see the corpus and the derived
 /// results; code rules also see the parsed data.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -431,7 +434,17 @@ pub(super) fn assemble(
         d.tool("dedup_next", "nika:jq", json!({"input": {"state": "${{ with.state }}", "id": "${{ inputs.event_id }}"}, "expression": ". as $r | (($r.state | fromjson) + [$r.id]) | tojson"}), Some(json!({"state": "${{ tasks.dedup_read.output }}"})), true);
         d.tool("dedup_record", "nika:write", json!({"path": "${{ const.state_file }}", "content": "${{ with.next }}", "overwrite": true, "create_dirs": true}), Some(json!({"next": "${{ tasks.dedup_next.output }}"})), false);
     }
-    settle_candidate(plan, &b, d, out)
+    settle_candidate(
+        plan,
+        &b,
+        d,
+        &Laws {
+            intent,
+            plan,
+            answers: &request.answers,
+        },
+        out,
+    )
 }
 
 /// A trigger the request names is deployment, not workflow: stated beside the candidate
@@ -1366,56 +1379,6 @@ fn emit_revision_check(d: &mut Doc, plan: &Plan, b: &Bindings) {
         d.tool("revision_stable", "nika:jq", json!({"input": {"before": "${{ with.before }}", "after": "${{ with.after }}"}, "expression": ".before == .after"}), Some(json!({"before": "${{ tasks.search_hits.output }}", "after": "${{ tasks.revision_reread.output }}"})), false);
         d.tool("revision_admit", "nika:assert", json!({"condition": "${{ with.stable }}", "message": "The hits changed since they were searched; the final action is not allowed on a stale version."}), Some(json!({"stable": "${{ tasks.revision_stable.output }}"})), false);
     }
-}
-
-/// Permits and emission: exactly what the tasks reach, then the literal round trip.
-pub(super) fn emit(mut d: Doc, out: &mut CompileOutcome) -> Result<(), CompileError> {
-    d.root["permits"]["tools"] = json!(d.tools.iter().copied().collect::<Vec<_>>());
-    if !d.reads.is_empty() || !d.writes.is_empty() {
-        let mut fs = json!({});
-        if !d.reads.is_empty() {
-            fs["read"] = json!(d.reads);
-        }
-        if !d.writes.is_empty() {
-            fs["write"] = json!(d.writes);
-        }
-        d.root["permits"]["fs"] = fs;
-    }
-    if !d.hosts.is_empty() {
-        d.root["permits"]["net"] = json!({"http": d.hosts});
-    }
-    for key in ["const", "inputs"] {
-        if d.root[key]
-            .as_object()
-            .is_some_and(serde_json::Map::is_empty)
-            && let Some(map) = d.root.as_object_mut()
-        {
-            map.remove(key);
-        }
-    }
-    if d.root["outputs"]
-        .as_object()
-        .is_some_and(serde_json::Map::is_empty)
-    {
-        if let Some(fact) = d.facts.last() {
-            d.root["outputs"][fact.name] = json!(fact.template);
-        } else if d.item {
-            d.root["outputs"]["item"] = json!("${{ inputs.item }}");
-        }
-    }
-    let source = serde_yaml_bw::to_string(&d.root).map_err(CompileError::representation)?;
-    if super::edit::literal_projection(&source).as_ref() != Some(&d.root) {
-        super::finding(
-            out,
-            DiagnosticKind::Refused,
-            "candidate",
-            "The emitted candidate did not preserve literal data.",
-        );
-        out.status = super::CompileStatus::Refused;
-        return Ok(());
-    }
-    super::finish(source, out);
-    Ok(())
 }
 
 #[cfg(test)]

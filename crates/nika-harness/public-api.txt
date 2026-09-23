@@ -94,6 +94,7 @@ impl<T> nika_error::traits::AsAny for nika_harness::infer::StructuredOutputGrade
 pub fn nika_harness::infer::StructuredOutputGrade::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_harness::infer::HarnessInferOutcome
 pub nika_harness::infer::HarnessInferOutcome::attested_version: (u32, u32)
+pub nika_harness::infer::HarnessInferOutcome::observed_model: core::option::Option<alloc::string::String>
 pub nika_harness::infer::HarnessInferOutcome::output: alloc::string::String
 pub nika_harness::infer::HarnessInferOutcome::requested_model: alloc::string::String
 pub nika_harness::infer::HarnessInferOutcome::usage_observed: bool
@@ -452,14 +453,17 @@ pub mod nika_harness::spawn
 pub nika_harness::spawn::HarnessAdapter::args: alloc::vec::Vec<alloc::string::String>
 pub nika_harness::spawn::HarnessAdapter::command: alloc::string::String
 pub nika_harness::spawn::HarnessAdapter::id: alloc::string::String
+pub nika_harness::spawn::HarnessAdapter::identities: alloc::vec::Vec<alloc::string::String>
 pub nika_harness::spawn::HarnessAdapter::passthrough_env: alloc::vec::Vec<alloc::string::String>
 pub nika_harness::spawn::HarnessAdapter::probe_via_handshake: bool
 pub nika_harness::spawn::HarnessAdapter::version_args: alloc::vec::Vec<alloc::string::String>
 pub nika_harness::spawn::HarnessAdapter::version_pin: core::option::Option<nika_harness::probe::VersionPin>
 impl nika_harness::spawn::HarnessAdapter
+pub fn nika_harness::spawn::HarnessAdapter::answers_as(&self, name: &str) -> bool
 pub fn nika_harness::spawn::HarnessAdapter::new(id: impl core::convert::Into<alloc::string::String>, command: impl core::convert::Into<alloc::string::String>) -> core::result::Result<Self, nika_kernel_ai::harness::HarnessError>
 pub fn nika_harness::spawn::HarnessAdapter::with_args(self, args: alloc::vec::Vec<alloc::string::String>) -> Self
 pub fn nika_harness::spawn::HarnessAdapter::with_handshake_probe(self) -> Self
+pub fn nika_harness::spawn::HarnessAdapter::with_identities(self, names: alloc::vec::Vec<alloc::string::String>) -> Self
 pub fn nika_harness::spawn::HarnessAdapter::with_passthrough_env(self, vars: alloc::vec::Vec<alloc::string::String>) -> Self
 pub fn nika_harness::spawn::HarnessAdapter::with_version_args(self, args: alloc::vec::Vec<alloc::string::String>) -> Self
 pub fn nika_harness::spawn::HarnessAdapter::with_version_pin(self, pin: nika_harness::probe::VersionPin) -> Self
@@ -721,6 +725,9 @@ pub fn nika_harness::wire::NewSessionParams::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::wire::NewSessionParams where T: 'static
 pub fn nika_harness::wire::NewSessionParams::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub struct nika_harness::wire::NewSessionResult
+pub nika_harness::wire::NewSessionResult::config_options: core::option::Option<serde_json::value::Value>
+pub nika_harness::wire::NewSessionResult::models: core::option::Option<serde_json::value::Value>
+pub nika_harness::wire::NewSessionResult::modes: core::option::Option<serde_json::value::Value>
 pub nika_harness::wire::NewSessionResult::session_id: alloc::string::String
 impl core::fmt::Debug for nika_harness::wire::NewSessionResult
 pub fn nika_harness::wire::NewSessionResult::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
@@ -945,6 +952,9 @@ pub fn nika_harness::wire::TextBlock::as_any(&self) -> &(dyn core::any::Any + 's
 pub const nika_harness::wire::METHOD_INITIALIZE: &str
 pub const nika_harness::wire::METHOD_REQUEST_PERMISSION: &str
 pub const nika_harness::wire::METHOD_SESSION_CANCEL: &str
+pub const nika_harness::wire::METHOD_SET_CONFIG_OPTION: &str
+pub const nika_harness::wire::METHOD_SET_MODE: &str
+pub const nika_harness::wire::METHOD_SET_MODEL: &str
 pub const nika_harness::wire::METHOD_SESSION_NEW: &str
 pub const nika_harness::wire::METHOD_SESSION_PROMPT: &str
 pub const nika_harness::wire::METHOD_SESSION_UPDATE: &str
@@ -1160,9 +1170,11 @@ pub nika_harness::HarnessAdapter::probe_via_handshake: bool
 pub nika_harness::HarnessAdapter::version_args: alloc::vec::Vec<alloc::string::String>
 pub nika_harness::HarnessAdapter::version_pin: core::option::Option<nika_harness::probe::VersionPin>
 impl nika_harness::spawn::HarnessAdapter
+pub fn nika_harness::spawn::HarnessAdapter::answers_as(&self, name: &str) -> bool
 pub fn nika_harness::spawn::HarnessAdapter::new(id: impl core::convert::Into<alloc::string::String>, command: impl core::convert::Into<alloc::string::String>) -> core::result::Result<Self, nika_kernel_ai::harness::HarnessError>
 pub fn nika_harness::spawn::HarnessAdapter::with_args(self, args: alloc::vec::Vec<alloc::string::String>) -> Self
 pub fn nika_harness::spawn::HarnessAdapter::with_handshake_probe(self) -> Self
+pub fn nika_harness::spawn::HarnessAdapter::with_identities(self, names: alloc::vec::Vec<alloc::string::String>) -> Self
 pub fn nika_harness::spawn::HarnessAdapter::with_passthrough_env(self, vars: alloc::vec::Vec<alloc::string::String>) -> Self
 pub fn nika_harness::spawn::HarnessAdapter::with_version_args(self, args: alloc::vec::Vec<alloc::string::String>) -> Self
 pub fn nika_harness::spawn::HarnessAdapter::with_version_pin(self, pin: nika_harness::probe::VersionPin) -> Self

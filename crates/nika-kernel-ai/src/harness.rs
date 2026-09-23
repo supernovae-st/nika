@@ -43,6 +43,9 @@ pub struct HarnessRequest {
     /// the harness may report a different observed identity; recording
     /// both is the receipt's job, never a silent substitution (A-2).
     pub requested_model: Option<String>,
+    /// The session mode the caller wants, in the caller's word (`read-only`): the client maps it
+    /// to a mode the agent advertises (`plan` · `read-only` · …) when one exists, best effort.
+    pub requested_mode: Option<String>,
 }
 
 impl HarnessRequest {
@@ -54,6 +57,7 @@ impl HarnessRequest {
             system: None,
             cwd: cwd.into(),
             requested_model: None,
+            requested_mode: None,
         }
     }
 
@@ -68,6 +72,12 @@ impl HarnessRequest {
     #[must_use]
     pub fn with_requested_model(mut self, model: impl Into<String>) -> Self {
         self.requested_model = Some(model.into());
+        self
+    }
+    /// Ask for a session mode by intent (`read-only`).
+    #[must_use]
+    pub fn with_requested_mode(mut self, mode: impl Into<String>) -> Self {
+        self.requested_mode = Some(mode.into());
         self
     }
 }

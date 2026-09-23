@@ -14,6 +14,37 @@ pub struct CompileRequest {
     pub(super) hot: HotPolicy,
     /// A previously produced private plan to replay for the same intent (see [`Self::with_plan`]).
     pub(super) plan: Option<serde_json::Value>,
+    /// What the caller observed about the world the request names (the shape of its stated
+    /// files: columns, keys, small value sets), stated to an authoring seat as data — see
+    /// [`Self::with_knowledge`].
+    pub(super) knowledge: Option<serde_json::Value>,
+    /// The authoring pack a knowledge door composed for this intent — see
+    /// [`Self::with_authoring_knowledge`].
+    pub(super) authoring_knowledge: Option<AuthoringKnowledge>,
+    /// The request the base candidate answered, when the caller has it — see
+    /// [`Self::with_original_intent`]; an edit's laws read it beside the change.
+    pub(super) original_intent: Option<String>,
+}
+
+/// One reference a knowledge snapshot recalled for the seat: its kind (`pattern` · `block` ·
+/// `example` · `skill`), its id in the snapshot and the text the seat reads.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct KnowledgeReference {
+    pub kind: String,
+    pub id: String,
+    pub text: String,
+}
+
+/// The authoring pack a knowledge door composed for one intent from a versioned snapshot:
+/// the references the seat reads beside the card, the repair principles by diagnostic code
+/// for the repair rounds, the snapshot's identity (version · digest · builder) and the
+/// selection record (every recalled row and why) for the provenance.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct AuthoringKnowledge {
+    pub identity: serde_json::Value,
+    pub selection: serde_json::Value,
+    pub references: Vec<KnowledgeReference>,
+    pub repairs: std::collections::BTreeMap<String, Vec<String>>,
 }
 
 /// How much the deterministic reader may decide on its own. False HOT is the P0 defect:
@@ -83,6 +114,32 @@ impl CompileRequest {
         self.plan = Some(plan);
         self
     }
+    /// Facts the caller observed about the world the request names (`{"observed": [{path,
+    /// kind, columns, delimiter?, values?}]}`): an authoring seat reads them as data, names the
+    /// columns a file spells, asks for none of them and invents none. Never a row's value: the
+    /// host observes a header, a key set, the small value set of a categorical column.
+    #[must_use]
+    pub fn with_knowledge(mut self, snapshot: serde_json::Value) -> Self {
+        self.knowledge = Some(snapshot);
+        self
+    }
+
+    /// The authoring pack a knowledge door composed for this intent: its references reach
+    /// the seat beside the card, its repair principles reach the repair rounds, its identity
+    /// and selection reach the provenance (`decision.native.knowledge`).
+    #[must_use]
+    pub fn with_authoring_knowledge(mut self, pack: AuthoringKnowledge) -> Self {
+        self.authoring_knowledge = Some(pack);
+        self
+    }
+
+    /// The request the base candidate answered: an edit under a seat reads it beside the
+    /// change, so the laws hold the revised candidate to the whole meaning.
+    #[must_use]
+    pub fn with_original_intent(mut self, intent: impl Into<String>) -> Self {
+        self.original_intent = Some(intent.into());
+        self
+    }
     /// Create from an exact skeleton or bounded support clauses. Other intents
     /// remain incomplete unless an explicit provider authoring call resolves them.
     #[must_use]
@@ -94,6 +151,9 @@ impl CompileRequest {
             authoring: None,
             hot: HotPolicy::default(),
             plan: None,
+            knowledge: None,
+            authoring_knowledge: None,
+            original_intent: None,
         }
     }
 
@@ -114,6 +174,9 @@ impl CompileRequest {
             authoring: None,
             hot: HotPolicy::default(),
             plan: None,
+            knowledge: None,
+            authoring_knowledge: None,
+            original_intent: None,
         }
     }
 
@@ -145,6 +208,9 @@ impl CompileRequest {
             authoring: None,
             hot: HotPolicy::default(),
             plan: None,
+            knowledge: None,
+            authoring_knowledge: None,
+            original_intent: None,
         }
     }
 
@@ -305,6 +371,9 @@ pub enum Strategy {
     Warm,
     /// One generative proposal, constrained by the deterministic facts.
     Cold,
+    /// A native candidate the seat wrote from the authoring workspace's knowledge, judged by
+    /// the parser, the Check and the fidelity laws, repaired from their diagnostics.
+    Native,
 }
 
 impl Strategy {
@@ -317,6 +386,7 @@ impl Strategy {
             Self::Hot => "hot",
             Self::Warm => "warm",
             Self::Cold => "cold",
+            Self::Native => "native",
         }
     }
     /// The strategy a recorded plan names, if the word is one of ours.
@@ -327,9 +397,39 @@ impl Strategy {
             Self::Hot,
             Self::Warm,
             Self::Cold,
+            Self::Native,
         ]
         .into_iter()
         .find(|strategy| strategy.word() == word)
+    }
+}
+
+/// When the native strategy (a seat-written candidate judged by the parser, the Check and the
+/// fidelity laws) is engaged for a free intent.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum NativeMode {
+    /// Never: the private plan is the only generative path (the library's default, so that
+    /// a caller's calls stay exactly what it asked for; the CLI opts into `Escalate`).
+    #[default]
+    Off,
+    /// After the private plan ends without a candidate, fails the fidelity laws or hands
+    /// the human a machine's problem (a rewrite, a jq expression, a glob).
+    Escalate,
+    /// Straight to the native candidate, before the deterministic door and without the
+    /// private plan (the ablation, and the arena's treatment D).
+    Only,
+}
+
+impl NativeMode {
+    /// The stable machine word.
+    #[must_use]
+    pub const fn word(self) -> &'static str {
+        match self {
+            Self::Off => "off",
+            Self::Escalate => "escalate",
+            Self::Only => "only",
+        }
     }
 }
 
@@ -341,8 +441,22 @@ pub struct AuthoringPolicy {
     pub(super) max_tokens: u32,
     pub(super) timeout: std::time::Duration,
     pub(super) samples: u32,
+    pub(super) native: NativeMode,
+    pub(super) repairs: u32,
 }
 impl AuthoringPolicy {
+    /// When the native candidate is written (default: after the private plan fails a human).
+    #[must_use]
+    pub fn with_native(mut self, native: NativeMode) -> Self {
+        self.native = native;
+        self
+    }
+    /// How many repair rounds a native candidate may buy (0..=5, default 3): one call each.
+    #[must_use]
+    pub fn with_repairs(mut self, repairs: u32) -> Self {
+        self.repairs = repairs.min(5);
+        self
+    }
     /// Ask for `samples` independent proposals (1..=5) and keep the one the others agree
     /// with most; disagreement is recorded, never voted away. Each sample is one call.
     #[must_use]
@@ -359,6 +473,8 @@ impl AuthoringPolicy {
             max_tokens,
             timeout,
             samples: 1,
+            native: NativeMode::default(),
+            repairs: 3,
         }
     }
 }
@@ -378,6 +494,16 @@ pub struct AuthoringReceipt {
     pub output_tokens: Option<u64>,
     /// Wall time spent awaiting the provider, including timeout/failure.
     pub elapsed_ms: u64,
+    /// What each call received, in call order: its role (`plan` · `repair` · `transform`),
+    /// the sha256 of the instruction and of the answer schema it was given, the bytes of its
+    /// messages, and the references sent with it (none today: recall is recorded, never
+    /// sent). A journal of what the seat actually read, never of what the repository holds.
+    pub context: Vec<serde_json::Value>,
+    /// The backend that answered, named by the transport that seated it: `direct_api` (a
+    /// provider of the registry, tokens metered) or `acp_harness` (the operator's own agent
+    /// harness through ACP: adapter, observed model, cost basis, no fabricated token meter).
+    /// None when the transport did not say.
+    pub backend: Option<serde_json::Value>,
 }
 
 /// Authoring provenance is not program identity or execution Proof.

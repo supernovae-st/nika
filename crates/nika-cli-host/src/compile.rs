@@ -3,6 +3,10 @@
 
 //! CLI transport and explicit materialization for the stateless Compile core.
 mod authoring;
+#[cfg(feature = "access-harness")]
+mod harness_seat;
+mod knowledge;
+mod observe;
 mod render;
 mod sidecar;
 mod typesafe;
@@ -28,7 +32,7 @@ pub struct CompileArgs {
     #[arg(long, short = 'o', conflicts_with = "dest", group = "destination")]
     pub output: Option<String>,
     /// Explicit accepted source for a conservative edit.
-    #[arg(long, requires = "change", conflicts_with = "intent")]
+    #[arg(long, requires = "change")]
     pub base: Option<String>,
     /// Supported edit: `Set const.NAME to JSON_LITERAL`.
     #[arg(long, requires = "base")]
@@ -37,7 +41,7 @@ pub struct CompileArgs {
     #[arg(long = "answer")]
     pub answers: Vec<String>,
     /// Explicitly permit one provider call to interpret free intent (wire generation 2).
-    #[arg(long, conflicts_with_all = ["base", "list"])]
+    #[arg(long, conflicts_with = "list")]
     pub authoring_model: Option<String>,
     /// Maximum authoring output tokens; requires explicit authoring model.
     #[arg(long, requires = "authoring_model")]
@@ -51,6 +55,23 @@ pub struct CompileArgs {
     /// Independent COLD proposals to compare (1..=5); each is one call. Requires the authoring model.
     #[arg(long, requires = "authoring_model")]
     pub authoring_samples: Option<u32>,
+    /// When the seat writes the candidate itself (a native `.nika` judged by the parser, the
+    /// Check and the fidelity laws): `escalate` (default) after the private plan fails a human,
+    /// `only` straight away, `off` never. Requires the authoring model.
+    #[arg(long, requires = "authoring_model", value_parser = ["escalate", "only", "off"])]
+    pub authoring_strategy: Option<String>,
+    /// Repair rounds a native candidate may buy from the compiler's diagnostics (0..=5, default 3).
+    #[arg(long, requires = "authoring_model")]
+    pub authoring_repairs: Option<u32>,
+    /// A knowledge snapshot directory (manifest.json · one JSONL per kind · relations.jsonl): the seat
+    /// reads the pack composed for this intent beside the card; the provenance names the snapshot.
+    /// `NIKA_KNOWLEDGE` in the environment names one when the flag is absent.
+    #[arg(long, requires = "authoring_model")]
+    pub knowledge: Option<std::path::PathBuf>,
+    /// A corpus whose examples the knowledge door never recalls (a benchmark's own);
+    /// `NIKA_KNOWLEDGE_EXCLUDE` in the environment names one when the flag is absent.
+    #[arg(long, requires = "knowledge")]
+    pub knowledge_exclude: Option<String>,
     /// Explicitly seat one bounded-decision capability (`typesafe/jev-1.13.0` or `provider/name`) for finite ambiguities.
     #[arg(long, conflicts_with_all = ["base", "list"])]
     pub decision_model: Option<String>,
@@ -91,7 +112,18 @@ pub fn run(args: &CompileArgs) -> VerbOutput {
                 return render::failure("read_base", &error.to_string(), exit::ENV, args.json);
             }
         };
-        CompileRequest::edit(source, args.change.as_deref().unwrap_or(""))
+        let request = CompileRequest::edit(source, args.change.as_deref().unwrap_or(""));
+        match args
+            .intent
+            .as_deref()
+            .map(str::trim)
+            .filter(|i| !i.is_empty())
+        {
+            // The intent beside a base is the request the base answered: the seat revises
+            // against the whole meaning, never against the change alone.
+            Some(original) => request.with_original_intent(original),
+            None => request,
+        }
     } else {
         let mut request = CompileRequest::create(args.intent.as_deref().unwrap_or(""));
         if let Some(dest) = dest {
@@ -121,9 +153,15 @@ pub fn run(args: &CompileArgs) -> VerbOutput {
     ) || nika_pack::template_names()
         .iter()
         .any(|name| Some(name.as_str()) == args.intent.as_deref().map(str::trim));
-    let cognition = (args.authoring_model.is_some() || args.decision_model.is_some())
-        && args.base.is_none()
-        && !named;
+    let cognition = (args.authoring_model.is_some() || args.decision_model.is_some()) && !named;
+    if cognition {
+        request = observed_world(args, request);
+    }
+    // The knowledge door: the snapshot the flag or the environment names, its pack for this
+    // intent composed here and stated to the seat beside the card.
+    if cognition && args.authoring_model.is_some() {
+        request = knowledge_door(args, request);
+    }
     // Free intents only: a skeleton, hello or an edit never produces a plan to record.
     let sha =
         (args.base.is_none() && !named).then(|| intent_sha256(&effective_intent(args, cognition)));
@@ -175,6 +213,42 @@ fn effective_intent(args: &CompileArgs, cognition: bool) -> String {
         .filter_map(|value| value.as_str().map(str::to_owned))
         .find(|text| !text.trim().is_empty())
         .unwrap_or(intent)
+}
+
+/// An authoring seat reads the shape of the files the request names (a header, a key set, a
+/// categorical column's values — never a row), observed under the working directory.
+fn observed_world(args: &CompileArgs, request: CompileRequest) -> CompileRequest {
+    match (args.intent.as_deref(), std::env::current_dir()) {
+        (Some(intent), Ok(cwd)) => match observe::world(&cwd, intent) {
+            Some(world) => request.with_knowledge(world),
+            None => request,
+        },
+        _ => request,
+    }
+}
+
+/// The knowledge door: the snapshot the flag or `NIKA_KNOWLEDGE` names (a directory, not a
+/// secret) and the corpus the flag or `NIKA_KNOWLEDGE_EXCLUDE` names; the pack composed for the
+/// intent rides the request, the provenance names the snapshot and the selection.
+#[allow(clippy::disallowed_methods)] // a snapshot directory and a corpus name, NON-secret
+fn knowledge_door(args: &CompileArgs, request: CompileRequest) -> CompileRequest {
+    let dir = args
+        .knowledge
+        .clone()
+        .or_else(|| std::env::var_os("NIKA_KNOWLEDGE").map(std::path::PathBuf::from));
+    let exclude = args
+        .knowledge_exclude
+        .clone()
+        .or_else(|| std::env::var("NIKA_KNOWLEDGE_EXCLUDE").ok());
+    let (Some(intent), Some(dir)) = (args.intent.as_deref(), dir.as_deref()) else {
+        return request;
+    };
+    match knowledge::Snapshot::open(dir) {
+        Some(snapshot) => {
+            request.with_authoring_knowledge(snapshot.pack(intent, exclude.as_deref()))
+        }
+        None => request,
+    }
 }
 
 fn workflow_id(dest: &str) -> String {

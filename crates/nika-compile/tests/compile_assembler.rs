@@ -534,15 +534,30 @@ fn a_count_and_total_folded_into_the_rule_is_the_summary_stage() {
         rule["jq"],
         "[.records[] | select((.amount | tonumber) > 100)]"
     );
-    // Without the fold, the summary stage is not emitted for a rule nothing later reads.
+    // Without the fold, the summary stage is not emitted for a rule nothing later reads. The
+    // plain record writes no note, so it answers the request without the note clause: a
+    // candidate that dropped a stated destination is refused at every door now (the fidelity
+    // laws), never READY.
     let plain = filter_record(
         "./data/orders.csv",
         "keep only the rows whose amount is strictly greater than 100",
         "./out/big.csv",
     );
-    let doc = document(&replay(FOLDED, &plain, &[]));
+    let doc = document(&replay(PLAIN, &plain, &[]));
     assert!(tasks(&doc).get("compute_summary").is_none(), "{doc:#}");
+    let refused = replay(FOLDED, &plain, &[]);
+    assert_ne!(refused.status, CompileStatus::Ready, "{refused:#?}");
+    assert!(
+        refused
+            .diagnostics
+            .iter()
+            .any(|d| d.target == "fidelity" && d.message.contains("./out/note.md")),
+        "{refused:#?}"
+    );
 }
+
+/// The folded request without its note clause: what the plain record answers.
+const PLAIN: &str = "Read ./data/orders.csv (columns order_id,customer,amount,status), keep only the rows whose amount is strictly greater than 100, and write those rows to ./out/big.csv.";
 
 #[tokio::test]
 async fn an_unresolvable_rule_still_asks_for_the_expression() {

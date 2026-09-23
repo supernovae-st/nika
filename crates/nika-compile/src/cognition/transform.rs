@@ -264,7 +264,8 @@ pub(super) async fn synthesize<P: ProviderInferDyn>(
             Message::text(Role::System, INSTRUCTION),
             Message::text(Role::User, state.to_string()),
         ];
-        let response = super::call_with_schema(policy, provider, messages, schema(), out).await;
+        let response =
+            super::call_with_schema(policy, provider, "transform", messages, schema(), out).await;
         let verdict = response
             .ok_or_else(|| Refusal("the seat returned no transform".to_owned()))
             .and_then(|response| match response.content.as_slice() {

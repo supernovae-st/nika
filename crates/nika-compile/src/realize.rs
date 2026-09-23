@@ -7,7 +7,7 @@
 //! hold are refused. The ledger rides in provenance either way, observational, never
 //! authority.
 
-use super::assemble::{Doc, emit};
+use super::assemble::{Doc, Laws, emit};
 use super::bindings::{Bindings, RuleBinding};
 use super::ledger::{Duty, DutyKind, DutyState, Ledger};
 use super::plan::{EffectPolicy, EffectVerb, Op, Plan};
@@ -22,6 +22,7 @@ pub(super) fn settle_candidate(
     plan: &Plan,
     b: &Bindings,
     d: Doc,
+    laws: &Laws<'_>,
     out: &mut CompileOutcome,
 ) -> Result<(), CompileError> {
     // The realized topology, recorded beside the route: observational, never authority.
@@ -69,7 +70,7 @@ pub(super) fn settle_candidate(
         return Ok(());
     }
     out.provenance.suggested_file = Some(suggested_file(plan, b));
-    emit(d, out)
+    emit(d, laws, out)
 }
 
 /// A kebab-case file name for the candidate: the first written file's stem (`open-sorted`),

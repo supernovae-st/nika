@@ -444,8 +444,8 @@ struct RunArgs {
     model: Option<String>,
     /// Pin the ACCESS path (`model:` picks the intelligence; access
     /// picks the path) — either a class (`local` · `mock` · `harness` ·
-    /// `oauth` · `api`) or a harness seat (`claude-code` · `codex` ·
-    /// `gemini-cli` · `kimi-code` · `qwen-code`). Retired ACP wrapper
+    /// `oauth` · `api`) or a harness seat (`claude-code` · `codex` · `copilot` ·
+    /// `gemini-cli` · `grok-build` · `kimi-code` · `opencode` · `qwen-code`). Retired ACP wrapper
     /// ids (`claude-agent-acp` · `codex-acp`) refuse with NIKA-1802. A
     /// pin is a pin: unsatisfied refuses before the prologue with a
     /// witness, never substitutes another path or model (D-2026-08-04-N1).

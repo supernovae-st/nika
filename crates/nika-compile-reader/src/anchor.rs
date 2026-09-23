@@ -4,11 +4,12 @@
 //! A near-miss citation: the request span a seat names when its citation is a letter or two
 //! away from the request's own words (« espere » for « espera »). The span is the request's;
 //! the seat's spelling is never kept.
+//! Moved from nika-compile to the reader at the 15k prod-LOC wall (2026-09-22), unchanged.
 
 /// The request span a near-miss citation names: a citation of at least 24 characters that is
 /// at most two edits (a letter changed, dropped or added) away from exactly one span of the
 /// request, one of whose ends the citation reproduces. The request's own words are used.
-pub(super) fn near_excerpt(
+pub(crate) fn near_excerpt(
     folded: &str,
     offsets: &[usize],
     intent: &str,

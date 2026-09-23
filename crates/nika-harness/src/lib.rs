@@ -23,6 +23,7 @@
 pub mod client;
 pub mod declaration;
 pub mod infer;
+mod oneshot;
 pub mod probe;
 pub mod registry;
 pub mod spawn;

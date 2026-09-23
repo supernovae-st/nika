@@ -169,6 +169,9 @@ pub struct HarnessInferOutput {
     pub output: serde_json::Value,
     /// The author-requested model identity, not a claim about the responder.
     pub requested_model: String,
+    /// The responder the seat's own CLI named, when it did (`modelUsage` · the assistant
+    /// message's model); the receipt carries it as an observation, never as the request.
+    pub observed_model: Option<String>,
 }
 
 #[cfg(feature = "access-harness")]
@@ -179,7 +182,15 @@ impl HarnessInferOutput {
         Self {
             output,
             requested_model: requested_model.into(),
+            observed_model: None,
         }
+    }
+
+    /// Attach the responder the seat named.
+    #[must_use]
+    pub fn with_observed_model(mut self, model: Option<String>) -> Self {
+        self.observed_model = model;
+        self
     }
 }
 
@@ -310,7 +321,8 @@ impl<H> InferVerb<H> {
             }
             _ => serde_json::Value::String(outcome.output),
         };
-        Ok(HarnessInferOutput::new(output, requested_model))
+        Ok(HarnessInferOutput::new(output, requested_model)
+            .with_observed_model(outcome.observed_model))
     }
 }
 

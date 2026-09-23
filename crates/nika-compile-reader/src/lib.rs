@@ -25,11 +25,24 @@
 //!   columns, and the strict HOT admission over the reader's own vocabulary.
 //! - [`text`] · the text helpers the compiler and the onboarding surface share.
 
-#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        // The plan is `#[non_exhaustive]`: its tests build it field by field from `Default`,
+        // as every crate outside this one must.
+        clippy::field_reassign_with_default
+    )
+)]
 
 pub mod aggregate;
+mod anchor;
+pub mod candidate;
 pub mod cardinality;
 pub mod columns;
+pub mod fidelity;
 pub mod gates;
 pub mod hot;
 pub mod lexicon;
@@ -39,8 +52,10 @@ pub mod plan;
 pub mod rule_cues;
 pub mod rule_tokens;
 pub mod rules;
+pub mod shape;
 pub mod stages;
 pub mod structure;
 pub mod text;
+pub mod trigger_words;
 pub mod unknowns;
 pub mod words;

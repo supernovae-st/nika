@@ -49,9 +49,20 @@ pub fn single_file(text: &str) -> Option<String> {
 
 /// One whitespace-free word read as a path, or nothing when it is prose.
 pub fn token(word: &str) -> Option<PathShape> {
-    let word = word
-        .trim_matches(|c: char| matches!(c, '"' | '\'' | '`' | '(' | ')' | '[' | ']' | '«' | '»'))
-        .trim_end_matches(['.', ',', ';', ':', '!', '?']);
+    // Quotes and brackets wrap a token, punctuation follows it, and prose nests them
+    // (`(./a.md, ./b.md),`): trim until nothing changes.
+    let mut word = word;
+    loop {
+        let next = word
+            .trim_matches(|c: char| {
+                matches!(c, '"' | '\'' | '`' | '(' | ')' | '[' | ']' | '«' | '»')
+            })
+            .trim_end_matches(['.', ',', ';', ':', '!', '?']);
+        if next == word {
+            break;
+        }
+        word = next;
+    }
     if word.len() < 2 || word.contains("://") || word.chars().any(char::is_whitespace) {
         return None;
     }
@@ -196,6 +207,22 @@ impl Structured {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_path_token_sheds_nested_brackets_and_punctuation_until_nothing_changes() {
+        assert_eq!(
+            token("./docs/fournisseur-c.md),"),
+            Some(PathShape::File("./docs/fournisseur-c.md".to_owned()))
+        );
+        assert_eq!(
+            token("(./docs/fournisseur-a.md,"),
+            Some(PathShape::File("./docs/fournisseur-a.md".to_owned()))
+        );
+        assert_eq!(
+            token("«./out/rapport.md»."),
+            Some(PathShape::File("./out/rapport.md".to_owned()))
+        );
+    }
 
     #[test]
     fn a_path_token_is_one_word_that_looks_like_a_path() {

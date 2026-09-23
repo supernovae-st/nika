@@ -6,10 +6,11 @@
 //! per item), which lookup selects one record by an identifier. Everything here is
 //! deterministic text evidence over the plan's own elements and the request's verbatim
 //! words; nothing invents an element, and every promoted element keeps an exact excerpt.
+//! Moved from nika-compile to the reader at the 15k prod-LOC wall (2026-09-22), unchanged.
 
-pub(super) use super::objects::without_distributive_tail;
+pub use super::objects::without_distributive_tail;
 use super::plan::{Op, Plan, Step};
-pub(super) use super::rule_tokens::{ATTEMPT_UNITS, SIZE_UNITS, fold};
+pub use super::rule_tokens::{ATTEMPT_UNITS, SIZE_UNITS, fold};
 
 /// Symbols that compare the number beside them.
 const COMPARISON_SYMBOLS: &[&str] = &[">=", "<=", "≥", "≤", ">", "<"];
@@ -58,7 +59,8 @@ fn is_number(token: &str) -> bool {
 /// A digit beside a comparison cue (the numeric cues of [`super::rules`]), not bounded by
 /// a size, attempt or turn unit, and not the concurrency bound the assembler already
 /// consumes: a rule that must run as code.
-pub(super) fn numeric_rule(text: &str) -> bool {
+#[must_use]
+pub fn numeric_rule(text: &str) -> bool {
     if super::cardinality::parallel_bound(text).is_some() {
         return false;
     }
@@ -101,7 +103,8 @@ pub(super) fn numeric_rule(text: &str) -> bool {
 /// every comma- or connector-separated part is judged at its own head. The French
 /// restriction "ne … que" ("ne garde que les lignes …") is "only", not "never": a filter
 /// the workflow runs.
-pub(super) fn prohibits(text: &str) -> bool {
+#[must_use]
+pub fn prohibits(text: &str) -> bool {
     let joined = text
         .replace(" and ", ", ")
         .replace(" et ", ", ")
@@ -144,7 +147,7 @@ fn restrictive_ne_que(text: &str) -> bool {
 /// verbatim excerpt of the request stays a constraint (nothing is invented); a prohibition
 /// stays prose; a compute step that already carries the rule is not duplicated. Applying
 /// this twice changes nothing.
-pub(super) fn promote_stated_rules(plan: &mut Plan, intent: &str) {
+pub fn promote_stated_rules(plan: &mut Plan, intent: &str) {
     let hint = super::columns::columns_hint(intent);
     let rules: Vec<(String, Option<super::rules::Rule>)> = plan
         .constraints
@@ -162,7 +165,7 @@ pub(super) fn promote_stated_rules(plan: &mut Plan, intent: &str) {
             .iter()
             .any(|s| s.op == Op::Compute && s.detail.contains(detail.as_str()));
         if !carried {
-            let Some(evidence) = super::cognition::exact_excerpt(intent, &constraint) else {
+            let Some(evidence) = crate::text::exact_excerpt(intent, &constraint) else {
                 continue;
             };
             if let Some(existing) = plan.steps.iter_mut().find(|s| s.op == Op::Compute) {
@@ -334,7 +337,8 @@ fn heading_beside_distributive(text: &str) -> bool {
         .any(|h| cues.iter().any(|c| h.abs_diff(*c) <= 60))
 }
 
-pub(super) fn led_by_quantifier(text: &str) -> bool {
+#[must_use]
+pub fn led_by_quantifier(text: &str) -> bool {
     let padded = padded(text);
     LEADING_QUANTIFIERS
         .iter()
@@ -345,7 +349,8 @@ pub(super) fn led_by_quantifier(text: &str) -> bool {
 /// the request (case-insensitive when folding keeps every byte) to the sentence end that
 /// follows it (`.`, `!`, `?`, a line break, or the end of the request). What that sentence
 /// states is done once per item of the trigger; what a later sentence states is not.
-pub(super) fn triggered_span(intent: &str, trigger: &str) -> Option<(usize, usize)> {
+#[must_use]
+pub fn triggered_span(intent: &str, trigger: &str) -> Option<(usize, usize)> {
     let trigger = trigger.trim();
     if trigger.is_empty() {
         return None;
@@ -369,7 +374,8 @@ pub(super) fn triggered_span(intent: &str, trigger: &str) -> Option<(usize, usiz
 /// draft evidence or plan trigger led by a distributive quantifier. Distributive words
 /// inside one draft's object with a single file and a single length cap ("l'essentiel de
 /// chaque note … en un seul fichier … max 12 lignes") stay one draft.
-pub(super) fn per_item(intent: &str, plan: &Plan) -> bool {
+#[must_use]
+pub fn per_item(intent: &str, plan: &Plan) -> bool {
     if heading_beside_distributive(intent) {
         return true;
     }
@@ -400,7 +406,8 @@ const DISTRIBUTIVE_LEADS: &[&str] = &[
 /// Whether an object distributes its work over items: led by a distributive word or a
 /// quantifier ("each ticket as bug or feature", "for each file …"), or scoped by a
 /// distributive tail ("… of each one").
-pub(super) fn distributive(text: &str) -> bool {
+#[must_use]
+pub fn distributive(text: &str) -> bool {
     let padded = padded(text);
     led_by_quantifier(text)
         || DISTRIBUTIVE_LEADS
@@ -413,7 +420,8 @@ pub(super) fn distributive(text: &str) -> bool {
 /// object or clause is scoped to each item ("the supplier, the date and the amount of each
 /// one", "pour chaque facture, extrais …"). One record per item is then produced, and the
 /// step never sees the folded corpus.
-pub(super) fn per_item_extract(plan: &Plan) -> bool {
+#[must_use]
+pub fn per_item_extract(plan: &Plan) -> bool {
     plan.steps
         .iter()
         .filter(|s| s.op == Op::Extract)
@@ -423,7 +431,8 @@ pub(super) fn per_item_extract(plan: &Plan) -> bool {
 /// Whether the request classifies each record of its source ("classify each ticket as bug
 /// or feature"): one category per parsed record, so a write naming a category carries the
 /// records routed to it.
-pub(super) fn per_record_classify(plan: &Plan) -> bool {
+#[must_use]
+pub fn per_record_classify(plan: &Plan) -> bool {
     plan.steps
         .iter()
         .filter(|s| s.op == Op::Classify)
@@ -483,7 +492,8 @@ const SUPPLIED_CUES: &[&str] = &[
 
 /// Whether the request names material an invocation supplies, so a plan without a source
 /// step still works on something real.
-pub(super) fn names_supplied_material(intent: &str) -> bool {
+#[must_use]
+pub fn names_supplied_material(intent: &str) -> bool {
     let padded = padded(intent);
     SUPPLIED_CUES
         .iter()
@@ -492,7 +502,8 @@ pub(super) fn names_supplied_material(intent: &str) -> bool {
 
 /// A constraint the fan-in structure realizes (order, one heading per item): consumed
 /// out of the prompts when the work is distributed.
-pub(super) fn structural(constraint: &str) -> bool {
+#[must_use]
+pub fn structural(constraint: &str) -> bool {
     let padded = padded(constraint);
     STRUCTURAL_CUES
         .iter()
@@ -505,7 +516,8 @@ pub(super) fn structural(constraint: &str) -> bool {
 /// The first identifier token of a phrase: digits beside letters (`T-4471`, `SKU_12`,
 /// `#88240`) or an email. Never a bare number, a date-like run of digits and hyphens, a
 /// path or a URL.
-pub(super) fn identifier(text: &str) -> Option<String> {
+#[must_use]
+pub fn identifier(text: &str) -> Option<String> {
     text.split_whitespace()
         .map(|w| {
             w.trim_matches(|c: char| {
@@ -537,7 +549,7 @@ pub(super) fn identifier(text: &str) -> Option<String> {
 
 /// A lookup that selects one record by a literal identifier in one JSON file.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct LiteralLookup {
+pub struct LiteralLookup {
     /// The one JSON file the detail names.
     pub file: String,
     /// The identifier token, verbatim.
@@ -548,7 +560,8 @@ pub(super) struct LiteralLookup {
 
 /// A lookup detail that names exactly one JSON file and an identifier token binds the
 /// file without a directory question and selects the one record at run time.
-pub(super) fn lookup_by_identifier(detail: &str) -> Option<LiteralLookup> {
+#[must_use]
+pub fn lookup_by_identifier(detail: &str) -> Option<LiteralLookup> {
     let file = match super::paths::literals(detail).as_slice() {
         [super::paths::PathShape::File(path)]
             if super::paths::extension(path).as_deref() == Some("json") =>
@@ -564,7 +577,8 @@ pub(super) fn lookup_by_identifier(detail: &str) -> Option<LiteralLookup> {
 /// selects its record in the ONE JSON file the request already reads (« Read
 /// ./tickets.json, find ticket 42 »): the read clause locates the material, so no second
 /// « directory » is asked. A detail that names a path of its own keeps its own law.
-pub(super) fn lookup_by_identifier_over(detail: &str, located: &str) -> Option<LiteralLookup> {
+#[must_use]
+pub fn lookup_by_identifier_over(detail: &str, located: &str) -> Option<LiteralLookup> {
     if !super::paths::literals(detail).is_empty()
         || super::paths::extension(located).as_deref() != Some("json")
     {
@@ -612,7 +626,7 @@ fn literal_lookup(detail: &str, file: String) -> Option<LiteralLookup> {
 /// The topology the assembler realized for one plan; recorded in provenance, never
 /// authority.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) struct Shape {
+pub struct Shape {
     /// The corpus is several files read in a bounded fan-out.
     pub fan_out: bool,
     /// The draft runs once per read item and is folded back in item order.
@@ -624,7 +638,8 @@ pub(super) struct Shape {
 }
 
 impl Shape {
-    pub(super) const fn word(self) -> &'static str {
+    #[must_use]
+    pub const fn word(self) -> &'static str {
         if self.gated {
             "human_gated"
         } else if self.outputs > 1 {
@@ -637,7 +652,8 @@ impl Shape {
             "linear"
         }
     }
-    pub(super) fn to_json(self) -> serde_json::Value {
+    #[must_use]
+    pub fn to_json(self) -> serde_json::Value {
         serde_json::json!({
             "word": self.word(),
             "fan_out": self.fan_out,
@@ -914,10 +930,7 @@ mod tests {
         promote_stated_rules(&mut plan, intent);
         assert_eq!(plan.steps.len(), 2, "{plan:?}");
         assert_eq!(
-            plan.rules
-                .first()
-                .map(super::super::rules::Rule::jq)
-                .as_deref(),
+            plan.rules.first().map(crate::rules::Rule::jq).as_deref(),
             Some("[.records[] | select((.amount | tonumber) > 200)]")
         );
         let intent = "Lis ./sales.csv, ne garde pas les lignes dont amount dépasse 200 et écris-les dans ./big.csv";

@@ -128,8 +128,15 @@ pub(super) fn harness_infer_success(
     out: HarnessInferOutput,
     access: Option<AccessPlan>,
 ) -> Dispatched {
+    let answered = out
+        .observed_model
+        .as_deref()
+        .map_or_else(String::new, |model| format!(" · answered by {model}"));
     Dispatched::ok_metered(
-        format!("infer · seat {seat_id} · requested {}", out.requested_model),
+        format!(
+            "infer · seat {seat_id} · requested {}{answered}",
+            out.requested_model
+        ),
         out.output,
         None,
         None,

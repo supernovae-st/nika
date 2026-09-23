@@ -27,6 +27,13 @@ pub const METHOD_SESSION_NEW: &str = "session/new";
 pub const METHOD_SESSION_PROMPT: &str = "session/prompt";
 /// `session/cancel` (notification).
 pub const METHOD_SESSION_CANCEL: &str = "session/cancel";
+/// `session/set_config_option` — the v1 selection door (mode · model · `thought_level`).
+pub const METHOD_SET_CONFIG_OPTION: &str = "session/set_config_option";
+/// `session/set_mode` — deprecated in v1, still what several agents advertise.
+pub const METHOD_SET_MODE: &str = "session/set_mode";
+/// `session/set_model` — a legacy extension (the Claude adapter · Gemini CLI · Kiro) beside a
+/// `models` list on `session/new`.
+pub const METHOD_SET_MODEL: &str = "session/set_model";
 /// `session/update` (notification, agent → client).
 pub const METHOD_SESSION_UPDATE: &str = "session/update";
 /// `session/request_permission` (request, agent → client).
@@ -153,10 +160,22 @@ pub fn parse_line(line: &str) -> Result<Incoming, WireError> {
                     .get("message")
                     .and_then(Value::as_str)
                     .unwrap_or("unnamed error");
-                Ok(Incoming::ErrorResponse {
-                    id,
-                    message: format!("{msg} (jsonrpc {code})"),
-                })
+                // The agent's own words ride verbatim: an adapter puts the reason under
+                // `error.data.details` (measured 2026-09-22: `Internal error` carried
+                // `Invalid permissions.defaultMode: auto.`), a CLI under `error.data` itself.
+                let details = err.get("data").and_then(|d| {
+                    d.get("details")
+                        .and_then(Value::as_str)
+                        .map(str::to_owned)
+                        .or_else(|| d.as_str().map(str::to_owned))
+                });
+                let message = match details {
+                    Some(details) if !details.is_empty() && details != msg => {
+                        format!("{msg} — {details} (jsonrpc {code})")
+                    }
+                    _ => format!("{msg} (jsonrpc {code})"),
+                };
+                Ok(Incoming::ErrorResponse { id, message })
             } else {
                 Ok(Incoming::Response {
                     id,
@@ -214,6 +233,28 @@ pub struct PromptParams {
     pub prompt: Vec<TextBlock>,
 }
 
+/// `session/set_config_option` params.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct SetConfigOptionParams {
+    pub session_id: String,
+    pub config_id: String,
+    pub value: Value,
+}
+/// `session/set_mode` params.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct SetModeParams {
+    pub session_id: String,
+    pub mode_id: String,
+}
+/// `session/set_model` params (the legacy extension).
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct SetModelParams {
+    pub session_id: String,
+    pub model_id: String,
+}
 /// `session/cancel` params.
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -265,6 +306,15 @@ pub struct InitializeResult {
 pub struct NewSessionResult {
     /// The agent-assigned session id.
     pub session_id: String,
+    /// The config options the agent advertises (`{id, category, currentValue, options[]}`), if any.
+    #[serde(default)]
+    pub config_options: Option<Value>,
+    /// The session modes the agent advertises (`{currentModeId, availableModes[]}`), if any.
+    #[serde(default)]
+    pub modes: Option<Value>,
+    /// The legacy model list (`{currentModelId, availableModels[]}`), if any.
+    #[serde(default)]
+    pub models: Option<Value>,
 }
 
 /// `session/prompt` result.

@@ -219,6 +219,9 @@ pub struct HarnessInferOutcome {
     /// The `MAJOR.MINOR` the seat's own `--version` answered at spawn — the
     /// runtime attestation the receipt can carry, never the static row.
     pub attested_version: (u32, u32),
+    /// The responding model the CLI itself named (`modelUsage` · `assistant.message.model`),
+    /// when it named exactly one; absent stays absent (never copied from the request).
+    pub observed_model: Option<String>,
 }
 
 /// The only admitted P4 adapter.
@@ -384,14 +387,44 @@ impl CodexExec {
             requested_model: request.requested_model,
             usage_observed: true,
             attested_version,
+            observed_model: None,
         })
+    }
+}
+
+/// The admitted one-shot adapters: `codex exec --json` (the P4 original) and the CLIs
+/// `oneshot.rs` measured (Claude Code · Grok Build · GitHub Copilot CLI).
+#[derive(Debug, Clone)]
+enum Adapter {
+    Codex(CodexExec),
+    OneShot(crate::oneshot::OneShotExec),
+}
+
+impl Adapter {
+    fn attestation(&self) -> InferGradeAttestation {
+        match self {
+            Self::Codex(codex) => codex.attestation(),
+            Self::OneShot(seat) => seat.cli().attestation(),
+        }
+    }
+
+    /// The adapter a seat id names, or nothing (an ACP-only seat is never infer-grade).
+    fn for_seat(seat: &str) -> Option<Self> {
+        use crate::oneshot::{Cli, OneShotExec};
+        match seat {
+            "codex" => Some(Self::Codex(CodexExec::new())),
+            "claude-code" => Some(Self::OneShot(OneShotExec::new(Cli::Claude))),
+            "grok-build" => Some(Self::OneShot(OneShotExec::new(Cli::Grok))),
+            "copilot" => Some(Self::OneShot(OneShotExec::new(Cli::Copilot))),
+            _ => None,
+        }
     }
 }
 
 /// A seat returned only after all four infer-grade conjuncts pass.
 #[derive(Debug, Clone)]
 pub struct InferGradeSeat {
-    adapter: CodexExec,
+    adapter: Adapter,
     attestation: InferGradeAttestation,
 }
 
@@ -412,7 +445,10 @@ impl InferGradeSeat {
         &self,
         request: HarnessInferRequest,
     ) -> Result<HarnessInferOutcome, InferGradeError> {
-        self.adapter.run(request).await
+        match &self.adapter {
+            Adapter::Codex(codex) => codex.run(request).await,
+            Adapter::OneShot(seat) => seat.run(request).await,
+        }
     }
 }
 
@@ -425,17 +461,17 @@ pub fn meet_infer_grade(
     seat: &str,
     need: StructuredOutputGrade,
 ) -> Result<InferGradeSeat, InferGradeError> {
-    meet_with_adapter(seat, need, CodexExec::new())
+    let Some(adapter) = Adapter::for_seat(seat) else {
+        return Err(unattested(seat, need));
+    };
+    meet_with_adapter(seat, need, adapter)
 }
-
 fn meet_with_adapter(
     seat: &str,
     need: StructuredOutputGrade,
-    adapter: CodexExec,
+    adapter: Adapter,
 ) -> Result<InferGradeSeat, InferGradeError> {
-    let Some(attestation) = (seat == "codex").then(|| adapter.attestation()) else {
-        return Err(unattested(seat, need));
-    };
+    let attestation = adapter.attestation();
     let failed = attestation.failed(need);
     if !failed.is_empty() {
         return Err(InferGradeError::Refused {
@@ -732,12 +768,12 @@ mod tests {
     }
 
     #[test]
-    fn claude_agent_class_refuses_infer_with_every_unproven_conjunct() {
-        let err = meet_infer_grade("claude-code", StructuredOutputGrade::JsonSchema)
-            .expect_err("ACP is not infer-grade");
+    fn an_acp_only_seat_refuses_infer_with_every_unproven_conjunct() {
+        let err = meet_infer_grade("kimi-code", StructuredOutputGrade::JsonSchema)
+            .expect_err("ACP alone is not infer-grade");
         let witness = err.to_string();
         for term in [
-            "claude-code",
+            "kimi-code",
             "single_turn",
             "no_implicit_tools",
             "structured_output",
@@ -745,6 +781,26 @@ mod tests {
         ] {
             assert!(witness.contains(term), "missing {term}: {witness}");
         }
+    }
+    #[test]
+    fn the_widened_seats_are_attested_by_their_own_measured_cli() {
+        for seat in ["claude-code", "grok-build"] {
+            let admitted = meet_infer_grade(seat, StructuredOutputGrade::JsonSchema)
+                .unwrap_or_else(|e| panic!("{seat} proves json_schema: {e}"));
+            assert!(
+                admitted.attestation().proof.contains("scripted fake"),
+                "{seat}"
+            );
+        }
+        let copilot =
+            meet_infer_grade("copilot", StructuredOutputGrade::Text).expect("copilot proves text");
+        assert_eq!(
+            copilot.attestation().structured_output,
+            StructuredOutputGrade::Text
+        );
+        let err = meet_infer_grade("copilot", StructuredOutputGrade::JsonSchema)
+            .expect_err("copilot has no schema flag");
+        assert!(err.to_string().contains("structured_output"), "{err}");
     }
 
     #[test]
@@ -787,7 +843,7 @@ printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":91,"cached_input
         let seat = meet_with_adapter(
             "codex",
             StructuredOutputGrade::JsonSchema,
-            CodexExec::with_command(bin),
+            Adapter::Codex(CodexExec::with_command(bin)),
         )
         .expect("meet");
         let out = seat.run(request()).await.expect("scripted run");
@@ -816,7 +872,7 @@ printf '%s' '{"type":"done","result":"arbitrary"}'
         let seat = meet_with_adapter(
             "codex",
             StructuredOutputGrade::JsonSchema,
-            CodexExec::with_command(bin),
+            Adapter::Codex(CodexExec::with_command(bin)),
         )
         .expect("the static row admits the name");
         let err = seat.run(request()).await.expect_err("the shim is refused");
@@ -846,7 +902,7 @@ printf '%s' '{"type":"done","result":"arbitrary"}'
         let seat = meet_with_adapter(
             "codex",
             StructuredOutputGrade::Text,
-            CodexExec::with_command(bin),
+            Adapter::Codex(CodexExec::with_command(bin)),
         )
         .expect("meet");
         let err = seat
@@ -867,7 +923,7 @@ printf '%s' '{"type":"done","result":"arbitrary"}'
         let seat = meet_with_adapter(
             "codex",
             StructuredOutputGrade::Text,
-            CodexExec::with_command(bin),
+            Adapter::Codex(CodexExec::with_command(bin)),
         )
         .expect("meet");
         let err = seat
@@ -927,7 +983,7 @@ printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":1,"output_tokens
         let seat = meet_with_adapter(
             "codex",
             StructuredOutputGrade::JsonSchema,
-            CodexExec::with_command(bin),
+            Adapter::Codex(CodexExec::with_command(bin)),
         )
         .expect("meet");
         let out = seat.run(request()).await.expect("scripted run");
@@ -947,7 +1003,7 @@ printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":1,"output_tokens
         let seat = meet_with_adapter(
             "codex",
             StructuredOutputGrade::Text,
-            CodexExec::with_command(bin),
+            Adapter::Codex(CodexExec::with_command(bin)),
         )
         .expect("meet");
         let err = seat
@@ -978,7 +1034,7 @@ exit 1
         let seat = meet_with_adapter(
             "codex",
             StructuredOutputGrade::Text,
-            CodexExec::with_command(bin),
+            Adapter::Codex(CodexExec::with_command(bin)),
         )
         .expect("meet");
         let err = seat
@@ -999,7 +1055,7 @@ exit 1
         let seat = meet_with_adapter(
             "codex",
             StructuredOutputGrade::Text,
-            CodexExec::with_command(loud),
+            Adapter::Codex(CodexExec::with_command(loud)),
         )
         .expect("meet");
         let err = seat
@@ -1026,7 +1082,7 @@ printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":999,"output_toke
         let seat = meet_with_adapter(
             "codex",
             StructuredOutputGrade::Text,
-            CodexExec::with_command(bin),
+            Adapter::Codex(CodexExec::with_command(bin)),
         )
         .expect("meet");
         let err = seat
@@ -1048,7 +1104,7 @@ printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":999,"output_toke
         let seat = meet_with_adapter(
             "codex",
             StructuredOutputGrade::Text,
-            CodexExec::with_command(bin),
+            Adapter::Codex(CodexExec::with_command(bin)),
         )
         .expect("meet");
         let out = seat

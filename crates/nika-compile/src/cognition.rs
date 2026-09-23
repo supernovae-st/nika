@@ -16,12 +16,12 @@
 //! A permitted seat is not an obligation; a consumed clause is not understanding.
 use super::{
     AuthoringCognition, AuthoringPolicy, AuthoringReceipt, CompileError, CompileOutcome,
-    CompileRequest, DiagnosticKind, HotPolicy, QuestionType, Strategy,
+    CompileRequest, DiagnosticKind, HotPolicy, NativeMode, QuestionType, Strategy,
     compose::{self, Candidate},
     decide::{ChoiceOption, ChoiceQuestion, DecisionSeat, NONE_OPTION},
     lexicon::{self, Reading},
     plan::{EffectVerb, Op, Plan, Step},
-    types::Input,
+    types::{EditChange, Input},
 };
 use nika_kernel::ai::provider::{
     ContentBlock, InferRequest, InferResponse, Message, ProviderInferDyn, ResponseFormat, Role,
@@ -30,8 +30,9 @@ use serde_json::{Value, json};
 
 mod instructions;
 use instructions::INSTRUCTIONS;
-mod anchor;
 mod backstops;
+mod knowledge;
+mod native;
 mod proposal;
 mod transform;
 use proposal::{Proposal, decode, merge};
@@ -88,6 +89,64 @@ pub async fn compile_with_provider<P: ProviderInferDyn>(
     .await
 }
 
+/// An EDIT under a seat: the constant door first (zero calls); when the change is more than a
+/// constant and a native policy names a seat, the native door revises the base — the seat
+/// reads the base candidate and the change in words beside the request the base answered, the
+/// laws allow the base's own literals, and the outcome states the meaning delta. No seat, or a
+/// change the constant door settles: the deterministic outcome as before.
+async fn revise<P: ProviderInferDyn>(
+    request: &CompileRequest,
+    cognition: Cognition<'_, P>,
+) -> Result<CompileOutcome, CompileError> {
+    let deterministic = super::compile(request)?;
+    let Input::Edit {
+        change: EditChange::Text(words),
+        ..
+    } = &request.input
+    else {
+        return Ok(deterministic);
+    };
+    let unresolved = deterministic
+        .diagnostics
+        .iter()
+        .any(|d| d.target == "change_request");
+    let (Some(policy), Some(provider)) = (&request.authoring, cognition.provider) else {
+        return Ok(deterministic);
+    };
+    if !unresolved || policy.native == NativeMode::Off {
+        return Ok(deterministic);
+    }
+    let intent = match &request.original_intent {
+        Some(original) => format!("{original}\nChange: {words}"),
+        None => words.clone(),
+    };
+    let folded = lexicon::fold_apostrophes(&intent);
+    let mut out = super::initial();
+    if !policy_bounded(policy, &folded) {
+        super::finding(
+            &mut out,
+            DiagnosticKind::Missed,
+            "authoring_policy",
+            POLICY_BOUNDS,
+        );
+        return Ok(out);
+    }
+    let reading = lexicon::read(&folded);
+    native::author(
+        &folded,
+        &reading,
+        policy,
+        provider,
+        request,
+        vec![
+            "edit: the constant door could not settle the change; the seat revises the base"
+                .to_owned(),
+        ],
+        out,
+    )
+    .await
+}
+
 /// Compile with explicit cognition: a decision seat (WARM) and/or a generative provider (COLD).
 /// Exact skeletons, EDIT, bounded support clauses and strictly explicit intents keep the
 /// deterministic path and never call either seat.
@@ -100,7 +159,7 @@ pub async fn compile_with_cognition<P: ProviderInferDyn>(
     cognition: Cognition<'_, P>,
 ) -> Result<CompileOutcome, CompileError> {
     let Input::Create(intent) = &request.input else {
-        return super::compile(request);
+        return revise(request, cognition).await;
     };
     if matches!(intent.trim(), "hello" | "01-hello")
         || nika_pack::template_names()
@@ -154,6 +213,32 @@ pub async fn compile_with_cognition<P: ProviderInferDyn>(
     // The deterministic door judges the reading with its stated rules promoted: a rule
     // carries its own constraint, and the words inside it are its literals. The reading
     // itself keeps its constraints: they are the policy floor a seat's proposal inherits.
+    // The ablation and the arena's treatment D: straight to the native candidate, before the
+    // deterministic door and without the private plan, under the same bounds as COLD.
+    if let (Some(policy), Some(provider)) = (&request.authoring, cognition.provider)
+        && policy.native == NativeMode::Only
+    {
+        if !policy_bounded(policy, &effective_intent) {
+            super::finding(
+                &mut out,
+                DiagnosticKind::Missed,
+                "authoring_policy",
+                POLICY_BOUNDS,
+            );
+            return Ok(out);
+        }
+        route.push("native: only".to_owned());
+        return native::author(
+            &effective_intent,
+            &reading,
+            policy,
+            provider,
+            &assembly_request,
+            route,
+            out,
+        )
+        .await;
+    }
     let mut admitted = reading.clone();
     super::shape::promote_stated_rules(&mut admitted.plan, &effective_intent);
     match admit_hot(&effective_intent, &admitted, request.hot) {
@@ -243,32 +328,44 @@ pub async fn compile_with_cognition<P: ProviderInferDyn>(
     }
     // COLD: explicitly authorized generative proposals, constrained by the deterministic facts.
     if let (Some(policy), Some(provider)) = (&request.authoring, cognition.provider) {
-        if policy.model.trim().is_empty()
-            || !(1..=8192).contains(&policy.max_tokens)
-            || policy.timeout.is_zero()
-            || policy.timeout > std::time::Duration::from_secs(120)
-            || effective_intent.len() > 32_768
-        {
+        if !policy_bounded(policy, &effective_intent) {
             super::finding(
                 &mut out,
                 DiagnosticKind::Missed,
                 "authoring_policy",
-                "Authoring requires an explicit model, 1..8192 output tokens, a timeout up to 120 seconds, and an intent no larger than 32768 bytes.",
+                POLICY_BOUNDS,
             );
             return Ok(out);
         }
         route.push(format!("cold: {} sample(s)", policy.samples.clamp(1, 5)));
-        return sampled(
+        let cold = sampled(
             &effective_intent,
             policy,
             provider,
             cognition.seat,
             &reading,
             &assembly_request,
-            route,
+            route.clone(),
             out,
         )
-        .await;
+        .await?;
+        // The private plan is not the language's ceiling: a cold round that ends without a
+        // candidate, or hands the human a machine's problem, escalates to a native candidate.
+        if policy.native == NativeMode::Escalate && native::escalates(&cold) {
+            let mut route = route;
+            route.push("native: escalated".to_owned());
+            return native::author(
+                &effective_intent,
+                &reading,
+                policy,
+                provider,
+                &assembly_request,
+                route,
+                cold,
+            )
+            .await;
+        }
+        return Ok(cold);
     }
     route.push("needs cognition".to_owned());
     record_route(&mut out, &route);
@@ -343,6 +440,58 @@ fn record_retrieval(out: &mut CompileOutcome, intent: &str, plan: Option<&Plan>)
     out.provenance.decision = Some(decision);
 }
 
+const POLICY_BOUNDS: &str = "Authoring requires an explicit model, 1..32768 output tokens, a timeout up to 600 seconds, and an intent no larger than 32768 bytes.";
+
+/// The bounds every seat call honors: an explicit model, a bounded answer, a bounded wait,
+/// a request the seat can hold.
+fn policy_bounded(policy: &AuthoringPolicy, intent: &str) -> bool {
+    !policy.model.trim().is_empty()
+        && (1..=32_768).contains(&policy.max_tokens)
+        && !policy.timeout.is_zero()
+        && policy.timeout <= std::time::Duration::from_secs(600)
+        && intent.len() <= 32_768
+}
+
+/// The first complete JSON object of a seat's text — the text itself when it is one, else
+/// the balanced `{…}` it carries (a seat that wraps its answer in prose or a fence is not a
+/// lost call). None when the text carries no balanced object.
+pub(super) fn first_json_object(text: &str) -> Option<&str> {
+    let trimmed = text.trim();
+    if trimmed.starts_with('{') && trimmed.ends_with('}') {
+        return Some(trimmed);
+    }
+    let start = text.find('{')?;
+    let mut depth: i32 = 0;
+    let mut in_string = false;
+    let mut escaped = false;
+    for (i, ch) in text[start..].char_indices() {
+        if in_string {
+            match ch {
+                '\\' if !escaped => {
+                    escaped = true;
+                    continue;
+                }
+                '"' if !escaped => in_string = false,
+                _ => {}
+            }
+            escaped = false;
+            continue;
+        }
+        match ch {
+            '"' => in_string = true,
+            '{' => depth += 1,
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(&text[start..start + i + ch.len_utf8()]);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
 fn record_route(out: &mut CompileOutcome, route: &[String]) {
     let mut decision = out.provenance.decision.take().unwrap_or_else(|| json!({}));
     decision["route"] = json!(route);
@@ -399,6 +548,10 @@ pub(super) fn replay(
 ) -> Result<(), CompileError> {
     let folded = lexicon::fold_apostrophes(intent);
     let intent = folded.as_str();
+    if record.get("strategy").and_then(Value::as_str) == Some(Strategy::Native.word()) {
+        native::replay(intent, record, request, out);
+        return Ok(());
+    }
     record_route(out, &["replayed plan".to_owned()]);
     record_retrieval(out, intent, None);
     let plan = match Plan::from_json(record) {
@@ -634,7 +787,7 @@ async fn propose<P: ProviderInferDyn>(
     provider: &P,
     out: &mut CompileOutcome,
 ) -> Option<Proposal> {
-    let (proposal, text) = call(policy, provider, opening(intent), out).await?;
+    let (proposal, text) = call(policy, provider, "plan", opening(intent), out).await?;
     let Some(defect) = proposal::unanchored(intent, &proposal) else {
         return Some(proposal);
     };
@@ -652,7 +805,7 @@ async fn propose<P: ProviderInferDyn>(
     let mut messages = opening(intent);
     messages.push(Message::text(Role::Assistant, text));
     messages.push(Message::text(Role::User, counterexample(&defect)));
-    match call(policy, provider, messages, out).await {
+    match call(policy, provider, "repair", messages, out).await {
         Some((repaired, _)) => Some(repaired),
         None => Some(proposal),
     }
@@ -664,10 +817,11 @@ async fn propose<P: ProviderInferDyn>(
 async fn call<P: ProviderInferDyn>(
     policy: &AuthoringPolicy,
     provider: &P,
+    role: &'static str,
     messages: Vec<Message>,
     out: &mut CompileOutcome,
 ) -> Option<(Proposal, String)> {
-    let response = call_with_schema(policy, provider, messages, plan_schema(), out).await?;
+    let response = call_with_schema(policy, provider, role, messages, plan_schema(), out).await?;
     let text = match response.content.as_slice() {
         [ContentBlock::Text { text }] => text.clone(),
         _ => String::new(),
@@ -680,6 +834,7 @@ async fn call<P: ProviderInferDyn>(
 async fn call_with_schema<P: ProviderInferDyn>(
     policy: &AuthoringPolicy,
     provider: &P,
+    role: &'static str,
     messages: Vec<Message>,
     schema: Value,
     out: &mut CompileOutcome,
@@ -694,8 +849,13 @@ async fn call_with_schema<P: ProviderInferDyn>(
             input_tokens: None,
             output_tokens: None,
             elapsed_ms: 0,
+            context: Vec::new(),
+            backend: None,
         });
     receipt.calls += 1;
+    receipt
+        .context
+        .push(context_entry(role, &messages, &schema));
     let start = std::time::Instant::now();
     let result = tokio::time::timeout(
         policy.timeout,
@@ -737,6 +897,34 @@ async fn call_with_schema<P: ProviderInferDyn>(
             Some(receipt.output_tokens.unwrap_or(0) + response.usage.output_tokens);
     }
     Some(response)
+}
+
+/// What one call received: its role, the sha256 of its instruction (the system message)
+/// and of its answer schema, the bytes of its messages, and the references sent with it.
+fn context_entry(role: &str, messages: &[Message], schema: &Value) -> Value {
+    let sha = knowledge::sha256;
+    let text_of = |m: &Message| -> String {
+        m.content
+            .iter()
+            .filter_map(|block| match block {
+                ContentBlock::Text { text } => Some(text.as_str()),
+                _ => None,
+            })
+            .collect()
+    };
+    let instruction = messages
+        .iter()
+        .find(|m| matches!(m.role, Role::System))
+        .map(text_of)
+        .unwrap_or_default();
+    let bytes: usize = messages.iter().map(|m| text_of(m).len()).sum();
+    json!({
+        "call": role,
+        "instruction_sha256": sha(&instruction),
+        "schema_sha256": sha(&schema.to_string()),
+        "message_bytes": bytes,
+        "references": [],
+    })
 }
 
 /// The bounded JSON-schema request every authoring call makes, whatever its messages.
@@ -805,6 +993,7 @@ async fn sampled<P: ProviderInferDyn>(
     let mut input_tokens: Option<u64> = None;
     let mut output_tokens: Option<u64> = None;
     let mut elapsed_ms = 0;
+    let mut context: Vec<Value> = Vec::new();
     for index in 0..policy.samples.clamp(1, 5) as usize {
         let mut scratch = super::initial();
         let proposal = propose(intent, policy, provider, &mut scratch).await;
@@ -812,6 +1001,7 @@ async fn sampled<P: ProviderInferDyn>(
         if let Some(receipt) = &scratch.provenance.authoring {
             calls += receipt.calls;
             elapsed_ms += receipt.elapsed_ms;
+            context.extend(receipt.context.iter().cloned());
             if let Some(n) = receipt.input_tokens {
                 input_tokens = Some(input_tokens.unwrap_or(0) + n);
             }
@@ -849,6 +1039,8 @@ async fn sampled<P: ProviderInferDyn>(
         input_tokens,
         output_tokens,
         elapsed_ms,
+        context,
+        backend: None,
     });
     // Distinct admissible signatures, for the sample record.
     let mut distinct: Vec<Vec<String>> = Vec::new();
@@ -1041,8 +1233,15 @@ const APPROVAL_BYPASS: &[&[&str]] = &[
     &["sans", "mon", "accord"],
     &["sans", "accord"],
     &["ne", "pas", "demander"],
-    &["yesterday"],
-    &["hier"],
+    &["approved", "yesterday"],
+    &["approval", "from", "yesterday"],
+    &["yesterday", "s", "approval"],
+    &["validé", "hier"],
+    &["validée", "hier"],
+    &["approuvé", "hier"],
+    &["approuvée", "hier"],
+    &["accord", "d", "hier"],
+    &["accord", "hier"],
     &["prior", "approval"],
     &["previous", "approval"],
 ];

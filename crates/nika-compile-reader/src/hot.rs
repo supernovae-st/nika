@@ -40,19 +40,6 @@ pub fn rejections(intent: &str, reading: &Reading) -> Vec<String> {
 /// extension; a domain-shaped word (`example.com`) is not a file.
 #[must_use]
 pub fn unopened_sources(intent: &str, plan: &Plan) -> Vec<String> {
-    let lower = intent.to_lowercase();
-    let stated_as_a_source = |path: &str| {
-        let needle = path.to_lowercase();
-        let mut from = 0;
-        while let Some(pos) = lower.get(from..).and_then(|rest| rest.find(&needle)) {
-            let at = from + pos;
-            if super::objects::destination_at(&lower, at).is_none() {
-                return true;
-            }
-            from = at + needle.len();
-        }
-        false
-    };
     let opened = |path: &str| {
         plan.steps
             .iter()
@@ -65,6 +52,19 @@ pub fn unopened_sources(intent: &str, plan: &Plan) -> Vec<String> {
             || plan.trigger.as_deref().is_some_and(|t| t.contains(path))
             || plan.rules.iter().any(|r| r.text().contains(path))
     };
+    stated_sources(intent)
+        .into_iter()
+        .filter(|path| !opened(path))
+        .map(|path| {
+            format!(
+                "`{path}` is named by the request and nothing opens it: no step reads it and no effect writes it"
+            )
+        })
+        .collect()
+}
+
+/// The source-shaped paths of the request, in order, without duplicates.
+fn source_paths(intent: &str) -> Vec<String> {
     super::paths::literals(intent)
         .into_iter()
         .filter_map(|shape| match shape {
@@ -73,12 +73,43 @@ pub fn unopened_sources(intent: &str, plan: &Plan) -> Vec<String> {
             | super::paths::PathShape::Glob(path) => Some(path),
             _ => None,
         })
-        .filter(|path| source_like(path) && stated_as_a_source(path) && !opened(path))
-        .map(|path| {
-            format!(
-                "`{path}` is named by the request and nothing opens it: no step reads it and no effect writes it"
-            )
-        })
+        .filter(|path| source_like(path))
+        .collect()
+}
+
+/// Whether some occurrence of `path` in the request is introduced by no destination connector.
+fn stated_as_a_source(lower: &str, path: &str) -> bool {
+    let needle = path.to_lowercase();
+    let mut from = 0;
+    while let Some(pos) = lower.get(from..).and_then(|rest| rest.find(&needle)) {
+        let at = from + pos;
+        if super::objects::destination_at(lower, at).is_none() {
+            return true;
+        }
+        from = at + needle.len();
+    }
+    false
+}
+
+/// The paths the request states as material to read (at least one occurrence no destination
+/// connector introduces): what a candidate must open.
+#[must_use]
+pub fn stated_sources(intent: &str) -> Vec<String> {
+    let lower = intent.to_lowercase();
+    source_paths(intent)
+        .into_iter()
+        .filter(|path| stated_as_a_source(&lower, path))
+        .collect()
+}
+
+/// The paths the request states only as places to write (every occurrence follows a
+/// destination connector): what a candidate must write.
+#[must_use]
+pub fn stated_destinations(intent: &str) -> Vec<String> {
+    let lower = intent.to_lowercase();
+    source_paths(intent)
+        .into_iter()
+        .filter(|path| !stated_as_a_source(&lower, path))
         .collect()
 }
 
@@ -941,6 +972,26 @@ mod tests {
             )
             .len(),
             1
+        );
+    }
+
+    #[test]
+    fn the_request_states_its_sources_and_its_destinations() {
+        let intent = "prends ce fichier ./data/paiements.csv, garde uniquement les paiements payés, calcule le total et fais-moi un petit rapport dans ./out/rapport.md";
+        assert_eq!(
+            stated_sources(intent),
+            vec!["./data/paiements.csv".to_owned()]
+        );
+        assert_eq!(
+            stated_destinations(intent),
+            vec!["./out/rapport.md".to_owned()]
+        );
+        let intent = "Every morning, read yesterday's support tickets in ./tickets.json, group the open ones by topic";
+        // « in ./tickets.json » follows a locative the reader takes for a destination: the
+        // request states no source here, and no destination law fires on a read.
+        assert!(
+            stated_sources(intent).is_empty()
+                || stated_sources(intent) == vec!["./tickets.json".to_owned()]
         );
     }
 

@@ -12,6 +12,7 @@
 //! AMBIGUOUS and may be settled by a bounded decision seat. Nothing here invents
 //! an operation, an effect or a policy; every element keeps its verbatim clause.
 
+mod cadence;
 mod convert;
 mod copy;
 mod cues;
@@ -29,12 +30,13 @@ use super::plan::{
     Binding, Effect, EffectPolicy, EffectVerb, Obligation, ObligationKind, Op, Plan, Step,
 };
 use super::{gates, hot, objects};
+use cadence::cut_head;
 pub use cues::settle_retrieval;
 pub(crate) use cues::{ARTICLES, OBJECT_CONNECTORS};
 use cues::{
     CONSTRAINT_OPENERS, DEDUP_MARKERS, FINAL_GATE_MARKERS, FORBIDDEN_MARKERS, LEADING_FILLER,
     NAMED_GATE_MARKERS, NEGATION_OPENERS, REVISION_MARKERS, SECOND_WORD_FILLERS, STOP_MARKERS,
-    STRONG_CONNECTORS, TRIGGER_PREFIXES, UNDECIDED_MARKERS, WEAK_CONNECTORS,
+    STRONG_CONNECTORS, UNDECIDED_MARKERS, WEAK_CONNECTORS,
 };
 pub use effects::effect_words;
 pub(crate) use effects::kindred;
@@ -303,7 +305,7 @@ fn nearest(
     }
 }
 
-fn normalize(text: &str) -> String {
+pub(super) fn normalize(text: &str) -> String {
     fold_apostrophes(text).to_lowercase()
 }
 
@@ -888,44 +890,7 @@ pub fn read(intent: &str) -> Reading {
             continue;
         }
         // Trigger / cadence prefix, or a supplied document.
-        let mut body = sentence;
-        let mut body_lower = text.to_owned();
-        if let Some(prefix) = TRIGGER_PREFIXES.iter().find(|p| body_lower.starts_with(*p))
-            && let Some(comma) = body_lower.find(',')
-        {
-            let head = body_lower.get(..comma).unwrap_or_default().to_owned();
-            if prefix.starts_with("à partir de")
-                || prefix.starts_with("a partire da")
-                || prefix.starts_with("a partir de")
-                || prefix.starts_with("from the")
-                || prefix.starts_with("starting from")
-            {
-                let detail = head
-                    .get(prefix.len()..)
-                    .unwrap_or_default()
-                    .trim()
-                    .to_owned();
-                reading.plan.push_step(Step {
-                    op: Op::Read,
-                    evidence: sentence.to_owned(),
-                    detail,
-                    categories: Vec::new(),
-                });
-            } else if reading.plan.trigger.is_none() {
-                reading.plan.trigger = Some(head.clone());
-            }
-            let rest_lower = body_lower
-                .get(comma + 1..)
-                .unwrap_or_default()
-                .trim()
-                .to_owned();
-            if let Some(pos) = normalize(sentence).find(&rest_lower)
-                && let Some(rest) = sentence.get(pos..)
-            {
-                body = rest.trim();
-            }
-            body_lower = rest_lower;
-        }
+        let (body, body_lower) = cut_head(sentence, text, &mut reading);
         if body_lower.is_empty() {
             continue;
         }
