@@ -233,6 +233,7 @@ pub fn delta(base: &Value, revised: &Value) -> Option<String> {
     let key = |c: &Clause| (c.kind.clone(), c.evidence.clone());
     let mut text = "Meaning · what changed with your words".to_owned();
     let mut kept = 0usize;
+    let mut kept_rows: Vec<String> = Vec::new();
     for clause in &after {
         match before.iter().find(|b| key(b) == key(clause)) {
             None => {
@@ -252,7 +253,10 @@ pub fn delta(base: &Value, revised: &Value) -> Option<String> {
                     clause.disposition.word()
                 );
             }
-            Some(_) => kept += 1,
+            Some(_) => {
+                kept += 1;
+                kept_rows.push(clause.evidence.clone());
+            }
         }
     }
     for clause in &before {
@@ -261,6 +265,12 @@ pub fn delta(base: &Value, revised: &Value) -> Option<String> {
         }
     }
     let changed = after.len() + before.len() - 2 * kept;
+    // The unchanged regions are part of the plan: listed when few, counted when many.
+    if changed != 0 && kept_rows.len() <= 6 {
+        for evidence in &kept_rows {
+            let _ = write!(text, "\n  = « {evidence} » · kept as it was");
+        }
+    }
     if changed == 0 {
         let _ = write!(
             text,
@@ -429,6 +439,10 @@ mod tests {
             "{text}"
         );
         assert!(text.contains("1 clause(s) kept as they were"), "{text}");
+        assert!(
+            text.contains("= « write it to ./out/copie.md » · kept as it was"),
+            "the unchanged clause is listed: {text}"
+        );
         assert!(!text.contains('%'), "no score: {text}");
         let same = delta(&base, &base).expect("a delta");
         assert!(
