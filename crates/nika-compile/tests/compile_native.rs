@@ -825,3 +825,17 @@ async fn a_sketch_is_judged_structurally_then_filled_and_emitted() {
     );
     assert!(replayed.provenance.authoring.is_none());
 }
+
+#[tokio::test]
+async fn a_candidate_folded_onto_one_line_is_named_as_such() {
+    // The whole of candidate A with every newline a space: `tasks:` is there and unreadable.
+    let folded = candidate_a("./data/paiements.csv").replace('\n', " ");
+    let provider = Rotating::new(vec![answer(&folded, &json!([]))]);
+    let req = CompileRequest::create(CASE_A).with_authoring_policy(policy(NativeMode::Only, 0));
+    let out = compile_with_provider(&req, &provider).await.unwrap();
+    assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
+    let native = native_record(&out);
+    let first = native["rounds"][0]["diagnostics"].to_string();
+    assert!(first.contains("arrived as ONE line"), "{first}");
+    assert!(first.contains("real newline"), "{first}");
+}

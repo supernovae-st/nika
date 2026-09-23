@@ -876,6 +876,18 @@ pub(super) fn judge(
 /// `nika:fetch` whose URL rides a placeholder the seat asks for (`const.<slug>` declared
 /// empty) is not refused for its unknown host: the answer grants it (`bake`).
 fn admit(candidate: &str, questions: &[Question], out: &mut Vec<Diagnostic>) -> Option<Value> {
+    // A seat that folds its newlines into spaces (Scaleway gpt-oss-120b, 2026-09-23: 2 577
+    // characters on one line, `tasks:` present and unreadable) is told what happened, not
+    // only what the parser could not find.
+    if candidate.len() > 240 && candidate.lines().count() <= 2 {
+        out.push(Diagnostic {
+            kind: "parse",
+            message: format!(
+                "the candidate arrived as ONE line ({} characters, no newline): a `.nika` is a multi-line YAML document — write a real newline (`\\n` inside the JSON string) after every field and every task, never a space in its place",
+                candidate.len()
+            ),
+        });
+    }
     let wf = match crate::parse(candidate) {
         Ok(wf) => wf,
         Err(error) => {
