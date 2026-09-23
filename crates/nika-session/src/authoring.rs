@@ -39,15 +39,43 @@ const CLARIFICATION_KEY: &str = "intent.clarification";
 /// first): `None` when the model already is the strongest, or unknown.
 #[must_use]
 pub fn stronger_model(model: &str) -> Option<&'static str> {
+    stronger_model_under(model, false)
+}
+
+/// The table behind [`stronger_model`], with the gateway fact explicit: an
+/// OpenAI-compatible base URL (Scaleway's gateway, a local server) serves
+/// its OWN models under the `openai` provider id — the provider's flagship
+/// is not there, so no escalation is offered across it.
+#[must_use]
+pub fn stronger_model_under(model: &str, openai_base_overridden: bool) -> Option<&'static str> {
     let (provider, name) = model.split_once('/')?;
     let strongest = match provider {
+        "openai" if openai_base_overridden => return None,
         "openai" => "openai/gpt-5.2",
         "xai" => "xai/grok-4.7",
         "deepseek" => "deepseek/deepseek-v4-pro",
+        "gemini" => "gemini/gemini-2.5-pro",
         "mistral" => "mistral/mistral-large-latest",
         _ => return None,
     };
     (format!("{provider}/{name}") != strongest).then_some(strongest)
+}
+
+/// Whether the `openai` provider's base URL is overridden in this
+/// environment (an OpenAI-compatible gateway), read through the engine's
+/// registry — the same fact the run path uses, never a second env read.
+#[must_use]
+pub fn openai_base_overridden() -> bool {
+    let Ok(http) = crate::reasoner::provider_http() else {
+        return false;
+    };
+    let registry = nika_providers::ProviderRegistry::new(
+        Arc::new(http),
+        nika_runtime::compose::config_from_env(),
+    );
+    !registry
+        .effective_base_url("openai")
+        .is_some_and(|url| url.contains("api.openai.com"))
 }
 /// Output tokens one authoring call may spend (the compiler's ceiling; deep work needs room).
 const AUTHORING_MAX_TOKENS: u32 = 8192;
@@ -512,6 +540,17 @@ mod tests {
             "already the strongest"
         );
         assert_eq!(stronger_model("xai/grok-4.3"), Some("xai/grok-4.7"));
+        assert_eq!(
+            stronger_model_under("gemini/gemini-2.5-flash", false),
+            Some("gemini/gemini-2.5-pro")
+        );
+        assert_eq!(stronger_model_under("gemini/gemini-2.5-pro", false), None);
+        // Through an OpenAI-compatible gateway the provider's flagship is not served: no escalation.
+        assert_eq!(stronger_model_under("openai/gpt-oss-120b", true), None);
+        assert_eq!(
+            stronger_model_under("openai/gpt-5-mini", false),
+            Some("openai/gpt-5.2")
+        );
         assert_eq!(
             stronger_model("ollama/qwen3.5:4b"),
             None,

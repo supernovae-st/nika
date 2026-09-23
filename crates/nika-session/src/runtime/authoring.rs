@@ -157,7 +157,8 @@ impl SessionRuntime {
         let AuthoringSeat::Provider { model } = &self.seat else {
             return None;
         };
-        crate::authoring::stronger_model(model).map(|m| AuthoringSeat::Provider {
+        let overridden = crate::authoring::openai_base_overridden();
+        crate::authoring::stronger_model_under(model, overridden).map(|m| AuthoringSeat::Provider {
             model: m.to_owned(),
         })
     }
