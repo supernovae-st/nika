@@ -396,28 +396,37 @@ const OF_WORDS: &[&str] = &[
 /// and the identity cues an object opens with when the pronoun was glued to the verb
 /// itself (« escríbelo tal cual en … », « scrivilo così com'è in … »): what is written as it
 /// is is what was read. A bare article (« la réponse ») is a determiner, never a pronoun.
+const IDENTITY: &[&str] = &[
+    "as is",
+    "as-is",
+    "verbatim",
+    "byte for byte",
+    "tel quel",
+    "telle quelle",
+    "tels quels",
+    "octet pour octet",
+    "tal cual",
+    "tal como está",
+    "così com'è",
+    "cosi com'e",
+    "così come",
+    "unverändert",
+    "unverandert",
+    "wie es ist",
+    "tal e qual",
+];
+
+/// An entire span stating only identity, rather than merely opening with an identity
+/// cue. A copy cannot discard arbitrary work after `as is` or `tel quel`.
+pub(crate) fn identity_only(text: &str) -> bool {
+    text.split(',')
+        .map(str::trim)
+        .all(|part| part.is_empty() || IDENTITY.contains(&part))
+}
+
 fn object_clitic_or_identity(object_lower: &str) -> bool {
     const CLITICS: &[&str] = &[
         "-le", "-la", "-les", "-lo", "-los", "-las", "-o", "-a", "-os", "-as", "it",
-    ];
-    const IDENTITY: &[&str] = &[
-        "as is",
-        "as-is",
-        "verbatim",
-        "byte for byte",
-        "tel quel",
-        "telle quelle",
-        "tels quels",
-        "octet pour octet",
-        "tal cual",
-        "tal como está",
-        "così com'è",
-        "cosi com'e",
-        "così come",
-        "unverändert",
-        "unverandert",
-        "wie es ist",
-        "tal e qual",
     ];
     let object = object_lower.trim_start();
     let first = object

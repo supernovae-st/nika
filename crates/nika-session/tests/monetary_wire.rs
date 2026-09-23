@@ -28,6 +28,8 @@ use nika_session::{
 };
 
 const INPUT: &str = "Prépare la copie de entree.txt dans sortie.txt.";
+const NATIVE_INPUT: &str =
+    "Je veux que sortie.txt contienne exactement les octets présents dans entree.txt.";
 
 struct Routing;
 impl TurnClassifier for Routing {
@@ -137,7 +139,16 @@ fn invalid_zero_and_positive_bounded_prepare_never_reach_the_wire() {
 }
 
 #[test]
-fn monetary_amendment_after_unbounded_authoring_crosses_save_and_run_protocol() {
+fn monetary_amendment_after_deterministic_copy_crosses_save_and_run_protocol() {
+    amendment_protocol(INPUT, "binding", false);
+}
+
+#[test]
+fn monetary_amendment_after_native_authoring_crosses_save_and_run_protocol() {
+    amendment_protocol(NATIVE_INPUT, "binding-native", true);
+}
+
+fn amendment_protocol(input: &str, scenario: &str, native: bool) {
     let dir = tempfile::tempdir().expect("fixture");
     let root = dir.path().join("project");
     let home = dir.path().join("home");
@@ -153,16 +164,26 @@ fn monetary_amendment_after_unbounded_authoring_crosses_save_and_run_protocol() 
         .replace("./notes/brief.md", "./entree.txt")
         .replace("./out/copie.md", "./sortie.txt");
     let seat = LoopbackSeat::start(vec![native_answer(&candidate)]);
-    child_run(&root, &home, &seat, "binding");
+    child_run(&root, &home, &seat, scenario);
     seat.shutdown();
     let bodies = seat.bodies();
-    assert!(!bodies.is_empty());
-    assert!(
-        bodies
-            .iter()
-            .any(|body| message(body, "user").contains(INPUT)),
-        "exact original Prepare reaches authoring"
-    );
+    if native {
+        assert!(
+            !bodies.is_empty(),
+            "native authoring must actually reach the wire"
+        );
+        assert!(
+            bodies
+                .iter()
+                .any(|body| message(body, "user").contains(input)),
+            "exact original request reaches authoring"
+        );
+    } else {
+        assert!(
+            bodies.is_empty(),
+            "a settled literal copy needs no inference"
+        );
+    }
     assert!(!root.join("sortie.txt").exists(), "Save is never execution");
     assert_eq!(
         std::fs::read_to_string(root.join("entree.txt")).expect("input"),
@@ -186,7 +207,12 @@ fn child() {
         }
         return;
     }
-    let out = runtime.turn(INPUT);
+    let input = if std::env::var("S17_SCENARIO").expect("scenario") == "binding-native" {
+        NATIVE_INPUT
+    } else {
+        INPUT
+    };
+    let out = runtime.turn(input);
     let TurnOutcome::Proposal { id: old, .. } = out else {
         panic!("protocol candidate: {out:?}")
     };
@@ -197,7 +223,7 @@ fn child() {
     assert_ne!(id, old);
     let money = runtime.monetary_decision().expect("money");
     assert_eq!(money.effective_usd, Some(0.5));
-    assert_eq!(money.original_intent, INPUT);
+    assert_eq!(money.original_intent, input);
     assert_eq!(money.input, "budget 0,50 dollar");
     assert_eq!(money.proposal.as_ref(), Some(&id));
     assert!(matches!(
