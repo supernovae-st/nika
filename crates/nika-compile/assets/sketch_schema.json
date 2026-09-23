@@ -1,0 +1,53 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["name", "tasks", "questions", "gaps", "notes"],
+  "properties": {
+    "name": {"type": "string"},
+    "tasks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "verb", "purpose"],
+        "properties": {
+          "id": {"type": "string"},
+          "verb": {"type": "string", "enum": ["infer", "invoke", "exec", "agent"]},
+          "tool": {"type": ["string", "null"]},
+          "reads": {"type": "array", "items": {"type": "string"}},
+          "writes": {"type": "array", "items": {"type": "string"}},
+          "hosts": {"type": "array", "items": {"type": "string"}},
+          "after": {"type": "array", "items": {"type": "string"}},
+          "with": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["name", "from"],
+              "properties": {"name": {"type": "string"}, "from": {"type": "string"}}
+            }
+          },
+          "gated_by": {"type": ["string", "null"]},
+          "for_each": {"type": ["string", "null"]},
+          "purpose": {"type": "string"}
+        }
+      }
+    },
+    "questions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["key", "label", "answer_type", "why"],
+        "properties": {
+          "key": {"type": "string"},
+          "label": {"type": "string"},
+          "answer_type": {"type": ["string", "null"]},
+          "why": {"type": ["string", "null"]}
+        }
+      }
+    },
+    "gaps": {"type": "array", "items": {"type": "string"}},
+    "notes": {"type": "string"}
+  }
+}

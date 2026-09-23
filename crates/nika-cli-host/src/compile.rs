@@ -57,8 +57,10 @@ pub struct CompileArgs {
     pub authoring_samples: Option<u32>,
     /// When the seat writes the candidate itself (a native `.nika` judged by the parser, the
     /// Check and the fidelity laws): `escalate` (default) after the private plan fails a human,
-    /// `only` straight away, `off` never. Requires the authoring model.
-    #[arg(long, requires = "authoring_model", value_parser = ["escalate", "only", "off"])]
+    /// `only` straight away, `sketch` (structure first: the seat sketches tasks, edges and gates,
+    /// then fills typed holes, the compiler emits the file and derives the permits), `off`
+    /// never. Requires the authoring model.
+    #[arg(long, requires = "authoring_model", value_parser = ["escalate", "only", "sketch", "off"])]
     pub authoring_strategy: Option<String>,
     /// Repair rounds a native candidate may buy from the compiler's diagnostics (0..=5, default 3).
     #[arg(long, requires = "authoring_model")]

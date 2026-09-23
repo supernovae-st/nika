@@ -35,6 +35,7 @@ mod backstops;
 mod knowledge;
 mod native;
 mod proposal;
+mod sketch;
 mod transform;
 use proposal::{Proposal, decode, merge};
 pub(super) use proposal::{ProposedRegion, exact_excerpt, nullable_string, nullable_vec};
@@ -217,7 +218,7 @@ pub async fn compile_with_cognition<P: ProviderInferDyn>(
     // The ablation and the arena's treatment D: straight to the native candidate, before the
     // deterministic door and without the private plan, under the same bounds as COLD.
     if let (Some(policy), Some(provider)) = (&request.authoring, cognition.provider)
-        && policy.native == NativeMode::Only
+        && matches!(policy.native, NativeMode::Only | NativeMode::Sketch)
     {
         if !policy_bounded(policy, &effective_intent) {
             super::finding(
@@ -227,6 +228,19 @@ pub async fn compile_with_cognition<P: ProviderInferDyn>(
                 POLICY_BOUNDS,
             );
             return Ok(out);
+        }
+        if policy.native == NativeMode::Sketch {
+            route.push("native: sketch".to_owned());
+            return sketch::author(
+                &effective_intent,
+                &reading,
+                policy,
+                provider,
+                &assembly_request,
+                route,
+                out,
+            )
+            .await;
         }
         route.push("native: only".to_owned());
         return native::author(
@@ -943,31 +957,12 @@ fn authoring_request(
 
 /// The closed shape of a proposed plan.
 fn plan_schema() -> Value {
-    json!({
-    "type":"object","additionalProperties":false,
-    "required":["steps","effects","obligations","constraints","unknowns","regions","approval_bypass"],
-    "properties":{
-        "steps":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["op","detail","evidence"],"properties":{
-            "op":{"type":"string","enum":Op::ALL.iter().map(|o| o.word()).collect::<Vec<_>>()},
-            "detail":{"type":"string"},"evidence":{"type":"string","minLength":1},
-            "categories":{"type":"array","items":{"type":"string"}},
-            "computation": super::predicate::computation_schema()}}},
-        "effects":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["verb","target","policy","evidence"],"properties":{
-            "verb":{"type":"string","enum":["create","send","publish","update","notify","refund","pay","order","merge","delete","write","effect"]},
-            "target":{"type":"string"},
-            "policy":{"type":"string","enum":["automatic","human_first","forbidden","unspecified","conflict"]},
-            "evidence":{"type":"string","minLength":1}}}},
-        "obligations":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["kind","evidence"],"properties":{
-            "kind":{"type":"string","enum":["dedup","retry_bound","revision_check"]},
-            "value":{"type":["integer","null"]},"evidence":{"type":"string","minLength":1}}}},
-        "constraints":{"type":"array","items":{"type":"string"}},
-        "unknowns":{"type":"array","items":{"type":"string"}},
-        "regions":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["text","role"],"properties":{
-            "text":{"type":"string","minLength":1},
-            "role":{"type":"string","enum":["operation","effect","policy","obligation","constraint","context","unknown"]}}}},
-        "approval_bypass":{"type":"object","additionalProperties":false,"required":["present"],"properties":{
-            "present":{"type":"boolean"},"evidence":{"type":"string"}}}
-    }})
+    let mut schema: Value = serde_json::from_str(include_str!("../assets/plan_schema.json"))
+        .unwrap_or_else(|_| json!({"type": "object"}));
+    let step = &mut schema["properties"]["steps"]["items"]["properties"];
+    step["op"]["enum"] = json!(Op::ALL.iter().map(|o| o.word()).collect::<Vec<_>>());
+    step["computation"] = super::predicate::computation_schema();
+    schema
 }
 
 /// COLD with N proposals, then the composer: the distinct admissible plans become a finite

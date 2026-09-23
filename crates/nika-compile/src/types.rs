@@ -419,6 +419,10 @@ pub enum NativeMode {
     /// Straight to the native candidate, before the deterministic door and without the
     /// private plan (the ablation, and the arena's treatment D).
     Only,
+    /// Straight to the sketch door: the seat proposes structure (tasks, edges, gates, the
+    /// stated paths and hosts), judged before a word is written; then fills the typed holes;
+    /// the compiler emits the document and derives every permit (the plan's W2 pilot).
+    Sketch,
 }
 
 impl NativeMode {
@@ -429,6 +433,7 @@ impl NativeMode {
             Self::Off => "off",
             Self::Escalate => "escalate",
             Self::Only => "only",
+            Self::Sketch => "sketch",
         }
     }
 }

@@ -24,6 +24,8 @@
 //!   clause names, where a human gate sits, what a literal token is, which words are
 //!   columns, and the strict HOT admission over the reader's own vocabulary.
 //! - [`text`] · the text helpers the compiler and the onboarding surface share.
+//! - [`sketch`] · the constrained intermediate a seat proposes (tasks, edges, gates, stated
+//!   paths and hosts), its structural laws, its typed holes and the document it states.
 
 #![cfg_attr(
     test,
@@ -53,6 +55,7 @@ pub mod rule_cues;
 pub mod rule_tokens;
 pub mod rules;
 pub mod shape;
+pub mod sketch;
 pub mod stages;
 pub mod structure;
 pub mod text;

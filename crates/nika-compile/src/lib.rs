@@ -94,7 +94,7 @@ mod writes;
 // historical module paths.
 use nika_compile_reader::{
     cardinality, columns, fidelity, gates, hot, lexicon, objects, paths, plan, rule_tokens, rules,
-    shape, structure, unknowns, words,
+    shape, sketch, structure, unknowns, words,
 };
 
 use std::collections::BTreeSet;

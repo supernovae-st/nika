@@ -53,6 +53,7 @@ fn with_policy(
                 .with_samples(args.authoring_samples.unwrap_or(1))
                 .with_native(match args.authoring_strategy.as_deref() {
                     Some("only") => NativeMode::Only,
+                    Some("sketch") => NativeMode::Sketch,
                     Some("off") => NativeMode::Off,
                     _ => NativeMode::Escalate,
                 })

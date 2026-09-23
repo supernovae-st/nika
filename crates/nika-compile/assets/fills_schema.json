@@ -1,0 +1,17 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["fills", "notes"],
+  "properties": {
+    "fills": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["task", "field", "value"],
+        "properties": {"task": {"type": "string"}, "field": {"type": "string"}, "value": {}}
+      }
+    },
+    "notes": {"type": "string"}
+  }
+}
