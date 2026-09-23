@@ -546,7 +546,7 @@ fn stalled_turn(tag: &str) -> (TeeSession, Tee) {
     session
         .send("Que penses-tu de ce projet ?\r")
         .expect("a line only a seat answers");
-    answer_until(&mut session, &tee, 24, "through");
+    answer_until(&mut session, &tee, 24, "through your words");
     std::mem::forget(project);
     std::mem::forget(home);
     (session, tee)
