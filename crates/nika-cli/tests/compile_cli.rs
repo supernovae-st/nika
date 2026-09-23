@@ -53,7 +53,7 @@ fn preview_is_the_same_typed_core_and_questions_are_stable() {
 }
 
 #[test]
-fn explicit_authoring_is_bounded_and_ambient_credentials_do_not_opt_in() {
+fn cold_authoring_is_bounded_and_ambient_credentials_do_not_opt_in() {
     let room = tempfile::tempdir().expect("room");
     // The strict reader admits "review … and prepare a support reply" as validate + draft
     // (a correct reading that asks only for a model); this test needs a clause the reader
@@ -76,6 +76,8 @@ fn explicit_authoring_is_bounded_and_ambient_credentials_do_not_opt_in() {
             intent,
             "--authoring-model",
             "mock/echo",
+            "--authoring-strategy",
+            "off",
             "--authoring-max-tokens",
             "1024",
             "--authoring-timeout",
@@ -107,6 +109,63 @@ fn explicit_authoring_is_bounded_and_ambient_credentials_do_not_opt_in() {
     );
     assert_eq!(invalid.status.code(), Some(3));
     assert!(result(&invalid)["error"].is_object());
+}
+
+/// The CLI defaults to escalation after the cold plan fails. Its receipt must include
+/// both phases; a schema mock cannot become an accepted native candidate.
+#[test]
+fn default_native_escalation_preserves_calls_and_honors_the_repair_bound() {
+    let room = tempfile::tempdir().expect("room");
+    let intent = "Review this customer request and harmonise the tone of the support reply";
+    for repairs in [0_u64, 1, 3] {
+        let out = call(
+            room.path(),
+            &[
+                "compile",
+                intent,
+                "--authoring-model",
+                "mock/echo",
+                "--authoring-repairs",
+                &repairs.to_string(),
+                "--authoring-timeout",
+                "2",
+                "--json",
+            ],
+        );
+        let doc = result(&out);
+        assert_eq!(out.status.code(), Some(2), "{doc}");
+        assert_eq!(doc["compile_version"], 2);
+        assert_eq!(doc["status"], "incomplete");
+        assert!(doc["candidate"].is_null());
+        let provenance = &doc["provenance"];
+        let context = provenance["authoring"]["context"]
+            .as_array()
+            .expect("calls");
+        let phases: Vec<_> = context
+            .iter()
+            .map(|c| c["call"].as_str().expect("phase"))
+            .collect();
+        let expected: &[&str] = if repairs == 0 {
+            &["plan", "repair", "native"]
+        } else {
+            &["plan", "repair", "native", "native-repair"]
+        };
+        assert_eq!(phases, expected, "{doc}");
+        assert_eq!(
+            provenance["authoring"]["calls"].as_u64(),
+            Some(context.len() as u64)
+        );
+        let native = &provenance["decision"]["native"];
+        let rounds = native["rounds"].as_array().expect("native rounds");
+        assert!(rounds.len() as u64 <= 1 + repairs, "{doc}");
+        assert_eq!(native["accepted"], false);
+        assert_eq!(rounds.len() + 2, context.len(), "cold calls remain counted");
+        // The repeated mock candidate stops on no progress, even with repairs left.
+        if repairs > 1 {
+            assert_eq!(rounds.len(), 2, "{doc}");
+        }
+        assert_eq!(std::fs::read_dir(room.path()).expect("dir").count(), 0);
+    }
 }
 
 /// The authoring seat rides the PROVIDER client (the runtime's fixed endpoint allowlist,
