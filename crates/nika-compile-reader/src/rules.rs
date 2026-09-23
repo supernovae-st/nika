@@ -1105,7 +1105,7 @@ fn residual(tokens: &[Token], from: usize) -> Option<usize> {
         }
         let trailing = token
             .word()
-            .is_some_and(|w| UNIT_WORDS.contains(&w) || COPULAS.contains(&w));
+            .is_some_and(|w| UNIT_WORDS.lines().any(|u| u == w) || COPULAS.contains(&w));
         if !trailing {
             return None;
         }

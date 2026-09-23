@@ -655,34 +655,11 @@ fn codes_in(message: &str) -> Vec<String> {
 }
 
 /// Slug fragments that name a machine's construct rather than a business value.
-const MACHINE_SLUGS: &[&str] = &[
-    "glob",
-    "jq",
-    "regex",
-    "regexp",
-    "expression",
-    "pattern",
-    "selector",
-    "xpath",
-    "query",
-    "cel",
-    "syntax",
-    "schema",
-];
+const MACHINE_SLUGS: &str = include_str!("../../assets/machine_slugs.txt");
 
 /// Slug endings that name a column, field, key or value of a file — stated by the observed
 /// world when the host read the file, never asked then.
-const STRUCTURE_SLUGS: &[&str] = &[
-    "_column",
-    "_col",
-    "_field",
-    "_key",
-    "_header",
-    "_attribute",
-    "_property",
-    "_value",
-    "_values",
-];
+const STRUCTURE_SLUGS: &str = include_str!("../../assets/structure_slugs.txt");
 
 /// The observed world in one line — `./tickets.json: id, status, topic (status: closed | open)`
 /// — or None when the host read no stated file.
@@ -759,7 +736,7 @@ fn admitted_questions(
         // A value named after a machine's construct is the compiler's problem in a human's
         // clothes: a glob over a stated folder, a jq program, a regex, a selector are written,
         // never asked (the reality check of 2026-09-22 measured the jq question 5 times).
-        if MACHINE_SLUGS.iter().any(|m| slug.contains(m)) {
+        if MACHINE_SLUGS.lines().any(|m| slug.contains(m)) {
             return Err(Diagnostic {
                 kind: "question",
                 message: format!(
@@ -772,7 +749,7 @@ fn admitted_questions(
         // observed world, never asked (2026-09-22 22:5xZ, claude-code/sonnet: `const.status_field`,
         // `const.open_value`, `const.region_column` beside the observed header and value set).
         if let Some(world) = world.as_deref()
-            && STRUCTURE_SLUGS.iter().any(|s| slug.ends_with(s))
+            && STRUCTURE_SLUGS.lines().any(|s| slug.ends_with(s))
         {
             return Err(Diagnostic {
                 kind: "question",

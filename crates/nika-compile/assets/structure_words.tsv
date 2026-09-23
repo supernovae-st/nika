@@ -1,0 +1,18 @@
+nika:fetch	fetch url website
+nika:read	read document
+nika:write	write persist
+nika:prompt	human approve gate
+nika:glob	discover files collection
+nika:jq	project transform
+nika:validate	validate
+nika:json_diff	diff compare snapshot
+nika:image_generate	generate image asset
+nika:notify	notify send
+for_each:	fanout batch each parallel
+group:	fanin merge
+agent:	agent explore
+exec:	exec command
+infer:	infer
+schema:	validate typed
+returns:	validate typed
+docker	docker container
