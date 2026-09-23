@@ -11,13 +11,15 @@
 use std::fmt::Write as _;
 use std::path::PathBuf;
 
-use nika_onboard::compile::{CompileOutcome, CompileQuestion, CompileRequest, CompileStatus};
+use nika_onboard::compile::{
+    CompileOutcome, CompileQuestion, CompileRequest, CompileStatus, revise_intent,
+};
 
 use super::{DEFAULT_CEILING_USD, SessionRuntime, TurnOutcome, ceiling_in, named_files};
 use crate::activity::{Activity, Phase};
 use crate::authoring::{
-    AuthoringError, AuthoringRound, AuthoringSeat, Reading, compile_deterministic, compile_through,
-    is_cancel, is_greeting, is_why, reasons,
+    AuthoringContext, AuthoringError, AuthoringRound, AuthoringSeat, Reading,
+    compile_deterministic, compile_in, is_cancel, is_greeting, is_why, reasons,
 };
 use crate::change::{RunRequest, check_on_disk};
 use crate::outcome::{ProposalId, Refusal, RefusalClass};
@@ -40,6 +42,31 @@ impl SessionRuntime {
     /// Re-derive the seat from the reasoner in place (open · `/intelligence`).
     pub(super) fn refresh_seat(&mut self) {
         self.seat = AuthoringSeat::from_reasoner(self.reasoner.as_ref(), &self.intelligence);
+    }
+
+    /// The authoring context a provider seat authors under: the strategy and
+    /// the knowledge snapshot pinned for this session (`/status` names it).
+    #[must_use]
+    pub fn authoring_context(&self) -> &AuthoringContext {
+        &self.authoring_context
+    }
+
+    /// A host's explicit authoring context, in place of the one the session
+    /// read when it opened. The seat is unchanged: the context never selects
+    /// a model, and a deterministic seat never reads it.
+    pub fn set_authoring_context(&mut self, context: AuthoringContext) {
+        self.authoring_context = context;
+    }
+
+    /// A request that is not a round (a revision, a request read again with
+    /// its change) through the seat under the session's context, its pack
+    /// composed for `intent`.
+    fn compile_request(
+        &self,
+        request: &CompileRequest,
+        intent: &str,
+    ) -> Result<CompileOutcome, AuthoringError> {
+        compile_in(&self.seat, &self.authoring_context, request, intent)
     }
 
     /// A free-text line as work to build: the deterministic ladder first
@@ -121,7 +148,7 @@ impl SessionRuntime {
     /// is working (a truthful line, no invented detail).
     fn compile_under_seat(&mut self, round: AuthoringRound) -> TurnOutcome {
         self.activity(&Activity::now(Phase::Authoring, self.authoring_note()));
-        match compile_through(&self.seat, &round.request()) {
+        match round.compile(&self.seat, &self.authoring_context) {
             Ok(out) => match Reading::of(out) {
                 // The seat could not settle it: Nika keeps working — once
                 // more with the provider's stronger model (the product law:
@@ -133,7 +160,7 @@ impl SessionRuntime {
                             Phase::Repairing,
                             "still working · a stronger model reads it",
                         ));
-                        return match compile_through(&stronger, &round.request()) {
+                        return match round.compile(&stronger, &self.authoring_context) {
                             Ok(again) => match Reading::of(again) {
                                 Reading::Unsettled(again) | Reading::NotWork(again) => {
                                     self.cannot_express(again)
@@ -179,7 +206,7 @@ impl SessionRuntime {
         let intent = format!("{}. {}", round.intent, line.trim());
         self.remember(line, "(the request read again with these words)");
         let again = AuthoringRound::new(intent);
-        match compile_through(&self.seat, &again.request()) {
+        match again.compile(&self.seat, &self.authoring_context) {
             Ok(out) => {
                 let reading = Reading::of(out);
                 self.settle(again, reading)
@@ -270,9 +297,8 @@ impl SessionRuntime {
                 ),
             ));
         };
-        let goal = self
-            .intent
-            .goal
+        let original = self.intent.goal.clone();
+        let goal = original
             .clone()
             .unwrap_or_else(|| format!("the workflow `{}`", saved.display()));
         let goal = format!("{goal} — {}", change.trim());
@@ -280,8 +306,15 @@ impl SessionRuntime {
             Phase::Authoring,
             "revising with your change",
         ));
-        let request = CompileRequest::edit(base, change.trim());
-        let mut out = match compile_through(&self.seat, &request) {
+        // The revision reads the change beside the request the saved workflow
+        // answered (the whole meaning, never the change alone), and its
+        // knowledge is composed for that same request from the pinned snapshot.
+        let mut request = CompileRequest::edit(base, change.trim());
+        if let Some(original) = original {
+            request = request.with_original_intent(original);
+        }
+        let revised = revise_intent(&request).unwrap_or_else(|| goal.clone());
+        let mut out = match self.compile_request(&request, &revised) {
             Ok(out) => out,
             Err(e) => return self.machinery(&e),
         };
@@ -292,7 +325,7 @@ impl SessionRuntime {
                 "reading your request again with the change",
             ));
             let again = CompileRequest::create(goal.clone());
-            out = match compile_through(&self.seat, &again) {
+            out = match self.compile_request(&again, &goal) {
                 Ok(out) => out,
                 Err(e) => return self.machinery(&e),
             };
@@ -350,9 +383,13 @@ impl SessionRuntime {
         // as « Set const.X to … »; a change in words is contract C6, asked of
         // the Compiler lane); then, under a seat, the request read again
         // WITH the change — the earlier proposal is replaced, never patched
-        // by the session itself.
-        let request = CompileRequest::edit(base, change.trim());
-        let mut out = match compile_through(&self.seat, &request) {
+        // by the session itself. The edit reads the change beside the request
+        // the proposal answered, and its knowledge is composed for that same
+        // request from the snapshot pinned for this session.
+        let request =
+            CompileRequest::edit(base, change.trim()).with_original_intent(set.goal.clone());
+        let revised = revise_intent(&request).unwrap_or_else(|| goal.clone());
+        let mut out = match self.compile_request(&request, &revised) {
             Ok(out) => out,
             Err(e) => {
                 self.pending = Some(set);
@@ -379,8 +416,8 @@ impl SessionRuntime {
                 let text = restated
                     .clone()
                     .unwrap_or_else(|| format!("{}. Change: {}", set.goal, change.trim()));
-                let again = CompileRequest::create(text);
-                out = match compile_through(&self.seat, &again) {
+                let again = CompileRequest::create(text.clone());
+                out = match self.compile_request(&again, &text) {
                     Ok(out) => out,
                     Err(e) => {
                         self.pending = Some(set);
@@ -418,7 +455,9 @@ impl SessionRuntime {
 
     /// The compiler's machinery failed under a seat, or the compiler
     /// itself: a seat failure is a recovery (the goal is kept, the ways on
-    /// are named); a compiler failure is a refusal that names it.
+    /// are named); a compiler failure is a refusal that names it; an
+    /// authoring configuration that cannot be honored is refused before
+    /// anything is sent — never authored without the knowledge it names.
     fn machinery(&mut self, error: &AuthoringError) -> TurnOutcome {
         match error {
             AuthoringError::Seat(_) => self.recovery(
@@ -426,6 +465,12 @@ impl SessionRuntime {
                 "I couldn't use the authoring seat for this part",
                 &error.to_string(),
             ),
+            AuthoringError::Context(_) => TurnOutcome::Refusal(Refusal::new(
+                RefusalClass::AuthoringRefused,
+                format!(
+                    "{error} · nothing was sent to the authoring model, nothing was written · fix or unset the knowledge (NIKA_KNOWLEDGE · NIKA_AUTHORING_STRATEGY) and open the session again"
+                ),
+            )),
             AuthoringError::Compiler(_) | AuthoringError::Runtime(_) => {
                 TurnOutcome::Refusal(Refusal::new(
                     RefusalClass::AuthoringRefused,
@@ -633,7 +678,7 @@ impl SessionRuntime {
         if matches!(self.seat, AuthoringSeat::Provider { .. }) {
             return self.compile_under_seat(round);
         }
-        match compile_through(&self.seat, &round.request()) {
+        match round.compile(&self.seat, &self.authoring_context) {
             Ok(out) => {
                 let reading = Reading::of(out);
                 self.settle(round, reading)

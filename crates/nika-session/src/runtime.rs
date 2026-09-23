@@ -246,6 +246,9 @@ pub struct SessionRuntime {
     authoring: Option<AuthoringRound>,
     /// The cognition the compiler may use, derived from the reasoner.
     seat: AuthoringSeat,
+    /// The strategy and the knowledge snapshot a provider seat authors
+    /// under: read once when a host door opens the session, or set by it.
+    authoring_context: crate::authoring::AuthoringContext,
     /// Where a truthful progress line goes while the compiler works
     /// (presentation only: it never carries workflow meaning).
     progress: Option<ProgressHook>,
@@ -328,6 +331,7 @@ impl SessionRuntime {
             last_trace: None,
             authoring: None,
             seat: AuthoringSeat::Deterministic { why: None },
+            authoring_context: crate::authoring::AuthoringContext::default(),
             progress: None,
             run_inputs: None,
             chosen: true,
@@ -577,6 +581,9 @@ impl SessionRuntime {
         session.census = Some(census);
         session.home = home.map(Path::to_path_buf);
         session.factory = Some(factory);
+        // The host door's authoring configuration, read once, here: the
+        // names `nika compile` reads, through the same parser.
+        session.authoring_context = crate::authoring::AuthoringContext::from_env();
         session
     }
 
@@ -684,6 +691,11 @@ impl SessionRuntime {
         if let Some(why) = &self.intelligence.why {
             let _ = write!(text, "\n  ⚠ {why}");
         }
+        // A named authoring configuration this session cannot honor is the
+        // same kind of warning: said at open, refused at the first seated turn.
+        if let Some(why) = self.authoring_context.refusal() {
+            let _ = write!(text, "\n  ⚠ authoring knowledge: {why}");
+        }
         text
     }
 
@@ -702,10 +714,11 @@ impl SessionRuntime {
             " (not chosen yet · asked when a turn needs one · `/intelligence` chooses now)"
         };
         format!(
-            "session\n  root: {}\n  {}{chosen}{readiness}\n  {}\n  /help for the card · /quit to close",
+            "session\n  root: {}\n  {}{chosen}{readiness}\n  {}\n  {}\n  /help for the card · /quit to close",
             self.snapshot.root.display(),
             self.intelligence_line(),
-            self.seat.line()
+            self.seat.line(),
+            self.authoring_context.line()
         )
     }
 
