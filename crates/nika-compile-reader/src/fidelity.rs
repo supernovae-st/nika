@@ -131,6 +131,7 @@ pub fn laws(
     strings(doc, &mut literals);
     stated_paths(intent, doc, waived, out);
     approvals(plan, doc, out);
+    invented_gates(plan, doc, out);
     prohibitions(plan, doc, out);
     invented(intent, &literals, allowed, out);
 }
@@ -238,6 +239,35 @@ pub fn approvals(plan: &Plan, doc: &Value, out: &mut Vec<Diagnostic>) {
     }
 }
 
+/// Law 21: an approval the request never states is not a gate. A `nika:prompt` that guards an
+/// effect when no effect of the plan is human-first makes an unattended run answer the gate
+/// with its default and skip the effect — a run that exits 0 and does nothing (measured
+/// 2026-09-23: the weekly recap's send never reached the webhook). The effect runs as stated,
+/// or the seat asks whether it should.
+pub fn invented_gates(plan: &Plan, doc: &Value, out: &mut Vec<Diagnostic>) {
+    if plan
+        .effects
+        .iter()
+        .any(|e| e.policy == EffectPolicy::HumanFirst)
+    {
+        return;
+    }
+    let (effects, gates) = effect_and_gate_tasks(doc);
+    if gates.is_empty() {
+        return;
+    }
+    for task in &effects {
+        if depends_on(doc, task, &gates) {
+            out.push(Diagnostic {
+                kind: "gate",
+                message: format!(
+                    "INVENTED GATE: the request states no approval before the effect task `{task}`, yet a `nika:prompt` guards it; unattended, the gate answers its default and the effect is skipped — a run that exits 0 and does nothing. Remove the gate (the effect runs as stated), or ask under `questions` whether a human should approve it."
+                ),
+            });
+        }
+    }
+}
+
 /// Law 4: an effect the request forbids is absent.
 pub fn prohibitions(plan: &Plan, doc: &Value, out: &mut Vec<Diagnostic>) {
     let (effects, _) = effect_and_gate_tasks(doc);
@@ -328,6 +358,40 @@ pub fn tool_of<'a>(doc: &'a Value, task: &str) -> &'a str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_gate_the_request_never_states_is_invented_and_a_stated_one_is_not() {
+        let doc = serde_json::json!({"tasks": {
+            "draft": {"infer": {"prompt": "recap"}},
+            "review": {"with": {"recap": "${{ tasks.draft.output }}"}, "invoke": {"tool": "nika:prompt", "args": {"message": "send?", "default": false}}},
+            "send": {"with": {"approved": "${{ tasks.review.output }}"}, "when": "${{ with.approved == true }}", "invoke": {"tool": "nika:fetch", "args": {"url": "${{ const.send_endpoint }}", "method": "POST"}}}
+        }});
+        let mut unstated = Plan::default();
+        unstated.effects.push(crate::plan::Effect::new(
+            crate::plan::EffectVerb::Send,
+            "le résumé",
+            "envoie le résumé",
+            EffectPolicy::Automatic,
+        ));
+        let mut out = Vec::new();
+        invented_gates(&unstated, &doc, &mut out);
+        assert_eq!(out.len(), 1, "{out:?}");
+        assert!(
+            out[0].message.contains("INVENTED GATE") && out[0].message.contains("`send`"),
+            "{}",
+            out[0].message
+        );
+        let mut stated = Plan::default();
+        stated.effects.push(crate::plan::Effect::new(
+            crate::plan::EffectVerb::Send,
+            "le résumé",
+            "demande-moi avant d'envoyer",
+            EffectPolicy::HumanFirst,
+        ));
+        let mut out = Vec::new();
+        invented_gates(&stated, &doc, &mut out);
+        assert!(out.is_empty(), "{out:?}");
+    }
 
     #[test]
     fn a_permit_entry_covers_the_path_it_names_or_globs() {
