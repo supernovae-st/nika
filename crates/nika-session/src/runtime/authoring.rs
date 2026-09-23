@@ -1102,7 +1102,7 @@ fn honest_incomplete(out: &CompileOutcome, why: Option<&str>) -> String {
     }
     text.push_str("\n  ");
     text.push_str(why.unwrap_or(
-        "rephrase with what to read, what to produce and where to write it, e.g. « read ./docs, draft a digest and write it to ./digest.md »",
+        "say what to read, what to produce and where to write it, e.g. « read ./docs, draft a digest and write it to ./digest.md »",
     ));
     text
 }
