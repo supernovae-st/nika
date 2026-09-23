@@ -155,7 +155,13 @@ pub struct TurnDecision {
     pub secondary: Vec<TurnAct>,
     /// How it was decided.
     pub method: RoutingMethod,
+    /// Why a FAILED route failed, in the error's own words, bounded —
+    /// `None` for every other method.
+    pub note: Option<String>,
 }
+
+/// The longest note a failed route keeps (characters).
+const NOTE_CHARS: usize = 120;
 
 impl TurnDecision {
     /// A decision by one method.
@@ -165,6 +171,21 @@ impl TurnDecision {
             act,
             secondary: Vec::new(),
             method,
+            note: None,
+        }
+    }
+
+    /// The intelligence was asked and could not answer: UNKNOWN, with the
+    /// failure's own words kept (bounded) for `/details` and the receipts.
+    #[must_use]
+    pub fn failed(reason: &str) -> Self {
+        let reason = reason.split_whitespace().collect::<Vec<_>>().join(" ");
+        let note: String = reason.chars().take(NOTE_CHARS).collect();
+        Self {
+            act: TurnAct::Unknown,
+            secondary: Vec::new(),
+            method: RoutingMethod::Failed,
+            note: (!note.is_empty()).then_some(note),
         }
     }
 }
@@ -206,7 +227,7 @@ impl TurnClassifier for ReasonerClassifier {
     fn classify(&mut self, context: &TurnContext, raw: &str) -> TurnDecision {
         match self.reasoner.reason_label(&routing_prompt(context, raw)) {
             Ok(reply) => TurnDecision::new(TurnAct::parse(&reply.text), RoutingMethod::Model),
-            Err(_) => TurnDecision::new(TurnAct::Unknown, RoutingMethod::Failed),
+            Err(e) => TurnDecision::failed(&e.to_string()),
         }
     }
 }
@@ -262,6 +283,8 @@ pub struct RouteRecord {
     pub act: TurnAct,
     /// How.
     pub method: RoutingMethod,
+    /// Why, when the route FAILED (the error's own words, bounded).
+    pub note: Option<String>,
 }
 
 impl RouteRecord {
@@ -274,16 +297,22 @@ impl RouteRecord {
             raw_hash: hash[..12].to_owned(),
             act: decision.act,
             method: decision.method,
+            note: decision.note.clone(),
         }
     }
 
-    /// The record's line (`/details`).
+    /// The record's line (`/details`): the failure's words beside a FAILED route.
     #[must_use]
     pub fn line(&self) -> String {
-        format!(
+        let mut line = format!(
             "{:?} · {} · {:?} · {}",
             self.phase, self.act, self.method, self.raw_hash
-        )
+        );
+        if let Some(note) = &self.note {
+            line.push_str(" · ");
+            line.push_str(note);
+        }
+        line
     }
 }
 
@@ -332,9 +361,30 @@ mod tests {
             .classify(&ctx, "anything");
         assert_eq!(failed.act, TurnAct::Unknown);
         assert_eq!(failed.method, RoutingMethod::Failed);
+        // The failure keeps its reason: the error's own words, bounded, on
+        // the record's line — the night's outage said nothing on any receipt.
+        assert!(
+            failed
+                .note
+                .as_deref()
+                .is_some_and(|n| n.contains("no conversational intelligence")),
+            "{:?}",
+            failed.note
+        );
+        let long = TurnDecision::failed(&"x ".repeat(200));
+        assert_eq!(long.note.as_deref().map(str::len), Some(120));
+        assert!(TurnDecision::failed("   ").note.is_none());
         let record = RouteRecord::new(SessionPhase::Idle, "hello", &fallback);
         assert_eq!(record.raw_hash.len(), 12);
-        assert!(record.line().contains("UNKNOWN"));
+        assert!(record.line().contains("UNKNOWN") && record.note.is_none());
+        let failed_record = RouteRecord::new(SessionPhase::Idle, "hello", &failed);
+        assert!(
+            failed_record.line().ends_with(
+                "no conversational intelligence — the facts stay (`/intelligence` chooses a path)"
+            ),
+            "{}",
+            failed_record.line()
+        );
     }
 
     /// The Arena routing benchmark seam, LIVE (ignored by default): the
@@ -429,6 +479,7 @@ mod tests {
             receipts.push(serde_json::json!({
                 "id": id, "state": state, "expected": expected, "got": got, "ok": ok,
                 "method": format!("{:?}", decision.method), "model": model,
+                "note": decision.note,
             }));
         }
         println!("routing corpus · {right}/{total} as expected · model {model}");
