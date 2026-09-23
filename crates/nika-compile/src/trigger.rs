@@ -10,6 +10,7 @@
 
 use super::plan::Plan;
 use super::{TriggerKind, TriggerRequirement, TriggerStatus, hot};
+use nika_compile_reader::words::day_part_compound;
 
 /// Words that state a daily cadence (EN · FR · IT · ES · DE · PT, folded).
 const DAILY: &[&str] = &[
@@ -117,6 +118,16 @@ const WEEKLY: &[&str] = &[
     "viernes",
     "sabado",
     "domingo",
+    "segunda",
+    "segunda-feira",
+    "terca",
+    "terca-feira",
+    "quarta",
+    "quarta-feira",
+    "quinta",
+    "quinta-feira",
+    "sexta",
+    "sexta-feira",
     "woche",
     "wochentlich",
     "montag",
@@ -439,7 +450,11 @@ fn cadence(words: &[&str], consumed: &[usize]) -> Option<&'static str> {
         .filter(|(i, _)| !consumed.contains(i))
         .map(|(_, w)| *w)
         .collect();
-    let has = |table: &[&str]| free.iter().any(|w| table.contains(w));
+    let has = |table: &[&str]| {
+        free.iter().any(|w| {
+            table.contains(w) || day_part_compound(w).is_some_and(|(day, _)| table.contains(&day))
+        })
+    };
     if has(WEEKDAYS) {
         Some("weekdays")
     } else if has(WEEKLY) {
@@ -550,6 +565,13 @@ mod tests {
             ("cada lunes a las 8", Some("weekly"), Some("08:00")),
             ("jeden morgen um 9 uhr", Some("daily"), Some("09:00")),
             ("todas as manhãs às 7h", Some("daily"), Some("07:00")),
+            ("jeden montagmorgen", Some("weekly"), None),
+            (
+                "jeden freitagabend um 18 uhr",
+                Some("weekly"),
+                Some("18:00"),
+            ),
+            ("toda segunda-feira de manhã", Some("weekly"), None),
             ("every day at 25", Some("daily"), None),
         ] {
             let trigger = read(phrase, false);

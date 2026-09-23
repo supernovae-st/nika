@@ -528,3 +528,40 @@ async fn a_wildcard_host_grant_is_refused_by_name() {
     assert_eq!(native["accepted"], false, "{native:#}");
     assert!(native.to_string().contains("wildcard"), "{native:#}");
 }
+
+#[tokio::test]
+async fn a_schedule_stated_without_a_comma_in_german_or_portuguese_is_recorded_beside_the_candidate()
+ {
+    for (intent, hint) in [
+        (
+            "Jeden Montagmorgen schick mir eine Zusammenfassung der offenen Tickets aus ./tickets.json",
+            "jeden montagmorgen",
+        ),
+        (
+            "Toda segunda-feira de manhã, envie-me um resumo dos tickets abertos de ./tickets.json",
+            "toda segunda-feira de manhã",
+        ),
+    ] {
+        let provider = Rotating::new(vec![answer(
+            RECAP_NOTIFY,
+            &json!([{"key": "const.send_endpoint", "label": "Where?", "answer_type": "text", "why": "open"}]),
+        )]);
+        let req = CompileRequest::create(intent).with_authoring_policy(policy(NativeMode::Only, 1));
+        let out = compile_with_provider(&req, &provider).await.unwrap();
+        assert!(out.requested_trigger.is_some(), "{intent}: {out:#?}");
+        let trigger = out
+            .requested_trigger
+            .as_ref()
+            .expect("a schedule is recorded");
+        assert_eq!(
+            trigger.kind,
+            nika_compile::TriggerKind::Schedule,
+            "{intent}"
+        );
+        assert_eq!(trigger.source_hint.as_deref(), Some(hint), "{intent}");
+        assert!(
+            keys(&out).contains(&"const.send_endpoint"),
+            "{intent}: {out:#?}"
+        );
+    }
+}

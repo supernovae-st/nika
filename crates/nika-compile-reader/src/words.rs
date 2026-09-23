@@ -369,3 +369,46 @@ pub fn content_words(text: &str) -> impl Iterator<Item = String> + '_ {
         })
         .filter(|word| word.chars().count() >= 4)
 }
+
+/// The German day-part compound a schedule names as one word — « Montagmorgen »,
+/// « Freitagabend » — split into its day and its part, both folded (`hot::fold`). None for
+/// any other word.
+#[must_use]
+pub fn day_part_compound(folded: &str) -> Option<(&'static str, &'static str)> {
+    let day = GERMAN_DAYS
+        .iter()
+        .copied()
+        .find(|d| folded.starts_with(d))?;
+    let part = folded.get(day.len()..)?;
+    GERMAN_DAY_PARTS
+        .iter()
+        .copied()
+        .find(|p| *p == part)
+        .map(|part| (day, part))
+}
+
+const GERMAN_DAYS: &[&str] = &[
+    "montag",
+    "dienstag",
+    "mittwoch",
+    "donnerstag",
+    "freitag",
+    "samstag",
+    "sonntag",
+];
+
+const GERMAN_DAY_PARTS: &[&str] = &[
+    "morgen",
+    "morgens",
+    "fruh",
+    "vormittag",
+    "vormittags",
+    "mittag",
+    "mittags",
+    "nachmittag",
+    "nachmittags",
+    "abend",
+    "abends",
+    "nacht",
+    "nachts",
+];
