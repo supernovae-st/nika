@@ -464,6 +464,13 @@ pub fn native_apply(record: &Value, request: &CompileRequest, out: &mut CompileO
         // Questions stay; the candidate waits for them (the same contract as the assembler).
         return;
     }
+    // A stated cap may be the human's and nothing proves otherwise: it is admitted against the
+    // catalog's judges, never rewritten. A task that states none gets the compiler's default,
+    // sized now that the workflow's model is seated.
+    if let Some(filled) = crate::seat_cap::fill_defaults(&source) {
+        source = filled;
+    }
+    crate::seat_cap::admit(&source, out);
     super::finish(source, out);
 }
 

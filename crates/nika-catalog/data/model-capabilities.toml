@@ -131,6 +131,21 @@ scope = { providers = ["openai"] }
 match = { kind = "exact_any", models = ["gpt-6-astra"] }
 caps  = { token_limit_param = "max-completion-tokens" }
 
+# OpenAI gpt-oss-120b under the openai provider id, as the Scaleway Generative APIs serve it.
+# Advertised (fetched 2026-09-24,
+# https://www.scaleway.com/en/docs/generative-apis/how-to/query-reasoning-models/): a
+# reasoning model, reasoning on by default and not disableable for gpt-oss-120b, reasoning
+# tokens billable and limited through max_completion_tokens. Measured on that route
+# 2026-09-24: with max_completion_tokens 60 the call ended `length` with an empty answer after
+# 203 characters of `message.reasoning`, while usage reported reasoning_tokens = 0. This rule
+# claims the reasoning capability of this exact name only; the route's output limit and token
+# parameter stay with its endpoint-bound tariff in inference-admission.toml.
+[[rules]]
+name  = "openai-gpt-oss-120b-reasoning"
+scope = { providers = ["openai"] }
+match = { kind = "exact_any", models = ["gpt-oss-120b"] }
+caps  = { reasoning = true }
+
 # [6] OpenAI GPT-4o family (gpt-4o, gpt-4o-mini, …). o200k tokenizer.
 #     ⚠ MUST appear BEFORE gpt-4.1 and gpt-4 rules (both have "gpt-4"
 #       prefix overlap). Wrong order = wrong tokenizer on gpt-4o.

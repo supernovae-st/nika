@@ -10,6 +10,10 @@
 #[path = "models/deepseek_capabilities_tests.rs"]
 mod deepseek_capabilities_tests;
 
+#[cfg(all(test, feature = "capabilities"))]
+#[path = "models/gpt_oss_capabilities_tests.rs"]
+mod gpt_oss_capabilities_tests;
+
 #[cfg(feature = "capabilities")]
 use crate::types::model::ModelCapabilities;
 #[cfg(feature = "pricing")]

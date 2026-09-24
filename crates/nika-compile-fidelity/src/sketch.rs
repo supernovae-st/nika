@@ -442,8 +442,7 @@ fn verb_node(task: &SketchTask, fills: &[Fill], reach: &mut Reach) -> Value {
     match (task.verb, task.tool.as_deref()) {
         (Verb::Infer, _) => {
             reach.needs_model = true;
-            let mut infer =
-                json!({"prompt": fill("prompt").unwrap_or_else(|| json!("")), "max_tokens": 800});
+            let mut infer = json!({"prompt": fill("prompt").unwrap_or_else(|| json!(""))});
             if let Some(schema) = fill("schema") {
                 infer["schema"] = schema;
             }
@@ -636,7 +635,11 @@ mod tests {
             doc["tasks"]["open_only"]["invoke"]["args"]["expression"],
             "fromjson | map(select(.status == \"open\"))"
         );
-        assert_eq!(doc["tasks"]["summarize"]["infer"]["max_tokens"], 800);
+        assert!(
+            doc["tasks"]["summarize"]["infer"]
+                .get("max_tokens")
+                .is_none()
+        );
         assert_eq!(
             doc["tasks"]["send"]["with"]["approved"],
             "${{ tasks.review.output }}"

@@ -384,6 +384,7 @@ pub(super) fn prelude<'a>(
         "facts_the_compiler_holds_you_to": floor(intent, reading),
         "observed_world": request.knowledge,
         "answers_already_given": request.answers,
+        "output_caps": knowledge::output_caps(&request.answers),
         "base_candidate": revision.map(|(source, _)| source),
         "change": revision.map(|(_, words)| words),
     });

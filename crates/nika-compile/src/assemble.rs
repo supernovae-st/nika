@@ -305,32 +305,13 @@ pub(super) const ROW_FACTS: [&str; 2] = ["computed", "records"];
 /// body and its anchored claims.
 const DRAFT_MAX_TOKENS: u32 = 1200;
 
-/// The cap on a catalog-known reasoning seat (gpt-5 · o-series · gemini 2.5 · grok-3-mini ·
-/// claude): the reasoning trace shares `max_tokens` with the visible answer, and a structured
-/// draft with anchors needs room for both. 1200 was measured too small (openai/gpt-5-mini ·
-/// the trace ate the whole cap · `NIKA-INFER-002 · no JSON value found · cut off at the token
-/// limit` at run); 4096 leaves the answer its room. A cap is a ceiling the run never exceeds,
-/// never a spend.
-const REASONING_MAX_TOKENS: u32 = 4096;
-
-/// The `max_tokens` a language step declares: the step's own cap, raised to the reasoning
-/// floor when the doc's seat is a catalog-known reasoning model. The seat is the `model`
-/// answer already stamped on the doc; a seat the catalog does not know keeps the step's cap
-/// (no evidence it reasons), `mock` keeps it too (the catalog's fixture row claims every
-/// capability; an offline rehearsal synthesizes its answer and the cap is moot), and the
+/// The `max_tokens` a language step declares: the step's own generated cap, sized for the
+/// doc's seat by [`crate::seat_cap::sized`] (raised on a catalog-known reasoning model, never
+/// above the output limit its row records). The seat is the `model` answer already stamped on
+/// the doc; a seat the catalog does not know keeps the step's cap, `mock` keeps it too, and the
 /// run's own `--model` override is judged by `nika check`.
 fn infer_cap(d: &Doc, base: u32) -> u32 {
-    let reasoning = d.root["model"]
-        .as_str()
-        .and_then(|seat| seat.split_once('/'))
-        .is_some_and(|(provider, name)| {
-            provider != "mock" && nika_catalog::model_capabilities(provider, name).reasoning
-        });
-    if reasoning {
-        base.max(REASONING_MAX_TOKENS)
-    } else {
-        base
-    }
+    crate::seat_cap::sized(d.root["model"].as_str(), base)
 }
 
 fn guidance(plan: &Plan, consumed: &[String]) -> String {

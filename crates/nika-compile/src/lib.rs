@@ -83,6 +83,7 @@ pub(crate) mod pattern;
 mod pending_transform;
 mod realize;
 mod retrieve;
+mod seat_cap;
 mod support;
 mod trigger;
 mod types;

@@ -10,6 +10,7 @@ pub use crate::doors::{
 pub use crate::edit::literal_projection;
 pub use crate::laws::{LINES, SELECT_BY_FIELD};
 pub use crate::ledger::Ledger;
+pub use crate::seat_cap::output_caps;
 pub use crate::types::{EditChange, Input};
 
 /// Host-supplied field observations; this module performs no I/O.

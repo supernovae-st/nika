@@ -58,6 +58,17 @@ pub(super) fn card() -> &'static str {
 /// The engine's output conventions sent after its authoring card.
 pub(super) const CONVENTIONS: &str = include_str!("../../assets/native_output_conventions.md");
 
+/// The catalog's output facts for the workflow model the human already answered, sent in the
+/// opening so the seat sizes a default `max_tokens` before it writes a candidate (the card
+/// reads them). `null` when no model is answered or the catalog records nothing for it.
+pub(super) fn output_caps(answers: &std::collections::BTreeMap<String, String>) -> Value {
+    answers
+        .get("model")
+        .and_then(|literal| serde_json::from_str::<Value>(literal).ok())
+        .and_then(|model| model.as_str().and_then(nika_compile::surface::output_caps))
+        .unwrap_or(Value::Null)
+}
+
 /// The stdlib sections of the callables a candidate may reach: the builtins named in the
 /// references plus the everyday set, each cut from the embedded page at its own heading.
 pub(super) fn callables(names: &[String]) -> Vec<Reference> {
@@ -228,5 +239,19 @@ mod tests {
         assert!(CONVENTIONS.contains("Preserve literal path spelling"));
         // Engine-owned text is receipted by digest beside the spec's card.
         assert_eq!(identity()["conventions_sha256"], json!(sha256(CONVENTIONS)));
+    }
+
+    #[test]
+    fn the_opening_carries_the_answered_models_output_facts_or_null() {
+        let answered = |model: &str| {
+            std::collections::BTreeMap::from([("model".to_owned(), format!("\"{model}\""))])
+        };
+        let flash = output_caps(&answered("deepseek/deepseek-flash"));
+        assert_eq!(flash["reasoning_capability"], json!("recorded"));
+        assert_eq!(flash["thinking_counted_in_cap"], json!("unknown"));
+        let unknown = output_caps(&answered("acme/unheard-of-model"));
+        assert_eq!(unknown["reasoning_capability"], json!("unrecorded"));
+        assert_eq!(output_caps(&answered("mock/echo")), Value::Null);
+        assert_eq!(output_caps(&std::collections::BTreeMap::new()), Value::Null);
     }
 }
