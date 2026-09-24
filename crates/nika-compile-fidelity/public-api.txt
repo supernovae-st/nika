@@ -62,6 +62,7 @@ pub fn nika_compile_fidelity::fidelity::stated_paths(intent: &str, doc: &serde_j
 pub fn nika_compile_fidelity::fidelity::strings(value: &serde_json::value::Value, out: &mut alloc::vec::Vec<alloc::string::String>)
 pub fn nika_compile_fidelity::fidelity::tool_of<'a>(doc: &'a serde_json::value::Value, task: &str) -> &'a str
 pub fn nika_compile_fidelity::fidelity::unbound_final_gate(plan: &nika_compile_reader::plan::Plan) -> bool
+pub fn nika_compile_fidelity::fidelity::unsettled_performed(plan: &nika_compile_reader::plan::Plan, doc: &serde_json::value::Value) -> alloc::vec::Vec<alloc::string::String>
 pub mod nika_compile_fidelity::sketch
 pub enum nika_compile_fidelity::sketch::Verb
 pub nika_compile_fidelity::sketch::Verb::Agent

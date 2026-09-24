@@ -116,12 +116,19 @@ impl<T> tracing::instrument::WithSubscriber for nika_session::activity::Activity
 impl<T> typenum::type_operators::Same for nika_session::activity::Activity
 pub type nika_session::activity::Activity::Output = T
 pub mod nika_session::authoring
+pub use nika_session::authoring::DECISION_ENV
+pub use nika_session::authoring::DECISION_SCHEMA
+pub use nika_session::authoring::DecisionSetup
+pub use nika_session::authoring::MAX_DECISION_CALLS
 #[non_exhaustive] pub enum nika_session::authoring::AuthoringContextError
 pub nika_session::authoring::AuthoringContextError::Changed
 pub nika_session::authoring::AuthoringContextError::Changed::found: alloc::string::String
 pub nika_session::authoring::AuthoringContextError::Changed::pinned: alloc::string::String
 pub nika_session::authoring::AuthoringContextError::Config(nika_cli_host::compile::config::ConfigError)
-pub nika_session::authoring::AuthoringContextError::Knowledge(nika_cli_host::compile::knowledge::KnowledgeError)
+pub nika_session::authoring::AuthoringContextError::Decision
+pub nika_session::authoring::AuthoringContextError::Decision::seat: alloc::string::String
+pub nika_session::authoring::AuthoringContextError::Decision::why: alloc::string::String
+pub nika_session::authoring::AuthoringContextError::Knowledge(nika_onboard::knowledge::KnowledgeError)
 pub nika_session::authoring::AuthoringContextError::PackForOneRequest
 pub nika_session::authoring::AuthoringContextError::PackForOneRequest::file: std::path::PathBuf
 pub nika_session::authoring::AuthoringContextError::UnsupportedSource
@@ -132,8 +139,8 @@ impl core::cmp::PartialEq for nika_session::authoring::AuthoringContextError
 pub fn nika_session::authoring::AuthoringContextError::eq(&self, other: &nika_session::authoring::AuthoringContextError) -> bool
 impl core::convert::From<nika_cli_host::compile::config::ConfigError> for nika_session::authoring::AuthoringContextError
 pub fn nika_session::authoring::AuthoringContextError::from(source: nika_cli_host::compile::config::ConfigError) -> Self
-impl core::convert::From<nika_cli_host::compile::knowledge::KnowledgeError> for nika_session::authoring::AuthoringContextError
-pub fn nika_session::authoring::AuthoringContextError::from(source: nika_cli_host::compile::knowledge::KnowledgeError) -> Self
+impl core::convert::From<nika_onboard::knowledge::KnowledgeError> for nika_session::authoring::AuthoringContextError
+pub fn nika_session::authoring::AuthoringContextError::from(source: nika_onboard::knowledge::KnowledgeError) -> Self
 impl core::convert::From<nika_session::authoring::AuthoringContextError> for nika_session::authoring::AuthoringError
 pub fn nika_session::authoring::AuthoringError::from(source: nika_session::authoring::AuthoringContextError) -> Self
 impl core::error::Error for nika_session::authoring::AuthoringContextError
@@ -331,13 +338,17 @@ pub type nika_session::authoring::Reading::Output = T
 #[non_exhaustive] pub struct nika_session::authoring::AuthoringContext
 impl nika_session::authoring::AuthoringContext
 pub fn nika_session::authoring::AuthoringContext::compose(&self, intent: &str) -> core::result::Result<core::option::Option<nika_compile::types::AuthoringKnowledge>, nika_session::authoring::AuthoringContextError>
+pub fn nika_session::authoring::AuthoringContext::decision(&self) -> core::option::Option<&nika_cli_host::compile::typesafe::session::DecisionSetup>
 pub fn nika_session::authoring::AuthoringContext::from_env() -> Self
 pub fn nika_session::authoring::AuthoringContext::from_settings(explicit: &nika_cli_host::compile::config::AuthoringSettings, env: &nika_cli_host::compile::config::AuthoringSettings) -> Self
 pub fn nika_session::authoring::AuthoringContext::knowledge(&self) -> core::option::Option<&nika_session::authoring::KnowledgePin>
 pub fn nika_session::authoring::AuthoringContext::line(&self) -> alloc::string::String
+pub fn nika_session::authoring::AuthoringContext::project_root(&self) -> core::option::Option<&std::path::Path>
 pub fn nika_session::authoring::AuthoringContext::refusal(&self) -> core::option::Option<&nika_session::authoring::AuthoringContextError>
 pub fn nika_session::authoring::AuthoringContext::source(&self) -> &'static str
 pub fn nika_session::authoring::AuthoringContext::strategy(&self) -> nika_compile::types::NativeMode
+pub fn nika_session::authoring::AuthoringContext::with_decision(self, decision: core::option::Option<nika_cli_host::compile::typesafe::session::DecisionSetup>) -> Self
+pub fn nika_session::authoring::AuthoringContext::with_project_root(self, root: impl core::convert::Into<std::path::PathBuf>) -> Self
 impl core::clone::Clone for nika_session::authoring::AuthoringContext
 pub fn nika_session::authoring::AuthoringContext::clone(&self) -> nika_session::authoring::AuthoringContext
 impl core::cmp::Eq for nika_session::authoring::AuthoringContext
@@ -503,6 +514,11 @@ impl<T> tracing::instrument::Instrument for nika_session::authoring::KnowledgePi
 impl<T> tracing::instrument::WithSubscriber for nika_session::authoring::KnowledgePin
 impl<T> typenum::type_operators::Same for nika_session::authoring::KnowledgePin
 pub type nika_session::authoring::KnowledgePin::Output = T
+pub const nika_session::authoring::AUTHORING_CALLS_PER_COMPILE: u32
+pub const nika_session::authoring::AUTHORING_INITIAL_TOKENS: u32
+pub const nika_session::authoring::AUTHORING_MAX_TOKENS: u32
+pub const nika_session::authoring::AUTHORING_REPAIRS: u32
+pub const nika_session::authoring::AUTHORING_TIMEOUT: core::time::Duration
 pub fn nika_session::authoring::compile_deterministic(request: &nika_compile::types::CompileRequest) -> core::result::Result<nika_compile::types::CompileOutcome, nika_session::authoring::AuthoringError>
 pub fn nika_session::authoring::compile_in(seat: &nika_session::authoring::AuthoringSeat, context: &nika_session::authoring::AuthoringContext, request: &nika_compile::types::CompileRequest, intent: &str) -> core::result::Result<nika_compile::types::CompileOutcome, nika_session::authoring::AuthoringError>
 pub fn nika_session::authoring::compile_in_with_admission(seat: &nika_session::authoring::AuthoringSeat, context: &nika_session::authoring::AuthoringContext, request: &nika_compile::types::CompileRequest, intent: &str, account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_compile::types::CompileOutcome, nika_session::authoring::AuthoringError>
@@ -517,6 +533,7 @@ pub fn nika_session::authoring::is_why(line: &str) -> bool
 pub fn nika_session::authoring::literal_for(question: &nika_compile::types::CompileQuestion, line: &str) -> alloc::string::String
 pub fn nika_session::authoring::openai_base_overridden() -> bool
 pub fn nika_session::authoring::reasons(out: &nika_compile::types::CompileOutcome) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_session::authoring::session_policy(model: &str, harness: bool, strategy: nika_compile::types::NativeMode) -> nika_compile::types::AuthoringPolicy
 pub fn nika_session::authoring::stronger_model(model: &str) -> core::option::Option<&'static str>
 pub fn nika_session::authoring::stronger_model_under(model: &str, openai_base_overridden: bool) -> core::option::Option<&'static str>
 pub mod nika_session::broker

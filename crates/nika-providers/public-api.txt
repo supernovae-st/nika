@@ -318,9 +318,12 @@ pub fn nika_providers::admission::CostReview::confirm(self, candidate: &str, rou
 pub fn nika_providers::admission::CostReview::details(&self) -> alloc::string::String
 pub fn nika_providers::admission::CostReview::for_run(self, max_requests: u32) -> core::result::Result<Self, alloc::string::String>
 pub fn nika_providers::admission::CostReview::for_session(self) -> Self
+pub fn nika_providers::admission::CostReview::max_output_tokens(&self) -> u32
+pub fn nika_providers::admission::CostReview::max_requests(&self) -> u32
 pub fn nika_providers::admission::CostReview::new(candidate: alloc::string::String, invocation: alloc::string::String, route: nika_providers::admission::CostRoute, evidence: nika_providers::admission::CostHostEvidence, invocation_default: core::option::Option<nika_types::cost::Cost>, project_default: core::option::Option<nika_types::cost::Cost>) -> core::result::Result<Self, alloc::string::String>
 pub fn nika_providers::admission::CostReview::new_with_clock<C: nika_kernel_core::io::clock::ClockDyn + core::fmt::Debug + 'static>(candidate: alloc::string::String, invocation: alloc::string::String, route: nika_providers::admission::CostRoute, evidence: nika_providers::admission::CostHostEvidence, invocation_default: core::option::Option<nika_types::cost::Cost>, project_default: core::option::Option<nika_types::cost::Cost>, clock: alloc::sync::Arc<C>) -> core::result::Result<Self, alloc::string::String>
 pub fn nika_providers::admission::CostReview::question(&self) -> alloc::string::String
+pub fn nika_providers::admission::CostReview::request_timeout(&self) -> core::time::Duration
 impl core::fmt::Debug for nika_providers::admission::CostReview
 pub fn nika_providers::admission::CostReview::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_providers::admission::CostReview
@@ -668,6 +671,11 @@ impl<T> core::convert::From<T> for nika_providers::admission::UnknownCostPolicy
 pub fn nika_providers::admission::UnknownCostPolicy::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::admission::UnknownCostPolicy where T: 'static
 pub fn nika_providers::admission::UnknownCostPolicy::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub const nika_providers::admission::RUN_REVIEW_MAX_OUTPUT_TOKENS: u32
+pub const nika_providers::admission::RUN_REVIEW_TIMEOUT: core::time::Duration
+pub const nika_providers::admission::SESSION_REVIEW_MAX_OUTPUT_TOKENS: u32
+pub const nika_providers::admission::SESSION_REVIEW_MAX_REQUESTS: u32
+pub const nika_providers::admission::SESSION_REVIEW_TIMEOUT: core::time::Duration
 pub fn nika_providers::admission::monetary_default(amount: core::option::Option<f64>) -> core::result::Result<core::option::Option<nika_types::cost::Cost>, alloc::string::String>
 pub fn nika_providers::admission::native_catalog_price_known(model: &str, config: nika_providers::registry::ProvidersConfig) -> bool
 pub mod nika_providers::census

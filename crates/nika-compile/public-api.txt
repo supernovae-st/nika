@@ -1065,6 +1065,7 @@ pub fn nika_compile::AuthoringKnowledge::as_any(&self) -> &(dyn core::any::Any +
 impl<T> typenum::type_operators::Same for nika_compile::AuthoringKnowledge
 pub type nika_compile::AuthoringKnowledge::Output = T
 #[non_exhaustive] pub struct nika_compile::AuthoringPolicy
+pub nika_compile::AuthoringPolicy::initial_max_tokens: core::option::Option<u32>
 pub nika_compile::AuthoringPolicy::max_tokens: u32
 pub nika_compile::AuthoringPolicy::model: alloc::string::String
 pub nika_compile::AuthoringPolicy::native: nika_compile::NativeMode
@@ -1073,6 +1074,7 @@ pub nika_compile::AuthoringPolicy::samples: u32
 pub nika_compile::AuthoringPolicy::timeout: core::time::Duration
 impl nika_compile::AuthoringPolicy
 pub fn nika_compile::AuthoringPolicy::new(model: impl core::convert::Into<alloc::string::String>, max_tokens: u32, timeout: core::time::Duration) -> Self
+pub fn nika_compile::AuthoringPolicy::with_initial_max_tokens(self, initial: u32) -> Self
 pub fn nika_compile::AuthoringPolicy::with_native(self, native: nika_compile::NativeMode) -> Self
 pub fn nika_compile::AuthoringPolicy::with_repairs(self, repairs: u32) -> Self
 pub fn nika_compile::AuthoringPolicy::with_samples(self, samples: u32) -> Self
