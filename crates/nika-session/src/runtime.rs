@@ -176,7 +176,7 @@ text                 ask, in words · these answer from the engine, no AI asked:
 /status              where you are: the project root, the intelligence and where your context goes, the authoring seat
 /why                 beside a question or a gate: what the answer is for, what it lets happen · nothing is consumed
 /meaning             what Nika kept of your request, clause by clause, from the compiler's own ledger · a proposal still waits
-/proof               after a run: what its trace proves (chain · seal · boundary · digests) and what it does not · judged by `nika trace verify`, never a second walker
+/proof               after a run: what its trace records (chain · seal · boundary · task hashes) and what it does not prove · judged by `nika trace verify`, never a second walker
 /details             how the last workflow was built: the authoring backend and model, calls, tokens and time, the strategy, the decision seat, the engine and spec identity · advanced, on demand
 /show                while a proposal waits: print its exact bytes (the review shows the boundary)
 /help                this card

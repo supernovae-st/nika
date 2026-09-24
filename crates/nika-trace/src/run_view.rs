@@ -318,15 +318,19 @@ impl RunFacts {
         paths
     }
 
-    /// What left this machine, as the frames prove it: a `net` permit
-    /// decision, or a task that invoked `nika:notify` and completed — each
-    /// with the evidence it rests on.
+    /// Recorded network permissions and notification completions. A permit
+    /// is permission, not delivery, and this list does not cover model traffic.
     fn sent(&self) -> Vec<String> {
         let mut out: Vec<String> = self
             .permits
             .iter()
             .filter(|p| p.plane == "net" && p.decision == "allow")
-            .map(|p| format!("{} · MEASURED: the permit decision that let it out", p.gate))
+            .map(|p| {
+                format!(
+                    "{} · access allowed (permission, not delivery proof)",
+                    p.gate
+                )
+            })
             .collect();
         for t in &self.tasks {
             if t.state == TaskState::Ok && t.note.contains("nika:notify") {
@@ -362,8 +366,10 @@ impl RunFacts {
         let priced = self.priced_calls.unwrap_or(0);
         let unpriced = self.unpriced_calls.unwrap_or(0);
         let mut line = match (self.total_cost_usd, priced, unpriced) {
-            (Some(usd), p, _) => format!("cost · ${usd:.4} · {p} priced call(s) · MEASURED"),
-            (None, 0, 0) => "cost · nothing metered · no model was asked".to_owned(),
+            (Some(usd), p, _) => format!(
+                "cost · ${usd:.4} · {p} priced call(s) · recorded estimate, invoice not verified"
+            ),
+            (None, 0, 0) => "cost · no model usage recorded".to_owned(),
             (None, 0, u) => format!(
                 "cost · UNKNOWN · {u} unpriced call(s): a route with no price table (a local model is unpriced, never free)"
             ),
@@ -420,9 +426,6 @@ impl RunFacts {
         if skipped > 0 {
             let _ = write!(view, " · {skipped} skipped");
         }
-        if sent.is_empty() {
-            view.push_str(" · nothing sent elsewhere");
-        }
         for path in self.fs_paths("write") {
             let size = std::fs::metadata(root.join(&path))
                 .ok()
@@ -434,7 +437,7 @@ impl RunFacts {
             let _ = write!(view, "\n  read · {path}");
         }
         for target in &sent {
-            let _ = write!(view, "\n  sent · {target}");
+            let _ = write!(view, "\n  network / notification · {target}");
         }
         for model in self.asked() {
             let _ = write!(view, "\n  asked · {model}");
@@ -453,7 +456,7 @@ impl RunFacts {
             let _ = write!(view, "\n  {verdict} · `{}` · {by}", a.task);
         }
         let _ = write!(view, "\n  {}", self.cost_line());
-        view.push_str("\n  `/proof` shows what this trace proves · « run it » runs it again");
+        view.push_str("\n  `/proof` shows the records and their limits · « run it » runs it again");
         view
     }
 
@@ -541,9 +544,10 @@ impl RunFacts {
     /// workflow's identity, the boundary, the digests, the limits.
     #[must_use]
     pub fn proof(&self, root: &Path) -> String {
+        let shown = self.trace.strip_prefix(root).unwrap_or(&self.trace);
         let mut view = format!(
-            "Proof · `{}` · what the engine MEASURED, hash-chained as it happened",
-            self.trace.display()
+            "Proof · `{}` · what this journal records, hash-chained line by line",
+            shown.display()
         );
         let _ = write!(
             view,
@@ -605,9 +609,85 @@ impl RunFacts {
             let _ = write!(view, "\n  engine · {engine} · sandbox {sandbox}");
         }
         view.push_str(
-            "\n  proves · which tasks ran, what every permit check decided, how long each took, the digests of every input and output\n  does not prove · that the content is right (read it) · that anyone outside this machine trusts the key (`nika trace anchor` notarizes the head)\n  `nika trace verify <trace>` re-judges the chain · `nika trace outputs <trace>` prints every output",
+            "\n  records · task outcomes, permit decisions, durations, and any task input/result hashes present (the journal's encoding, not a file checksum)",
+        );
+        let _ = write!(view, "\n  {}", attestation(&self.trace).limits());
+        view.push_str(
+            "\n  `nika trace verify <trace>` re-judges the chain · `nika trace outputs <trace>` prints every output",
         );
         view
+    }
+}
+
+/// How far the verify door's own typed verdict lets these records be
+/// trusted: its `--json` projection (the attained tier, the seal tier, the
+/// chain headline), never a reading of its prose.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Attestation {
+    /// Sealed, and the head is notarized or replayed beyond this machine.
+    Anchored,
+    /// Sealed: the run key signed the journal.
+    Signed,
+    /// Chain intact, no seal: tamper-evident, not attributable.
+    Unsigned,
+    /// Chain intact; the seal names a key this machine cannot check.
+    KeyElsewhere,
+    /// A broken or unchained journal, a forged or buried seal, a torn or
+    /// incomplete journal, or no verdict: nothing here is attested.
+    NotAttested,
+}
+
+impl Attestation {
+    /// The trust line and the limits line of the proof view.
+    fn limits(self) -> &'static str {
+        match self {
+            Self::Anchored => {
+                "trust · signed by the run key, the head notarized beyond this machine\n  does not prove · that the content is right (read it)"
+            }
+            Self::Signed => {
+                "trust · signed by the run key: a rewritten journal needs that key\n  does not prove · that the content is right (read it) · that anyone outside this machine trusts the key (`nika trace anchor` notarizes the head)"
+            }
+            Self::Unsigned => {
+                "trust · unsigned: the hash chain is internally consistent; a journal rewritten end to end would chain too\n  does not prove · that the content is right (read it) · who wrote this journal (`nika sign` signs future runs)"
+            }
+            Self::KeyElsewhere => {
+                "trust · the chain holds; the seal names a key this machine cannot check\n  does not prove · that the content is right (read it) · who signed it, until that key is checked"
+            }
+            Self::NotAttested => {
+                "trust · the journal does not verify: these records are not attested (`nika trace verify <trace>` says why)\n  does not prove · any of the records above"
+            }
+        }
+    }
+}
+
+/// The verify door's typed verdict for one journal (its `--json`
+/// projection): the same ONE judge as the prose chain line, read as data.
+fn attestation(trace: &Path) -> Attestation {
+    let options = crate::trace_verify::VerifyOptions {
+        json: true,
+        ..Default::default()
+    };
+    let out = crate::trace_verify::verify_with(&trace.display().to_string(), &options);
+    let Ok(doc) = serde_json::from_str::<Value>(out.text.trim()) else {
+        return Attestation::NotAttested;
+    };
+    let word = |outer: &str, inner: &str| {
+        doc.get(outer)
+            .and_then(|v| v.get(inner))
+            .and_then(Value::as_str)
+    };
+    if word("chain", "headline") != Some("intact") {
+        return Attestation::NotAttested;
+    }
+    match (
+        doc.get("tier").and_then(Value::as_str),
+        word("seal", "tier"),
+    ) {
+        (Some("anchored" | "replayed"), Some("sealed")) => Attestation::Anchored,
+        (Some("sealed"), Some("sealed")) => Attestation::Signed,
+        (Some("ok"), Some("unsealed")) => Attestation::Unsigned,
+        (_, Some("unattributable")) => Attestation::KeyElsewhere,
+        _ => Attestation::NotAttested,
     }
 }
 
@@ -775,7 +855,7 @@ mod tests {
         .expect("artefact");
         let view = facts.result(root.path(), Path::new("copy.nika"));
         assert!(
-            view.starts_with("Done · `copy.nika` · 11 ms · 2 tasks ran · nothing sent elsewhere"),
+            view.starts_with("Done · `copy.nika` · 11 ms · 2 tasks ran"),
             "{view}"
         );
         assert!(
@@ -783,12 +863,9 @@ mod tests {
             "{view}"
         );
         assert!(view.contains("\n  read · ./notes/brief.md"), "{view}");
+        assert!(view.contains("cost · no model usage recorded"), "{view}");
         assert!(
-            view.contains("cost · nothing metered · no model was asked"),
-            "{view}"
-        );
-        assert!(
-            view.contains("`/proof` shows what this trace proves"),
+            view.contains("`/proof` shows the records and their limits"),
             "{view}"
         );
         assert!(!view.contains("approved"), "no approval happened: {view}");
@@ -849,9 +926,7 @@ mod tests {
         let root = tempdir("resumed-result");
         let view = facts.result(root.path(), Path::new("gated.nika"));
         assert!(
-            view.starts_with(
-                "Done · `gated.nika` · 49 ms · 2 tasks ran (1 from cache) · nothing sent elsewhere"
-            ),
+            view.starts_with("Done · `gated.nika` · 49 ms · 2 tasks ran (1 from cache)"),
             "{view}"
         );
         assert!(
@@ -882,7 +957,15 @@ mod tests {
         .expect("artefact");
         let view = facts.proof(root.path());
         assert!(view.starts_with("Proof · "), "{view}");
-        assert!(view.contains("MEASURED"), "{view}");
+        assert!(view.contains("what this journal records"), "{view}");
+        assert!(
+            view.contains("\n  records · task outcomes")
+                && view.contains("not a file checksum")
+                && view.contains("\n  trust · ")
+                && !view.contains("proves ·")
+                && !view.contains("the digests of every input and output"),
+            "records, never a claim the journal does not carry: {view}"
+        );
         assert!(
             view.contains(
                 "\n  workflow · gated-copy · bytes sha256 00448c33…6530 · meaning bbbd59cf…9cbd"
@@ -916,6 +999,65 @@ mod tests {
             view.contains("does not prove · that the content is right"),
             "{view}"
         );
+    }
+
+    /// The copy journal staged under a project root, rewritten by `edit`:
+    /// the proof names it from the root, and its trust follows the verify
+    /// door's typed verdict. Unsealed, it says the chain alone cannot tell
+    /// who wrote it; broken, it attests nothing.
+    fn staged_proof(test: &str, edit: &dyn Fn(Vec<&str>) -> Vec<String>) -> String {
+        let root = tempdir(test);
+        let traces = root.path().join(".nika/traces");
+        std::fs::create_dir_all(&traces).expect("traces");
+        let copy = std::fs::read_to_string(fixture("copy.ndjson")).expect("fixture");
+        let lines = edit(copy.lines().collect());
+        let trace = traces.join("staged.ndjson");
+        std::fs::write(&trace, lines.join("\n") + "\n").expect("staged");
+        let facts = RunFacts::read(&trace).expect("frames");
+        facts.proof(root.path())
+    }
+
+    #[test]
+    fn an_unsealed_journal_never_claims_who_wrote_it() {
+        let view = staged_proof("unsealed", &|lines| {
+            let keep = lines.len() - 1; // the final `run_sealed` frame is dropped
+            lines[..keep].iter().map(|l| (*l).to_owned()).collect()
+        });
+        assert!(
+            view.starts_with("Proof · `.nika/traces/staged.ndjson` · what this journal records"),
+            "the path is the project's own: {view}"
+        );
+        assert!(
+            view.contains("\n  trust · unsigned: the hash chain is internally consistent")
+                && view.contains("a journal rewritten end to end would chain too")
+                && view.contains("who wrote this journal (`nika sign` signs future runs)"),
+            "{view}"
+        );
+        assert!(!view.contains("trusts the key"), "no key exists: {view}");
+    }
+
+    #[test]
+    fn a_broken_journal_attests_none_of_its_records() {
+        let view = staged_proof("broken", &|lines| {
+            lines
+                .iter()
+                .enumerate()
+                .map(|(i, l)| {
+                    if i == 4 {
+                        l.replace("\"allow\"", "\"deny\"")
+                    } else {
+                        (*l).to_owned()
+                    }
+                })
+                .collect()
+        });
+        assert!(
+            view.contains(
+                "\n  trust · the journal does not verify: these records are not attested"
+            ) && view.contains("\n  does not prove · any of the records above"),
+            "{view}"
+        );
+        assert!(!view.contains("trust · unsigned"), "{view}");
     }
 
     /// A failed task (a synthetic journal in the engine's frame shape):
@@ -983,5 +1125,35 @@ mod tests {
             "5d1bf591…0730"
         );
         assert_eq!(short("abc"), "abc");
+    }
+
+    #[test]
+    fn model_traffic_and_a_network_permit_do_not_prove_delivery_or_an_invoice() {
+        let root = tempdir("delivery-scope");
+        let mut facts = RunFacts::read(&fixture("copy.ndjson")).expect("frames");
+        facts.tasks.push(super::TaskFact {
+            id: "summary".to_owned(),
+            note: "infer · deepseek/deepseek-flash".to_owned(),
+            state: TaskState::Ok,
+            ..Default::default()
+        });
+        facts.priced_calls = Some(1);
+        facts.total_cost_usd = Some(0.0001);
+        let view = facts.result(root.path(), Path::new("summary.nika"));
+        assert!(view.contains("asked · deepseek/deepseek-flash"), "{view}");
+        assert!(!view.contains("nothing sent elsewhere"), "{view}");
+        assert!(
+            view.contains("recorded estimate, invoice not verified"),
+            "{view}"
+        );
+        facts.permits.push(super::PermitFact {
+            task: "send".to_owned(),
+            plane: "net".to_owned(),
+            gate: "example.invalid".to_owned(),
+            decision: "allow".to_owned(),
+        });
+        let view = facts.result(root.path(), Path::new("summary.nika"));
+        assert!(view.contains("permission, not delivery proof"), "{view}");
+        assert!(!view.contains("\n  sent ·"), "{view}");
     }
 }

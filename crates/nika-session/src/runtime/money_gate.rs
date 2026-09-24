@@ -546,9 +546,60 @@ fn scoped_money_line(decision: &MonetaryDecision) -> String {
         }
     };
     format!(
-        "money: ${} USD · {:?} · proposal/Run ceiling · project default {:?} · policy cap unknown · machine cap unknown · execution requires a separate Run and downstream admission\nSession inference: {inference}; separate from the proposal/Run ceiling; catalog estimates are not invoices or a hard billing cap; billed cost unknown",
+        "money: ${} USD · {} · proposal/Run ceiling · {} · policy cap unknown · machine cap unknown · execution requires a separate Run and downstream admission\nSession inference: {inference}; separate from the proposal/Run ceiling; catalog estimates are not invoices or a hard billing cap; billed cost unknown",
         decision.effective_usd.unwrap_or_default(),
-        decision.source,
-        decision.project_default_usd,
+        source_words(decision.source),
+        project_default_words(decision.project_default_usd),
     )
+}
+
+/// Where the ceiling came from, in the words a person reads: the enum's
+/// name is a type, not a sentence.
+fn source_words(source: MonetarySource) -> &'static str {
+    match source {
+        MonetarySource::SessionDefault => "session default",
+        MonetarySource::ProjectDefault => "project default",
+        MonetarySource::Explicit => "the amount you gave",
+        MonetarySource::Override => "the amount you gave, over the project default",
+        MonetarySource::Rejected => "refused",
+    }
+}
+
+/// The project's own default ceiling, or its absence said as such (never
+/// an `Option` printed as-is).
+fn project_default_words(usd: Option<f64>) -> String {
+    usd.map_or_else(
+        || "no project default".to_owned(),
+        |usd| format!("project default ${usd} USD"),
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{project_default_words, source_words};
+    use crate::money::MonetarySource;
+
+    /// The consent's money line names where its ceiling came from in words,
+    /// never a type name or an `Option` printed as-is.
+    #[test]
+    fn the_money_line_speaks_words_not_types() {
+        assert_eq!(
+            source_words(MonetarySource::SessionDefault),
+            "session default"
+        );
+        assert_eq!(
+            source_words(MonetarySource::ProjectDefault),
+            "project default"
+        );
+        assert_eq!(
+            source_words(MonetarySource::Override),
+            "the amount you gave, over the project default"
+        );
+        assert_eq!(project_default_words(None), "no project default");
+        assert_eq!(project_default_words(Some(1.0)), "project default $1 USD");
+        assert_eq!(
+            project_default_words(Some(0.05)),
+            "project default $0.05 USD"
+        );
+    }
 }
