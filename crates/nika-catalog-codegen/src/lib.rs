@@ -109,6 +109,7 @@
     reason = "build-tool lint carve-out — see lib.rs top-level doc"
 )]
 
+mod admission;
 mod capabilities;
 mod embeddings;
 mod emit;
@@ -322,6 +323,21 @@ pub fn generate(
         let rust_src = codegen_pricing(&raw)?;
         let out_path = out_dir.join("model_pricing.rs");
         write_file(&out_path, &rust_src)?;
+        emitted.files.push(out_path);
+    }
+
+    // Missing qualification data means no admitted tariffs. Always overwrite
+    // the output, so removing a catalog cannot preserve stale qualification.
+    let path = data_dir.join("inference-admission.toml");
+    if features.pricing {
+        let rust_src = if path.exists() {
+            admission::generate(&read_file(&path)?)?
+        } else {
+            "static TARIFFS: &[InferenceTariff] = &[];\n".to_owned()
+        };
+        let out_path = out_dir.join("inference_admission.rs");
+        write_file(&out_path, &rust_src)?;
+        emitted.rerun_paths.push(path);
         emitted.files.push(out_path);
     }
 
@@ -645,7 +661,16 @@ mod tests {
         let (base, out) = scratch_dirs("all");
         let emitted =
             generate(&base.join("data"), &out, FeatureSet::all()).expect("generate all features");
-        assert_eq!(emitted.files.len(), 5, "all 5 catalogs emitted");
+        assert_eq!(
+            emitted.files.len(),
+            6,
+            "all catalogs plus admission emitted"
+        );
+        assert!(
+            fs::read_to_string(out.join("inference_admission.rs"))
+                .expect("admission")
+                .contains("= &[];")
+        );
         let providers =
             fs::read_to_string(out.join("providers.rs")).expect("providers.rs written to disk");
         assert_eq!(

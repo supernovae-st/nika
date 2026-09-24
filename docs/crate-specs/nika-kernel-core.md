@@ -68,3 +68,10 @@ only the original three methods. Immediate polling checks that both refuse
 without touching operation counters, including the Send backend's generated
 base implementation. These are interface/default checks, not real IO or
 runtime cancellation tests.
+
+## HTTP attempt capability
+
+The additive default-false `HttpPost::supports_single_attempt()` attests that
+one `post` makes at most one transport attempt and honors disabled redirects.
+A custom effect must opt in explicitly; old implementations remain compatible
+and are refused by consumers that require bounded inference accounting.

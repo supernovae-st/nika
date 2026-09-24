@@ -77,7 +77,7 @@ impl NikaErrorCode for ProviderError {
             Self::ModelNotFound { .. } => NIKA_331,
             Self::RateLimited { .. } => NIKA_332,
             Self::AuthFailed { .. } => NIKA_333,
-            Self::Connection { .. } | Self::Other { .. } => NIKA_339,
+            Self::Connection { .. } | Self::Other { .. } | Self::AdmissionDenied { .. } => NIKA_339,
         }
     }
 

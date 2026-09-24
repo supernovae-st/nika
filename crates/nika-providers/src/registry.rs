@@ -98,6 +98,7 @@ pub struct ProviderRegistry<H = NoHttp> {
     /// The sleep seam of the transport backoff (`retry`) — the system
     /// clock unless the composition injects its own.
     backoff: Arc<dyn Backoff>,
+    pub(crate) admission: Option<crate::InferenceAdmission>,
 }
 
 impl ProviderRegistry<NoHttp> {
@@ -110,6 +111,7 @@ impl ProviderRegistry<NoHttp> {
             profiles: seed(),
             config,
             backoff: retry::system_backoff(),
+            admission: None,
         }
     }
 }
@@ -117,6 +119,14 @@ impl ProviderRegistry<NoHttp> {
 // Capability queries that need only the profiles (no http · no key) —
 // the keyless surface the composition's per-call bridge consults.
 impl<H> ProviderRegistry<H> {
+    /// Attach one shared catalog account. The injected HTTP effect must make
+    /// one physical attempt per post (`ReqwestHttp`: disable protocol retries).
+    #[must_use]
+    pub fn with_inference_admission(mut self, admission: crate::InferenceAdmission) -> Self {
+        self.admission = Some(admission);
+        self
+    }
+
     /// Inject the clock the transport backoff sleeps on (the composer's
     /// declared clock · a test's recorder). Every provider resolved after
     /// this call rides it; the default is the system clock.
@@ -181,6 +191,7 @@ where
             profiles: seed(),
             config,
             backoff: retry::system_backoff(),
+            admission: None,
         }
     }
 
@@ -278,6 +289,7 @@ where
             key,
             http,
             backoff: Arc::clone(&self.backoff),
+            admission: self.admission.clone(),
         })
     }
 }
@@ -294,6 +306,7 @@ pub struct ResolvedProvider<H = NoHttp> {
     pub(crate) key: Option<Secret>,
     pub(crate) http: Option<Arc<H>>,
     pub(crate) backoff: Arc<dyn Backoff>,
+    pub(crate) admission: Option<crate::InferenceAdmission>,
 }
 
 impl<H> ResolvedProvider<H> {
@@ -350,6 +363,21 @@ where
         request: InferRequest,
     ) -> Result<(InferResponse, TransportReport), (ProviderError, Box<TransportReport>)> {
         let mut report = TransportReport::new();
+        if let Some(a) = &self.admission {
+            if let Err(error) = crate::InferenceAdmission::qualify(
+                self.profile.id,
+                &self.wire_model,
+                &self.base_url,
+            ) {
+                return Err((a.refuse(&error.to_string()), Box::new(report)));
+            }
+            let mut sent = false;
+            let result = wire::openai_compat::infer_tracked(self, request, &mut sent).await;
+            report.attempts = u32::from(sent);
+            return result
+                .map(|r| (r, report.clone()))
+                .map_err(|e| (e, Box::new(report)));
+        }
         loop {
             report.attempts = report.attempts.saturating_add(1);
             // The attempt is boxed: the loop's state machine would otherwise
@@ -419,6 +447,9 @@ where
     /// under the same bounded backoff — nothing was consumed yet, so the
     /// re-send is the identical request.
     async fn infer_stream(&self, request: InferRequest) -> Result<InferEventStream, ProviderError> {
+        if let Some(a) = &self.admission {
+            return Err(a.refuse("streaming has no qualified aggregate admission settlement"));
+        }
         let mut retries = 0u32;
         loop {
             let err = match self.infer_stream_once(request.clone()).await {

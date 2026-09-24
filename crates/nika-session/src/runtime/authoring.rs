@@ -69,7 +69,18 @@ impl SessionRuntime {
         if self.money_blocks_cognition() {
             return compile_deterministic(request);
         }
-        compile_in(&self.seat, &self.authoring_context, request, intent)
+        let out = match &self.money.account {
+            Some(a) => crate::authoring::compile_in_with_admission(
+                &self.seat,
+                &self.authoring_context,
+                request,
+                intent,
+                a,
+            ),
+            None => compile_in(&self.seat, &self.authoring_context, request, intent),
+        }?;
+        self.check_inference_outcome()?;
+        Ok(out)
     }
 
     /// A free-text line as work to build: the deterministic ladder first
@@ -154,7 +165,7 @@ impl SessionRuntime {
             return self.cognition_money_refusal();
         }
         self.activity(&Activity::now(Phase::Authoring, self.authoring_note()));
-        match round.compile(&self.seat, &self.authoring_context) {
+        match self.compile_round(&round, &self.seat) {
             Ok(out) => match Reading::of(out) {
                 // The seat could not settle it: Nika keeps working — once
                 // more with the provider's stronger model (the product law:
@@ -166,7 +177,7 @@ impl SessionRuntime {
                             Phase::Repairing,
                             "still working · a stronger model reads it",
                         ));
-                        return match round.compile(&stronger, &self.authoring_context) {
+                        return match self.compile_round(&round, &stronger) {
                             Ok(again) => match Reading::of(again) {
                                 Reading::Unsettled(again) | Reading::NotWork(again) => {
                                     self.cannot_express(again)
@@ -184,9 +195,12 @@ impl SessionRuntime {
         }
     }
 
-    /// The provider's stronger model as an authoring seat, when the seat is
-    /// a provider and a stronger model is known for it.
-    fn stronger_seat(&self) -> Option<AuthoringSeat> {
+    /// A stronger provider seat is available only for an unnamed, unmetered
+    /// default. A human-named model and a bounded account retain their identity.
+    pub(super) fn stronger_seat(&self) -> Option<AuthoringSeat> {
+        if self.money.account.is_some() || self.intelligence.model.is_some() {
+            return None;
+        }
         let AuthoringSeat::Provider { model } = &self.seat else {
             return None;
         };
@@ -279,7 +293,7 @@ impl SessionRuntime {
         let prompt = format!(
             "A human asked Nika, an automation tool, for this automation: «{goal}».\nNow the human says: «{change}».\nRewrite the request as the human would now state it in full, in one or two plain sentences and in the human's own language, keeping every part they did not change and applying the change exactly (a replaced destination, schedule or step replaces the old one; it is not added beside it). Answer with the rewritten request only: no quotes, no explanation."
         );
-        let reply = self.reasoner.reason_label(&prompt).ok()?;
+        let reply = self.reason_with_money(&prompt, true).ok()?;
         let line = reply
             .text
             .lines()
@@ -574,7 +588,7 @@ impl SessionRuntime {
             Ok(set) => {
                 let bytes = self.draft_preview(&set);
                 let id = ProposalId::of(&bytes);
-                let preview = review::render(&set, out, &bytes);
+                let preview = self.draft_review(&set, out, &bytes);
                 self.authoring = None;
                 self.intent.unresolved.clear();
                 self.remember(goal, &format!("(proposed {id})"));
@@ -694,7 +708,7 @@ impl SessionRuntime {
         if matches!(self.seat, AuthoringSeat::Provider { .. }) {
             return self.compile_under_seat(round);
         }
-        match round.compile(&self.seat, &self.authoring_context) {
+        match self.compile_round(&round, &self.seat) {
             Ok(out) => {
                 let reading = Reading::of(out);
                 self.settle(round, reading)

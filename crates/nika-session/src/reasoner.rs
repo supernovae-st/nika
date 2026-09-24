@@ -8,6 +8,13 @@
 //! infer verb), a scripted reasoner (the tests' stand-in, which records
 //! exactly what it was given), or none.
 
+#[cfg(test)]
+pub(crate) mod test_transport;
+#[cfg(test)]
+pub(crate) type ProviderHttp = test_transport::Client;
+#[cfg(not(test))]
+pub(crate) type ProviderHttp = nika_http::ReqwestHttp;
+
 use std::collections::VecDeque;
 use std::sync::Arc;
 
@@ -62,6 +69,38 @@ pub trait SessionReasoner: Send {
     /// The path could not answer.
     fn reason_label(&mut self, prompt: &str) -> Result<Reply, ReasonError> {
         self.reason(prompt)
+    }
+
+    /// Whether this implementation opts into the shared admission seam.
+    /// Custom and subscription implementations remain default-refusing.
+    fn supports_admission(&self) -> bool {
+        false
+    }
+
+    /// Reason using a shared catalog allowance; never delegates unmetered.
+    /// # Errors
+    /// Unsupported implementations refuse without calling `reason`.
+    fn reason_with_admission(
+        &mut self,
+        _prompt: &str,
+        _account: &nika_providers::InferenceAdmission,
+    ) -> Result<Reply, ReasonError> {
+        Err(ReasonError::Provider(
+            "selected reasoner has no catalog admission seam".into(),
+        ))
+    }
+
+    /// Label using the same shared allowance, including fresh classifiers.
+    /// # Errors
+    /// Unsupported implementations refuse without calling `reason_label`.
+    fn reason_label_with_admission(
+        &mut self,
+        _prompt: &str,
+        _account: &nika_providers::InferenceAdmission,
+    ) -> Result<Reply, ReasonError> {
+        Err(ReasonError::Provider(
+            "selected classifier has no catalog admission seam".into(),
+        ))
     }
 
     /// The `<provider>/<model>` the compiler may author with under this
@@ -169,6 +208,24 @@ pub struct ProviderReasoner {
 }
 
 impl SessionReasoner for ProviderReasoner {
+    fn supports_admission(&self) -> bool {
+        true
+    }
+    fn reason_with_admission(
+        &mut self,
+        prompt: &str,
+        account: &nika_providers::InferenceAdmission,
+    ) -> Result<Reply, ReasonError> {
+        self.infer(prompt, Some(8192), Some(account))
+    }
+    fn reason_label_with_admission(
+        &mut self,
+        prompt: &str,
+        account: &nika_providers::InferenceAdmission,
+    ) -> Result<Reply, ReasonError> {
+        self.infer(prompt, Some(LABEL_CEILING_TOKENS), Some(account))
+    }
+
     fn name(&self) -> String {
         self.label.clone()
     }
@@ -178,11 +235,11 @@ impl SessionReasoner for ProviderReasoner {
     }
 
     fn reason(&mut self, prompt: &str) -> Result<Reply, ReasonError> {
-        self.infer(prompt, None)
+        self.infer(prompt, None, None)
     }
 
     fn reason_label(&mut self, prompt: &str) -> Result<Reply, ReasonError> {
-        self.infer(prompt, Some(LABEL_CEILING_TOKENS))
+        self.infer(prompt, Some(LABEL_CEILING_TOKENS), None)
     }
 }
 
@@ -195,23 +252,29 @@ const LABEL_CEILING_TOKENS: u32 = 1024;
 impl ProviderReasoner {
     /// The one-shot infer verb over the provider registry; a label call
     /// carries its ceiling and a zero temperature.
-    fn infer(&self, prompt: &str, ceiling: Option<u32>) -> Result<Reply, ReasonError> {
-        let http = provider_http().map_err(ReasonError::Provider)?;
-        let registry = Arc::new(nika_providers::ProviderRegistry::new(
-            Arc::new(http),
-            nika_runtime::compose::config_from_env(),
-        ));
+    fn infer(
+        &self,
+        prompt: &str,
+        ceiling: Option<u32>,
+        admission: Option<&nika_providers::InferenceAdmission>,
+    ) -> Result<Reply, ReasonError> {
+        let http = provider_http_for(admission.is_some()).map_err(ReasonError::Provider)?;
+        let mut registry = nika_providers::ProviderRegistry::new(Arc::new(http), provider_config());
+        if let Some(a) = admission {
+            registry = registry.with_inference_admission(a.clone());
+        }
+        let registry = Arc::new(registry);
         let verb = nika_verb_infer::InferVerb::new(registry, self.model.clone());
         let mut input = nika_verb_infer::InferInput::new(prompt);
-        if let Some(ceiling) = ceiling {
-            input.max_tokens = Some(ceiling);
+        input.max_tokens = ceiling.or_else(|| admission.map(|_| 8192));
+        if ceiling.is_some() {
             input.temperature = Some(0.0);
         }
         let out = block_on(async { verb.run(input).await })?
             .map_err(|e| ReasonError::Provider(e.to_string()))?;
         Ok(Reply {
             text: infer_text(&out.output),
-            usage_observed: true,
+            usage_observed: out.response.usage_reported,
         })
     }
 }
@@ -231,11 +294,27 @@ const PROVIDER_TRANSPORT_CEILING: std::time::Duration = std::time::Duration::fro
 /// # Errors
 ///
 /// The TLS backend would not initialize.
-pub(crate) fn provider_http() -> Result<nika_http::ReqwestHttp, String> {
+pub(crate) fn provider_http() -> Result<ProviderHttp, String> {
+    provider_http_for(false)
+}
+
+pub(crate) fn provider_config() -> nika_providers::ProvidersConfig {
+    #[cfg(test)]
+    if let Some(config) = test_transport::config() {
+        return config;
+    }
+    nika_runtime::compose::config_from_env()
+}
+
+pub(crate) fn provider_http_for(bounded: bool) -> Result<ProviderHttp, String> {
     let mut config = nika_http::HttpConfig::default();
     config.ssrf = nika_http::SsrfMode::Disabled;
+    config.retry_protocol_nacks = !bounded;
     config.timeout = PROVIDER_TRANSPORT_CEILING;
-    nika_http::ReqwestHttp::with_config(config).map_err(|e| e.to_string())
+    let http = nika_http::ReqwestHttp::with_config(config).map_err(|e| e.to_string())?;
+    #[cfg(test)]
+    let http = test_transport::Client::new(http);
+    Ok(http)
 }
 
 /// The text of an infer output — the text as is, a structured answer as JSON.

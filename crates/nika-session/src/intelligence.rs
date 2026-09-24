@@ -315,14 +315,27 @@ impl IntelligenceCensus {
         } else {
             self.locals.join(" · ")
         };
+        // A pick may name its model: taught with a provider this machine holds, the way
+        // the line is typed (`2 deepseek/<model>`), never offered where nothing serves it.
+        let model = |pick: char, provider: Option<&String>| {
+            provider.map_or_else(String::new, |p| {
+                format!("\n     or name its model: {pick} {p}/<model>")
+            })
+        };
+        let (api_model, local_model) = (
+            model('2', self.api_keys.first()),
+            model('3', self.locals.first()),
+        );
         format!(
-            "  1  Use an AI app I already have (a coding assistant you are signed into)\n     {apps}\n  2  Use an API (metered · your own key)\n     {keys}\n  3  Run locally (private · on this machine)\n     {locals}\n  4  No AI in this conversation\n     Nika still answers from its own catalog: your workflows · checks · examples · builtins\n"
+            "  1  Use an AI app I already have (a coding assistant you are signed into)\n     {apps}\n  2  Use an API (metered · your own key)\n     {keys}{api_model}\n  3  Run locally (private · on this machine)\n     {locals}{local_model}\n  4  No AI in this conversation\n     Nika still answers from its own catalog: your workflows · checks · examples · builtins\n"
         )
     }
 
-    /// Turn a first-screen answer (`1`..`4`, optionally with a name:
-    /// `1 codex` · `2 mistral` · `3 ollama`) into a choice — refused with
-    /// its fix when this machine cannot serve it.
+    /// Turn a first-screen answer (`1`..`4`, optionally with one name:
+    /// `1 codex` · `2 mistral` · `2 deepseek/deepseek-v4-pro` · `3 ollama`)
+    /// into a choice — refused with its fix when this machine cannot serve
+    /// it, and refused when it holds more than a pick and one name (a word
+    /// is never silently dropped).
     ///
     /// # Errors
     ///
@@ -332,6 +345,12 @@ impl IntelligenceCensus {
         let mut words = answer.split_whitespace();
         let pick = words.next().unwrap_or("");
         let name = words.next().map(str::to_owned);
+        if words.next().is_some() || (pick == "4" && name.is_some()) {
+            return Err(format!(
+                "`{}` is not a choice — answer a number alone, or 1, 2 or 3 followed by one name (`2 <provider>/<model>`)",
+                answer.trim()
+            ));
+        }
         match pick {
             "1" => {
                 let seat = match name {
@@ -402,8 +421,24 @@ impl IntelligenceCensus {
                 IntelligenceKind::None,
                 None,
             )),
-            other => Err(format!("`{other}` is not a choice — answer 1, 2, 3 or 4")),
+            other => Err(self.not_a_choice(other)),
         }
+    }
+
+    /// The refusal of a line that is no pick; a model named alone is taught
+    /// the numbered form that chooses it (`2 deepseek/deepseek-v4-pro`).
+    fn not_a_choice(&self, other: &str) -> String {
+        let Some((provider, _)) = other.split_once('/') else {
+            return format!("`{other}` is not a choice — answer 1, 2, 3 or 4");
+        };
+        let pick = if self.locals.iter().any(|local| local == provider) {
+            "3"
+        } else {
+            "2"
+        };
+        format!(
+            "`{other}` is not a choice — answer 1, 2, 3 or 4; a model follows its number: `{pick} {other}`"
+        )
     }
 }
 
@@ -826,6 +861,58 @@ mod tests {
             r.locus.line().contains("may be sent through codex"),
             "{}",
             r.locus.line()
+        );
+    }
+
+    /// The screen teaches the numbered form that names a model, with a
+    /// provider this machine holds; a model typed alone is refused with that
+    /// form, and a line holding more than a pick and one name is refused
+    /// whole — no word of it is dropped in silence.
+    #[test]
+    fn a_model_is_named_after_its_number_and_no_extra_word_is_dropped() {
+        let mut c = census();
+        c.api_keys = vec!["deepseek".to_owned()];
+        c.locals = vec!["ollama".to_owned()];
+        let screen = c.options_screen();
+        assert!(
+            screen.contains("or name its model: 2 deepseek/<model>")
+                && screen.contains("or name its model: 3 ollama/<model>"),
+            "{screen}"
+        );
+        let pinned = c.choose("2 deepseek/deepseek-v4-pro").expect("api");
+        assert_eq!(
+            pinned.kind,
+            IntelligenceKind::Api {
+                provider: "deepseek".to_owned()
+            }
+        );
+        assert_eq!(pinned.model.as_deref(), Some("deepseek/deepseek-v4-pro"));
+        let spaced = c.choose("  2   deepseek/deepseek-v4-pro ").expect("api");
+        assert_eq!(spaced.model.as_deref(), Some("deepseek/deepseek-v4-pro"));
+        let bare = c.choose("deepseek/deepseek-v4-pro").expect_err("no pick");
+        assert!(
+            bare.contains("is not a choice") && bare.contains("`2 deepseek/deepseek-v4-pro`"),
+            "{bare}"
+        );
+        let local = c.choose("ollama/llama3.3").expect_err("no pick");
+        assert!(local.contains("`3 ollama/llama3.3`"), "{local}");
+        for extra in [
+            "2 deepseek/deepseek-v4-pro please",
+            "2 deepseek flash",
+            "4 mistral",
+            "1 codex now",
+        ] {
+            let refused = c.choose(extra).expect_err(extra);
+            assert!(
+                refused.contains("is not a choice") && refused.contains("2 <provider>/<model>"),
+                "{extra}: {refused}"
+            );
+        }
+        c.api_keys.clear();
+        c.locals.clear();
+        assert!(
+            !c.options_screen().contains("or name its model"),
+            "no model is taught where nothing on this machine serves it"
         );
     }
 

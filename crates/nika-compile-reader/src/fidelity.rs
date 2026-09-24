@@ -3,8 +3,8 @@
 
 //! The fidelity laws: deterministic checks of a candidate `.nika` document against the
 //! ORIGINAL request and the reader's plan — every source the request states is read, every
-//! destination it states is written, a stated approval gates every effect through a
-//! `nika:prompt` the effect waits for, a prohibited effect is absent, no path or host the
+//! destination it states is written, an effect a stated approval holds back runs only on a
+//! confirm `nika:prompt`'s yes, a prohibited effect is absent, no path or host the
 //! request never wrote (the human's answers allowed). Every refusal is one structured
 //! diagnostic a seat can repair from. Pure over (request · plan · projected document); the
 //! compile crate's native door and its cold verification both read them here.
@@ -14,10 +14,16 @@ use crate::plan::{EffectPolicy, EffectVerb, Plan};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 
+mod final_gate;
+mod records;
+pub use final_gate::unbound_final_gate;
+pub use records::raw_text_as_records;
+
 /// One structured diagnostic the judge returns and the seat repairs from.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Diagnostic {
-    /// `parse` · `check` · `source` · `destination` · `gate` · `prohibition` · `literal` · `question`.
+    /// `parse` · `check` · `source` · `destination` · `gate` · `prohibition` · `literal` ·
+    /// `question` · `records`.
     pub kind: &'static str,
     pub message: String,
 }
@@ -134,6 +140,7 @@ pub fn laws(
     invented_gates(plan, doc, out);
     dropped_effects(plan, doc, out);
     prohibitions(plan, doc, out);
+    raw_text_as_records(doc, out);
     invented(intent, &literals, allowed, out);
 }
 
@@ -208,9 +215,10 @@ pub fn stated_paths(intent: &str, doc: &Value, waived: &[String], out: &mut Vec<
     }
 }
 
-/// Law 3: a stated approval gates the effect family it names (a send · a notify · a publish
-/// wait for the `nika:prompt`; a write waits for it when the write is the approved effect)
-/// through a `nika:prompt` the effect task depends on.
+/// Law 3: a stated approval gates the effect family it names (a send · a notify · a publish;
+/// a write when the write is the approved effect): each such effect task runs only on a
+/// human's typed yes (the guard of `final_gate`), as does a task whose effect the law cannot
+/// read. A final approval the reader bound to no effect holds the final effects (Law 3b).
 pub fn approvals(plan: &Plan, doc: &Value, out: &mut Vec<Diagnostic>) {
     let approved: Vec<EffectVerb> = plan
         .effects
@@ -219,6 +227,9 @@ pub fn approvals(plan: &Plan, doc: &Value, out: &mut Vec<Diagnostic>) {
         .map(|e| e.verb)
         .collect();
     if approved.is_empty() {
+        if unbound_final_gate(plan) {
+            final_gate::unbound_approval(doc, out);
+        }
         return;
     }
     let (effects, gates) = effect_and_gate_tasks(doc);
@@ -235,17 +246,19 @@ pub fn approvals(plan: &Plan, doc: &Value, out: &mut Vec<Diagnostic>) {
         } else {
             sends_gated
         };
-        if concerned && !depends_on(doc, task, &gates) {
-            out.push(Diagnostic { kind: "gate", message: format!("APPROVAL ORDER: the effect task `{task}` does not wait for the approval; bind the review's output in its `with:` and guard it with `when`.") });
+        if concerned && !final_gate::affirmed(doc, task) {
+            out.push(final_gate::order(task));
         }
     }
+    final_gate::unproven(doc, out);
 }
 
 /// Law 21: an approval the request never states is not a gate. A `nika:prompt` that guards an
 /// effect when no effect of the plan is human-first makes an unattended run answer the gate
 /// with its default and skip the effect — a run that exits 0 and does nothing (measured
 /// 2026-09-23: the weekly recap's send never reached the webhook). The effect runs as stated,
-/// or the seat asks whether it should.
+/// or the seat asks whether it should. An unbound final approval (Law 3b) licenses the gate
+/// over the final effects and what runs after them, never over an earlier effect.
 pub fn invented_gates(plan: &Plan, doc: &Value, out: &mut Vec<Diagnostic>) {
     if plan
         .effects
@@ -258,7 +271,15 @@ pub fn invented_gates(plan: &Plan, doc: &Value, out: &mut Vec<Diagnostic>) {
     if gates.is_empty() {
         return;
     }
+    let finals = if unbound_final_gate(plan) {
+        final_gate::final_effects(doc, &effects)
+    } else {
+        Vec::new()
+    };
     for task in &effects {
+        if finals.contains(task) || depends_on(doc, task, &finals) {
+            continue;
+        }
         if depends_on(doc, task, &gates) {
             out.push(Diagnostic {
                 kind: "gate",

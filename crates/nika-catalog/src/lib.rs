@@ -34,6 +34,8 @@
 // JSON-Schema codegen derives from the builtins data (`all_builtins`),
 // so its feature gate INCLUDES the data gate: `serde` alone (without
 // `builtins-transforms`) configures the fragments' source out.
+#[cfg(feature = "pricing")]
+pub mod admission;
 #[cfg(all(feature = "serde", feature = "builtins-transforms"))]
 pub mod codegen;
 pub(crate) mod data;

@@ -268,7 +268,7 @@ impl AuthoringRound {
         } else {
             Attach::Compose(&intent)
         };
-        compile_attached(seat, context, &self.request(), attach)
+        compile_attached(seat, context, &self.request(), attach, None)
     }
 
     /// The typed request this round is: the intent, every answer, the
@@ -325,6 +325,23 @@ impl AuthoringRound {
         self.answers.insert(question.key.clone(), literal);
         self.questions.remove(0);
         Some(question.key)
+    }
+    /// Compile this same round under the aggregate account (replay stays free).
+    /// # Errors
+    /// The same compiler/context errors as `compile`, or admission refusal.
+    pub fn compile_with_admission(
+        &self,
+        seat: &AuthoringSeat,
+        context: &AuthoringContext,
+        account: &nika_providers::InferenceAdmission,
+    ) -> Result<CompileOutcome, AuthoringError> {
+        let intent = self.effective_intent();
+        let attach = if self.continuation.is_some() {
+            Attach::Carried(self.knowledge.as_ref())
+        } else {
+            Attach::Compose(&intent)
+        };
+        compile_attached(seat, context, &self.request(), attach, Some(account))
     }
 }
 
@@ -584,6 +601,7 @@ pub fn compile_through(
         &AuthoringContext::default(),
         request,
         Attach::Compose(""),
+        None,
     )
 }
 
@@ -606,7 +624,26 @@ pub fn compile_in(
     request: &CompileRequest,
     intent: &str,
 ) -> Result<CompileOutcome, AuthoringError> {
-    compile_attached(seat, context, request, Attach::Compose(intent))
+    compile_attached(seat, context, request, Attach::Compose(intent), None)
+}
+
+/// Compile under a shared catalog account; it never grants Save or Run.
+/// # Errors
+/// As `compile_in`, plus local admission refusal.
+pub fn compile_in_with_admission(
+    seat: &AuthoringSeat,
+    context: &AuthoringContext,
+    request: &CompileRequest,
+    intent: &str,
+    account: &nika_providers::InferenceAdmission,
+) -> Result<CompileOutcome, AuthoringError> {
+    compile_attached(
+        seat,
+        context,
+        request,
+        Attach::Compose(intent),
+        Some(account),
+    )
 }
 
 /// What knowledge one seated compile attaches: a pack composed for an
@@ -623,6 +660,7 @@ fn compile_attached(
     context: &AuthoringContext,
     request: &CompileRequest,
     attach: Attach<'_>,
+    admission: Option<&nika_providers::InferenceAdmission>,
 ) -> Result<CompileOutcome, AuthoringError> {
     let AuthoringSeat::Provider { model } = seat else {
         return compile_deterministic(request);
@@ -641,7 +679,7 @@ fn compile_attached(
     if let Some(pack) = &pack {
         request = request.with_authoring_knowledge(pack.clone());
     }
-    let mut out = seated(model, &request)?;
+    let mut out = seated(model, &request, admission)?;
     let knowledge = match (attach, &pack, context.knowledge()) {
         (Attach::Compose(_), Some(pack), Some(pin)) => Some(composed_record(pin, pack, &out)),
         (Attach::Carried(record), _, _) => record.map(carried_record),
@@ -778,14 +816,20 @@ fn stamp(out: &mut CompileOutcome, context: &AuthoringContext, knowledge: Option
 /// One request on the provider seat the human chose: the provider plane's
 /// client (SSRF off · the transport ceiling), the registry over the ONE env
 /// boundary, the compiler's cognition with that provider.
-fn seated(model: &str, request: &CompileRequest) -> Result<CompileOutcome, AuthoringError> {
+fn seated(
+    model: &str,
+    request: &CompileRequest,
+    admission: Option<&nika_providers::InferenceAdmission>,
+) -> Result<CompileOutcome, AuthoringError> {
     // The provider plane's client (SSRF off · the transport ceiling), as
     // the conversation's reasoner and the engine's run path use.
-    let http = crate::reasoner::provider_http().map_err(AuthoringError::Seat)?;
-    let registry = nika_providers::ProviderRegistry::new(
-        Arc::new(http),
-        nika_runtime::compose::config_from_env(),
-    );
+    let http =
+        crate::reasoner::provider_http_for(admission.is_some()).map_err(AuthoringError::Seat)?;
+    let mut registry =
+        nika_providers::ProviderRegistry::new(Arc::new(http), crate::reasoner::provider_config());
+    if let Some(a) = admission {
+        registry = registry.with_inference_admission(a.clone());
+    }
     let provider = registry
         .resolve(model)
         .map_err(|e| AuthoringError::Seat(e.to_string()))?;

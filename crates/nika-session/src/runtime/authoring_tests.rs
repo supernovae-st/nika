@@ -551,3 +551,37 @@ fn an_honest_incomplete_keeps_only_the_reasons_a_human_can_act_on() {
         ]
     );
 }
+
+/// A model the human named on the first screen (`2 deepseek/deepseek-flash`)
+/// is theirs: no escalation swaps it for the provider's stronger model; an
+/// unnamed default may still climb to it.
+#[test]
+fn a_model_the_human_named_is_never_swapped_for_a_stronger_one() {
+    let root = world();
+    let stronger = |named: Option<&str>| {
+        let api = ResolvedSessionIntelligence {
+            kind: IntelligenceKind::Api {
+                provider: "deepseek".to_owned(),
+            },
+            model: named.map(str::to_owned),
+            locus: DataLocus::Metered {
+                provider: "deepseek".to_owned(),
+            },
+            ready: true,
+            why: None,
+        };
+        let reasoner = crate::reasoner::ProviderReasoner {
+            model: named.unwrap_or("deepseek/deepseek-flash").to_owned(),
+            label: "deepseek API".to_owned(),
+        };
+        SessionRuntime::open(root.path(), api, Box::new(reasoner)).stronger_seat()
+    };
+    assert_eq!(
+        stronger(None),
+        Some(crate::authoring::AuthoringSeat::Provider {
+            model: "deepseek/deepseek-v4-pro".to_owned()
+        })
+    );
+    assert_eq!(stronger(Some("deepseek/deepseek-flash")), None);
+    assert_eq!(stronger(Some("deepseek/deepseek-v4-pro")), None);
+}

@@ -49,4 +49,5 @@ access-harness = ["dep:nika-harness", "nika-cli-host/access-harness", "nika-verb
 workspace = true
 
 [dev-dependencies]
+nika-kernel = { path = "../nika-kernel", version = "0.120.3" } # injected loopback HTTP mechanics
 tempfile = { workspace = true }

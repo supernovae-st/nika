@@ -73,7 +73,10 @@ impl SessionRuntime {
         let decision = if self.money_blocks_cognition() {
             TurnDecision::new(TurnAct::Unknown, RoutingMethod::Fallback)
         } else if let Some(classifier) = self.classifier.as_mut() {
-            classifier.classify(&context, raw)
+            match &self.money.account {
+                Some(a) => classifier.classify_with_admission(&context, raw, a),
+                None => classifier.classify(&context, raw),
+            }
         } else if self.intelligence.ready && self.chosen {
             // The chosen intelligence routes, through the same factory the
             // conversation's reasoner came from (a fresh one: the route
@@ -83,8 +86,14 @@ impl SessionRuntime {
                 "reading your line",
             ));
             match self.factory.as_ref() {
-                Some(factory) => crate::turn::ReasonerClassifier::new(factory(&self.intelligence))
-                    .classify(&context, raw),
+                Some(factory) => {
+                    let mut classifier =
+                        crate::turn::ReasonerClassifier::new(factory(&self.intelligence));
+                    match &self.money.account {
+                        Some(a) => classifier.classify_with_admission(&context, raw, a),
+                        None => classifier.classify(&context, raw),
+                    }
+                }
                 None => TurnDecision::new(TurnAct::Unknown, RoutingMethod::Fallback),
             }
         } else {
@@ -238,7 +247,7 @@ impl SessionRuntime {
             "{raw}\n\n(The proposal under review, exact bytes — answer about it, change nothing:)\n```yaml\n{document}\n```"
         );
         let prompt = crate::broker::ContextBroker::prompt(&bundle, &self.recent, &turn);
-        let reply = self.reasoner.reason(&prompt).ok()?;
+        let reply = self.reason_with_money(&prompt, false).ok()?;
         let findings = self.known.audit(&reply.text);
         let shown = crate::guard::KnownWorld::correct(&reply.text, &findings);
         self.remember(raw, &shown);

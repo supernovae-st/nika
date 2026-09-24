@@ -39,6 +39,7 @@ jaq-json = { workspace = true }
 nika-cap = { path = "../nika-cap", version = "0.120.3" }
 
 [dev-dependencies]
+nika-providers = { path = "../nika-providers", version = "0.120.3", default-features = false } # real bounded registry in hermetic compiler tests
 nix = { workspace = true, features = ["fs"] } # FIFO fixture for overwrite-refuse proof
 nika-cadence = { path = "../nika-cadence", version = "0.120.3" } # the overlap enum the trigger questions mirror: its drift test
 

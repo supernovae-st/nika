@@ -16,6 +16,7 @@ nika-catalog = { path = "../nika-catalog", version = "0.120.3", features = ["pro
 nika-types   = { path = "../nika-types", version = "0.120.3" }   # the shared did-you-mean metric (MODELS rung)
 nika-clock   = { path = "../nika-clock", version = "0.120.3" }   # the transport backoff's sleep seam (SystemClock behind the kernel ClockDyn · L1 under L1.5)
 nika-harness = { path = "../nika-harness", version = "0.120.3", optional = true } # PATH-only ACP rows (access-harness)
+serde        = { workspace = true } # bounded JSON rejects duplicate response fields
 serde_json   = { workspace = true }
 bytes        = { workspace = true }
 futures-core = { workspace = true }

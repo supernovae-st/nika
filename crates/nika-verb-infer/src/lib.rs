@@ -387,7 +387,7 @@ where
             |u: &TokenUsage| Box::new(SpendOnFailure::new(u.clone(), None, Some(model.to_owned())));
         loop {
             attempts += 1;
-            let request = build_request(&input, provider.name(), messages.clone(), wire);
+            let request = build_request(&input, provider.wire_model(), messages.clone(), wire);
             let (response, transport) = match provider.infer_reported(request).await {
                 Ok(pair) => pair,
                 Err((source, report)) => {

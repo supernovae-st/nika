@@ -160,3 +160,13 @@ posture is what lets `nika:fetch` be safe-by-construction at the 1.0 launch.
 | dev: `proptest` · `tokio` rt | Gate 6 + local-socket fixtures | dev-only |
 
 deny.toml wrappers extended: `tokio` += nika-http · `reqwest` += nika-http.
+
+## Single-attempt provider transport
+
+`HttpConfig.retry_protocol_nacks` defaults to true for compatibility. False
+uses reqwest's `retry::never()` and makes the additive kernel
+`HttpPost::supports_single_attempt()` return true. A bounded provider request
+also sets `follow_redirects = false`; these two controls jointly prevent hidden
+retry/redirect attempts. The capability makes no billing claim. Custom HTTP
+effects default to false. Hermetic tests exercise 307/308 and real HTTP/2
+REFUSED_STREAM frames, including the unchanged unbounded retry behavior.

@@ -44,13 +44,14 @@ pub(super) fn sha256(text: &str) -> String {
 }
 
 /// The identity every native call is stamped with: the engine, the embedded language pack,
-/// the spec pin and the digest of the card.
+/// the spec pin and the digests of the card and of the engine's output conventions.
 pub(super) fn identity() -> Value {
     json!({
         "engine": env!("CARGO_PKG_VERSION"),
         "pack": nika_pack::pack_version(),
         "spec_pin": spec_pin(),
         "card_sha256": sha256(card()),
+        "conventions_sha256": sha256(CONVENTIONS),
     })
 }
 
@@ -72,6 +73,9 @@ pub(super) const CARD_PATH: &str = "stdlib/authoring-card-v0.1.md";
 pub(super) fn card() -> &'static str {
     nika_pack::doc(CARD_PATH).unwrap_or_default()
 }
+
+/// The engine's output conventions sent after the spec's card (the `LINES` law, named shapes).
+pub(super) const CONVENTIONS: &str = include_str!("../../assets/native_output_conventions.md");
 
 /// The stdlib sections of the callables a candidate may reach: the builtins named in the
 /// references plus the everyday set, each cut from the embedded page at its own heading.
@@ -213,5 +217,31 @@ mod tests {
         assert!(names.iter().any(|n| n == "read") && names.iter().any(|n| n == "jq"));
         let row = refs[0].receipt();
         assert_eq!(row["sha256"].as_str().map(str::len), Some(64));
+    }
+
+    #[test]
+    fn the_output_conventions_state_the_assemblers_line_law_and_leave_unnamed_shapes_open() {
+        // The line idiom is the assembler's own law, byte for byte: the seat is told what the
+        // deterministic door already writes, and a drift of either fails here.
+        assert!(CONVENTIONS.contains(crate::laws::LINES), "{CONVENTIONS}");
+        assert!(
+            CONVENTIONS.contains(r#"join("\n") + "\n""#),
+            "{CONVENTIONS}"
+        );
+        // Shapes only when the request names them, stated as patterns rather than one request's
+        // words; an unnamed shape stays the source's.
+        for named in [
+            "« la liste des <champs> »",
+            "« seulement <champ> »",
+            "« par <clé> »",
+            "map(.<field>)",
+            "from_entries",
+        ] {
+            assert!(CONVENTIONS.contains(named), "{named}: {CONVENTIONS}");
+        }
+        assert!(CONVENTIONS.contains("unless the request names another shape"));
+        assert!(CONVENTIONS.contains("When the request names no shape, keep the source's shape"));
+        // Engine-owned text is receipted by digest beside the spec's card.
+        assert_eq!(identity()["conventions_sha256"], json!(sha256(CONVENTIONS)));
     }
 }

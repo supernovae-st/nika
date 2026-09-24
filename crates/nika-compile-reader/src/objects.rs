@@ -414,6 +414,7 @@ const IDENTITY: &[&str] = &[
     "unverandert",
     "wie es ist",
     "tal e qual",
+    "à l'identique",
 ];
 
 /// An entire span stating only identity, rather than merely opening with an identity

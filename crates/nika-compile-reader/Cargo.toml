@@ -11,6 +11,8 @@ publish     = false  # member of the nika-onboard unit — never on crates.io al
 
 [dependencies]
 serde_json = { workspace = true } # the plan's provenance record and its faithful inverse
+nika-schema = { path = "../nika-schema", version = "0.120.3" } # the approval laws read a gate on the AST the parser gives Check
+nika-check-analyzer = { path = "../nika-check-analyzer", version = "0.120.3" } # the refusal substitution (NEP-0020) those laws reuse
 
 [package.metadata.lore]
 daemon        = "forgeron"

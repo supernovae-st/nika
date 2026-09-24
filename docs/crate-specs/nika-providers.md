@@ -260,3 +260,23 @@ Compile response schemas or serialized receipt fields. It does not add an
 OpenAI-compatible in-band error protocol, which is separate from HTTP rejection.
 Tests inject the kernel HTTP effect; no provider credentials or network calls
 are required.
+
+## Catalog-backed inference admission
+
+`InferenceAdmission` is a cloneable, mutex-protected account of nano-USD
+reservations and catalog estimates, separate from invoices and Run consent.
+`ProviderRegistry::with_inference_admission` preserves unbounded defaults and
+threads the same account into resolved providers. Exact endpoint/model binding,
+text-only serialized body ≤1 MiB, explicit positive output bounds and a kernel
+HTTP single-attempt capability are required before dispatch. Streaming refuses.
+The bounded path disables registry retry and redirects; the HTTP effect must
+disable protocol retries. Complete validated usage settles once, releasing only
+the unused reservation. Dropped sent futures, errors, missing/partial usage and
+contradictions retain exposure and freeze the account. Over-bound observations
+remain in receipts. `billed` is unknown; catalog math never becomes an invoice.
+Amending the total retains spend; defaults never infer an unpriced call is free.
+
+Bounded nonstreaming response parsing refuses duplicate decoded object keys before
+usage validation or model binding, including equal duplicates and nested/escaped
+keys. Such ambiguity retains the sent reservation as unknown charge. Unbounded
+JSON parsing remains compatible with its existing last-value behavior.

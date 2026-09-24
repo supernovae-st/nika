@@ -340,8 +340,10 @@ impl<T> nika_error::traits::AsAny for nika_check_analyzer::gates::K3 where T: 's
 pub fn nika_check_analyzer::gates::K3::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_check_analyzer::gates::K3 where T: core::marker::Copy
 pub fn nika_check_analyzer::gates::K3::as_out(&mut self) -> outref::Out<'_, T>
+pub fn nika_check_analyzer::gates::affirmed_by(task: &nika_schema::raw::task::RawTask, prompt: &str) -> bool
 pub fn nika_check_analyzer::gates::gate_certain(task: &nika_schema::raw::task::RawTask, prompt: &str) -> nika_check_analyzer::gates::Gate
 pub fn nika_check_analyzer::gates::gate_verdict(task: &nika_schema::raw::task::RawTask, prompt: &str) -> nika_check_analyzer::gates::Gate
+pub fn nika_check_analyzer::gates::human_confirm(task: &nika_schema::raw::task::RawTask) -> bool
 pub fn nika_check_analyzer::gates::parse_gate(src: &str) -> core::option::Option<nika_tmpl::expression::ast::Expr>
 pub mod nika_check_analyzer::model_scope
 pub fn nika_check_analyzer::model_scope::scan(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<(alloc::string::String, alloc::string::String)>

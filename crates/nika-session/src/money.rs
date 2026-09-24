@@ -39,6 +39,9 @@ pub enum CapKnowledge {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum InferenceEnforcement {
+    /// One shared catalog allowance covers qualified calls; provider billing
+    /// remains unknown. This is separate from any later execution ceiling.
+    CatalogAdmission,
     /// No explicit inference budget was given. Inference has no aggregate
     /// USD admission/receipt seam; the default applies to a later `RunRequest`.
     NotMetered,
@@ -71,6 +74,9 @@ pub struct MonetaryDecision {
     pub machine_cap: CapKnowledge,
     /// Actual inference enforcement, distinct from execution admission.
     pub inference: InferenceEnforcement,
+    /// Admission observations at the last proposal binding; the runtime's
+    /// `inference_receipt()` returns the live account without changing consent.
+    pub admission: Option<nika_providers::InferenceReceipt>,
     /// Billed cost is unknown without a receipt, including subscriptions.
     pub observed_cost_usd: Option<f64>,
     /// Proposal whose exact preview carries this decision, if prepared.
@@ -84,8 +90,13 @@ impl MonetaryDecision {
         if let Some(reason) = &self.refusal {
             return format!("money: refused · {reason}");
         }
+        let scope = if self.inference == InferenceEnforcement::CatalogAdmission {
+            " · catalog-backed admission ceiling: conservative token reservations at pinned prices, not a provider invoice or hard billing cap; authoring and Run have separate scopes"
+        } else {
+            ""
+        };
         format!(
-            "money: ${} USD · {:?} · project default {:?} · policy cap unknown · machine cap unknown · inference {:?} · billed cost unknown · execution requires a separate Run and downstream admission",
+            "money: ${} USD · {:?} · project default {:?} · policy cap unknown · machine cap unknown · inference {:?} · billed cost unknown · execution requires a separate Run and downstream admission{scope}",
             self.effective_usd.unwrap_or_default(),
             self.source,
             self.project_default_usd,

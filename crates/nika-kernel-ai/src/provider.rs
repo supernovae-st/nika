@@ -266,6 +266,17 @@ impl InferRequest {
 // TokenUsage descended to nika-error/token_usage.rs (Phase 0).
 pub use nika_error::token_usage::TokenUsage;
 
+/// Completeness of the usage needed for monetary settlement.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum UsageCompleteness {
+    /// Missing, partial, invalid, or not validated by this adapter.
+    #[default]
+    Unknown,
+    /// All tariff-relevant counts and subset relations were validated.
+    Complete,
+}
+
 /// Reason the model stopped generating.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -289,6 +300,8 @@ pub enum StopReason {
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct InferResponse {
+    /// Whether all required priced token meters were validated by the wire.
+    pub usage_completeness: UsageCompleteness,
     /// Response content blocks.
     pub content: Vec<ContentBlock>,
     /// Token usage.
@@ -333,6 +346,7 @@ impl InferResponse {
             content,
             usage,
             usage_reported: true,
+            usage_completeness: UsageCompleteness::Unknown,
             stop_reason,
             ttft_ms: None,
             cached_tokens: None,
@@ -413,6 +427,12 @@ pub type InferEventStream = Pin<Box<dyn Stream<Item = Result<InferEvent, Provide
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
 #[non_exhaustive]
 pub enum ProviderError {
+    /// Local admission refused before another provider request.
+    #[error("catalog admission refused: {reason}")]
+    AdmissionDenied {
+        /// The local refusal; it does not assert a provider billing verdict.
+        reason: String,
+    },
     /// Sanitized metadata from an HTTP response or equivalent in-band error.
     /// Existing variants remain available for callers constructing errors.
     #[error("{details}")]

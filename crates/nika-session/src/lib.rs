@@ -74,3 +74,5 @@ pub use reasoner::{ReasonError, Reply, ScriptedReasoner, SessionReasoner};
 pub use runtime::{SessionRuntime, TurnOutcome};
 pub use snapshot::ProjectSnapshot;
 pub use state::{Pending, SessionState};
+
+pub use nika_providers::{AdmissionState, AttemptReceipt, InferenceReceipt};

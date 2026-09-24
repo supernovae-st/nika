@@ -15,6 +15,15 @@ use crate::outcome::{ProposalId, Refusal, RefusalClass};
 
 #[derive(Default)]
 pub(super) struct MoneyState {
+    // Persistent Session inference constraint, independent of the next
+    // proposal/Run default; a refusal/zero survives even without an account.
+    pub inference_guard: Option<MonetaryDecision>,
+    pub account: Option<nika_providers::InferenceAdmission>,
+    pub admission_note: Option<String>,
+    // A paused Run amendment holds cognition only until that gate is answered.
+    // It never replaces the Session draft, guard or shared admission account.
+    pub gate: Option<MonetaryDecision>,
+    pub reconfirm: bool,
     pub current: Option<MonetaryDecision>,
     pub draft: Option<MonetaryDecision>,
     pub pending: Option<MonetaryDecision>,
@@ -35,6 +44,19 @@ impl SessionRuntime {
 
     pub(super) fn proposal_id(&self, set: &ProjectChangeSet) -> ProposalId {
         ProposalId::of(&self.proposal_preview(set))
+    }
+
+    pub(super) fn draft_review(
+        &self,
+        set: &ProjectChangeSet,
+        out: &nika_onboard::compile::CompileOutcome,
+        bytes: &str,
+    ) -> String {
+        let review = crate::review::render(set, out, bytes);
+        match &self.money.draft {
+            Some(decision) => format!("{review}{}\n", scoped_money_line(decision)),
+            None => review,
+        }
     }
 
     pub(super) fn draft_preview(&self, set: &ProjectChangeSet) -> String {
@@ -87,8 +109,9 @@ impl SessionRuntime {
     pub(super) fn money_line(&self) -> String {
         self.money.current.as_ref().map_or_else(
             || "money: no request admitted · independent caps and billed cost unknown".to_owned(),
-            MonetaryDecision::line,
-        )
+            scoped_money_line,
+        ) + "\n"
+            + &self.inference_line()
     }
 
     fn money_decision(&self, input: &str, parsed: &ParsedMoney) -> MonetaryDecision {
@@ -120,14 +143,28 @@ impl SessionRuntime {
             } else {
                 InferenceEnforcement::NotMetered
             },
+            admission: None,
             observed_cost_usd: None,
             proposal: None,
             refusal: None,
         }
     }
 
-    pub(super) fn refuse_money(&mut self, input: &str, reason: &str) -> TurnOutcome {
+    fn rejected_money(&self, input: &str, reason: &str) -> MonetaryDecision {
         let mut decision = self.money_decision(input, &ParsedMoney::default());
+        decision.effective_usd = None;
+        decision.source = MonetarySource::Rejected;
+        decision.refusal = Some(reason.to_owned());
+        decision.inference = InferenceEnforcement::CallsBlocked;
+        decision
+    }
+
+    pub(super) fn refuse_money(&mut self, input: &str, reason: &str) -> TurnOutcome {
+        self.retain_money_guard();
+        if let Some(a) = &self.money.account {
+            let _ = a.close(reason);
+        }
+        let mut decision = self.rejected_money(input, reason);
         if let Some(previous) = self
             .money
             .pending
@@ -138,15 +175,15 @@ impl SessionRuntime {
                 .original_intent
                 .clone_from(&previous.original_intent);
         }
-        decision.effective_usd = None;
-        decision.source = MonetarySource::Rejected;
-        decision.refusal = Some(reason.to_owned());
-        decision.inference = InferenceEnforcement::CallsBlocked;
-        // Rejection expires authority, not the cognition restriction. A
-        // pending gate's next non-monetary question is still a continuation;
-        // only fresh admission may replace this rejected decision.
+        // Session rejection expires authority, not the cognition restriction.
+        self.money.inference_guard = Some(decision.clone());
         self.money.draft = Some(decision.clone());
         self.money.current = Some(decision);
+        self.expire_money_authority();
+        TurnOutcome::Refusal(Refusal::new(RefusalClass::NotAllowed, reason))
+    }
+
+    fn expire_money_authority(&mut self) {
         self.money.pending = None;
         self.pending = None;
         self.authoring = None;
@@ -154,7 +191,75 @@ impl SessionRuntime {
         self.interrupted = None;
         self.intent.unresolved.clear();
         self.last_outcome = None;
-        TurnOutcome::Refusal(Refusal::new(RefusalClass::NotAllowed, reason))
+    }
+
+    // Shared validation precedes either scope's continuation fast path.
+    fn read_money(&self, input: &str) -> Result<ParsedMoney, String> {
+        let parsed = money_parse::parse(input).map_err(str::to_owned)?;
+        if let Some(error) = &self.snapshot.project_error {
+            return Err(format!(
+                "project money/default is unavailable: {error} — correct nika.yaml before preparing work"
+            ));
+        }
+        if parsed
+            .amount
+            .or(self.snapshot.ceiling)
+            .is_some_and(|v| !v.is_finite() || v < 0.0)
+        {
+            return Err(money_parse::INVALID.into());
+        }
+        if parsed.replaced_default.is_some() && parsed.replaced_default != self.snapshot.ceiling {
+            return Err("the stated default to replace does not match the observed project default — confirm one finite, nonnegative amount".into());
+        }
+        Ok(parsed)
+    }
+
+    pub(super) fn admit_gate_money(&mut self, input: &str) -> Result<(), TurnOutcome> {
+        let mut decision = match self.read_money(input) {
+            Ok(parsed) if parsed.amount.is_none() => return Ok(()),
+            Ok(parsed) => self.money_decision(input, &parsed),
+            Err(reason) => {
+                let decision = self.rejected_money(input, &reason);
+                self.record_gate_money(decision);
+                self.expire_money_authority();
+                return Err(TurnOutcome::Refusal(Refusal::new(
+                    RefusalClass::NotAllowed,
+                    reason,
+                )));
+            }
+        };
+        decision.inference = InferenceEnforcement::CallsBlocked;
+        self.record_gate_money(decision);
+        Ok(())
+    }
+
+    fn record_gate_money(&mut self, mut decision: MonetaryDecision) {
+        if let Some(previous) = &self.money.gate {
+            decision
+                .original_intent
+                .clone_from(&previous.original_intent);
+        }
+        self.money.gate = Some(decision.clone());
+        self.money.current = Some(decision);
+    }
+
+    pub(super) fn restore_gate_money(&mut self) {
+        if self.money.gate.is_none() {
+            // Only a hold was proved. Neither an amount nor an account is restored.
+            let decision = self.rejected_money(
+                "restored paused gate",
+                "restored gate monetary amendment held; amount and billed cost unknown",
+            );
+            self.record_gate_money(decision);
+        }
+    }
+
+    pub(super) fn finish_gate_money(&mut self) {
+        // Only the protocol answer ends this scope. No account is restored,
+        // replaced, reopened or repriced: the prior Session state stayed live.
+        if self.money.gate.take().is_some() {
+            self.money.current.clone_from(&self.money.draft);
+        }
     }
 
     /// Called before any compiler/classifier/reasoner. A continuation with
@@ -164,18 +269,21 @@ impl SessionRuntime {
         input: &str,
         continuation: bool,
     ) -> Result<(), TurnOutcome> {
-        let parsed = match money_parse::parse(input) {
+        // A fresh turn is not an escape from a still-pending gate amendment.
+        if self.money.gate.is_some() {
+            return self.admit_gate_money(input);
+        }
+        let parsed = match self.read_money(input) {
             Ok(parsed) => parsed,
-            Err(reason) => return Err(self.refuse_money(input, reason)),
+            Err(reason) => return Err(self.refuse_money(input, &reason)),
         };
+        // The Session restriction cannot replace an independent gate observation.
+        // Gate parsing above still holds cognition, but does not consume this flag.
+        if self.money.reconfirm && parsed.amount.is_none() {
+            return Err(self.refuse_money(input, super::inference::RESTORED_EXPOSURE));
+        }
         if continuation && parsed.amount.is_none() {
             return Ok(());
-        }
-        if let Some(error) = self.snapshot.project_error.clone() {
-            return Err(self.refuse_money(input, &format!("project money/default is unavailable: {error} — correct nika.yaml before preparing work")));
-        }
-        if parsed.replaced_default.is_some() && parsed.replaced_default != self.snapshot.ceiling {
-            return Err(self.refuse_money(input, "the stated default to replace does not match the observed project default — confirm one finite, nonnegative amount"));
         }
         let mut decision = self.money_decision(input, &parsed);
         if decision
@@ -189,6 +297,20 @@ impl SessionRuntime {
                 .original_intent
                 .clone_from(&previous.original_intent);
         }
+        if parsed.amount.is_some() {
+            self.retain_money_guard();
+            self.configure_admission(&mut decision);
+            self.money.inference_guard = Some(decision.clone());
+        } else if self.money.inference_guard.is_none() && self.money.account.is_none() {
+            self.configure_admission(&mut decision);
+            if decision.inference == InferenceEnforcement::CallsBlocked {
+                self.retain_money_guard();
+                self.money.inference_guard = Some(decision.clone());
+            }
+        }
+        // A fresh request owns its proposal/Run default, but only an explicit
+        // Session amendment can change the persistent inference constraint.
+        let decision = self.inference_observation(decision);
         self.money.current = Some(decision.clone());
         self.money.draft = Some(decision);
         Ok(())
@@ -197,8 +319,18 @@ impl SessionRuntime {
     /// Called at every cognition seam. Deterministic reading stays available;
     /// the selected intelligence is never substituted by a monetary decision.
     pub(super) fn money_blocks_cognition(&self) -> bool {
+        if self.money.gate.is_some() || self.money.reconfirm {
+            return true;
+        }
+        if let Some(a) = &self.money.account
+            && a.snapshot().map_or(true, |r| {
+                r.state != nika_providers::AdmissionState::Open || r.limit.nano_usd == 0
+            })
+        {
+            return true;
+        }
         self.money
-            .draft
+            .inference_guard
             .as_ref()
             .is_some_and(|d| d.inference == InferenceEnforcement::CallsBlocked)
     }
@@ -207,15 +339,18 @@ impl SessionRuntime {
         TurnOutcome::Refusal(Refusal::new(
             RefusalClass::NotAllowed,
             format!(
-                "the monetary ceiling cannot be enforced by {}: Session has no aggregate USD admission/receipt seam — no cognition call was made; deterministic work remains available and the selected intelligence was kept",
-                self.reasoner.name()
+                "no further cognition admitted on {}: {} · deterministic work remains available; billed cost is unknown",
+                self.reasoner.name(),
+                self.inference_line()
             ),
         ))
     }
 
     pub(super) fn bind_proposal_money(&mut self, id: &ProposalId) {
+        let receipt = self.money.account.as_ref().and_then(|a| a.snapshot().ok());
         self.money.pending = self.money.draft.clone().map(|mut d| {
             d.proposal = Some(id.clone());
+            d.admission = receipt;
             d
         });
         if self.money.pending.is_some() {
@@ -297,8 +432,7 @@ impl SessionRuntime {
             if !unchanged {
                 return Err(self.refuse_money(input, "the prepared workflow changed since its monetary decision — prepare and review the revision before running"));
             }
-            self.money.current = Some(saved_money.decision.clone());
-            self.money.draft = Some(saved_money.decision.clone());
+            self.money.current = Some(self.inference_observation(saved_money.decision.clone()));
             return Ok(());
         }
         // The existing journal proves that Save occurred, but its v1 schema
@@ -316,7 +450,23 @@ impl SessionRuntime {
         {
             return Err(self.refuse_money(input, "the saved spending constraint cannot be proved in this session — provide an explicit Run ceiling or prepare and review the workflow again; no default was substituted"));
         }
+        // No saved identity or journal claim binds this file. Its own Run
+        // default does not amend the ongoing Session inference allowance.
+        self.money.current =
+            Some(self.inference_observation(self.money_decision(input, &ParsedMoney::default())));
         Ok(())
+    }
+
+    fn inference_observation(&self, mut decision: MonetaryDecision) -> MonetaryDecision {
+        decision.inference = if self.money_blocks_cognition() {
+            InferenceEnforcement::CallsBlocked
+        } else if self.money.account.is_some() {
+            InferenceEnforcement::CatalogAdmission
+        } else {
+            InferenceEnforcement::NotMetered
+        };
+        decision.admission = self.money.account.as_ref().and_then(|a| a.snapshot().ok());
+        decision
     }
 }
 
@@ -325,9 +475,36 @@ fn preview_with_money(set: &ProjectChangeSet, decision: Option<&MonetaryDecision
         Some(decision) => format!(
             "{}\n{}\nmonetary input: «{}»\n",
             set.preview(),
-            decision.line(),
+            scoped_money_line(decision),
             decision.input
         ),
         None => set.preview(),
     }
+}
+
+// The work's execution ceiling and Session inference allowance can differ.
+// Render only stable admission limits here: live spending must not change a
+// reviewed proposal's consent identity between preview and an answer.
+fn scoped_money_line(decision: &MonetaryDecision) -> String {
+    if decision.refusal.is_some() {
+        return decision.line();
+    }
+    let inference = match decision.inference {
+        InferenceEnforcement::CatalogAdmission => decision.admission.as_ref().map_or_else(
+            || "catalog allowance tracked separately".to_owned(),
+            |receipt| format!("catalog allowance {}", receipt.limit),
+        ),
+        InferenceEnforcement::CallsBlocked => {
+            "blocked by the Session monetary constraint".to_owned()
+        }
+        InferenceEnforcement::NotMetered => {
+            "unmetered; no aggregate inference allowance".to_owned()
+        }
+    };
+    format!(
+        "money: ${} USD · {:?} · proposal/Run ceiling · project default {:?} · policy cap unknown · machine cap unknown · execution requires a separate Run and downstream admission\nSession inference: {inference}; separate from the proposal/Run ceiling; catalog estimates are not invoices or a hard billing cap; billed cost unknown",
+        decision.effective_usd.unwrap_or_default(),
+        decision.source,
+        decision.project_default_usd,
+    )
 }

@@ -131,6 +131,7 @@ pub(super) struct History {
     pub authority: AuthorityState,
     pub uncertain: bool,
     pub restored: bool,
+    pub monetary_seen: bool,
 }
 
 impl History {
@@ -166,6 +167,7 @@ impl History {
             authority: AuthorityState::None,
             uncertain: false,
             restored: false,
+            monetary_seen: false,
         };
         match history.dir.open_relative(Path::new(LOG)) {
             Ok(file) => history.replay(file)?,
@@ -255,6 +257,13 @@ impl History {
         match record.event {
             Event::Opened if self.sequence == 0 => {}
             Event::Started { operation, input } if self.sequence > 0 && self.started.is_none() => {
+                if matches!(
+                    operation,
+                    Operation::Turn | Operation::Consent | Operation::Gate
+                ) {
+                    self.monetary_seen |=
+                        super::money_parse::parse(&input).map_or(true, |p| p.amount.is_some());
+                }
                 if input.len() > MAX_INPUT_BYTES {
                     return Err(invalid("conversation input exceeds 64 KiB"));
                 }

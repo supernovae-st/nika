@@ -44,14 +44,34 @@ Independent policy and machine caps are **unknown**: Session has no observation
 seam for them and does not invent either limits or proof of absence. Billed
 cost also remains unknown without a receipt, including subscription paths.
 
-An explicit ceiling applies to the request as stated, not silently to execution
-alone. Session's inference adapters currently lack aggregate USD admission and
-billing receipts. Therefore any explicit amount, including a positive one,
-blocks cognition through those adapters; deterministic reading remains
-available and the selected intelligence is unchanged. A refusal names that
-missing enforcement seam. With no explicit amount, the project or Session
-default applies to a later execution request and does not claim to meter
-conversation or authoring. Unknown subscription cost is never treated as zero.
+An explicit positive ceiling can opt into **catalog-backed admission** on a
+qualified endpoint/model. One shared account covers classifier factories,
+conversation, semantic restatement, compilation, repair and revision. Each
+physical request reserves full-context input plus its explicit output limit at
+the pinned tariff. Complete validated usage settles a catalog estimate; failed,
+missing or contradictory usage retains the reservation and closes admission.
+This is a local token-cost estimate, not a hard external billing cap or invoice.
+The provider invoice remains unknown. Authoring and Run have separate scopes.
+`SessionRuntime::inference_receipt()` exposes the live aggregate and attempt
+provenance; `MonetaryDecision.admission` snapshots it when a proposal is bound.
+Observation changes do not change a proposal's identity; changed monetary terms do.
+
+The first profile covers nonstreaming text at the exact native DeepSeek endpoints
+and exact wire models in `nika-catalog/data/inference-admission.toml`. Other
+providers, custom gateways (including unsupported Scaleway overrides), streaming,
+media, tools, extra billing axes, subscriptions and unpriced local computation
+refuse before a paid effect. Custom reasoners/classifiers/HTTP effects must
+explicitly implement the bounded seam; their old methods are never called as a
+fallback. Zero and invalid amounts remain guarded. With no explicit amount,
+existing unbounded behavior is unchanged. Project/Session defaults apply to Run
+without pretending to meter authoring.
+
+Amendments change the total allowance without erasing settled or held exposure;
+questions, new factory instances, model changes and repairs never reset it.
+An uncertain account cannot reopen. After restart the previous aggregate cannot
+be proved: restored paid work requires an explicit new-scope reconfirmation and
+its previous invoice remains unknown. A bounded session never automatically
+changes the selected authoring model to a stronger one.
 
 A prepared decision participates in the exact proposal preview and identity.
 A monetary-only amendment can revise Session's own ceiling without changing

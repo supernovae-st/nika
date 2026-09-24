@@ -626,7 +626,7 @@ fn journal_line(rounds: &[Value]) -> String {
 }
 
 pub(super) fn system_message(references: &[Reference], callables: &[Reference]) -> String {
-    let mut text = String::from(knowledge::card());
+    let mut text = format!("{}\n\n{}", knowledge::card(), knowledge::CONVENTIONS);
     text.push_str("\n\n# Callable contracts (the stdlib page, cut)\n");
     for callable in callables {
         text.push_str(&callable.text);

@@ -9,6 +9,7 @@
 use super::history::{
     AuthorityState, EffectState, History, HistoryMode, Operation, RunState, Saved,
 };
+use super::inference::{GATE_MONEY_PREFIX, RECONFIRM, gate_money_marker, is_money_marker};
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
@@ -46,12 +47,18 @@ impl SessionRuntime {
         }
         self.history = HistoryMode::Blocked("conversation history did not open".to_owned());
         let history = History::open(home, &self.snapshot.root).map_err(history_refusal)?;
-        self.intent = IntentDraft {
+        self.restore_intent(IntentDraft {
             goal: history.state.goal.clone(),
             decisions: history.state.decisions.clone(),
             unresolved: history.state.unresolved.clone(),
-        };
+        });
         self.recent.clone_from(&history.state.recent);
+        self.money.reconfirm |= history.restored && history.monetary_seen;
+        if self.money.reconfirm {
+            // Legacy history cannot distinguish spent/unknown Session exposure
+            // from gate-only money. Preserve that uncertainty in both stores.
+            self.retain_money_guard();
+        }
         let notice = history.restored.then(|| {
             let mut text = "conversation restored · previous proposals and gates require fresh validation".to_owned();
             if history.uncertain {
@@ -112,21 +119,32 @@ impl SessionRuntime {
     }
 
     /// Record the human's gate answer before returning a resume request;
-    /// an answer that resumes is a decision of the durable intent and keeps
-    /// the project's structured record (#1464).
+    /// an answer that resumes or holds a monetary amendment keeps the project's
+    /// structured record (#1464), even when conversation history is unavailable.
     pub fn answer_gate(&mut self, line: &str) -> TurnOutcome {
         let waiting = self.waiting_gate();
         let outcome = self.recorded(Operation::Gate, line, |s| {
             let outcome = s.answer_gate_unrecorded(line);
             if let (Some(gate), TurnOutcome::ResumeRequested { answer, .. }) = (&waiting, &outcome)
             {
+                // Expire only this gate's hold, not an earlier inference marker.
+                let marker = gate_money_marker(gate);
+                s.intent.decisions.retain(|d| d != &marker);
+                s.restore_money_guards();
                 s.intent
                     .decisions
                     .push(format!("answered the gate {gate}: {answer}"));
+            } else if let Some(gate) = &waiting
+                && s.money.gate.is_some()
+            {
+                let marker = gate_money_marker(gate);
+                if !s.intent.decisions.contains(&marker) {
+                    s.intent.decisions.push(marker);
+                }
             }
             outcome
         });
-        if matches!(outcome, TurnOutcome::ResumeRequested { .. }) {
+        if matches!(outcome, TurnOutcome::ResumeRequested { .. }) || self.money.gate.is_some() {
             self.keep_state(outcome)
         } else {
             outcome
@@ -145,8 +163,9 @@ impl SessionRuntime {
 
     /// The project's structured record, read at open (#1464) — after
     /// [`Self::enable_history`] when the door keeps one: the record wins
-    /// over the transcript's projection for the goal, the decisions and the
-    /// unresolved questions (the transcript keeps the dialogue). A proposal
+    /// over the transcript's ordinary goal/decisions/questions (the transcript
+    /// keeps the dialogue); monetary restrictions are conserved from both.
+    /// A proposal
     /// never survives a close (ADR-133 · nothing is written before its
     /// consent); a gate pending at close is the engine's own paused trace
     /// and waits again when that trace still carries the pause. A record
@@ -156,16 +175,17 @@ impl SessionRuntime {
             Ok(Some(state)) => state,
             Ok(None) => return None,
             Err(error) => {
+                self.money.reconfirm = true;
                 return Some(format!(
-                    "session record unreadable (.nika/{STATE_FILE}: {error}) · left in place · this session starts from the conversation alone"
+                    "session record unreadable (.nika/{STATE_FILE}: {error}) · left in place · inference exposure is unknown; paid continuation is blocked"
                 ));
             }
         };
-        self.intent = IntentDraft {
+        self.restore_intent(IntentDraft {
             goal: state.goal,
             decisions: state.decisions,
             unresolved: state.unresolved,
-        };
+        });
         let mut notice = format!(
             "session record restored (.nika/{STATE_FILE} · written {})",
             state.updated_at
@@ -192,7 +212,47 @@ impl SessionRuntime {
                 }
             }
         }
+        self.restore_money_guards();
         Some(notice)
+    }
+
+    // Conversation and structured state can have different last-write times.
+    // Replace ordinary prose, but never erase independently recorded constraints.
+    fn restore_intent(&mut self, mut restored: IntentDraft) {
+        for marker in self.intent.decisions.iter().filter(|d| is_money_marker(d)) {
+            if !restored.decisions.contains(marker) {
+                restored.decisions.push(marker.clone());
+            }
+        }
+        self.intent = restored;
+        self.money.reconfirm |= self.intent.decisions.iter().any(|d| d == RECONFIRM);
+    }
+
+    fn restore_money_guards(&mut self) {
+        let waiting = self.waiting_gate().as_ref().map(gate_money_marker);
+        let mut matched = false;
+        let mut lost = false;
+        for marker in self
+            .intent
+            .decisions
+            .iter()
+            .filter(|d| d.starts_with(GATE_MONEY_PREFIX))
+        {
+            if waiting.as_ref() == Some(marker) {
+                matched = true;
+            } else {
+                lost = true;
+            }
+        }
+        if matched {
+            self.restore_gate_money();
+        }
+        if lost {
+            // Missing/different gate authority cannot release a monetary hold.
+            // No scope can now prove completion, so only conservative refusal is safe.
+            self.money.reconfirm = true;
+            self.retain_money_guard();
+        }
     }
 
     /// The durable evidence of a consent that landed every change (#1465),
@@ -253,7 +313,7 @@ impl SessionRuntime {
         let redact = |s: &String| crate::broker::redact(s).0;
         let mut state = SessionState::new(now_rfc3339());
         state.goal = self.intent.goal.as_ref().map(redact);
-        state.decisions = self.intent.decisions.iter().map(redact).collect();
+        state.decisions = self.saved_decisions();
         state.unresolved = self.intent.unresolved.iter().map(redact).collect();
         state.pending = self.pending_gate.as_ref().map(|gate| Pending::Gate {
             workflow: gate.workflow.clone(),
@@ -351,11 +411,26 @@ impl SessionRuntime {
         TurnOutcome::Refusal(history_refusal(reason))
     }
 
+    fn saved_decisions(&self) -> Vec<String> {
+        let mut decisions: Vec<_> = self
+            .intent
+            .decisions
+            .iter()
+            .map(|s| crate::broker::redact(s).0)
+            .collect();
+        // An unreadable record supplies no conversational facts, but its unknown
+        // exposure must survive the next legitimate history/state write.
+        if self.money.reconfirm && !decisions.iter().any(|d| d == RECONFIRM) {
+            decisions.push(RECONFIRM.into());
+        }
+        decisions
+    }
+
     fn saved_conversation(&self) -> Saved {
         let redact = |s: &String| crate::broker::redact(s).0;
         Saved {
             goal: self.intent.goal.as_ref().map(redact),
-            decisions: self.intent.decisions.iter().map(redact).collect(),
+            decisions: self.saved_decisions(),
             unresolved: self.intent.unresolved.iter().map(redact).collect(),
             recent: self
                 .recent

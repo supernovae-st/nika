@@ -34,6 +34,7 @@ mod durable;
 #[allow(clippy::expect_used, clippy::panic)]
 mod durable_tests;
 mod history;
+mod inference;
 mod money_gate;
 mod money_parse;
 mod recovery;
@@ -849,7 +850,7 @@ impl SessionRuntime {
             &self.intelligence.locus.line(),
         );
         let prompt = ContextBroker::prompt(&bundle, &self.recent, input);
-        match self.reasoner.reason(&prompt) {
+        match self.reason_with_money(&prompt, false) {
             // In words only: a reply never becomes a file (the compiler is
             // the ONE door to a workflow · ADR-125 wave 5 retired here).
             Ok(reply) => {
@@ -1251,7 +1252,7 @@ impl SessionRuntime {
         // it, a change belongs to the workflow (« no », then the change);
         // neither answers the gate. Authority never comes from a reading.
         if gate.mode == "confirm" && !is_gate_token(line) {
-            if let Err(refusal) = self.admit_money(line, true) {
+            if let Err(refusal) = self.admit_gate_money(line) {
                 self.pending_gate = Some(gate);
                 return refusal;
             }
@@ -1274,6 +1275,7 @@ impl SessionRuntime {
         }
         self.answered = Some(GateId::new(&gate.trace, &gate.task));
         let answer = gate.answer_arg(line);
+        self.finish_gate_money();
         self.remember("(gate)", &format!("{} answered: {answer}", gate.task));
         TurnOutcome::ResumeRequested {
             workflow: gate.workflow,
@@ -1443,3 +1445,6 @@ mod route_tests;
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod tests;
+
+#[cfg(test)]
+mod inference_tests;

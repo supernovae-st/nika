@@ -4706,6 +4706,7 @@ dependencies = [
  "nika-error",
  "nika-kernel",
  "nika-pack",
+ "nika-providers",
  "nika-schema",
  "nika-source",
  "nika-vocab",
@@ -4724,6 +4725,8 @@ dependencies = [
 name = "nika-compile-reader"
 version = "0.120.3"
 dependencies = [
+ "nika-check-analyzer",
+ "nika-schema",
  "serde_json",
 ]
 
@@ -5208,6 +5211,7 @@ dependencies = [
  "nika-kernel",
  "nika-types",
  "proptest",
+ "serde",
  "serde_json",
  "tokio",
 ]
@@ -5429,6 +5433,7 @@ dependencies = [
  "nika-fs",
  "nika-harness",
  "nika-http",
+ "nika-kernel",
  "nika-onboard",
  "nika-pack",
  "nika-providers",

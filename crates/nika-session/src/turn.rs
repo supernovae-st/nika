@@ -197,6 +197,17 @@ impl TurnDecision {
 /// A bounded classifier of open language: the session's intelligence, a
 /// decision seat, a scripted one in tests, or the conservative fallback.
 pub trait TurnClassifier: Send {
+    /// Classify through a shared allowance. A custom classifier must opt in;
+    /// the default makes no call on its old unbounded implementation.
+    fn classify_with_admission(
+        &mut self,
+        _context: &TurnContext,
+        _raw: &str,
+        _account: &nika_providers::InferenceAdmission,
+    ) -> TurnDecision {
+        TurnDecision::failed("selected classifier has no catalog admission seam")
+    }
+
     /// The act of `raw` in `context`; UNKNOWN when it cannot tell.
     fn classify(&mut self, context: &TurnContext, raw: &str) -> TurnDecision;
 }
@@ -228,6 +239,21 @@ impl ReasonerClassifier {
 }
 
 impl TurnClassifier for ReasonerClassifier {
+    fn classify_with_admission(
+        &mut self,
+        context: &TurnContext,
+        raw: &str,
+        account: &nika_providers::InferenceAdmission,
+    ) -> TurnDecision {
+        match self
+            .reasoner
+            .reason_label_with_admission(&routing_prompt(context, raw), account)
+        {
+            Ok(reply) => TurnDecision::new(TurnAct::parse(&reply.text), RoutingMethod::Model),
+            Err(e) => TurnDecision::failed(&e.to_string()),
+        }
+    }
+
     fn classify(&mut self, context: &TurnContext, raw: &str) -> TurnDecision {
         match self.reasoner.reason_label(&routing_prompt(context, raw)) {
             Ok(reply) => TurnDecision::new(TurnAct::parse(&reply.text), RoutingMethod::Model),

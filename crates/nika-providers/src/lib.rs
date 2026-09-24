@@ -39,6 +39,8 @@
 
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
+pub mod admission;
+pub use admission::{AdmissionState, AttemptReceipt, InferenceAdmission, InferenceReceipt};
 pub mod census;
 #[cfg(test)]
 mod parity_tests;
