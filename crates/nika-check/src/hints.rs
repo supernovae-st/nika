@@ -494,16 +494,18 @@ fn push_headless_prompt_hint(
     {
         return;
     }
-    // The closing clause used to be unconditional — « declare the
-    // `default:` the unattended path should take ». Over a real effect,
-    // following that with `true` builds a workflow that answers its own
-    // gate and fires the action with nobody present. Name the safe one.
+    // A workflow default answers its own gate unattended, even when false.
+    // Keep fresh approval in the workflow and a one-off refusal in the
+    // invocation, so advice does not silently remove the human pause.
     let close = if gates_an_effect {
-        "or declare `default: false` — this file has an effect, and a \
-         defaulted gate ANSWERS ITSELF unattended (spec 06), so `false` is \
-         the choice that refuses rather than approves"
+        format!(
+            "or refuse this invocation with `--answer {id}=false`. Keep this \
+             gate without `default:` when fresh human approval is required; \
+             a workflow default answers itself unattended and does not pause \
+             for a human"
+        )
     } else {
-        "or declare the `default:` the unattended path should take"
+        "or declare the `default:` the unattended path should take".into()
     };
     hints.push(hint(
         "headless-prompt",

@@ -163,7 +163,7 @@
         "gate_findings": [],
         "hints": [
           {
-            "advice": "`nika:prompt` on `send_review` declares no `default:` — unattended (CI, or an agent handing it over) the run pauses at this gate awaiting a human (exit 4 · the resume line taught on the frame); at a terminal it asks directly. Answer it in one pass with `nika run <file> --answer send_review=<value>`, or declare `default: false` — this file has an effect, and a defaulted gate ANSWERS ITSELF unattended (spec 06), so `false` is the choice that refuses rather than approves",
+            "advice": "`nika:prompt` on `send_review` declares no `default:` — unattended (CI, or an agent handing it over) the run pauses at this gate awaiting a human (exit 4 · the resume line taught on the frame); at a terminal it asks directly. Answer it in one pass with `nika run <file> --answer send_review=<value>`, or refuse this invocation with `--answer send_review=false`. Keep this gate without `default:` when fresh human approval is required; a workflow default answers itself unattended and does not pause for a human",
             "kind": "headless-prompt",
             "task": "send_review"
           }
