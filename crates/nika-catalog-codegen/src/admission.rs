@@ -14,10 +14,14 @@ struct File {
 #[serde(deny_unknown_fields)]
 struct Tariff {
     provider: String,
+    billing_provider: String,
+    currency: String,
+    output_token_param: String,
     model: String,
     endpoints: Vec<String>,
     source: String,
     limits_source: String,
+    route_source: String,
     as_of: String,
     source_sha256: String,
     limits_sha256: String,
@@ -36,7 +40,7 @@ pub(crate) fn generate(raw: &[u8]) -> Result<String, CodegenError> {
     })?;
     let mut out = String::from("static TARIFFS: &[InferenceTariff] = &[\n");
     let mut seen = std::collections::HashSet::new();
-    if file.schema != "nika/inference-admission@1.0" {
+    if file.schema != "nika/inference-admission@1.1" {
         return Err(CodegenError::schema_validation(
             "admission",
             "unknown schema",
@@ -45,22 +49,37 @@ pub(crate) fn generate(raw: &[u8]) -> Result<String, CodegenError> {
     for r in file.tariffs {
         if r.provider.is_empty()
             || r.model.is_empty()
+            || r.billing_provider.is_empty()
+            || !matches!(r.currency.as_str(), "USD" | "EUR")
+            || !matches!(
+                r.output_token_param.as_str(),
+                "max_tokens" | "max_completion_tokens"
+            )
             || r.endpoints.is_empty()
             || r.endpoints
                 .iter()
                 .any(|e| !e.starts_with("https://") || e.contains(['?', '#']))
             || !r.source.starts_with("https://")
             || !r.limits_source.starts_with("https://")
+            || !r.route_source.starts_with("https://")
             || r.as_of.len() != 10
-            || [&r.source_sha256, &r.limits_sha256]
-                .iter()
-                .any(|s| s.len() != 64 || !s.bytes().all(|b| b.is_ascii_hexdigit()))
+            || [&r.source_sha256, &r.limits_sha256].iter().any(|s| {
+                !s.is_empty() && (s.len() != 64 || !s.bytes().all(|b| b.is_ascii_hexdigit()))
+            })
+            || (r.currency == "USD" && (r.source_sha256.is_empty() || r.limits_sha256.is_empty()))
             || r.context_tokens == 0
             || r.max_output_tokens == 0
             || r.input_nano_per_token == 0
             || r.output_nano_per_token == 0
             || r.cached_nano_per_token == 0
             || r.cached_nano_per_token > r.input_nano_per_token
+            || [
+                r.input_nano_per_token,
+                r.output_nano_per_token,
+                r.cached_nano_per_token,
+            ]
+            .iter()
+            .any(|n| *n > 9_007_199_254_740_991)
             || !seen.insert((r.provider.clone(), r.model.clone()))
         {
             return Err(CodegenError::schema_validation(
@@ -71,16 +90,20 @@ pub(crate) fn generate(raw: &[u8]) -> Result<String, CodegenError> {
         writeln!(
             out,
             concat!(
-                "InferenceTariff {{ provider: {:?}, model: {:?}, endpoints: &{:?}, ",
-                "source: {:?}, limits_source: {:?}, as_of: {:?}, source_sha256: {:?}, ",
+                "InferenceTariff {{ provider: {:?}, billing_provider: {:?}, currency: {:?}, output_token_param: {:?}, model: {:?}, endpoints: &{:?}, ",
+                "source: {:?}, limits_source: {:?}, route_source: {:?}, as_of: {:?}, source_sha256: {:?}, ",
                 "limits_sha256: {:?}, context_tokens: {}, max_output_tokens: {}, ",
                 "input: {}, output: {}, cached: {} }},"
             ),
             r.provider,
+            r.billing_provider,
+            r.currency,
+            r.output_token_param,
             r.model,
             r.endpoints,
             r.source,
             r.limits_source,
+            r.route_source,
             r.as_of,
             r.source_sha256,
             r.limits_sha256,
@@ -94,6 +117,43 @@ pub(crate) fn generate(raw: &[u8]) -> Result<String, CodegenError> {
     }
     out.push_str("];\n");
     Ok(out)
+}
+
+/// Project exact first-party USD facts from their owning admission source.
+/// The models.dev file and its historical identity remain untouched. Route
+/// qualification is still required at execution; a catalog row is not a grant.
+pub(crate) fn project_pricing(
+    raw: &[u8],
+    pricing: &mut crate::pricing::PricingFile,
+) -> Result<(), CodegenError> {
+    generate(raw)?;
+    let text = std::str::from_utf8(raw)
+        .map_err(|e| CodegenError::schema_validation("admission", e.to_string()))?;
+    let file: File = toml::from_str(text).map_err(|source| CodegenError::TomlParse {
+        path: "inference-admission.toml".into(),
+        source,
+    })?;
+    for t in file.tariffs {
+        if t.currency != "USD" || t.provider != t.billing_provider {
+            continue;
+        }
+        if let Some(row) = pricing
+            .rules
+            .iter_mut()
+            .find(|r| r.provider == t.provider && r.model_pattern == t.model)
+        {
+            // Qualified rates are integers below 2^53; validation above owns bounds.
+            #[allow(clippy::cast_precision_loss)]
+            {
+                row.input_per_million = t.input_nano_per_token as f64 / 1000.0;
+                row.output_per_million = t.output_nano_per_token as f64 / 1000.0;
+                row.cache_read_per_million = Some(t.cached_nano_per_token as f64 / 1000.0);
+            }
+            row.cache_write_per_million = None;
+            row.reasoning_tokens_per_million = None;
+        }
+    }
+    Ok(())
 }
 
 fn integer_literal(value: u64) -> String {
@@ -112,6 +172,38 @@ mod tests {
     use super::*;
     const DATA: &[u8] = include_bytes!("../../nika-catalog/data/inference-admission.toml");
     #[test]
+    fn exact_projection_replaces_stale_usd_and_never_projects_eur() {
+        let raw = include_bytes!("../../nika-catalog/data/model-pricing.toml");
+        let mut p = crate::pricing::parse_pricing_bytes(raw, std::path::Path::new("snapshot"))
+            .expect("snapshot");
+        let before = p
+            .rules
+            .iter()
+            .find(|r| r.provider == "deepseek" && r.model_pattern == "deepseek-v4-pro")
+            .expect("old")
+            .input_per_million;
+        assert!((before - 0.435).abs() < f64::EPSILON);
+        project_pricing(DATA, &mut p).expect("projection");
+        let row = p
+            .rules
+            .iter()
+            .find(|r| r.provider == "deepseek" && r.model_pattern == "deepseek-v4-pro")
+            .expect("projected");
+        assert_eq!(
+            (
+                row.input_per_million,
+                row.output_per_million,
+                row.cache_read_per_million
+            ),
+            (1.32, 3.96, Some(0.044))
+        );
+        assert!(
+            !p.rules
+                .iter()
+                .any(|r| r.provider == "openai" && r.model_pattern == "gpt-oss-120b")
+        );
+    }
+    #[test]
     fn dated_tariffs_emit_and_invalid_axes_refuse() {
         let out = generate(DATA).expect("tariffs");
         syn::parse_file(&out).expect("Rust");
@@ -120,6 +212,9 @@ mod tests {
         let text = std::str::from_utf8(DATA).expect("utf8");
         for bad in [
             text.replace("1320", "0"),
+            text.replace("1320", "-1"),
+            text.replace("1320", "nan"),
+            text.replace("1320", "inf"),
             text.replace("input_nano_per_token", "unpriced_axis"),
             text.replace("1048576", "0"),
             text.replace("https://", "http://"),

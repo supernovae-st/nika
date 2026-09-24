@@ -11,6 +11,178 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 const ENDPOINT: &str = "https://api.deepseek.com/v1/chat/completions";
 const MODEL: &str = "deepseek/deepseek-v4-pro";
+
+struct ScalewayHttp(AtomicUsize);
+impl HttpPostDyn for ScalewayHttp {
+    fn supports_single_attempt(&self) -> bool {
+        true
+    }
+    async fn post(&self, req: HttpRequest) -> Result<HttpResponse, HttpError> {
+        self.0.fetch_add(1, Ordering::SeqCst);
+        assert_eq!(req.url, "https://api.scaleway.ai/v1/chat/completions");
+        assert!(!req.follow_redirects);
+        assert!(
+            req.timeout
+                .is_some_and(|t| t <= std::time::Duration::from_secs(10))
+        );
+        let b: Value = serde_json::from_slice(req.body.as_ref().expect("body")).expect("json");
+        assert_eq!(b["model"], "gpt-oss-120b");
+        assert_eq!(b["max_completion_tokens"], 512);
+        assert!(b.get("max_tokens").is_none());
+        Ok(HttpResponse::new(
+            200,
+            std::collections::BTreeMap::new(),
+            json!({
+                "id":"scw-observation", "model":"gpt-oss-120b",
+                "choices":[{"message":{"content":"ok"},"finish_reason":"stop"}],
+                "usage":{"prompt_tokens":100,"completion_tokens":20,"total_tokens":120}
+            })
+            .to_string()
+            .into(),
+            &req.url,
+        ))
+    }
+    async fn send_streaming(&self, _: HttpRequest) -> Result<HttpStreamResponse, HttpError> {
+        panic!("unknown-cost streaming must refuse");
+    }
+}
+
+#[tokio::test]
+async fn explicit_scaleway_route_records_eur_without_inventing_dollars() {
+    let choice = UnknownCostChoice::new(
+        "candidate".into(),
+        "invocation".into(),
+        "openai".into(),
+        "gpt-oss-120b".into(),
+        "https://api.scaleway.ai/v1/chat/completions".into(),
+        1,
+        512,
+        std::time::Duration::from_secs(10),
+    )
+    .expect("choice");
+    let policy = UnknownCostPolicy::new(
+        true,
+        HardMonetaryCap::Absent,
+        HardMonetaryCap::Absent,
+        HardMonetaryCap::Absent,
+        Some(Cost::zero()),
+        None,
+    );
+    let account = InferenceAdmission::new_unknown(choice, policy)
+        .expect("allowed")
+        .for_scope("candidate", "invocation")
+        .expect("bound");
+    let transport = Arc::new(ScalewayHttp(AtomicUsize::new(0)));
+    let provider = ProviderRegistry::new(
+        transport.clone(),
+        ProvidersConfig::new()
+            .with_key("openai", Secret::new("test"))
+            .with_base_url("openai", "https://api.scaleway.ai/v1/chat/completions"),
+    )
+    .with_inference_admission(account.clone())
+    .resolve("openai/gpt-oss-120b")
+    .expect("resolve");
+    let mut r = InferRequest::new(
+        "openai/gpt-oss-120b",
+        vec![Message::text(Role::User, "hello")],
+    );
+    r.max_tokens = Some(512);
+    let (_, observed) = provider
+        .infer_reported(r)
+        .await
+        .expect("one controlled response");
+    assert_eq!(transport.0.load(Ordering::SeqCst), 1);
+    assert_eq!(
+        observed.billing_route.expect("route").endpoint,
+        "https://api.scaleway.ai/v1/chat/completions"
+    );
+    let receipt = account.snapshot().expect("receipt");
+    assert_eq!(receipt.unknown_calls, 1);
+    assert_eq!(receipt.unknown_attempts[0].estimated, None);
+    assert_eq!(receipt.unknown_attempts[0].currency.as_deref(), Some("EUR"));
+    assert_eq!(
+        receipt.unknown_attempts[0].native_estimated_nano,
+        Some(27_000)
+    );
+}
+
+fn explicit_unknown() -> InferenceAdmission {
+    let choice = UnknownCostChoice::new(
+        "candidate".into(),
+        "invocation".into(),
+        "deepseek".into(),
+        "deepseek-v4-pro".into(),
+        ENDPOINT.into(),
+        2,
+        8192,
+        std::time::Duration::from_secs(10),
+    )
+    .expect("choice");
+    let policy = UnknownCostPolicy::new(
+        true,
+        HardMonetaryCap::Absent,
+        HardMonetaryCap::Absent,
+        HardMonetaryCap::Absent,
+        Some(Cost::zero()),
+        Some(Cost::new(100)),
+    );
+    InferenceAdmission::new_unknown(choice, policy)
+        .expect("explicit")
+        .for_scope("candidate", "invocation")
+        .expect("scope")
+}
+
+#[tokio::test]
+async fn unknown_choice_sends_once_preserves_null_and_does_not_retry_errors() {
+    for status in [200, 429, 503] {
+        let mut h = http();
+        h.status = status;
+        let mut b = body();
+        b.as_object_mut().expect("object").remove("usage");
+        h.body = b.to_string();
+        let transport = Arc::new(h);
+        let account = explicit_unknown();
+        let provider = ProviderRegistry::new(
+            transport.clone(),
+            ProvidersConfig::new().with_key("deepseek", Secret::new("test")),
+        )
+        .with_inference_admission(account.clone())
+        .resolve(MODEL)
+        .expect("provider");
+        let response = provider.infer_reported(request()).await;
+        assert_eq!(response.is_ok(), status == 200);
+        assert_eq!(transport.calls.load(Ordering::SeqCst), 1);
+        let receipt = account.snapshot().expect("snapshot");
+        assert_eq!(receipt.unknown_calls, 1);
+        assert_eq!(receipt.unknown_attempts[0].estimated, None);
+        if status != 200 {
+            assert!(provider.infer_reported(request()).await.is_err());
+            assert_eq!(transport.calls.load(Ordering::SeqCst), 1);
+        }
+    }
+}
+
+#[tokio::test]
+async fn eur_route_with_numeric_cap_refuses_before_http() {
+    let transport = Arc::new(http());
+    let account = InferenceAdmission::new(Cost::new(100_000_000_000)).expect("strict");
+    let provider = ProviderRegistry::new(
+        transport.clone(),
+        ProvidersConfig::new()
+            .with_key("openai", Secret::new("test"))
+            .with_base_url("openai", "https://api.scaleway.ai/v1/chat/completions"),
+    )
+    .with_inference_admission(account)
+    .resolve("openai/gpt-oss-120b")
+    .expect("resolve");
+    let mut r = InferRequest::new(
+        "openai/gpt-oss-120b",
+        vec![Message::text(Role::User, "hello")],
+    );
+    r.max_tokens = Some(512);
+    assert!(provider.infer(r).await.is_err());
+    assert_eq!(transport.calls.load(Ordering::SeqCst), 0);
+}
 struct Http {
     calls: AtomicUsize,
     status: u16,

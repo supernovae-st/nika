@@ -383,20 +383,25 @@ where
         // round-trips the same way usage is.
         let mut transport_total = TransportReport::new();
         // Failure decoration — billed round-trips ride the error.
-        let incurred =
-            |u: &TokenUsage| Box::new(SpendOnFailure::new(u.clone(), None, Some(model.to_owned())));
+        let incurred = |u: &TokenUsage, t: &TransportReport| {
+            Box::new(
+                SpendOnFailure::new(u.clone(), None, Some(model.to_owned()))
+                    .with_inference_calls(t.inference_calls.clone()),
+            )
+        };
         loop {
             attempts += 1;
             let request = build_request(&input, provider.wire_model(), messages.clone(), wire);
             let (response, transport) = match provider.infer_reported(request).await {
                 Ok(pair) => pair,
                 Err((source, report)) => {
+                    transport_total.absorb(&report);
                     return Err(provider_failure(
                         model,
                         source,
                         &report,
                         wire,
-                        incurred(&usage_total),
+                        incurred(&usage_total, &transport_total),
                     ));
                 }
             };
@@ -404,7 +409,7 @@ where
             usage_total.absorb(&response.usage);
             // R3-F1 (2026-07-29 audit · run 3 · the agent loop's own
             // `NIKA-AGENT-005` sibling): the usage-absence gate.
-            refuse_unusable_response(&response, model, incurred(&usage_total))?;
+            refuse_unusable_response(&response, model, incurred(&usage_total, &transport_total))?;
             let text = response_text(&response);
 
             let (Some(schema), Some(validator)) = (input.schema.as_ref(), validator.as_ref())
@@ -429,7 +434,7 @@ where
                             attempts,
                             &errors,
                             &response.stop_reason,
-                            incurred(&usage_total),
+                            incurred(&usage_total, &transport_total),
                         ));
                     }
                     messages.push(Message::text(Role::Assistant, text));
@@ -544,7 +549,12 @@ fn finish_text_lane(
     usage: TokenUsage,
     transport: TransportReport,
 ) -> Result<InferOutput, VerbInferError> {
-    refuse_blank_answer(&text, &usage, model)?;
+    refuse_blank_answer(&text, &usage, model).map_err(|mut error| {
+        if let VerbInferError::EmptyAnswer { spend, .. } = &mut error {
+            spend.inference_calls.clone_from(&transport.inference_calls);
+        }
+        error
+    })?;
     Ok(
         InferOutput::new(InferValue::Text(text), model.to_owned(), response, usage)
             .with_transport(transport),

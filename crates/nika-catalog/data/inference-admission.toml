@@ -3,14 +3,18 @@
 # Peak rates; no time discount. USD/M tokens * 1000 = nano-USD/token.
 # 1M interpreted conservatively as 1,048,576; 384K is explicitly 393,216
 # in the official Chat Completions reference. Thinking is included in output.
-schema = "nika/inference-admission@1.0"
+schema = "nika/inference-admission@1.1"
 
 [[tariffs]]
 provider = "deepseek"
+billing_provider = "deepseek"
+currency = "USD"
+output_token_param = "max_tokens"
 model = "deepseek-v4-pro"
 endpoints = ["https://api.deepseek.com/v1/chat/completions", "https://api.deepseek.com/chat/completions"]
 source = "https://api-docs.deepseek.com/quick_start/pricing/"
 limits_source = "https://api-docs.deepseek.com/api/create-chat-completion/"
+route_source = "https://api-docs.deepseek.com/api/create-chat-completion/"
 as_of = "2026-09-24"
 source_sha256 = "2fecee48bf6ad791bce38d1d5504d8ad5c8b0fd4da93e6dc198ae88ff1a4506a"
 limits_sha256 = "4c2384d7ad4e5f1929edb922900b2a96546a7e699e8b067d6e82dcb9a330989d"
@@ -22,10 +26,14 @@ cached_nano_per_token = 44
 
 [[tariffs]]
 provider = "deepseek"
+billing_provider = "deepseek"
+currency = "USD"
+output_token_param = "max_tokens"
 model = "deepseek-flash"
 endpoints = ["https://api.deepseek.com/v1/chat/completions", "https://api.deepseek.com/chat/completions"]
 source = "https://api-docs.deepseek.com/quick_start/pricing/"
 limits_source = "https://api-docs.deepseek.com/api/create-chat-completion/"
+route_source = "https://api-docs.deepseek.com/api/create-chat-completion/"
 as_of = "2026-09-24"
 source_sha256 = "2fecee48bf6ad791bce38d1d5504d8ad5c8b0fd4da93e6dc198ae88ff1a4506a"
 limits_sha256 = "4c2384d7ad4e5f1929edb922900b2a96546a7e699e8b067d6e82dcb9a330989d"
@@ -34,3 +42,28 @@ max_output_tokens = 393216
 input_nano_per_token = 300
 output_nano_per_token = 1200
 cached_nano_per_token = 6
+
+# Serverless, before tax. The OpenAI-compatible adapter is NOT the biller.
+# Official reasoning guide explicitly uses this unsuffixed wire model.
+# Dedicated :fp4 deployments and project-specific endpoints are not aliases.
+# No free-tier credit or EUR/USD conversion is assumed. Empty document hashes
+# mean unavailable; the URL/date observation is not a byte-pinned document.
+[[tariffs]]
+provider = "openai"
+billing_provider = "scaleway"
+currency = "EUR"
+output_token_param = "max_completion_tokens"
+model = "gpt-oss-120b"
+endpoints = ["https://api.scaleway.ai/v1/chat/completions"]
+source = "https://www.scaleway.com/en/pricing/model-as-a-service/"
+limits_source = "https://www.scaleway.com/en/docs/generative-apis/reference-content/supported-models/"
+route_source = "https://www.scaleway.com/en/docs/generative-apis/how-to/query-reasoning-models/"
+as_of = "2026-09-24"
+source_sha256 = ""
+limits_sha256 = ""
+context_tokens = 131072
+max_output_tokens = 32768
+input_nano_per_token = 150
+output_nano_per_token = 600
+# No cache discount is qualified. Cache input costs the input rate.
+cached_nano_per_token = 150

@@ -859,6 +859,7 @@ where
             let attempts = async {
                 let mut attempt = 1_u32;
                 // Spend of FAILED attempts — folded onto the terminal frame.
+                let mut failed_calls = Vec::new();
                 let mut failed_cost: Option<f64> = None;
                 let mut failed_unpriced: Option<nika_types::cost::UnpricedReason> = None;
                 loop {
@@ -880,19 +881,36 @@ where
                             // attempts debited theirs; frame reports all).
                             ledger.debit_ok(&ok);
                             ok.fold_failed_spend(failed_cost, failed_unpriced);
+                            crate::usage::UsageSplit::join_calls(
+                                &mut ok.usage,
+                                &failed_calls,
+                                true,
+                            );
                             return Ok(ok);
                         }
                         Err(failed) => {
-                            let delay = self.failed_attempt_delay(
-                                task,
-                                failed,
-                                ledger,
-                                &mut failed_cost,
-                                &mut failed_unpriced,
-                                attempt,
-                                max_attempts,
-                                &jitter_key,
-                            )?;
+                            if let Some(u) = &failed.usage {
+                                failed_calls.extend_from_slice(&u.inference_calls);
+                            }
+                            let delay = self
+                                .failed_attempt_delay(
+                                    task,
+                                    failed,
+                                    ledger,
+                                    &mut failed_cost,
+                                    &mut failed_unpriced,
+                                    attempt,
+                                    max_attempts,
+                                    &jitter_key,
+                                )
+                                .map_err(|mut failed| {
+                                    crate::usage::UsageSplit::join_calls(
+                                        &mut failed.usage,
+                                        &failed_calls,
+                                        false,
+                                    );
+                                    failed
+                                })?;
                             retries.push(RetryStamp {
                                 attempt,
                                 max_attempts,

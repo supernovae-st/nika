@@ -23,15 +23,17 @@ use super::{EventMapper, SseEventStream, ToolNameMap, gen_ai_system, map_http_er
 use crate::registry::ResolvedProvider;
 
 /// Single-shot inference.
-pub(crate) async fn infer<H>(
+pub(crate) async fn infer_routed<H>(
     rp: &ResolvedProvider<H>,
     request: InferRequest,
+    route: &mut Option<crate::retry::BillingRoute>,
+    call: &mut Option<nika_types::cost::InferenceCall>,
 ) -> Result<InferResponse, ProviderError>
 where
     H: HttpPostDyn + Send + Sync + 'static,
 {
     let mut sent = false;
-    infer_tracked(rp, request, &mut sent).await
+    infer_tracked(rp, request, &mut sent, route, call).await
 }
 
 /// Same wire, with an exact dispatched/not-dispatched observation for the
@@ -40,6 +42,8 @@ pub(crate) async fn infer_tracked<H>(
     rp: &ResolvedProvider<H>,
     request: InferRequest,
     sent: &mut bool,
+    route: &mut Option<crate::retry::BillingRoute>,
+    call: &mut Option<nika_types::cost::InferenceCall>,
 ) -> Result<InferResponse, ProviderError>
 where
     H: HttpPostDyn + Send + Sync + 'static,
@@ -57,15 +61,46 @@ where
     {
         return Err(account.refuse("HTTP effect has no single-attempt guarantee"));
     }
+    let declared = rp
+        .admission
+        .as_ref()
+        .map(crate::admission::InferenceAdmission::declared_tariff)
+        .transpose()?
+        .flatten();
     let mut attempt = super::admission::reserve(rp, &request, bytes)?;
     if attempt.is_some() {
         http_req.follow_redirects = false;
+        if let Some(account) = &rp.admission
+            && let Some(bound) = account.request_timeout()?
+        {
+            http_req.timeout = Some(
+                http_req
+                    .timeout
+                    .map_or(bound, |requested| requested.min(bound)),
+            );
+        }
     }
     if let Some(a) = &mut attempt {
         a.sent()?;
     }
     *sent = true;
+    let requested_endpoint = crate::retry::BillingRoute::new(
+        rp.profile.id.into(),
+        rp.wire_model.clone(),
+        rp.base_url.clone(),
+    )
+    .map(|r| r.endpoint);
+    *call = Some(nika_types::cost::InferenceCall::new());
+    if let Some(c) = call {
+        c.requested_endpoint = requested_endpoint;
+    }
     let resp = http.post(http_req).await.map_err(|e| map_http_err(&e))?;
+    *route = crate::retry::BillingRoute::new(
+        rp.profile.id.into(),
+        rp.wire_model.clone(),
+        resp.final_url.clone(),
+    );
+    crate::retry::record(call, route.as_ref(), None, declared.as_ref());
     if let Some(account) = &rp.admission
         && resp.final_url != rp.base_url
     {
@@ -80,10 +115,22 @@ where
         ));
     }
     let response = parse_response(rp, &resp.body, &names)?;
+    crate::retry::record(call, route.as_ref(), Some(&response), declared.as_ref());
     if let Some(a) = &mut attempt {
         a.settle(&response)?;
     }
     Ok(response)
+}
+
+#[cfg(test)]
+pub(super) async fn infer<H>(
+    rp: &ResolvedProvider<H>,
+    request: InferRequest,
+) -> Result<InferResponse, ProviderError>
+where
+    H: HttpPostDyn + Send + Sync + 'static,
+{
+    infer_routed(rp, request, &mut None, &mut None).await
 }
 
 /// Streaming inference.
@@ -132,7 +179,7 @@ fn build_request(
     // (`wire::json_mode` · DeepSeek refuses it with a 400 at the door).
     let json_mode = nika_catalog::model_capabilities(rp.profile.id, &rp.wire_model).json_mode;
     let req = super::json_mode::shape(req, json_mode);
-    let body = request_body(
+    let mut body = request_body(
         &rp.wire_model,
         &req,
         stream,
@@ -140,6 +187,15 @@ fn build_request(
         rp.profile.id,
         names,
     )?;
+    if let Some(tariff) =
+        nika_catalog::admission::InferenceTariff::new(rp.profile.id, &rp.wire_model, &rp.base_url)
+        && let Some(max) = req.max_tokens
+        && let Some(obj) = body.as_object_mut()
+    {
+        obj.remove("max_tokens");
+        obj.remove("max_completion_tokens");
+        obj.insert(tariff.output_token_param.into(), json!(max));
+    }
     let bytes = serde_json::to_vec(&body).map_err(|e| ProviderError::Other {
         reason: format!("request serialization failed: {e}"),
     })?;

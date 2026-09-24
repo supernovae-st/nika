@@ -5,7 +5,25 @@
 //! from `dispatch.rs` at the 1500-line file cap when the usage
 //! split joined the seam; the bodies moved verbatim.
 
-use nika_types::cost::UnpricedReason;
+use nika_types::cost::{InferenceCall, UnpricedReason};
+
+/// Fold qualified per-dispatch estimates. Never apply one route to aggregate usage.
+pub(super) fn spend_for_calls(calls: &[InferenceCall]) -> (Option<f64>, Option<UnpricedReason>) {
+    let mut known = None;
+    let mut unknown = None;
+    for call in calls {
+        if let Some(cost) = call.known_estimate() {
+            known = Some(known.unwrap_or(0.0) + cost.to_usd_f64());
+        } else {
+            unknown = Some(if call.usage.is_none() || !call.usage_complete {
+                UnpricedReason::ProviderDidNotReportUsage
+            } else {
+                UnpricedReason::MissingCatalogPrice
+            });
+        }
+    }
+    (known, unknown)
+}
 
 /// the split of what a FAILED verb had already burned — the same
 /// numbers `price_failed_spend` turns into dollars, so `task_failed`
@@ -13,7 +31,10 @@ use nika_types::cost::UnpricedReason;
 pub(super) fn failed_usage_split(
     spend: Option<&nika_types::cost::SpendOnFailure>,
 ) -> Option<Box<crate::usage::UsageSplit>> {
-    crate::usage::UsageSplit::of(&spend?.usage).carried()
+    let spend = spend?;
+    crate::usage::UsageSplit::of(&spend.usage)
+        .with_calls(&spend.inference_calls)
+        .carried()
 }
 
 pub(super) fn price_failed_spend(
@@ -22,9 +43,15 @@ pub(super) fn price_failed_spend(
     let Some(incurred) = spend else {
         return (None, None, None);
     };
-    let (llm, unpriced) = match incurred.model_resolved.as_deref() {
-        Some(model) if usage_has_signal(&incurred.usage) => spend_for_model(model, &incurred.usage),
-        _ => (None, None),
+    let (llm, unpriced) = if incurred.inference_calls.is_empty() {
+        match incurred.model_resolved.as_deref() {
+            Some(model) if usage_has_signal(&incurred.usage) => {
+                spend_for_model(model, &incurred.usage)
+            }
+            _ => (None, None),
+        }
+    } else {
+        spend_for_calls(&incurred.inference_calls)
     };
     let cost_usd = match (llm, incurred.tools_cost_usd) {
         (None, None) => None,
@@ -33,39 +60,18 @@ pub(super) fn price_failed_spend(
     (cost_usd, incurred.model_resolved.clone(), unpriced)
 }
 
-/// The ONE model-spend computation — catalog price × the FULL usage
-/// split, with the honest WHY when no number can exist.
-///
-/// Order matters: an unpriced model class (mock · local · uncataloged)
-/// outranks a silent provider — « local compute · not priced » is the
-/// actionable truth for a local model even when it also reported no
-/// usage. A PRICED model with a degenerate split (all meters zero —
-/// e.g. a stream that never carried usage) must NOT price to $0.00:
-/// the spend is real but unknowable, so it stays absent + named
-/// (`provider_did_not_report_usage`) — the fake-zero gate.
+/// Older verb/failure DTOs carry a model but no billing route. Their usage
+/// survives, but it cannot justify a publisher's tariff at an arbitrary gateway.
 pub(super) fn spend_for_model(
     model: &str,
     usage: &nika_kernel::provider::TokenUsage,
 ) -> (Option<f64>, Option<UnpricedReason>) {
-    if nika_catalog::find_pricing_for(model).is_none() {
-        return (None, Some(unpriced_reason_for(model)));
-    }
-    if !usage_has_signal(usage) {
-        return (None, Some(UnpricedReason::ProviderDidNotReportUsage));
-    }
-    let cache_write = usage
-        .cache_write_tokens
-        .unwrap_or(0)
-        .saturating_add(usage.cache_creation_tokens.unwrap_or(0));
-    let cost = nika_catalog::estimate_cost_usage_for(
-        model,
-        usage.input_tokens,
-        usage.output_tokens,
-        usage.cache_read_tokens.unwrap_or(0),
-        cache_write,
-    )
-    .map(|e| e.usd);
-    (cost, None)
+    let reason = if usage_has_signal(usage) || nika_catalog::find_pricing_for(model).is_none() {
+        unpriced_reason_for(model)
+    } else {
+        UnpricedReason::ProviderDidNotReportUsage
+    };
+    (None, Some(reason))
 }
 
 /// Whether the provider reported ANY billable meter — zero-everything is
@@ -89,3 +95,6 @@ fn unpriced_reason_for(model: &str) -> UnpricedReason {
         None => UnpricedReason::MissingCatalogPrice,
     }
 }
+
+#[cfg(test)]
+mod billing_tests;

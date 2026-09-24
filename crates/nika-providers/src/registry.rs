@@ -364,28 +364,38 @@ where
     ) -> Result<(InferResponse, TransportReport), (ProviderError, Box<TransportReport>)> {
         let mut report = TransportReport::new();
         if let Some(a) = &self.admission {
-            if let Err(error) = crate::InferenceAdmission::qualify(
-                self.profile.id,
-                &self.wire_model,
-                &self.base_url,
-            ) {
+            if let Err(error) = a.check_route(self.profile.id, &self.wire_model, &self.base_url) {
                 return Err((a.refuse(&error.to_string()), Box::new(report)));
             }
             let mut sent = false;
-            let result = wire::openai_compat::infer_tracked(self, request, &mut sent).await;
+            let mut call = None;
+            let mut route = None;
+            let result =
+                wire::openai_compat::infer_tracked(self, request, &mut sent, &mut route, &mut call)
+                    .await;
+            report.record(call);
             report.attempts = u32::from(sent);
             return result
-                .map(|r| (r, report.clone()))
+                .map(|mut r| {
+                    r.inference_calls.clone_from(&report.inference_calls);
+                    (r, report.clone())
+                })
                 .map_err(|e| (e, Box::new(report)));
         }
         loop {
-            report.attempts = report.attempts.saturating_add(1);
+            let mut call = None;
+            let mut route = None;
             // The attempt is boxed: the loop's state machine would otherwise
             // carry the largest wire future inline, and a nested run (a
             // workflow invoking a workflow) polls it from a deeper stack than
             // a 2 MiB thread affords (the pre-push gate's child-run test).
-            let err = match Box::pin(self.infer_once(request.clone())).await {
-                Ok(response) => return Ok((response, report)),
+            let result = Box::pin(self.infer_once(request.clone(), &mut route, &mut call)).await;
+            report.record(call);
+            let err = match result {
+                Ok(mut response) => {
+                    response.inference_calls.clone_from(&report.inference_calls);
+                    return Ok((response, report));
+                }
                 Err(err) => err,
             };
             let retries = u32::try_from(report.statuses.len()).unwrap_or(u32::MAX);
@@ -401,11 +411,20 @@ where
     }
 
     /// One round-trip on the profile's wire — no backoff.
-    async fn infer_once(&self, request: InferRequest) -> Result<InferResponse, ProviderError> {
+    async fn infer_once(
+        &self,
+        request: InferRequest,
+        route: &mut Option<crate::retry::BillingRoute>,
+        call: &mut Option<nika_types::cost::InferenceCall>,
+    ) -> Result<InferResponse, ProviderError> {
         match self.profile.wire {
-            WireFormat::Anthropic => wire::anthropic::infer(self, request).await,
-            WireFormat::OpenAiCompat => wire::openai_compat::infer(self, request).await,
-            WireFormat::Gemini => wire::gemini::infer(self, request).await,
+            WireFormat::Anthropic => {
+                wire::anthropic::infer_routed(self, request, route, call).await
+            }
+            WireFormat::OpenAiCompat => {
+                wire::openai_compat::infer_routed(self, request, route, call).await
+            }
+            WireFormat::Gemini => wire::gemini::infer_routed(self, request, route, call).await,
             WireFormat::Mock => Ok(wire::mock::infer(self, &request)),
         }
     }
@@ -429,12 +448,11 @@ where
     H: HttpPostDyn + Send + Sync + 'static,
 {
     /// The kernel contract over [`Self::infer_reported`]: the same
-    /// bounded backoff, the report dropped (a caller that wants it asks
-    /// the inherent form).
+    /// bounded backoff. Per-dispatch monetary observations survive both results.
     async fn infer(&self, request: InferRequest) -> Result<InferResponse, ProviderError> {
         match self.infer_reported(request).await {
             Ok((response, _)) => Ok(response),
-            Err((err, _)) => Err(err),
+            Err((err, report)) => Err(err.with_inference_calls(report.inference_calls)),
         }
     }
 }

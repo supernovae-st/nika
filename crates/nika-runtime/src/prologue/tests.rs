@@ -355,6 +355,18 @@ fn prologue_pins_the_pricing_table_identity() {
     );
     // The schema marker is the @1.3 law's own — locked, never drifted.
     assert_eq!(pin["schema"], "nika/model-pricing@1.3");
+    let overlay: serde_json::Value =
+        serde_json::from_str(get(&fields, "admission_pricing").expect("additive provenance"))
+            .expect("json");
+    assert_eq!(overlay["schema"], "nika/inference-admission@1.1");
+    let rows = overlay["tariffs"].as_array().expect("tariffs");
+    assert!(rows.iter().any(|t| t["model"] == "deepseek-v4-pro"
+        && t["currency"] == "USD"
+        && t["input_nano_per_token"] == 1320));
+    assert!(
+        rows.iter()
+            .any(|t| t["billing_provider"] == "scaleway" && t["currency"] == "EUR")
+    );
 }
 
 /// F-P18 — the resolved operator budget rides the boot frame as

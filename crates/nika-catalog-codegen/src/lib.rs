@@ -320,7 +320,12 @@ pub fn generate(
     if features.pricing {
         let path = data_dir.join("model-pricing.toml");
         let raw = read_file(&path)?;
-        let rust_src = codegen_pricing(&raw)?;
+        let mut pricing = pricing::parse_pricing_bytes(&raw, &path)?;
+        let admission_path = data_dir.join("inference-admission.toml");
+        if admission_path.exists() {
+            admission::project_pricing(&read_file(&admission_path)?, &mut pricing)?;
+        }
+        let rust_src = pricing::generate_pricing_rs(&pricing.meta, &pricing.rules);
         let out_path = out_dir.join("model_pricing.rs");
         write_file(&out_path, &rust_src)?;
         emitted.files.push(out_path);

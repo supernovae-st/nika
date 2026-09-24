@@ -6,8 +6,16 @@ use nika_kernel::ai::provider::{InferResponse, ProviderError, TokenUsage, UsageC
 use nika_types::cost::Cost;
 use std::sync::{Arc, Mutex, MutexGuard};
 
+mod declared;
+mod unknown;
+pub use declared::{DeclaredTariff, TariffUnit};
+pub use unknown::{HardMonetaryCap, UnknownAttemptReceipt, UnknownCostChoice, UnknownCostPolicy};
+
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+#[path = "admission/unknown_tests.rs"]
+mod unknown_tests;
 
 /// Whether another bounded inference may be admitted.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -54,9 +62,17 @@ pub struct AttemptReceipt {
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct InferenceReceipt {
+    /// Explicit unknown-cost scope, absent for strict numeric admission.
+    pub unknown_cost: Option<UnknownCostChoice>,
+    /// Sent calls excluded from the known USD subtotal, never priced as zero.
+    pub unknown_calls: usize,
+    /// Per-request unknown-cost evidence, retained independently of known costs.
+    pub unknown_attempts: Vec<UnknownAttemptReceipt>,
+    /// Invocation/project defaults explicitly superseded by this choice.
+    pub overridden_defaults: [Option<Cost>; 2],
     /// Total authorized catalog allowance for this work, not a per-call gift.
     pub limit: Cost,
-    /// Settled catalog estimate at pinned tariffs.
+    /// Settled known USD subtotal; each receipt names catalog or declared provenance.
     pub estimated: Cost,
     /// Reservations for requests still in flight.
     pub active: Cost,
@@ -75,6 +91,10 @@ pub struct InferenceReceipt {
 }
 #[derive(Debug)]
 struct State {
+    unknown: Option<UnknownCostChoice>,
+    unknown_active: bool,
+    unknown_attempts: Vec<UnknownAttemptReceipt>,
+    overridden_defaults: [Option<Cost>; 2],
     limit: Cost,
     estimated: Cost,
     active: Cost,
@@ -85,7 +105,7 @@ struct State {
 }
 /// Clones share the same atomic allowance across factories, repairs and revisions.
 #[derive(Clone, Debug)]
-pub struct InferenceAdmission(Arc<Mutex<State>>);
+pub struct InferenceAdmission(Arc<Mutex<State>>, bool);
 
 pub(crate) fn denied(reason: impl Into<String>) -> ProviderError {
     ProviderError::AdmissionDenied {
@@ -115,15 +135,22 @@ impl InferenceAdmission {
         if limit.nano_usd < 0 {
             return Err(denied("negative admission allowance"));
         }
-        Ok(Self(Arc::new(Mutex::new(State {
-            limit,
-            estimated: Cost::zero(),
-            active: Cost::zero(),
-            held: Cost::zero(),
-            status: AdmissionState::Open,
-            refusal: None,
-            attempts: Vec::new(),
-        }))))
+        Ok(Self(
+            Arc::new(Mutex::new(State {
+                unknown: None,
+                unknown_active: false,
+                unknown_attempts: Vec::new(),
+                overridden_defaults: [None, None],
+                limit,
+                estimated: Cost::zero(),
+                active: Cost::zero(),
+                held: Cost::zero(),
+                status: AdmissionState::Open,
+                refusal: None,
+                attempts: Vec::new(),
+            })),
+            true,
+        ))
     }
     fn lock(&self) -> Result<MutexGuard<'_, State>, ProviderError> {
         self.0
@@ -139,6 +166,11 @@ impl InferenceAdmission {
             return Err(denied("negative allowance"));
         }
         let mut s = self.lock()?;
+        if s.unknown.is_some() {
+            return Err(s.refuse(
+                "unknown-cost scope cannot be amended or converted into numeric authority",
+            ));
+        }
         if s.status == AdmissionState::Uncertain {
             return Err(s.refuse("account is charge-unknown; no new allowance inferred"));
         }
@@ -168,6 +200,18 @@ impl InferenceAdmission {
     pub fn snapshot(&self) -> Result<InferenceReceipt, ProviderError> {
         let s = self.lock()?;
         Ok(InferenceReceipt {
+            unknown_cost: s.unknown.clone(),
+            unknown_calls: s
+                .unknown_attempts
+                .iter()
+                .filter(|a| a.sent && a.estimated.is_none())
+                .count()
+                + s.attempts
+                    .iter()
+                    .filter(|a| a.sent && a.estimated.is_none())
+                    .count(),
+            unknown_attempts: s.unknown_attempts.clone(),
+            overridden_defaults: s.overridden_defaults,
             limit: s.limit,
             estimated: s.estimated,
             active: s.active,
@@ -194,6 +238,7 @@ impl InferenceAdmission {
         endpoint: &str,
     ) -> Result<InferenceTariff, ProviderError> {
         InferenceTariff::new(provider, model, endpoint)
+            .filter(|t| t.currency == "USD")
             .ok_or_else(|| denied("selected endpoint/model has no qualified catalog admission tariff; billed cost is unknown"))
     }
 
@@ -210,6 +255,9 @@ impl InferenceAdmission {
         endpoint: &str,
         output: u32,
     ) -> Result<Attempt, ProviderError> {
+        if let Some(attempt) = self.reserve_unknown(provider, model, endpoint, output)? {
+            return Ok(Attempt::Unknown(attempt));
+        }
         let tariff =
             Self::qualify(provider, model, endpoint).map_err(|e| self.refuse(&e.to_string()))?;
         let quote = tariff
@@ -244,7 +292,7 @@ impl InferenceAdmission {
             note: "reserved".into(),
         });
         s.refusal = None;
-        Ok(Attempt {
+        Ok(Attempt::Priced(PricedAttempt {
             account: self.clone(),
             id,
             quote,
@@ -252,11 +300,29 @@ impl InferenceAdmission {
             output,
             sent: false,
             done: false,
-        })
+        }))
     }
 }
 /// A dropped sent future keeps its full reservation as unknown charge.
-pub(crate) struct Attempt {
+pub(crate) enum Attempt {
+    Priced(PricedAttempt),
+    Unknown(unknown::UnknownAttempt),
+}
+impl Attempt {
+    pub(crate) fn sent(&mut self) -> Result<(), ProviderError> {
+        match self {
+            Self::Priced(a) => a.sent(),
+            Self::Unknown(a) => a.sent(),
+        }
+    }
+    pub(crate) fn settle(&mut self, response: &InferResponse) -> Result<(), ProviderError> {
+        match self {
+            Self::Priced(a) => a.settle(response),
+            Self::Unknown(a) => a.settle(response),
+        }
+    }
+}
+pub(crate) struct PricedAttempt {
     account: InferenceAdmission,
     id: usize,
     quote: Cost,
@@ -265,7 +331,7 @@ pub(crate) struct Attempt {
     sent: bool,
     done: bool,
 }
-impl Attempt {
+impl PricedAttempt {
     pub(crate) fn sent(&mut self) -> Result<(), ProviderError> {
         if self.sent || self.done {
             return Err(denied("attempt already dispatched"));
@@ -325,7 +391,7 @@ impl Attempt {
         Ok(())
     }
 }
-impl Drop for Attempt {
+impl Drop for PricedAttempt {
     fn drop(&mut self) {
         if self.done {
             return;
@@ -352,3 +418,37 @@ impl Drop for Attempt {
 #[cfg(test)]
 #[path = "admission/wire_tests.rs"]
 mod wire_tests;
+
+impl InferenceReceipt {
+    /// Durable observation for traces/recovery, NEVER restorable execution
+    /// authority. Old receipts are not recomputed against the current catalog.
+    /// Nano-currency amounts are decimal strings to preserve the full i128 range.
+    #[must_use]
+    pub fn observation(&self) -> serde_json::Value {
+        serde_json::json!({
+            "schema": "nika/inference-cost-observation@1",
+            "known_subtotal_nano_usd": self.estimated.nano_usd.to_string(),
+            "unknown_calls": self.unknown_calls,
+            "unknown_cost": self.unknown_cost,
+            "unknown_attempts": self.unknown_attempts.iter().map(|a| serde_json::json!({
+                "id": a.id, "choice": a.choice, "pricing": a.pricing, "sent": a.sent,
+                "usage": a.usage, "estimated_nano_usd": a.estimated.map(|c| c.nano_usd.to_string()),
+                "native_estimated_nano": a.native_estimated_nano.map(|c| c.to_string()),
+                "currency": a.currency, "response_model": a.response_model, "request_id": a.request_id, "note": a.note,
+            })).collect::<Vec<_>>(),
+            "overridden_defaults": self.overridden_defaults.map(|c| c.map(|c| c.nano_usd.to_string())),
+            "limit_nano_usd": self.unknown_cost.is_none().then(|| self.limit.nano_usd.to_string()),
+            "billed_nano_usd": self.billed.map(|c| c.nano_usd.to_string()),
+            "state": format!("{:?}", self.state),
+            "refusal": self.refusal,
+            "attempts": self.attempts.iter().map(|a| serde_json::json!({
+                "id": a.id, "model": a.model, "endpoint": a.endpoint, "sent": a.sent,
+                "estimated_nano_usd": a.estimated.map(|c| c.nano_usd.to_string()),
+                "reserved_nano_usd": a.reserved.nano_usd.to_string(), "usage": a.usage,
+                "billing_provider": a.tariff.billing_provider, "currency": a.tariff.currency,
+                "source": a.tariff.source, "as_of": a.tariff.as_of,
+                "source_sha256": a.tariff.source_sha256, "note": a.note,
+            })).collect::<Vec<_>>(),
+        })
+    }
+}

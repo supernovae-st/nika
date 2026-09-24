@@ -300,6 +300,8 @@ pub enum StopReason {
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct InferResponse {
+    /// Per-dispatch monetary evidence, including retries; no route inference.
+    pub inference_calls: Vec<nika_error::cost::InferenceCall>,
     /// Whether all required priced token meters were validated by the wire.
     pub usage_completeness: UsageCompleteness,
     /// Response content blocks.
@@ -343,6 +345,7 @@ impl InferResponse {
     #[must_use]
     pub fn new(content: Vec<ContentBlock>, usage: TokenUsage, stop_reason: StopReason) -> Self {
         Self {
+            inference_calls: Vec::new(),
             content,
             usage,
             usage_reported: true,
@@ -359,6 +362,22 @@ impl InferResponse {
             trust_level: None,
             gen_ai: crate::genai::GenAiAttrs::new(),
         }
+    }
+
+    /// Monetary observations for this completed invocation. Legacy producers
+    /// without route evidence remain one unknown call, even with token meters.
+    #[must_use]
+    pub fn cost_observations(&self) -> Vec<nika_error::cost::InferenceCall> {
+        if !self.inference_calls.is_empty() {
+            return self.inference_calls.clone();
+        }
+        let mut call = nika_error::cost::InferenceCall::new();
+        call.usage = self.usage_reported.then(|| self.usage.clone());
+        call.usage_complete =
+            self.usage_reported && self.usage_completeness == UsageCompleteness::Complete;
+        call.response_model.clone_from(&self.gen_ai.response_model);
+        call.request_id.clone_from(&self.request_id);
+        vec![call]
     }
 
     /// Mark the usage as reported (or not) by the backend — the wires set
@@ -427,6 +446,15 @@ pub type InferEventStream = Pin<Box<dyn Stream<Item = Result<InferEvent, Provide
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
 #[non_exhaustive]
 pub enum ProviderError {
+    /// Monetary observations retained when a dispatched provider call fails.
+    #[error("{source}")]
+    Observed {
+        /// Original typed error; diagnostics and retry classification delegate.
+        #[source]
+        source: Box<ProviderError>,
+        /// Every dispatch observed during the logical call.
+        calls: Vec<nika_error::cost::InferenceCall>,
+    },
     /// Local admission refused before another provider request.
     #[error("catalog admission refused: {reason}")]
     AdmissionDenied {
@@ -493,9 +521,43 @@ fn auth_failure_help() -> &'static str {
 }
 
 impl ProviderError {
+    /// Attach observations while preserving the original typed cause.
+    #[must_use]
+    pub fn with_inference_calls(self, calls: Vec<nika_error::cost::InferenceCall>) -> Self {
+        if calls.is_empty() {
+            self
+        } else {
+            Self::Observed {
+                source: Box::new(self),
+                calls,
+            }
+        }
+    }
+
+    /// Observations carried through the kernel error seam.
+    #[must_use]
+    pub fn inference_calls(&self) -> &[nika_error::cost::InferenceCall] {
+        match self {
+            Self::Observed { calls, .. } => calls,
+            _ => &[],
+        }
+    }
+
+    /// Original error for status/quota classification.
+    #[must_use]
+    pub fn unobserved(&self) -> &Self {
+        match self {
+            Self::Observed { source, .. } => source.unobserved(),
+            _ => self,
+        }
+    }
+
     /// Whether this error is transient and may succeed on retry.
     #[must_use]
     pub fn is_transient(&self) -> bool {
+        if let Self::Observed { source, .. } = self {
+            return source.is_transient();
+        }
         if let Self::HttpResponse { details } = self {
             return details.is_transient();
         }

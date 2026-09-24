@@ -31,16 +31,34 @@ use super::{EventMapper, SseEventStream, gen_ai_system, map_http_err, status_err
 use crate::registry::ResolvedProvider;
 
 /// Single-shot inference.
-pub(crate) async fn infer<H>(
+pub(crate) async fn infer_routed<H>(
     rp: &ResolvedProvider<H>,
     request: InferRequest,
+    route: &mut Option<crate::retry::BillingRoute>,
+    call: &mut Option<nika_types::cost::InferenceCall>,
 ) -> Result<InferResponse, ProviderError>
 where
     H: HttpPostDyn + Send + Sync + 'static,
 {
     let http_req = build_request(rp, &request, false)?;
     let http = rp.http.as_ref().ok_or_else(wiring_bug)?;
+    let requested_endpoint = crate::retry::BillingRoute::new(
+        rp.profile.id.into(),
+        rp.wire_model.clone(),
+        endpoint(&rp.base_url, &rp.wire_model, false),
+    )
+    .map(|r| r.endpoint);
+    *call = Some(nika_types::cost::InferenceCall::new());
+    if let Some(c) = call {
+        c.requested_endpoint = requested_endpoint;
+    }
     let resp = http.post(http_req).await.map_err(|e| map_http_err(&e))?;
+    *route = crate::retry::BillingRoute::new(
+        rp.profile.id.into(),
+        rp.wire_model.clone(),
+        resp.final_url.clone(),
+    );
+    crate::retry::record(call, route.as_ref(), None, None);
     if !(200..300).contains(&resp.status) {
         return Err(status_error(
             resp.status,
@@ -49,7 +67,20 @@ where
             &rp.wire_model,
         ));
     }
-    parse_response(rp, &resp.body)
+    let response = parse_response(rp, &resp.body)?;
+    crate::retry::record(call, route.as_ref(), Some(&response), None);
+    Ok(response)
+}
+
+#[cfg(test)]
+async fn infer<H>(
+    rp: &ResolvedProvider<H>,
+    request: InferRequest,
+) -> Result<InferResponse, ProviderError>
+where
+    H: HttpPostDyn + Send + Sync + 'static,
+{
+    infer_routed(rp, request, &mut None, &mut None).await
 }
 
 /// Streaming inference.

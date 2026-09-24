@@ -43,6 +43,9 @@ pub(crate) fn reserve<H>(
 /// Missing/invalid optional detail, conflicting cache aliases and unknown cost
 /// axes are not allowed to become a zero discount.
 pub(crate) fn complete_usage(provider: &str, v: &Value) -> bool {
+    if provider == "openai" {
+        return complete_compat_usage(v);
+    }
     if provider != "deepseek" {
         return false;
     }
@@ -97,6 +100,51 @@ pub(crate) fn complete_usage(provider: &str, v: &Value) -> bool {
                 | "prompt_cache_miss_tokens"
                 | "completion_tokens_details"
                 | "prompt_tokens_details"
+        )
+    })
+}
+
+// Complete standard text meters, independent from price/currency qualification.
+// Additional billable axes are unknown until explicitly accounted for.
+fn complete_compat_usage(v: &Value) -> bool {
+    let Some(u) = v.get("usage").and_then(Value::as_object) else {
+        return false;
+    };
+    let at = |k: &str| u.get(k).and_then(Value::as_u64);
+    let (Some(input), Some(output), Some(total)) = (
+        at("prompt_tokens"),
+        at("completion_tokens"),
+        at("total_tokens"),
+    ) else {
+        return false;
+    };
+    if input == 0 || input.checked_add(output) != Some(total) {
+        return false;
+    }
+    for (field, key, bound) in [
+        ("prompt_tokens_details", "cached_tokens", input),
+        ("completion_tokens_details", "reasoning_tokens", output),
+    ] {
+        if let Some(details) = u.get(field) {
+            let Some(details) = details.as_object() else {
+                return false;
+            };
+            if details
+                .iter()
+                .any(|(k, n)| k != key || n.as_u64().is_none_or(|n| n > bound))
+            {
+                return false;
+            }
+        }
+    }
+    u.keys().all(|k| {
+        matches!(
+            k.as_str(),
+            "prompt_tokens"
+                | "completion_tokens"
+                | "total_tokens"
+                | "prompt_tokens_details"
+                | "completion_tokens_details"
         )
     })
 }

@@ -42,12 +42,13 @@ pub(super) fn infer_success(out: InferOutput, access: Option<AccessPlan>) -> Dis
     // reaches this success arm, so the non-fatal warning lane is
     // retired here.
     let warning = None;
-    // Real spend: catalog pricing × the provider's FULL usage split
-    // (cache subsets at their own rates) · the SAME resolver as the
-    // check-time floor (they can never disagree on which row prices a
-    // model) · unpriced models emit nothing PLUS the honest WHY (local ·
-    // mock · uncataloged · provider silent).
-    let (cost_usd, cost_unpriced) = spend_for_model(&out.model_resolved, &out.usage);
+    // Each dispatch carries its own qualified estimate and provenance.
+    // A requested model or aggregate usage never selects a billing route.
+    let (cost_usd, cost_unpriced) = if out.transport.inference_calls.is_empty() {
+        spend_for_model(&out.model_resolved, &out.usage)
+    } else {
+        super::spend::spend_for_calls(&out.transport.inference_calls)
+    };
     let cost_source = Some(out.model_resolved.clone());
     // the split that PRICED the call rides the frame beside the
     // number, with the responder's own identity (`gen_ai.response.model`
@@ -167,11 +168,15 @@ pub(super) fn agent_success(out: AgentOutput, access: Option<AccessPlan>) -> Dis
         }
     };
     let tokens = Some(i64::try_from(out.total_tokens).unwrap_or(i64::MAX));
-    let (llm_cost, llm_unpriced) = match out.model_resolved.as_deref() {
-        Some(model) => spend_for_model(model, &out.usage),
-        // Harness-built (B7): the subscription absorbs it — named,
-        // NEVER a fabricated $0 (the ledger law).
-        None => (None, Some(UnpricedReason::SubscriptionQuota)),
+    let (llm_cost, llm_unpriced) = if out.inference_calls.is_empty() {
+        match out.model_resolved.as_deref() {
+            Some(model) => spend_for_model(model, &out.usage),
+            // Harness-built (B7): the subscription absorbs it — named,
+            // NEVER a fabricated $0 (the ledger law).
+            None => (None, Some(UnpricedReason::SubscriptionQuota)),
+        }
+    } else {
+        super::spend::spend_for_calls(&out.inference_calls)
     };
     let cost_usd = match (llm_cost, out.tools_cost_usd) {
         (None, None) => None,
@@ -179,7 +184,9 @@ pub(super) fn agent_success(out: AgentOutput, access: Option<AccessPlan>) -> Dis
     };
     // the loop's ABSORBED split (every turn summed, like the
     // `tokens` it rides beside). No response id: a loop has many.
-    let split = UsageSplit::of(&out.usage).carried();
+    let split = UsageSplit::of(&out.usage)
+        .with_calls(&out.inference_calls)
+        .carried();
     Dispatched::ok_metered(
         note,
         value,

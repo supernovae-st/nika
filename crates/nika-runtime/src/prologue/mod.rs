@@ -49,6 +49,26 @@ pub(crate) fn cost_pin_fields(max_cost_usd: Option<f64>) -> Vec<(&'static str, F
         "sha256_16": snapshot.source_sha256_16,
     });
     let mut fields = vec![("pricing", s(&pin.to_string()))];
+    // Additive identity: preserve the historical models.dev pin and record
+    // the exact owning observations used by this binary's price projection.
+    let admission = serde_json::json!({
+        "schema": "nika/inference-admission@1.1",
+        "projection": "exact-first-party-usd",
+        "tariffs": nika_catalog::admission::tariffs().map(|t| serde_json::json!({
+            "provider": t.provider, "billing_provider": t.billing_provider,
+            "model": t.model, "endpoints": t.endpoints, "currency": t.currency,
+            "output_token_param": t.output_token_param,
+            "source": t.source, "as_of": t.as_of,
+            "source_sha256": (!t.source_sha256.is_empty()).then_some(t.source_sha256),
+            "limits_source": t.limits_source,
+            "route_source": t.route_source,
+            "limits_sha256": (!t.limits_sha256.is_empty()).then_some(t.limits_sha256),
+            "input_nano_per_token": t.price_native(1, 0, 0),
+            "output_nano_per_token": t.price_native(0, 1, 0),
+            "cached_nano_per_token": t.price_native(1, 0, 1),
+        })).collect::<Vec<_>>()
+    });
+    fields.push(("admission_pricing", s(&admission.to_string())));
     if let Some(budget) = max_cost_usd.filter(|b| b.is_finite()) {
         let resolved = serde_json::json!({ "max_cost_usd": budget });
         fields.push(("budget", s(&resolved.to_string())));

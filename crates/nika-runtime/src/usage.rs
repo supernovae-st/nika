@@ -34,6 +34,11 @@ use crate::{FieldValue, i, s};
 /// the responder's own identity when the wire returned it.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct UsageSplit {
+    /// Individual invocation evidence; routes are never merged for pricing.
+    pub inference_calls: Vec<nika_types::cost::InferenceCall>,
+    /// Exact route and tariff observation for new receipts; historic frames
+    /// retain their original pricing identity and are never repriced here.
+    pub pricing: Option<String>,
     /// Prompt tokens — INCLUDES the cache subsets (`OTel` `gen_ai`
     /// semantics; the wires normalize to it and the cost math subtracts
     /// the subsets to price each portion at its own rate).
@@ -81,6 +86,8 @@ impl UsageSplit {
             (a, b) => Some(a.unwrap_or(0).saturating_add(b.unwrap_or(0))),
         };
         Self {
+            inference_calls: Vec::new(),
+            pricing: None,
             input: usage.input_tokens,
             output: usage.output_tokens,
             cache_read: usage.cache_read_tokens,
@@ -92,6 +99,44 @@ impl UsageSplit {
             waited_ms: None,
             retried_on: Vec::new(),
         }
+    }
+
+    /// Preserve observations across authored task retries. Debits occur before
+    /// this presentation-only fold, so no invocation is charged twice.
+    pub(crate) fn join_calls(
+        target: &mut Option<Box<Self>>,
+        prior: &[nika_types::cost::InferenceCall],
+        append_current: bool,
+    ) {
+        if prior.is_empty() {
+            return;
+        }
+        let split = target.get_or_insert_with(Box::default);
+        let mut calls = prior.to_vec();
+        if append_current {
+            calls.extend_from_slice(&split.inference_calls);
+        }
+        split.inference_calls = calls;
+        // A single-route summary cannot describe observations from several attempts.
+        split.pricing = None;
+    }
+
+    pub(crate) fn with_calls(mut self, calls: &[nika_types::cost::InferenceCall]) -> Self {
+        self.inference_calls = calls.to_vec();
+        self
+    }
+
+    /// Invocation count excluded from the known subtotal; None for older producers.
+    pub(crate) fn unknown_calls(&self) -> Option<u32> {
+        (!self.inference_calls.is_empty()).then(|| {
+            u32::try_from(
+                self.inference_calls
+                    .iter()
+                    .filter(|c| c.known_estimate().is_none())
+                    .count(),
+            )
+            .unwrap_or(u32::MAX)
+        })
     }
 
     /// Stamp the responder's identity (the wire's `gen_ai` attrs).
@@ -110,6 +155,15 @@ impl UsageSplit {
     /// sent nothing (`attempts == 0`) stamps nothing: the frame never
     /// claims a round-trip the wire did not make.
     pub(crate) fn transported(mut self, report: &TransportReport) -> Self {
+        self.inference_calls.clone_from(&report.inference_calls);
+        self.pricing = report.inference_calls.first().and_then(|first| {
+            report
+                .inference_calls
+                .iter()
+                .all(|c| c.pricing == first.pricing)
+                .then(|| first.pricing.clone())
+                .flatten()
+        });
         if report.attempts == 0 {
             return self;
         }
@@ -140,7 +194,8 @@ impl UsageSplit {
     /// named the responder, or a transport that sent a round-trip.
     pub(crate) fn carried(self) -> Option<Box<Self>> {
         let named = self.model_served.is_some() || self.response_id.is_some();
-        (self.has_signal() || named || self.attempts.is_some()).then(|| Box::new(self))
+        (self.has_signal() || named || self.attempts.is_some() || !self.inference_calls.is_empty())
+            .then(|| Box::new(self))
     }
 }
 
@@ -161,6 +216,15 @@ pub(crate) fn push_usage_fields(
         i(i64::try_from(v).unwrap_or(i64::MAX))
     }
     let Some(split) = split else { return };
+    if let Some(count) = split.unknown_calls() {
+        fields.push(("cost_unknown_calls", i(i64::from(count))));
+        if let Ok(calls) = serde_json::to_string(&split.inference_calls) {
+            fields.push(("inference_calls", s(&calls)));
+        }
+    }
+    if let Some(pricing) = &split.pricing {
+        fields.push(("pricing_route", s(pricing)));
+    }
     if split.has_signal() {
         fields.push(("tokens_in", n(split.input)));
         fields.push(("tokens_out", n(split.output)));

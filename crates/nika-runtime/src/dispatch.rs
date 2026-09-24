@@ -108,10 +108,11 @@ impl FailedDispatch {
         failed_cost: &mut Option<f64>,
         failed_unpriced: &mut Option<UnpricedReason>,
     ) -> TaskErrorRecord {
-        ledger.debit(
+        ledger.debit_observed(
             self.cost_source.as_deref(),
             self.cost_usd,
             self.cost_unpriced.is_some(),
+            self.usage.as_deref(),
         );
         if let Some(c) = self.cost_usd {
             *failed_cost = Some(failed_cost.unwrap_or(0.0) + c);
