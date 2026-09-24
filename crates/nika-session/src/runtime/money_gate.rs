@@ -286,7 +286,8 @@ impl SessionRuntime {
         // The Session restriction cannot replace an independent gate observation.
         // Gate parsing above still holds cognition, but does not consume this flag.
         if self.money.reconfirm && parsed.amount.is_none() {
-            return Err(self.refuse_money(input, super::inference::RESTORED_EXPOSURE));
+            let why = self.restored_refusal();
+            return Err(self.refuse_money(input, &why));
         }
         if continuation && parsed.amount.is_none() {
             return Ok(());
@@ -348,10 +349,15 @@ impl SessionRuntime {
     }
 
     pub(super) fn cognition_money_refusal(&self) -> TurnOutcome {
+        let way = if self.money.reconfirm {
+            format!(" · {}", super::inference::RESTORED_WAY)
+        } else {
+            String::new()
+        };
         TurnOutcome::Refusal(Refusal::new(
             RefusalClass::NotAllowed,
             format!(
-                "no further cognition admitted on {}: {} · deterministic work remains available; billed cost is unknown",
+                "no further cognition admitted on {}: {} · deterministic work remains available; billed cost is unknown{way}",
                 self.reasoner.name(),
                 self.inference_line()
             ),

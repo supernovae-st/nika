@@ -363,7 +363,8 @@ fn a_restarted_session_never_takes_an_earlier_answer() -> Result<(), String> {
 /// destination changes before any answer, the request is read again, and the seat asks the
 /// SAME key in the SAME words for the revised request. The old answer names the old
 /// question: refused with no route, no call and nothing changed; the current answer binds
-/// and the recorded plan replays with zero calls; nothing is written before a consent.
+/// and the recorded plan replays with zero calls; only the durable money record changes
+/// before consent, never a workflow or an output file.
 #[test]
 fn dialog_11_the_same_key_asked_again_is_another_question() -> Result<(), String> {
     let peer = Peer::start(vec![(200, response(&asks_destination()))]);
@@ -434,10 +435,28 @@ fn dialog_11_the_same_key_asked_again_is_another_question() -> Result<(), String
         (peer.bodies().len(), routings.load(Ordering::SeqCst)),
         (2, routed + 1)
     );
+    let state_path = dir
+        .path()
+        .join(".nika/session-state.json")
+        .display()
+        .to_string();
+    let mut before = untouched;
+    let mut after = world(dir.path())?;
+    before.remove(&state_path);
+    after.remove(&state_path);
     assert_eq!(
-        world(dir.path())?,
-        untouched,
-        "nothing is written before a consent"
+        after, before,
+        "no workflow or output is written before consent"
+    );
+    let state = crate::SessionState::load(dir.path())
+        .map_err(|e| e.to_string())?
+        .ok_or("the paid-call observation is durable")?;
+    assert_eq!(state.inference_observations, s.cost_observations());
+    assert!(
+        !state
+            .decisions
+            .iter()
+            .any(|line| line.starts_with(super::super::inference::DISPATCH_PREFIX))
     );
     Ok(())
 }

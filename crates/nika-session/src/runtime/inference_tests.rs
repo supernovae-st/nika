@@ -17,12 +17,13 @@ use crate::reasoner::{ProviderReasoner, test_transport};
 use crate::turn::{SessionPhase, TurnAct, TurnClassifier, TurnContext, TurnDecision};
 use nika_providers::AdmissionState;
 use serde_json::{Value, json};
+mod interrupted;
 mod question_identity;
 mod recovery;
 mod restart;
 mod scopes;
 mod unknown_cost;
-mod wire;
+pub(crate) mod wire;
 use wire::{Peer, response};
 const MODEL: &str = "deepseek/deepseek-v4-pro";
 const WORK: &str =

@@ -216,7 +216,10 @@ impl SessionRuntime {
         route: CostRoute,
     ) -> Result<TurnOutcome, TurnOutcome> {
         let result = (|| {
-            if self.money.gate.is_some() || self.money.reconfirm {
+            if self.money.reconfirm {
+                return Err(self.restored_refusal());
+            }
+            if self.money.gate.is_some() {
                 return Err("prior monetary exposure/gate must be reconciled; old approval cannot be replayed".into());
             }
             if let Some(account) = &self.money.account {
@@ -303,8 +306,10 @@ impl SessionRuntime {
         self.money.admission_note = None;
         self.unknown_cost.active = true;
         self.retain_money_guard();
-        // A failed durable boundary must refuse BEFORE entering transport.
-        if let Err(error) = self.save_cost_state() {
+        // A failed durable boundary must refuse BEFORE entering transport. It
+        // already says a request may be in flight: the process can leave while
+        // one is, and only the settlement's write below removes that line.
+        if let Err(error) = self.save_dispatch_boundary() {
             self.unknown_cost.active = false;
             let _ = account.close("could not persist decision boundary");
             return cost_refusal(error);

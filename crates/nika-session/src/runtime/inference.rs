@@ -10,6 +10,14 @@ use nika_types::cost::Cost;
 
 pub(super) const GATE_MONEY_PREFIX: &str = "paused gate monetary constraint: ";
 pub(super) const RESTORED_EXPOSURE: &str = "restored inference exposure is unknown; no new catalog allowance can be inferred; billed cost unknown";
+/// A paid dispatch that may be in flight. The line is written into the record
+/// BEFORE any request of it can enter transport, and every write after its
+/// settlement omits it: a record that still carries it was left while a
+/// request may have been sent and billed. It is never authority.
+pub(super) const DISPATCH_PREFIX: &str = "paid inference may have been sent: ";
+/// What a restored Session offers instead of replaying or re-admitting.
+pub(super) const RESTORED_WAY: &str = "nothing was replayed · a saved workflow still runs when restated with an explicit Run ceiling, e.g. « run <workflow>.nika budget 0.50 USD » (the Run keeps its own separate cost admission) · no ceiling covers an unknown earlier charge, so Session inference stays blocked here; deterministic work remains available";
+const UNRECORDED: &str = "the paid-dispatch boundary was not recorded; nothing was sent";
 
 pub(super) fn gate_money_marker(gate: &crate::GateId) -> String {
     // Hash each exact identity component separately, not GateId's human Display.
@@ -20,7 +28,9 @@ pub(super) fn gate_money_marker(gate: &crate::GateId) -> String {
 }
 
 pub(super) fn is_money_marker(decision: &str) -> bool {
-    decision == RECONFIRM || decision.starts_with(GATE_MONEY_PREFIX)
+    decision == RECONFIRM
+        || decision.starts_with(GATE_MONEY_PREFIX)
+        || decision.starts_with(DISPATCH_PREFIX)
 }
 
 pub(super) const RECONFIRM: &str =
@@ -65,9 +75,10 @@ impl SessionRuntime {
                 )
             }
             Ok(None) if self.money.reconfirm => format!(
-                "{} · {} historical cost observation(s), without authority",
+                "{} · {} historical cost observation(s), without authority{}",
                 RESTORED_EXPOSURE,
-                self.unknown_cost.observations.len()
+                self.unknown_cost.observations.len(),
+                self.interrupted_note()
             ),
             Ok(None) => self
                 .money
@@ -179,24 +190,114 @@ impl SessionRuntime {
         if self.money_blocks_cognition() {
             return Err(ReasonError::Provider(self.inference_line()));
         }
-        match &self.money.account {
+        let entered = self
+            .enter_paid_dispatch()
+            .map_err(|e| ReasonError::Provider(format!("{UNRECORDED}: {e}")))?;
+        let reply = match &self.money.account {
             Some(a) if label => self.reasoner.reason_label_with_admission(prompt, a),
             Some(a) => self.reasoner.reason_with_admission(prompt, a),
             None if label => self.reasoner.reason_label(prompt),
             None => self.reasoner.reason(prompt),
-        }
+        };
+        self.leave_paid_dispatch(entered);
+        reply
     }
     pub(super) fn compile_round(
         &self,
         round: &AuthoringRound,
         seat: &AuthoringSeat,
     ) -> Result<nika_onboard::compile::CompileOutcome, AuthoringError> {
+        let entered = self
+            .enter_paid_dispatch()
+            .map_err(|e| AuthoringError::Seat(format!("{UNRECORDED}: {e}")))?;
         let out = match &self.money.account {
             Some(a) => round.compile_with_admission(seat, &self.authoring_context, a),
             None => round.compile(seat, &self.authoring_context),
-        }?;
+        };
+        self.leave_paid_dispatch(entered);
+        let out = out?;
         self.check_inference_outcome()?;
         Ok(out)
+    }
+    /// The in-flight line for the live account; `None` without an account.
+    pub(super) fn dispatch_marker(&self) -> Option<String> {
+        let account = self.money.account.as_ref()?;
+        let (route, bound) = match account.snapshot() {
+            Ok(receipt) => match &receipt.unknown_cost {
+                Some(choice) => (
+                    format!(
+                        "{}/{} at {}",
+                        choice.provider(),
+                        choice.model(),
+                        choice.endpoint()
+                    ),
+                    serde_json::to_value(choice)
+                        .ok()
+                        .and_then(|v| v["max_requests"].as_u64())
+                        .map_or_else(
+                            || "its bounded requests".to_owned(),
+                            |n| format!("at most {n} request(s)"),
+                        ),
+                ),
+                None => (
+                    self.reasoner
+                        .authoring_model()
+                        .unwrap_or_else(|| "the selected route".to_owned()),
+                    format!("catalog allowance {}", receipt.limit),
+                ),
+            },
+            Err(e) => ("an unreadable account".to_owned(), e.to_string()),
+        };
+        Some(format!(
+            "{DISPATCH_PREFIX}{route} · {bound} · recorded {} before transport; no settlement followed, so its request(s) may have been sent and billed · usage and cost unknown",
+            crate::intelligence::now_rfc3339()
+        ))
+    }
+    /// Before a paid catalog dispatch, persist its in-flight line. The one-time
+    /// unknown-cost invocation wrote its own boundary before cognition, and
+    /// without an account there is nothing to observe. `Ok(true)`: entered.
+    pub(super) fn enter_paid_dispatch(&self) -> Result<bool, String> {
+        if self.money.account.is_none() || self.unknown_cost.active {
+            return Ok(false);
+        }
+        self.save_dispatch_boundary().map(|()| true)
+    }
+    /// After it, the settled observation replaces the line. A failed write
+    /// keeps the conservative line in place until the next one.
+    pub(super) fn leave_paid_dispatch(&self, entered: bool) {
+        if entered {
+            let _ = self.save_cost_state();
+        }
+    }
+    /// Whether the live account may have been charged without usable
+    /// settlement. An unreadable account is not proof that it was not.
+    pub(super) fn charge_uncertain(&self) -> bool {
+        match self.inference_receipt() {
+            Ok(None) => false,
+            Ok(Some(receipt)) => receipt.state == nika_providers::AdmissionState::Uncertain,
+            Err(_) => true,
+        }
+    }
+    /// The restart refusal: what stays unknown, what was not done, the way on.
+    pub(super) fn restored_refusal(&self) -> String {
+        format!(
+            "{RESTORED_EXPOSURE}{} · {RESTORED_WAY}",
+            self.interrupted_note()
+        )
+    }
+    fn interrupted_note(&self) -> String {
+        match self
+            .intent
+            .decisions
+            .iter()
+            .filter(|d| d.starts_with(DISPATCH_PREFIX))
+            .count()
+        {
+            0 => String::new(),
+            n => format!(
+                " · {n} paid dispatch(es) left without a recorded settlement may have been billed; usage and cost unknown"
+            ),
+        }
     }
     pub(super) fn check_inference_outcome(&self) -> Result<(), AuthoringError> {
         if let Some(a) = &self.money.account {

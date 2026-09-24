@@ -11,18 +11,18 @@ use std::{
     },
     thread::JoinHandle,
 };
-pub(super) fn response(text: &str) -> Value {
+pub(crate) fn response(text: &str) -> Value {
     json!({"model":"deepseek-v4-pro","id":"session-fixture","choices":[{"message":{"content":text},"finish_reason":"stop"}],
         "usage":{"prompt_tokens":100,"completion_tokens":20,"prompt_cache_hit_tokens":0,"prompt_cache_miss_tokens":100,"total_tokens":120}})
 }
-pub(super) struct Peer {
+pub(crate) struct Peer {
     pub url: String,
     seen: Arc<Mutex<Vec<Value>>>,
     stop: Arc<AtomicBool>,
     thread: Option<JoinHandle<()>>,
 }
 impl Peer {
-    pub(super) fn start(script: Vec<(u16, Value)>) -> Self {
+    pub(crate) fn start(script: Vec<(u16, Value)>) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").expect("loopback");
         let addr = listener.local_addr().expect("addr");
         let url = format!("http://{addr}/chat/completions");
@@ -56,7 +56,7 @@ impl Peer {
             thread: Some(thread),
         }
     }
-    pub(super) fn bodies(&self) -> Vec<Value> {
+    pub(crate) fn bodies(&self) -> Vec<Value> {
         self.seen.lock().expect("seen").clone()
     }
 }

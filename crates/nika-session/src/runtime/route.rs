@@ -70,8 +70,19 @@ impl SessionRuntime {
     /// business), else UNKNOWN. Recorded.
     pub(super) fn classify(&mut self, phase: SessionPhase, raw: &str) -> TurnDecision {
         let context = self.turn_context(phase);
-        let decision = if self.money_blocks_cognition() {
+        let blocked = self.money_blocks_cognition();
+        // A paid label request may leave only after the record says it might.
+        let entered = if blocked {
+            Ok(false)
+        } else {
+            self.enter_paid_dispatch()
+        };
+        let decision = if blocked {
             TurnDecision::new(TurnAct::Unknown, RoutingMethod::Fallback)
+        } else if let Err(error) = &entered {
+            TurnDecision::failed(&format!(
+                "the paid-dispatch boundary was not recorded ({error}); nothing was sent"
+            ))
         } else if let Some(classifier) = self.classifier.as_mut() {
             match &self.money.account {
                 Some(a) => classifier.classify_with_admission(&context, raw, a),
@@ -99,6 +110,7 @@ impl SessionRuntime {
         } else {
             TurnDecision::new(TurnAct::Unknown, RoutingMethod::Fallback)
         };
+        self.leave_paid_dispatch(entered.unwrap_or(false));
         self.routes.push(RouteRecord::new(phase, raw, &decision));
         decision
     }

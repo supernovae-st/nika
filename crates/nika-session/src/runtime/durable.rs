@@ -9,7 +9,9 @@
 use super::history::{
     AuthorityState, EffectState, History, HistoryMode, Operation, RunState, Saved,
 };
-use super::inference::{GATE_MONEY_PREFIX, RECONFIRM, gate_money_marker, is_money_marker};
+use super::inference::{
+    DISPATCH_PREFIX, GATE_MONEY_PREFIX, RECONFIRM, gate_money_marker, is_money_marker,
+};
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
@@ -206,6 +208,14 @@ impl SessionRuntime {
             "session record restored (.nika/{STATE_FILE} · written {})",
             state.updated_at
         );
+        for line in self
+            .intent
+            .decisions
+            .iter()
+            .filter(|d| d.starts_with(DISPATCH_PREFIX))
+        {
+            let _ = write!(notice, "\n  ⚠ {line} · nothing was replayed");
+        }
         if let Some(Pending::Gate {
             workflow,
             trace,
@@ -241,7 +251,11 @@ impl SessionRuntime {
             }
         }
         self.intent = restored;
-        self.money.reconfirm |= self.intent.decisions.iter().any(|d| d == RECONFIRM);
+        self.money.reconfirm |= self
+            .intent
+            .decisions
+            .iter()
+            .any(|d| d == RECONFIRM || d.starts_with(DISPATCH_PREFIX));
     }
 
     fn restore_money_guards(&mut self) {
@@ -350,6 +364,19 @@ impl SessionRuntime {
             .map_err(|e| e.to_string())
     }
 
+    /// The record at a paid-dispatch boundary, written BEFORE any request can
+    /// enter transport: this projection plus the in-flight line. The line lives
+    /// only in the record, so reading it back means the writer left before the
+    /// settlement's own write (S98 F10: a record never reads « Open · 0 calls »
+    /// while a request may be in flight).
+    pub(super) fn save_dispatch_boundary(&self) -> Result<(), String> {
+        let mut state = self.projected_state();
+        if let Some(marker) = self.dispatch_marker() {
+            state.decisions.push(crate::broker::redact(&marker).0);
+        }
+        state.save(&self.snapshot.root).map_err(|e| e.to_string())
+    }
+
     fn keep_state(&self, outcome: TurnOutcome) -> TurnOutcome {
         match self.projected_state().save(&self.snapshot.root) {
             Ok(()) => outcome,
@@ -383,6 +410,7 @@ impl SessionRuntime {
         if let Err(error) = history.begin(operation, input) {
             return self.history_failed(error);
         }
+        let charged_before = self.charge_uncertain();
         let outcome = perform(self);
         // A choice that resumed a waiting line is judged by that line's
         // own outcome: the record sees what the human's request became.
@@ -398,6 +426,10 @@ impl SessionRuntime {
         {
             let text = text.clone();
             self.remember("(effect)", &text);
+            EffectState::Unknown
+        } else if !charged_before && self.charge_uncertain() {
+            // This operation left a possibly billed request without usable
+            // settlement: the history says so, as the record's observation does.
             EffectState::Unknown
         } else {
             EffectState::NoUncertaintyReported

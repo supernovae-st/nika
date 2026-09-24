@@ -1481,4 +1481,4 @@ mod route_tests;
 mod tests;
 
 #[cfg(test)]
-mod inference_tests;
+pub(crate) mod inference_tests;
