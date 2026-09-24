@@ -9,6 +9,7 @@ description = "nika's onboarding surface — project bootstrap (init), read-only
 repository  = "https://github.com/supernovae-st/nika"
 
 [dependencies]
+nika-event = { path = "../nika-event", version = "0.120.3" } # shared knowledge byte identities
 nika-compile = { path = "../nika-compile", version = "0.120.3" }
 nika-compile-cognition = { path = "../nika-compile-cognition", version = "0.120.3" } # the seats' doors (ADR-140) · re-exported under `compile` beside the core
 nika-pack    = { path = "../nika-pack", version = "0.120.3" }    # templates · examples (the scaffold corpus)
@@ -23,6 +24,9 @@ nika-source = { path = "../nika-source", version = "0.120.3" }  # lexical progra
 nika-check  = { path = "../nika-check", version = "0.120.3" }  # the same pure Check core, without environment/admission probes
 
 
+
+[dev-dependencies]
+tempfile = { workspace = true }
 
 [package.metadata.lore]
 daemon        = "forgeron"

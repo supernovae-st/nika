@@ -72,6 +72,21 @@ tests exercise the re-exported surface and actual process boundary; the
 quoting law itself is unit-tested here, beside `output::sh_word`. No new
 crate, authority boundary, or exception to the size budget is introduced.
 
+## Knowledge door
+
+`compile::knowledge` composes, per intent, the bounded authoring pack a seat reads
+from a pinned Foundry snapshot (builder `nika-compile/knowledge-door-v3`). Its
+selection is its own, Rust BM25 over the snapshot's graph, and is not the Foundry
+producer's selection. Patterns and blocks are taken in relevance order, each
+recalled family and then the direct text match in turn, never by row id; each
+source's best-covering block is taken before any second. The receipt records,
+per kind, `available`, `candidates`, `selected`, `presented` and `excluded` (with a
+reason: the byte cap, a missing row or file), and `no_match` when nothing is
+recalled. A block is presented with its row's holes, effects, authority,
+capabilities, callables, known failure modes and version, within 1 KiB beside
+its code. The caps stay finite: 3 · 8 · 4 · 3 · 1 rows, 6 KiB per file and
+40 KiB per pack.
+
 ## Literal input binding
 
 `literal_inputs::{read, validate}` owns bounded native API value decoding and
@@ -163,3 +178,13 @@ that first generate their read inputs. No-inference, catalog-priced and
 subscription lanes retain their existing paths. Observation persistence records
 actual partial/uncertain attempts; a bound is never reported as observed usage,
 and monetary choice never creates execution permission or a reusable grant.
+
+The shared knowledge implementation lives in `nika-onboard::knowledge`, beside
+the authoring facade. `compile::knowledge` remains a compatibility re-export;
+CLI flags, host observation, admission and decision-seat adapters stay here.
+
+`compile::typesafe::session` carries the bounded operator-selected decision
+adapter and its observation journal beside the one TypeSafe transport. Session
+still decides whether its current monetary account admits a call and persists
+observations; the host helper accepts that explicit verdict, not conversation text.
+The existing Session public selection path remains a compatibility re-export.

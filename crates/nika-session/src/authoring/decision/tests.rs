@@ -13,14 +13,16 @@ use crate::authoring::{
     AuthoringContext, AuthoringContextError, AuthoringError, AuthoringSeat,
     compile_in_with_admission,
 };
-use nika_onboard::compile::decide::ChoiceOption;
+use nika_onboard::compile::decide::{ChoiceOption, ChoiceQuestion, DecisionSeat, NONE_OPTION};
 use nika_onboard::compile::{
     Cognition, CompileRequest, CompileStatus, NoProvider, Strategy, compile_with_cognition,
 };
 use nika_types::cost::Cost;
+use serde_json::{Value, json};
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 
 pub(crate) const KEY: &str = "fixture-key-0123456789";
 pub(crate) const SEAT: &str = "typesafe/jev-test";

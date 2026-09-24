@@ -26,6 +26,17 @@ keeps the hand · the proof inside the first minute):
   intent router, creation command or first-workflow wizard.
 - **`routing`** — read-only gallery discovery shared by MCP; it cannot author.
 
+## Shared authoring knowledge door
+
+`knowledge` owns the read-only Foundry snapshot/pack reader and bounded BM25/graph
+composition shared by CLI, Session and Serve. It is separate from the pure
+in-memory Compile core: this adapter reads the explicitly selected snapshot and
+its pinned files, never credentials or provider endpoints. Selection, exclusion
+reasons, presented references and byte identities remain observable.
+`nika-cli-host::compile::knowledge` re-exports the same types and functions for
+existing callers. The existing L4 edge remains acyclic; no new crate or compiler
+is introduced. `nika-event` supplies the existing shared SHA-256 byte identity.
+
 ## Compile foundation
 
 `compile` is a stateless in-memory authoring core behind the CLI creation door. CREATE accepts exact embedded skeleton names

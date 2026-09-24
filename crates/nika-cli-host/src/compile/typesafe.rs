@@ -11,6 +11,8 @@
 //! identity; the compiler revalidates the choice against the options it offered. `nika compile`
 //! (`--decision-model typesafe/<jev>`) and the Session (an operator-selected seat) share this ONE
 //! adapter. A vendor is a seat, never an owner.
+pub mod session;
+
 use nika_http::{HttpConfig, NetBoundary, ReqwestHttp};
 use nika_kernel::http::{HttpPostDyn as _, HttpRequest};
 use nika_onboard::compile::decide::{

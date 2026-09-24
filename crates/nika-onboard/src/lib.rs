@@ -45,6 +45,7 @@ pub mod fixtures;
 pub mod founding;
 mod gitignore;
 mod intent;
+pub mod knowledge;
 pub mod project_file;
 pub mod recipes;
 pub mod rehearsal;

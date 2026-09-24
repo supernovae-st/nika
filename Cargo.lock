@@ -5189,11 +5189,13 @@ dependencies = [
  "nika-compile",
  "nika-compile-cognition",
  "nika-display",
+ "nika-event",
  "nika-pack",
  "nika-schema",
  "nika-source",
  "nika-vocab",
  "serde_json",
+ "tempfile",
 ]
 
 [[package]]

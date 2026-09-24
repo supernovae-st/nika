@@ -303,3 +303,9 @@ answered, refused and uncertain attempts, and keep unknown cost outside the pric
 DeepSeek subtotal. The pre-dispatch durable marker names the selected seat so an
 interruption cannot erase possible exposure. Model selection and credentials are
 operator configuration, not instructions taken from the workflow or retrieved context.
+
+The selected decision adapter and bounded journal are shared from
+`nika-cli-host::compile::typesafe::session`; `authoring::DecisionSetup` preserves
+its public path. Session retains its monetary admission decision and durable
+observation persistence. This is an ownership move within existing surface
+members, with no new provider, crate, retry or permission.
