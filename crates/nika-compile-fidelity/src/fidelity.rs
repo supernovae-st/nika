@@ -250,6 +250,21 @@ pub fn stated_paths(
 ) {
     let mut stated = crate::hot::stated_sources(intent);
     stated.extend(crate::hot::stated_destinations(intent));
+    // The reader deliberately leaves an unquoted multiword compound name unresolved.
+    // Its extent still cannot disappear from native fidelity: shortening it to the last
+    // word names a different file. Dynamic placeholders remain for the typed answer door.
+    stated.extend(
+        paths::literals(intent)
+            .into_iter()
+            .filter_map(|shape| match shape {
+                PathShape::Placeholder(path)
+                    if path.contains('/') && !path.contains(['<', '>', '{', '}', '$']) =>
+                {
+                    Some(path)
+                }
+                _ => None,
+            }),
+    );
     stated.dedup();
     let literals: Vec<String> = paths::literals(intent)
         .into_iter()
@@ -647,6 +662,52 @@ mod tests {
         assert!(!covers("./entree.txt", "/entree.txt"));
         assert!(!covers("./entree.txt", "dir/../entree.txt"));
         assert!(!covers("./entree.txt", ".entree.txt"));
+    }
+
+    #[test]
+    fn relative_compound_paths_cannot_drop_their_literal_directory_prefix() {
+        for intent in [
+            "Copie le fichier dossier source/notes.txt vers dossier sortie/notes.txt.",
+            "Copie \"dossier source/notes.txt\" vers \"dossier sortie/notes.txt\".",
+        ] {
+            assert_eq!(
+                owes(intent, &["source/notes.txt"], &["sortie/notes.txt"], &[]),
+                ["dossier source/notes.txt", "dossier sortie/notes.txt"],
+                "{intent}"
+            );
+            assert!(
+                owes(
+                    intent,
+                    &["dossier source/notes.txt"],
+                    &["dossier sortie/notes.txt"],
+                    &[]
+                )
+                .is_empty()
+            );
+        }
+        let other = "Copy the file team notes/input.json to team notes/output.json";
+        assert_eq!(
+            owes(other, &["notes/input.json"], &["notes/output.json"], &[]),
+            ["team notes/input.json", "team notes/output.json"]
+        );
+        assert!(
+            owes(
+                other,
+                &["team notes/input.json"],
+                &["team notes/output.json"],
+                &[]
+            )
+            .is_empty()
+        );
+        assert_eq!(
+            owes(
+                "Read data/input.json and write to out/result.json",
+                &["input.json"],
+                &["result.json"],
+                &[]
+            ),
+            ["data/input.json", "out/result.json"]
+        );
     }
 
     /// The paths `stated_paths` still owes for `intent` once the candidate reads `read`,

@@ -303,6 +303,95 @@ async fn string_operations_on_a_reads_text_stay_admissible() {
     );
 }
 
+#[tokio::test]
+async fn a_wrapped_read_is_not_json_text_and_native_repair_can_select_the_field() {
+    let bad = find_ticket("fromjson | [.[] | select(.id == 42)] | first").replace(
+        "input: \"${{ with.text }}\"",
+        "input: { content: \"${{ with.text }}\" }",
+    );
+    let fixed = bad.replace("expression: 'fromjson", "expression: '.content | fromjson");
+    let provider = Rotating::new(vec![answer(&bad), answer(&fixed)]);
+    let req = CompileRequest::create(TICKETS).with_authoring_policy(policy(1));
+    let out = compile_with_provider(&req, &provider).await.unwrap();
+    let judged = rounds(&out);
+    assert_eq!(judged.len(), 2, "{out:#?}");
+    assert!(
+        judged[0].iter().any(|m| m.starts_with("NON-TEXT AS JSON")),
+        "{judged:?}"
+    );
+    assert!(judged[1].is_empty(), "{judged:?}");
+    assert_eq!(native(&out)["accepted"], true, "{out:#?}");
+
+    let provider = Rotating::new(vec![answer(&bad)]);
+    let req = CompileRequest::create(TICKETS).with_authoring_policy(policy(0));
+    let out = compile_with_provider(&req, &provider).await.unwrap();
+    assert_eq!(native(&out)["accepted"], false, "{out:#?}");
+    assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert!(out.candidate.is_none(), "{out:#?}");
+}
+
+fn literal_copy(source: &str, destination: &str) -> String {
+    serde_json::to_string_pretty(&json!({
+        "nika": "copy-literal-path",
+        "permits": {"tools": ["nika:read", "nika:write"],
+                    "fs": {"read": [source], "write": [destination]}},
+        "tasks": {
+            "read_source": {"invoke": {"tool": "nika:read", "args": {"path": source}}},
+            "write_copy": {"with": {"text": "${{ tasks.read_source.output }}"},
+                "invoke": {"tool": "nika:write", "args": {
+                    "path": destination, "content": "${{ with.text }}",
+                    "overwrite": true, "create_dirs": true}}}
+        }
+    }))
+    .unwrap()
+}
+
+#[tokio::test]
+async fn native_fidelity_keeps_relative_multiword_paths_whole_before_ready() {
+    for (intent, source, destination, shortened_source, shortened_destination) in [
+        (
+            "Copie le fichier dossier source/notes.txt vers dossier sortie/notes.txt.",
+            "dossier source/notes.txt",
+            "dossier sortie/notes.txt",
+            "source/notes.txt",
+            "sortie/notes.txt",
+        ),
+        (
+            "Copy the file team notes/input.json to team notes/output.json",
+            "team notes/input.json",
+            "team notes/output.json",
+            "notes/input.json",
+            "notes/output.json",
+        ),
+    ] {
+        let bad = literal_copy(shortened_source, shortened_destination);
+        let fixed = literal_copy(source, destination);
+        let provider = Rotating::new(vec![answer(&bad), answer(&fixed)]);
+        let req = CompileRequest::create(intent).with_authoring_policy(policy(1));
+        let out = compile_with_provider(&req, &provider).await.unwrap();
+        let judged = rounds(&out);
+        assert_eq!(judged.len(), 2, "{intent}: {out:#?}");
+        for path in [source, destination] {
+            assert!(
+                judged[0]
+                    .iter()
+                    .any(|m| m.starts_with("UNREALIZED PATH") && m.contains(path)),
+                "{judged:?}"
+            );
+        }
+        assert!(judged[1].is_empty(), "{judged:?}");
+        assert_eq!(native(&out)["accepted"], true, "{out:#?}");
+        assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+
+        let provider = Rotating::new(vec![answer(&bad)]);
+        let req = CompileRequest::create(intent).with_authoring_policy(policy(0));
+        let out = compile_with_provider(&req, &provider).await.unwrap();
+        assert_eq!(native(&out)["accepted"], false, "{out:#?}");
+        assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
+        assert!(out.candidate.is_none(), "{out:#?}");
+    }
+}
+
 /// A seat that records the system message it is sent.
 struct Recording {
     answer: String,
@@ -347,6 +436,15 @@ async fn the_seat_reads_the_output_conventions_and_the_receipt_names_them() {
     assert!(!systems.is_empty(), "the seat was called");
     let system = &systems[0];
     assert!(system.contains("# Output conventions"), "{system}");
+    assert!(
+        system.contains("returns one string, not an object"),
+        "{system}"
+    );
+    assert!(system.contains(".content | fromjson"), "{system}");
+    assert!(
+        system.contains("Preserve literal path spelling"),
+        "{system}"
+    );
     // The line law exactly as the assembler emits it, and the write-back with its terminator.
     assert!(
         system.contains(

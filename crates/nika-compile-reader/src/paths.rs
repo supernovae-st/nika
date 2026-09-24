@@ -66,7 +66,7 @@ pub(crate) fn located(text: &str) -> Vec<(PathShape, usize, usize)> {
             continue;
         };
         let glued = match &shape {
-            PathShape::File(file) if !rooted(file) => name_start(&items, at),
+            PathShape::File(file) if span.is_none() && !rooted(file) => name_start(&items, at),
             _ => None,
         };
         let start = offset(glued.map_or(*word, |from| items[from].0));
@@ -108,7 +108,9 @@ pub fn token(word: &str) -> Option<PathShape> {
     }
     let spaced = word.contains(char::is_whitespace);
     let admits: fn(&str) -> bool = if wrapped { one_path } else { plain_name };
-    if (spaced && !admits(word)) || (!rooted(word) && !bare_filename(word, spaced)) {
+    if (spaced && !admits(word))
+        || (!rooted(word) && !bare_filename(word, spaced) && !relative_file(word, spaced))
+    {
         return None;
     }
     let literal = word.to_owned();
@@ -152,23 +154,29 @@ fn file_noun(word: &str) -> bool {
     FILE_NOUNS.contains(&word.to_lowercase().as_str())
 }
 
-/// A quoted literal with spaces: a bare name, or one rooted path whose segments open
+/// A quoted literal with spaces: a bare name, or one path whose segments open
 /// and close on a visible character (no prose, no second path rides a leading slash).
 fn one_path(word: &str) -> bool {
-    !rooted(word)
-        || (word.split('/').skip(1).all(|seg| seg.trim() == seg)
-            && !word.split_whitespace().skip(1).any(rooted))
+    (!word.contains('/') || word.split('/').skip(1).all(|seg| seg.trim() == seg))
+        && !word.split_whitespace().skip(1).any(rooted)
+        // Two recognizable file paths inside one quote are not one spaced path.
+        && word
+            .split_whitespace()
+            .filter(|part| part.contains('/') && extension(part).is_some())
+            .take(2)
+            .count()
+            < 2
 }
 
 /// An unquoted string that can only be one file's name: two to six words of name
-/// characters, none a function word or a file noun, no slash, no path before the last.
+/// characters, none a function word or a file noun, no path before the last.
 fn plain_name(word: &str) -> bool {
     let parts: Vec<&str> = word.split_whitespace().collect();
     (2..=6).contains(&parts.len())
-        && !word.contains('/')
+        && one_path(word)
         && parts.iter().enumerate().all(|(at, part)| {
             part.chars()
-                .all(|c| c.is_alphanumeric() || "_-.".contains(c))
+                .all(|c| c.is_alphanumeric() || "_-./".contains(c))
                 && part.chars().any(char::is_alphanumeric)
                 && !function_word(part)
                 && !file_noun(part)
@@ -234,7 +242,16 @@ fn name_start(items: &[(&str, Option<PathShape>)], at: usize) -> Option<usize> {
             capital = Some(index);
         }
     }
-    capital
+    // A relative compound file can have a lowercase directory prefix containing spaces.
+    // Keep the ambiguous extent after a connector; never silently retain only its suffix.
+    // A sentence's first word still belongs to prose, just as for a capitalized opener.
+    capital.or_else(|| {
+        let word = trim(items[at].0);
+        (word.contains('/') && !rooted(word))
+            .then_some(run)
+            .flatten()
+            .filter(|from| *from > 0)
+    })
 }
 
 /// The material a read consumes when a request names a path: a file or a glob as
@@ -268,6 +285,26 @@ fn bare_filename(word: &str, spaced: bool) -> bool {
         && ext.len() <= 8
         && ext.chars().next().is_some_and(char::is_alphabetic)
         && ext.chars().all(char::is_alphanumeric)
+}
+
+/// A relative compound file (`notes/source.txt`) needs no `./` prefix. Keep every segment
+/// verbatim, including `..`; this recognizes a literal, it never normalizes or grants it.
+fn relative_file(word: &str, spaced: bool) -> bool {
+    let Some((directory, file)) = word.rsplit_once('/') else {
+        return false;
+    };
+    !directory.is_empty()
+        && bare_filename(file, spaced)
+        && one_path(word)
+        && directory.split('/').all(|segment| {
+            !segment.is_empty()
+                && segment.trim() == segment
+                && segment.chars().all(|c| {
+                    c.is_alphanumeric()
+                        || "_-.".contains(c)
+                        || (spaced && (c.is_whitespace() || "'’()&+,".contains(c)))
+                })
+        })
 }
 
 /// The lowercase extension of the final segment, when it has one.
@@ -503,6 +540,58 @@ mod tests {
                 vec![file(source), file(destination)],
                 "{text}"
             );
+        }
+    }
+
+    #[test]
+    fn relative_compound_files_keep_their_directory_words() {
+        for name in [
+            "data/input.json",
+            "équipe/notes.txt",
+            "data/../archive/result.json",
+        ] {
+            assert_eq!(token(name), Some(file(name)), "{name}");
+            assert_eq!(literals(&format!("Read {name}")), vec![file(name)]);
+        }
+        for name in ["team notes/source.txt", "dossier source/notes.txt"] {
+            assert_eq!(token(name), Some(file(name)), "whole answer: {name}");
+            assert_eq!(literals(&format!("Read \"{name}\"")), vec![file(name)]);
+        }
+        assert_eq!(
+            literals("Copie le fichier dossier source/notes.txt vers dossier sortie/notes.txt."),
+            vec![
+                open("dossier source/notes.txt"),
+                open("dossier sortie/notes.txt")
+            ]
+        );
+        assert_eq!(
+            literals("Copy the file project notes/input.json to project notes/output.json"),
+            vec![
+                open("project notes/input.json"),
+                open("project notes/output.json")
+            ]
+        );
+        assert_eq!(
+            literals("Copy data/input.json to out/result.json"),
+            vec![file("data/input.json"), file("out/result.json")]
+        );
+        // A quoted path owns its whole extent, even after another name-shaped prose word.
+        assert_eq!(
+            literals("Read report \"team notes/source.txt\""),
+            vec![file("team notes/source.txt")]
+        );
+        assert_eq!(
+            token("\"notes/draft.v1 copy.txt\""),
+            Some(file("notes/draft.v1 copy.txt"))
+        );
+        for text in [
+            "\"a/one.txt b/two.txt\"",
+            "\"data /notes.txt\"",
+            "\"data/ notes.txt\"",
+            "https://example.test/notes.txt",
+            "write it to out/result.json",
+        ] {
+            assert!(token(text).is_none(), "{text}");
         }
     }
 

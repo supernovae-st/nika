@@ -227,6 +227,9 @@ mod tests {
         }
         assert!(CONVENTIONS.contains("unless the request names another shape"));
         assert!(CONVENTIONS.contains("When the request names no shape, keep the source's shape"));
+        assert!(CONVENTIONS.contains("returns one string, not an object"));
+        assert!(CONVENTIONS.contains(".content | fromjson"));
+        assert!(CONVENTIONS.contains("Preserve literal path spelling"));
         // Engine-owned text is receipted by digest beside the spec's card.
         assert_eq!(identity()["conventions_sha256"], json!(sha256(CONVENTIONS)));
     }

@@ -6,10 +6,11 @@
 //! Check (a builtin's output declares no shape) and fails at Run with NIKA-BUILTIN-JQ-001
 //! (measured 2026-09-23 on three seats: `[.[] | select(.id == 42)]` over a read's text).
 //!
-//! Narrow by construction: only a single text-mode read bound whole to a whole `input`, only
-//! the expression's first operation, only the path forms below and the forms of
+//! Narrow by construction: a literal non-string input passed directly to `fromjson`, or a
+//! single text-mode read bound whole to a whole `input`; only the first operation and the
+//! path forms below and the forms of
 //! `assets/record_forms.txt`, each measured to fail on a string on the engine's own jq. A
-//! `fromjson` first, a string operation, `try`, `?`, `//` and any unknown form are left alone.
+//! `fromjson` first on text, a string operation, `try`, `?`, `//` and any unknown form are left alone.
 
 use super::{Diagnostic, tool_of};
 use serde_json::Value;
@@ -28,10 +29,19 @@ pub fn raw_text_as_records(doc: &Value, out: &mut Vec<Diagnostic>) {
             continue;
         }
         let (Some(input), Some(expression)) = (
-            task.pointer("/invoke/args/input").and_then(Value::as_str),
+            task.pointer("/invoke/args/input"),
             task.pointer("/invoke/args/expression")
                 .and_then(Value::as_str),
         ) else {
+            continue;
+        };
+        // An object wrapper is still an object, even when every field binds a read's text.
+        // Check cannot infer arbitrary jq types; this first operation needs no inference.
+        if !input.is_string() && first_parses_json(expression) {
+            out.push(Diagnostic { kind: "records", message: format!("NON-TEXT AS JSON: the task `{id}` applies `fromjson` directly to a non-string `input`; fromjson parses one JSON text string, not an object or array. Pass the read's text as the whole input, or select the text field before fromjson. This is NIKA-BUILTIN-JQ-001 at Run.") });
+            continue;
+        }
+        let Some(input) = input.as_str() else {
             continue;
         };
         let (Some(read), Some(form)) = (
@@ -42,6 +52,19 @@ pub fn raw_text_as_records(doc: &Value, out: &mut Vec<Diagnostic>) {
         };
         out.push(Diagnostic { kind: "records", message: format!("RAW TEXT AS RECORDS: the task `{id}` applies `{form}` to the text the `nika:read` task `{read}` returns: one string, not records; at Run this is NIKA-BUILTIN-JQ-001. Parse it first: begin the expression with `fromjson | ` for a JSON file, or convert a CSV with `nika:convert` (`from: csv, to: json`) and read that output.") });
     }
+}
+
+/// A bare `fromjson` first, possibly grouped. Unknown/optional/error-handling forms are
+/// deliberately left alone, as for the record operations below.
+fn first_parses_json(expression: &str) -> bool {
+    if expression.contains("//") || expression.contains('?') {
+        return false;
+    }
+    let term = expression.trim_start_matches(|c: char| c == '[' || c == '(' || c.is_whitespace());
+    term.strip_prefix("fromjson").is_some_and(|rest| {
+        let rest = rest.trim_start();
+        rest.is_empty() || rest.starts_with(['|', ')', ']', ','])
+    })
 }
 
 /// The read task whose untouched text `input` is: `input` is exactly one `${{ with.<key> }}`,
@@ -151,6 +174,49 @@ mod tests {
         let mut out = Vec::new();
         raw_text_as_records(doc, &mut out);
         out
+    }
+
+    #[test]
+    fn fromjson_requires_text_even_when_an_object_wraps_a_reads_text() {
+        for input in [
+            serde_json::json!({"content": "${{ with.text }}"}),
+            serde_json::json!(["${{ with.text }}"]),
+            serde_json::json!(42),
+            serde_json::json!(false),
+            Value::Null,
+        ] {
+            for expression in [
+                "fromjson",
+                "fromjson | sort_by(.amount)",
+                "(fromjson)",
+                "[ fromjson ]",
+            ] {
+                let mut doc = over_read_text(expression);
+                doc["tasks"]["find"]["invoke"]["args"]["input"] = input.clone();
+                let out = findings(&doc);
+                assert_eq!(out.len(), 1, "{input}: {expression}: {out:?}");
+                assert!(out[0].message.starts_with("NON-TEXT AS JSON"), "{out:?}");
+                assert!(out[0].message.contains("`find`"), "{out:?}");
+            }
+        }
+        // A wrapper may be selected explicitly; a text input may be parsed directly.
+        for expression in [
+            ".content | fromjson | sort_by(.amount)",
+            "try fromjson catch []",
+            "fromjson?",
+            "fromjson ?",
+            "(fromjson)?",
+            "[fromjson]?",
+            "fromjson // []",
+            "fromjson_extra",
+            "def fromjson: .; fromjson",
+        ] {
+            let mut doc = over_read_text(expression);
+            doc["tasks"]["find"]["invoke"]["args"]["input"] =
+                serde_json::json!({"content": "${{ with.text }}"});
+            assert!(findings(&doc).is_empty(), "{expression}");
+        }
+        assert!(findings(&over_read_text("fromjson | sort_by(.amount)")).is_empty());
     }
 
     /// The table is one form per line: a jq name, then `(` for a call; no blank, no space.
