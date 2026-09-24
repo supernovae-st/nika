@@ -21,6 +21,8 @@ use super::{CompileOutcome, CompileRequest, DiagnosticKind, QuestionType};
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
 
+mod write_path;
+
 const MODEL_LABEL: &str = "Which explicit runtime provider/model should run the language steps (extract, classify, draft)?";
 const STATE_LABEL: &str = "Which JSON file keeps the identifiers already processed, so the same event never triggers a second action?";
 const SEARCH_LABEL: &str = "Which local directory holds the documents to search?";
@@ -134,6 +136,10 @@ pub(super) struct Bindings {
     /// The directory file of a lookup and how its record is selected.
     pub lookup: Need<Lookup>,
     pub search: Need<Value>,
+    /// The text a search over the request's own material looks for: answered as
+    /// `const.search_term`, or asked. Absent when the invocation's item is the query (the
+    /// request supplies no material of its own, or an event delivers the item).
+    pub search_query: Need<Value>,
     pub fetch: Need<Value>,
     pub read: Need<Source>,
     pub rule: Need<RuleBinding>,
@@ -238,6 +244,7 @@ impl Bindings {
         (!uses_model(plan) || self.model.is_some())
             && self.lookup.settled()
             && self.search.settled()
+            && self.search_query.settled()
             && self.fetch.settled()
             && self.read.settled()
             && self.rule.settled()
@@ -344,6 +351,35 @@ fn bind_url(
     answer(request, out, "const.source_url", URL_LABEL, true)
 }
 
+/// The text a search looks for. When the request supplies no material of its own, the
+/// invocation's item is its material and its query; when an event or a webhook delivers
+/// the item, the payload is the query. Otherwise nothing supplies an item at run time, so
+/// the text comes from the request's side: answered as `const.search_term`, or asked
+/// before the candidate claims it can run. Never a default, never an empty string.
+fn bind_search_query(
+    plan: &Plan,
+    has_corpus: bool,
+    request: &CompileRequest,
+    out: &mut CompileOutcome,
+    recognized: &mut BTreeSet<String>,
+) -> Need<Value> {
+    let delivered = super::trigger::requirement(plan, true).is_some_and(|trigger| {
+        matches!(
+            trigger.kind,
+            super::TriggerKind::Event | super::TriggerKind::Webhook
+        )
+    });
+    let step = plan.step(Op::Search).filter(|_| has_corpus && !delivered);
+    Need::from_step(step, |step| {
+        recognized.insert("const.search_term".to_owned());
+        let label = format!(
+            "Which text should the search look for? The request asks « {} » but states no search text; answer the exact text as a JSON string.",
+            step.evidence.trim()
+        );
+        answer(request, out, "const.search_term", &label, true)
+    })
+}
+
 /// Every binding the plan needs, answered or asked. Sources first, because the
 /// item and the rule's input shape depend on them.
 pub(super) fn bind(
@@ -396,8 +432,10 @@ pub(super) fn bind(
     // The item is the material of an invocation only when the request supplies none of its
     // own. A trigger over a read, fetched or looked-up corpus ("for each critical row",
     // "once all three are done") distributes or sequences work over THAT corpus; it never
-    // declares an input the run could not supply.
-    let item = !has_corpus || plan.has(Op::Search);
+    // declares an input the run could not supply. A search's query is that item only when
+    // the request supplies no material or an event delivers it (`bind_search_query`).
+    let search_query = bind_search_query(plan, has_corpus, request, out, recognized);
+    let item = !has_corpus || (plan.has(Op::Search) && matches!(search_query, Need::Absent));
     let mut consumed = Vec::new();
     let mut max_parallel = None;
     if fan_out {
@@ -428,6 +466,7 @@ pub(super) fn bind(
         model,
         lookup,
         search,
+        search_query,
         fetch,
         read,
         rule: Need::Absent,
@@ -444,21 +483,39 @@ pub(super) fn bind(
         pending_slots: Vec::new(),
     };
     bind_slots(plan, request, out, recognized, &mut b);
-    b.rule = Need::from_step(plan.step(Op::Compute), |step| {
-        // A rule the request states over a parsed source is code the compiler writes;
-        // an explicit answer still wins, and anything outside the grammar is asked.
-        if !request.answers.contains_key("const.rule_expression")
-            && let Some(rule) = synthesized_rule(plan, step, intent, &b)
-        {
-            return ranked(rule, request, out, recognized).map(RuleBinding::Synthesized);
-        }
-        recognized.insert("const.rule_expression".to_owned());
-        let label = rule_label(plan, &b, &step.detail);
-        answer(request, out, "const.rule_expression", &label, true).map(RuleBinding::Answered)
-    });
+    b.rule = bind_computation(plan, intent, &b, request, out, recognized);
     bind_effects(plan, distributed, request, out, recognized, &mut b);
     bind_named_outputs(plan, request, out, recognized, &mut b);
     b
+}
+
+/// Bind the explicit or synthesized computation after its source and slots are known.
+fn bind_computation(
+    plan: &Plan,
+    intent: &str,
+    bindings: &Bindings,
+    request: &CompileRequest,
+    out: &mut CompileOutcome,
+    recognized: &mut BTreeSet<String>,
+) -> Need<RuleBinding> {
+    Need::from_step(plan.step(Op::Compute), |step| {
+        // A rule the request states over a parsed source is code the compiler writes;
+        // an explicit answer still wins, and anything outside the grammar is asked.
+        if !request.answers.contains_key("const.rule_expression")
+            && let Some(rule) = synthesized_rule(plan, step, intent, bindings, request)
+        {
+            let rule = match &bindings.read {
+                Need::Bound(Source::File(path)) => {
+                    super::observed::ground_rule(rule, path, request, out, recognized)?
+                }
+                _ => rule,
+            };
+            return ranked(rule, request, out, recognized).map(RuleBinding::Synthesized);
+        }
+        recognized.insert("const.rule_expression".to_owned());
+        let label = rule_label(plan, bindings, &step.detail);
+        answer(request, out, "const.rule_expression", &label, true).map(RuleBinding::Answered)
+    })
 }
 
 /// A carry of held material (« post it to `<url>` »); a body whose keys the request states
@@ -569,7 +626,12 @@ fn resolve_lookup(
             "Which field of each record in `{}` holds the identifier `{}` (for example `id`)? Answer the field name as a JSON string.",
             literal.file, literal.id
         );
-        let field = answer(request, out, &field_key, &label, true)?;
+        let field = match super::observed::columns(super::observed::world(request), &literal.file) {
+            Some(columns) => {
+                super::observed::field_answer(request, out, &field_key, &label, &columns)?
+            }
+            None => answer(request, out, &field_key, &label, true)?,
+        };
         return Some(Lookup {
             key: format!("const.{}_directory", literal.slug),
             directory: json!(literal.file),
@@ -904,7 +966,20 @@ fn ranked(
 /// and every part of the detail is in the grammar: one structured file for a filter, an
 /// aggregate, a grouping, a sort, a top-N or a projection over its parsed records; one text
 /// file for a removal of duplicate lines; several structured files of one format for a join.
-fn synthesized_rule(plan: &Plan, step: &Step, intent: &str, b: &Bindings) -> Option<rules::Rule> {
+fn synthesized_rule(
+    plan: &Plan,
+    step: &Step,
+    intent: &str,
+    b: &Bindings,
+    request: &CompileRequest,
+) -> Option<rules::Rule> {
+    let observed = match &b.read {
+        Need::Bound(Source::File(path)) => {
+            super::observed::columns(super::observed::world(request), path)
+        }
+        _ => None,
+    };
+    let hint = observed.unwrap_or_else(|| super::columns::columns_hint(intent));
     // A validated rule stated for this very step first (the semantic frontend's typed
     // predicate, or a promoted constraint: meaning before syntax), then the closed grammar
     // over the whole detail. A detail the plan joined from several clauses (` ; `) must
@@ -946,6 +1021,9 @@ fn synthesized_rule(plan: &Plan, step: &Step, intent: &str, b: &Bindings) -> Opt
         .find(|rule| rule.text() == step.evidence || rule.text() == detail)
         .filter(|rule| (whole || distinct.len() == 1) && covers(rule))
         .map(|rule| (*rule).clone())
+        .or_else(|| rules::synthesize(detail, &hint))
+        // Keep a typed reading for the field question even when its noun is not a key.
+        // ground_rule must admit it against the actual source before it can be bound.
         .or_else(|| rules::synthesize(detail, &super::columns::columns_hint(intent)))
         .or_else(|| {
             (whole && distinct.len() == 1)
@@ -1146,7 +1224,11 @@ fn bind_effects(
     recognized: &mut BTreeSet<String>,
     b: &mut Bindings,
 ) {
-    for effect in &plan.effects {
+    // Each write that names no file keeps its own question across rounds, and a file another
+    // output already receives is never bound again by an answer (`write_path`).
+    let path_keys = write_path::keys(plan);
+    let mut taken: BTreeSet<String> = plan.effects.iter().filter_map(file_write).collect();
+    for (index, effect) in plan.effects.iter().enumerate() {
         let slug = effect_slug(effect);
         match wanted(effect, &slug, request, out, recognized) {
             Some(true) => {}
@@ -1165,12 +1247,15 @@ fn bind_effects(
                 b.effects_pending = true;
                 continue;
             }
-            let path = file_write(effect)
-                .or_else(|| ask_write_path(effect, &slug, request, out, recognized, b));
+            let path = file_write(effect).or_else(|| {
+                let key = path_keys.get(index)?.as_deref()?;
+                write_path::ask(effect, key, &taken, request, out, recognized)
+            });
             let Some(path) = path else {
                 b.effects_pending = true;
                 continue;
             };
+            taken.insert(path.clone());
             if let Some(existing) = b.writes.iter_mut().find(|w| w.path == path) {
                 existing.gated |= gated;
                 existing.evidences.push(effect.evidence.clone());
@@ -1245,41 +1330,6 @@ fn category_named(categories: &[String], text: &str) -> Option<String> {
         [only] => Some((*only).clone()),
         _ => None,
     }
-}
-
-/// A write whose target names no single file asks for its exact path.
-fn ask_write_path(
-    effect: &Effect,
-    slug: &str,
-    request: &CompileRequest,
-    out: &mut CompileOutcome,
-    recognized: &mut BTreeSet<String>,
-    b: &Bindings,
-) -> Option<String> {
-    let key = if b.writes.is_empty() {
-        "const.output_path".to_owned()
-    } else {
-        format!("const.{slug}_path")
-    };
-    recognized.insert(key.clone());
-    let label = format!(
-        "Which exact file path should receive `{}`? One path-shaped token (for example ./out/result.md), no prose; a directory is not a file.",
-        effect.target.trim()
-    );
-    // An answer that is no file (a directory, a glob, a placeholder, or prose that names no path
-    // at all) keeps the question asked: the write never loses its question to an answer.
-    let value = answer(request, out, &key, &label, true)?;
-    if let Some(PathShape::File(path)) = value.as_str().and_then(paths::token) {
-        return Some(path);
-    }
-    reject(
-        out,
-        &key,
-        &label,
-        true,
-        "Name one exact file, not a directory, a glob or a placeholder.",
-    );
-    None
 }
 
 /// The first http(s) URL a phrase names, trailing punctuation stripped.

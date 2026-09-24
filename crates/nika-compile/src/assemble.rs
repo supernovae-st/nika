@@ -855,6 +855,17 @@ fn emit_fan_out(d: &mut Doc, plan: &Plan, b: &Bindings, source: &Source) {
     d.fact("document", "${{ tasks.documents.output }}", Kind::Corpus);
 }
 
+/// The pattern a search runs: the answered search text (`const.search_term`) when the
+/// request's side supplies it, else the invocation's item, which `Bindings::item` declares.
+fn search_pattern(d: &mut Doc, b: &Bindings) -> &'static str {
+    if let Some(term) = b.search_query.bound() {
+        d.root["const"]["search_term"] = term.clone();
+        "${{ const.search_term }}"
+    } else {
+        "${{ inputs.item }}"
+    }
+}
+
 fn emit_search_fetch_dedup(d: &mut Doc, plan: &Plan, b: &Bindings) {
     if let Some(root) = b.search.bound() {
         d.root["const"]["search_root"] = root.clone();
@@ -862,7 +873,8 @@ fn emit_search_fetch_dedup(d: &mut Doc, plan: &Plan, b: &Bindings) {
             d.reads
                 .push(json!(format!("{}/**", root.trim_end_matches('/'))));
         }
-        d.tool("search_hits", "nika:grep", json!({"pattern": "${{ inputs.item }}", "path": "${{ const.search_root }}", "case_insensitive": true}), None, false);
+        let pattern = search_pattern(d, b);
+        d.tool("search_hits", "nika:grep", json!({"pattern": pattern, "path": "${{ const.search_root }}", "case_insensitive": true}), None, false);
         d.fact("hits", "${{ tasks.search_hits.output }}", Kind::Corpus);
     }
     super::network::emit_fetch(d, plan, b);
@@ -1378,7 +1390,8 @@ fn emit_revision_check(d: &mut Doc, plan: &Plan, b: &Bindings) {
     } else if plan.obligation("revision_check") && b.search.bound().is_some() {
         // The hits are the version the answer was drafted from: the search is rerun just
         // before the action, and changed hits are a changed version.
-        d.tool("revision_reread", "nika:grep", json!({"pattern": "${{ inputs.item }}", "path": "${{ const.search_root }}", "case_insensitive": true}), None, true);
+        let pattern = search_pattern(d, b);
+        d.tool("revision_reread", "nika:grep", json!({"pattern": pattern, "path": "${{ const.search_root }}", "case_insensitive": true}), None, true);
         d.tool("revision_stable", "nika:jq", json!({"input": {"before": "${{ with.before }}", "after": "${{ with.after }}"}, "expression": ".before == .after"}), Some(json!({"before": "${{ tasks.search_hits.output }}", "after": "${{ tasks.revision_reread.output }}"})), false);
         d.tool("revision_admit", "nika:assert", json!({"condition": "${{ with.stable }}", "message": "The hits changed since they were searched; the final action is not allowed on a stale version."}), Some(json!({"stable": "${{ tasks.revision_stable.output }}"})), false);
     }

@@ -148,3 +148,103 @@ fn local_steps_are_narrow_and_check_permits_are_an_independent_gate() {
         assert!(request_bound(&parsed(&changed), &plan(), 1).is_err());
     }
 }
+
+#[test]
+fn each_refusal_is_a_typed_reason_that_keeps_its_words() {
+    use RunShapeError as E;
+    let cases = [
+        (
+            format!("{ONE}  parallel:\n    infer: {{ prompt: text, max_tokens: 32 }}\n"),
+            E::Parallel,
+        ),
+        (
+            ONE.replace("prompt: text", "prompt: text, model: openai/gpt-4o-mini"),
+            E::OtherModel,
+        ),
+        (ONE.replace(", max_tokens: 32", ""), E::InferShape),
+        (
+            ONE.replace("    infer:", "    retry: { max_attempts: 1 }\n    infer:"),
+            E::Control,
+        ),
+        (
+            ONE.replace(
+                "tasks:",
+                "secrets:\n  token: { source: env, key: NEVER_READ, egress: [{ to: exec }] }\ntasks:",
+            ),
+            E::Secrets,
+        ),
+        (
+            format!("{ONE}  process:\n    exec: {{ command: ['echo', 'data'] }}\n"),
+            E::Action,
+        ),
+        (
+            format!(
+                "{ONE}  extra:\n    invoke: {{ tool: 'nika:fetch', args: {{ url: 'https://example.com/' }} }}\n"
+            ),
+            E::Tool,
+        ),
+    ];
+    for (source, reason) in cases {
+        assert_eq!(
+            request_bound(&parsed(&source), &plan(), 1),
+            Err(reason),
+            "{source}"
+        );
+    }
+    assert_eq!(request_bound(&parsed(ONE), &plan(), 2), Err(E::Route));
+    assert_eq!(add_requests(u32::MAX - 1, 1), Ok(u32::MAX));
+    assert_eq!(add_requests(u32::MAX, 1), Err(E::Overflow));
+    for (reason, words) in [
+        (
+            E::Route,
+            "unknown-cost Run requires one exact admitted API route",
+        ),
+        (E::Overflow, "request bound overflow"),
+        (
+            E::Tool,
+            "unknown-cost Run supports only direct infer and local read/write/jq/assert; no nested workflow or other tools",
+        ),
+        (
+            E::DynamicPath,
+            "local file step requires a literal or immutable const path",
+        ),
+        (
+            E::UnconfinedPath,
+            "unknown-cost Run file paths must be static files confined to the project",
+        ),
+    ] {
+        assert_eq!(reason.to_string(), words);
+    }
+}
+
+/// The path of a workflow's one `nika:read` step, through the public resolver.
+fn read_path(source: &str) -> Result<PathBuf, RunShapeError> {
+    let wf = parsed(source);
+    let action = wf
+        .tasks
+        .iter()
+        .find_map(|task| match &task.value.action {
+            RawAction::Invoke(action) if action.tool().is_some_and(|t| t.value == "nika:read") => {
+                Some(action)
+            }
+            _ => None,
+        })
+        .expect("a read step");
+    project_file_path(&ConstStrings::of(&wf), action)
+}
+
+#[test]
+fn project_paths_are_typed_as_dynamic_or_unconfined() {
+    let source = "nika: local\nmodel: deepseek/unpriced-shape-fixture\npermits:\n  tools: ['nika:read']\n  fs: { read: ['./input.txt'] }\ntasks:\n  read:\n    invoke: { tool: 'nika:read', args: { path: './input.txt' } }\n";
+    assert_eq!(read_path(source), Ok(PathBuf::from("input.txt")));
+    for path in ["/outside.txt", "../escape.txt"] {
+        let changed = source.replace("path: './input.txt'", &format!("path: '{path}'"));
+        assert_eq!(
+            read_path(&changed),
+            Err(RunShapeError::UnconfinedPath),
+            "{path}"
+        );
+    }
+    let dynamic = source.replace("path: './input.txt'", "path: '${{ inputs.path }}'");
+    assert_eq!(read_path(&dynamic), Err(RunShapeError::DynamicPath));
+}

@@ -143,15 +143,33 @@ pub fn destination_floor(intent: &str, plan: &mut Plan) {
 /// The unnamed-destination floor, the named one's twin for a file the request asks for without
 /// naming it (« Résume mes notes dans un fichier », « summarize ./notes.md into a new file »).
 /// The destination rode inside a producing step's object, and the step alone was READY with
-/// nothing written (the S98 J02 witness). It becomes a write whose target is the noun phrase and
+/// nothing written. It becomes a write whose target is the noun phrase and
 /// whose evidence is the connector and the phrase, verbatim: the assembler asks its exact path
 /// (`const.output_path`), an answer round replays the write with the plan, and nothing is granted
 /// before the human names the file. A read, a fetch, a lookup or a search consumes material
 /// (« lis les notes dans un fichier »), never a destination; a step whose clause a write already
 /// carries is left alone, so the floor is idempotent and a replay may apply it to an older record.
 pub fn unnamed_destination_floor(plan: &mut Plan) {
-    let found: Vec<(String, String, String)> = plan
-        .steps
+    let mut carriers: Vec<usize> = Vec::new();
+    for (phrase, evidence, clause) in unnamed_destinations(plan) {
+        if let Some(index) = carrier_of(plan, &carriers, (&phrase, &evidence, &clause)) {
+            carriers.push(index);
+        } else {
+            carriers.push(plan.effects.len());
+            plan.effects.push(Effect::new(
+                EffectVerb::Write,
+                phrase,
+                evidence,
+                EffectPolicy::Automatic,
+            ));
+        }
+    }
+}
+
+/// The unnamed destinations the objects of the producing steps state, as (noun phrase,
+/// evidence, clause); a read, a fetch, a lookup or a search consumes material, never one.
+fn unnamed_destinations(plan: &Plan) -> Vec<(String, String, String)> {
+    plan.steps
         .iter()
         .filter(|step| step.op.carries_constraints())
         .filter_map(|step| {
@@ -169,25 +187,41 @@ pub fn unnamed_destination_floor(plan: &mut Plan) {
                 step.evidence.clone(),
             ))
         })
-        .collect();
-    for (phrase, evidence, clause) in found {
-        let written = plan.effects.iter().any(|effect| {
-            let carried = effect.evidence.trim();
-            effect.verb == EffectVerb::Write
-                && !carried.is_empty()
-                && (carried.contains(evidence.as_str())
-                    || clause.contains(carried)
-                    || carried.contains(clause.trim()))
-        });
-        if !written {
-            plan.effects.push(Effect::new(
-                EffectVerb::Write,
-                phrase,
-                evidence,
-                EffectPolicy::Automatic,
-            ));
-        }
-    }
+        .collect()
+}
+
+/// The write that already carries the unnamed destination `(phrase, evidence)` of `clause`, one
+/// destination per write: this floor's own write of an earlier pass (a replayed record), a
+/// write stated in this very clause (« …, ask my approval before writing it »), a file the
+/// clause names after the phrase (« dans un fichier : ./out/x.md »), or a gate that names the
+/// write by its verb alone. A file another clause names never carries it, even when the named
+/// floor's evidence is the whole sentence, and the same words stated in two clauses are two
+/// destinations.
+fn carrier_of(
+    plan: &Plan,
+    claimed: &[usize],
+    (phrase, evidence, clause): (&str, &str, &str),
+) -> Option<usize> {
+    plan.effects.iter().enumerate().find_map(|(index, effect)| {
+        let carried = effect.evidence.trim();
+        let matches_output = !claimed.contains(&index)
+            && effect.verb == EffectVerb::Write
+            && !carried.is_empty()
+            && match super::paths::single_file(&effect.target) {
+                Some(path) => clause
+                    .find(evidence)
+                    .zip(clause.rfind(path.as_str()))
+                    .is_some_and(|(phrase_at, path_at)| path_at > phrase_at),
+                None => {
+                    (effect.target == phrase && carried == evidence)
+                        || clause.contains(carried)
+                        || carried.contains(clause.trim())
+                        || (effect.policy == EffectPolicy::HumanFirst
+                            && !super::objects::has_literal(&effect.target))
+                }
+            };
+        matches_output.then_some(index)
+    })
 }
 
 /// The source-shaped paths of the request, in order, without duplicates.
@@ -1208,6 +1242,101 @@ mod tests {
                         || super::super::paths::single_file(&e.target).is_some()),
                 "{intent}: {:?}",
                 reading.plan.effects
+            );
+        }
+    }
+
+    #[test]
+    fn each_unnamed_destination_is_its_own_write_and_no_other_destination_carries_it() {
+        use super::super::paths::single_file;
+        // The named floor's evidence is the whole sentence; it never carries the
+        // unnamed destination of another clause. The same words in two clauses are
+        // two destinations.
+        for (intent, named, unnamed) in [
+            (
+                "Résume ./notes.md dans ./out/resume.md et extrais les dates dans un fichier.",
+                1,
+                1,
+            ),
+            (
+                "Résume mes notes dans un fichier. Extrais les dates dans un fichier.",
+                0,
+                2,
+            ),
+            (
+                "Summarize my notes into a file. Extract the dates into a file.",
+                0,
+                2,
+            ),
+        ] {
+            let reading = lexicon::read(intent);
+            let count = |is_named: bool| {
+                reading
+                    .plan
+                    .effects
+                    .iter()
+                    .filter(|e| {
+                        e.verb == EffectVerb::Write && single_file(&e.target).is_some() == is_named
+                    })
+                    .count()
+            };
+            assert_eq!(
+                (count(true), count(false)),
+                (named, unnamed),
+                "{intent}: {:?}",
+                reading.plan
+            );
+            // A replayed record gains nothing.
+            let mut again = reading.plan.clone();
+            unnamed_destination_floor(&mut again);
+            assert_eq!(again.effects, reading.plan.effects, "{intent}");
+        }
+        // One write each, as before: a file the clause names after a colon is that destination,
+        // and a gate that names the write carries it, in the same clause or in its own.
+        for intent in [
+            "Résume mes notes dans un fichier : ./out/resume.md.",
+            "Summarize my notes into a file, ask my approval before writing it.",
+            "Summarize my notes into a file, but ask me before writing it.",
+        ] {
+            let reading = lexicon::read(intent);
+            let writes = reading
+                .plan
+                .effects
+                .iter()
+                .filter(|e| e.verb == EffectVerb::Write)
+                .count();
+            assert_eq!(writes, 1, "{intent}: {:?}", reading.plan);
+        }
+    }
+
+    #[test]
+    fn a_stated_final_approval_holds_the_write_a_floor_adds() {
+        // Settled before the floors, the deferred gate missed their write and, beside
+        // a prohibited send, vanished (source trace: READY with an ungated write).
+        for intent in [
+            "Summarize my notes into a file. Never send anything. Only after my approval.",
+            "Summarize my notes into ./out/summary.md. Never send anything. Only after my approval.",
+            "Résume mes notes dans un fichier après mon approbation.",
+        ] {
+            let reading = lexicon::read(intent);
+            let write = reading
+                .plan
+                .effects
+                .iter()
+                .find(|e| e.verb == EffectVerb::Write);
+            assert!(
+                write.is_some_and(|w| w.policy == EffectPolicy::HumanFirst),
+                "{intent}: {:?}",
+                reading.plan
+            );
+            assert!(
+                !reading
+                    .plan
+                    .unknowns
+                    .iter()
+                    .any(|u| u == lexicon::GATE_WITHOUT_EFFECT),
+                "{intent}: {:?}",
+                reading.plan.unknowns
             );
         }
     }

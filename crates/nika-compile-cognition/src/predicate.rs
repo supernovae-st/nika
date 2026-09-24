@@ -139,6 +139,7 @@ pub(super) fn typed_rule(
     evidence: &str,
     computation: &ProposedComputation,
     unknowns: &[String],
+    columns: &[String],
 ) -> Option<(super::rules::Rule, Vec<super::plan::Slot>)> {
     use super::rules::{Clause, Comparator, Junction, Operand, Rule};
     let mut slots: Vec<super::plan::Slot> = Vec::new();
@@ -152,11 +153,15 @@ pub(super) fn typed_rule(
         if field.is_empty() || field.len() > 64 {
             return false;
         }
-        if hint.is_empty() {
-            lower.contains(&field.to_lowercase())
-        } else {
-            hint.iter().any(|c| c.eq_ignore_ascii_case(field))
-        }
+        // Observed keys may ground a proposal; a request word remains provisional.
+        // The shared binding boundary checks every resulting source field and asks
+        // for an explicit mapping before any candidate can become READY.
+        columns.iter().any(|c| c == field)
+            || if hint.is_empty() {
+                lower.contains(&field.to_lowercase())
+            } else {
+                hint.iter().any(|c| c.eq_ignore_ascii_case(field))
+            }
     };
     let digit_runs: Vec<String> = intent
         .split(|c: char| !c.is_ascii_digit() && c != '.' && c != ',')
@@ -419,7 +424,7 @@ mod tests {
         evidence: &str,
         computation: &ProposedComputation,
     ) -> Option<crate::rules::Rule> {
-        typed_rule(intent, evidence, computation, &[]).map(|(rule, _)| rule)
+        typed_rule(intent, evidence, computation, &[], &[]).map(|(rule, _)| rule)
     }
     use serde_json::json;
 

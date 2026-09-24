@@ -18,6 +18,8 @@ use crate::{CompileOutcome, DiagnosticKind, QuestionType, lexicon::Reading};
 use nika_kernel::ai::provider::{ContentBlock, InferResponse, StopReason};
 use serde::Deserialize;
 
+mod material;
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct Proposal {
@@ -202,7 +204,109 @@ fn unproduced_regions(plan: &Plan, regions: &[ProposedRegion], folded: &[String]
             region.role
         ));
     }
+    gaps.extend(absorbed_by_reads(plan, folded));
     gaps
+}
+
+/// A read's own words end at its path. Whatever its evidence or detail still carries after
+/// that path is the reader's residue (`defer_residue`: never dropped, re-entered as a clause
+/// through `objects::as_clause`), so it is requested work some element of the plan must
+/// realize. A seat that folds « find ticket 42 » into the read of `./tickets.json` performed
+/// no lookup: the region looks covered by the read's evidence, and the assembly would copy
+/// the whole file. What the other elements realize is taken out first (a genuine
+/// copy's write, a separate lookup step); a remainder without a content word (a connector, a
+/// short format mark) carries no work, nor does one that only describes the material read
+/// (`material::describes_material`: « ./notes avec plein de fichiers .md »).
+fn absorbed_by_reads(plan: &Plan, folded: &[String]) -> Vec<String> {
+    let mut gaps: Vec<String> = Vec::new();
+    for (index, step) in plan.steps.iter().enumerate() {
+        if step.op != Op::Read {
+            continue;
+        }
+        let mut others: Vec<String> = Vec::new();
+        for (k, other) in plan.steps.iter().enumerate() {
+            if k != index {
+                others.push(overlap_fold(&other.evidence));
+                others.push(overlap_fold(&other.detail));
+            }
+        }
+        others.extend(plan.effects.iter().map(|e| overlap_fold(&e.evidence)));
+        others.extend(plan.obligations.iter().map(|o| overlap_fold(&o.evidence)));
+        others.extend(plan.constraints.iter().map(|c| overlap_fold(c)));
+        others.extend(folded.iter().map(|f| overlap_fold(f)));
+        others.retain(|o| !o.is_empty());
+        for text in [&step.evidence, &step.detail] {
+            let clause = read_residue(text);
+            if material::describes_material(&clause) {
+                continue;
+            }
+            let mut remainder = overlap_fold(&clause);
+            for other in &others {
+                if other.contains(remainder.as_str()) {
+                    remainder.clear();
+                    break;
+                }
+                remainder = remainder.replace(other.as_str(), " ");
+            }
+            if content_words(&remainder).next().is_none() {
+                continue;
+            }
+            let gap = format!(
+                "The read step `{}` also carries `{clause}`; a read performs no such work and no other step realizes it.",
+                step.evidence.trim()
+            );
+            if !gaps.contains(&gap) {
+                gaps.push(gap);
+            }
+        }
+    }
+    gaps
+}
+
+/// The clause after the last path a read's text names, by the reader's residue rule
+/// (`objects::residue_after_path`: separators and one parenthesized aside skipped, the edges
+/// trimmed to words), then re-entered as a clause through the reader's own `as_clause`.
+/// Empty when the text names no path or nothing follows it.
+fn read_residue(text: &str) -> String {
+    let end = crate::paths::literals(text)
+        .iter()
+        .filter_map(|shape| match shape {
+            crate::paths::PathShape::File(path)
+            | crate::paths::PathShape::Directory(path)
+            | crate::paths::PathShape::Glob(path)
+            | crate::paths::PathShape::Placeholder(path) => {
+                text.rfind(path.as_str()).map(|at| at + path.len())
+            }
+            _ => None,
+        })
+        .max();
+    let Some(end) = end else {
+        return String::new();
+    };
+    let mut rest = text
+        .get(end..)
+        .unwrap_or_default()
+        .trim_start_matches(['.', ',', ';', ':'])
+        .trim();
+    if rest.starts_with('(')
+        && let Some(close) = rest.find(')')
+    {
+        rest = rest.get(close + 1..).unwrap_or_default().trim();
+    }
+    let rest = rest.trim_matches(|c: char| !c.is_alphanumeric());
+    crate::objects::as_clause(rest).to_owned()
+}
+
+/// The fold `unproduced_regions` compares excerpts under: typographic quotes to their plain
+/// twins, whitespace collapsed, lowercase.
+fn overlap_fold(text: &str) -> String {
+    text.chars()
+        .map(fold_quote)
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase()
 }
 
 pub(super) fn decode(response: &InferResponse, out: &mut CompileOutcome) -> Option<Proposal> {
@@ -1003,8 +1107,13 @@ pub(super) fn merge(
         }
         if op == Op::Compute
             && let Some(computation) = step.computation.as_ref().filter(|c| c.present)
-            && let Some((rule, slots)) =
-                crate::predicate::typed_rule(intent, &evidence, computation, &proposal.unknowns)
+            && let Some((rule, slots)) = crate::predicate::typed_rule(
+                intent,
+                &evidence,
+                computation,
+                &proposal.unknowns,
+                &reading.columns,
+            )
             && !plan.rules.iter().any(|r| r.text() == rule.text())
         {
             for slot in slots {

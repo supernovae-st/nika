@@ -20,7 +20,7 @@ const WHOLE_JSON_BYTES: u64 = 8 * 1024 * 1024;
 /// The most files observed inside one stated folder.
 const FOLDER_FILES: usize = 8;
 
-/// The observations of every stated path that exists under `cwd`, or nothing. A stated
+/// Positive observations and explicit unavailable states for stated paths under `cwd`. A stated
 /// folder (« les trois fichiers de ventes dans ./reports/ ») contributes its tabular and JSON
 /// files, sorted by name, the first eight. Sources and destinations alike: the reader hears
 /// « dans ./reports/ » as a destination connector, and a destination that already exists
@@ -101,7 +101,13 @@ fn under_cwd(cwd: &Path, stated: &str) -> Option<std::path::PathBuf> {
 /// One stated path: under the working directory, a regular file, a tabular or JSON format.
 fn observe(cwd: &Path, stated: &str) -> Option<Value> {
     let full = under_cwd(cwd, stated)?;
-    let meta = std::fs::metadata(&full).ok()?;
+    let meta = match std::fs::metadata(&full) {
+        Ok(meta) => meta,
+        Err(error) => {
+            return Some(json!({"path": stated, "state":
+            if error.kind() == std::io::ErrorKind::NotFound { "absent" } else { "unreadable" }, "complete": false}));
+        }
+    };
     if !meta.is_file() {
         return None;
     }
@@ -109,33 +115,48 @@ fn observe(cwd: &Path, stated: &str) -> Option<Value> {
         .extension()
         .and_then(|e| e.to_str())
         .map(str::to_ascii_lowercase)?;
-    let head = peek(&full)?;
+    let Some(head) = peek(&full) else {
+        return Some(json!({"path": stated, "state": "unreadable", "complete": false}));
+    };
+    let mut common = None;
+    let complete = false;
     let (kind, columns, delimiter, values) = match ext.as_str() {
         "csv" | "tsv" => {
             let (columns, delimiter) = header_columns(&head, ext == "tsv");
             let values = csv_values(&head, delimiter, &columns);
+            // A header describes names, not the shape of all data rows.
             ("csv", columns, Some(delimiter), values)
         }
         "json" => {
             let rows = json_rows(&full, &head, meta.len());
+            common = Some(common_keys(&rows));
+            // Conservatively partial: json_rows can fall back to a bounded head.
             ("json", keys_of_rows(&rows), None, categorical(&rows))
         }
         "jsonl" | "ndjson" => {
             let rows = jsonl_rows(&head);
+            common = Some(common_keys(&rows));
             ("jsonl", keys_of_rows(&rows), None, categorical(&rows))
         }
         _ => return None,
     };
     if columns.is_empty() {
-        return None;
+        let empty = head.trim().is_empty() || matches!(head.trim(), "[]" | "{}");
+        return Some(json!({"path": stated, "kind": kind,
+            "state": if empty { "empty" } else { "unknown" }, "complete": false}));
     }
     let mut row = json!({
         "path": stated,
+        "state": "observed",
+        "complete": complete,
         "kind": kind,
         "columns": columns,
         "bytes": meta.len(),
         "peek_sha256": sha256_hex(head.as_bytes()),
     });
+    if let Some(common) = common {
+        row["common_columns"] = json!(common);
+    }
     if let Some(delimiter) = delimiter {
         row["delimiter"] = Value::String(delimiter.to_string());
     }
@@ -272,7 +293,7 @@ fn header_columns(head: &str, tsv: bool) -> (Vec<String>, char) {
     (columns, delimiter)
 }
 
-/// A JSON file's rows: a top-level array's objects, or the one top-level object. A file past
+/// A JSON file's rows: a top-level array, or the one top-level object. A file past
 /// the whole-read bound is judged on its head when that head parses.
 fn json_rows(path: &Path, head: &str, len: u64) -> Vec<Value> {
     let text = if len <= WHOLE_JSON_BYTES {
@@ -281,28 +302,36 @@ fn json_rows(path: &Path, head: &str, len: u64) -> Vec<Value> {
         head.to_owned()
     };
     match serde_json::from_str::<Value>(&text) {
-        Ok(Value::Array(items)) => items.into_iter().filter(Value::is_object).collect(),
+        Ok(Value::Array(items)) => items,
         Ok(object @ Value::Object(_)) => vec![object],
         _ => Vec::new(),
     }
 }
 
-/// The parsed object lines of a JSONL head (a cut last line is skipped).
+/// The parsed lines of a JSONL head (a cut last line is skipped).
 fn jsonl_rows(head: &str) -> Vec<Value> {
     head.lines()
         .filter(|l| !l.trim().is_empty())
         .take(SAMPLE_ROWS)
         .filter_map(|l| serde_json::from_str::<Value>(l).ok())
-        .filter(Value::is_object)
         .collect()
 }
 
-/// The keys of the first object (its own order), the shape every row is read by.
+/// Every key positively observed; neither this union nor the sample is a schema.
 fn keys_of_rows(rows: &[Value]) -> Vec<String> {
-    rows.first()
-        .and_then(Value::as_object)
-        .map(|o| o.keys().cloned().collect())
-        .unwrap_or_default()
+    rows.iter()
+        .filter_map(Value::as_object)
+        .flat_map(|o| o.keys().cloned())
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
+fn common_keys(rows: &[Value]) -> Vec<String> {
+    keys_of_rows(rows)
+        .into_iter()
+        .filter(|key| rows.iter().all(|row| row.get(key).is_some()))
+        .collect()
 }
 
 fn sha256_hex(bytes: &[u8]) -> String {
@@ -444,8 +473,30 @@ mod tests {
     fn an_absent_file_a_parent_escape_or_a_prose_format_observes_nothing() {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("notes.md"), "# hello\n").unwrap();
-        assert!(super::world(dir.path(), "read ./missing.csv").is_none());
+        assert_eq!(
+            super::world(dir.path(), "read ./missing.csv").unwrap()["observed"][0]["state"],
+            "absent"
+        );
         assert!(super::world(dir.path(), "read ../etc/passwd.csv").is_none());
         assert!(super::world(dir.path(), "read ./notes.md").is_none());
+    }
+}
+
+#[cfg(test)]
+mod observation_coverage_tests {
+    use super::*;
+    #[test]
+    fn mixed_records_are_positive_keys_with_a_separate_common_set() {
+        let rows = vec![json!({"id":1}), json!({"id":2, "status":"open"})];
+        assert_eq!(keys_of_rows(&rows), ["id", "status"]);
+        assert_eq!(common_keys(&rows), ["id"]);
+        assert!(common_keys(&[json!({"id":1}), json!(null)]).is_empty());
+        assert!(keys_of_rows(&[]).is_empty());
+    }
+    #[test]
+    fn an_empty_or_partial_sample_does_not_claim_a_complete_schema() {
+        // Parsing a partial JSON document yields no records, never an empty schema.
+        assert!(jsonl_rows("{\"id\":1}\n{\"status\":").len() == 1);
+        assert!(common_keys(&jsonl_rows("\n")).is_empty());
     }
 }

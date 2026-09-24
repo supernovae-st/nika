@@ -513,7 +513,19 @@ pub(super) fn conclude(
             super::record_route(out, &route);
             out.questions.extend(cold.questions);
             out.diagnostics.extend(cold.diagnostics);
-            if out.questions.is_empty() {
+            // A call that failed (transport, status, timeout) is the provider's finding, already
+            // recorded with its cause: nothing judged the request wrong, so the human is not
+            // asked to replace it. The door stays incomplete; a rerun is the
+            // operator's decision. A cold round's own questions above still stand.
+            let provider_failed = talk
+                .rounds
+                .last()
+                .is_some_and(|round| round["call"] == "failed")
+                && out
+                    .diagnostics
+                    .iter()
+                    .any(|d| d.target == "authoring_provider");
+            if out.questions.is_empty() && !provider_failed {
                 super::super::question(
                     out,
                     "intent.clarification",

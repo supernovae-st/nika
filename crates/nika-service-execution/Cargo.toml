@@ -21,6 +21,7 @@ nika-types       = { path = "../nika-types", version = "0.120.3" }        # Exec
 nika-providers   = { path = "../nika-providers", version = "0.120.3" }    # ProviderProbe — the access candidates the run gate judges
 nika-harness     = { path = "../nika-harness", version = "0.120.3" }      # build the operator-selected subscription seat
 serde_json       = { workspace = true }
+thiserror        = { workspace = true }                                   # RunShapeError — the typed unknown-cost Run shape refusal (FCI-019)
 
 [dev-dependencies]
 nika-fs  = { path = "../nika-fs", version = "0.120.3" }   # OwnedDir — the admission input the tests capture from

@@ -24,7 +24,7 @@ pub(super) fn read_witness(root: &Path, wf: &RawWorkflow) -> Result<String, Stri
         if let RawAction::Invoke(action) = &task.value.action
             && action.tool().is_some_and(|t| t.value == "nika:write")
         {
-            let path = project_file_path(&consts, action)?;
+            let path = project_file_path(&consts, action).map_err(|e| e.to_string())?;
             let parts = path
                 .iter()
                 .map(|s| s.to_str().ok_or("non-UTF-8 path"))
@@ -40,7 +40,7 @@ pub(super) fn read_witness(root: &Path, wf: &RawWorkflow) -> Result<String, Stri
         if let RawAction::Invoke(action) = &task.value.action
             && action.tool().is_some_and(|t| t.value == "nika:read")
         {
-            let path = project_file_path(&consts, action)?;
+            let path = project_file_path(&consts, action).map_err(|e| e.to_string())?;
             let mut bytes = Vec::new();
             directory
                 .open_relative(&path)

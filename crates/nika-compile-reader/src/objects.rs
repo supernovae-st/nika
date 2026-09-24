@@ -109,7 +109,7 @@ const INDEFINITE: &[&str] = &[
 /// (« dans un fichier resume.md ») is the path laws'; and the phrase inside quotes or after a
 /// colon that opens content is content (the guard of the sentence-final cadence), not a write.
 pub(crate) fn unnamed_destination(detail: &str) -> Option<(&str, &str)> {
-    let lower = detail.to_lowercase();
+    let lower = plain_spaces(&detail.to_lowercase());
     if lower.len() != detail.len() {
         return None;
     }
@@ -131,7 +131,8 @@ pub(crate) fn unnamed_destination(detail: &str) -> Option<(&str, &str)> {
             return None;
         }
         let phrase_at = at + connector.len() - 1;
-        let noun_end = phrase_at + file_phrase_end(lower.get(phrase_at..)?)?;
+        let (opens, closes) = file_phrase_span(lower.get(phrase_at..)?)?;
+        let noun_end = phrase_at + closes;
         let rest = lower.get(noun_end..)?;
         let clause_rest = rest
             .split([',', ';', ':', '!', '?'])
@@ -140,34 +141,60 @@ pub(crate) fn unnamed_destination(detail: &str) -> Option<(&str, &str)> {
         if !super::paths::literals(clause_rest).is_empty() {
             return None;
         }
-        Some((detail.get(at..noun_end)?, detail.get(phrase_at..noun_end)?))
+        Some((
+            detail.get(at..noun_end)?,
+            detail.get(phrase_at + opens..noun_end)?,
+        ))
     })
 }
 
-/// Where the indefinite file phrase opening `text` ends (« un fichier », « a new file », « a
-/// plain text file »): the determiner, at most two modifiers (no function word, no path), then a
-/// file noun; `None` for anything else.
-fn file_phrase_end(text: &str) -> Option<usize> {
+/// The text with every typographic space (a no-break space before « : », U+202F) spelled as
+/// many plain spaces as it has bytes: it reads as the space it stands for, and every byte offset
+/// stays one of the original text.
+fn plain_spaces(text: &str) -> String {
+    text.chars()
+        .flat_map(|c| {
+            let width = if c.is_whitespace() { c.len_utf8() } else { 0 };
+            std::iter::repeat_n(' ', width).chain((width == 0).then_some(c))
+        })
+        .collect()
+}
+
+/// Where the indefinite file phrase opening `text` starts and ends (« un fichier », « a new
+/// file », « a plain text file », « a .md file »): the determiner, at most two modifiers (no
+/// function word, no path; a format may be named by its extension), then a file noun, which
+/// closing punctuation or an ellipsis may follow. Repeated spaces separate words as one does.
+/// `None` for anything else.
+fn file_phrase_span(text: &str) -> Option<(usize, usize)> {
     let mut start = 0;
+    let mut opens = None;
     let mut modifiers = 0;
-    for (index, raw) in text.split(' ').enumerate() {
-        let word = raw.trim_end_matches(['.', ',', ';', ':', '!', '?', ')', '»', '"', '”']);
-        let end = start + word.len();
+    for raw in text.split(' ') {
+        let at = start;
         start += raw.len() + 1;
-        if index == 0 {
+        if raw.is_empty() {
+            continue;
+        }
+        let word =
+            raw.trim_end_matches(['.', ',', ';', ':', '!', '?', ')', '»', '"', '”', '\u{2026}']);
+        let Some(from) = opens else {
             if word.len() != raw.len() || !INDEFINITE.contains(&word) {
                 return None;
             }
+            opens = Some(at);
             continue;
-        }
+        };
         if super::paths::file_noun(word) {
-            return Some(end);
+            return Some((from, at + word.len()));
         }
         modifiers += 1;
+        let format = word.strip_prefix('.').is_some_and(|ext| {
+            (1..=8).contains(&ext.len()) && ext.chars().all(|c| c.is_ascii_alphanumeric())
+        });
         if modifiers > 2
             || word.is_empty()
             || word.len() != raw.len()
-            || !word.chars().all(|c| c.is_alphabetic() || c == '-')
+            || !(format || word.chars().all(|c| c.is_alphabetic() || c == '-'))
             || super::paths::function_word(word)
         {
             return None;
@@ -1197,6 +1224,52 @@ mod tests {
             "",
         ] {
             assert_eq!(unnamed_destination(detail), None, "{detail}");
+        }
+    }
+
+    #[test]
+    fn a_typographic_space_an_ellipsis_or_a_named_format_keeps_the_unnamed_destination() {
+        // Typographic variations must preserve the requested file destination.
+        for (detail, excerpt, phrase) in [
+            (
+                "mes notes dans\u{a0}un fichier",
+                "dans\u{a0}un fichier",
+                "un fichier",
+            ),
+            (
+                "mes notes dans un fichier\u{2026}",
+                "dans un fichier",
+                "un fichier",
+            ),
+            ("my notes into a .md file", "into a .md file", "a .md file"),
+            (
+                "mes notes dans un fichier\u{a0}: celles de lundi",
+                "dans un fichier",
+                "un fichier",
+            ),
+            (
+                "mes notes dans un\u{202f}fichier",
+                "dans un\u{202f}fichier",
+                "un\u{202f}fichier",
+            ),
+            ("my notes into  a file", "into  a file", "a file"),
+        ] {
+            assert_eq!(
+                unnamed_destination(detail),
+                Some((excerpt, phrase)),
+                "{detail:?}"
+            );
+        }
+        // The spacing changes none of the guards: a definite file, quotes, a plural, a dotted
+        // word that names no format, a colon that opens content.
+        for detail in [
+            "les notes dans\u{a0}le fichier",
+            "« mes notes dans\u{a0}un fichier »",
+            "mes notes dans des\u{a0}fichiers",
+            "my notes into a ..md file",
+            "en anglais\u{a0}: mets-le dans un fichier",
+        ] {
+            assert_eq!(unnamed_destination(detail), None, "{detail:?}");
         }
     }
 }

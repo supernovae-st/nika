@@ -155,6 +155,13 @@ execution nor a spending grant:
   string constants into a project-relative path. It performs no I/O; it cannot
   attest filesystem containment or grant access.
 
+Both refuse with the typed `RunShapeError` (`#[non_exhaustive]`, thiserror):
+one variant per refusal condition, among them the route, overflow, unsupported
+tools and actions, and dynamic or unconfined project paths. `Display` is the
+unchanged refusal wording hosts render. It owns no NIKA registry range: it is a
+host-side static observation that never enters the workflow or verb plane (the
+`transport-surface` exemption of the error one-voice gate).
+
 The L4 host owns descriptor-rooted input observations, fresh source/route-bound
 consent and the live monetary account. The provider account meters every actual
 request, including schema re-asks, and refuses exhausted or uncertain authority.

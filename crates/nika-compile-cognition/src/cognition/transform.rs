@@ -195,14 +195,17 @@ fn render_compile<U>(errs: &[(File<&str, ()>, Vec<(&str, U)>)]) -> String {
 
 use super::{AuthoringPolicy, CompileOutcome, DiagnosticKind};
 use crate::plan::{Op, Plan, Step};
+use nika_compile::surface::pending_transform::PendingTransform;
 use nika_kernel::ai::provider::{ContentBlock, Message, ProviderInferDyn, Role, StopReason};
 use serde_json::json;
+mod pending;
+pub(super) use pending::resume;
 
 /// The most transform calls one request may buy: two clauses the typed stages cannot state.
 const MAX_CALLS: usize = 2;
 
 /// The instruction of the transform call: the input shape, the closed rules, the answer.
-const INSTRUCTION: &str = "You write ONE jq program for a workflow compiler. The program receives {records: [...]}: the parsed rows of the source file, JSON objects keyed by the request's own column names exactly as the file spells them (a CSV cell is text). It must return exactly one JSON value: the rows or the result the clause asks for, in the source order unless the request states a sort. Use only the columns the request names; never invent a column, a literal, a default or an ordering; never use env, input, now, halt, any I/O, and never call a model. Return only one JSON object {jq, columns_read, example_input, expected_output}: jq is the program; columns_read lists every column it reads, as the file spells them; example_input is an array of 3 to 5 example records exercising the clause (duplicates, boundary values, the order kept) using those columns; expected_output is exactly what the program returns on example_input.";
+const INSTRUCTION: &str = "You write ONE jq program for a workflow compiler. The program receives {records: [...]}: the parsed rows of the source file, JSON objects keyed by the request's own column names exactly as the file spells them (a CSV cell is text). It must return exactly one JSON value: the rows or the result the clause asks for, in the source order unless the request states a sort. Use only the supplied columns, and honor explicit field_choices when supplied; never invent a column, a literal, a default or an ordering; never use env, input, now, halt, any I/O, and never call a model. Return only one JSON object {jq, columns_read, example_input, expected_output}: jq is the program; columns_read lists every column it reads, as the file spells them; example_input is an array of 3 to 5 example records exercising the clause (duplicates, boundary values, the order kept) using those columns; expected_output is exactly what the program returns on example_input.";
 
 /// The JSON schema of the transform answer.
 fn schema() -> serde_json::Value {
@@ -215,8 +218,7 @@ fn schema() -> serde_json::Value {
 
 /// The compute steps of a plan whose computation no rule states: the typed stages could not
 /// say it and the closed grammar cannot parse it. Each is one transform question.
-fn unstated_computations<'a>(plan: &'a Plan, intent: &str) -> Vec<&'a Step> {
-    let hint = crate::columns::columns_hint(intent);
+fn unstated_computations<'a>(plan: &'a Plan, hint: &[String]) -> Vec<&'a Step> {
     plan.steps
         .iter()
         .filter(|step| step.op == Op::Compute)
@@ -226,7 +228,7 @@ fn unstated_computations<'a>(plan: &'a Plan, intent: &str) -> Vec<&'a Step> {
                 .rules
                 .iter()
                 .any(|r| r.text() == detail || r.text() == step.evidence.trim())
-                && crate::rules::synthesize(detail, &hint).is_none()
+                && crate::rules::synthesize(detail, hint).is_none()
         })
         .collect()
 }
@@ -239,20 +241,24 @@ pub(super) async fn synthesize<P: ProviderInferDyn>(
     plan: &mut Plan,
     policy: &AuthoringPolicy,
     provider: &P,
-    answered: bool,
+    request: &crate::CompileRequest,
     out: &mut CompileOutcome,
-) {
+) -> Option<PendingTransform> {
     // An explicit answer to the rule question wins: nothing is asked of the seat.
-    if answered {
-        return;
+    if request.answers.contains_key("const.rule_expression") {
+        return None;
     }
-    let hint = crate::columns::columns_hint(intent);
-    let pending: Vec<Step> = unstated_computations(plan, intent)
+    let observed = nika_compile::surface::observed::for_intent(request.knowledge.as_ref(), intent);
+    let hint = observed
+        .clone()
+        .unwrap_or_else(|| crate::columns::columns_hint(intent));
+    let pending: Vec<Step> = unstated_computations(plan, &hint)
         .into_iter()
         .take(MAX_CALLS)
         .cloned()
         .collect();
     let mut records = Vec::new();
+    let mut pending_state = None;
     for step in pending {
         let state = json!({
             "request": intent,
@@ -260,27 +266,28 @@ pub(super) async fn synthesize<P: ProviderInferDyn>(
             "computation": step.detail,
             "columns": hint,
         });
-        let messages = vec![
-            Message::text(Role::System, INSTRUCTION),
-            Message::text(Role::User, state.to_string()),
-        ];
-        let response =
-            super::call_with_schema(policy, provider, "transform", messages, schema(), out).await;
-        let verdict = response
-            .ok_or_else(|| Refusal("the seat returned no transform".to_owned()))
-            .and_then(|response| match response.content.as_slice() {
-                [ContentBlock::Text { text }] if response.stop_reason == StopReason::EndTurn => {
-                    Ok(text.clone())
+        let verdict = propose(policy, provider, state, out)
+            .await
+            .and_then(|proposed| {
+                if let Some(columns) = &observed
+                    && let Some(field) = proposed
+                        .columns_read
+                        .iter()
+                        .find(|field| !columns.contains(field))
+                {
+                    let missing: Vec<String> = proposed
+                        .columns_read
+                        .iter()
+                        .filter(|field| !columns.contains(field))
+                        .cloned()
+                        .collect();
+                    pending_state = PendingTransform::new(intent, plan, &step, &missing, request);
+                    return Err(Refusal(format!(
+                        "`{field}` is not among the source's observed fields"
+                    )));
                 }
-                _ => Err(Refusal(
-                    "the seat did not return one complete JSON text".to_owned(),
-                )),
-            })
-            .and_then(|text| {
-                serde_json::from_str::<ProposedTransform>(&text)
-                    .map_err(|e| Refusal(format!("the answer is not a transform: {e}")))
-            })
-            .and_then(|proposed| verify(intent, &hint, &proposed).map(|()| proposed));
+                verify(intent, &hint, &proposed).map(|()| proposed)
+            });
         match verdict {
             Ok(proposed) => {
                 crate::finding(
@@ -312,12 +319,44 @@ pub(super) async fn synthesize<P: ProviderInferDyn>(
                 records.push(json!({"clause": step.evidence, "accepted": false, "why": why}));
             }
         }
+        if pending_state.is_some() {
+            break;
+        }
     }
     if !records.is_empty() {
         let mut decision = out.provenance.decision.take().unwrap_or_else(|| json!({}));
         decision["transforms"] = json!(records);
         out.provenance.decision = Some(decision);
     }
+    pending_state
+}
+
+/// One bounded transform call shared by initial synthesis and field-answer regeneration.
+async fn propose<P: ProviderInferDyn>(
+    policy: &AuthoringPolicy,
+    provider: &P,
+    state: Value,
+    out: &mut CompileOutcome,
+) -> Result<ProposedTransform, Refusal> {
+    let messages = vec![
+        Message::text(Role::System, INSTRUCTION),
+        Message::text(Role::User, state.to_string()),
+    ];
+    super::call_with_schema(policy, provider, "transform", messages, schema(), out)
+        .await
+        .ok_or_else(|| Refusal("the seat returned no transform".to_owned()))
+        .and_then(|response| match response.content.as_slice() {
+            [ContentBlock::Text { text }] if response.stop_reason == StopReason::EndTurn => {
+                Ok(text.clone())
+            }
+            _ => Err(Refusal(
+                "the seat did not return one complete JSON text".to_owned(),
+            )),
+        })
+        .and_then(|text| {
+            serde_json::from_str::<ProposedTransform>(&text)
+                .map_err(|e| Refusal(format!("the answer is not a transform: {e}")))
+        })
 }
 
 /// The laws a proposed program must pass before it is bound: it parses and compiles under

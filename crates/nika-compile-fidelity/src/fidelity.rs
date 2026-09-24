@@ -10,7 +10,7 @@
 //! compile crate's native door and its cold verification both read them here.
 //! Moved from nika-compile to the reader at the 15k prod-LOC wall (2026-09-22), unchanged.
 
-use crate::plan::{EffectPolicy, EffectVerb, Plan};
+use crate::plan::{Effect, EffectPolicy, EffectVerb, Plan};
 use nika_compile_reader::objects;
 use nika_compile_reader::paths::{self, PathShape};
 use serde_json::Value;
@@ -466,25 +466,179 @@ pub fn dropped_effects(plan: &Plan, doc: &Value, out: &mut Vec<Diagnostic>) {
 /// so without this law a candidate that drafts and writes nothing passed. The path is ONE asked
 /// placeholder the answer completes, never an invented path and never a dropped write.
 fn unnamed_writes(plan: &Plan, doc: &Value, out: &mut Vec<Diagnostic>) {
-    let (effects, _) = effect_and_gate_tasks(doc);
-    if effects
+    let (results, copies): (Vec<&Effect>, Vec<&Effect>) = plan
+        .effects
         .iter()
-        .any(|task| tool_of(doc, task) == "nika:write")
-    {
-        return;
-    }
-    for effect in plan.effects.iter().filter(|e| {
-        e.verb == EffectVerb::Write
-            && matches!(e.policy, EffectPolicy::Automatic | EffectPolicy::HumanFirst)
-            && paths::single_file(&e.target).is_none()
-    }) {
+        .filter(|e| {
+            e.verb == EffectVerb::Write
+                && matches!(e.policy, EffectPolicy::Automatic | EffectPolicy::HumanFirst)
+                && paths::single_file(&e.target).is_none()
+        })
+        .partition(|e| asks_produced(plan, e));
+    let (witnesses, produced) = unnamed_witnesses(plan, doc);
+    // A witness that writes a produced result covers a requested result first; the witnesses
+    // left cover the writes the request asks for without a transformation (a copy).
+    let spare = witnesses.saturating_sub(produced.min(results.len()));
+    let unwritten = results
+        .iter()
+        .skip(produced)
+        .map(|e| (e, RESULT_CONTENT))
+        .chain(copies.iter().skip(spare).map(|e| (e, "")));
+    for (effect, owed) in unwritten {
         out.push(Diagnostic {
             kind: "destination",
             message: format!(
-                "UNWRITTEN DESTINATION: the request asks to write into a file it does not name (« {} ») and no `nika:write` task carries it. Write it with `nika:write` to `${{{{ const.output_path }}}}`: declare `output_path: \"\"` under `const:`, ask `const.output_path` in `questions`, and leave `permits.fs.write: [\"\"]` for the answer to complete. Never invent the path, never drop the write.",
+                "UNWRITTEN DESTINATION: the request asks to write into a file it does not name (« {} ») and no `nika:write` task carries it. Write it with `nika:write` to `${{{{ const.output_path }}}}`: declare `output_path: \"\"` under `const:`, ask `const.output_path` in `questions`, and leave `permits.fs.write: [\"\"]` for the answer to complete. Never invent the path, never drop the write.{owed}",
                 effect.evidence.trim()
             ),
         });
+    }
+}
+
+/// What the diagnostic of an unwritten requested result adds to the unnamed-destination one.
+const RESULT_CONTENT: &str = " The request asks for a produced result there: the write's `content` must read it, `${{ tasks.<producer>.output }}` directly or through a `with:` binding the content uses; `after:` only orders and `when:` only guards, neither carries data.";
+
+/// The `nika:write` tasks that can carry writes into unnamed files, one destination each, and
+/// how many of them write a produced result. A witness writes no file the request names and no
+/// file the candidate reads: a write of another destination or back over the source witnesses
+/// nothing.
+fn unnamed_witnesses(plan: &Plan, doc: &Value) -> (usize, usize) {
+    let named: Vec<String> = plan
+        .effects
+        .iter()
+        .filter(|e| e.verb == EffectVerb::Write)
+        .filter_map(|e| paths::single_file(&e.target))
+        .collect();
+    let (effects, _) = effect_and_gate_tasks(doc);
+    let witnesses: Vec<&String> = effects
+        .iter()
+        .filter(|task| {
+            tool_of(doc, task) == "nika:write"
+                && written_path(doc, task).is_none_or(|path| {
+                    !named.iter().any(|name| covers(name, &path)) && !granted(doc, "read", &path)
+                })
+        })
+        .collect();
+    let produced = witnesses
+        .iter()
+        .filter(|task| carries_produced(doc, task))
+        .count();
+    (witnesses.len(), produced)
+}
+
+/// Whether the request asks an unnamed write for a produced result: its words lie in the clause
+/// of a step that transforms material (a draft, an extraction, a classification, a
+/// computation), where the reader's unnamed-destination floor finds them. A copy's write lies in
+/// no such clause, so the source it carries as it is remains its content. The clause says that
+/// a result is owed, not which of several producing tasks owes it.
+fn asks_produced(plan: &Plan, effect: &Effect) -> bool {
+    let evidence = effect.evidence.trim();
+    !evidence.is_empty()
+        && plan.steps.iter().any(|step| {
+            let clause = step.evidence.trim();
+            step.op.carries_constraints()
+                && !clause.is_empty()
+                && (clause.contains(evidence) || evidence.contains(clause))
+        })
+}
+
+/// Whether a write task writes a produced result: its `content` argument reads, as data, the
+/// output of a producing task (an `infer`, an `agent`, a `nika:jq` computation), directly or
+/// through tool tasks (a conversion, a projection) followed by the same data edges. Each task is
+/// followed once, so a cycle reads nothing.
+fn carries_produced(doc: &Value, task: &str) -> bool {
+    let Some(tasks) = doc.get("tasks").and_then(Value::as_object) else {
+        return false;
+    };
+    let Some(write) = tasks.get(task) else {
+        return false;
+    };
+    let mut stack = data_sources(write, write.pointer("/invoke/args/content"));
+    let mut seen: BTreeSet<String> = BTreeSet::new();
+    while let Some(id) = stack.pop() {
+        let Some(node) = tasks.get(&id).filter(|_| seen.insert(id.clone())) else {
+            continue;
+        };
+        if node.get("infer").is_some()
+            || node.get("agent").is_some()
+            || node.pointer("/invoke/tool").and_then(Value::as_str) == Some("nika:jq")
+        {
+            return true;
+        }
+        stack.extend(data_sources(node, node.pointer("/invoke/args")));
+    }
+    false
+}
+
+/// The tasks whose output a value of a task reads as data: a `${{ tasks.<id>.output… }}` the
+/// value writes, or a `${{ with.<alias> }}` it uses whose binding on the same task reads one.
+/// What a task waits for (`after:`) or is guarded by (`when:`) is not data, and a binding the
+/// value never uses carries nothing.
+fn data_sources(node: &Value, value: Option<&Value>) -> Vec<String> {
+    let outputs = |text: &str| -> Vec<String> {
+        reads(text, "tasks.")
+            .filter(|(_, rest)| rest.starts_with(".output"))
+            .map(|(id, _)| id.to_owned())
+            .collect()
+    };
+    let mut texts = Vec::new();
+    strings(value.unwrap_or(&Value::Null), &mut texts);
+    let mut ids = Vec::new();
+    for text in &texts {
+        ids.extend(outputs(text));
+        for (alias, _) in reads(text, "with.") {
+            let mut bound = Vec::new();
+            let binding = node.pointer(&format!("/with/{alias}"));
+            strings(binding.unwrap_or(&Value::Null), &mut bound);
+            for binding in &bound {
+                ids.extend(outputs(binding));
+            }
+        }
+    }
+    ids
+}
+
+/// The `<scope><name>` reads inside the `${{ … }}` expressions of a text, each with what follows
+/// the name. A scope glued to a longer name (`subtasks.`, `x.with.`) is not one.
+fn reads<'a>(text: &'a str, scope: &'a str) -> impl Iterator<Item = (&'a str, &'a str)> {
+    text.split("${{")
+        .skip(1)
+        .filter_map(|chunk| chunk.split_once("}}").map(|(expression, _)| expression))
+        .flat_map(move |expression| {
+            expression.match_indices(scope).filter_map(move |(at, _)| {
+                let glued = expression[..at]
+                    .chars()
+                    .next_back()
+                    .is_some_and(|c| c.is_alphanumeric() || c == '_' || c == '.');
+                let rest = &expression[at + scope.len()..];
+                let end = rest
+                    .find(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+                    .unwrap_or(rest.len());
+                (!glued && end > 0).then_some((&rest[..end], &rest[end..]))
+            })
+        })
+}
+
+/// The literal path a write task writes: its `path` argument, or the `const:` value a bare
+/// `${{ const.<name> }}` argument reads; `None` for any other expression.
+fn written_path(doc: &Value, task: &str) -> Option<String> {
+    let arg = doc
+        .get("tasks")?
+        .get(task)?
+        .pointer("/invoke/args/path")?
+        .as_str()?
+        .trim();
+    match arg
+        .strip_prefix("${{")
+        .and_then(|rest| rest.strip_suffix("}}"))
+        .and_then(|inner| inner.trim().strip_prefix("const."))
+    {
+        Some(name) => doc
+            .get("const")?
+            .get(name.trim())?
+            .as_str()
+            .map(str::to_owned),
+        None => Some(arg.to_owned()),
     }
 }
 
@@ -956,5 +1110,183 @@ mod tests {
             unnamed_writes(&plan, &drafted, &mut out);
             assert!(out.is_empty(), "{:?}: {out:?}", plan.effects);
         }
+    }
+
+    #[test]
+    fn every_unnamed_destination_is_owed_its_own_write_task() {
+        let effect = |target: &str, evidence: &str| {
+            crate::plan::Effect::new(
+                crate::plan::EffectVerb::Write,
+                target,
+                evidence,
+                EffectPolicy::Automatic,
+            )
+        };
+        let mut j02 = Plan::default();
+        j02.effects.push(effect("un fichier", "dans un fichier"));
+        // The assembler's own shape: the drafted text to the asked path.
+        let asked = serde_json::json!({"tasks": {
+            "draft": {"infer": {"prompt": "Résume les notes fournies."}},
+            "write_output": {"with": {"text": "${{ tasks.draft.output }}"}, "invoke": {"tool": "nika:write", "args": {"path": "${{ const.output_path }}", "content": "${{ with.text }}"}}}
+        }});
+        let mut out = Vec::new();
+        unnamed_writes(&j02, &asked, &mut out);
+        assert!(out.is_empty(), "{out:?}");
+        // A write of another (named) destination or back over the source witnesses nothing, and
+        // two unnamed destinations are owed two write tasks.
+        let mut beside = Plan::default();
+        beside.effects.push(effect(
+            "./out/dates.json",
+            "Extrais les dates de ./agenda.md dans ./out/dates.json",
+        ));
+        beside.effects.push(effect("un fichier", "dans un fichier"));
+        let mut two = j02.clone();
+        two.effects
+            .push(effect("un nouveau fichier", "dans un nouveau fichier"));
+        for (plan, doc) in [
+            (
+                &beside,
+                serde_json::json!({"tasks": {
+                    "extract": {"infer": {"prompt": "dates"}},
+                    "draft": {"infer": {"prompt": "résumé"}},
+                    "write_dates": {"with": {"c": "${{ tasks.extract.output }}"}, "invoke": {"tool": "nika:write", "args": {"path": "./out/dates.json", "content": "${{ with.c }}"}}}
+                }}),
+            ),
+            (
+                &j02,
+                serde_json::json!({"permits": {"fs": {"read": ["./notes.md"], "write": ["./notes.md"]}}, "tasks": {
+                    "read": {"invoke": {"tool": "nika:read", "args": {"path": "./notes.md"}}},
+                    "draft": {"with": {"notes": "${{ tasks.read.output }}"}, "infer": {"prompt": "Résume ${{ with.notes }}"}},
+                    "write_back": {"with": {"c": "${{ tasks.draft.output }}"}, "invoke": {"tool": "nika:write", "args": {"path": "./notes.md", "content": "${{ with.c }}"}}}
+                }}),
+            ),
+            (&two, asked.clone()),
+        ] {
+            let mut out = Vec::new();
+            unnamed_writes(plan, &doc, &mut out);
+            assert_eq!(out.len(), 1, "{:?}: {out:?}", plan.effects);
+        }
+    }
+
+    /// The write task of `write_output` with this content argument.
+    fn written(content: &str) -> Value {
+        serde_json::json!({"tool": "nika:write", "args": {"path": "${{ const.output_path }}", "content": content}})
+    }
+
+    /// The unnamed-write diagnostics for « Résume mes notes dans un fichier » (the file lies in
+    /// the draft's clause) over a draft, this write task and any extra tasks.
+    fn requested_result(write_output: &Value, extra: &Value) -> Vec<Diagnostic> {
+        use crate::plan::{Op, Step};
+        let mut plan = Plan::default();
+        plan.steps.push(Step::new(
+            Op::Draft,
+            "Résume mes notes dans un fichier",
+            "mes notes dans un fichier",
+            Vec::new(),
+        ));
+        plan.effects.push(Effect::new(
+            EffectVerb::Write,
+            "un fichier",
+            "dans un fichier",
+            EffectPolicy::Automatic,
+        ));
+        let mut doc = serde_json::json!({"tasks": {
+            "draft": {"infer": {"prompt": "Résume ${{ inputs.item }}"}},
+            "write_output": write_output
+        }});
+        if let (Some(tasks), Some(extra)) = (doc["tasks"].as_object_mut(), extra.as_object()) {
+            tasks.extend(extra.clone());
+        }
+        let mut out = Vec::new();
+        unnamed_writes(&plan, &doc, &mut out);
+        out
+    }
+
+    #[test]
+    fn a_requested_result_is_written_by_content_that_reads_a_produced_output() {
+        // The produced text read directly, through a `with:` binding the content uses, or through
+        // a conversion that reads it the same way.
+        for (task, extra) in [
+            (
+                serde_json::json!({"invoke": written("${{ tasks.draft.output }}")}),
+                serde_json::json!({}),
+            ),
+            (
+                serde_json::json!({"with": {"text": "${{ tasks.draft.output.body }}"}, "invoke": written("Résumé : ${{ with.text }}")}),
+                serde_json::json!({}),
+            ),
+            (
+                serde_json::json!({"with": {"content": "${{ tasks.draft_json.output }}"}, "invoke": written("${{ with.content }}")}),
+                serde_json::json!({"draft_json": {"with": {"data": "${{ tasks.draft.output }}"}, "invoke": {"tool": "nika:convert", "args": {"input": "${{ with.data }}", "from": "json", "to": "yaml"}}}}),
+            ),
+        ] {
+            let out = requested_result(&task, &extra);
+            assert!(out.is_empty(), "{task}: {out:?}");
+        }
+    }
+
+    #[test]
+    fn order_guards_unused_bindings_and_raw_input_are_no_requested_result() {
+        // A literal written after the draft, guarded by it or beside a binding it never uses,
+        // the raw input, and a cycle of tools carry no produced result.
+        for (task, extra) in [
+            (
+                serde_json::json!({"after": {"draft": "success"}, "invoke": written("done")}),
+                serde_json::json!({}),
+            ),
+            (
+                serde_json::json!({"when": "${{ tasks.draft.status == 'success' }}", "invoke": written("done")}),
+                serde_json::json!({}),
+            ),
+            (
+                serde_json::json!({"with": {"text": "${{ tasks.draft.output }}"}, "invoke": written("done")}),
+                serde_json::json!({}),
+            ),
+            (
+                serde_json::json!({"invoke": written("${{ inputs.item }}")}),
+                serde_json::json!({}),
+            ),
+            (
+                serde_json::json!({"with": {"x": "${{ tasks.left.output }}"}, "invoke": written("${{ with.x }}")}),
+                serde_json::json!({
+                    "left": {"with": {"y": "${{ tasks.right.output }}"}, "invoke": {"tool": "nika:convert", "args": {"input": "${{ with.y }}"}}},
+                    "right": {"with": {"y": "${{ tasks.left.output }}"}, "invoke": {"tool": "nika:convert", "args": {"input": "${{ with.y }}"}}}
+                }),
+            ),
+        ] {
+            let out = requested_result(&task, &extra);
+            assert_eq!(out.len(), 1, "{task}: {out:?}");
+            assert!(
+                out[0].message.contains("produced result"),
+                "{}",
+                out[0].message
+            );
+        }
+    }
+
+    #[test]
+    fn a_copy_into_an_unnamed_file_carries_its_source_as_it_is() {
+        use crate::plan::{Op, Step};
+        // A copy asks for no transformation: the source read as it is is the write's content.
+        let mut copy = Plan::default();
+        copy.steps.push(Step::new(
+            Op::Read,
+            "Copie notes.md dans un fichier",
+            "notes.md",
+            Vec::new(),
+        ));
+        copy.effects.push(Effect::new(
+            EffectVerb::Write,
+            "un fichier",
+            "Copie notes.md dans un fichier",
+            EffectPolicy::Automatic,
+        ));
+        let copied = serde_json::json!({"tasks": {
+            "read_source": {"invoke": {"tool": "nika:read", "args": {"path": "notes.md"}}},
+            "write_output": {"with": {"text": "${{ tasks.read_source.output }}"}, "invoke": written("${{ with.text }}")}
+        }});
+        let mut out = Vec::new();
+        unnamed_writes(&copy, &copied, &mut out);
+        assert!(out.is_empty(), "{out:?}");
     }
 }

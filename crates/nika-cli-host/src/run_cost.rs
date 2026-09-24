@@ -122,7 +122,9 @@ pub fn review(
     if !channel.available() {
         return Err("price unknown: this host cannot obtain a fresh one-time choice; use an interactive local `nika run` or a host with explicit cap evidence and confirmation".into());
     }
-    let bound = nika_service_execution::run_cost::request_bound(wf, plan, unknown.len())?;
+    // The host's own review stays a message: the typed reason renders its words.
+    let bound = nika_service_execution::run_cost::request_bound(wf, plan, unknown.len())
+        .map_err(|e| e.to_string())?;
     let files = shape::read_witness(root, wf)?;
     if invocation_default == Some(0.0) {
         return Err("zero invocation ceiling refuses unknown spend before HTTP".into());

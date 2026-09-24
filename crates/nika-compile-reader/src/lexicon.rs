@@ -926,6 +926,18 @@ pub fn read(intent: &str) -> Reading {
             read_policy_or_clause(clause, &mut reading, &mut state);
         }
     }
+    for effect in &mut reading.plan.effects {
+        if effect.verb.moves_money() && effect.policy_literal.is_none() {
+            effect.policy_literal = state.money_sentences.first().cloned();
+        }
+    }
+    settle_tails(&state.tails, &mut reading);
+    record_recurrence(intent, &mut reading);
+    super::hot::destination_floor(intent, &mut reading.plan);
+    // A deferred final approval holds the last automatic effect once the floors have added the
+    // writes the request asks for (« … dans un fichier. Seulement après ma validation. »).
+    // Settled before them it missed those writes and, beside a prohibited effect, vanished
+    // while the floor's write stayed automatic.
     if state.final_gate {
         if let Some(last) = reading
             .plan
@@ -939,14 +951,6 @@ pub fn read(intent: &str) -> Reading {
             reading.plan.unknowns.push(GATE_WITHOUT_EFFECT.to_owned());
         }
     }
-    for effect in &mut reading.plan.effects {
-        if effect.verb.moves_money() && effect.policy_literal.is_none() {
-            effect.policy_literal = state.money_sentences.first().cloned();
-        }
-    }
-    settle_tails(&state.tails, &mut reading);
-    record_recurrence(intent, &mut reading);
-    super::hot::destination_floor(intent, &mut reading.plan);
     literals::collect_bindings(intent, &mut reading.plan);
     reading
 }

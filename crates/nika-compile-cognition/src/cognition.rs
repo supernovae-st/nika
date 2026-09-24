@@ -163,6 +163,16 @@ pub async fn compile_with_cognition<P: ProviderInferDyn>(
     request: &CompileRequest,
     cognition: Cognition<'_, P>,
 ) -> Result<CompileOutcome, CompileError> {
+    let mut out = compile_inner(request, cognition).await?;
+    nika_compile::surface::observed::record(request, &mut out);
+    Ok(out)
+}
+
+#[allow(clippy::too_many_lines)] // the resolution ladder reads top to bottom
+async fn compile_inner<P: ProviderInferDyn>(
+    request: &CompileRequest,
+    cognition: Cognition<'_, P>,
+) -> Result<CompileOutcome, CompileError> {
     let Input::Create(intent) = &request.input else {
         return revise(request, cognition).await;
     };
@@ -202,7 +212,31 @@ pub async fn compile_with_cognition<P: ProviderInferDyn>(
     // An answer round replays the plan its previous round produced: no reading, no seat,
     // no proposal, the same candidate.
     if let Some(record) = &request.plan {
+        if nika_compile::surface::pending_transform::present(record)
+            && request.answers.contains_key("intent.clarification")
+        {
+            nika_compile::surface::pending_transform::invalid(
+                &mut out,
+                "A replacement request invalidates pending transform field choices; compile afresh.",
+            );
+            return Ok(out);
+        }
         replay(&effective_intent, record, &assembly_request, &mut out)?;
+        if record.get("pending_transform").is_some()
+            && let (Some(policy), Some(provider)) = (&request.authoring, cognition.provider)
+        {
+            if !policy_bounded(policy, &effective_intent) {
+                super::finding(
+                    &mut out,
+                    DiagnosticKind::Missed,
+                    "authoring_policy",
+                    POLICY_BOUNDS,
+                );
+                return Ok(out);
+            }
+            return transform::resume(&effective_intent, &assembly_request, policy, provider, out)
+                .await;
+        }
         return Ok(out);
     }
     // The exact grammar keeps its zero-call, fail-closed path when a provider is permitted.
@@ -214,6 +248,12 @@ pub async fn compile_with_cognition<P: ProviderInferDyn>(
     let mut route: Vec<String> = Vec::new();
     record_retrieval(&mut out, &effective_intent, None);
     let mut reading = lexicon::read(&effective_intent);
+    if let Some(columns) = nika_compile::surface::observed::for_intent(
+        assembly_request.knowledge.as_ref(),
+        &effective_intent,
+    ) {
+        reading.columns = columns;
+    }
     backstop(&effective_intent, &mut reading.plan);
     // The deterministic door judges the reading with its stated rules promoted: a rule
     // carries its own constraint, and the words inside it are its literals. The reading
@@ -369,6 +409,14 @@ pub async fn compile_with_cognition<P: ProviderInferDyn>(
         .await?;
         // The private plan is not the language's ceiling: a cold round that ends without a
         // candidate, or hands the human a machine's problem, escalates to a native candidate.
+        if cold
+            .provenance
+            .plan
+            .as_ref()
+            .is_some_and(|record| record.get("pending_transform").is_some())
+        {
+            return Ok(cold);
+        }
         if policy.native == NativeMode::Escalate && native::escalates(&cold) {
             let mut route = route;
             route.push("native: escalated".to_owned());
@@ -850,8 +898,13 @@ async fn sampled<P: ProviderInferDyn>(
         // A computation the typed stages could not state asks the seat for a verified
         // program (treatment B), once, on the plan that will be assembled: the seat's own
         // example is the test, the runtime's jq the judge, the receipt counts the call.
-        let answered = request.answers.contains_key("const.rule_expression");
-        transform::synthesize(intent, &mut plan, policy, provider, answered, &mut out).await;
+        if let Some(mut pending) =
+            transform::synthesize(intent, &mut plan, policy, provider, request, &mut out).await
+        {
+            pending.answer(request, &mut out);
+            pending.suspend(&plan, &mut out);
+            return Ok(out);
+        }
         return settle(Strategy::Cold, &plan, intent, request, out);
     }
     if seat_declined {

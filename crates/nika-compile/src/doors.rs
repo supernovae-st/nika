@@ -143,6 +143,9 @@ pub fn replay(
 ) -> Result<(), CompileError> {
     let folded = lexicon::fold_apostrophes(intent);
     let intent = folded.as_str();
+    if super::pending_transform::replay(intent, record, request, out) {
+        return Ok(());
+    }
     if record.get("strategy").and_then(Value::as_str) == Some(Strategy::Native.word()) {
         native_replay(intent, record, request, out);
         return Ok(());

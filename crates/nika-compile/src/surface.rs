@@ -11,7 +11,17 @@ pub use crate::edit::literal_projection;
 pub use crate::laws::{LINES, SELECT_BY_FIELD};
 pub use crate::ledger::Ledger;
 pub use crate::types::{EditChange, Input};
+
+/// Host-supplied field observations; this module performs no I/O.
+pub mod observed {
+    pub use crate::observed::{columns, field_answer, for_intent, record, world};
+}
 pub use crate::{finding, finish, initial, literal_answer, parse, question};
+
+/// Durable unresolved computation and its exact field-choice context.
+pub mod pending_transform {
+    pub use crate::pending_transform::{PendingTransform, PendingTransformError, invalid, present};
+}
 
 /// A deterministic admission rejection, preserving the original ordered reasons.
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]

@@ -106,3 +106,25 @@ time/weekday, conflicting periods/clocks, mixed periods, monthly/alternate-week
 recurrence and non-divisor intervals retain their words and yield null `cron`.
 This does not claim unrestricted natural-language cadence understanding or add
 another cron parser. `nika-cadence` alone validates/executes the bound expression.
+
+## Observed fields and pending transformations
+
+Source observation distinguishes absent, unreadable, empty, unknown and observed
+material. An observed field choice is grounded in that source; a partial sample
+is not a complete schema. A missing field asks a closed clarification rather than
+silently selecting another key or returning an empty result.
+
+A pending transformation preserves intent, plan and observed source identity,
+field choices and bounded attempt lineage across answer rounds. Record replay
+rejects changed or malformed context as `PendingTransformError`, rendered through
+the existing authoring outcome diagnostic. A verified transform is reusable only
+for the same captured context. This record is neither an executable grant nor
+permission for a new source or Run. If the host supplies no fresh observation,
+replay can validate only its captured source, not assert current filesystem identity.
+
+Each unnamed output keeps a stable path question across rounds. A single unnamed
+output retains `const.output_path`; several use numbered keys in plan order. One
+answer cannot fill two different outputs, and an answered file already assigned
+to another output is refused. Content fidelity checks data edges separately from
+ordering or guard edges; this structural floor is not a general proof of semantic
+correspondence between every producer and every requested result.

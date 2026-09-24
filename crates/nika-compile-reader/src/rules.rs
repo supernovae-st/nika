@@ -23,6 +23,7 @@ use super::rule_cues::{
     RELATIVES, SUMMARY_CORE, SUMMARY_WORDS, UNIT_PHRASES, UNIT_WORDS,
 };
 
+mod fields;
 mod lines;
 pub use lines::{by_construction_tail, line_filter};
 

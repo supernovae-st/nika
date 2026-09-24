@@ -78,7 +78,9 @@ mod laws;
 mod ledger;
 mod materialize;
 mod network;
+mod observed;
 pub(crate) mod pattern;
+mod pending_transform;
 mod realize;
 mod retrieve;
 mod support;
@@ -125,6 +127,22 @@ pub mod surface;
 #[must_use = "the candidate and its authoring questions must be reviewed"]
 pub fn compile(request: &CompileRequest) -> Result<CompileOutcome, CompileError> {
     let mut outcome = initial();
+    if let Some(record) = request
+        .plan
+        .as_ref()
+        .filter(|record| pending_transform::present(record))
+    {
+        if let Input::Create(intent) = &request.input {
+            doors::replay(intent, record, request, &mut outcome)?;
+            observed::record(request, &mut outcome);
+        } else {
+            pending_transform::invalid(
+                &mut outcome,
+                "A revision invalidates pending transform field choices; compile the revised request afresh.",
+            );
+        }
+        return Ok(outcome);
+    }
     if request.workflow_id.is_some() && matches!(request.input, Input::Edit { .. }) {
         outcome.status = CompileStatus::Refused;
         finding(
@@ -151,6 +169,7 @@ pub fn compile(request: &CompileRequest) -> Result<CompileOutcome, CompileError>
         Input::Create(intent) => create(intent, request, &mut outcome)?,
         Input::Edit { source, change } => edit(source, change, request, &mut outcome)?,
     }
+    observed::record(request, &mut outcome);
     Ok(outcome)
 }
 

@@ -327,3 +327,69 @@ async fn a_cold_plan_that_drops_the_write_keeps_the_readers_write_and_its_questi
     );
     assert_eq!(provider.calls.load(Ordering::SeqCst), 1);
 }
+
+/// A requested file is realized, questioned or refused, never dropped into READY.
+/// Typographic spellings preserve the same destination.
+#[test]
+fn a_typographic_spelling_of_the_unnamed_file_is_still_asked() {
+    for intent in [
+        "Résume mes notes dans\u{a0}un fichier.",
+        "Résume mes notes dans un fichier\u{2026}",
+        "Summarize my notes into a .md file.",
+    ] {
+        let first = round(intent, None, &[]);
+        assert!(
+            mandatory(&first, "const.output_path"),
+            "{intent}: {first:#?}"
+        );
+        assert_eq!(planned_writes(&first).len(), 1, "{intent}: {first:#?}");
+        let plan = recorded(&first);
+        let model = round(intent, Some(&plan), &[MODEL]);
+        assert_eq!(keys(&model), ["const.output_path"], "{intent}: {model:#?}");
+        let done = round(intent, Some(&plan), &[MODEL, PATH]);
+        assert_eq!(done.status, CompileStatus::Ready, "{intent}: {done:#?}");
+        assert_eq!(write_tasks(&document(&done)), ["write_output"], "{intent}");
+    }
+}
+
+#[test]
+fn an_unnamed_file_beside_a_named_one_or_stated_twice_is_never_dropped() {
+    for intent in [
+        "Résume ./notes.md dans ./out/resume.md et extrais les dates dans un fichier.",
+        "Résume mes notes dans un fichier. Extrais les dates dans un fichier.",
+        "Summarize my notes into a file. Extract the dates into a file.",
+    ] {
+        let first = round(intent, None, &[]);
+        assert_eq!(planned_writes(&first).len(), 2, "{intent}: {first:#?}");
+        let plan = recorded(&first);
+        // One answered path is not two files: READY needs every file's path.
+        for answers in [&[MODEL][..], &[MODEL, PATH][..]] {
+            let out = round(intent, Some(&plan), answers);
+            assert_ne!(out.status, CompileStatus::Ready, "{intent}: {out:#?}");
+        }
+    }
+}
+
+#[test]
+fn a_stated_approval_holds_the_unnamed_write() {
+    for intent in [
+        "Summarize my notes into a file. Never send anything. Only after my approval.",
+        "Résume mes notes dans un fichier après mon approbation.",
+        "Summarize my notes into a file, but ask me before writing it.",
+    ] {
+        let first = round(intent, None, &[]);
+        assert_eq!(
+            keys(&first),
+            ["model", "const.output_path"],
+            "{intent}: {first:#?}"
+        );
+        let done = round(intent, Some(&recorded(&first)), &[MODEL, PATH]);
+        assert_eq!(done.status, CompileStatus::Ready, "{intent}: {done:#?}");
+        let doc = document(&done);
+        assert_eq!(write_tasks(&doc), ["write_output"], "{intent}: {doc:#}");
+        assert_eq!(
+            doc["tasks"]["write_output"]["when"], "${{ with.approved == true }}",
+            "{intent}: {doc:#}"
+        );
+    }
+}

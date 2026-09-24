@@ -277,6 +277,43 @@ async fn unknown_transport_and_timeout_remain_terminal_on_the_opening_call() {
 }
 
 #[tokio::test]
+async fn a_failed_call_reports_its_cause_without_asking_to_replace_the_request() {
+    // A failed or timed-out call says nothing about the request's validity. Preserve
+    // the provider cause and an incomplete outcome without a clarification demand.
+    for reply in [Reply::Failed, Reply::Pending] {
+        let seat = Seat::new([reply]);
+        let mut bounded = policy(NativeMode::Only, 5);
+        bounded.timeout = Duration::from_millis(20);
+        let request = CompileRequest::create(CASE_A).with_authoring_policy(bounded);
+        let out = Box::pin(compile_with_provider(&request, &seat))
+            .await
+            .unwrap();
+        refused(&out);
+        assert_eq!(seat.calls(), 1);
+        assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
+        assert!(!keys(&out).contains(&"intent.clarification"), "{out:#?}");
+        assert!(
+            out.diagnostics
+                .iter()
+                .any(|d| d.target == "authoring_provider"),
+            "the cause is reported: {out:#?}"
+        );
+        assert_eq!(native_record(&out)["rounds"][0]["call"], "failed");
+    }
+}
+
+#[tokio::test]
+async fn a_completed_answer_that_is_not_an_answer_still_hands_the_request_back() {
+    // Not a provider failure: the call returned and its text was not an answer. With no
+    // repair authorized, the existing honest end stands, clarification included.
+    let seat = Seat::new([reply(r#"{"candidate": !}"#)]);
+    let out = author(&seat, 0).await;
+    refused(&out);
+    assert_eq!(seat.calls(), 1);
+    assert!(keys(&out).contains(&"intent.clarification"), "{out:#?}");
+}
+
+#[tokio::test]
 async fn repaired_json_still_fails_the_original_intent_judge() {
     let unsafe_answer = answer(&candidate_a("./data/payments.csv"), &json!([]));
     let seat = Seat::new([
