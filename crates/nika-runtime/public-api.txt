@@ -489,6 +489,8 @@ impl<T> tracing::instrument::WithSubscriber for nika_runtime::compose::RuntimeCa
 impl<T> typenum::type_operators::Same for nika_runtime::compose::RuntimeCapabilities
 pub type nika_runtime::compose::RuntimeCapabilities::Output = T
 pub struct nika_runtime::compose::StderrEmitter
+impl nika_runtime::compose::StderrEmitter
+pub const fn nika_runtime::compose::StderrEmitter::metadata_only() -> Self
 impl core::clone::Clone for nika_runtime::compose::StderrEmitter
 pub fn nika_runtime::compose::StderrEmitter::clone(&self) -> nika_runtime::compose::StderrEmitter
 impl core::default::Default for nika_runtime::compose::StderrEmitter
@@ -541,6 +543,7 @@ pub fn nika_runtime::compose::fs_boundary_of_permits(permits: core::option::Opti
 pub fn nika_runtime::compose::net_boundary_of(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_http::NetBoundary
 pub fn nika_runtime::compose::net_boundary_of_permits(permits: core::option::Option<&nika_cap::permits::Permits>) -> nika_http::NetBoundary
 pub fn nika_runtime::compose::production_runtime(default_model: &str, caps: nika_runtime::compose::RuntimeCapabilities, run: core::option::Option<&nika_vocab::run::RunDecl>) -> core::result::Result<nika_runtime::compose::ProdRuntime, nika_runtime_laws::sandbox_select::ComposeError>
+pub fn nika_runtime::compose::production_runtime_with_emitter(default_model: &str, caps: nika_runtime::compose::RuntimeCapabilities, run: core::option::Option<&nika_vocab::run::RunDecl>, emitter: nika_runtime::compose::StderrEmitter, sandbox_root: std::path::PathBuf, host_config: core::option::Option<nika_runtime::config::RuntimeConfig>) -> core::result::Result<nika_runtime::compose::ProdRuntime, nika_runtime_laws::sandbox_select::ComposeError>
 pub fn nika_runtime::compose::provider_http() -> core::result::Result<nika_http::ReqwestHttp, nika_kernel_core::io::http::HttpError>
 pub fn nika_runtime::compose::service_runtime(default_model: &str, caps: nika_runtime::compose::RuntimeCapabilities, run: core::option::Option<&nika_vocab::run::RunDecl>, sandbox_root: std::path::PathBuf) -> core::result::Result<nika_runtime::compose::ProdRuntime, nika_runtime_laws::sandbox_select::ComposeError>
 pub fn nika_runtime::compose::simulated_runtime(default_model: &str, caps: nika_runtime::compose::RuntimeCapabilities, run: core::option::Option<&nika_vocab::run::RunDecl>) -> core::result::Result<nika_runtime::compose::SimRuntime, nika_kernel_core::io::http::HttpError>
@@ -549,6 +552,7 @@ pub type nika_runtime::compose::SimRuntime = nika_runtime::Runtime<nika_runtime:
 pub mod nika_runtime::config
 #[non_exhaustive] pub struct nika_runtime::config::RuntimeConfig
 pub nika_runtime::config::RuntimeConfig::approval_operator: core::option::Option<alloc::string::String>
+pub nika_runtime::config::RuntimeConfig::inference_admission: core::option::Option<nika_providers::admission::InferenceAdmission>
 pub nika_runtime::config::RuntimeConfig::jitter_seed: u64
 pub nika_runtime::config::RuntimeConfig::max_cost_usd: core::option::Option<f64>
 pub nika_runtime::config::RuntimeConfig::project_root_fingerprint: core::option::Option<alloc::string::String>
@@ -560,6 +564,7 @@ pub nika_runtime::config::RuntimeConfig::wave_parallelism: core::option::Option<
 impl nika_runtime::config::RuntimeConfig
 pub fn nika_runtime::config::RuntimeConfig::new(wave_parallelism: core::option::Option<core::num::nonzero::NonZeroUsize>, jitter_seed: u64) -> Self
 pub fn nika_runtime::config::RuntimeConfig::with_approval_operator(self, operator: alloc::string::String) -> Self
+pub fn nika_runtime::config::RuntimeConfig::with_inference_admission(self, account: &nika_providers::admission::InferenceAdmission, candidate: &str, invocation: &str) -> core::result::Result<Self, nika_kernel_ai::provider::ProviderError>
 pub fn nika_runtime::config::RuntimeConfig::with_max_cost_usd(self, budget: core::option::Option<f64>) -> Self
 pub fn nika_runtime::config::RuntimeConfig::with_project_root(self, root: &std::path::Path) -> Self
 pub fn nika_runtime::config::RuntimeConfig::with_sandbox_backend(self, backend: &str) -> Self
@@ -607,6 +612,13 @@ impl<T> tracing::instrument::WithSubscriber for nika_runtime::config::RuntimeCon
 impl<T> typenum::type_operators::Same for nika_runtime::config::RuntimeConfig
 pub type nika_runtime::config::RuntimeConfig::Output = T
 pub fn nika_runtime::config::project_root_fingerprint(root: &std::path::Path) -> core::option::Option<alloc::string::String>
+pub mod nika_runtime::cost_choice
+pub use nika_runtime::cost_choice::CapEvidence
+pub use nika_runtime::cost_choice::CostHostEvidence
+pub use nika_runtime::cost_choice::CostReview
+pub use nika_runtime::cost_choice::CostRoute
+pub use nika_runtime::cost_choice::monetary_default
+pub use nika_runtime::cost_choice::native_catalog_price_known
 pub mod nika_runtime::proof
 pub use nika_runtime::proof::FORMAT_VERSION
 pub use nika_runtime::proof::HashDomain
@@ -1074,6 +1086,7 @@ impl<T> typenum::type_operators::Same for nika_runtime::compose::RuntimeCapabili
 pub type nika_runtime::compose::RuntimeCapabilities::Output = T
 #[non_exhaustive] pub struct nika_runtime::RuntimeConfig
 pub nika_runtime::RuntimeConfig::approval_operator: core::option::Option<alloc::string::String>
+pub nika_runtime::RuntimeConfig::inference_admission: core::option::Option<nika_providers::admission::InferenceAdmission>
 pub nika_runtime::RuntimeConfig::jitter_seed: u64
 pub nika_runtime::RuntimeConfig::max_cost_usd: core::option::Option<f64>
 pub nika_runtime::RuntimeConfig::project_root_fingerprint: core::option::Option<alloc::string::String>
@@ -1085,6 +1098,7 @@ pub nika_runtime::RuntimeConfig::wave_parallelism: core::option::Option<core::nu
 impl nika_runtime::config::RuntimeConfig
 pub fn nika_runtime::config::RuntimeConfig::new(wave_parallelism: core::option::Option<core::num::nonzero::NonZeroUsize>, jitter_seed: u64) -> Self
 pub fn nika_runtime::config::RuntimeConfig::with_approval_operator(self, operator: alloc::string::String) -> Self
+pub fn nika_runtime::config::RuntimeConfig::with_inference_admission(self, account: &nika_providers::admission::InferenceAdmission, candidate: &str, invocation: &str) -> core::result::Result<Self, nika_kernel_ai::provider::ProviderError>
 pub fn nika_runtime::config::RuntimeConfig::with_max_cost_usd(self, budget: core::option::Option<f64>) -> Self
 pub fn nika_runtime::config::RuntimeConfig::with_project_root(self, root: &std::path::Path) -> Self
 pub fn nika_runtime::config::RuntimeConfig::with_sandbox_backend(self, backend: &str) -> Self

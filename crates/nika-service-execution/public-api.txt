@@ -225,6 +225,7 @@ pub type nika_service_execution::ServiceEvent::Output = T
 #[non_exhaustive] pub struct nika_service_execution::ServiceExecutionDriver
 impl nika_service_execution::ServiceExecutionDriver
 pub fn nika_service_execution::ServiceExecutionDriver::compose(&self, default_model: &str) -> core::result::Result<nika_service_execution::AuthorizedRuntime, nika_runtime_laws::sandbox_select::ComposeError>
+pub fn nika_service_execution::ServiceExecutionDriver::compose_with_config(&self, default_model: &str, config: nika_runtime::config::RuntimeConfig) -> core::result::Result<nika_service_execution::AuthorizedRuntime, nika_runtime_laws::sandbox_select::ComposeError>
 pub async fn nika_service_execution::ServiceExecutionDriver::execute(&self, options: nika_service_execution::ServiceExecutionOptions) -> core::result::Result<nika_service_execution::ServiceExecutionResult, nika_runtime_laws::sandbox_select::ComposeError>
 pub const fn nika_service_execution::ServiceExecutionDriver::execution_id(&self) -> nika_types::id::ExecutionId
 pub fn nika_service_execution::ServiceExecutionDriver::for_local_interface(context: nika_execution::service::ExecutionContext<'_>, display_root: impl core::convert::Into<std::path::PathBuf>) -> core::option::Option<Self>

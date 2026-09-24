@@ -1,4 +1,35 @@
 pub mod nika_harness
+pub mod nika_harness::authoring
+#[non_exhaustive] pub struct nika_harness::authoring::HarnessAuthoring
+impl nika_harness::authoring::HarnessAuthoring
+pub fn nika_harness::authoring::HarnessAuthoring::descriptor(&self) -> core::result::Result<serde_json::value::Value, alloc::string::String>
+pub fn nika_harness::authoring::HarnessAuthoring::meet(adapter: &str, model: core::option::Option<&str>) -> core::result::Result<Self, alloc::string::String>
+impl core::fmt::Debug for nika_harness::authoring::HarnessAuthoring
+pub fn nika_harness::authoring::HarnessAuthoring::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl nika_kernel_ai::provider::ProviderInferDyn for nika_harness::authoring::HarnessAuthoring
+pub async fn nika_harness::authoring::HarnessAuthoring::infer(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<nika_kernel_ai::provider::InferResponse, nika_kernel_ai::provider::ProviderError>
+impl<D> owo_colors::OwoColorize for nika_harness::authoring::HarnessAuthoring
+impl<T, U> core::convert::Into<U> for nika_harness::authoring::HarnessAuthoring where U: core::convert::From<T>
+pub fn nika_harness::authoring::HarnessAuthoring::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::authoring::HarnessAuthoring where U: core::convert::Into<T>
+pub type nika_harness::authoring::HarnessAuthoring::Error = core::convert::Infallible
+pub fn nika_harness::authoring::HarnessAuthoring::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::authoring::HarnessAuthoring where U: core::convert::TryFrom<T>
+pub type nika_harness::authoring::HarnessAuthoring::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::authoring::HarnessAuthoring::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_harness::authoring::HarnessAuthoring where T: 'static + ?core::marker::Sized
+pub fn nika_harness::authoring::HarnessAuthoring::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::authoring::HarnessAuthoring where T: ?core::marker::Sized
+pub fn nika_harness::authoring::HarnessAuthoring::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::authoring::HarnessAuthoring where T: ?core::marker::Sized
+pub fn nika_harness::authoring::HarnessAuthoring::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_harness::authoring::HarnessAuthoring
+pub fn nika_harness::authoring::HarnessAuthoring::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::authoring::HarnessAuthoring where T: 'static
+pub fn nika_harness::authoring::HarnessAuthoring::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<TraitVariantBlanketType> nika_kernel_ai::provider::ProviderInfer for nika_harness::authoring::HarnessAuthoring where TraitVariantBlanketType: nika_kernel_ai::provider::ProviderInferDyn
+pub async fn nika_harness::authoring::HarnessAuthoring::infer(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<nika_kernel_ai::provider::InferResponse, nika_kernel_ai::provider::ProviderError>
+pub fn nika_harness::authoring::model_argument(adapter: &str, model: core::option::Option<&str>) -> core::result::Result<alloc::string::String, alloc::string::String>
 pub mod nika_harness::client
 pub const nika_harness::client::IDLE_TIMEOUT_SECS: u64
 pub const nika_harness::client::MAX_LINE_BYTES: usize

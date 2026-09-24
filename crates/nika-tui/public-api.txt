@@ -409,6 +409,7 @@ impl<T> typenum::type_operators::Same for nika_tui::events::UiEvent
 pub type nika_tui::events::UiEvent::Output = T
 pub struct nika_tui::events::Broker
 impl nika_tui::events::Broker
+pub fn nika_tui::events::Broker::discard_typeahead(&mut self) -> core::io::error::Result<alloc::vec::Vec<nika_tui::events::UiEvent>>
 pub fn nika_tui::events::Broker::pause(&self)
 pub fn nika_tui::events::Broker::recv(&mut self) -> core::option::Option<nika_tui::events::UiEvent>
 pub fn nika_tui::events::Broker::resume(&self)
@@ -798,7 +799,9 @@ pub fn nika_tui::model::Script::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> 
 impl core::marker::StructuralPartialEq for nika_tui::model::Script
 impl nika_tui::model::Conversation for nika_tui::model::Script
 pub fn nika_tui::model::Script::busy_label(&self, _line: &str) -> core::option::Option<alloc::string::String>
+pub fn nika_tui::model::Script::cancel_pending(&mut self) -> alloc::vec::Vec<nika_tui::model::Beat>
 pub fn nika_tui::model::Script::commands(&self) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_tui::model::Script::fresh_input_required(&self) -> bool
 pub fn nika_tui::model::Script::open(&mut self) -> alloc::vec::Vec<nika_tui::model::Beat>
 pub fn nika_tui::model::Script::perform(&mut self, _handoff: &nika_tui::model::Handoff) -> alloc::vec::Vec<nika_tui::model::Beat>
 pub fn nika_tui::model::Script::submit(&mut self, line: &str) -> nika_tui::model::Turn
@@ -960,21 +963,27 @@ impl<T> typenum::type_operators::Same for nika_tui::model::UiState
 pub type nika_tui::model::UiState::Output = T
 pub trait nika_tui::model::Conversation: core::marker::Send
 pub fn nika_tui::model::Conversation::busy_label(&self, _line: &str) -> core::option::Option<alloc::string::String>
+pub fn nika_tui::model::Conversation::cancel_pending(&mut self) -> alloc::vec::Vec<nika_tui::model::Beat>
 pub fn nika_tui::model::Conversation::commands(&self) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_tui::model::Conversation::fresh_input_required(&self) -> bool
 pub fn nika_tui::model::Conversation::open(&mut self) -> alloc::vec::Vec<nika_tui::model::Beat>
 pub fn nika_tui::model::Conversation::perform(&mut self, handoff: &nika_tui::model::Handoff) -> alloc::vec::Vec<nika_tui::model::Beat>
 pub fn nika_tui::model::Conversation::submit(&mut self, line: &str) -> nika_tui::model::Turn
 pub fn nika_tui::model::Conversation::submit_with(&mut self, line: &str, busy: &std::sync::mpsc::Sender<alloc::string::String>) -> nika_tui::model::Turn
 impl nika_tui::model::Conversation for nika_tui::model::Script
 pub fn nika_tui::model::Script::busy_label(&self, _line: &str) -> core::option::Option<alloc::string::String>
+pub fn nika_tui::model::Script::cancel_pending(&mut self) -> alloc::vec::Vec<nika_tui::model::Beat>
 pub fn nika_tui::model::Script::commands(&self) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_tui::model::Script::fresh_input_required(&self) -> bool
 pub fn nika_tui::model::Script::open(&mut self) -> alloc::vec::Vec<nika_tui::model::Beat>
 pub fn nika_tui::model::Script::perform(&mut self, _handoff: &nika_tui::model::Handoff) -> alloc::vec::Vec<nika_tui::model::Beat>
 pub fn nika_tui::model::Script::submit(&mut self, line: &str) -> nika_tui::model::Turn
 pub fn nika_tui::model::Script::submit_with(&mut self, line: &str, busy: &std::sync::mpsc::Sender<alloc::string::String>) -> nika_tui::model::Turn
 impl nika_tui::model::Conversation for nika_tui::session::Live
 pub fn nika_tui::session::Live::busy_label(&self, line: &str) -> core::option::Option<alloc::string::String>
+pub fn nika_tui::session::Live::cancel_pending(&mut self) -> alloc::vec::Vec<nika_tui::model::Beat>
 pub fn nika_tui::session::Live::commands(&self) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_tui::session::Live::fresh_input_required(&self) -> bool
 pub fn nika_tui::session::Live::open(&mut self) -> alloc::vec::Vec<nika_tui::model::Beat>
 pub fn nika_tui::session::Live::perform(&mut self, handoff: &nika_tui::model::Handoff) -> alloc::vec::Vec<nika_tui::model::Beat>
 pub fn nika_tui::session::Live::submit(&mut self, line: &str) -> nika_tui::model::Turn
@@ -1036,11 +1045,15 @@ pub type nika_tui::session::Work::Output = T
 pub struct nika_tui::session::Live
 impl nika_tui::session::Live
 pub fn nika_tui::session::Live::new(cwd: std::path::PathBuf, census: nika_session::intelligence::IntelligenceCensus, kept: core::option::Option<nika_session::intelligence::UserIntelligencePreference>, home: core::option::Option<std::path::PathBuf>, factory: nika_session::runtime::ReasonerFactory, runners: nika_tui::session::Runners) -> Self
+pub fn nika_tui::session::Live::with_cost_host_evidence(self, evidence: nika_providers::admission::review::CostHostEvidence) -> Self
+pub fn nika_tui::session::Live::with_run_review(self, runner: nika_tui::session::RunReviewed) -> Self
 impl core::fmt::Debug for nika_tui::session::Live
 pub fn nika_tui::session::Live::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl nika_tui::model::Conversation for nika_tui::session::Live
 pub fn nika_tui::session::Live::busy_label(&self, line: &str) -> core::option::Option<alloc::string::String>
+pub fn nika_tui::session::Live::cancel_pending(&mut self) -> alloc::vec::Vec<nika_tui::model::Beat>
 pub fn nika_tui::session::Live::commands(&self) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_tui::session::Live::fresh_input_required(&self) -> bool
 pub fn nika_tui::session::Live::open(&mut self) -> alloc::vec::Vec<nika_tui::model::Beat>
 pub fn nika_tui::session::Live::perform(&mut self, handoff: &nika_tui::model::Handoff) -> alloc::vec::Vec<nika_tui::model::Beat>
 pub fn nika_tui::session::Live::submit(&mut self, line: &str) -> nika_tui::model::Turn
@@ -1108,6 +1121,7 @@ pub type nika_tui::session::Runners::Output = T
 pub type nika_tui::session::RunOnce = alloc::boxed::Box<(dyn core::ops::function::Fn(&std::path::Path, &nika_session::change::RunRequest) -> nika_tui::session::RunOutcome + core::marker::Send)>
 pub type nika_tui::session::RunOutcome = (u8, core::option::Option<std::path::PathBuf>)
 pub type nika_tui::session::RunResume = alloc::boxed::Box<(dyn core::ops::function::Fn(&std::path::Path, &std::path::Path, &std::path::Path, &str) -> nika_tui::session::RunOutcome + core::marker::Send)>
+pub type nika_tui::session::RunReviewed = alloc::boxed::Box<(dyn core::ops::function::Fn(&std::path::Path, &nika_session::change::RunRequest, &std::sync::mpsc::Sender<alloc::string::String>) -> nika_cli_host::lane::review::RunProgress + core::marker::Send)>
 pub type nika_tui::session::RunTapped = alloc::boxed::Box<(dyn core::ops::function::Fn(&std::path::Path, &nika_tui::session::Work, &std::sync::mpsc::Sender<alloc::string::String>) -> (u8, core::option::Option<std::path::PathBuf>, alloc::vec::Vec<alloc::string::String>) + core::marker::Send)>
 pub mod nika_tui::terminal
 #[non_exhaustive] pub enum nika_tui::terminal::NotATerminal

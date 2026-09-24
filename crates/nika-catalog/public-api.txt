@@ -2,19 +2,24 @@ pub mod nika_catalog
 pub mod nika_catalog::admission
 #[non_exhaustive] pub struct nika_catalog::admission::InferenceTariff
 pub nika_catalog::admission::InferenceTariff::as_of: &'static str
+pub nika_catalog::admission::InferenceTariff::billing_provider: &'static str
 pub nika_catalog::admission::InferenceTariff::context_tokens: u64
+pub nika_catalog::admission::InferenceTariff::currency: &'static str
 pub nika_catalog::admission::InferenceTariff::endpoints: &'static [&'static str]
 pub nika_catalog::admission::InferenceTariff::limits_sha256: &'static str
 pub nika_catalog::admission::InferenceTariff::limits_source: &'static str
 pub nika_catalog::admission::InferenceTariff::max_output_tokens: u32
 pub nika_catalog::admission::InferenceTariff::model: &'static str
+pub nika_catalog::admission::InferenceTariff::output_token_param: &'static str
 pub nika_catalog::admission::InferenceTariff::provider: &'static str
+pub nika_catalog::admission::InferenceTariff::route_source: &'static str
 pub nika_catalog::admission::InferenceTariff::source: &'static str
 pub nika_catalog::admission::InferenceTariff::source_sha256: &'static str
 impl nika_catalog::admission::InferenceTariff
 pub fn nika_catalog::admission::InferenceTariff::deepseek(model: &str) -> core::option::Option<Self>
 pub fn nika_catalog::admission::InferenceTariff::new(provider: &str, model: &str, endpoint: &str) -> core::option::Option<Self>
 pub fn nika_catalog::admission::InferenceTariff::price(self, input: u64, output: u64, cached: u64) -> core::option::Option<nika_types::cost::Cost>
+pub fn nika_catalog::admission::InferenceTariff::price_native(self, input: u64, output: u64, cached: u64) -> core::option::Option<i128>
 pub fn nika_catalog::admission::InferenceTariff::reserve(self, output: u32) -> core::option::Option<nika_types::cost::Cost>
 impl core::clone::Clone for nika_catalog::admission::InferenceTariff
 pub fn nika_catalog::admission::InferenceTariff::clone(&self) -> nika_catalog::admission::InferenceTariff
@@ -50,6 +55,7 @@ impl<T> core::convert::From<T> for nika_catalog::admission::InferenceTariff
 pub fn nika_catalog::admission::InferenceTariff::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_catalog::admission::InferenceTariff where T: 'static
 pub fn nika_catalog::admission::InferenceTariff::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub fn nika_catalog::admission::tariffs() -> impl core::iter::traits::iterator::Iterator<Item = &'static nika_catalog::admission::InferenceTariff>
 pub mod nika_catalog::builtin
 #[non_exhaustive] pub enum nika_catalog::builtin::BuiltinCategory
 pub nika_catalog::builtin::BuiltinCategory::Core

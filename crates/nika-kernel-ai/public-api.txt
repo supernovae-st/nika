@@ -1129,13 +1129,20 @@ pub nika_kernel_ai::provider::ProviderError::HttpResponse
 pub nika_kernel_ai::provider::ProviderError::HttpResponse::details: nika_kernel_ai::provider::ProviderHttpError
 pub nika_kernel_ai::provider::ProviderError::ModelNotFound
 pub nika_kernel_ai::provider::ProviderError::ModelNotFound::model: alloc::string::String
+pub nika_kernel_ai::provider::ProviderError::Observed
+pub nika_kernel_ai::provider::ProviderError::Observed::calls: alloc::vec::Vec<nika_types::cost::inference::InferenceCall>
+pub nika_kernel_ai::provider::ProviderError::Observed::source: alloc::boxed::Box<nika_kernel_ai::provider::ProviderError>
 pub nika_kernel_ai::provider::ProviderError::Other
 pub nika_kernel_ai::provider::ProviderError::Other::reason: alloc::string::String
 pub nika_kernel_ai::provider::ProviderError::RateLimited
 pub nika_kernel_ai::provider::ProviderError::RateLimited::retry_after_ms: core::option::Option<u64>
 impl nika_kernel_ai::provider::ProviderError
+pub fn nika_kernel_ai::provider::ProviderError::inference_calls(&self) -> &[nika_types::cost::inference::InferenceCall]
 pub fn nika_kernel_ai::provider::ProviderError::is_transient(&self) -> bool
+pub fn nika_kernel_ai::provider::ProviderError::unobserved(&self) -> &Self
+pub fn nika_kernel_ai::provider::ProviderError::with_inference_calls(self, calls: alloc::vec::Vec<nika_types::cost::inference::InferenceCall>) -> Self
 impl core::error::Error for nika_kernel_ai::provider::ProviderError
+pub fn nika_kernel_ai::provider::ProviderError::source(&self) -> core::option::Option<&(dyn core::error::Error + 'static)>
 impl core::fmt::Debug for nika_kernel_ai::provider::ProviderError
 pub fn nika_kernel_ai::provider::ProviderError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::fmt::Display for nika_kernel_ai::provider::ProviderError
@@ -1394,6 +1401,7 @@ pub nika_kernel_ai::provider::InferResponse::content: alloc::vec::Vec<nika_kerne
 pub nika_kernel_ai::provider::InferResponse::cost: core::option::Option<nika_types::cost::Cost>
 pub nika_kernel_ai::provider::InferResponse::finish_reason_raw: core::option::Option<alloc::string::String>
 pub nika_kernel_ai::provider::InferResponse::gen_ai: nika_kernel_ai::genai::GenAiAttrs
+pub nika_kernel_ai::provider::InferResponse::inference_calls: alloc::vec::Vec<nika_types::cost::inference::InferenceCall>
 pub nika_kernel_ai::provider::InferResponse::memory_frames: alloc::vec::Vec<nika_types::memory::MemoryFrameRef>
 pub nika_kernel_ai::provider::InferResponse::request_id: core::option::Option<alloc::string::String>
 pub nika_kernel_ai::provider::InferResponse::span_id: core::option::Option<nika_types::id::SpanId>
@@ -1405,6 +1413,7 @@ pub nika_kernel_ai::provider::InferResponse::usage: nika_types::token_usage::Tok
 pub nika_kernel_ai::provider::InferResponse::usage_completeness: nika_kernel_ai::provider::UsageCompleteness
 pub nika_kernel_ai::provider::InferResponse::usage_reported: bool
 impl nika_kernel_ai::provider::InferResponse
+pub fn nika_kernel_ai::provider::InferResponse::cost_observations(&self) -> alloc::vec::Vec<nika_types::cost::inference::InferenceCall>
 pub fn nika_kernel_ai::provider::InferResponse::new(content: alloc::vec::Vec<nika_kernel_ai::provider::ContentBlock>, usage: nika_types::token_usage::TokenUsage, stop_reason: nika_kernel_ai::provider::StopReason) -> Self
 pub fn nika_kernel_ai::provider::InferResponse::with_usage_reported(self, reported: bool) -> Self
 impl core::clone::Clone for nika_kernel_ai::provider::InferResponse
