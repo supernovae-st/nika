@@ -71,7 +71,7 @@ output_modalities        = ["text"]
 supported_parameters     = []
 supports_system_messages = true
 
-# ─── 49 rules — ordered, FIRST MATCH WINS ───────────────────────────────────
+# ─── Ordered rules, FIRST MATCH WINS ───────────────────────────────────────
 
 # [1] OpenAI reasoning series — exact names (o1, o3, o4). Vision YES (o1+o3
 #     confirmed; o4 confirmed April 2025). System role silently reclassified
@@ -195,6 +195,18 @@ name  = "deepseek-reasoner"
 scope = { providers = ["deepseek"] }
 match = { kind = "exact", model = "deepseek-reasoner" }
 caps  = { supports_temperature = false, reasoning = true, tokenizer = "deepseek", input_modalities = ["text"], output_modalities = ["text"], supported_parameters = [], json_mode = "object" }
+
+# DeepSeek's current exact API names enable thinking by default. The output
+# cap includes reasoning; treating them as plain chat can consume the entire
+# draft budget before a structured answer is emitted. Do not infer aliases or
+# gateway capabilities from these names. Observed 2026-09-24:
+# https://api-docs.deepseek.com/api/create-chat-completion/
+# https://api-docs.deepseek.com/guides/thinking_mode/
+[[rules]]
+name  = "deepseek-current-thinking"
+scope = { providers = ["deepseek"] }
+match = { kind = "exact_any", models = ["deepseek-v4-pro", "deepseek-flash"] }
+caps  = { supports_temperature = false, reasoning = true, tokenizer = "deepseek", input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["reasoning-effort"], json_mode = "object" }
 
 # [12] Any other DeepSeek model — loses vision (API limitation).
 #      ⚠ NO StructuredOutputNative (same json_object-only constraint).

@@ -6,6 +6,10 @@
 //! Capabilities use pattern-matching (NOT phf) — model names are open-ended.
 //! Pricing uses 2-pass matching: exact match first, then `contains()` fallback.
 
+#[cfg(all(test, feature = "capabilities"))]
+#[path = "models/deepseek_capabilities_tests.rs"]
+mod deepseek_capabilities_tests;
+
 #[cfg(feature = "capabilities")]
 use crate::types::model::ModelCapabilities;
 #[cfg(feature = "pricing")]
