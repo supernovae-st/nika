@@ -1,0 +1,1 @@
+Session gives catalog-known reasoning models a finite 4,096-token label allowance, preserving monetary admission and explicit infer limits without retries or provider fallback. Ordinary and unknown models retain 1,024 tokens.

@@ -138,7 +138,7 @@ fn fresh_classifier_conversation_and_compiler_do_not_reset_exposure() {
     let r = s.inference_receipt().unwrap().unwrap();
     assert_eq!(r.attempts.len(), 3);
     assert_eq!(peer.bodies().len(), 3);
-    assert_eq!(peer.bodies()[0]["max_tokens"], 1024);
+    assert_eq!(peer.bodies()[0]["max_tokens"], 4096);
     assert_eq!(peer.bodies()[1]["max_tokens"], 8192);
     s.admit_money("budget 2 USD", true).unwrap();
     assert_eq!(

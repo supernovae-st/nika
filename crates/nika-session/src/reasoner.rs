@@ -9,6 +9,8 @@
 //! exactly what it was given), or none.
 
 #[cfg(test)]
+mod label_tests;
+#[cfg(test)]
 pub(crate) mod test_transport;
 #[cfg(test)]
 pub(crate) type ProviderHttp = test_transport::Client;
@@ -279,7 +281,7 @@ impl SessionReasoner for ProviderReasoner {
         prompt: &str,
         account: &nika_providers::InferenceAdmission,
     ) -> Result<Reply, ReasonError> {
-        self.infer(prompt, Some(LABEL_CEILING_TOKENS), Some(account))
+        self.infer(prompt, Some(self.label_ceiling()), Some(account))
     }
 
     fn name(&self) -> String {
@@ -295,17 +297,32 @@ impl SessionReasoner for ProviderReasoner {
     }
 
     fn reason_label(&mut self, prompt: &str) -> Result<Reply, ReasonError> {
-        self.infer(prompt, Some(LABEL_CEILING_TOKENS), None)
+        self.infer(prompt, Some(self.label_ceiling()), None)
     }
 }
 
-/// The output ceiling of a label call: one word is the answer, and a
-/// thinking model spends its reasoning inside the same budget (measured
-/// 2026-09-22 on deepseek-v4-pro: 113 to 1133 tokens of reasoning for
-/// one label; a blank answer under the ceiling is a FAILED route, said).
+/// Ordinary labels retain their existing finite ceiling.
 const LABEL_CEILING_TOKENS: u32 = 1024;
+/// Catalog-known reasoning shares output tokens with the visible label.
+/// This finite first-call ceiling matches the compiler's reasoning draft
+/// floor; it does not guarantee an answer and never triggers a larger retry.
+const REASONING_LABEL_CEILING_TOKENS: u32 = 4096;
 
 impl ProviderReasoner {
+    /// Select the label default only; caller-supplied infer limits stay intact.
+    fn label_ceiling(&self) -> u32 {
+        let reasoning = self.model.split_once('/').is_some_and(|(provider, model)| {
+            // The mock catalog row claims every capability for fixtures.
+            !provider.eq_ignore_ascii_case("mock")
+                && nika_catalog::model_capabilities(provider, model).reasoning
+        });
+        if reasoning {
+            REASONING_LABEL_CEILING_TOKENS
+        } else {
+            LABEL_CEILING_TOKENS
+        }
+    }
+
     /// The one-shot infer verb over the provider registry; a label call
     /// carries its ceiling and a zero temperature.
     fn infer(

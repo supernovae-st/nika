@@ -93,6 +93,18 @@ consumer evidence and proposal identity remain real. These fixtures are not
 live subscription qualification; real Codex/Claude execution must be reported
 separately with its source and executable identities.
 
+## Bounded label calls
+
+Provider-backed label calls keep a finite first-call output ceiling: 1,024 tokens
+for ordinary or catalog-unknown models, 4,096 for catalog-known reasoning models
+whose reasoning shares that output allowance. The mock provider keeps the
+ordinary ceiling. The selected provider and model remain unchanged; caller-set
+infer limits keep their meaning. No blank or truncated label triggers a retry
+with a larger ceiling. Existing monetary admission must cover the selected
+ceiling before transport; a failed or empty answer remains a failed reading,
+not a fallback classification. Hermetic wire tests prove these limits and
+zero-call monetary refusals; they do not establish real-model routing quality.
+
 ## Monetary admission
 
 Session reads explicit monetary intent before the compiler, classifier or
