@@ -136,3 +136,10 @@ the complete native task graph. A typed rule for the whole detail retains its
 deterministic path, as does a single-output pipeline whose parsed rule retains
 every recorded typed stage. This structural boundary does not prove arbitrary
 model-generated computations semantically correct.
+
+The lexical reader supplies hypotheses for effects it cannot settle: an indirect negation
+does not become a ban, and an undecided effect is not an obligation to execute. Native
+authoring sees those open readings separately from settled constraints; any realized
+uncertain effect is stated in review. Literal-targeted bans retain their own scope,
+including relative paths and referenced constant destinations. These readings grant
+no permissions: Check, exact-byte review, consent and runtime admission still apply.

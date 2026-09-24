@@ -36,10 +36,13 @@ fn schema() -> Value {
 /// Whether a cold outcome calls for the native strategy: a question that hands the human a
 /// machine's problem (a rewrite, a jq expression, a glob), or a dead end (no candidate and
 /// nothing to answer). A cold outcome waiting on business values is not a failure.
-pub(super) fn escalates(out: &CompileOutcome) -> bool {
+pub(super) fn escalates(out: &CompileOutcome, reading: &Reading) -> bool {
     // A refusal is the floor (a bypassed approval, a literal-only policy): no door reopens it.
+    // A contradiction the reader found between the request's own words for one effect is a
+    // reading, not a refusal: the seat reads the request whole, and what it realizes of that
+    // effect is stated to the review.
     if out.status == CompileStatus::Refused {
-        return false;
+        return words_contradict_only(out, reading);
     }
     // A seat that failed, timed out or was cut at its cap is not asked again through another
     // door: the provider finding stands, and the calls stay bounded.
@@ -57,6 +60,25 @@ pub(super) fn escalates(out: &CompileOutcome) -> bool {
         )
     });
     machine || (out.candidate.is_none() && out.questions.is_empty())
+}
+
+/// Whether an outcome's only obstacle is the reader's contradiction for an effect (asked and
+/// banned by the request's own words): no hard refusal, no approval-bypass floor.
+pub(super) fn words_contradict_only(out: &CompileOutcome, reading: &Reading) -> bool {
+    reading
+        .plan
+        .effects
+        .iter()
+        .any(|e| e.policy == crate::plan::EffectPolicy::Conflict)
+        && !reading
+            .plan
+            .unknowns
+            .iter()
+            .any(|u| u.contains("approval-bypass"))
+        && !out
+            .diagnostics
+            .iter()
+            .any(|d| d.kind == DiagnosticKind::Refused)
 }
 
 /// The floor the reader states before any seat writes: a request that reuses, skips or
@@ -81,13 +103,44 @@ pub(super) fn floor_refuses(reading: &Reading, out: &mut CompileOutcome) -> bool
     true
 }
 
+/// Whether the reader's words settle an effect: not undecided, not both asked and banned.
+fn settled(effect: &crate::plan::Effect) -> bool {
+    !matches!(
+        effect.policy,
+        crate::plan::EffectPolicy::Undecided | crate::plan::EffectPolicy::Conflict
+    )
+}
+
+fn effect_fact(effect: &crate::plan::Effect) -> Value {
+    json!({"verb": effect.verb.word(), "target": effect.target, "policy": effect.policy.word()})
+}
+
+/// The effects the reader could not settle from the words, stated to the seat as open
+/// readings, never as facts: the seat realizes one as the request means it, and the review
+/// states what it realized. A reading grants nothing: permits, Check and consent decide.
+fn unsettled(reading: &Reading) -> Option<Value> {
+    let open: Vec<Value> = reading
+        .plan
+        .effects
+        .iter()
+        .filter(|e| !settled(e))
+        .map(effect_fact)
+        .collect();
+    (!open.is_empty()).then(|| {
+        json!({
+            "effects": open,
+            "how": "The reader's words do not settle these (an effect left undecided, or both asked and banned). They are hypotheses, not facts: read the request whole and realize what it means, or leave the effect out; what you realize is stated to the human's review.",
+        })
+    })
+}
+
 /// The facts the reader holds the candidate to, stated to the seat as data.
 fn floor(intent: &str, reading: &Reading) -> Value {
     let plan = &reading.plan;
     json!({
         "sources": crate::hot::stated_sources(intent),
         "destinations": crate::hot::stated_destinations(intent),
-        "effects": plan.effects.iter().map(|e| json!({"verb": e.verb.word(), "target": e.target, "policy": e.policy.word()})).collect::<Vec<_>>(),
+        "effects": plan.effects.iter().filter(|e| settled(e)).map(effect_fact).collect::<Vec<_>>(),
         "obligations": plan.obligations.iter().map(|o| o.kind.word()).collect::<Vec<_>>(),
         "trigger": plan.trigger,
         "constraints": plan.constraints,
@@ -379,7 +432,7 @@ pub(super) fn prelude<'a>(
         } => Some((source.as_str(), words.as_str())),
         _ => None,
     };
-    let opening = json!({
+    let mut opening = json!({
         "request": intent,
         "facts_the_compiler_holds_you_to": floor(intent, reading),
         "observed_world": request.knowledge,
@@ -388,6 +441,9 @@ pub(super) fn prelude<'a>(
         "base_candidate": revision.map(|(source, _)| source),
         "change": revision.map(|(_, words)| words),
     });
+    if let Some(open) = unsettled(reading) {
+        opening["readings_the_words_leave_open"] = open;
+    }
     let mut allowed = fidelity::allowed_values(&request.answers);
     if let Some((source, _)) = revision {
         // The base's own literals were the earlier request's or the human's: never invented.
@@ -496,6 +552,20 @@ pub(super) fn conclude(
         Some(answer) => {
             route.push("native: accepted".to_owned());
             super::record_route(out, &route);
+            // The seat's reading of what the words left open is stated to the review, never
+            // refused and never taken for authority.
+            if let Some(doc) = crate::edit::literal_projection(&answer.candidate) {
+                for effect in fidelity::unsettled_performed(&reading.plan, &doc) {
+                    super::super::finding(
+                        out,
+                        DiagnosticKind::Applied,
+                        "reading",
+                        format!(
+                            "The request's words do not settle {effect}; the candidate performs it as the seat reads the whole request. Review it before approving."
+                        ),
+                    );
+                }
+            }
             settle(
                 intent,
                 reading.plan.trigger.as_deref(),
@@ -1156,7 +1226,7 @@ mod tests {
     fn a_refusal_or_a_provider_failure_never_escalates_and_a_machine_question_does() {
         let mut refused = outcome();
         refused.status = CompileStatus::Refused;
-        assert!(!escalates(&refused));
+        assert!(!escalates(&refused, &crate::lexicon::read("")));
         let mut failed = outcome();
         crate::finding(
             &mut failed,
@@ -1164,7 +1234,7 @@ mod tests {
             "authoring_provider",
             "timed out",
         );
-        assert!(!escalates(&failed));
+        assert!(!escalates(&failed, &crate::lexicon::read("")));
         let mut machine = outcome();
         crate::question(
             &mut machine,
@@ -1172,7 +1242,7 @@ mod tests {
             "which jq?",
             QuestionType::Text,
         );
-        assert!(escalates(&machine));
+        assert!(escalates(&machine, &crate::lexicon::read("")));
         let mut business = outcome();
         crate::question(
             &mut business,
@@ -1180,8 +1250,45 @@ mod tests {
             "where?",
             QuestionType::Text,
         );
-        assert!(!escalates(&business));
-        assert!(escalates(&outcome()));
+        assert!(!escalates(&business, &crate::lexicon::read("")));
+        assert!(escalates(&outcome(), &crate::lexicon::read("")));
+    }
+
+    #[test]
+    fn a_refusal_resting_only_on_the_words_contradicting_one_effect_escalates() {
+        let contradiction = crate::lexicon::read(
+            "Lis ./note.txt et envoie-la à https://hooks.example.test/in; ne l'envoie jamais à https://hooks.example.test/in.",
+        );
+        assert!(
+            contradiction
+                .plan
+                .effects
+                .iter()
+                .any(|e| e.policy == crate::plan::EffectPolicy::Conflict)
+        );
+        let mut refused = outcome();
+        refused.status = CompileStatus::Refused;
+        assert!(escalates(&refused, &contradiction));
+        // A hard refusal beside it, or the approval-bypass floor, is never reopened.
+        let mut hard = refused.clone();
+        crate::finding(
+            &mut hard,
+            DiagnosticKind::Refused,
+            "intent",
+            "literal-only policy",
+        );
+        assert!(!escalates(&hard, &contradiction));
+        let mut bypass = contradiction.clone();
+        bypass
+            .plan
+            .unknowns
+            .push("approval-bypass wording".to_owned());
+        assert!(!escalates(&refused, &bypass));
+        // Without a contradiction, a refusal stays the floor.
+        assert!(!escalates(
+            &refused,
+            &crate::lexicon::read("Lis ./note.txt.")
+        ));
     }
 
     #[test]

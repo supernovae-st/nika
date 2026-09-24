@@ -18,8 +18,10 @@ use std::collections::{BTreeMap, BTreeSet};
 
 mod final_gate;
 mod records;
+mod scope;
 pub use final_gate::unbound_final_gate;
 pub use records::raw_text_as_records;
+pub use scope::unsettled_performed;
 
 /// One structured diagnostic the judge returns and the seat repairs from.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -405,7 +407,12 @@ pub fn invented_gates(plan: &Plan, doc: &Value, out: &mut Vec<Diagnostic>) {
         Vec::new()
     };
     for task in &effects {
-        if finals.contains(task) || depends_on(doc, task, &finals) {
+        // A gate the seat puts over an effect the words leave unsettled is its reading, not an
+        // invented approval.
+        if finals.contains(task)
+            || depends_on(doc, task, &finals)
+            || scope::unsettled_concerns(plan, doc, task)
+        {
             continue;
         }
         if depends_on(doc, task, &gates) {
@@ -430,8 +437,12 @@ pub fn dropped_effects(plan: &Plan, doc: &Value, out: &mut Vec<Diagnostic>) {
         .effects
         .iter()
         .filter(|e| {
+            // An effect the words leave undecided is the human's to settle, never owed.
             e.verb != EffectVerb::Write
-                && !matches!(e.policy, EffectPolicy::Forbidden | EffectPolicy::Conflict)
+                && !matches!(
+                    e.policy,
+                    EffectPolicy::Forbidden | EffectPolicy::Conflict | EffectPolicy::Undecided
+                )
         })
         .collect();
     if stated.is_empty() {
@@ -642,7 +653,9 @@ fn written_path(doc: &Value, task: &str) -> Option<String> {
     }
 }
 
-/// Law 4: an effect the request forbids is absent.
+/// Law 4: an effect the request forbids is absent. A ban beside a request of its family is
+/// targeted (`scope::concerns`): a task carrying one of its literals performs it; a ban with no
+/// literal never takes the request, and its words ride the plan to the seat and the review.
 pub fn prohibitions(plan: &Plan, doc: &Value, out: &mut Vec<Diagnostic>) {
     let (effects, _) = effect_and_gate_tasks(doc);
     for effect in plan
@@ -650,16 +663,10 @@ pub fn prohibitions(plan: &Plan, doc: &Value, out: &mut Vec<Diagnostic>) {
         .iter()
         .filter(|e| e.policy == EffectPolicy::Forbidden)
     {
-        let family = match effect.verb {
-            EffectVerb::Write => effects.iter().any(|t| tool_of(doc, t) == "nika:write"),
-            EffectVerb::Send | EffectVerb::Notify | EffectVerb::Publish | EffectVerb::Other => {
-                effects
-                    .iter()
-                    .any(|t| matches!(tool_of(doc, t), "nika:fetch" | "nika:notify" | "nika:emit"))
-            }
-            _ => false,
-        };
-        if family {
+        if effects
+            .iter()
+            .any(|t| scope::concerns(plan, effect, doc, t))
+        {
             out.push(Diagnostic { kind: "prohibition", message: format!("PROHIBITED EFFECT: the request forbids `{}` ({}); the candidate performs it. Remove the effect.", effect.verb.word(), effect.target.trim()) });
         }
     }

@@ -844,6 +844,16 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
                 // elsewhere ("post it to <url>. Never send anything without my approval").
                 reading.policy_clauses.push(clause.to_owned());
             }
+            // A ban reaches its effect only through its scope: « don't forget to email »
+            // negates the forgetting, and the words no longer settle the email — the clause is
+            // cognition's to read, never a ban and never a request.
+            if !effects::negation_reaches(target, &reading.columns)
+                && !gates::approval_bound(target)
+                && !state.conflict_marker
+            {
+                reading.unresolved.push(clause.to_owned());
+                return;
+            }
             for verb in verbs {
                 let policy = if gates::approval_bound(target) {
                     // `don't write until i approve`: bounded by an approval, a prohibition
@@ -993,6 +1003,17 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, money: &mut [
                 reading.plan.constraints.push(original.to_owned());
             }
         } else {
+            // The negation bans its effect only when its scope reaches it
+            // (`effects::negation_reaches`); when another predicate takes it first, the words no
+            // longer settle the effect: cognition reads the clause, never a ban, never a request.
+            let after = NEGATION_OPENERS
+                .iter()
+                .find(|m| text.starts_with(**m))
+                .map_or(text, |m| &text[m.len()..]);
+            if !effects::negation_reaches(after, &reading.columns) {
+                reading.unresolved.push(original.to_owned());
+                return true;
+            }
             for verb in verbs {
                 push_effect(
                     &mut reading.plan,

@@ -303,13 +303,23 @@ async fn compile_inner<P: ProviderInferDyn>(
         Ok(()) => {
             route.push("hot".to_owned());
             record_route(&mut out, &route);
-            return settle(
+            let hot = settle(
                 Strategy::Hot,
                 &admitted.plan,
                 &effective_intent,
                 &assembly_request,
                 out,
-            );
+            )?;
+            let seat = (request, cognition.provider, &assembly_request);
+            // Boxed: the seat door is rare and large; it must not grow every compile future.
+            return Box::pin(contradiction_to_seat(
+                &effective_intent,
+                &reading,
+                seat,
+                route,
+                hot,
+            ))
+            .await;
         }
         Err(why) => route.push(format!("hot rejected: {}", why.reasons().join("; "))),
     }
@@ -417,7 +427,7 @@ async fn compile_inner<P: ProviderInferDyn>(
         {
             return Ok(cold);
         }
-        if policy.native == NativeMode::Escalate && native::escalates(&cold) {
+        if policy.native == NativeMode::Escalate && native::escalates(&cold, &reading) {
             let mut route = route;
             route.push("native: escalated".to_owned());
             return native::author(
@@ -437,6 +447,32 @@ async fn compile_inner<P: ProviderInferDyn>(
     record_route(&mut out, &route);
     unresolved(&reading, &mut out);
     Ok(out)
+}
+
+/// A deterministic outcome with no candidate whose only obstacle is the reader's contradiction
+/// for one effect (asked and banned by the request's own words; a merged excerpt is no excerpt,
+/// so the plan does not even anchor) is a reading, not a verdict: with an authorized seat and
+/// escalation, the native door reads the request whole, and what it realizes of that effect is
+/// stated to the review (never a grant). Every other outcome — and every other refusal — stands.
+async fn contradiction_to_seat<P: ProviderInferDyn>(
+    intent: &str,
+    reading: &Reading,
+    (request, provider, assembly): (&CompileRequest, Option<&P>, &CompileRequest),
+    mut route: Vec<String>,
+    hot: CompileOutcome,
+) -> Result<CompileOutcome, CompileError> {
+    let (Some(policy), Some(provider)) = (&request.authoring, provider) else {
+        return Ok(hot);
+    };
+    if hot.candidate.is_some()
+        || policy.native != NativeMode::Escalate
+        || !policy_bounded(policy, intent)
+        || !native::words_contradict_only(&hot, reading)
+    {
+        return Ok(hot);
+    }
+    route.push("native: escalated".to_owned());
+    native::author(intent, reading, policy, provider, assembly, route, hot).await
 }
 
 const POLICY_BOUNDS: &str = "Authoring requires an explicit model, 1..32768 output tokens, a timeout up to 600 seconds, and an intent no larger than 32768 bytes.";
