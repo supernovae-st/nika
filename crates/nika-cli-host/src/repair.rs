@@ -143,17 +143,22 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn devices_and_fifos_are_non_regular_sources() {
-        assert_eq!(
-            repair_target_for_path("/dev/stdin"),
-            RepairTarget::NonRegularSource
-        );
-        assert_eq!(
-            repair_target_for_path("/dev/fd/0"),
-            RepairTarget::NonRegularSource
-        );
+        use std::os::fd::AsRawFd as _;
 
+        assert_eq!(
+            repair_target_for_path("/dev/null"),
+            RepairTarget::NonRegularSource
+        );
         let fixture = arena("fifo");
         let root = fixture.path();
+        // Descriptor paths follow their actual file type. stdin can be a regular
+        // file under a test launcher; it is not intrinsically a device or FIFO.
+        let regular = std::fs::File::create(root.join("regular.nika")).expect("regular file");
+        let descriptor = format!("/dev/fd/{}", regular.as_raw_fd());
+        assert_eq!(
+            repair_target_for_path(&descriptor),
+            RepairTarget::WorkspaceFile
+        );
         let fifo = root.join("workflow.pipe");
         nix::unistd::mkfifo(&fifo, nix::sys::stat::Mode::S_IRUSR)
             .expect("mkfifo creates the fixture");
