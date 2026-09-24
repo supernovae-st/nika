@@ -1,4 +1,55 @@
 pub mod nika_catalog
+pub mod nika_catalog::admission
+#[non_exhaustive] pub struct nika_catalog::admission::InferenceTariff
+pub nika_catalog::admission::InferenceTariff::as_of: &'static str
+pub nika_catalog::admission::InferenceTariff::context_tokens: u64
+pub nika_catalog::admission::InferenceTariff::endpoints: &'static [&'static str]
+pub nika_catalog::admission::InferenceTariff::limits_sha256: &'static str
+pub nika_catalog::admission::InferenceTariff::limits_source: &'static str
+pub nika_catalog::admission::InferenceTariff::max_output_tokens: u32
+pub nika_catalog::admission::InferenceTariff::model: &'static str
+pub nika_catalog::admission::InferenceTariff::provider: &'static str
+pub nika_catalog::admission::InferenceTariff::source: &'static str
+pub nika_catalog::admission::InferenceTariff::source_sha256: &'static str
+impl nika_catalog::admission::InferenceTariff
+pub fn nika_catalog::admission::InferenceTariff::deepseek(model: &str) -> core::option::Option<Self>
+pub fn nika_catalog::admission::InferenceTariff::new(provider: &str, model: &str, endpoint: &str) -> core::option::Option<Self>
+pub fn nika_catalog::admission::InferenceTariff::price(self, input: u64, output: u64, cached: u64) -> core::option::Option<nika_types::cost::Cost>
+pub fn nika_catalog::admission::InferenceTariff::reserve(self, output: u32) -> core::option::Option<nika_types::cost::Cost>
+impl core::clone::Clone for nika_catalog::admission::InferenceTariff
+pub fn nika_catalog::admission::InferenceTariff::clone(&self) -> nika_catalog::admission::InferenceTariff
+impl core::cmp::Eq for nika_catalog::admission::InferenceTariff
+impl core::cmp::PartialEq for nika_catalog::admission::InferenceTariff
+pub fn nika_catalog::admission::InferenceTariff::eq(&self, other: &nika_catalog::admission::InferenceTariff) -> bool
+impl core::fmt::Debug for nika_catalog::admission::InferenceTariff
+pub fn nika_catalog::admission::InferenceTariff::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_catalog::admission::InferenceTariff
+impl core::marker::StructuralPartialEq for nika_catalog::admission::InferenceTariff
+impl<D> owo_colors::OwoColorize for nika_catalog::admission::InferenceTariff
+impl<T, U> core::convert::Into<U> for nika_catalog::admission::InferenceTariff where U: core::convert::From<T>
+pub fn nika_catalog::admission::InferenceTariff::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog::admission::InferenceTariff where U: core::convert::Into<T>
+pub type nika_catalog::admission::InferenceTariff::Error = core::convert::Infallible
+pub fn nika_catalog::admission::InferenceTariff::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog::admission::InferenceTariff where U: core::convert::TryFrom<T>
+pub type nika_catalog::admission::InferenceTariff::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog::admission::InferenceTariff::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog::admission::InferenceTariff where T: core::clone::Clone
+pub type nika_catalog::admission::InferenceTariff::Owned = T
+pub fn nika_catalog::admission::InferenceTariff::clone_into(&self, target: &mut T)
+pub fn nika_catalog::admission::InferenceTariff::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog::admission::InferenceTariff where T: 'static + ?core::marker::Sized
+pub fn nika_catalog::admission::InferenceTariff::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog::admission::InferenceTariff where T: ?core::marker::Sized
+pub fn nika_catalog::admission::InferenceTariff::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog::admission::InferenceTariff where T: ?core::marker::Sized
+pub fn nika_catalog::admission::InferenceTariff::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog::admission::InferenceTariff where T: core::clone::Clone
+pub unsafe fn nika_catalog::admission::InferenceTariff::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog::admission::InferenceTariff
+pub fn nika_catalog::admission::InferenceTariff::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_catalog::admission::InferenceTariff where T: 'static
+pub fn nika_catalog::admission::InferenceTariff::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub mod nika_catalog::builtin
 #[non_exhaustive] pub enum nika_catalog::builtin::BuiltinCategory
 pub nika_catalog::builtin::BuiltinCategory::Core

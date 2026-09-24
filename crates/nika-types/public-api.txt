@@ -449,11 +449,14 @@ pub nika_types::access::HarnessRuntime::display: &'static str
 pub nika_types::access::HarnessRuntime::id: &'static str
 pub nika_types::access::HarnessRuntime::not_installed: &'static str
 impl nika_types::access::HarnessRuntime
-pub const nika_types::access::HarnessRuntime::ALL: [Self; 5]
+pub const nika_types::access::HarnessRuntime::ALL: [Self; 8]
 pub const nika_types::access::HarnessRuntime::CLAUDE_CODE: Self
 pub const nika_types::access::HarnessRuntime::CODEX: Self
+pub const nika_types::access::HarnessRuntime::COPILOT: Self
 pub const nika_types::access::HarnessRuntime::GEMINI_CLI: Self
+pub const nika_types::access::HarnessRuntime::GROK_BUILD: Self
 pub const nika_types::access::HarnessRuntime::KIMI_CODE: Self
+pub const nika_types::access::HarnessRuntime::OPENCODE: Self
 pub const nika_types::access::HarnessRuntime::QWEN_CODE: Self
 pub fn nika_types::access::HarnessRuntime::acp_missing(&self) -> alloc::string::String
 pub fn nika_types::access::HarnessRuntime::lookup(id: &str) -> core::option::Option<Self>

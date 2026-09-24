@@ -952,12 +952,12 @@ pub fn nika_harness::wire::TextBlock::as_any(&self) -> &(dyn core::any::Any + 's
 pub const nika_harness::wire::METHOD_INITIALIZE: &str
 pub const nika_harness::wire::METHOD_REQUEST_PERMISSION: &str
 pub const nika_harness::wire::METHOD_SESSION_CANCEL: &str
-pub const nika_harness::wire::METHOD_SET_CONFIG_OPTION: &str
-pub const nika_harness::wire::METHOD_SET_MODE: &str
-pub const nika_harness::wire::METHOD_SET_MODEL: &str
 pub const nika_harness::wire::METHOD_SESSION_NEW: &str
 pub const nika_harness::wire::METHOD_SESSION_PROMPT: &str
 pub const nika_harness::wire::METHOD_SESSION_UPDATE: &str
+pub const nika_harness::wire::METHOD_SET_CONFIG_OPTION: &str
+pub const nika_harness::wire::METHOD_SET_MODE: &str
+pub const nika_harness::wire::METHOD_SET_MODEL: &str
 pub const nika_harness::wire::PROTOCOL_V1: u16
 pub fn nika_harness::wire::agent_chunk_text(update: &serde_json::value::Value) -> core::option::Option<alloc::string::String>
 pub fn nika_harness::wire::ask_facts(tool_call: &serde_json::value::Value) -> (core::option::Option<alloc::string::String>, alloc::vec::Vec<alloc::string::String>, alloc::vec::Vec<alloc::string::String>, core::option::Option<alloc::string::String>)
@@ -1165,6 +1165,7 @@ pub fn nika_harness::registry::AdapterRow::as_any(&self) -> &(dyn core::any::Any
 pub nika_harness::HarnessAdapter::args: alloc::vec::Vec<alloc::string::String>
 pub nika_harness::HarnessAdapter::command: alloc::string::String
 pub nika_harness::HarnessAdapter::id: alloc::string::String
+pub nika_harness::HarnessAdapter::identities: alloc::vec::Vec<alloc::string::String>
 pub nika_harness::HarnessAdapter::passthrough_env: alloc::vec::Vec<alloc::string::String>
 pub nika_harness::HarnessAdapter::probe_via_handshake: bool
 pub nika_harness::HarnessAdapter::version_args: alloc::vec::Vec<alloc::string::String>
@@ -1213,6 +1214,7 @@ impl<T> nika_error::traits::AsAny for nika_harness::spawn::HarnessAdapter where 
 pub fn nika_harness::spawn::HarnessAdapter::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_harness::HarnessInferOutcome
 pub nika_harness::HarnessInferOutcome::attested_version: (u32, u32)
+pub nika_harness::HarnessInferOutcome::observed_model: core::option::Option<alloc::string::String>
 pub nika_harness::HarnessInferOutcome::output: alloc::string::String
 pub nika_harness::HarnessInferOutcome::requested_model: alloc::string::String
 pub nika_harness::HarnessInferOutcome::usage_observed: bool

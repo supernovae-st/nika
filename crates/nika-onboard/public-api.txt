@@ -1,11 +1,55 @@
 pub mod nika_onboard
-pub use nika_onboard::compile
 pub mod nika_onboard::briefs
 pub fn nika_onboard::briefs::agents_md() -> &'static str
 pub mod nika_onboard::codes
 pub const nika_onboard::codes::ENV: u8
 pub const nika_onboard::codes::FILE: u8
 pub const nika_onboard::codes::OK: u8
+pub mod nika_onboard::compile
+pub use nika_onboard::compile::AuthoringCognition
+pub use nika_onboard::compile::AuthoringKnowledge
+pub use nika_onboard::compile::AuthoringPolicy
+pub use nika_onboard::compile::AuthoringReceipt
+pub use nika_onboard::compile::COMPILE_WIRE_VERSION
+pub use nika_onboard::compile::ChoiceOffer
+pub use nika_onboard::compile::Cognition
+pub use nika_onboard::compile::CompileDiagnostic
+pub use nika_onboard::compile::CompileError
+pub use nika_onboard::compile::CompileOutcome
+pub use nika_onboard::compile::CompilePreview
+pub use nika_onboard::compile::CompileProvenance
+pub use nika_onboard::compile::CompileQuestion
+pub use nika_onboard::compile::CompileRequest
+pub use nika_onboard::compile::CompileStatus
+pub use nika_onboard::compile::DiagnosticKind
+pub use nika_onboard::compile::Hit
+pub use nika_onboard::compile::HitKind
+pub use nika_onboard::compile::HotPolicy
+pub use nika_onboard::compile::KnowledgeReference
+pub use nika_onboard::compile::MaterializeError
+pub use nika_onboard::compile::NativeMode
+pub use nika_onboard::compile::NoProvider
+pub use nika_onboard::compile::PreviewScope
+pub use nika_onboard::compile::QuestionType
+pub use nika_onboard::compile::RepresentationError
+pub use nika_onboard::compile::Strategy
+pub use nika_onboard::compile::TriggerKind
+pub use nika_onboard::compile::TriggerRequirement
+pub use nika_onboard::compile::TriggerStatus
+pub use nika_onboard::compile::compile
+pub use nika_onboard::compile::compile_with_cognition
+pub use nika_onboard::compile::compile_with_provider
+pub use nika_onboard::compile::decide
+pub use nika_onboard::compile::fold
+pub use nika_onboard::compile::intent_sha256
+pub use nika_onboard::compile::materialize_ready
+pub use nika_onboard::compile::outcome_document
+pub use nika_onboard::compile::retrieve
+pub use nika_onboard::compile::retrieve_by_ops
+pub use nika_onboard::compile::revise_intent
+pub use nika_onboard::compile::stated_destinations
+pub use nika_onboard::compile::stated_sources
+pub use nika_onboard::compile::text
 pub mod nika_onboard::fixtures
 pub fn nika_onboard::fixtures::fixture_prefixes(body: &str) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_onboard::fixtures::materialize(body: &str, dest: &std::path::Path) -> core::io::error::Result<(usize, usize)>

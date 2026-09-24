@@ -1,4 +1,7 @@
 pub mod nika_session
+pub use nika_session::AdmissionState
+pub use nika_session::AttemptReceipt
+pub use nika_session::InferenceReceipt
 pub mod nika_session::activity
 #[non_exhaustive] pub enum nika_session::activity::Phase
 pub nika_session::activity::Phase::Authoring
@@ -111,12 +114,84 @@ impl<T> tracing::instrument::WithSubscriber for nika_session::activity::Activity
 impl<T> typenum::type_operators::Same for nika_session::activity::Activity
 pub type nika_session::activity::Activity::Output = T
 pub mod nika_session::authoring
+#[non_exhaustive] pub enum nika_session::authoring::AuthoringContextError
+pub nika_session::authoring::AuthoringContextError::Changed
+pub nika_session::authoring::AuthoringContextError::Changed::found: alloc::string::String
+pub nika_session::authoring::AuthoringContextError::Changed::pinned: alloc::string::String
+pub nika_session::authoring::AuthoringContextError::Config(nika_cli_host::compile::config::ConfigError)
+pub nika_session::authoring::AuthoringContextError::Knowledge(nika_cli_host::compile::knowledge::KnowledgeError)
+pub nika_session::authoring::AuthoringContextError::PackForOneRequest
+pub nika_session::authoring::AuthoringContextError::PackForOneRequest::file: std::path::PathBuf
+pub nika_session::authoring::AuthoringContextError::UnsupportedSource
+impl core::clone::Clone for nika_session::authoring::AuthoringContextError
+pub fn nika_session::authoring::AuthoringContextError::clone(&self) -> nika_session::authoring::AuthoringContextError
+impl core::cmp::Eq for nika_session::authoring::AuthoringContextError
+impl core::cmp::PartialEq for nika_session::authoring::AuthoringContextError
+pub fn nika_session::authoring::AuthoringContextError::eq(&self, other: &nika_session::authoring::AuthoringContextError) -> bool
+impl core::convert::From<nika_cli_host::compile::config::ConfigError> for nika_session::authoring::AuthoringContextError
+pub fn nika_session::authoring::AuthoringContextError::from(source: nika_cli_host::compile::config::ConfigError) -> Self
+impl core::convert::From<nika_cli_host::compile::knowledge::KnowledgeError> for nika_session::authoring::AuthoringContextError
+pub fn nika_session::authoring::AuthoringContextError::from(source: nika_cli_host::compile::knowledge::KnowledgeError) -> Self
+impl core::convert::From<nika_session::authoring::AuthoringContextError> for nika_session::authoring::AuthoringError
+pub fn nika_session::authoring::AuthoringError::from(source: nika_session::authoring::AuthoringContextError) -> Self
+impl core::error::Error for nika_session::authoring::AuthoringContextError
+pub fn nika_session::authoring::AuthoringContextError::source(&self) -> core::option::Option<&(dyn core::error::Error + 'static)>
+impl core::fmt::Debug for nika_session::authoring::AuthoringContextError
+pub fn nika_session::authoring::AuthoringContextError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_session::authoring::AuthoringContextError
+pub fn nika_session::authoring::AuthoringContextError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_session::authoring::AuthoringContextError
+impl<D> owo_colors::OwoColorize for nika_session::authoring::AuthoringContextError
+impl<Q, K> equivalent::Equivalent<K> for nika_session::authoring::AuthoringContextError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::authoring::AuthoringContextError::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session::authoring::AuthoringContextError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::authoring::AuthoringContextError::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session::authoring::AuthoringContextError where U: core::convert::From<T>
+pub fn nika_session::authoring::AuthoringContextError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session::authoring::AuthoringContextError where U: core::convert::Into<T>
+pub type nika_session::authoring::AuthoringContextError::Error = core::convert::Infallible
+pub fn nika_session::authoring::AuthoringContextError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session::authoring::AuthoringContextError where U: core::convert::TryFrom<T>
+pub type nika_session::authoring::AuthoringContextError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session::authoring::AuthoringContextError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session::authoring::AuthoringContextError where T: core::clone::Clone
+pub type nika_session::authoring::AuthoringContextError::Owned = T
+pub fn nika_session::authoring::AuthoringContextError::clone_into(&self, target: &mut T)
+pub fn nika_session::authoring::AuthoringContextError::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_session::authoring::AuthoringContextError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_session::authoring::AuthoringContextError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_session::authoring::AuthoringContextError where T: 'static + ?core::marker::Sized
+pub fn nika_session::authoring::AuthoringContextError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session::authoring::AuthoringContextError where T: ?core::marker::Sized
+pub fn nika_session::authoring::AuthoringContextError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session::authoring::AuthoringContextError where T: ?core::marker::Sized
+pub fn nika_session::authoring::AuthoringContextError::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session::authoring::AuthoringContextError where T: core::clone::Clone
+pub unsafe fn nika_session::authoring::AuthoringContextError::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session::authoring::AuthoringContextError
+pub fn nika_session::authoring::AuthoringContextError::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session::authoring::AuthoringContextError where T: core::clone::Clone
+pub fn nika_session::authoring::AuthoringContextError::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> iri_string::format::ToStringFallible for nika_session::authoring::AuthoringContextError where T: core::fmt::Display
+pub fn nika_session::authoring::AuthoringContextError::try_to_string(&self) -> core::result::Result<alloc::string::String, alloc::collections::TryReserveError>
+impl<T> nika_error::traits::AsAny for nika_session::authoring::AuthoringContextError where T: 'static
+pub fn nika_session::authoring::AuthoringContextError::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session::authoring::AuthoringContextError where T: ?core::marker::Sized
+pub fn nika_session::authoring::AuthoringContextError::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session::authoring::AuthoringContextError::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session::authoring::AuthoringContextError
+impl<T> tracing::instrument::WithSubscriber for nika_session::authoring::AuthoringContextError
+impl<T> typenum::type_operators::Same for nika_session::authoring::AuthoringContextError
+pub type nika_session::authoring::AuthoringContextError::Output = T
 #[non_exhaustive] pub enum nika_session::authoring::AuthoringError
 pub nika_session::authoring::AuthoringError::Compiler(nika_compile::types::CompileError)
+pub nika_session::authoring::AuthoringError::Context(nika_session::authoring::AuthoringContextError)
 pub nika_session::authoring::AuthoringError::Runtime(alloc::string::String)
 pub nika_session::authoring::AuthoringError::Seat(alloc::string::String)
 impl core::convert::From<nika_compile::types::CompileError> for nika_session::authoring::AuthoringError
 pub fn nika_session::authoring::AuthoringError::from(source: nika_compile::types::CompileError) -> Self
+impl core::convert::From<nika_session::authoring::AuthoringContextError> for nika_session::authoring::AuthoringError
+pub fn nika_session::authoring::AuthoringError::from(source: nika_session::authoring::AuthoringContextError) -> Self
 impl core::error::Error for nika_session::authoring::AuthoringError
 pub fn nika_session::authoring::AuthoringError::source(&self) -> core::option::Option<&(dyn core::error::Error + 'static)>
 impl core::fmt::Debug for nika_session::authoring::AuthoringError
@@ -246,17 +321,82 @@ impl<T> tracing::instrument::Instrument for nika_session::authoring::Reading
 impl<T> tracing::instrument::WithSubscriber for nika_session::authoring::Reading
 impl<T> typenum::type_operators::Same for nika_session::authoring::Reading
 pub type nika_session::authoring::Reading::Output = T
+#[non_exhaustive] pub struct nika_session::authoring::AuthoringContext
+impl nika_session::authoring::AuthoringContext
+pub fn nika_session::authoring::AuthoringContext::compose(&self, intent: &str) -> core::result::Result<core::option::Option<nika_compile::types::AuthoringKnowledge>, nika_session::authoring::AuthoringContextError>
+pub fn nika_session::authoring::AuthoringContext::from_env() -> Self
+pub fn nika_session::authoring::AuthoringContext::from_settings(explicit: &nika_cli_host::compile::config::AuthoringSettings, env: &nika_cli_host::compile::config::AuthoringSettings) -> Self
+pub fn nika_session::authoring::AuthoringContext::knowledge(&self) -> core::option::Option<&nika_session::authoring::KnowledgePin>
+pub fn nika_session::authoring::AuthoringContext::line(&self) -> alloc::string::String
+pub fn nika_session::authoring::AuthoringContext::refusal(&self) -> core::option::Option<&nika_session::authoring::AuthoringContextError>
+pub fn nika_session::authoring::AuthoringContext::source(&self) -> &'static str
+pub fn nika_session::authoring::AuthoringContext::strategy(&self) -> nika_compile::types::NativeMode
+impl core::clone::Clone for nika_session::authoring::AuthoringContext
+pub fn nika_session::authoring::AuthoringContext::clone(&self) -> nika_session::authoring::AuthoringContext
+impl core::cmp::Eq for nika_session::authoring::AuthoringContext
+impl core::cmp::PartialEq for nika_session::authoring::AuthoringContext
+pub fn nika_session::authoring::AuthoringContext::eq(&self, other: &nika_session::authoring::AuthoringContext) -> bool
+impl core::default::Default for nika_session::authoring::AuthoringContext
+pub fn nika_session::authoring::AuthoringContext::default() -> Self
+impl core::fmt::Debug for nika_session::authoring::AuthoringContext
+pub fn nika_session::authoring::AuthoringContext::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_session::authoring::AuthoringContext
+impl<D> owo_colors::OwoColorize for nika_session::authoring::AuthoringContext
+impl<Q, K> equivalent::Equivalent<K> for nika_session::authoring::AuthoringContext where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::authoring::AuthoringContext::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session::authoring::AuthoringContext where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::authoring::AuthoringContext::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session::authoring::AuthoringContext where U: core::convert::From<T>
+pub fn nika_session::authoring::AuthoringContext::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session::authoring::AuthoringContext where U: core::convert::Into<T>
+pub type nika_session::authoring::AuthoringContext::Error = core::convert::Infallible
+pub fn nika_session::authoring::AuthoringContext::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session::authoring::AuthoringContext where U: core::convert::TryFrom<T>
+pub type nika_session::authoring::AuthoringContext::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session::authoring::AuthoringContext::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session::authoring::AuthoringContext where T: core::clone::Clone
+pub type nika_session::authoring::AuthoringContext::Owned = T
+pub fn nika_session::authoring::AuthoringContext::clone_into(&self, target: &mut T)
+pub fn nika_session::authoring::AuthoringContext::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session::authoring::AuthoringContext where T: 'static + ?core::marker::Sized
+pub fn nika_session::authoring::AuthoringContext::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session::authoring::AuthoringContext where T: ?core::marker::Sized
+pub fn nika_session::authoring::AuthoringContext::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session::authoring::AuthoringContext where T: ?core::marker::Sized
+pub fn nika_session::authoring::AuthoringContext::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session::authoring::AuthoringContext where T: core::clone::Clone
+pub unsafe fn nika_session::authoring::AuthoringContext::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session::authoring::AuthoringContext
+pub fn nika_session::authoring::AuthoringContext::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session::authoring::AuthoringContext where T: core::clone::Clone
+pub fn nika_session::authoring::AuthoringContext::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session::authoring::AuthoringContext where T: 'static
+pub fn nika_session::authoring::AuthoringContext::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session::authoring::AuthoringContext where T: ?core::marker::Sized
+pub fn nika_session::authoring::AuthoringContext::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session::authoring::AuthoringContext::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session::authoring::AuthoringContext
+impl<T> tracing::instrument::WithSubscriber for nika_session::authoring::AuthoringContext
+impl<T> typenum::type_operators::Same for nika_session::authoring::AuthoringContext
+pub type nika_session::authoring::AuthoringContext::Output = T
+impl<T> zvariant::optional::NoneValue for nika_session::authoring::AuthoringContext where T: core::default::Default
+pub type nika_session::authoring::AuthoringContext::NoneType = T
+pub fn nika_session::authoring::AuthoringContext::null_value() -> T
 pub struct nika_session::authoring::AuthoringRound
 pub nika_session::authoring::AuthoringRound::answers: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
 pub nika_session::authoring::AuthoringRound::continuation: core::option::Option<serde_json::value::Value>
 pub nika_session::authoring::AuthoringRound::intent: alloc::string::String
+pub nika_session::authoring::AuthoringRound::knowledge: core::option::Option<serde_json::value::Value>
 pub nika_session::authoring::AuthoringRound::questions: alloc::vec::Vec<nika_compile::types::CompileQuestion>
 pub nika_session::authoring::AuthoringRound::reasons: alloc::vec::Vec<alloc::string::String>
 pub nika_session::authoring::AuthoringRound::restatements: u8
 impl nika_session::authoring::AuthoringRound
 pub fn nika_session::authoring::AuthoringRound::absorb(&mut self, out: &nika_compile::types::CompileOutcome)
 pub fn nika_session::authoring::AuthoringRound::answer_current(&mut self, line: &str) -> core::option::Option<alloc::string::String>
+pub fn nika_session::authoring::AuthoringRound::compile(&self, seat: &nika_session::authoring::AuthoringSeat, context: &nika_session::authoring::AuthoringContext) -> core::result::Result<nika_compile::types::CompileOutcome, nika_session::authoring::AuthoringError>
+pub fn nika_session::authoring::AuthoringRound::compile_with_admission(&self, seat: &nika_session::authoring::AuthoringSeat, context: &nika_session::authoring::AuthoringContext, account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_compile::types::CompileOutcome, nika_session::authoring::AuthoringError>
 pub fn nika_session::authoring::AuthoringRound::current(&self) -> core::option::Option<&nika_compile::types::CompileQuestion>
+pub fn nika_session::authoring::AuthoringRound::effective_intent(&self) -> alloc::string::String
 pub fn nika_session::authoring::AuthoringRound::new(intent: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_session::authoring::AuthoringRound::request(&self) -> nika_compile::types::CompileRequest
 impl core::clone::Clone for nika_session::authoring::AuthoringRound
@@ -300,7 +440,64 @@ impl<T> tracing::instrument::Instrument for nika_session::authoring::AuthoringRo
 impl<T> tracing::instrument::WithSubscriber for nika_session::authoring::AuthoringRound
 impl<T> typenum::type_operators::Same for nika_session::authoring::AuthoringRound
 pub type nika_session::authoring::AuthoringRound::Output = T
+#[non_exhaustive] pub struct nika_session::authoring::KnowledgePin
+pub nika_session::authoring::KnowledgePin::digest: core::option::Option<alloc::string::String>
+pub nika_session::authoring::KnowledgePin::dir: std::path::PathBuf
+pub nika_session::authoring::KnowledgePin::exclude_corpus: core::option::Option<alloc::string::String>
+pub nika_session::authoring::KnowledgePin::manifest_sha256: alloc::string::String
+pub nika_session::authoring::KnowledgePin::rows_sha256: alloc::string::String
+pub nika_session::authoring::KnowledgePin::version: core::option::Option<alloc::string::String>
+impl nika_session::authoring::KnowledgePin
+pub fn nika_session::authoring::KnowledgePin::record(&self) -> serde_json::value::Value
+impl core::clone::Clone for nika_session::authoring::KnowledgePin
+pub fn nika_session::authoring::KnowledgePin::clone(&self) -> nika_session::authoring::KnowledgePin
+impl core::cmp::Eq for nika_session::authoring::KnowledgePin
+impl core::cmp::PartialEq for nika_session::authoring::KnowledgePin
+pub fn nika_session::authoring::KnowledgePin::eq(&self, other: &nika_session::authoring::KnowledgePin) -> bool
+impl core::fmt::Debug for nika_session::authoring::KnowledgePin
+pub fn nika_session::authoring::KnowledgePin::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_session::authoring::KnowledgePin
+impl<D> owo_colors::OwoColorize for nika_session::authoring::KnowledgePin
+impl<Q, K> equivalent::Equivalent<K> for nika_session::authoring::KnowledgePin where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::authoring::KnowledgePin::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session::authoring::KnowledgePin where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::authoring::KnowledgePin::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session::authoring::KnowledgePin where U: core::convert::From<T>
+pub fn nika_session::authoring::KnowledgePin::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session::authoring::KnowledgePin where U: core::convert::Into<T>
+pub type nika_session::authoring::KnowledgePin::Error = core::convert::Infallible
+pub fn nika_session::authoring::KnowledgePin::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session::authoring::KnowledgePin where U: core::convert::TryFrom<T>
+pub type nika_session::authoring::KnowledgePin::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session::authoring::KnowledgePin::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session::authoring::KnowledgePin where T: core::clone::Clone
+pub type nika_session::authoring::KnowledgePin::Owned = T
+pub fn nika_session::authoring::KnowledgePin::clone_into(&self, target: &mut T)
+pub fn nika_session::authoring::KnowledgePin::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session::authoring::KnowledgePin where T: 'static + ?core::marker::Sized
+pub fn nika_session::authoring::KnowledgePin::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session::authoring::KnowledgePin where T: ?core::marker::Sized
+pub fn nika_session::authoring::KnowledgePin::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session::authoring::KnowledgePin where T: ?core::marker::Sized
+pub fn nika_session::authoring::KnowledgePin::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session::authoring::KnowledgePin where T: core::clone::Clone
+pub unsafe fn nika_session::authoring::KnowledgePin::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session::authoring::KnowledgePin
+pub fn nika_session::authoring::KnowledgePin::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session::authoring::KnowledgePin where T: core::clone::Clone
+pub fn nika_session::authoring::KnowledgePin::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session::authoring::KnowledgePin where T: 'static
+pub fn nika_session::authoring::KnowledgePin::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session::authoring::KnowledgePin where T: ?core::marker::Sized
+pub fn nika_session::authoring::KnowledgePin::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session::authoring::KnowledgePin::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session::authoring::KnowledgePin
+impl<T> tracing::instrument::WithSubscriber for nika_session::authoring::KnowledgePin
+impl<T> typenum::type_operators::Same for nika_session::authoring::KnowledgePin
+pub type nika_session::authoring::KnowledgePin::Output = T
 pub fn nika_session::authoring::compile_deterministic(request: &nika_compile::types::CompileRequest) -> core::result::Result<nika_compile::types::CompileOutcome, nika_session::authoring::AuthoringError>
+pub fn nika_session::authoring::compile_in(seat: &nika_session::authoring::AuthoringSeat, context: &nika_session::authoring::AuthoringContext, request: &nika_compile::types::CompileRequest, intent: &str) -> core::result::Result<nika_compile::types::CompileOutcome, nika_session::authoring::AuthoringError>
+pub fn nika_session::authoring::compile_in_with_admission(seat: &nika_session::authoring::AuthoringSeat, context: &nika_session::authoring::AuthoringContext, request: &nika_compile::types::CompileRequest, intent: &str, account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_compile::types::CompileOutcome, nika_session::authoring::AuthoringError>
 pub fn nika_session::authoring::compile_through(seat: &nika_session::authoring::AuthoringSeat, request: &nika_compile::types::CompileRequest) -> core::result::Result<nika_compile::types::CompileOutcome, nika_session::authoring::AuthoringError>
 pub fn nika_session::authoring::gateway_host(provider: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_session::authoring::host_of(url: &str) -> alloc::string::String
@@ -1594,6 +1791,9 @@ impl<T> tracing::instrument::Instrument for nika_session::lifecycle::RunFact
 impl<T> tracing::instrument::WithSubscriber for nika_session::lifecycle::RunFact
 impl<T> typenum::type_operators::Same for nika_session::lifecycle::RunFact
 pub type nika_session::lifecycle::RunFact::Output = T
+impl<T> zvariant::optional::NoneValue for nika_session::lifecycle::RunFact where T: core::default::Default
+pub type nika_session::lifecycle::RunFact::NoneType = T
+pub fn nika_session::lifecycle::RunFact::null_value() -> T
 #[non_exhaustive] pub enum nika_session::lifecycle::Stage
 pub nika_session::lifecycle::Stage::Attention
 pub nika_session::lifecycle::Stage::Declared
@@ -1771,6 +1971,9 @@ impl<T> tracing::instrument::Instrument for nika_session::lifecycle::LifecycleFa
 impl<T> tracing::instrument::WithSubscriber for nika_session::lifecycle::LifecycleFacts
 impl<T> typenum::type_operators::Same for nika_session::lifecycle::LifecycleFacts
 pub type nika_session::lifecycle::LifecycleFacts::Output = T
+impl<T> zvariant::optional::NoneValue for nika_session::lifecycle::LifecycleFacts where T: core::default::Default
+pub type nika_session::lifecycle::LifecycleFacts::NoneType = T
+pub fn nika_session::lifecycle::LifecycleFacts::null_value() -> T
 pub mod nika_session::meaning
 #[non_exhaustive] pub enum nika_session::meaning::Disposition
 pub nika_session::meaning::Disposition::Contradicted
@@ -1890,6 +2093,215 @@ pub fn nika_session::meaning::clauses_of(ledger: &serde_json::value::Value) -> a
 pub fn nika_session::meaning::delta(base: &serde_json::value::Value, revised: &serde_json::value::Value) -> core::option::Option<alloc::string::String>
 pub fn nika_session::meaning::render(out: &nika_compile::types::CompileOutcome) -> core::option::Option<alloc::string::String>
 pub fn nika_session::meaning::render_ledger(ledger: &serde_json::value::Value, candidate: core::option::Option<&str>) -> alloc::string::String
+pub mod nika_session::money
+#[non_exhaustive] pub enum nika_session::money::CapKnowledge
+pub nika_session::money::CapKnowledge::Unknown
+pub nika_session::money::CapKnowledge::Unknown::reason: alloc::string::String
+impl core::clone::Clone for nika_session::money::CapKnowledge
+pub fn nika_session::money::CapKnowledge::clone(&self) -> nika_session::money::CapKnowledge
+impl core::cmp::PartialEq for nika_session::money::CapKnowledge
+pub fn nika_session::money::CapKnowledge::eq(&self, other: &nika_session::money::CapKnowledge) -> bool
+impl core::fmt::Debug for nika_session::money::CapKnowledge
+pub fn nika_session::money::CapKnowledge::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_session::money::CapKnowledge
+impl<D> owo_colors::OwoColorize for nika_session::money::CapKnowledge
+impl<T, U> core::convert::Into<U> for nika_session::money::CapKnowledge where U: core::convert::From<T>
+pub fn nika_session::money::CapKnowledge::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session::money::CapKnowledge where U: core::convert::Into<T>
+pub type nika_session::money::CapKnowledge::Error = core::convert::Infallible
+pub fn nika_session::money::CapKnowledge::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session::money::CapKnowledge where U: core::convert::TryFrom<T>
+pub type nika_session::money::CapKnowledge::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session::money::CapKnowledge::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session::money::CapKnowledge where T: core::clone::Clone
+pub type nika_session::money::CapKnowledge::Owned = T
+pub fn nika_session::money::CapKnowledge::clone_into(&self, target: &mut T)
+pub fn nika_session::money::CapKnowledge::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session::money::CapKnowledge where T: 'static + ?core::marker::Sized
+pub fn nika_session::money::CapKnowledge::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session::money::CapKnowledge where T: ?core::marker::Sized
+pub fn nika_session::money::CapKnowledge::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session::money::CapKnowledge where T: ?core::marker::Sized
+pub fn nika_session::money::CapKnowledge::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session::money::CapKnowledge where T: core::clone::Clone
+pub unsafe fn nika_session::money::CapKnowledge::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session::money::CapKnowledge
+pub fn nika_session::money::CapKnowledge::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session::money::CapKnowledge where T: core::clone::Clone
+pub fn nika_session::money::CapKnowledge::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session::money::CapKnowledge where T: 'static
+pub fn nika_session::money::CapKnowledge::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session::money::CapKnowledge where T: ?core::marker::Sized
+pub fn nika_session::money::CapKnowledge::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session::money::CapKnowledge::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session::money::CapKnowledge
+impl<T> tracing::instrument::WithSubscriber for nika_session::money::CapKnowledge
+impl<T> typenum::type_operators::Same for nika_session::money::CapKnowledge
+pub type nika_session::money::CapKnowledge::Output = T
+#[non_exhaustive] pub enum nika_session::money::InferenceEnforcement
+pub nika_session::money::InferenceEnforcement::CallsBlocked
+pub nika_session::money::InferenceEnforcement::CatalogAdmission
+pub nika_session::money::InferenceEnforcement::NotMetered
+impl core::clone::Clone for nika_session::money::InferenceEnforcement
+pub fn nika_session::money::InferenceEnforcement::clone(&self) -> nika_session::money::InferenceEnforcement
+impl core::cmp::Eq for nika_session::money::InferenceEnforcement
+impl core::cmp::PartialEq for nika_session::money::InferenceEnforcement
+pub fn nika_session::money::InferenceEnforcement::eq(&self, other: &nika_session::money::InferenceEnforcement) -> bool
+impl core::fmt::Debug for nika_session::money::InferenceEnforcement
+pub fn nika_session::money::InferenceEnforcement::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_session::money::InferenceEnforcement
+impl core::marker::StructuralPartialEq for nika_session::money::InferenceEnforcement
+impl<D> owo_colors::OwoColorize for nika_session::money::InferenceEnforcement
+impl<Q, K> equivalent::Equivalent<K> for nika_session::money::InferenceEnforcement where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::money::InferenceEnforcement::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session::money::InferenceEnforcement where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::money::InferenceEnforcement::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session::money::InferenceEnforcement where U: core::convert::From<T>
+pub fn nika_session::money::InferenceEnforcement::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session::money::InferenceEnforcement where U: core::convert::Into<T>
+pub type nika_session::money::InferenceEnforcement::Error = core::convert::Infallible
+pub fn nika_session::money::InferenceEnforcement::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session::money::InferenceEnforcement where U: core::convert::TryFrom<T>
+pub type nika_session::money::InferenceEnforcement::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session::money::InferenceEnforcement::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session::money::InferenceEnforcement where T: core::clone::Clone
+pub type nika_session::money::InferenceEnforcement::Owned = T
+pub fn nika_session::money::InferenceEnforcement::clone_into(&self, target: &mut T)
+pub fn nika_session::money::InferenceEnforcement::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session::money::InferenceEnforcement where T: 'static + ?core::marker::Sized
+pub fn nika_session::money::InferenceEnforcement::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session::money::InferenceEnforcement where T: ?core::marker::Sized
+pub fn nika_session::money::InferenceEnforcement::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session::money::InferenceEnforcement where T: ?core::marker::Sized
+pub fn nika_session::money::InferenceEnforcement::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session::money::InferenceEnforcement where T: core::clone::Clone
+pub unsafe fn nika_session::money::InferenceEnforcement::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session::money::InferenceEnforcement
+pub fn nika_session::money::InferenceEnforcement::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session::money::InferenceEnforcement where T: core::clone::Clone
+pub fn nika_session::money::InferenceEnforcement::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session::money::InferenceEnforcement where T: 'static
+pub fn nika_session::money::InferenceEnforcement::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_session::money::InferenceEnforcement where T: core::marker::Copy
+pub fn nika_session::money::InferenceEnforcement::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session::money::InferenceEnforcement where T: ?core::marker::Sized
+pub fn nika_session::money::InferenceEnforcement::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session::money::InferenceEnforcement::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session::money::InferenceEnforcement
+impl<T> tracing::instrument::WithSubscriber for nika_session::money::InferenceEnforcement
+impl<T> typenum::type_operators::Same for nika_session::money::InferenceEnforcement
+pub type nika_session::money::InferenceEnforcement::Output = T
+#[non_exhaustive] pub enum nika_session::money::MonetarySource
+pub nika_session::money::MonetarySource::Explicit
+pub nika_session::money::MonetarySource::Override
+pub nika_session::money::MonetarySource::ProjectDefault
+pub nika_session::money::MonetarySource::Rejected
+pub nika_session::money::MonetarySource::SessionDefault
+impl core::clone::Clone for nika_session::money::MonetarySource
+pub fn nika_session::money::MonetarySource::clone(&self) -> nika_session::money::MonetarySource
+impl core::cmp::Eq for nika_session::money::MonetarySource
+impl core::cmp::PartialEq for nika_session::money::MonetarySource
+pub fn nika_session::money::MonetarySource::eq(&self, other: &nika_session::money::MonetarySource) -> bool
+impl core::fmt::Debug for nika_session::money::MonetarySource
+pub fn nika_session::money::MonetarySource::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_session::money::MonetarySource
+impl core::marker::StructuralPartialEq for nika_session::money::MonetarySource
+impl<D> owo_colors::OwoColorize for nika_session::money::MonetarySource
+impl<Q, K> equivalent::Equivalent<K> for nika_session::money::MonetarySource where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::money::MonetarySource::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session::money::MonetarySource where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::money::MonetarySource::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session::money::MonetarySource where U: core::convert::From<T>
+pub fn nika_session::money::MonetarySource::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session::money::MonetarySource where U: core::convert::Into<T>
+pub type nika_session::money::MonetarySource::Error = core::convert::Infallible
+pub fn nika_session::money::MonetarySource::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session::money::MonetarySource where U: core::convert::TryFrom<T>
+pub type nika_session::money::MonetarySource::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session::money::MonetarySource::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session::money::MonetarySource where T: core::clone::Clone
+pub type nika_session::money::MonetarySource::Owned = T
+pub fn nika_session::money::MonetarySource::clone_into(&self, target: &mut T)
+pub fn nika_session::money::MonetarySource::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session::money::MonetarySource where T: 'static + ?core::marker::Sized
+pub fn nika_session::money::MonetarySource::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session::money::MonetarySource where T: ?core::marker::Sized
+pub fn nika_session::money::MonetarySource::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session::money::MonetarySource where T: ?core::marker::Sized
+pub fn nika_session::money::MonetarySource::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session::money::MonetarySource where T: core::clone::Clone
+pub unsafe fn nika_session::money::MonetarySource::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session::money::MonetarySource
+pub fn nika_session::money::MonetarySource::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session::money::MonetarySource where T: core::clone::Clone
+pub fn nika_session::money::MonetarySource::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session::money::MonetarySource where T: 'static
+pub fn nika_session::money::MonetarySource::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_session::money::MonetarySource where T: core::marker::Copy
+pub fn nika_session::money::MonetarySource::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session::money::MonetarySource where T: ?core::marker::Sized
+pub fn nika_session::money::MonetarySource::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session::money::MonetarySource::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session::money::MonetarySource
+impl<T> tracing::instrument::WithSubscriber for nika_session::money::MonetarySource
+impl<T> typenum::type_operators::Same for nika_session::money::MonetarySource
+pub type nika_session::money::MonetarySource::Output = T
+#[non_exhaustive] pub struct nika_session::money::MonetaryDecision
+pub nika_session::money::MonetaryDecision::admission: core::option::Option<nika_providers::admission::InferenceReceipt>
+pub nika_session::money::MonetaryDecision::effective_usd: core::option::Option<f64>
+pub nika_session::money::MonetaryDecision::explicit_amount: core::option::Option<alloc::string::String>
+pub nika_session::money::MonetaryDecision::inference: nika_session::money::InferenceEnforcement
+pub nika_session::money::MonetaryDecision::input: alloc::string::String
+pub nika_session::money::MonetaryDecision::machine_cap: nika_session::money::CapKnowledge
+pub nika_session::money::MonetaryDecision::observed_cost_usd: core::option::Option<f64>
+pub nika_session::money::MonetaryDecision::original_intent: alloc::string::String
+pub nika_session::money::MonetaryDecision::policy_cap: nika_session::money::CapKnowledge
+pub nika_session::money::MonetaryDecision::project_default_usd: core::option::Option<f64>
+pub nika_session::money::MonetaryDecision::project_file: core::option::Option<std::path::PathBuf>
+pub nika_session::money::MonetaryDecision::proposal: core::option::Option<nika_session::outcome::ProposalId>
+pub nika_session::money::MonetaryDecision::refusal: core::option::Option<alloc::string::String>
+pub nika_session::money::MonetaryDecision::source: nika_session::money::MonetarySource
+impl core::clone::Clone for nika_session::money::MonetaryDecision
+pub fn nika_session::money::MonetaryDecision::clone(&self) -> nika_session::money::MonetaryDecision
+impl core::cmp::PartialEq for nika_session::money::MonetaryDecision
+pub fn nika_session::money::MonetaryDecision::eq(&self, other: &nika_session::money::MonetaryDecision) -> bool
+impl core::fmt::Debug for nika_session::money::MonetaryDecision
+pub fn nika_session::money::MonetaryDecision::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_session::money::MonetaryDecision
+impl<D> owo_colors::OwoColorize for nika_session::money::MonetaryDecision
+impl<T, U> core::convert::Into<U> for nika_session::money::MonetaryDecision where U: core::convert::From<T>
+pub fn nika_session::money::MonetaryDecision::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session::money::MonetaryDecision where U: core::convert::Into<T>
+pub type nika_session::money::MonetaryDecision::Error = core::convert::Infallible
+pub fn nika_session::money::MonetaryDecision::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session::money::MonetaryDecision where U: core::convert::TryFrom<T>
+pub type nika_session::money::MonetaryDecision::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session::money::MonetaryDecision::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session::money::MonetaryDecision where T: core::clone::Clone
+pub type nika_session::money::MonetaryDecision::Owned = T
+pub fn nika_session::money::MonetaryDecision::clone_into(&self, target: &mut T)
+pub fn nika_session::money::MonetaryDecision::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session::money::MonetaryDecision where T: 'static + ?core::marker::Sized
+pub fn nika_session::money::MonetaryDecision::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session::money::MonetaryDecision where T: ?core::marker::Sized
+pub fn nika_session::money::MonetaryDecision::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session::money::MonetaryDecision where T: ?core::marker::Sized
+pub fn nika_session::money::MonetaryDecision::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session::money::MonetaryDecision where T: core::clone::Clone
+pub unsafe fn nika_session::money::MonetaryDecision::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session::money::MonetaryDecision
+pub fn nika_session::money::MonetaryDecision::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session::money::MonetaryDecision where T: core::clone::Clone
+pub fn nika_session::money::MonetaryDecision::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session::money::MonetaryDecision where T: 'static
+pub fn nika_session::money::MonetaryDecision::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session::money::MonetaryDecision where T: ?core::marker::Sized
+pub fn nika_session::money::MonetaryDecision::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session::money::MonetaryDecision::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session::money::MonetaryDecision
+impl<T> tracing::instrument::WithSubscriber for nika_session::money::MonetaryDecision
+impl<T> typenum::type_operators::Same for nika_session::money::MonetaryDecision
+pub type nika_session::money::MonetaryDecision::Output = T
 pub mod nika_session::outcome
 #[non_exhaustive] pub enum nika_session::outcome::RefusalClass
 pub nika_session::outcome::RefusalClass::AlreadyConsumed
@@ -2179,6 +2591,9 @@ pub fn nika_session::reasoner::HarnessReasoner::authoring_model(&self) -> core::
 pub fn nika_session::reasoner::HarnessReasoner::name(&self) -> alloc::string::String
 pub fn nika_session::reasoner::HarnessReasoner::reason(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::HarnessReasoner::reason_label(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::HarnessReasoner::reason_label_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::HarnessReasoner::reason_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::HarnessReasoner::supports_admission(&self) -> bool
 impl<D> owo_colors::OwoColorize for nika_session::reasoner::HarnessReasoner
 impl<T, U> core::convert::Into<U> for nika_session::reasoner::HarnessReasoner where U: core::convert::From<T>
 pub fn nika_session::reasoner::HarnessReasoner::into(self) -> U
@@ -2213,6 +2628,9 @@ pub fn nika_session::reasoner::NoReasoner::authoring_model(&self) -> core::optio
 pub fn nika_session::reasoner::NoReasoner::name(&self) -> alloc::string::String
 pub fn nika_session::reasoner::NoReasoner::reason(&mut self, _prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::NoReasoner::reason_label(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::NoReasoner::reason_label_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::NoReasoner::reason_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::NoReasoner::supports_admission(&self) -> bool
 impl<D> owo_colors::OwoColorize for nika_session::reasoner::NoReasoner
 impl<T, U> core::convert::Into<U> for nika_session::reasoner::NoReasoner where U: core::convert::From<T>
 pub fn nika_session::reasoner::NoReasoner::into(self) -> U
@@ -2249,6 +2667,9 @@ pub fn nika_session::reasoner::ProviderReasoner::authoring_model(&self) -> core:
 pub fn nika_session::reasoner::ProviderReasoner::name(&self) -> alloc::string::String
 pub fn nika_session::reasoner::ProviderReasoner::reason(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::ProviderReasoner::reason_label(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::ProviderReasoner::reason_label_with_admission(&mut self, prompt: &str, account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::ProviderReasoner::reason_with_admission(&mut self, prompt: &str, account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::ProviderReasoner::supports_admission(&self) -> bool
 impl<D> owo_colors::OwoColorize for nika_session::reasoner::ProviderReasoner
 impl<T, U> core::convert::Into<U> for nika_session::reasoner::ProviderReasoner where U: core::convert::From<T>
 pub fn nika_session::reasoner::ProviderReasoner::into(self) -> U
@@ -2335,6 +2756,9 @@ pub fn nika_session::reasoner::ScriptedReasoner::authoring_model(&self) -> core:
 pub fn nika_session::reasoner::ScriptedReasoner::name(&self) -> alloc::string::String
 pub fn nika_session::reasoner::ScriptedReasoner::reason(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::ScriptedReasoner::reason_label(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::ScriptedReasoner::reason_label_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::ScriptedReasoner::reason_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::ScriptedReasoner::supports_admission(&self) -> bool
 impl<D> owo_colors::OwoColorize for nika_session::reasoner::ScriptedReasoner
 impl<T, U> core::convert::Into<U> for nika_session::reasoner::ScriptedReasoner where U: core::convert::From<T>
 pub fn nika_session::reasoner::ScriptedReasoner::into(self) -> U
@@ -2366,26 +2790,41 @@ pub fn nika_session::reasoner::SessionReasoner::authoring_model(&self) -> core::
 pub fn nika_session::reasoner::SessionReasoner::name(&self) -> alloc::string::String
 pub fn nika_session::reasoner::SessionReasoner::reason(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::SessionReasoner::reason_label(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::SessionReasoner::reason_label_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::SessionReasoner::reason_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::SessionReasoner::supports_admission(&self) -> bool
 impl nika_session::reasoner::SessionReasoner for nika_session::reasoner::HarnessReasoner
 pub fn nika_session::reasoner::HarnessReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::reasoner::HarnessReasoner::name(&self) -> alloc::string::String
 pub fn nika_session::reasoner::HarnessReasoner::reason(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::HarnessReasoner::reason_label(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::HarnessReasoner::reason_label_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::HarnessReasoner::reason_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::HarnessReasoner::supports_admission(&self) -> bool
 impl nika_session::reasoner::SessionReasoner for nika_session::reasoner::NoReasoner
 pub fn nika_session::reasoner::NoReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::reasoner::NoReasoner::name(&self) -> alloc::string::String
 pub fn nika_session::reasoner::NoReasoner::reason(&mut self, _prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::NoReasoner::reason_label(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::NoReasoner::reason_label_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::NoReasoner::reason_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::NoReasoner::supports_admission(&self) -> bool
 impl nika_session::reasoner::SessionReasoner for nika_session::reasoner::ProviderReasoner
 pub fn nika_session::reasoner::ProviderReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::reasoner::ProviderReasoner::name(&self) -> alloc::string::String
 pub fn nika_session::reasoner::ProviderReasoner::reason(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::ProviderReasoner::reason_label(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::ProviderReasoner::reason_label_with_admission(&mut self, prompt: &str, account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::ProviderReasoner::reason_with_admission(&mut self, prompt: &str, account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::ProviderReasoner::supports_admission(&self) -> bool
 impl nika_session::reasoner::SessionReasoner for nika_session::reasoner::ScriptedReasoner
 pub fn nika_session::reasoner::ScriptedReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::reasoner::ScriptedReasoner::name(&self) -> alloc::string::String
 pub fn nika_session::reasoner::ScriptedReasoner::reason(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::ScriptedReasoner::reason_label(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::ScriptedReasoner::reason_label_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::ScriptedReasoner::reason_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::ScriptedReasoner::supports_admission(&self) -> bool
 pub mod nika_session::review
 pub const nika_session::review::WORKFLOWS_DIR: &str
 pub fn nika_session::review::destination(root: &std::path::Path, candidate: &str) -> core::option::Option<std::path::PathBuf>
@@ -2551,11 +2990,17 @@ pub fn nika_session::runtime::SessionRuntime::status(&self) -> alloc::string::St
 pub fn nika_session::runtime::SessionRuntime::status_line(&self) -> alloc::string::String
 pub fn nika_session::runtime::SessionRuntime::waiting_gate(&self) -> core::option::Option<nika_session::outcome::GateId>
 impl nika_session::runtime::SessionRuntime
+pub fn nika_session::runtime::SessionRuntime::authoring_context(&self) -> &nika_session::authoring::AuthoringContext
 pub fn nika_session::runtime::SessionRuntime::authoring_seat(&self) -> &nika_session::authoring::AuthoringSeat
 pub fn nika_session::runtime::SessionRuntime::pending_input(&self) -> core::option::Option<&str>
 pub fn nika_session::runtime::SessionRuntime::pending_question(&self) -> core::option::Option<&nika_compile::types::CompileQuestion>
+pub fn nika_session::runtime::SessionRuntime::set_authoring_context(&mut self, context: nika_session::authoring::AuthoringContext)
 impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::details(&self) -> alloc::string::String
+impl nika_session::runtime::SessionRuntime
+pub fn nika_session::runtime::SessionRuntime::inference_receipt(&self) -> core::result::Result<core::option::Option<nika_providers::admission::InferenceReceipt>, nika_session::reasoner::ReasonError>
+impl nika_session::runtime::SessionRuntime
+pub fn nika_session::runtime::SessionRuntime::monetary_decision(&self) -> core::option::Option<&nika_session::money::MonetaryDecision>
 impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::phase(&self) -> nika_session::turn::SessionPhase
 pub fn nika_session::runtime::SessionRuntime::routes(&self) -> &[nika_session::turn::RouteRecord]
@@ -2597,6 +3042,7 @@ pub mod nika_session::snapshot
 pub nika_session::snapshot::ProjectSnapshot::ceiling: core::option::Option<f64>
 pub nika_session::snapshot::ProjectSnapshot::cwd: std::path::PathBuf
 pub nika_session::snapshot::ProjectSnapshot::git_root: core::option::Option<std::path::PathBuf>
+pub nika_session::snapshot::ProjectSnapshot::project_error: core::option::Option<alloc::string::String>
 pub nika_session::snapshot::ProjectSnapshot::project_file: core::option::Option<std::path::PathBuf>
 pub nika_session::snapshot::ProjectSnapshot::root: std::path::PathBuf
 pub nika_session::snapshot::ProjectSnapshot::truncated: bool
@@ -2935,6 +3381,7 @@ impl<T> typenum::type_operators::Same for nika_session::turn::SessionPhase
 pub type nika_session::turn::SessionPhase::Output = T
 #[non_exhaustive] pub enum nika_session::turn::TurnAct
 pub nika_session::turn::TurnAct::Answer
+pub nika_session::turn::TurnAct::Cancel
 pub nika_session::turn::TurnAct::Discuss
 pub nika_session::turn::TurnAct::Mixed
 pub nika_session::turn::TurnAct::Modify
@@ -2942,7 +3389,7 @@ pub nika_session::turn::TurnAct::NewWork
 pub nika_session::turn::TurnAct::RequestRun
 pub nika_session::turn::TurnAct::Unknown
 impl nika_session::turn::TurnAct
-pub const nika_session::turn::TurnAct::ALL: [Self; 7]
+pub const nika_session::turn::TurnAct::ALL: [Self; 8]
 pub const fn nika_session::turn::TurnAct::label(self) -> &'static str
 pub fn nika_session::turn::TurnAct::parse(reply: &str) -> Self
 impl core::clone::Clone for nika_session::turn::TurnAct
@@ -3007,6 +3454,7 @@ impl core::fmt::Debug for nika_session::turn::ConservativeFallback
 pub fn nika_session::turn::ConservativeFallback::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl nika_session::turn::TurnClassifier for nika_session::turn::ConservativeFallback
 pub fn nika_session::turn::ConservativeFallback::classify(&mut self, _context: &nika_session::turn::TurnContext, _raw: &str) -> nika_session::turn::TurnDecision
+pub fn nika_session::turn::ConservativeFallback::classify_with_admission(&mut self, _context: &nika_session::turn::TurnContext, _raw: &str, _account: &nika_providers::admission::InferenceAdmission) -> nika_session::turn::TurnDecision
 impl<D> owo_colors::OwoColorize for nika_session::turn::ConservativeFallback
 impl<T, U> core::convert::Into<U> for nika_session::turn::ConservativeFallback where U: core::convert::From<T>
 pub fn nika_session::turn::ConservativeFallback::into(self) -> U
@@ -3033,11 +3481,15 @@ impl<T> tracing::instrument::Instrument for nika_session::turn::ConservativeFall
 impl<T> tracing::instrument::WithSubscriber for nika_session::turn::ConservativeFallback
 impl<T> typenum::type_operators::Same for nika_session::turn::ConservativeFallback
 pub type nika_session::turn::ConservativeFallback::Output = T
+impl<T> zvariant::optional::NoneValue for nika_session::turn::ConservativeFallback where T: core::default::Default
+pub type nika_session::turn::ConservativeFallback::NoneType = T
+pub fn nika_session::turn::ConservativeFallback::null_value() -> T
 pub struct nika_session::turn::ReasonerClassifier
 impl nika_session::turn::ReasonerClassifier
 pub fn nika_session::turn::ReasonerClassifier::new(reasoner: alloc::boxed::Box<dyn nika_session::reasoner::SessionReasoner>) -> Self
 impl nika_session::turn::TurnClassifier for nika_session::turn::ReasonerClassifier
 pub fn nika_session::turn::ReasonerClassifier::classify(&mut self, context: &nika_session::turn::TurnContext, raw: &str) -> nika_session::turn::TurnDecision
+pub fn nika_session::turn::ReasonerClassifier::classify_with_admission(&mut self, context: &nika_session::turn::TurnContext, raw: &str, account: &nika_providers::admission::InferenceAdmission) -> nika_session::turn::TurnDecision
 impl<D> owo_colors::OwoColorize for nika_session::turn::ReasonerClassifier
 impl<T, U> core::convert::Into<U> for nika_session::turn::ReasonerClassifier where U: core::convert::From<T>
 pub fn nika_session::turn::ReasonerClassifier::into(self) -> U
@@ -3225,10 +3677,13 @@ impl<T> typenum::type_operators::Same for nika_session::turn::TurnDecision
 pub type nika_session::turn::TurnDecision::Output = T
 pub trait nika_session::turn::TurnClassifier: core::marker::Send
 pub fn nika_session::turn::TurnClassifier::classify(&mut self, context: &nika_session::turn::TurnContext, raw: &str) -> nika_session::turn::TurnDecision
+pub fn nika_session::turn::TurnClassifier::classify_with_admission(&mut self, _context: &nika_session::turn::TurnContext, _raw: &str, _account: &nika_providers::admission::InferenceAdmission) -> nika_session::turn::TurnDecision
 impl nika_session::turn::TurnClassifier for nika_session::turn::ConservativeFallback
 pub fn nika_session::turn::ConservativeFallback::classify(&mut self, _context: &nika_session::turn::TurnContext, _raw: &str) -> nika_session::turn::TurnDecision
+pub fn nika_session::turn::ConservativeFallback::classify_with_admission(&mut self, _context: &nika_session::turn::TurnContext, _raw: &str, _account: &nika_providers::admission::InferenceAdmission) -> nika_session::turn::TurnDecision
 impl nika_session::turn::TurnClassifier for nika_session::turn::ReasonerClassifier
 pub fn nika_session::turn::ReasonerClassifier::classify(&mut self, context: &nika_session::turn::TurnContext, raw: &str) -> nika_session::turn::TurnDecision
+pub fn nika_session::turn::ReasonerClassifier::classify_with_admission(&mut self, context: &nika_session::turn::TurnContext, raw: &str, account: &nika_providers::admission::InferenceAdmission) -> nika_session::turn::TurnDecision
 pub fn nika_session::turn::routing_prompt(context: &nika_session::turn::TurnContext, raw: &str) -> alloc::string::String
 #[non_exhaustive] pub enum nika_session::AuthoringSeat
 pub nika_session::AuthoringSeat::Deterministic
@@ -3882,6 +4337,9 @@ impl<T> tracing::instrument::Instrument for nika_session::lifecycle::RunFact
 impl<T> tracing::instrument::WithSubscriber for nika_session::lifecycle::RunFact
 impl<T> typenum::type_operators::Same for nika_session::lifecycle::RunFact
 pub type nika_session::lifecycle::RunFact::Output = T
+impl<T> zvariant::optional::NoneValue for nika_session::lifecycle::RunFact where T: core::default::Default
+pub type nika_session::lifecycle::RunFact::NoneType = T
+pub fn nika_session::lifecycle::RunFact::null_value() -> T
 #[non_exhaustive] pub enum nika_session::Stage
 pub nika_session::Stage::Attention
 pub nika_session::Stage::Declared
@@ -4064,13 +4522,17 @@ pub struct nika_session::AuthoringRound
 pub nika_session::AuthoringRound::answers: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
 pub nika_session::AuthoringRound::continuation: core::option::Option<serde_json::value::Value>
 pub nika_session::AuthoringRound::intent: alloc::string::String
+pub nika_session::AuthoringRound::knowledge: core::option::Option<serde_json::value::Value>
 pub nika_session::AuthoringRound::questions: alloc::vec::Vec<nika_compile::types::CompileQuestion>
 pub nika_session::AuthoringRound::reasons: alloc::vec::Vec<alloc::string::String>
 pub nika_session::AuthoringRound::restatements: u8
 impl nika_session::authoring::AuthoringRound
 pub fn nika_session::authoring::AuthoringRound::absorb(&mut self, out: &nika_compile::types::CompileOutcome)
 pub fn nika_session::authoring::AuthoringRound::answer_current(&mut self, line: &str) -> core::option::Option<alloc::string::String>
+pub fn nika_session::authoring::AuthoringRound::compile(&self, seat: &nika_session::authoring::AuthoringSeat, context: &nika_session::authoring::AuthoringContext) -> core::result::Result<nika_compile::types::CompileOutcome, nika_session::authoring::AuthoringError>
+pub fn nika_session::authoring::AuthoringRound::compile_with_admission(&self, seat: &nika_session::authoring::AuthoringSeat, context: &nika_session::authoring::AuthoringContext, account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_compile::types::CompileOutcome, nika_session::authoring::AuthoringError>
 pub fn nika_session::authoring::AuthoringRound::current(&self) -> core::option::Option<&nika_compile::types::CompileQuestion>
+pub fn nika_session::authoring::AuthoringRound::effective_intent(&self) -> alloc::string::String
 pub fn nika_session::authoring::AuthoringRound::new(intent: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_session::authoring::AuthoringRound::request(&self) -> nika_compile::types::CompileRequest
 impl core::clone::Clone for nika_session::authoring::AuthoringRound
@@ -4575,6 +5037,9 @@ impl<T> tracing::instrument::Instrument for nika_session::lifecycle::LifecycleFa
 impl<T> tracing::instrument::WithSubscriber for nika_session::lifecycle::LifecycleFacts
 impl<T> typenum::type_operators::Same for nika_session::lifecycle::LifecycleFacts
 pub type nika_session::lifecycle::LifecycleFacts::Output = T
+impl<T> zvariant::optional::NoneValue for nika_session::lifecycle::LifecycleFacts where T: core::default::Default
+pub type nika_session::lifecycle::LifecycleFacts::NoneType = T
+pub fn nika_session::lifecycle::LifecycleFacts::null_value() -> T
 pub struct nika_session::PendingGate
 pub nika_session::PendingGate::message: alloc::string::String
 pub nika_session::PendingGate::mode: alloc::string::String
@@ -4691,6 +5156,7 @@ pub type nika_session::change::ProjectChangeSet::Output = T
 pub nika_session::ProjectSnapshot::ceiling: core::option::Option<f64>
 pub nika_session::ProjectSnapshot::cwd: std::path::PathBuf
 pub nika_session::ProjectSnapshot::git_root: core::option::Option<std::path::PathBuf>
+pub nika_session::ProjectSnapshot::project_error: core::option::Option<alloc::string::String>
 pub nika_session::ProjectSnapshot::project_file: core::option::Option<std::path::PathBuf>
 pub nika_session::ProjectSnapshot::root: std::path::PathBuf
 pub nika_session::ProjectSnapshot::truncated: bool
@@ -5016,6 +5482,9 @@ pub fn nika_session::reasoner::ScriptedReasoner::authoring_model(&self) -> core:
 pub fn nika_session::reasoner::ScriptedReasoner::name(&self) -> alloc::string::String
 pub fn nika_session::reasoner::ScriptedReasoner::reason(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::ScriptedReasoner::reason_label(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::ScriptedReasoner::reason_label_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::ScriptedReasoner::reason_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::ScriptedReasoner::supports_admission(&self) -> bool
 impl<D> owo_colors::OwoColorize for nika_session::reasoner::ScriptedReasoner
 impl<T, U> core::convert::Into<U> for nika_session::reasoner::ScriptedReasoner where U: core::convert::From<T>
 pub fn nika_session::reasoner::ScriptedReasoner::into(self) -> U
@@ -5125,11 +5594,17 @@ pub fn nika_session::runtime::SessionRuntime::status(&self) -> alloc::string::St
 pub fn nika_session::runtime::SessionRuntime::status_line(&self) -> alloc::string::String
 pub fn nika_session::runtime::SessionRuntime::waiting_gate(&self) -> core::option::Option<nika_session::outcome::GateId>
 impl nika_session::runtime::SessionRuntime
+pub fn nika_session::runtime::SessionRuntime::authoring_context(&self) -> &nika_session::authoring::AuthoringContext
 pub fn nika_session::runtime::SessionRuntime::authoring_seat(&self) -> &nika_session::authoring::AuthoringSeat
 pub fn nika_session::runtime::SessionRuntime::pending_input(&self) -> core::option::Option<&str>
 pub fn nika_session::runtime::SessionRuntime::pending_question(&self) -> core::option::Option<&nika_compile::types::CompileQuestion>
+pub fn nika_session::runtime::SessionRuntime::set_authoring_context(&mut self, context: nika_session::authoring::AuthoringContext)
 impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::details(&self) -> alloc::string::String
+impl nika_session::runtime::SessionRuntime
+pub fn nika_session::runtime::SessionRuntime::inference_receipt(&self) -> core::result::Result<core::option::Option<nika_providers::admission::InferenceReceipt>, nika_session::reasoner::ReasonError>
+impl nika_session::runtime::SessionRuntime
+pub fn nika_session::runtime::SessionRuntime::monetary_decision(&self) -> core::option::Option<&nika_session::money::MonetaryDecision>
 impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::phase(&self) -> nika_session::turn::SessionPhase
 pub fn nika_session::runtime::SessionRuntime::routes(&self) -> &[nika_session::turn::RouteRecord]
@@ -5442,23 +5917,38 @@ pub fn nika_session::SessionReasoner::authoring_model(&self) -> core::option::Op
 pub fn nika_session::SessionReasoner::name(&self) -> alloc::string::String
 pub fn nika_session::SessionReasoner::reason(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::SessionReasoner::reason_label(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::SessionReasoner::reason_label_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::SessionReasoner::reason_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::SessionReasoner::supports_admission(&self) -> bool
 impl nika_session::reasoner::SessionReasoner for nika_session::reasoner::HarnessReasoner
 pub fn nika_session::reasoner::HarnessReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::reasoner::HarnessReasoner::name(&self) -> alloc::string::String
 pub fn nika_session::reasoner::HarnessReasoner::reason(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::HarnessReasoner::reason_label(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::HarnessReasoner::reason_label_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::HarnessReasoner::reason_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::HarnessReasoner::supports_admission(&self) -> bool
 impl nika_session::reasoner::SessionReasoner for nika_session::reasoner::NoReasoner
 pub fn nika_session::reasoner::NoReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::reasoner::NoReasoner::name(&self) -> alloc::string::String
 pub fn nika_session::reasoner::NoReasoner::reason(&mut self, _prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::NoReasoner::reason_label(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::NoReasoner::reason_label_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::NoReasoner::reason_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::NoReasoner::supports_admission(&self) -> bool
 impl nika_session::reasoner::SessionReasoner for nika_session::reasoner::ProviderReasoner
 pub fn nika_session::reasoner::ProviderReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::reasoner::ProviderReasoner::name(&self) -> alloc::string::String
 pub fn nika_session::reasoner::ProviderReasoner::reason(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::ProviderReasoner::reason_label(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::ProviderReasoner::reason_label_with_admission(&mut self, prompt: &str, account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::ProviderReasoner::reason_with_admission(&mut self, prompt: &str, account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::ProviderReasoner::supports_admission(&self) -> bool
 impl nika_session::reasoner::SessionReasoner for nika_session::reasoner::ScriptedReasoner
 pub fn nika_session::reasoner::ScriptedReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::reasoner::ScriptedReasoner::name(&self) -> alloc::string::String
 pub fn nika_session::reasoner::ScriptedReasoner::reason(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::ScriptedReasoner::reason_label(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::ScriptedReasoner::reason_label_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::ScriptedReasoner::reason_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::ScriptedReasoner::supports_admission(&self) -> bool

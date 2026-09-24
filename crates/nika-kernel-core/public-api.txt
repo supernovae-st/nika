@@ -1345,12 +1345,15 @@ pub fn nika_kernel_core::io::http::HttpGetDyn::get(&self, request: nika_kernel_c
 pub trait nika_kernel_core::io::http::HttpPost: core::marker::Send + core::marker::Sync
 pub async fn nika_kernel_core::io::http::HttpPost::post(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpResponse, nika_kernel_core::io::http::HttpError>
 pub async fn nika_kernel_core::io::http::HttpPost::send_streaming(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpStreamResponse, nika_kernel_core::io::http::HttpError>
+pub fn nika_kernel_core::io::http::HttpPost::supports_single_attempt(&self) -> bool
 impl<TraitVariantBlanketType: nika_kernel_core::io::http::HttpPostDyn> nika_kernel_core::io::http::HttpPost for TraitVariantBlanketType
 pub async fn TraitVariantBlanketType::post(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpResponse, nika_kernel_core::io::http::HttpError>
 pub async fn TraitVariantBlanketType::send_streaming(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpStreamResponse, nika_kernel_core::io::http::HttpError>
+pub fn TraitVariantBlanketType::supports_single_attempt(&self) -> bool
 pub trait nika_kernel_core::io::http::HttpPostDyn: core::marker::Send + core::marker::Sync + core::marker::Send
 pub fn nika_kernel_core::io::http::HttpPostDyn::post(&self, request: nika_kernel_core::io::http::HttpRequest) -> impl core::future::future::Future<Output = core::result::Result<nika_kernel_core::io::http::HttpResponse, nika_kernel_core::io::http::HttpError>> + core::marker::Send
 pub fn nika_kernel_core::io::http::HttpPostDyn::send_streaming(&self, request: nika_kernel_core::io::http::HttpRequest) -> impl core::future::future::Future<Output = core::result::Result<nika_kernel_core::io::http::HttpStreamResponse, nika_kernel_core::io::http::HttpError>> + core::marker::Send
+pub fn nika_kernel_core::io::http::HttpPostDyn::supports_single_attempt(&self) -> bool
 pub fn nika_kernel_core::io::http::is_credential_header(name: &str) -> bool
 pub mod nika_kernel_core::io::input
 #[non_exhaustive] pub enum nika_kernel_core::io::input::InputError

@@ -1,0 +1,373 @@
+pub mod nika_service_execution
+pub use nika_service_execution::ExecutionAccessPlan
+pub mod nika_service_execution::access
+pub use nika_service_execution::access::first_modelless_task
+pub fn nika_service_execution::access::access_probes_env() -> alloc::vec::Vec<nika_providers::probe::ProviderProbe>
+pub fn nika_service_execution::access::boot_access_fields(plan: &nika_providers::plan::ExecutionAccessPlan) -> alloc::vec::Vec<(&'static str, nika_types::resource::Value)>
+pub fn nika_service_execution::access::lane_rows(plan: &nika_providers::plan::ExecutionAccessPlan) -> alloc::vec::Vec<serde_json::value::Value>
+pub fn nika_service_execution::access::model_needs(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport) -> alloc::vec::Vec<nika_providers::plan::ModelNeed>
+pub fn nika_service_execution::access::resolve_plan(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, model_override: core::option::Option<&str>, pin: core::option::Option<&str>) -> nika_providers::plan::ExecutionAccessPlan
+pub fn nika_service_execution::access::resolve_plan_over(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, model_override: core::option::Option<&str>, pin: core::option::Option<&str>, probes: &[nika_providers::probe::ProviderProbe]) -> nika_providers::plan::ExecutionAccessPlan
+pub fn nika_service_execution::access::verb_needs(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_providers::resolve_access::VerbNeeds
+#[non_exhaustive] pub enum nika_service_execution::ServiceExecutionStatus
+pub nika_service_execution::ServiceExecutionStatus::Cancelled
+pub nika_service_execution::ServiceExecutionStatus::Failed
+pub nika_service_execution::ServiceExecutionStatus::Paused
+pub nika_service_execution::ServiceExecutionStatus::Refused
+pub nika_service_execution::ServiceExecutionStatus::Succeeded
+impl core::clone::Clone for nika_service_execution::ServiceExecutionStatus
+pub fn nika_service_execution::ServiceExecutionStatus::clone(&self) -> nika_service_execution::ServiceExecutionStatus
+impl core::cmp::Eq for nika_service_execution::ServiceExecutionStatus
+impl core::cmp::PartialEq for nika_service_execution::ServiceExecutionStatus
+pub fn nika_service_execution::ServiceExecutionStatus::eq(&self, other: &nika_service_execution::ServiceExecutionStatus) -> bool
+impl core::fmt::Debug for nika_service_execution::ServiceExecutionStatus
+pub fn nika_service_execution::ServiceExecutionStatus::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_service_execution::ServiceExecutionStatus
+impl core::marker::StructuralPartialEq for nika_service_execution::ServiceExecutionStatus
+impl<D> owo_colors::OwoColorize for nika_service_execution::ServiceExecutionStatus
+impl<Q, K> equivalent::Equivalent<K> for nika_service_execution::ServiceExecutionStatus where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_service_execution::ServiceExecutionStatus::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_service_execution::ServiceExecutionStatus where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_service_execution::ServiceExecutionStatus::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_service_execution::ServiceExecutionStatus where U: core::convert::From<T>
+pub fn nika_service_execution::ServiceExecutionStatus::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_service_execution::ServiceExecutionStatus where U: core::convert::Into<T>
+pub type nika_service_execution::ServiceExecutionStatus::Error = core::convert::Infallible
+pub fn nika_service_execution::ServiceExecutionStatus::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_service_execution::ServiceExecutionStatus where U: core::convert::TryFrom<T>
+pub type nika_service_execution::ServiceExecutionStatus::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_service_execution::ServiceExecutionStatus::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_service_execution::ServiceExecutionStatus where T: core::clone::Clone
+pub type nika_service_execution::ServiceExecutionStatus::Owned = T
+pub fn nika_service_execution::ServiceExecutionStatus::clone_into(&self, target: &mut T)
+pub fn nika_service_execution::ServiceExecutionStatus::to_owned(&self) -> T
+impl<T> core::any::Any for nika_service_execution::ServiceExecutionStatus where T: 'static + ?core::marker::Sized
+pub fn nika_service_execution::ServiceExecutionStatus::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_service_execution::ServiceExecutionStatus where T: ?core::marker::Sized
+pub fn nika_service_execution::ServiceExecutionStatus::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_service_execution::ServiceExecutionStatus where T: ?core::marker::Sized
+pub fn nika_service_execution::ServiceExecutionStatus::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_service_execution::ServiceExecutionStatus where T: core::clone::Clone
+pub unsafe fn nika_service_execution::ServiceExecutionStatus::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_service_execution::ServiceExecutionStatus
+pub fn nika_service_execution::ServiceExecutionStatus::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_service_execution::ServiceExecutionStatus where T: core::clone::Clone
+pub fn nika_service_execution::ServiceExecutionStatus::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_service_execution::ServiceExecutionStatus where T: 'static
+pub fn nika_service_execution::ServiceExecutionStatus::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_service_execution::ServiceExecutionStatus where T: core::marker::Copy
+pub fn nika_service_execution::ServiceExecutionStatus::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_service_execution::ServiceExecutionStatus where T: ?core::marker::Sized
+pub fn nika_service_execution::ServiceExecutionStatus::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_service_execution::ServiceExecutionStatus::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_service_execution::ServiceExecutionStatus
+impl<T> tracing::instrument::WithSubscriber for nika_service_execution::ServiceExecutionStatus
+impl<T> typenum::type_operators::Same for nika_service_execution::ServiceExecutionStatus
+pub type nika_service_execution::ServiceExecutionStatus::Output = T
+#[non_exhaustive] pub struct nika_service_execution::AuthorizedRuntime
+impl nika_service_execution::AuthorizedRuntime
+pub fn nika_service_execution::AuthorizedRuntime::access_plan(&self) -> core::option::Option<&nika_providers::plan::ExecutionAccessPlan>
+pub fn nika_service_execution::AuthorizedRuntime::resumed_from(&self) -> core::option::Option<&str>
+pub async fn nika_service_execution::AuthorizedRuntime::run(&self, stamper: &mut dyn nika_event::stamp::Stamper, sink: &mut dyn nika_event::stamp::EventSink) -> core::result::Result<nika_runtime::RunOutcome, nika_runtime_laws::errors::RuntimeError>
+pub fn nika_service_execution::AuthorizedRuntime::with_access_pin(self, pin: core::option::Option<alloc::string::String>) -> Self
+pub fn nika_service_execution::AuthorizedRuntime::with_access_plan(self, plan: nika_providers::plan::ExecutionAccessPlan) -> core::result::Result<Self, nika_runtime_laws::sandbox_select::ComposeError>
+pub fn nika_service_execution::AuthorizedRuntime::with_access_probes(self, probes: alloc::vec::Vec<nika_providers::probe::ProviderProbe>) -> Self
+pub fn nika_service_execution::AuthorizedRuntime::with_boot_access_fields(self, fields: alloc::vec::Vec<(&'static str, nika_types::resource::Value)>) -> Self
+pub fn nika_service_execution::AuthorizedRuntime::with_cancel(self, cancel: nika_types::cancel::CancelCtx) -> Self
+pub fn nika_service_execution::AuthorizedRuntime::with_input_origins(self, origins: alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_types::origins::InputOrigin>) -> Self
+pub fn nika_service_execution::AuthorizedRuntime::with_max_cost_usd(self, budget: core::option::Option<f64>) -> Self
+pub fn nika_service_execution::AuthorizedRuntime::with_mcp_plane(self, plane: nika_verb_invoke::mcp::McpPlane) -> Self
+pub fn nika_service_execution::AuthorizedRuntime::with_model_override(self, model: core::option::Option<alloc::string::String>) -> Self
+pub fn nika_service_execution::AuthorizedRuntime::with_paused_approval(self, paused: core::option::Option<nika_runtime::approval::PausedApproval>) -> Self
+pub fn nika_service_execution::AuthorizedRuntime::with_prompt_answers(self, answers: alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> Self
+pub fn nika_service_execution::AuthorizedRuntime::with_prompt_pause(self, pause: bool) -> Self
+pub fn nika_service_execution::AuthorizedRuntime::with_resume_compat(self, compat: core::option::Option<alloc::string::String>) -> Self
+pub fn nika_service_execution::AuthorizedRuntime::with_resume_plan(self, plan: nika_runtime::resume::ResumePlan) -> Self
+pub fn nika_service_execution::AuthorizedRuntime::with_resume_unverified(self, unverified: core::option::Option<nika_runtime::resume::ResumeUnverified>) -> Self
+pub fn nika_service_execution::AuthorizedRuntime::with_resumed_from(self, resumed_from: core::option::Option<alloc::string::String>) -> Self
+pub fn nika_service_execution::AuthorizedRuntime::with_var_overrides(self, overrides: alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> Self
+impl core::fmt::Debug for nika_service_execution::AuthorizedRuntime
+pub fn nika_service_execution::AuthorizedRuntime::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_service_execution::AuthorizedRuntime
+impl<T, U> core::convert::Into<U> for nika_service_execution::AuthorizedRuntime where U: core::convert::From<T>
+pub fn nika_service_execution::AuthorizedRuntime::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_service_execution::AuthorizedRuntime where U: core::convert::Into<T>
+pub type nika_service_execution::AuthorizedRuntime::Error = core::convert::Infallible
+pub fn nika_service_execution::AuthorizedRuntime::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_service_execution::AuthorizedRuntime where U: core::convert::TryFrom<T>
+pub type nika_service_execution::AuthorizedRuntime::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_service_execution::AuthorizedRuntime::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_service_execution::AuthorizedRuntime where T: 'static + ?core::marker::Sized
+pub fn nika_service_execution::AuthorizedRuntime::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_service_execution::AuthorizedRuntime where T: ?core::marker::Sized
+pub fn nika_service_execution::AuthorizedRuntime::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_service_execution::AuthorizedRuntime where T: ?core::marker::Sized
+pub fn nika_service_execution::AuthorizedRuntime::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_service_execution::AuthorizedRuntime
+pub fn nika_service_execution::AuthorizedRuntime::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_service_execution::AuthorizedRuntime where T: 'static
+pub fn nika_service_execution::AuthorizedRuntime::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_service_execution::AuthorizedRuntime where T: ?core::marker::Sized
+pub fn nika_service_execution::AuthorizedRuntime::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_service_execution::AuthorizedRuntime::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_service_execution::AuthorizedRuntime
+impl<T> tracing::instrument::WithSubscriber for nika_service_execution::AuthorizedRuntime
+impl<T> typenum::type_operators::Same for nika_service_execution::AuthorizedRuntime
+pub type nika_service_execution::AuthorizedRuntime::Output = T
+#[non_exhaustive] pub struct nika_service_execution::ChildTraceMetadata
+impl nika_service_execution::ChildTraceMetadata
+pub fn nika_service_execution::ChildTraceMetadata::chain_head(&self) -> core::option::Option<&str>
+pub fn nika_service_execution::ChildTraceMetadata::new(trace_id: core::option::Option<alloc::string::String>, chain_head: core::option::Option<alloc::string::String>) -> Self
+pub fn nika_service_execution::ChildTraceMetadata::trace_id(&self) -> core::option::Option<&str>
+impl core::clone::Clone for nika_service_execution::ChildTraceMetadata
+pub fn nika_service_execution::ChildTraceMetadata::clone(&self) -> nika_service_execution::ChildTraceMetadata
+impl core::cmp::Eq for nika_service_execution::ChildTraceMetadata
+impl core::cmp::PartialEq for nika_service_execution::ChildTraceMetadata
+pub fn nika_service_execution::ChildTraceMetadata::eq(&self, other: &nika_service_execution::ChildTraceMetadata) -> bool
+impl core::default::Default for nika_service_execution::ChildTraceMetadata
+pub fn nika_service_execution::ChildTraceMetadata::default() -> nika_service_execution::ChildTraceMetadata
+impl core::fmt::Debug for nika_service_execution::ChildTraceMetadata
+pub fn nika_service_execution::ChildTraceMetadata::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_service_execution::ChildTraceMetadata
+impl<D> owo_colors::OwoColorize for nika_service_execution::ChildTraceMetadata
+impl<Q, K> equivalent::Equivalent<K> for nika_service_execution::ChildTraceMetadata where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_service_execution::ChildTraceMetadata::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_service_execution::ChildTraceMetadata where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_service_execution::ChildTraceMetadata::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_service_execution::ChildTraceMetadata where U: core::convert::From<T>
+pub fn nika_service_execution::ChildTraceMetadata::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_service_execution::ChildTraceMetadata where U: core::convert::Into<T>
+pub type nika_service_execution::ChildTraceMetadata::Error = core::convert::Infallible
+pub fn nika_service_execution::ChildTraceMetadata::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_service_execution::ChildTraceMetadata where U: core::convert::TryFrom<T>
+pub type nika_service_execution::ChildTraceMetadata::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_service_execution::ChildTraceMetadata::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_service_execution::ChildTraceMetadata where T: core::clone::Clone
+pub type nika_service_execution::ChildTraceMetadata::Owned = T
+pub fn nika_service_execution::ChildTraceMetadata::clone_into(&self, target: &mut T)
+pub fn nika_service_execution::ChildTraceMetadata::to_owned(&self) -> T
+impl<T> core::any::Any for nika_service_execution::ChildTraceMetadata where T: 'static + ?core::marker::Sized
+pub fn nika_service_execution::ChildTraceMetadata::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_service_execution::ChildTraceMetadata where T: ?core::marker::Sized
+pub fn nika_service_execution::ChildTraceMetadata::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_service_execution::ChildTraceMetadata where T: ?core::marker::Sized
+pub fn nika_service_execution::ChildTraceMetadata::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_service_execution::ChildTraceMetadata where T: core::clone::Clone
+pub unsafe fn nika_service_execution::ChildTraceMetadata::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_service_execution::ChildTraceMetadata
+pub fn nika_service_execution::ChildTraceMetadata::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_service_execution::ChildTraceMetadata where T: core::clone::Clone
+pub fn nika_service_execution::ChildTraceMetadata::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_service_execution::ChildTraceMetadata where T: 'static
+pub fn nika_service_execution::ChildTraceMetadata::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_service_execution::ChildTraceMetadata where T: ?core::marker::Sized
+pub fn nika_service_execution::ChildTraceMetadata::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_service_execution::ChildTraceMetadata::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_service_execution::ChildTraceMetadata
+impl<T> tracing::instrument::WithSubscriber for nika_service_execution::ChildTraceMetadata
+impl<T> typenum::type_operators::Same for nika_service_execution::ChildTraceMetadata
+pub type nika_service_execution::ChildTraceMetadata::Output = T
+#[non_exhaustive] pub struct nika_service_execution::ServiceEvent
+impl nika_service_execution::ServiceEvent
+pub const fn nika_service_execution::ServiceEvent::correlation(&self) -> core::option::Option<nika_types::id::CorrelationId>
+pub const fn nika_service_execution::ServiceEvent::execution(&self) -> core::option::Option<nika_types::id::ExecutionId>
+pub const fn nika_service_execution::ServiceEvent::id(&self) -> nika_types::id::EventId
+pub const fn nika_service_execution::ServiceEvent::kind(&self) -> &'static str
+pub const fn nika_service_execution::ServiceEvent::new(id: nika_types::id::EventId, timestamp: nika_types::timestamp::Timestamp, kind: &'static str, run: core::option::Option<nika_types::id::RunId>, execution: core::option::Option<nika_types::id::ExecutionId>, correlation: core::option::Option<nika_types::id::CorrelationId>) -> Self
+pub const fn nika_service_execution::ServiceEvent::run(&self) -> core::option::Option<nika_types::id::RunId>
+pub const fn nika_service_execution::ServiceEvent::timestamp(&self) -> nika_types::timestamp::Timestamp
+impl core::clone::Clone for nika_service_execution::ServiceEvent
+pub fn nika_service_execution::ServiceEvent::clone(&self) -> nika_service_execution::ServiceEvent
+impl core::cmp::Eq for nika_service_execution::ServiceEvent
+impl core::cmp::PartialEq for nika_service_execution::ServiceEvent
+pub fn nika_service_execution::ServiceEvent::eq(&self, other: &nika_service_execution::ServiceEvent) -> bool
+impl core::fmt::Debug for nika_service_execution::ServiceEvent
+pub fn nika_service_execution::ServiceEvent::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_service_execution::ServiceEvent
+impl<D> owo_colors::OwoColorize for nika_service_execution::ServiceEvent
+impl<Q, K> equivalent::Equivalent<K> for nika_service_execution::ServiceEvent where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_service_execution::ServiceEvent::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_service_execution::ServiceEvent where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_service_execution::ServiceEvent::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_service_execution::ServiceEvent where U: core::convert::From<T>
+pub fn nika_service_execution::ServiceEvent::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_service_execution::ServiceEvent where U: core::convert::Into<T>
+pub type nika_service_execution::ServiceEvent::Error = core::convert::Infallible
+pub fn nika_service_execution::ServiceEvent::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_service_execution::ServiceEvent where U: core::convert::TryFrom<T>
+pub type nika_service_execution::ServiceEvent::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_service_execution::ServiceEvent::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_service_execution::ServiceEvent where T: core::clone::Clone
+pub type nika_service_execution::ServiceEvent::Owned = T
+pub fn nika_service_execution::ServiceEvent::clone_into(&self, target: &mut T)
+pub fn nika_service_execution::ServiceEvent::to_owned(&self) -> T
+impl<T> core::any::Any for nika_service_execution::ServiceEvent where T: 'static + ?core::marker::Sized
+pub fn nika_service_execution::ServiceEvent::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_service_execution::ServiceEvent where T: ?core::marker::Sized
+pub fn nika_service_execution::ServiceEvent::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_service_execution::ServiceEvent where T: ?core::marker::Sized
+pub fn nika_service_execution::ServiceEvent::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_service_execution::ServiceEvent where T: core::clone::Clone
+pub unsafe fn nika_service_execution::ServiceEvent::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_service_execution::ServiceEvent
+pub fn nika_service_execution::ServiceEvent::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_service_execution::ServiceEvent where T: core::clone::Clone
+pub fn nika_service_execution::ServiceEvent::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_service_execution::ServiceEvent where T: 'static
+pub fn nika_service_execution::ServiceEvent::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_service_execution::ServiceEvent where T: ?core::marker::Sized
+pub fn nika_service_execution::ServiceEvent::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_service_execution::ServiceEvent::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_service_execution::ServiceEvent
+impl<T> tracing::instrument::WithSubscriber for nika_service_execution::ServiceEvent
+impl<T> typenum::type_operators::Same for nika_service_execution::ServiceEvent
+pub type nika_service_execution::ServiceEvent::Output = T
+#[non_exhaustive] pub struct nika_service_execution::ServiceExecutionDriver
+impl nika_service_execution::ServiceExecutionDriver
+pub fn nika_service_execution::ServiceExecutionDriver::compose(&self, default_model: &str) -> core::result::Result<nika_service_execution::AuthorizedRuntime, nika_runtime_laws::sandbox_select::ComposeError>
+pub async fn nika_service_execution::ServiceExecutionDriver::execute(&self, options: nika_service_execution::ServiceExecutionOptions) -> core::result::Result<nika_service_execution::ServiceExecutionResult, nika_runtime_laws::sandbox_select::ComposeError>
+pub const fn nika_service_execution::ServiceExecutionDriver::execution_id(&self) -> nika_types::id::ExecutionId
+pub fn nika_service_execution::ServiceExecutionDriver::for_local_interface(context: nika_execution::service::ExecutionContext<'_>, display_root: impl core::convert::Into<std::path::PathBuf>) -> core::option::Option<Self>
+pub fn nika_service_execution::ServiceExecutionDriver::new(context: nika_execution::service::ExecutionContext<'_>, display_root: impl core::convert::Into<std::path::PathBuf>) -> core::option::Option<Self>
+pub const fn nika_service_execution::ServiceExecutionDriver::report(&self) -> &nika_check::CheckReport
+pub fn nika_service_execution::ServiceExecutionDriver::resolve_access_plan(&self, model_override: core::option::Option<&str>, pin: core::option::Option<&str>) -> nika_providers::plan::ExecutionAccessPlan
+pub fn nika_service_execution::ServiceExecutionDriver::resolve_access_plan_over(&self, model_override: core::option::Option<&str>, pin: core::option::Option<&str>, probes: &[nika_providers::probe::ProviderProbe]) -> nika_providers::plan::ExecutionAccessPlan
+pub fn nika_service_execution::ServiceExecutionDriver::root_source(&self) -> &str
+pub const fn nika_service_execution::ServiceExecutionDriver::skills(&self) -> &nika_schema::skill::ResolvedSkills
+pub fn nika_service_execution::ServiceExecutionDriver::with_child_trace_factory(self, factory: alloc::sync::Arc<dyn nika_service_execution::ChildTraceFactory>) -> Self
+pub fn nika_service_execution::ServiceExecutionDriver::with_task_scope(self, target: core::option::Option<&str>) -> core::result::Result<Self, alloc::string::String>
+pub const fn nika_service_execution::ServiceExecutionDriver::workflow(&self) -> &nika_schema::raw::workflow::RawWorkflow
+impl core::clone::Clone for nika_service_execution::ServiceExecutionDriver
+pub fn nika_service_execution::ServiceExecutionDriver::clone(&self) -> Self
+impl core::fmt::Debug for nika_service_execution::ServiceExecutionDriver
+pub fn nika_service_execution::ServiceExecutionDriver::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl nika_runtime::child::ChildRunner for nika_service_execution::ServiceExecutionDriver
+pub fn nika_service_execution::ServiceExecutionDriver::run_child<'a>(&'a self, call: nika_runtime::child::ChildCall) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = core::result::Result<nika_runtime::child::ChildOutcome, nika_runtime::child::ChildRunRefusal>> + 'a)>>
+impl<D> owo_colors::OwoColorize for nika_service_execution::ServiceExecutionDriver
+impl<T, U> core::convert::Into<U> for nika_service_execution::ServiceExecutionDriver where U: core::convert::From<T>
+pub fn nika_service_execution::ServiceExecutionDriver::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_service_execution::ServiceExecutionDriver where U: core::convert::Into<T>
+pub type nika_service_execution::ServiceExecutionDriver::Error = core::convert::Infallible
+pub fn nika_service_execution::ServiceExecutionDriver::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_service_execution::ServiceExecutionDriver where U: core::convert::TryFrom<T>
+pub type nika_service_execution::ServiceExecutionDriver::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_service_execution::ServiceExecutionDriver::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_service_execution::ServiceExecutionDriver where T: core::clone::Clone
+pub type nika_service_execution::ServiceExecutionDriver::Owned = T
+pub fn nika_service_execution::ServiceExecutionDriver::clone_into(&self, target: &mut T)
+pub fn nika_service_execution::ServiceExecutionDriver::to_owned(&self) -> T
+impl<T> core::any::Any for nika_service_execution::ServiceExecutionDriver where T: 'static + ?core::marker::Sized
+pub fn nika_service_execution::ServiceExecutionDriver::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_service_execution::ServiceExecutionDriver where T: ?core::marker::Sized
+pub fn nika_service_execution::ServiceExecutionDriver::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_service_execution::ServiceExecutionDriver where T: ?core::marker::Sized
+pub fn nika_service_execution::ServiceExecutionDriver::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_service_execution::ServiceExecutionDriver where T: core::clone::Clone
+pub unsafe fn nika_service_execution::ServiceExecutionDriver::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_service_execution::ServiceExecutionDriver
+pub fn nika_service_execution::ServiceExecutionDriver::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_service_execution::ServiceExecutionDriver where T: core::clone::Clone
+pub fn nika_service_execution::ServiceExecutionDriver::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_service_execution::ServiceExecutionDriver where T: 'static
+pub fn nika_service_execution::ServiceExecutionDriver::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_service_execution::ServiceExecutionDriver where T: ?core::marker::Sized
+pub fn nika_service_execution::ServiceExecutionDriver::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_service_execution::ServiceExecutionDriver::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_service_execution::ServiceExecutionDriver
+impl<T> tracing::instrument::WithSubscriber for nika_service_execution::ServiceExecutionDriver
+impl<T> typenum::type_operators::Same for nika_service_execution::ServiceExecutionDriver
+pub type nika_service_execution::ServiceExecutionDriver::Output = T
+#[non_exhaustive] pub struct nika_service_execution::ServiceExecutionOptions
+impl nika_service_execution::ServiceExecutionOptions
+pub fn nika_service_execution::ServiceExecutionOptions::new() -> Self
+pub fn nika_service_execution::ServiceExecutionOptions::with_access_plan(self, plan: nika_providers::plan::ExecutionAccessPlan) -> Self
+pub fn nika_service_execution::ServiceExecutionOptions::with_cancel(self, cancel: nika_types::cancel::CancelCtx) -> Self
+pub fn nika_service_execution::ServiceExecutionOptions::with_cancel_option(self, cancel: core::option::Option<nika_types::cancel::CancelCtx>) -> Self
+pub fn nika_service_execution::ServiceExecutionOptions::with_input_origins(self, origins: alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_types::origins::InputOrigin>) -> Self
+pub fn nika_service_execution::ServiceExecutionOptions::with_inputs(self, inputs: alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> Self
+pub fn nika_service_execution::ServiceExecutionOptions::with_max_cost_usd(self, max_cost_usd: core::option::Option<f64>) -> Self
+pub fn nika_service_execution::ServiceExecutionOptions::with_mirror(self, factory: nika_service_execution::MirrorFactory) -> Self
+pub fn nika_service_execution::ServiceExecutionOptions::with_model_override(self, model: core::option::Option<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_service_execution::ServiceExecutionOptions
+pub fn nika_service_execution::ServiceExecutionOptions::clone(&self) -> nika_service_execution::ServiceExecutionOptions
+impl core::default::Default for nika_service_execution::ServiceExecutionOptions
+pub fn nika_service_execution::ServiceExecutionOptions::default() -> nika_service_execution::ServiceExecutionOptions
+impl core::fmt::Debug for nika_service_execution::ServiceExecutionOptions
+pub fn nika_service_execution::ServiceExecutionOptions::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_service_execution::ServiceExecutionOptions
+impl<T, U> core::convert::Into<U> for nika_service_execution::ServiceExecutionOptions where U: core::convert::From<T>
+pub fn nika_service_execution::ServiceExecutionOptions::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_service_execution::ServiceExecutionOptions where U: core::convert::Into<T>
+pub type nika_service_execution::ServiceExecutionOptions::Error = core::convert::Infallible
+pub fn nika_service_execution::ServiceExecutionOptions::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_service_execution::ServiceExecutionOptions where U: core::convert::TryFrom<T>
+pub type nika_service_execution::ServiceExecutionOptions::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_service_execution::ServiceExecutionOptions::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_service_execution::ServiceExecutionOptions where T: core::clone::Clone
+pub type nika_service_execution::ServiceExecutionOptions::Owned = T
+pub fn nika_service_execution::ServiceExecutionOptions::clone_into(&self, target: &mut T)
+pub fn nika_service_execution::ServiceExecutionOptions::to_owned(&self) -> T
+impl<T> core::any::Any for nika_service_execution::ServiceExecutionOptions where T: 'static + ?core::marker::Sized
+pub fn nika_service_execution::ServiceExecutionOptions::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_service_execution::ServiceExecutionOptions where T: ?core::marker::Sized
+pub fn nika_service_execution::ServiceExecutionOptions::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_service_execution::ServiceExecutionOptions where T: ?core::marker::Sized
+pub fn nika_service_execution::ServiceExecutionOptions::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_service_execution::ServiceExecutionOptions where T: core::clone::Clone
+pub unsafe fn nika_service_execution::ServiceExecutionOptions::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_service_execution::ServiceExecutionOptions
+pub fn nika_service_execution::ServiceExecutionOptions::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_service_execution::ServiceExecutionOptions where T: core::clone::Clone
+pub fn nika_service_execution::ServiceExecutionOptions::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_service_execution::ServiceExecutionOptions where T: 'static
+pub fn nika_service_execution::ServiceExecutionOptions::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_service_execution::ServiceExecutionOptions where T: ?core::marker::Sized
+pub fn nika_service_execution::ServiceExecutionOptions::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_service_execution::ServiceExecutionOptions::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_service_execution::ServiceExecutionOptions
+impl<T> tracing::instrument::WithSubscriber for nika_service_execution::ServiceExecutionOptions
+impl<T> typenum::type_operators::Same for nika_service_execution::ServiceExecutionOptions
+pub type nika_service_execution::ServiceExecutionOptions::Output = T
+#[non_exhaustive] pub struct nika_service_execution::ServiceExecutionResult
+impl nika_service_execution::ServiceExecutionResult
+pub fn nika_service_execution::ServiceExecutionResult::error(&self) -> core::option::Option<(&str, &str)>
+pub fn nika_service_execution::ServiceExecutionResult::events(&self) -> &[nika_service_execution::ServiceEvent]
+pub fn nika_service_execution::ServiceExecutionResult::into_parts(self) -> (nika_service_execution::ServiceExecutionStatus, alloc::vec::Vec<nika_service_execution::ServiceEvent>)
+pub fn nika_service_execution::ServiceExecutionResult::new(status: nika_service_execution::ServiceExecutionStatus, events: alloc::vec::Vec<nika_service_execution::ServiceEvent>) -> Self
+pub fn nika_service_execution::ServiceExecutionResult::outputs(&self) -> &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
+pub fn nika_service_execution::ServiceExecutionResult::settlement(&self) -> core::option::Option<&nika_event::settlement::RunSettlement>
+pub const fn nika_service_execution::ServiceExecutionResult::status(&self) -> nika_service_execution::ServiceExecutionStatus
+impl core::fmt::Debug for nika_service_execution::ServiceExecutionResult
+pub fn nika_service_execution::ServiceExecutionResult::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_service_execution::ServiceExecutionResult
+impl<T, U> core::convert::Into<U> for nika_service_execution::ServiceExecutionResult where U: core::convert::From<T>
+pub fn nika_service_execution::ServiceExecutionResult::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_service_execution::ServiceExecutionResult where U: core::convert::Into<T>
+pub type nika_service_execution::ServiceExecutionResult::Error = core::convert::Infallible
+pub fn nika_service_execution::ServiceExecutionResult::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_service_execution::ServiceExecutionResult where U: core::convert::TryFrom<T>
+pub type nika_service_execution::ServiceExecutionResult::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_service_execution::ServiceExecutionResult::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_service_execution::ServiceExecutionResult where T: 'static + ?core::marker::Sized
+pub fn nika_service_execution::ServiceExecutionResult::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_service_execution::ServiceExecutionResult where T: ?core::marker::Sized
+pub fn nika_service_execution::ServiceExecutionResult::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_service_execution::ServiceExecutionResult where T: ?core::marker::Sized
+pub fn nika_service_execution::ServiceExecutionResult::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_service_execution::ServiceExecutionResult
+pub fn nika_service_execution::ServiceExecutionResult::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_service_execution::ServiceExecutionResult where T: 'static
+pub fn nika_service_execution::ServiceExecutionResult::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_service_execution::ServiceExecutionResult where T: ?core::marker::Sized
+pub fn nika_service_execution::ServiceExecutionResult::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_service_execution::ServiceExecutionResult::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_service_execution::ServiceExecutionResult
+impl<T> tracing::instrument::WithSubscriber for nika_service_execution::ServiceExecutionResult
+impl<T> typenum::type_operators::Same for nika_service_execution::ServiceExecutionResult
+pub type nika_service_execution::ServiceExecutionResult::Output = T
+pub trait nika_service_execution::ChildTrace
+pub fn nika_service_execution::ChildTrace::metadata(&self) -> nika_service_execution::ChildTraceMetadata
+pub fn nika_service_execution::ChildTrace::sink(&mut self) -> &mut dyn nika_event::stamp::EventSink
+pub trait nika_service_execution::ChildTraceFactory: core::marker::Send + core::marker::Sync
+pub fn nika_service_execution::ChildTraceFactory::create(&self) -> alloc::boxed::Box<dyn nika_service_execution::ChildTrace>
+pub type nika_service_execution::MirrorFactory = alloc::sync::Arc<(dyn core::ops::function::Fn() -> alloc::boxed::Box<(dyn nika_event::stamp::EventSink + core::marker::Send)> + core::marker::Send + core::marker::Sync)>

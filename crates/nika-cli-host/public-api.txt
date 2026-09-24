@@ -180,11 +180,347 @@ pub fn nika_cli_host::clients_registry::registry_ships_kit(target: &str) -> bool
 pub fn nika_cli_host::clients_registry::registry_wires(target: &str) -> bool
 pub fn nika_cli_host::clients_registry::vendored() -> core::option::Option<&'static nika_cli_host::clients_registry::ClientsRegistry>
 pub mod nika_cli_host::compile
+pub mod nika_cli_host::compile::config
+#[non_exhaustive] pub enum nika_cli_host::compile::config::ConfigError
+pub nika_cli_host::compile::config::ConfigError::ExclusionWithoutSnapshot
+pub nika_cli_host::compile::config::ConfigError::ExclusionWithoutSnapshot::corpus: alloc::string::String
+pub nika_cli_host::compile::config::ConfigError::KnowledgeUnread
+pub nika_cli_host::compile::config::ConfigError::KnowledgeUnread::source: alloc::string::String
+pub nika_cli_host::compile::config::ConfigError::UnknownStrategy(alloc::string::String)
+impl core::clone::Clone for nika_cli_host::compile::config::ConfigError
+pub fn nika_cli_host::compile::config::ConfigError::clone(&self) -> nika_cli_host::compile::config::ConfigError
+impl core::cmp::Eq for nika_cli_host::compile::config::ConfigError
+impl core::cmp::PartialEq for nika_cli_host::compile::config::ConfigError
+pub fn nika_cli_host::compile::config::ConfigError::eq(&self, other: &nika_cli_host::compile::config::ConfigError) -> bool
+impl core::error::Error for nika_cli_host::compile::config::ConfigError
+impl core::fmt::Debug for nika_cli_host::compile::config::ConfigError
+pub fn nika_cli_host::compile::config::ConfigError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_cli_host::compile::config::ConfigError
+pub fn nika_cli_host::compile::config::ConfigError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cli_host::compile::config::ConfigError
+impl<D> owo_colors::OwoColorize for nika_cli_host::compile::config::ConfigError
+impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::compile::config::ConfigError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::compile::config::ConfigError::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::compile::config::ConfigError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::compile::config::ConfigError::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cli_host::compile::config::ConfigError where U: core::convert::From<T>
+pub fn nika_cli_host::compile::config::ConfigError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::compile::config::ConfigError where U: core::convert::Into<T>
+pub type nika_cli_host::compile::config::ConfigError::Error = core::convert::Infallible
+pub fn nika_cli_host::compile::config::ConfigError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::compile::config::ConfigError where U: core::convert::TryFrom<T>
+pub type nika_cli_host::compile::config::ConfigError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::compile::config::ConfigError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli_host::compile::config::ConfigError where T: core::clone::Clone
+pub type nika_cli_host::compile::config::ConfigError::Owned = T
+pub fn nika_cli_host::compile::config::ConfigError::clone_into(&self, target: &mut T)
+pub fn nika_cli_host::compile::config::ConfigError::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_cli_host::compile::config::ConfigError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_cli_host::compile::config::ConfigError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_cli_host::compile::config::ConfigError where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::compile::config::ConfigError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::compile::config::ConfigError where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::config::ConfigError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::compile::config::ConfigError where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::config::ConfigError::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli_host::compile::config::ConfigError where T: core::clone::Clone
+pub unsafe fn nika_cli_host::compile::config::ConfigError::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli_host::compile::config::ConfigError
+pub fn nika_cli_host::compile::config::ConfigError::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli_host::compile::config::ConfigError where T: core::clone::Clone
+pub fn nika_cli_host::compile::config::ConfigError::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> iri_string::format::ToStringFallible for nika_cli_host::compile::config::ConfigError where T: core::fmt::Display
+pub fn nika_cli_host::compile::config::ConfigError::try_to_string(&self) -> core::result::Result<alloc::string::String, alloc::collections::TryReserveError>
+impl<T> nika_error::traits::AsAny for nika_cli_host::compile::config::ConfigError where T: 'static
+pub fn nika_cli_host::compile::config::ConfigError::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::compile::config::ConfigError where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::config::ConfigError::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::compile::config::ConfigError::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::compile::config::ConfigError
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::compile::config::ConfigError
+impl<T> typenum::type_operators::Same for nika_cli_host::compile::config::ConfigError
+pub type nika_cli_host::compile::config::ConfigError::Output = T
+#[non_exhaustive] pub enum nika_cli_host::compile::config::KnowledgeSource
+pub nika_cli_host::compile::config::KnowledgeSource::Pack
+pub nika_cli_host::compile::config::KnowledgeSource::Pack::file: std::path::PathBuf
+pub nika_cli_host::compile::config::KnowledgeSource::Snapshot
+pub nika_cli_host::compile::config::KnowledgeSource::Snapshot::dir: std::path::PathBuf
+pub nika_cli_host::compile::config::KnowledgeSource::Snapshot::exclude_corpus: core::option::Option<alloc::string::String>
+impl core::clone::Clone for nika_cli_host::compile::config::KnowledgeSource
+pub fn nika_cli_host::compile::config::KnowledgeSource::clone(&self) -> nika_cli_host::compile::config::KnowledgeSource
+impl core::cmp::Eq for nika_cli_host::compile::config::KnowledgeSource
+impl core::cmp::PartialEq for nika_cli_host::compile::config::KnowledgeSource
+pub fn nika_cli_host::compile::config::KnowledgeSource::eq(&self, other: &nika_cli_host::compile::config::KnowledgeSource) -> bool
+impl core::fmt::Debug for nika_cli_host::compile::config::KnowledgeSource
+pub fn nika_cli_host::compile::config::KnowledgeSource::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cli_host::compile::config::KnowledgeSource
+impl<D> owo_colors::OwoColorize for nika_cli_host::compile::config::KnowledgeSource
+impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::compile::config::KnowledgeSource where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::compile::config::KnowledgeSource::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::compile::config::KnowledgeSource where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::compile::config::KnowledgeSource::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cli_host::compile::config::KnowledgeSource where U: core::convert::From<T>
+pub fn nika_cli_host::compile::config::KnowledgeSource::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::compile::config::KnowledgeSource where U: core::convert::Into<T>
+pub type nika_cli_host::compile::config::KnowledgeSource::Error = core::convert::Infallible
+pub fn nika_cli_host::compile::config::KnowledgeSource::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::compile::config::KnowledgeSource where U: core::convert::TryFrom<T>
+pub type nika_cli_host::compile::config::KnowledgeSource::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::compile::config::KnowledgeSource::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli_host::compile::config::KnowledgeSource where T: core::clone::Clone
+pub type nika_cli_host::compile::config::KnowledgeSource::Owned = T
+pub fn nika_cli_host::compile::config::KnowledgeSource::clone_into(&self, target: &mut T)
+pub fn nika_cli_host::compile::config::KnowledgeSource::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli_host::compile::config::KnowledgeSource where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::compile::config::KnowledgeSource::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::compile::config::KnowledgeSource where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::config::KnowledgeSource::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::compile::config::KnowledgeSource where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::config::KnowledgeSource::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli_host::compile::config::KnowledgeSource where T: core::clone::Clone
+pub unsafe fn nika_cli_host::compile::config::KnowledgeSource::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli_host::compile::config::KnowledgeSource
+pub fn nika_cli_host::compile::config::KnowledgeSource::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli_host::compile::config::KnowledgeSource where T: core::clone::Clone
+pub fn nika_cli_host::compile::config::KnowledgeSource::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli_host::compile::config::KnowledgeSource where T: 'static
+pub fn nika_cli_host::compile::config::KnowledgeSource::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::compile::config::KnowledgeSource where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::config::KnowledgeSource::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::compile::config::KnowledgeSource::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::compile::config::KnowledgeSource
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::compile::config::KnowledgeSource
+impl<T> typenum::type_operators::Same for nika_cli_host::compile::config::KnowledgeSource
+pub type nika_cli_host::compile::config::KnowledgeSource::Output = T
+#[non_exhaustive] pub struct nika_cli_host::compile::config::AuthoringConfig
+pub nika_cli_host::compile::config::AuthoringConfig::knowledge: core::option::Option<nika_cli_host::compile::config::KnowledgeSource>
+pub nika_cli_host::compile::config::AuthoringConfig::strategy: nika_compile::types::NativeMode
+impl core::clone::Clone for nika_cli_host::compile::config::AuthoringConfig
+pub fn nika_cli_host::compile::config::AuthoringConfig::clone(&self) -> nika_cli_host::compile::config::AuthoringConfig
+impl core::cmp::Eq for nika_cli_host::compile::config::AuthoringConfig
+impl core::cmp::PartialEq for nika_cli_host::compile::config::AuthoringConfig
+pub fn nika_cli_host::compile::config::AuthoringConfig::eq(&self, other: &nika_cli_host::compile::config::AuthoringConfig) -> bool
+impl core::fmt::Debug for nika_cli_host::compile::config::AuthoringConfig
+pub fn nika_cli_host::compile::config::AuthoringConfig::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cli_host::compile::config::AuthoringConfig
+impl<D> owo_colors::OwoColorize for nika_cli_host::compile::config::AuthoringConfig
+impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::compile::config::AuthoringConfig where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::compile::config::AuthoringConfig::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::compile::config::AuthoringConfig where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::compile::config::AuthoringConfig::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cli_host::compile::config::AuthoringConfig where U: core::convert::From<T>
+pub fn nika_cli_host::compile::config::AuthoringConfig::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::compile::config::AuthoringConfig where U: core::convert::Into<T>
+pub type nika_cli_host::compile::config::AuthoringConfig::Error = core::convert::Infallible
+pub fn nika_cli_host::compile::config::AuthoringConfig::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::compile::config::AuthoringConfig where U: core::convert::TryFrom<T>
+pub type nika_cli_host::compile::config::AuthoringConfig::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::compile::config::AuthoringConfig::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli_host::compile::config::AuthoringConfig where T: core::clone::Clone
+pub type nika_cli_host::compile::config::AuthoringConfig::Owned = T
+pub fn nika_cli_host::compile::config::AuthoringConfig::clone_into(&self, target: &mut T)
+pub fn nika_cli_host::compile::config::AuthoringConfig::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli_host::compile::config::AuthoringConfig where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::compile::config::AuthoringConfig::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::compile::config::AuthoringConfig where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::config::AuthoringConfig::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::compile::config::AuthoringConfig where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::config::AuthoringConfig::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli_host::compile::config::AuthoringConfig where T: core::clone::Clone
+pub unsafe fn nika_cli_host::compile::config::AuthoringConfig::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli_host::compile::config::AuthoringConfig
+pub fn nika_cli_host::compile::config::AuthoringConfig::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli_host::compile::config::AuthoringConfig where T: core::clone::Clone
+pub fn nika_cli_host::compile::config::AuthoringConfig::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli_host::compile::config::AuthoringConfig where T: 'static
+pub fn nika_cli_host::compile::config::AuthoringConfig::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::compile::config::AuthoringConfig where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::config::AuthoringConfig::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::compile::config::AuthoringConfig::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::compile::config::AuthoringConfig
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::compile::config::AuthoringConfig
+impl<T> typenum::type_operators::Same for nika_cli_host::compile::config::AuthoringConfig
+pub type nika_cli_host::compile::config::AuthoringConfig::Output = T
+#[non_exhaustive] pub struct nika_cli_host::compile::config::AuthoringSettings
+pub nika_cli_host::compile::config::AuthoringSettings::knowledge: core::option::Option<std::path::PathBuf>
+pub nika_cli_host::compile::config::AuthoringSettings::knowledge_exclude: core::option::Option<alloc::string::String>
+pub nika_cli_host::compile::config::AuthoringSettings::knowledge_pack: core::option::Option<std::path::PathBuf>
+pub nika_cli_host::compile::config::AuthoringSettings::strategy: core::option::Option<alloc::string::String>
+impl nika_cli_host::compile::config::AuthoringSettings
+pub fn nika_cli_host::compile::config::AuthoringSettings::from_env() -> Self
+pub fn nika_cli_host::compile::config::AuthoringSettings::none() -> Self
+pub fn nika_cli_host::compile::config::AuthoringSettings::with_knowledge(self, dir: impl core::convert::Into<std::path::PathBuf>, exclude: core::option::Option<alloc::string::String>) -> Self
+pub fn nika_cli_host::compile::config::AuthoringSettings::with_knowledge_exclude(self, corpus: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_cli_host::compile::config::AuthoringSettings::with_knowledge_pack(self, file: impl core::convert::Into<std::path::PathBuf>) -> Self
+pub fn nika_cli_host::compile::config::AuthoringSettings::with_strategy(self, word: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_cli_host::compile::config::AuthoringSettings
+pub fn nika_cli_host::compile::config::AuthoringSettings::clone(&self) -> nika_cli_host::compile::config::AuthoringSettings
+impl core::cmp::Eq for nika_cli_host::compile::config::AuthoringSettings
+impl core::cmp::PartialEq for nika_cli_host::compile::config::AuthoringSettings
+pub fn nika_cli_host::compile::config::AuthoringSettings::eq(&self, other: &nika_cli_host::compile::config::AuthoringSettings) -> bool
+impl core::default::Default for nika_cli_host::compile::config::AuthoringSettings
+pub fn nika_cli_host::compile::config::AuthoringSettings::default() -> nika_cli_host::compile::config::AuthoringSettings
+impl core::fmt::Debug for nika_cli_host::compile::config::AuthoringSettings
+pub fn nika_cli_host::compile::config::AuthoringSettings::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cli_host::compile::config::AuthoringSettings
+impl<D> owo_colors::OwoColorize for nika_cli_host::compile::config::AuthoringSettings
+impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::compile::config::AuthoringSettings where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::compile::config::AuthoringSettings::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::compile::config::AuthoringSettings where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::compile::config::AuthoringSettings::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cli_host::compile::config::AuthoringSettings where U: core::convert::From<T>
+pub fn nika_cli_host::compile::config::AuthoringSettings::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::compile::config::AuthoringSettings where U: core::convert::Into<T>
+pub type nika_cli_host::compile::config::AuthoringSettings::Error = core::convert::Infallible
+pub fn nika_cli_host::compile::config::AuthoringSettings::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::compile::config::AuthoringSettings where U: core::convert::TryFrom<T>
+pub type nika_cli_host::compile::config::AuthoringSettings::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::compile::config::AuthoringSettings::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli_host::compile::config::AuthoringSettings where T: core::clone::Clone
+pub type nika_cli_host::compile::config::AuthoringSettings::Owned = T
+pub fn nika_cli_host::compile::config::AuthoringSettings::clone_into(&self, target: &mut T)
+pub fn nika_cli_host::compile::config::AuthoringSettings::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli_host::compile::config::AuthoringSettings where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::compile::config::AuthoringSettings::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::compile::config::AuthoringSettings where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::config::AuthoringSettings::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::compile::config::AuthoringSettings where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::config::AuthoringSettings::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli_host::compile::config::AuthoringSettings where T: core::clone::Clone
+pub unsafe fn nika_cli_host::compile::config::AuthoringSettings::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli_host::compile::config::AuthoringSettings
+pub fn nika_cli_host::compile::config::AuthoringSettings::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli_host::compile::config::AuthoringSettings where T: core::clone::Clone
+pub fn nika_cli_host::compile::config::AuthoringSettings::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli_host::compile::config::AuthoringSettings where T: 'static
+pub fn nika_cli_host::compile::config::AuthoringSettings::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::compile::config::AuthoringSettings where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::config::AuthoringSettings::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::compile::config::AuthoringSettings::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::compile::config::AuthoringSettings
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::compile::config::AuthoringSettings
+impl<T> typenum::type_operators::Same for nika_cli_host::compile::config::AuthoringSettings
+pub type nika_cli_host::compile::config::AuthoringSettings::Output = T
+impl<T> zvariant::optional::NoneValue for nika_cli_host::compile::config::AuthoringSettings where T: core::default::Default
+pub type nika_cli_host::compile::config::AuthoringSettings::NoneType = T
+pub fn nika_cli_host::compile::config::AuthoringSettings::null_value() -> T
+pub const nika_cli_host::compile::config::DEFAULT_STRATEGY: nika_compile::types::NativeMode
+pub const nika_cli_host::compile::config::STRATEGY_WORDS: [&str; 4]
+pub fn nika_cli_host::compile::config::native_mode(word: &str) -> core::option::Option<nika_compile::types::NativeMode>
+pub fn nika_cli_host::compile::config::resolve(explicit: &nika_cli_host::compile::config::AuthoringSettings, env: &nika_cli_host::compile::config::AuthoringSettings) -> core::result::Result<nika_cli_host::compile::config::AuthoringConfig, nika_cli_host::compile::config::ConfigError>
+pub mod nika_cli_host::compile::knowledge
+#[non_exhaustive] pub enum nika_cli_host::compile::knowledge::KnowledgeError
+pub nika_cli_host::compile::knowledge::KnowledgeError::NotAPack
+pub nika_cli_host::compile::knowledge::KnowledgeError::NotAPack::file: std::path::PathBuf
+pub nika_cli_host::compile::knowledge::KnowledgeError::NotAPack::why: alloc::string::String
+pub nika_cli_host::compile::knowledge::KnowledgeError::NotASnapshot
+pub nika_cli_host::compile::knowledge::KnowledgeError::NotASnapshot::dir: std::path::PathBuf
+pub nika_cli_host::compile::knowledge::KnowledgeError::NotASnapshot::why: alloc::string::String
+pub nika_cli_host::compile::knowledge::KnowledgeError::Stale
+pub nika_cli_host::compile::knowledge::KnowledgeError::Stale::expected: alloc::string::String
+pub nika_cli_host::compile::knowledge::KnowledgeError::Stale::file: alloc::string::String
+pub nika_cli_host::compile::knowledge::KnowledgeError::Stale::found: alloc::string::String
+pub nika_cli_host::compile::knowledge::KnowledgeError::Stale::version: alloc::string::String
+impl core::clone::Clone for nika_cli_host::compile::knowledge::KnowledgeError
+pub fn nika_cli_host::compile::knowledge::KnowledgeError::clone(&self) -> nika_cli_host::compile::knowledge::KnowledgeError
+impl core::cmp::Eq for nika_cli_host::compile::knowledge::KnowledgeError
+impl core::cmp::PartialEq for nika_cli_host::compile::knowledge::KnowledgeError
+pub fn nika_cli_host::compile::knowledge::KnowledgeError::eq(&self, other: &nika_cli_host::compile::knowledge::KnowledgeError) -> bool
+impl core::error::Error for nika_cli_host::compile::knowledge::KnowledgeError
+impl core::fmt::Debug for nika_cli_host::compile::knowledge::KnowledgeError
+pub fn nika_cli_host::compile::knowledge::KnowledgeError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_cli_host::compile::knowledge::KnowledgeError
+pub fn nika_cli_host::compile::knowledge::KnowledgeError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cli_host::compile::knowledge::KnowledgeError
+impl<D> owo_colors::OwoColorize for nika_cli_host::compile::knowledge::KnowledgeError
+impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::compile::knowledge::KnowledgeError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::compile::knowledge::KnowledgeError::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::compile::knowledge::KnowledgeError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::compile::knowledge::KnowledgeError::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cli_host::compile::knowledge::KnowledgeError where U: core::convert::From<T>
+pub fn nika_cli_host::compile::knowledge::KnowledgeError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::compile::knowledge::KnowledgeError where U: core::convert::Into<T>
+pub type nika_cli_host::compile::knowledge::KnowledgeError::Error = core::convert::Infallible
+pub fn nika_cli_host::compile::knowledge::KnowledgeError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::compile::knowledge::KnowledgeError where U: core::convert::TryFrom<T>
+pub type nika_cli_host::compile::knowledge::KnowledgeError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::compile::knowledge::KnowledgeError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli_host::compile::knowledge::KnowledgeError where T: core::clone::Clone
+pub type nika_cli_host::compile::knowledge::KnowledgeError::Owned = T
+pub fn nika_cli_host::compile::knowledge::KnowledgeError::clone_into(&self, target: &mut T)
+pub fn nika_cli_host::compile::knowledge::KnowledgeError::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_cli_host::compile::knowledge::KnowledgeError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_cli_host::compile::knowledge::KnowledgeError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_cli_host::compile::knowledge::KnowledgeError where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::compile::knowledge::KnowledgeError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::compile::knowledge::KnowledgeError where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::knowledge::KnowledgeError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::compile::knowledge::KnowledgeError where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::knowledge::KnowledgeError::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli_host::compile::knowledge::KnowledgeError where T: core::clone::Clone
+pub unsafe fn nika_cli_host::compile::knowledge::KnowledgeError::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli_host::compile::knowledge::KnowledgeError
+pub fn nika_cli_host::compile::knowledge::KnowledgeError::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli_host::compile::knowledge::KnowledgeError where T: core::clone::Clone
+pub fn nika_cli_host::compile::knowledge::KnowledgeError::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> iri_string::format::ToStringFallible for nika_cli_host::compile::knowledge::KnowledgeError where T: core::fmt::Display
+pub fn nika_cli_host::compile::knowledge::KnowledgeError::try_to_string(&self) -> core::result::Result<alloc::string::String, alloc::collections::TryReserveError>
+impl<T> nika_error::traits::AsAny for nika_cli_host::compile::knowledge::KnowledgeError where T: 'static
+pub fn nika_cli_host::compile::knowledge::KnowledgeError::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::compile::knowledge::KnowledgeError where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::knowledge::KnowledgeError::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::compile::knowledge::KnowledgeError::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::compile::knowledge::KnowledgeError
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::compile::knowledge::KnowledgeError
+impl<T> typenum::type_operators::Same for nika_cli_host::compile::knowledge::KnowledgeError
+pub type nika_cli_host::compile::knowledge::KnowledgeError::Output = T
+pub struct nika_cli_host::compile::knowledge::Snapshot
+impl nika_cli_host::compile::knowledge::Snapshot
+pub fn nika_cli_host::compile::knowledge::Snapshot::digest(&self) -> core::option::Option<&str>
+pub fn nika_cli_host::compile::knowledge::Snapshot::identity(&self) -> serde_json::value::Value
+pub fn nika_cli_host::compile::knowledge::Snapshot::manifest_sha256(&self) -> &str
+pub fn nika_cli_host::compile::knowledge::Snapshot::open(dir: &std::path::Path) -> core::result::Result<Self, nika_cli_host::compile::knowledge::KnowledgeError>
+pub fn nika_cli_host::compile::knowledge::Snapshot::pack(&self, intent: &str, exclude_corpus: core::option::Option<&str>) -> core::result::Result<nika_compile::types::AuthoringKnowledge, nika_cli_host::compile::knowledge::KnowledgeError>
+pub fn nika_cli_host::compile::knowledge::Snapshot::rows_sha256(&self) -> alloc::string::String
+pub fn nika_cli_host::compile::knowledge::Snapshot::version(&self) -> core::option::Option<&str>
+impl core::fmt::Debug for nika_cli_host::compile::knowledge::Snapshot
+pub fn nika_cli_host::compile::knowledge::Snapshot::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_cli_host::compile::knowledge::Snapshot
+impl<T, U> core::convert::Into<U> for nika_cli_host::compile::knowledge::Snapshot where U: core::convert::From<T>
+pub fn nika_cli_host::compile::knowledge::Snapshot::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::compile::knowledge::Snapshot where U: core::convert::Into<T>
+pub type nika_cli_host::compile::knowledge::Snapshot::Error = core::convert::Infallible
+pub fn nika_cli_host::compile::knowledge::Snapshot::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::compile::knowledge::Snapshot where U: core::convert::TryFrom<T>
+pub type nika_cli_host::compile::knowledge::Snapshot::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::compile::knowledge::Snapshot::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_cli_host::compile::knowledge::Snapshot where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::compile::knowledge::Snapshot::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::compile::knowledge::Snapshot where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::knowledge::Snapshot::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::compile::knowledge::Snapshot where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::knowledge::Snapshot::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_cli_host::compile::knowledge::Snapshot
+pub fn nika_cli_host::compile::knowledge::Snapshot::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_cli_host::compile::knowledge::Snapshot where T: 'static
+pub fn nika_cli_host::compile::knowledge::Snapshot::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::compile::knowledge::Snapshot where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::knowledge::Snapshot::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::compile::knowledge::Snapshot::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::compile::knowledge::Snapshot
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::compile::knowledge::Snapshot
+impl<T> typenum::type_operators::Same for nika_cli_host::compile::knowledge::Snapshot
+pub type nika_cli_host::compile::knowledge::Snapshot::Output = T
+pub const nika_cli_host::compile::knowledge::PACK_BUILDER: &str
+pub fn nika_cli_host::compile::knowledge::pack_from_file(path: &std::path::Path) -> core::result::Result<core::option::Option<nika_compile::types::AuthoringKnowledge>, nika_cli_host::compile::knowledge::KnowledgeError>
+pub fn nika_cli_host::compile::knowledge::pack_sha256(pack: &nika_compile::types::AuthoringKnowledge) -> alloc::string::String
 pub struct nika_cli_host::compile::CompileArgs
 pub nika_cli_host::compile::CompileArgs::answers: alloc::vec::Vec<alloc::string::String>
 pub nika_cli_host::compile::CompileArgs::authoring_max_tokens: core::option::Option<u32>
 pub nika_cli_host::compile::CompileArgs::authoring_model: core::option::Option<alloc::string::String>
+pub nika_cli_host::compile::CompileArgs::authoring_repairs: core::option::Option<u32>
 pub nika_cli_host::compile::CompileArgs::authoring_samples: core::option::Option<u32>
+pub nika_cli_host::compile::CompileArgs::authoring_strategy: core::option::Option<alloc::string::String>
 pub nika_cli_host::compile::CompileArgs::authoring_timeout: core::option::Option<u64>
 pub nika_cli_host::compile::CompileArgs::base: core::option::Option<alloc::string::String>
 pub nika_cli_host::compile::CompileArgs::change: core::option::Option<alloc::string::String>
@@ -197,6 +533,7 @@ pub nika_cli_host::compile::CompileArgs::intent: core::option::Option<alloc::str
 pub nika_cli_host::compile::CompileArgs::json: bool
 pub nika_cli_host::compile::CompileArgs::knowledge: core::option::Option<std::path::PathBuf>
 pub nika_cli_host::compile::CompileArgs::knowledge_exclude: core::option::Option<alloc::string::String>
+pub nika_cli_host::compile::CompileArgs::knowledge_pack: core::option::Option<std::path::PathBuf>
 pub nika_cli_host::compile::CompileArgs::list: bool
 pub nika_cli_host::compile::CompileArgs::output: core::option::Option<alloc::string::String>
 impl clap_builder::derive::Args for nika_cli_host::compile::CompileArgs
