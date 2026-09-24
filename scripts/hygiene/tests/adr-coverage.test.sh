@@ -56,7 +56,7 @@ stage_new_crate() {
   git -C "$dir" add -A
 }
 
-# expect <want-rc> <label> <members> <stage(none|no-adr|with-adr)> [extra-args]
+# expect <want-rc> <label> <members> <stage-mode> [extra-args]
 expect() {
   local wantrc="$1" label="$2" members="$3" stage="$4" extra="${5:-}"
   cases=$((cases + 1))
@@ -65,6 +65,32 @@ expect() {
   case "$stage" in
     no-adr) stage_new_crate "$dir" nika-newthing n ;;
     with-adr) stage_new_crate "$dir" nika-newthing y ;;
+    modified-adr)
+      stage_new_crate "$dir" nika-newthing n
+      printf '\nAdmits nika-newthing.\n' >>"$dir/docs/adr/adr-001-old.md"
+      git -C "$dir" add docs/adr/adr-001-old.md
+      ;;
+    unrelated-adr)
+      stage_new_crate "$dir" nika-newthing n
+      printf '\nClarifies the existing member only.\n' >>"$dir/docs/adr/adr-001-old.md"
+      git -C "$dir" add docs/adr/adr-001-old.md
+      ;;
+    unstaged-mention)
+      stage_new_crate "$dir" nika-newthing y
+      printf '# ADR-002\n\nUnrelated rationale.\n' >"$dir/docs/adr/adr-002-new.md"
+      git -C "$dir" add docs/adr/adr-002-new.md
+      printf '\nAdmits nika-newthing.\n' >>"$dir/docs/adr/adr-002-new.md"
+      ;;
+    unstaged-removal)
+      stage_new_crate "$dir" nika-newthing y
+      printf '# Uncommitted replacement\n' >"$dir/docs/adr/adr-002-new.md"
+      ;;
+    unchanged-proposal)
+      printf '\nPlans nika-newthing.\n' >>"$dir/docs/adr/adr-001-old.md"
+      git -C "$dir" add docs/adr/adr-001-old.md
+      git -C "$dir" -c user.email=t@e -c user.name=t commit -qm proposal
+      stage_new_crate "$dir" nika-newthing n
+      ;;
   esac
   local rc
   # shellcheck disable=SC2086
@@ -93,6 +119,11 @@ expect 1 "new crate IS a member, NO adr" "$MEMBERS_BOTH" no-adr
 expect 0 "new crate staged WITH an adr naming it" "$MEMBERS_OLD" with-adr
 expect 0 "same, --staged-only" "$MEMBERS_OLD" with-adr --staged-only
 expect 0 "nothing staged — the pre-push shape" "$MEMBERS_OLD" none --staged-only
+expect 0 "existing ADR completed in the same commit" "$MEMBERS_OLD" modified-adr --staged-only
+expect 1 "changed ADR does not name the new crate" "$MEMBERS_OLD" unrelated-adr --staged-only
+expect 1 "only the unstaged ADR names the crate" "$MEMBERS_OLD" unstaged-mention --staged-only
+expect 0 "staged ADR still counts after an unstaged replacement" "$MEMBERS_OLD" unstaged-removal --staged-only
+expect 1 "old proposal alone is not an ADR change in this commit" "$MEMBERS_OLD" unchanged-proposal --staged-only
 
 if [ "$fails" -gt 0 ]; then
   printf '\n%d/%d case(s) wrong — the blocking branch does not reach.\n' \
