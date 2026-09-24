@@ -152,3 +152,74 @@ fn equality_lowering_and_double_completion_preserve_every_nano() {
     drop(call);
     assert_eq!(a.snapshot().expect("snapshot").active, Cost::zero());
 }
+
+#[test]
+fn an_unbudgeted_account_observes_each_quote_without_any_allowance() {
+    let quote = InferenceTariff::deepseek("deepseek-v4-pro")
+        .expect("tariff")
+        .reserve(8192)
+        .expect("quote");
+    let a = InferenceAdmission::unbudgeted();
+    // Three full-context reservations at once: none is compared with a limit.
+    let mut calls: Vec<Attempt> = (0..3).map(|_| lease(&a)).collect();
+    for call in &mut calls {
+        call.sent().expect("dispatch");
+    }
+    calls[0].settle(&complete()).expect("settled");
+    let s = a.snapshot().expect("snapshot");
+    assert!(s.unbudgeted);
+    assert_eq!(s.state, AdmissionState::Open);
+    assert_eq!(
+        s.attempts[0].estimated,
+        s.attempts[0].tariff.price(100, 20, 0)
+    );
+    assert_eq!(Some(s.estimated), s.attempts[0].estimated);
+    assert_eq!(s.active.nano_usd, 2 * quote.nano_usd);
+    assert_eq!(s.billed, None);
+    let observation = s.observation();
+    assert_eq!(observation["unbudgeted"], true);
+    assert!(observation["limit_nano_usd"].is_null());
+    assert!(
+        a.amend(Cost::new(1_000_000_000_000)).is_err(),
+        "an observation never becomes an allowance"
+    );
+    drop(calls);
+    let s = a.snapshot().expect("snapshot");
+    assert_eq!(s.state, AdmissionState::Uncertain);
+    assert_eq!(s.held_unknown.nano_usd, 2 * quote.nano_usd);
+    assert_eq!(s.unknown_calls, 2);
+    assert!(
+        a.reserve("deepseek", "deepseek-v4-pro", ENDPOINT, 8192)
+            .is_err()
+    );
+}
+
+#[test]
+fn an_unbudgeted_account_keeps_qualification_and_the_contradiction_law() {
+    let a = InferenceAdmission::unbudgeted();
+    let spoofed = "http://127.0.0.1:9/v1/chat/completions";
+    assert!(
+        a.reserve("deepseek", "deepseek-v4-pro", spoofed, 8192)
+            .is_err()
+    );
+    let mut call = lease(&a);
+    call.sent().expect("dispatch");
+    let mut served = complete();
+    served.gen_ai.response_model = Some("deepseek-v4-flash".into());
+    assert!(call.settle(&served).is_err());
+    drop(call);
+    let s = a.snapshot().expect("snapshot");
+    assert_eq!(s.state, AdmissionState::Uncertain);
+    assert_eq!(s.attempts[0].usage, Some(served.usage.clone()));
+    assert_eq!(
+        s.attempts[0].estimated, None,
+        "never an invented settlement"
+    );
+    assert_eq!(s.unknown_calls, 1);
+    let strict = account().snapshot().expect("snapshot").observation();
+    assert!(
+        strict.get("unbudgeted").is_none(),
+        "existing bytes unchanged"
+    );
+    assert!(strict["limit_nano_usd"].is_string());
+}

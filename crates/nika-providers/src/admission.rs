@@ -77,6 +77,10 @@ pub struct InferenceReceipt {
     pub overridden_defaults: [Option<Cost>; 2],
     /// Total authorized catalog allowance for this work, not a per-call gift.
     pub limit: Cost,
+    /// No allowance exists: priced work started without any monetary ceiling.
+    /// `limit` and `available` then mean nothing; reservations are observed
+    /// exposure, never admission against a cap.
+    pub unbudgeted: bool,
     /// Settled known USD subtotal; each receipt names catalog or declared provenance.
     pub estimated: Cost,
     /// Reservations for requests still in flight.
@@ -101,6 +105,7 @@ struct State {
     unknown_attempts: Vec<UnknownAttemptReceipt>,
     overridden_defaults: [Option<Cost>; 2],
     limit: Cost,
+    unbudgeted: bool,
     estimated: Cost,
     active: Cost,
     held: Cost,
@@ -140,13 +145,26 @@ impl InferenceAdmission {
         if limit.nano_usd < 0 {
             return Err(denied("negative admission allowance"));
         }
-        Ok(Self(
+        Ok(Self::open(limit, false))
+    }
+    /// Observe priced requests started without any monetary ceiling. No
+    /// allowance exists: each reservation records that request's full catalog
+    /// exposure and is never compared with an invented limit. Qualification,
+    /// the bounded single-attempt transport, settlement and uncertainty are
+    /// those of `new`; `amend` refuses, so an observation never becomes one.
+    #[must_use]
+    pub fn unbudgeted() -> Self {
+        Self::open(Cost::zero(), true)
+    }
+    fn open(limit: Cost, unbudgeted: bool) -> Self {
+        Self(
             Arc::new(Mutex::new(State {
                 unknown: None,
                 unknown_active: false,
                 unknown_attempts: Vec::new(),
                 overridden_defaults: [None, None],
                 limit,
+                unbudgeted,
                 estimated: Cost::zero(),
                 active: Cost::zero(),
                 held: Cost::zero(),
@@ -155,7 +173,7 @@ impl InferenceAdmission {
                 attempts: Vec::new(),
             })),
             true,
-        ))
+        )
     }
     fn lock(&self) -> Result<MutexGuard<'_, State>, ProviderError> {
         self.0
@@ -171,6 +189,9 @@ impl InferenceAdmission {
             return Err(denied("negative allowance"));
         }
         let mut s = self.lock()?;
+        if s.unbudgeted {
+            return Err(s.refuse("an unbudgeted observation cannot become a catalog allowance"));
+        }
         if s.unknown.is_some() {
             return Err(s.refuse(
                 "unknown-cost scope cannot be amended or converted into numeric authority",
@@ -218,6 +239,7 @@ impl InferenceAdmission {
             unknown_attempts: s.unknown_attempts.clone(),
             overridden_defaults: s.overridden_defaults,
             limit: s.limit,
+            unbudgeted: s.unbudgeted,
             estimated: s.estimated,
             active: s.active,
             held_unknown: s.held,
@@ -275,7 +297,7 @@ impl InferenceAdmission {
         let Ok(total) = s.committed().and_then(|committed| add(committed, quote)) else {
             return Err(s.refuse("admission arithmetic overflow"));
         };
-        if s.limit.nano_usd == 0 || total.nano_usd > s.limit.nano_usd {
+        if !s.unbudgeted && (s.limit.nano_usd == 0 || total.nano_usd > s.limit.nano_usd) {
             return Err(
                 s.refuse("remaining catalog allowance cannot cover the full-context reservation")
             );
@@ -343,8 +365,8 @@ impl PricedAttempt {
         }
         let mut s = self.account.lock()?;
         if s.status != AdmissionState::Open
-            || s.committed()?.nano_usd > s.limit.nano_usd
-            || s.limit.nano_usd == 0
+            || (!s.unbudgeted
+                && (s.committed()?.nano_usd > s.limit.nano_usd || s.limit.nano_usd == 0))
         {
             return Err(s.refuse("allowance revoked or lowered before dispatch"));
         }
@@ -404,7 +426,7 @@ impl Drop for PricedAttempt {
         if let Ok(mut s) = self.account.lock() {
             s.active = Cost::new(s.active.nano_usd - self.quote.nano_usd);
             if self.sent {
-                // active + held already fitted the checked allowance.
+                // active + held already fitted the checked total and any allowance.
                 s.held = Cost::new(s.held.nano_usd + self.quote.nano_usd);
                 s.status = AdmissionState::Uncertain;
                 if s.refusal.is_none() {
@@ -428,9 +450,10 @@ impl InferenceReceipt {
     /// Durable observation for traces/recovery, NEVER restorable execution
     /// authority. Old receipts are not recomputed against the current catalog.
     /// Nano-currency amounts are decimal strings to preserve the full i128 range.
+    /// Only an unbudgeted receipt carries `"unbudgeted": true`, with a null limit.
     #[must_use]
     pub fn observation(&self) -> serde_json::Value {
-        serde_json::json!({
+        let mut observation = serde_json::json!({
             "schema": "nika/inference-cost-observation@1",
             "known_subtotal_nano_usd": self.estimated.nano_usd.to_string(),
             "unknown_calls": self.unknown_calls,
@@ -442,7 +465,7 @@ impl InferenceReceipt {
                 "currency": a.currency, "response_model": a.response_model, "request_id": a.request_id, "note": a.note,
             })).collect::<Vec<_>>(),
             "overridden_defaults": self.overridden_defaults.map(|c| c.map(|c| c.nano_usd.to_string())),
-            "limit_nano_usd": self.unknown_cost.is_none().then(|| self.limit.nano_usd.to_string()),
+            "limit_nano_usd": (self.unknown_cost.is_none() && !self.unbudgeted).then(|| self.limit.nano_usd.to_string()),
             "billed_nano_usd": self.billed.map(|c| c.nano_usd.to_string()),
             "state": format!("{:?}", self.state),
             "refusal": self.refusal,
@@ -454,6 +477,10 @@ impl InferenceReceipt {
                 "source": a.tariff.source, "as_of": a.tariff.as_of,
                 "source_sha256": a.tariff.source_sha256, "note": a.note,
             })).collect::<Vec<_>>(),
-        })
+        });
+        if self.unbudgeted {
+            observation["unbudgeted"] = serde_json::Value::Bool(true);
+        }
+        observation
     }
 }

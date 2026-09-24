@@ -60,8 +60,8 @@ impl SessionRuntime {
 
     /// A request that is not a round (a revision, a request read again with
     /// its change) through the seat under the session's context, its pack
-    /// composed for `intent`.
-    fn compile_request(
+    /// composed for `intent`, bracketed like every other dispatch.
+    pub(super) fn compile_request(
         &self,
         request: &CompileRequest,
         intent: &str,
@@ -69,7 +69,7 @@ impl SessionRuntime {
         if self.money_blocks_cognition() {
             return compile_deterministic(request);
         }
-        let out = match &self.money.account {
+        self.seated(&self.seat, |account| match account {
             Some(a) => crate::authoring::compile_in_with_admission(
                 &self.seat,
                 &self.authoring_context,
@@ -78,9 +78,7 @@ impl SessionRuntime {
                 a,
             ),
             None => compile_in(&self.seat, &self.authoring_context, request, intent),
-        }?;
-        self.check_inference_outcome()?;
-        Ok(out)
+        })
     }
 
     /// A free-text line as work to build: the deterministic ladder first

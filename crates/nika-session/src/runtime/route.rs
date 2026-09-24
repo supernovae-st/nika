@@ -71,12 +71,31 @@ impl SessionRuntime {
     pub(super) fn classify(&mut self, phase: SessionPhase, raw: &str) -> TurnDecision {
         let context = self.turn_context(phase);
         let blocked = self.money_blocks_cognition();
+        // The chosen intelligence routes through the same factory the
+        // conversation's reasoner came from (a fresh one: the route never
+        // consumes the conversation's own turn), so its route is observable.
+        // A door's classifier names no route: without money it keeps its path.
+        let routes =
+            !blocked && self.classifier.is_none() && self.intelligence.ready && self.chosen;
+        let fresh = self
+            .factory
+            .as_ref()
+            .filter(|_| routes)
+            .map(|factory| factory(&self.intelligence));
+        let model = fresh
+            .as_ref()
+            .filter(|reasoner| reasoner.supports_admission())
+            .and_then(|reasoner| reasoner.authoring_model());
         // A paid label request may leave only after the record says it might.
         let entered = if blocked {
-            Ok(false)
+            Ok((None, false))
         } else {
-            self.enter_paid_dispatch()
+            self.enter_dispatch(model.as_deref())
         };
+        let account = entered
+            .as_ref()
+            .ok()
+            .and_then(|(account, _)| account.clone());
         let decision = if blocked {
             TurnDecision::new(TurnAct::Unknown, RoutingMethod::Fallback)
         } else if let Err(error) = &entered {
@@ -84,23 +103,19 @@ impl SessionRuntime {
                 "the paid-dispatch boundary was not recorded ({error}); nothing was sent"
             ))
         } else if let Some(classifier) = self.classifier.as_mut() {
-            match &self.money.account {
+            match &account {
                 Some(a) => classifier.classify_with_admission(&context, raw, a),
                 None => classifier.classify(&context, raw),
             }
         } else if self.intelligence.ready && self.chosen {
-            // The chosen intelligence routes, through the same factory the
-            // conversation's reasoner came from (a fresh one: the route
-            // never consumes the conversation's own turn).
             self.activity(&crate::activity::Activity::now(
                 crate::activity::Phase::Understanding,
                 "reading your line",
             ));
-            match self.factory.as_ref() {
-                Some(factory) => {
-                    let mut classifier =
-                        crate::turn::ReasonerClassifier::new(factory(&self.intelligence));
-                    match &self.money.account {
+            match fresh {
+                Some(reasoner) => {
+                    let mut classifier = crate::turn::ReasonerClassifier::new(reasoner);
+                    match &account {
                         Some(a) => classifier.classify_with_admission(&context, raw, a),
                         None => classifier.classify(&context, raw),
                     }
@@ -110,7 +125,7 @@ impl SessionRuntime {
         } else {
             TurnDecision::new(TurnAct::Unknown, RoutingMethod::Fallback)
         };
-        self.leave_paid_dispatch(entered.unwrap_or(false));
+        self.leave_paid_dispatch(entered.is_ok_and(|(_, written)| written));
         self.routes.push(RouteRecord::new(phase, raw, &decision));
         decision
     }

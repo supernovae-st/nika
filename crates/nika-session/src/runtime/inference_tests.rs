@@ -18,6 +18,7 @@ use crate::turn::{SessionPhase, TurnAct, TurnClassifier, TurnContext, TurnDecisi
 use nika_providers::AdmissionState;
 use serde_json::{Value, json};
 mod interrupted;
+mod no_budget;
 mod question_identity;
 mod recovery;
 mod restart;

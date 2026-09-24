@@ -51,11 +51,17 @@ impl SessionRuntime {
             .as_ref()
             .map(|p| p.review.details())
     }
-    /// Historical observations plus the current account. No entry is authority.
+    /// Historical observations plus the current account and, once it observed
+    /// a call, the no-budget account. No entry is authority.
     #[must_use]
     pub fn cost_observations(&self) -> Vec<serde_json::Value> {
         let mut observations = self.unknown_cost.observations.clone();
         if let Ok(Some(receipt)) = self.inference_receipt() {
+            observations.push(receipt.observation());
+        }
+        if let Ok(receipt) = self.money.observed.snapshot()
+            && !receipt.attempts.is_empty()
+        {
             observations.push(receipt.observation());
         }
         observations

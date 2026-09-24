@@ -3,10 +3,12 @@
 //! A paid request still in flight when its process leaves (S98 F10): the
 //! record already says it may have been sent, a restarted Session replays
 //! nothing and names the supported way on (F8), and the history carries the
-//! record's uncertainty (F3). Loopback mechanics only: a held peer is the
-//! controlled start gate, the files copied while it holds are the crash image.
+//! record's uncertainty (F3). A priced request made without any budget keeps
+//! the same boundary but no restriction (F11). Loopback mechanics only: a held
+//! peer is the controlled start gate, the files copied while it holds are the
+//! crash image.
 use super::*;
-use crate::runtime::inference::DISPATCH_PREFIX;
+use crate::runtime::inference::{DISPATCH_PREFIX, OBSERVED_PREFIX, RECONFIRM};
 use nika_runtime::cost_choice::CostHostEvidence;
 use std::io::{Read as _, Write as _};
 use std::net::{TcpListener, TcpStream};
@@ -163,6 +165,13 @@ fn in_flight(decisions: &[String]) -> Vec<&String> {
     decisions
         .iter()
         .filter(|d| d.starts_with(DISPATCH_PREFIX))
+        .collect()
+}
+
+fn observed_in_flight(decisions: &[String]) -> Vec<&String> {
+    decisions
+        .iter()
+        .filter(|d| d.starts_with(OBSERVED_PREFIX))
         .collect()
 }
 
@@ -388,4 +397,151 @@ fn a_catalog_request_is_recorded_before_transport_and_settles_either_way() {
         }
         assert_eq!(peer.requests(), 1);
     }
+}
+
+#[test]
+fn a_no_budget_request_in_flight_is_recorded_and_its_restart_keeps_the_model() {
+    let peer = HeldPeer::start();
+    let _transport = test_transport::install(&peer.url);
+    let dir = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    let mut first = open(dir.path());
+    first.enable_history(home.path()).unwrap();
+    let url = peer.url.clone();
+    let worker = std::thread::spawn(move || {
+        let _transport = test_transport::install(&url);
+        let out = first.turn("hello");
+        (first, out)
+    });
+    peer.wait_received();
+    // The crash image: exactly what a process leaving now keeps on disk.
+    let image = std::fs::read(dir.path().join(RECORD)).unwrap();
+    let history = tempfile::tempdir().unwrap();
+    copy_tree(home.path(), history.path());
+    let during: crate::SessionState = serde_json::from_slice(&image).unwrap();
+    let line = observed_in_flight(&during.decisions);
+    assert_eq!(line.len(), 1, "{:?}", during.decisions);
+    assert!(
+        line[0].contains(MODEL) && line[0].contains("no Session budget"),
+        "{}",
+        line[0]
+    );
+    assert!(
+        in_flight(&during.decisions).is_empty() && !during.decisions.iter().any(|d| d == RECONFIRM),
+        "no allowance, so nothing to reconfirm: {:?}",
+        during.decisions
+    );
+    peer.hang_up();
+    let (first, out) = worker.join().unwrap();
+    assert!(!matches!(out, TurnOutcome::Reply(_)), "{out:?}");
+    let settled = crate::SessionState::load(dir.path()).unwrap().unwrap();
+    assert!(observed_in_flight(&settled.decisions).is_empty(), "settled");
+    let last = settled.inference_observations.last().unwrap();
+    assert_eq!(last["unbudgeted"], true);
+    assert_eq!(last["state"], "Uncertain", "abort is not completion");
+    assert_eq!(last["attempts"][0]["usage"], Value::Null);
+    assert_eq!(last_history_event(home.path())["effect"], "unknown");
+    drop(first);
+    std::fs::write(dir.path().join(RECORD), &image).unwrap();
+    restart_without_a_budget(dir.path(), history.path(), &peer);
+}
+
+/// A second process opens the crash image: the exposure is named, nothing is
+/// replayed, and the chosen model still answers: no budget was ever set.
+fn restart_without_a_budget(root: &Path, home: &Path, peer: &HeldPeer) {
+    let again = Peer::start(vec![(200, response("again"))]);
+    let _transport = test_transport::install(&again.url);
+    let mut resumed = open(root);
+    let conversation = resumed.enable_history(home).unwrap().unwrap();
+    assert!(
+        conversation.contains("interrupted operation: its result may be unknown"),
+        "{conversation}"
+    );
+    let record = resumed.restore_state().unwrap();
+    assert!(
+        record.contains(OBSERVED_PREFIX) && record.contains("nothing was replayed"),
+        "{record}"
+    );
+    let status = resumed.status();
+    assert!(
+        status.contains("1 no-budget dispatch(es) left without a recorded settlement"),
+        "{status}"
+    );
+    let out = resumed.turn("hello");
+    assert!(
+        matches!(&out, TurnOutcome::Reply(text) if text == "again"),
+        "{out:?}"
+    );
+    assert_eq!(peer.requests(), 1, "nothing was replayed");
+    assert_eq!(again.bodies().len(), 1);
+    let kept = crate::SessionState::load(root).unwrap().unwrap();
+    assert_eq!(
+        observed_in_flight(&kept.decisions).len(),
+        1,
+        "never silently cleared"
+    );
+    assert!(
+        kept.inference_observations
+            .iter()
+            .all(|o| o["unbudgeted"] == true)
+    );
+}
+
+#[test]
+fn a_contradicted_or_failed_no_budget_call_is_never_retried_or_priced() {
+    let mut served = response("Hello");
+    served["model"] = json!("s108-another-served-model");
+    let failed = json!({"error": {"message": "overloaded"}});
+    for (status, body) in [(200, served), (503, failed)] {
+        let peer = Peer::start(vec![(status, body), (200, response("Hello"))]);
+        let _transport = test_transport::install(&peer.url);
+        let dir = tempfile::tempdir().unwrap();
+        let home = tempfile::tempdir().unwrap();
+        let mut s = open(dir.path());
+        s.enable_history(home.path()).unwrap();
+        let out = s.turn("hello");
+        assert!(!matches!(out, TurnOutcome::Reply(_)), "{status}: {out:?}");
+        assert_eq!(peer.bodies().len(), 1, "{status}: no automatic retry");
+        let record = crate::SessionState::load(dir.path()).unwrap().unwrap();
+        let last = record.inference_observations.last().unwrap();
+        assert_eq!(last["unbudgeted"], true, "{status}");
+        assert_eq!(last["state"], "Uncertain", "{status}");
+        assert_eq!(last["unknown_calls"], 1, "{status}");
+        let estimated = &last["attempts"][0]["estimated_nano_usd"];
+        assert_eq!(estimated, &Value::Null, "{status}: never an invented price");
+        assert_eq!(last_history_event(home.path())["effect"], "unknown");
+        // No ceremony follows: the next operation observes afresh.
+        let next = s.turn("hello");
+        assert!(
+            matches!(&next, TurnOutcome::Reply(text) if text == "Hello"),
+            "{status}: {next:?}"
+        );
+        assert_eq!(peer.bodies().len(), 2, "{status}");
+        let effect = last_history_event(home.path())["effect"].clone();
+        assert_eq!(effect, "no_uncertainty_reported", "{status}");
+        let kept = crate::SessionState::load(dir.path()).unwrap().unwrap();
+        assert_eq!(kept.inference_observations.len(), 2, "{status}");
+    }
+}
+
+#[test]
+fn an_unknown_priced_route_keeps_its_review_and_is_never_observed_instead() {
+    let mut body = response("Hello");
+    body["model"] = json!(UNPRICED_WIRE);
+    let peer = Peer::start(vec![(200, body)]);
+    let _transport = test_transport::install(&peer.url);
+    let dir = tempfile::tempdir().unwrap();
+    let mut s = open_unpriced(dir.path());
+    asked_cost(&s.turn("hello"));
+    assert!(peer.bodies().is_empty(), "nothing before the one-time yes");
+    let out = s.turn("yes");
+    assert!(matches!(out, TurnOutcome::Reply(_)), "{out:?}");
+    assert_eq!(peer.bodies().len(), 1);
+    let observed = s.money.observed.snapshot().unwrap();
+    assert!(
+        observed.attempts.is_empty(),
+        "the reviewed scope carried it"
+    );
+    let observations = s.cost_observations();
+    assert!(observations.iter().all(|o| o["unbudgeted"] != true));
 }

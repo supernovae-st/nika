@@ -148,9 +148,28 @@ providers, custom gateways (including unsupported Scaleway overrides), streaming
 media, tools, extra billing axes, subscriptions and unpriced local computation
 refuse before a paid effect. Custom reasoners/classifiers/HTTP effects must
 explicitly implement the bounded seam; their old methods are never called as a
-fallback. Zero and invalid amounts remain guarded. With no explicit amount,
-existing unbounded behavior is unchanged. Project/Session defaults apply to Run
-without pretending to meter authoring.
+fallback. Zero and invalid amounts remain guarded.
+
+With no explicit amount there is no Session allowance, cap or ceremony, and the
+chosen model keeps answering. A qualified priced route (the profile above) is
+observed, never admitted: conversation, labels, routes, compilation and
+revisions ride one no-budget account (`InferenceAdmission::unbudgeted`) through
+the same bounded seam — exact route, text only, explicit output bound, single
+attempt, no retry or redirect — so each physical request records its
+reservation, usage and catalog estimate of complete usage, or stays
+charge-unknown; never an invoice. The record carries a « may have been sent »
+line before transport and the settled observation after it. A contradicted or
+unsettled request freezes that account: the same work's continuations (an
+answer, a revision at consent, a repair) send nothing more, only new work starts
+a fresh account, and the frozen one stays in the record. A restart names a
+leftover line, replays nothing and demands no reconfirmation: a no-budget
+observation restores as history, never as an account or a restriction, while
+any other observation, including one without the `unbudgeted` mark, restricts
+as before. A later explicit amount starts its own allowance; earlier no-budget
+observations stay recorded and are never counted as covered. Other routes
+(native non-compatible APIs, local engines, subscriptions, a door's own
+classifier) keep their existing unobserved path. Project/Session defaults apply
+to Run without pretending to meter authoring.
 
 Amendments change the total allowance without erasing settled or held exposure;
 questions, new factory instances, model changes and repairs never reset it.

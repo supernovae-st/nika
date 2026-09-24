@@ -13,7 +13,6 @@ use crate::consent::ConsentRecord;
 use crate::money::{CapKnowledge, InferenceEnforcement, MonetaryDecision, MonetarySource};
 use crate::outcome::{ProposalId, Refusal, RefusalClass};
 
-#[derive(Default)]
 pub(super) struct MoneyState {
     // Persistent Session inference constraint, independent of the next
     // proposal/Run default; a refusal/zero survives even without an account.
@@ -27,7 +26,27 @@ pub(super) struct MoneyState {
     pub current: Option<MonetaryDecision>,
     pub draft: Option<MonetaryDecision>,
     pub pending: Option<MonetaryDecision>,
+    // Priced calls made without any Session budget ride this account: an
+    // observation with no allowance, never admission, a cap or a review.
+    pub observed: nika_providers::InferenceAdmission,
     saved: Vec<SavedMoney>,
+}
+
+impl Default for MoneyState {
+    fn default() -> Self {
+        Self {
+            inference_guard: None,
+            account: None,
+            admission_note: None,
+            gate: None,
+            reconfirm: false,
+            current: None,
+            draft: None,
+            pending: None,
+            observed: nika_providers::InferenceAdmission::unbudgeted(),
+            saved: Vec::new(),
+        }
+    }
 }
 
 struct SavedMoney {
@@ -268,12 +287,16 @@ impl SessionRuntime {
     }
 
     /// Called before any compiler/classifier/reasoner. A continuation with
-    /// no monetary clause keeps the admitted round's money, not a new default.
+    /// no monetary clause keeps the admitted round's money, not a new default,
+    /// and the no-budget observation its work began with.
     pub(super) fn admit_money(
         &mut self,
         input: &str,
         continuation: bool,
     ) -> Result<(), TurnOutcome> {
+        if !continuation {
+            self.rotate_observation();
+        }
         self.maybe_review_unknown(input)?;
         // A fresh turn is not an escape from a still-pending gate amendment.
         if self.money.gate.is_some() {
@@ -519,7 +542,7 @@ fn scoped_money_line(decision: &MonetaryDecision) -> String {
             "blocked by the Session monetary constraint".to_owned()
         }
         InferenceEnforcement::NotMetered => {
-            "unmetered; no aggregate inference allowance".to_owned()
+            "no Session budget; no aggregate inference allowance; qualified priced calls observed at catalog estimates, never capped".to_owned()
         }
     };
     format!(

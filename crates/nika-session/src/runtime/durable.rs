@@ -10,7 +10,8 @@ use super::history::{
     AuthorityState, EffectState, History, HistoryMode, Operation, RunState, Saved,
 };
 use super::inference::{
-    DISPATCH_PREFIX, GATE_MONEY_PREFIX, RECONFIRM, gate_money_marker, is_money_marker,
+    DISPATCH_PREFIX, GATE_MONEY_PREFIX, OBSERVED_PREFIX, RECONFIRM, gate_money_marker,
+    is_money_marker,
 };
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
@@ -196,7 +197,14 @@ impl SessionRuntime {
             }
         };
         self.unknown_cost.observations = state.inference_observations;
-        if !self.unknown_cost.observations.is_empty() {
+        // A no-budget observation had no allowance to reconfirm: it stays
+        // exposure, never a restriction. Any other observation restricts.
+        if self
+            .unknown_cost
+            .observations
+            .iter()
+            .any(|o| o["unbudgeted"] != true)
+        {
             self.money.reconfirm = true;
         }
         self.restore_intent(IntentDraft {
@@ -212,7 +220,7 @@ impl SessionRuntime {
             .intent
             .decisions
             .iter()
-            .filter(|d| d.starts_with(DISPATCH_PREFIX))
+            .filter(|d| d.starts_with(DISPATCH_PREFIX) || d.starts_with(OBSERVED_PREFIX))
         {
             let _ = write!(notice, "\n  ⚠ {line} · nothing was replayed");
         }
@@ -370,8 +378,13 @@ impl SessionRuntime {
     /// settlement's own write (S98 F10: a record never reads « Open · 0 calls »
     /// while a request may be in flight).
     pub(super) fn save_dispatch_boundary(&self) -> Result<(), String> {
+        self.save_boundary(self.dispatch_marker())
+    }
+
+    /// The same write for any in-flight line, including a no-budget one.
+    pub(super) fn save_boundary(&self, marker: Option<String>) -> Result<(), String> {
         let mut state = self.projected_state();
-        if let Some(marker) = self.dispatch_marker() {
+        if let Some(marker) = marker {
             state.decisions.push(crate::broker::redact(&marker).0);
         }
         state.save(&self.snapshot.root).map_err(|e| e.to_string())
@@ -410,7 +423,7 @@ impl SessionRuntime {
         if let Err(error) = history.begin(operation, input) {
             return self.history_failed(error);
         }
-        let charged_before = self.charge_uncertain();
+        let charged_before = self.uncertain_charges();
         let outcome = perform(self);
         // A choice that resumed a waiting line is judged by that line's
         // own outcome: the record sees what the human's request became.
@@ -427,7 +440,7 @@ impl SessionRuntime {
             let text = text.clone();
             self.remember("(effect)", &text);
             EffectState::Unknown
-        } else if !charged_before && self.charge_uncertain() {
+        } else if self.uncertain_charges() > charged_before {
             // This operation left a possibly billed request without usable
             // settlement: the history says so, as the record's observation does.
             EffectState::Unknown

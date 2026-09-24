@@ -276,6 +276,16 @@ contradictions retain exposure and freeze the account. Over-bound observations
 remain in receipts. `billed` is unknown; catalog math never becomes an invoice.
 Amending the total retains spend; defaults never infer an unpriced call is free.
 
+`InferenceAdmission::unbudgeted()` observes qualified calls that an operator
+started without any monetary ceiling. It has no allowance: each full-context
+reservation is recorded as exposure and never compared with a limit, so it
+neither admits against a cap nor invents one. Qualification, the bounded
+single-attempt transport, settlement and the contradiction and uncertainty
+rules above are unchanged; an unsettled or contradicted attempt freezes that
+account, and `amend` refuses, so an observation never becomes an allowance.
+Its receipt reads `unbudgeted`; its observation carries `"unbudgeted": true`
+and a null limit. Every other receipt and observation keeps its exact shape.
+
 Bounded nonstreaming response parsing refuses duplicate decoded object keys before
 usage validation or model binding, including equal duplicates and nested/escaped
 keys. Such ambiguity retains the sent reservation as unknown charge. Unbounded

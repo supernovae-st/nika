@@ -44,8 +44,10 @@ pub enum InferenceEnforcement {
     CatalogAdmission,
     /// Explicit one-time unknown cost; finite request/token/time bounds, no USD guarantee.
     ExplicitUnknown,
-    /// No explicit inference budget was given. Inference has no aggregate
-    /// USD admission/receipt seam; the default applies to a later `RunRequest`.
+    /// No explicit inference budget was given: no aggregate USD allowance or
+    /// cap applies, and the default applies to a later `RunRequest`. A call on
+    /// a qualified priced route is still observed (catalog estimate, possible
+    /// exposure), never admitted; other routes stay unobserved.
     NotMetered,
     /// Cognition that could charge, or whose cost is unknown, is blocked.
     CallsBlocked,
