@@ -111,6 +111,15 @@ fn seat_line(seat: &Value, text: &mut String) {
     if !seat.is_object() {
         return;
     }
+    if seat["backend"]["kind"] == "harness_infer" {
+        let _ = write!(
+            text,
+            "\n    by subscription {} · {} call(s) · responding identities in backend receipt · cost unknown",
+            seat["backend"]["adapter"].as_str().unwrap_or("unknown"),
+            seat["calls"]
+        );
+        return;
+    }
     let usage = match (
         seat["input_tokens"].as_u64(),
         seat["output_tokens"].as_u64(),
@@ -131,7 +140,39 @@ fn seat_line(seat: &Value, text: &mut String) {
 
 /// The authoring receipt's lines: the model, the calls, tokens and time, where the calls really
 /// went (the provider's own API, or the gateway its base URL is overridden to), the cost basis.
-fn receipt_lines(receipt: &nika_onboard::compile::AuthoringReceipt, text: &mut String) {
+pub(super) fn receipt_lines(receipt: &nika_onboard::compile::AuthoringReceipt, text: &mut String) {
+    if let Some(backend) = receipt
+        .backend
+        .as_ref()
+        .filter(|b| b["kind"] == "harness_infer")
+    {
+        let _ = write!(
+            text,
+            "\n  authoring backend: subscription {} · requested {} · {} compiler calls · {} ms",
+            backend["adapter"].as_str().unwrap_or("unknown"),
+            backend["requested_model"]
+                .as_str()
+                .unwrap_or("harness default"),
+            receipt.calls,
+            receipt.elapsed_ms
+        );
+        if backend["carried_from_authoring_round"] == true {
+            text.push_str("\n    receipt carried from the authoring round; this clarification replay made zero calls");
+        }
+        if let Some(calls) = backend["observed"].as_array() {
+            for call in calls.iter().filter(|c| c["status"] == "returned") {
+                let _ = write!(
+                    text,
+                    "\n    responding model: {} · usage marker {}",
+                    call["observed_model"].as_str().unwrap_or("not reported"),
+                    call["usage_observed"].as_bool().unwrap_or(false)
+                );
+            }
+        }
+        text.push_str("\n  cost: subscription invoice unknown · no numeric token meter reported · no paid provider fallback");
+        return;
+    }
+
     let _ = write!(
         text,
         "\n  authoring backend: {} · {} call{} · {} ms",

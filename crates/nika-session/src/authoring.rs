@@ -14,8 +14,8 @@
 //!
 //! The seat the compiler may reason with is the ONE the human chose for
 //! this session (`/intelligence`): an API or a local engine becomes an
-//! explicit [`AuthoringPolicy`] on that same model; a harness seat or no
-//! intelligence keeps authoring deterministic. Ambient keys are never
+//! explicit [`AuthoringPolicy`] on that same model; a supported subscription
+//! uses its own tool-free harness. No intelligence stays deterministic. Ambient keys are never
 //! consent; nothing here selects a provider the human did not name.
 //!
 //! Under a provider seat the policy carries the session's
@@ -34,9 +34,9 @@ use std::time::Duration;
 use nika_cli_host::compile::knowledge::{PACK_BUILDER, pack_sha256};
 use nika_event::source_id::sha256_hex;
 use nika_onboard::compile::{
-    AuthoringKnowledge, AuthoringPolicy, Cognition, CompileError, CompileOutcome, CompileQuestion,
-    CompileRequest, CompileStatus, DiagnosticKind, QuestionType, Strategy, compile,
-    compile_with_cognition,
+    AuthoringKnowledge, AuthoringPolicy, AuthoringReceipt, Cognition, CompileError, CompileOutcome,
+    CompileQuestion, CompileRequest, CompileStatus, DiagnosticKind, QuestionType, Strategy,
+    compile, compile_with_cognition,
 };
 use serde_json::{Value, json};
 
@@ -44,6 +44,7 @@ use crate::intelligence::{IntelligenceKind, ResolvedSessionIntelligence};
 use crate::reasoner::SessionReasoner;
 
 mod context;
+mod harness;
 pub use context::{AuthoringContext, AuthoringContextError, KnowledgePin};
 
 /// The compiler's question for a whole replacement request (its own key).
@@ -133,24 +134,68 @@ pub enum AuthoringSeat {
         /// `<provider>/<name>`.
         model: String,
     },
+    /// The selected subscription adapter; never a provider fallback.
+    Harness {
+        /// Native adapter id (for example `codex` or `claude-code`).
+        seat: String,
+        /// Caller selection, or the harness default when absent.
+        model: Option<String>,
+    },
+    /// A selected capability that this host/build cannot honor.
+    Unavailable {
+        /// Precise refusal, never interpreted as deterministic success.
+        why: String,
+    },
 }
 
 impl AuthoringSeat {
     /// The seat the human's choice permits: the reasoner that reasons with
-    /// them names its model when it is an API or a local engine; a harness
-    /// seat reasons in words only, and no intelligence keeps the facts.
+    /// them names its API/local model or its subscription capability. No
+    /// intelligence keeps deterministic facts; unavailable choices refuse.
     #[must_use]
     pub fn from_reasoner(
         reasoner: &dyn SessionReasoner,
         intelligence: &ResolvedSessionIntelligence,
     ) -> Self {
+        if let IntelligenceKind::Harness { seat } = &intelligence.kind {
+            if !intelligence.ready {
+                return Self::Unavailable {
+                    why: intelligence
+                        .why
+                        .clone()
+                        .unwrap_or_else(|| format!("harness `{seat}` is not available")),
+                };
+            }
+            #[cfg(feature = "access-harness")]
+            if let Err(why) =
+                nika_harness::authoring::HarnessAuthoring::meet(seat, intelligence.model.as_deref())
+            {
+                return Self::Unavailable { why };
+            }
+            #[cfg(not(feature = "access-harness"))]
+            return Self::Unavailable {
+                why: format!(
+                    "subscription authoring `{seat}` requires access-harness in this build"
+                ),
+            };
+            #[cfg(feature = "access-harness")]
+            return if reasoner.authoring_harness().as_deref() == Some(seat.as_str()) {
+                Self::Harness {
+                    seat: seat.clone(),
+                    model: intelligence.model.clone(),
+                }
+            } else {
+                Self::Unavailable {
+                    why: format!(
+                        "the selected `{seat}` reasoner exposes no subscription authoring capability"
+                    ),
+                }
+            };
+        }
         match reasoner.authoring_model() {
             Some(model) => Self::Provider { model },
             None => Self::Deterministic {
                 why: match &intelligence.kind {
-                    IntelligenceKind::Harness { seat } => Some(format!(
-                        "the {seat} seat reasons in words; free intents are read deterministically — name an API or a local model (`/intelligence`) to let one read them"
-                    )),
                     IntelligenceKind::None => Some(
                         "no conversational intelligence: free intents are read deterministically — `/intelligence` to choose a model that reads them"
                             .to_owned(),
@@ -159,6 +204,11 @@ impl AuthoringSeat {
                 },
             },
         }
+    }
+
+    /// Whether authoring may use the explicitly selected model backend.
+    pub(crate) fn has_model(&self) -> bool {
+        matches!(self, Self::Provider { .. } | Self::Harness { .. })
     }
 
     /// The banner's word for the seat.
@@ -171,6 +221,11 @@ impl AuthoringSeat {
             Self::Provider { model } => {
                 format!("authoring · {model} (bounded calls per fresh intent)")
             }
+            Self::Harness { seat, model } => format!(
+                "authoring · {seat} subscription · {} · cost unknown",
+                model.as_deref().unwrap_or("harness default")
+            ),
+            Self::Unavailable { why } => format!("authoring unavailable · {why}"),
         }
     }
 }
@@ -220,6 +275,9 @@ pub struct AuthoringRound {
     /// digest, its references): carried to every answer round that replays
     /// it, so the candidate keeps naming what it was authored from.
     pub knowledge: Option<Value>,
+    /// Subscription evidence of the round that authored the replayed plan.
+    /// Kept independently of optional knowledge; replay does not call this seat.
+    pub authoring_receipt: Option<AuthoringReceipt>,
 }
 
 impl AuthoringRound {
@@ -234,6 +292,7 @@ impl AuthoringRound {
             reasons: Vec::new(),
             restatements: 0,
             knowledge: None,
+            authoring_receipt: None,
         }
     }
 
@@ -268,7 +327,9 @@ impl AuthoringRound {
         } else {
             Attach::Compose(&intent)
         };
-        compile_attached(seat, context, &self.request(), attach, None)
+        let mut out = compile_attached(seat, context, &self.request(), attach, None)?;
+        self.carry_subscription_receipt(&mut out);
+        Ok(out)
     }
 
     /// The typed request this round is: the intent, every answer, the
@@ -295,6 +356,16 @@ impl AuthoringRound {
             self.continuation.clone_from(&out.provenance.plan);
             if self.continuation.is_some() {
                 self.knowledge = presented_knowledge(out);
+                self.authoring_receipt = out
+                    .provenance
+                    .authoring
+                    .as_ref()
+                    .filter(|r| {
+                        r.backend
+                            .as_ref()
+                            .is_some_and(|b| b["kind"] == "harness_infer")
+                    })
+                    .cloned();
             }
         }
         self.questions = out
@@ -309,6 +380,18 @@ impl AuthoringRound {
             .filter(|d| matches!(d.kind, DiagnosticKind::Unknown | DiagnosticKind::Missed))
             .map(|d| d.message.clone())
             .collect();
+    }
+
+    fn carry_subscription_receipt(&self, out: &mut CompileOutcome) {
+        if self.continuation.is_none() || out.provenance.authoring.is_some() {
+            return;
+        }
+        if let Some(mut receipt) = self.authoring_receipt.clone() {
+            if let Some(backend) = receipt.backend.as_mut().and_then(Value::as_object_mut) {
+                backend.insert("carried_from_authoring_round".into(), Value::Bool(true));
+            }
+            out.provenance.authoring = Some(receipt);
+        }
     }
 
     /// The question the next line answers, when one is open.
@@ -662,15 +745,33 @@ fn compile_attached(
     attach: Attach<'_>,
     admission: Option<&nika_providers::InferenceAdmission>,
 ) -> Result<CompileOutcome, AuthoringError> {
-    let AuthoringSeat::Provider { model } = seat else {
-        return compile_deterministic(request);
+    let model = match seat {
+        AuthoringSeat::Deterministic { .. } => return compile_deterministic(request),
+        AuthoringSeat::Unavailable { why } => return Err(AuthoringError::Seat(why.clone())),
+        AuthoringSeat::Provider { model } => model.clone(),
+        AuthoringSeat::Harness { seat, model } => {
+            if admission.is_some() {
+                return Err(AuthoringError::Seat(
+                    "a subscription is not a billed-provider admission account".into(),
+                ));
+            }
+            model.clone().unwrap_or_else(|| format!("{seat}/default"))
+        }
     };
     if let Some(why) = context.refusal() {
         return Err(AuthoringError::Context(why.clone()));
     }
     let mut request = request.clone().with_authoring_policy(
-        AuthoringPolicy::new(model, AUTHORING_MAX_TOKENS, AUTHORING_TIMEOUT)
-            .with_native(context.strategy()),
+        AuthoringPolicy::new(
+            &model,
+            AUTHORING_MAX_TOKENS,
+            if matches!(seat, AuthoringSeat::Harness { .. }) {
+                Duration::from_secs(300)
+            } else {
+                AUTHORING_TIMEOUT
+            },
+        )
+        .with_native(context.strategy()),
     );
     let pack = match attach {
         Attach::Compose(intent) => context.compose(intent)?,
@@ -679,7 +780,12 @@ fn compile_attached(
     if let Some(pack) = &pack {
         request = request.with_authoring_knowledge(pack.clone());
     }
-    let mut out = seated(model, &request, admission)?;
+    let mut out = match seat {
+        AuthoringSeat::Harness { seat, model } => {
+            harness::compile(seat, model.as_deref(), &request)?
+        }
+        _ => seated(&model, &request, admission)?,
+    };
     let knowledge = match (attach, &pack, context.knowledge()) {
         (Attach::Compose(_), Some(pack), Some(pin)) => Some(composed_record(pin, pack, &out)),
         (Attach::Carried(record), _, _) => record.map(carried_record),
@@ -950,10 +1056,10 @@ mod tests {
             }),
         );
         match harness {
-            AuthoringSeat::Deterministic { why: Some(why) } => {
+            AuthoringSeat::Unavailable { why } => {
                 assert!(why.contains("codex"), "{why}");
             }
-            other => panic!("a harness seat authors deterministically: {other:?}"),
+            other => panic!("an unavailable harness refuses: {other:?}"),
         }
     }
 

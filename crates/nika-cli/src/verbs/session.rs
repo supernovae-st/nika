@@ -36,9 +36,10 @@ use nika_cli_host::lines::{PerCallLines, read_burst};
 fn reasoner_for(resolved: &ResolvedSessionIntelligence) -> Box<dyn SessionReasoner> {
     match &resolved.kind {
         #[cfg(feature = "access-harness")]
-        IntelligenceKind::Harness { seat } => {
-            Box::new(nika_session::reasoner::HarnessReasoner { seat: seat.clone() })
-        }
+        IntelligenceKind::Harness { seat } => Box::new(
+            nika_session::reasoner::HarnessReasoner { seat: seat.clone() }
+                .with_model(resolved.model.clone()),
+        ),
         #[cfg(not(feature = "access-harness"))]
         IntelligenceKind::Harness { .. } => Box::new(NoReasoner),
         IntelligenceKind::Api { provider } => Box::new(ProviderReasoner {

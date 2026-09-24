@@ -19,6 +19,58 @@
 
 The workflow grammar · the builtin catalog · the model catalog · the error definitions · the check semantics · the runtime · the ARM semantics · the trace verification · the project file grammar. It queries those authorities (`nika_pack` · `nika_builtin` · `nika_catalog` · `nika_error` · `nika_cli_host::oracle` · `nika_dap::inventory` · `nika_vocab::project` · `nika_onboard::routing`).
 
+## Subscription authoring
+
+The selected reasoner declares its subscription authoring capability separately
+from a provider model or catalog-backed admission. A supported harness sends
+native Compiler messages through `nika-harness::authoring::HarnessAuthoring`,
+which implements the kernel completion seam over the existing infer-grade
+transport. Session does not call the CLI compile adapter or select an API as a
+fallback. Supported adapters retain their explicitly selected adapter and model;
+an absent model retains the harness default. Unsupported model namespaces or
+unavailable/unsupported harness capabilities refuse visibly. No intelligence
+continues to compile deterministic requests without calling a model.
+
+Initial authoring, recorded clarification continuations and revisions use the
+same native Compiler and the same pinned authoring context. The adapter passes
+the whole returned answer to Compiler validation, exposes no workflow tools,
+and accepts no tool-bearing answer. Codex authoring currently refuses before
+any call: its existing infer-grade boundary only rejects observed tool events
+after return, which does not prove pre-execution tool disabling. It may be
+admitted when that capability is attested; neither deterministic success nor
+an API is substituted. Supported one-shot adapters pass an explicit empty tool
+list. The transport retains its binary/version
+attestation, isolated scratch, tool restrictions and child cleanup. A call has
+a finite deadline capped at 600 seconds; Session defaults to 300 seconds for a
+subscription authoring call. Explicit thinking budgets are unsupported and
+refused; the native CLI does not enforce Compiler's requested token ceiling,
+which is recorded without claiming enforcement. Compiler's own bounded call
+and repair policy still applies. Cancellation or timeout accepts no answer.
+
+The Compiler's existing deterministic first step remains available even when
+the chosen harness cannot author. A settled deterministic request makes no
+model call and is not evidence that the harness worked. Only work requiring
+cognition reaches the harness refusal; an unchosen or unavailable intelligence
+can still be reselected in context, and ordinary conversation keeps its own door.
+
+A subscription receipt names the adapter, requested and separately observed
+model, attested binary version and usage-marker evidence. Unknown responding
+identity stays unknown. Infer-grade does not expose numeric usage or an invoice;
+Compiler token totals remain absent rather than zero. `/meaning` displays this
+subscription evidence without labelling it a direct API or catalog price.
+Clarification replay carries the originating subscription receipt even without
+a knowledge snapshot and explicitly states that replay made zero calls.
+Subscription authorization is not billed-provider admission. Existing explicit
+monetary refusals remain in force; this connection adds neither an account nor
+an exemption from those guards. A proposal still requires fresh review and
+consent, revisions expire the old identity, and authoring grants no Save or Run.
+
+The hermetic `subscription_authoring` integration suite injects only a fixture
+executable: actual public Session, native Compiler, continuation, knowledge
+consumer evidence and proposal identity remain real. These fixtures are not
+live subscription qualification; real Codex/Claude execution must be reported
+separately with its source and executable identities.
+
 ## Monetary admission
 
 Session reads explicit monetary intent before the compiler, classifier or

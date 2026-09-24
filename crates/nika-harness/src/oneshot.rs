@@ -309,10 +309,14 @@ impl OneShotExec {
         request: HarnessInferRequest,
     ) -> Result<HarnessInferOutcome, InferGradeError> {
         let attested_version = self.probe_identity().await?;
+        // No project instructions or relative files are ambient authoring context.
+        let scratch =
+            tempfile::tempdir().map_err(|e| self.execution(format!("scratch dir: {e}")))?;
         let (args, stdin_text) = self.argv(&request);
         let mut command = tokio::process::Command::new(&self.command);
         command
             .args(&args)
+            .current_dir(scratch.path())
             .env_clear()
             .envs(self.env())
             .stdin(if stdin_text.is_some() {
@@ -659,6 +663,23 @@ mod tests {
 
     // The measured claude answer (2.1.280, 2026-09-22), abridged to the read fields.
     const CLAUDE_OK: &str = r#"cat >/dev/null; printf '%s\n' '{"type":"result","subtype":"success","is_error":false,"result":"{\"label\":\"ok\"}","structured_output":{"label":"ok"},"num_turns":2,"permission_denials":[],"usage":{"input_tokens":2,"output_tokens":53},"modelUsage":{"claude-fable-5-1":{"inputTokens":2,"outputTokens":53}},"total_cost_usd":0.84}'"#;
+
+    #[tokio::test]
+    async fn one_shot_inference_uses_a_disposable_working_directory() {
+        let dir = tempfile::tempdir().unwrap();
+        let capture = dir.path().join("cwd");
+        let quote = capture.display().to_string().replace('\'', "'\\''");
+        let body = format!("pwd > '{quote}'\n{CLAUDE_OK}");
+        let (_script, bin) = scripted("claude", "2.1.280 (Claude Code)", &body);
+        OneShotExec::with_command(Cli::Claude, &bin)
+            .run(schema_request("claude-code/default"))
+            .await
+            .expect("fixture answer");
+        let cwd = std::fs::read_to_string(capture).unwrap();
+        let scratch = PathBuf::from(cwd.trim());
+        assert_ne!(scratch, std::env::current_dir().unwrap());
+        assert!(!scratch.exists(), "scratch removed after the call");
+    }
 
     #[tokio::test]
     async fn claude_answers_the_schema_and_names_the_responder() {

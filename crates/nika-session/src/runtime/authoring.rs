@@ -126,7 +126,7 @@ impl SessionRuntime {
                 if intent.trim().ends_with('?') {
                     return None;
                 }
-                let seat_reads = matches!(self.seat, AuthoringSeat::Provider { .. });
+                let seat_reads = self.seat.has_model();
                 match self.classify(SessionPhase::Idle, intent).act {
                     // Work the deterministic reader did not recognise, routed
                     // as new work: the seat reads it, files named or not;
@@ -151,12 +151,18 @@ impl SessionRuntime {
                 }
             }
             Reading::Unsettled(out) => Some(match &self.seat {
-                AuthoringSeat::Provider { .. } => self.compile_under_seat(round),
-                // No intelligence chosen yet — or a kept choice this machine
-                // cannot serve: the first screen is asked here, in context,
-                // and the request resumes under the choice.
-                AuthoringSeat::Deterministic { .. } if !self.chosen || !self.intelligence.ready => {
+                AuthoringSeat::Provider { .. } | AuthoringSeat::Harness { .. } => {
+                    self.compile_under_seat(round)
+                }
+                // No usable intelligence is chosen: ask here, in context,
+                // and resume this request under the resulting choice.
+                AuthoringSeat::Unavailable { .. } | AuthoringSeat::Deterministic { .. }
+                    if !self.chosen || !self.intelligence.ready =>
+                {
                     self.ask_for_intelligence(intent, super::Need::Authoring)
+                }
+                AuthoringSeat::Unavailable { why } => {
+                    self.machinery(&AuthoringError::Seat(why.clone()))
                 }
                 AuthoringSeat::Deterministic { why } => {
                     let text = honest_incomplete(&out, why.as_deref());
@@ -354,7 +360,7 @@ impl SessionRuntime {
             Err(e) => return self.machinery(&e),
         };
         let settled = out.status == CompileStatus::Ready && out.candidate.is_some();
-        if !settled && matches!(self.seat, AuthoringSeat::Provider { .. }) {
+        if !settled && self.seat.has_model() {
             self.activity(&Activity::now(
                 Phase::Repairing,
                 "reading your request again with the change",
@@ -442,7 +448,7 @@ impl SessionRuntime {
         let mut read_as: Option<String> = None;
         if !settled {
             let restated = self.restate_request(&set.goal, change.trim());
-            let seated = matches!(self.seat, AuthoringSeat::Provider { .. });
+            let seated = self.seat.has_model();
             if restated.is_some() || seated {
                 self.activity(&Activity::now(
                     Phase::Repairing,
@@ -714,7 +720,7 @@ impl SessionRuntime {
                 Err(e) => self.machinery(&e),
             };
         }
-        if matches!(self.seat, AuthoringSeat::Provider { .. }) {
+        if self.seat.has_model() {
             return self.compile_under_seat(round);
         }
         match self.compile_round(&round, &self.seat) {
@@ -1195,6 +1201,7 @@ impl SessionRuntime {
     fn authoring_note(&self) -> String {
         match &self.seat {
             AuthoringSeat::Provider { model } => format!("authoring · {model}"),
+            AuthoringSeat::Harness { .. } | AuthoringSeat::Unavailable { .. } => self.seat.line(),
             AuthoringSeat::Deterministic { .. } => "authoring".to_owned(),
         }
     }

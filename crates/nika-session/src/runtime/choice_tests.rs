@@ -556,8 +556,8 @@ fn the_intelligence_can_be_rechosen_in_session() {
         "{chosen}"
     );
     assert!(
-        chosen.contains("authoring · deterministic"),
-        "a harness seat reasons in words; authoring stays deterministic: {chosen}"
+        chosen.contains("authoring unavailable"),
+        "a reasoner without the authoring capability cannot claim it: {chosen}"
     );
     assert!(matches!(s.turn(SMALL_TALK), TurnOutcome::Reply(ref t) if t.contains("seated")));
     let back = UserIntelligencePreference::load(home.path()).expect("kept under the home");
@@ -599,7 +599,7 @@ fn an_unserved_choice_refuses_with_its_fix() {
         s.status()
     );
     assert!(
-        s.status().contains("authoring · deterministic"),
+        s.status().contains("authoring unavailable"),
         "{}",
         s.status()
     );

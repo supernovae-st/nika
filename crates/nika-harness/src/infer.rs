@@ -1013,6 +1013,177 @@ printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":1,"output_tokens
         assert!(err.to_string().contains("implicit tool"), "{err}");
     }
 
+    #[tokio::test]
+    async fn authoring_bridge_refuses_implicit_tools_and_preserves_whole_answer() {
+        use nika_kernel::ai::provider::{InferRequest, Message, ProviderInferDyn, Role};
+        for (answer, tool) in [("{\"ok\":true} trailing", false), ("{\"ok\":true}", true)] {
+            let item = serde_json::json!({"type":"item.completed", "item":{
+                "id":"m", "type":"agent_message", "text":answer}})
+            .to_string();
+            let tool_line = if tool {
+                "printf '%s\n' '{\"type\":\"item.completed\",\"item\":{\"id\":\"t\",\"type\":\"command_execution\",\"command\":\"pwd\"}}'"
+            } else {
+                "true"
+            };
+            let body = format!(
+                "cat >/dev/null\nprintf '%s\n' '{{\"type\":\"turn.started\"}}'\n{tool_line}\nprintf '%s\n' '{item}'\nprintf '%s\n' '{{\"type\":\"turn.completed\",\"usage\":{{\"input_tokens\":1,\"output_tokens\":1}}}}'\n"
+            );
+            let (_dir, bin) = scripted_codex(&body);
+            let seat = meet_with_adapter(
+                "codex",
+                StructuredOutputGrade::JsonSchema,
+                Adapter::Codex(CodexExec::with_command(bin)),
+            )
+            .expect("scripted seat");
+            let backend = crate::authoring::HarnessAuthoring::with_test_seat("codex", seat);
+            let response = backend
+                .infer(InferRequest::new(
+                    "codex/default",
+                    vec![Message::text(Role::User, "MECHANICS ONLY")],
+                ))
+                .await;
+            if tool {
+                assert!(response.is_err(), "no tool-bearing answer accepted");
+            } else {
+                let response = response.expect("text transport");
+                assert!(!response.usage_reported, "numeric usage is not exposed");
+                assert!(
+                    format!("{:?}", response.content).contains("trailing"),
+                    "whole answer reaches Compiler"
+                );
+                let receipt = backend.descriptor().expect("observed");
+                assert_eq!(receipt["kind"], "harness_infer");
+                assert!(receipt["billed_cost_usd"].is_null());
+                assert!(receipt["observed"][1]["observed_model"].is_null());
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn authoring_bridge_refuses_a_claude_permission_denial() {
+        use nika_kernel::ai::provider::{InferRequest, Message, ProviderInferDyn, Role};
+        let body = r#"cat >/dev/null; printf '%s\n' '{"type":"result","subtype":"success","is_error":false,"result":"x","permission_denials":[{"tool_name":"Bash"}],"usage":{"input_tokens":1,"output_tokens":1},"modelUsage":{"observed-fixture-model":{}}}'"#;
+        let (_dir, bin) = scripted_codex_with(
+            r#"if [ "${1:-}" = --version ]; then printf '%s\n' '2.1.280 (Claude Code)'; exit 0; fi"#,
+            body,
+        );
+        let seat = meet_with_adapter(
+            "claude-code",
+            StructuredOutputGrade::JsonSchema,
+            Adapter::OneShot(crate::oneshot::OneShotExec::with_command(
+                crate::oneshot::Cli::Claude,
+                bin,
+            )),
+        )
+        .expect("scripted seat");
+        let backend = crate::authoring::HarnessAuthoring::with_test_seat("claude-code", seat);
+        assert!(
+            backend
+                .infer(InferRequest::new(
+                    "claude-code/default",
+                    vec![Message::text(Role::User, "MECHANICS ONLY")]
+                ))
+                .await
+                .is_err()
+        );
+        assert_eq!(
+            backend.descriptor().unwrap()["observed"][1]["status"],
+            "failed"
+        );
+    }
+
+    #[tokio::test]
+    async fn authoring_bridge_records_the_returned_claude_identity_without_a_bill() {
+        use nika_kernel::ai::provider::{InferRequest, Message, ProviderInferDyn, Role};
+        let body = r#"cat >/dev/null; printf '%s\n' '{"type":"result","is_error":false,"result":"complete answer","permission_denials":[],"usage":{"input_tokens":7,"output_tokens":9},"modelUsage":{"actually-responded":{}},"total_cost_usd":0.84}'"#;
+        let (_dir, bin) = scripted_codex_with(
+            r#"if [ "${1:-}" = --version ]; then printf '%s\n' '2.1.280 (Claude Code)'; exit 0; fi"#,
+            body,
+        );
+        let seat = meet_with_adapter(
+            "claude-code",
+            StructuredOutputGrade::JsonSchema,
+            Adapter::OneShot(crate::oneshot::OneShotExec::with_command(
+                crate::oneshot::Cli::Claude,
+                bin,
+            )),
+        )
+        .unwrap();
+        let backend = crate::authoring::HarnessAuthoring::with_test_seat("claude-code", seat);
+        let response = backend
+            .infer(InferRequest::new(
+                "claude-code/requested",
+                vec![Message::text(Role::User, "MECHANICS ONLY")],
+            ))
+            .await
+            .unwrap();
+        assert!(!response.usage_reported);
+        let evidence = backend.descriptor().unwrap();
+        assert_eq!(
+            evidence["observed"][1]["observed_model"],
+            "actually-responded"
+        );
+        assert_eq!(evidence["observed"][1]["usage_observed"], true);
+        assert!(
+            evidence["billed_cost_usd"].is_null(),
+            "CLI dollar marker is not an invoice"
+        );
+    }
+
+    #[tokio::test]
+    async fn authoring_bridge_has_a_finite_timeout_and_accepts_no_answer() {
+        use nika_kernel::ai::provider::{InferRequest, Message, ProviderInferDyn, Role};
+        let (_dir, bin) = scripted_codex("cat >/dev/null\nexec /bin/sleep 10");
+        let seat = meet_with_adapter(
+            "codex",
+            StructuredOutputGrade::JsonSchema,
+            Adapter::Codex(CodexExec::with_command(bin)),
+        )
+        .unwrap();
+        let backend = crate::authoring::HarnessAuthoring::with_test_seat("codex", seat);
+        let mut request = InferRequest::new(
+            "codex/default",
+            vec![Message::text(Role::User, "MECHANICS ONLY")],
+        );
+        request.timeout = Some(Duration::from_millis(50));
+        let error = backend.infer(request).await.unwrap_err();
+        assert!(error.to_string().contains("timed out"), "{error}");
+        let evidence = backend.descriptor().unwrap();
+        assert!(
+            !evidence["observed"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|o| o["status"] == "returned")
+        );
+    }
+
+    #[tokio::test]
+    async fn cancelled_authoring_never_spawns_even_the_identity_probe() {
+        use nika_kernel::ai::provider::{InferRequest, Message, ProviderInferDyn, Role};
+        let (_dir, bin) = scripted_codex_with("exit 99", "exit 99");
+        let seat = meet_with_adapter(
+            "codex",
+            StructuredOutputGrade::JsonSchema,
+            Adapter::Codex(CodexExec::with_command(bin)),
+        )
+        .unwrap();
+        let backend = crate::authoring::HarnessAuthoring::with_test_seat("codex", seat);
+        let cancel = nika_kernel::cancel::CancelCtx::new();
+        cancel.cancel();
+        let mut request = InferRequest::new(
+            "codex/default",
+            vec![Message::text(Role::User, "MECHANICS ONLY")],
+        );
+        request.cancel = Some(cancel);
+        let error = backend.infer(request).await.unwrap_err();
+        assert!(error.to_string().contains("cancelled"), "{error}");
+        assert_eq!(
+            backend.descriptor().unwrap()["observed"][1]["status"],
+            "cancelled"
+        );
+    }
+
     /// The seat's own refusal is the witness (measured on 0.118.7): codex
     /// `--json` exits 1 with an EMPTY stderr and an `error` event on
     /// stdout whose message wraps the backend's 400 — the run used to

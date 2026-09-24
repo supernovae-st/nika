@@ -241,7 +241,7 @@ impl AuthoringContext {
                 self.source
             ),
             Some(pin) => format!(
-                "authoring context · strategy {strategy} ({}) · knowledge {} · declared digest {} · manifest {} · rows {} · presented only under a provider seat",
+                "authoring context · strategy {strategy} ({}) · knowledge {} · declared digest {} · manifest {} · rows {} · presented only under a selected model seat",
                 self.source,
                 pin.version.as_deref().unwrap_or("unversioned"),
                 short(pin.digest.as_deref().unwrap_or("none")),

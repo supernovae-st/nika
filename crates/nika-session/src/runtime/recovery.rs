@@ -58,7 +58,11 @@ impl SessionRuntime {
                 let _ = write!(text, "\n    ✓ {line}");
             }
         }
-        text.push_str("\n  Nothing was written and nothing was sent elsewhere.");
+        if matches!(self.seat, AuthoringSeat::Harness { .. }) {
+            text.push_str("\n  No workflow was written or Run requested; the selected subscription may have received compiler context; billed cost remains unknown.");
+        } else {
+            text.push_str("\n  Nothing was written and nothing was sent elsewhere.");
+        }
         text.push_str(
             "\n  To continue:\n    · say it again to try once more with the same intelligence\n    · `/intelligence` to choose another one\n    · keep going without it: the facts still answer, and work Nika reads on its own compiles\n  « what happened? » repeats this card",
         );
@@ -74,6 +78,9 @@ impl SessionRuntime {
     /// · through api.scaleway.ai »: what a 404 or a refusal was about.
     fn seat_line(&self) -> Option<String> {
         let model = match &self.seat {
+            AuthoringSeat::Harness { .. } | AuthoringSeat::Unavailable { .. } => {
+                return Some(self.seat.line());
+            }
             AuthoringSeat::Provider { model } => model.clone(),
             AuthoringSeat::Deterministic { .. } => self.reasoner.authoring_model()?,
         };

@@ -71,6 +71,13 @@ pub trait SessionReasoner: Send {
         self.reason(prompt)
     }
 
+    /// The explicitly selected tool-free subscription authoring adapter.
+    /// A wrapper must forward this capability; the default grants none.
+    /// This is independent of billed-provider catalog admission.
+    fn authoring_harness(&self) -> Option<String> {
+        None
+    }
+
     /// Whether this implementation opts into the shared admission seam.
     /// Custom and subscription implementations remain default-refusing.
     fn supports_admission(&self) -> bool {
@@ -106,8 +113,8 @@ pub trait SessionReasoner: Send {
     /// The `<provider>/<model>` the compiler may author with under this
     /// path — the same model the human chose to reason with, when the
     /// path is a metered API or a local engine. A seat that reasons in
-    /// words only, and no path at all, name none: authoring then stays
-    /// deterministic ([`crate::authoring::AuthoringSeat`]).
+    /// words only, and no path at all, name none. Subscription capability
+    /// is declared separately by `authoring_harness`.
     fn authoring_model(&self) -> Option<String> {
         None
     }
@@ -177,7 +184,56 @@ pub struct HarnessReasoner {
 }
 
 #[cfg(feature = "access-harness")]
+impl HarnessReasoner {
+    /// Retain the host's explicit model for conversation, classification and
+    /// clarification as well as authoring; the original struct stays compatible.
+    #[must_use]
+    pub fn with_model(self, model: Option<String>) -> impl SessionReasoner {
+        SelectedHarnessReasoner {
+            harness: self,
+            model,
+        }
+    }
+}
+
+#[cfg(feature = "access-harness")]
+struct SelectedHarnessReasoner {
+    harness: HarnessReasoner,
+    model: Option<String>,
+}
+
+#[cfg(feature = "access-harness")]
+impl SessionReasoner for SelectedHarnessReasoner {
+    fn name(&self) -> String {
+        self.harness.name()
+    }
+    fn authoring_harness(&self) -> Option<String> {
+        self.harness.authoring_harness()
+    }
+    fn reason(&mut self, prompt: &str) -> Result<Reply, ReasonError> {
+        let model =
+            nika_harness::authoring::model_argument(&self.harness.seat, self.model.as_deref())
+                .map_err(ReasonError::Seat)?;
+        let seat = nika_harness::meet_infer_grade(
+            &self.harness.seat,
+            nika_harness::StructuredOutputGrade::Text,
+        )
+        .map_err(|e| ReasonError::Seat(e.to_string()))?;
+        let request = nika_harness::HarnessInferRequest::new(prompt, model);
+        let outcome = block_on(async { seat.run(request).await })?
+            .map_err(|e| ReasonError::Seat(e.to_string()))?;
+        Ok(Reply {
+            text: outcome.output,
+            usage_observed: outcome.usage_observed,
+        })
+    }
+}
+
+#[cfg(feature = "access-harness")]
 impl SessionReasoner for HarnessReasoner {
+    fn authoring_harness(&self) -> Option<String> {
+        Some(self.seat.clone())
+    }
     fn name(&self) -> String {
         self.seat.clone()
     }

@@ -462,7 +462,20 @@ impl SessionRuntime {
                     .to_owned(),
             );
         };
-        let view = format!("{view}\n{}", self.money_line());
+        let mut view = format!("{view}\n{}", self.money_line());
+        if let Some(receipt) = self
+            .last_outcome
+            .as_ref()
+            .and_then(|out| out.provenance.authoring.as_ref())
+            .filter(|receipt| {
+                receipt
+                    .backend
+                    .as_ref()
+                    .is_some_and(|b| b["kind"] == "harness_infer")
+            })
+        {
+            details::receipt_lines(receipt, &mut view);
+        }
         match &self.pending {
             Some(set) => TurnOutcome::Held {
                 id: self.proposal_id(set),
