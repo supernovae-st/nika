@@ -550,11 +550,33 @@ fn absent_parent_caps_every_child_at_zero() {
     )));
 }
 
-#[tokio::test]
-async fn service_driver_runs_a_child_from_the_owned_snapshot() -> TestResult<()> {
+#[test]
+fn service_driver_runs_a_child_from_the_owned_snapshot() -> TestResult<()> {
+    // Pin the normal test-thread budget explicitly: a larger ambient
+    // RUST_MIN_STACK must not hide growth in nested production futures.
+    std::thread::Builder::new()
+        .name("service-child-normal-stack".to_owned())
+        .stack_size(2 * 1024 * 1024)
+        .spawn(|| {
+            let executor = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("current-thread executor");
+            executor
+                .block_on(assert_owned_snapshot_child())
+                .expect("nested execution on the normal stack");
+        })?
+        .join()
+        .expect("normal-stack execution thread");
+    Ok(())
+}
+
+async fn assert_owned_snapshot_child() -> TestResult<()> {
     let root = "nika: root\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  call:\n    invoke: { workflow: \"./child.nika\" }\noutputs:\n  value: ${{ tasks.call.output.value }}\n";
     let child = "nika: child\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  value:\n    invoke:\n      tool: nika:jq\n      args: { input: 7, expression: \".\" }\noutputs:\n  value: ${{ tasks.value.output }}\n";
-    let driver = admitted_driver(&[("root.nika", root), ("child.nika", child)])?;
+    let trace = RecordedChildTrace::default();
+    let driver = admitted_driver(&[("root.nika", root), ("child.nika", child)])?
+        .with_child_trace_factory(Arc::new(trace.clone()));
     let execution_id = driver.execution_id();
     let result = driver.execute(ServiceExecutionOptions::new()).await?;
     let (status, events) = result.into_parts();
@@ -565,6 +587,28 @@ async fn service_driver_runs_a_child_from_the_owned_snapshot() -> TestResult<()>
         events
             .iter()
             .all(|event| event.execution() == Some(execution_id))
+    );
+    assert_eq!(trace.1.load(std::sync::atomic::Ordering::Relaxed), 1);
+    let child_events = trace.0.lock().expect("child events");
+    let started = child_events
+        .iter()
+        .find(|event| event.kind == EventKind::WorkflowStarted)
+        .expect("the captured child actually started");
+    let source_sha = sha256_hex(child.as_bytes());
+    assert_eq!(
+        started.str_field("workflow_sha256"),
+        Some(source_sha.as_str())
+    );
+    let completed = child_events
+        .iter()
+        .find(|event| event.kind == EventKind::TaskCompleted)
+        .expect("the child's jq task actually completed");
+    assert_eq!(completed.str_field("task"), Some("value"));
+    assert_eq!(completed.str_field("output"), Some("7"));
+    assert!(
+        child_events
+            .iter()
+            .any(|event| event.kind == EventKind::WorkflowCompleted)
     );
     Ok(())
 }

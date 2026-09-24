@@ -1285,10 +1285,13 @@ where
         let mut finishes = std::pin::pin!(
             futures_util::stream::iter(members.iter().take_while(|_| !ledger.tripped()).map(
                 |&task| {
-                    self.run_task_pipeline(
+                    // Keep the pipeline out of the stream's by-value item slots.
+                    // Buffered retains its polling frame while a workflow task
+                    // polls a child runtime on this same thread.
+                    Box::pin(self.run_task_pipeline(
                         task, wf, frozen, inputs, consts, secrets, permits, types, resume_ctx,
                         ledger, jq_clock, run_start,
-                    )
+                    ))
                 },
             ))
             .buffered(cap)
