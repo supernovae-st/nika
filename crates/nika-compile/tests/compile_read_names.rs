@@ -267,6 +267,32 @@ fn an_unquoted_traversal_answered_whole_keeps_its_exact_spelling() {
     );
 }
 
+/// The reader glues `Copie équipe.txt` after `dans` into one destination, whose `équipe.txt`
+/// is a destination occurrence of the last word the opening name was cut to: the assembler's
+/// write of that destination realizes it, beside the typed source.
+#[test]
+fn a_glued_destination_the_candidate_writes_realizes_its_own_occurrence() {
+    let intent = "Notes équipe.txt doit aller dans Copie équipe.txt.";
+    let record = recorded(
+        "Notes équipe.txt",
+        "Notes équipe.txt doit aller",
+        "Copie équipe.txt",
+        "aller dans Copie équipe.txt",
+    );
+    assert_eq!(keys(&replay(intent, &record, &[])), ["const.source_paths"]);
+    let answer = [("const.source_paths", r#"["Notes équipe.txt"]"#)];
+    let out = replay(intent, &record, &answer);
+    assert_eq!(
+        outcome_document(&out)["provenance"]["decision"]["intent_sha256"],
+        intent_sha256(intent)
+    );
+    let doc = document(&out);
+    assert_eq!(doc["const"]["source_path"], "Notes équipe.txt", "{doc:#}");
+    assert_eq!(doc["const"]["output_path"], "Copie équipe.txt", "{doc:#}");
+    assert_eq!(doc["permits"]["fs"]["read"], json!(["Notes équipe.txt"]));
+    assert_eq!(doc["permits"]["fs"]["write"], json!(["Copie équipe.txt"]));
+}
+
 /// A plan naming only the last word of a name the request states (`équipe.txt` for
 /// `Notes équipe.txt`) reads nothing on that word: the file is asked.
 #[test]

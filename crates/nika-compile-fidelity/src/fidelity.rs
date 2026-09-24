@@ -11,6 +11,7 @@
 //! Moved from nika-compile to the reader at the 15k prod-LOC wall (2026-09-22), unchanged.
 
 use crate::plan::{EffectPolicy, EffectVerb, Plan};
+use nika_compile_reader::objects;
 use nika_compile_reader::paths::{self, PathShape};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
@@ -228,11 +229,18 @@ fn granted(doc: &Value, axis: &str, path: &str) -> bool {
 /// it. (The reader's source/destination split is a hint for the seat, never the law: a
 /// destination it reads as a source must still be opened one way or the other.)
 ///
-/// The reader reads a name it cannot bound as its last word (`Notes équipe.txt` opening a
-/// sentence names `équipe.txt`); when the human typed the whole name for the source question
-/// and the candidate reads it, a stated source every occurrence of which the request writes
-/// inside that name is that name, and only then: an occurrence outside it is still a file
-/// of its own, and a stated destination is never a source's.
+/// A path the boundary does not cover is judged at each place the request writes it, in the
+/// role the reader gives that place (a destination connector before it makes it a
+/// destination, `objects::destination_at`), and each occurrence must be realized:
+/// - inside a longer stated path (`./archive/équipe.txt` holding `équipe.txt`), it is that
+///   path's, judged as that path;
+/// - as a source, through the whole name the human typed for the source question when the
+///   candidate reads it (the reader cuts `Notes équipe.txt` opening a sentence to
+///   `équipe.txt`);
+/// - as a destination, only by write permission covering the literal the reader read there
+///   (`dans Copie équipe.txt`), never by a source answer.
+///
+/// An occurrence outside all of them is a file of its own (a separately named `équipe.txt`).
 pub fn stated_paths(
     intent: &str,
     doc: &Value,
@@ -240,31 +248,68 @@ pub fn stated_paths(
     clarified: &[String],
     out: &mut Vec<Diagnostic>,
 ) {
-    let sources = crate::hot::stated_sources(intent);
-    let mut paths = sources.clone();
-    paths.extend(crate::hot::stated_destinations(intent));
-    paths.dedup();
-    let spans: Vec<(usize, usize)> = clarified
-        .iter()
-        .filter(|name| granted(doc, "read", name))
-        .flat_map(|name| {
-            occurrences(intent, name)
-                .into_iter()
-                .map(move |at| (at, at + name.len()))
+    let mut stated = crate::hot::stated_sources(intent);
+    stated.extend(crate::hot::stated_destinations(intent));
+    stated.dedup();
+    let literals: Vec<String> = paths::literals(intent)
+        .into_iter()
+        .filter_map(|shape| match shape {
+            PathShape::File(text)
+            | PathShape::Directory(text)
+            | PathShape::Glob(text)
+            | PathShape::Placeholder(text) => Some(text),
+            // An unknown future shape cannot witness a covered destination.
+            _ => None,
         })
         .collect();
-    for path in paths {
-        let read_whole = sources.contains(&path) && inside(intent, &path, &spans);
-        if waived.iter().any(|w| w == &path) || read_whole {
+    let typed = spans(
+        intent,
+        clarified.iter().filter(|name| granted(doc, "read", name)),
+    );
+    let written = spans(
+        intent,
+        literals.iter().filter(|name| granted(doc, "write", name)),
+    );
+    let lower = intent.to_lowercase();
+    for path in &stated {
+        if waived.contains(path) || granted(doc, "read", path) || granted(doc, "write", path) {
             continue;
         }
-        if !granted(doc, "read", &path) && !granted(doc, "write", &path) {
+        let owners = spans(
+            intent,
+            stated.iter().filter(|other| other.len() > path.len()),
+        );
+        let realized = |at: usize| {
+            let held = |places: &[(usize, usize)]| {
+                places
+                    .iter()
+                    .any(|&(from, to)| from <= at && at + path.len() <= to)
+            };
+            // Lowering can change byte lengths (`İ`): the offset in `lower` is the lowered
+            // prefix's length, never `at`.
+            let lowered = intent.get(..at).map_or(0, |head| head.to_lowercase().len());
+            let destination = objects::destination_at(&lower, lowered).is_some();
+            held(&owners) || held(if destination { &written } else { &typed })
+        };
+        let found = occurrences(intent, path);
+        if found.is_empty() || found.iter().any(|&at| !realized(at)) {
             let boundary = doc
                 .pointer("/permits/fs")
                 .map_or_else(|| "none".to_owned(), Value::to_string);
             out.push(Diagnostic { kind: "path", message: format!("UNREALIZED PATH: the request names `{path}`; no `permits.fs.read` or `permits.fs.write` entry covers it (permits.fs = {boundary}), so no task opens it. Read it (nika:read / nika:glob + fs.read) or write it (nika:write + fs.write) as the request means, or name it in `gaps` if it cannot be reached.") });
         }
     }
+}
+
+/// Every place the request writes one of `names`, as a byte span.
+fn spans<'a>(intent: &str, names: impl Iterator<Item = &'a String>) -> Vec<(usize, usize)> {
+    names
+        .flat_map(|name| {
+            occurrences(intent, name)
+                .into_iter()
+                .map(move |at| (at, at + name.len()))
+        })
+        .collect()
 }
 
 /// Where the request writes `literal` verbatim with no letter or digit continuing it on
@@ -280,17 +325,6 @@ fn occurrences(text: &str, literal: &str) -> Vec<usize> {
             !before.is_some_and(char::is_alphanumeric) && !after.is_some_and(char::is_alphanumeric)
         })
         .collect()
-}
-
-/// Whether the request writes `path`, and every time inside one of `spans`.
-fn inside(intent: &str, path: &str, spans: &[(usize, usize)]) -> bool {
-    let found = occurrences(intent, path);
-    !found.is_empty()
-        && found.iter().all(|&at| {
-            spans
-                .iter()
-                .any(|&(from, to)| from <= at && at + path.len() <= to)
-        })
 }
 
 /// Law 3: a stated approval gates the effect family it names (a send · a notify · a publish;
@@ -615,10 +649,10 @@ mod tests {
         assert!(!covers("./entree.txt", ".entree.txt"));
     }
 
-    /// The paths `stated_paths` still owes for `intent` once the candidate reads `read` and
-    /// the human typed `clarified` for the source question.
-    fn owed(intent: &str, read: &[&str], clarified: &[&str]) -> Vec<String> {
-        let doc = serde_json::json!({"permits": {"fs": {"read": read, "write": ["sortie.txt"]}}});
+    /// The paths `stated_paths` still owes for `intent` once the candidate reads `read`,
+    /// writes `write` and the human typed `clarified` for the source question.
+    fn owes(intent: &str, read: &[&str], write: &[&str], clarified: &[&str]) -> Vec<String> {
+        let doc = serde_json::json!({"permits": {"fs": {"read": read, "write": write}}});
         let clarified: Vec<String> = clarified.iter().map(|name| (*name).to_owned()).collect();
         let mut diagnostics = Vec::new();
         stated_paths(intent, &doc, &[], &clarified, &mut diagnostics);
@@ -626,6 +660,50 @@ mod tests {
             .iter()
             .filter_map(|d| d.message.split('`').nth(1).map(str::to_owned))
             .collect()
+    }
+
+    /// The same, the candidate writing `sortie.txt`.
+    fn owed(intent: &str, read: &[&str], clarified: &[&str]) -> Vec<String> {
+        owes(intent, read, &["sortie.txt"], clarified)
+    }
+
+    #[test]
+    fn a_destination_occurrence_is_realized_by_a_write_never_by_a_source_answer() {
+        let destined = "Notes équipe.txt doit aller dans Copie équipe.txt.";
+        let notes = ["Notes équipe.txt"];
+        let both = ["Notes équipe.txt", "Copie équipe.txt"];
+        // Both names typed as sources and read: nothing writes the `équipe.txt` after `dans`.
+        assert_eq!(owes(destined, &both, &[], &both), ["équipe.txt"]);
+        // Writing the literal the reader read there realizes it, whatever the typed answer.
+        assert!(owes(destined, &notes, &["Copie équipe.txt"], &notes).is_empty());
+        assert!(owes(destined, &notes, &["Copie équipe.txt"], &both).is_empty());
+        // A write elsewhere does not.
+        assert_eq!(
+            owes(destined, &notes, &["sortie.txt"], &both),
+            ["équipe.txt"]
+        );
+        // Lowering `İ` lengthens the text: each occurrence keeps its own offset and role (the
+        // destination right after `«` would otherwise be sliced inside that character).
+        let dotted = "İci : Notes équipe.txt doit aller dans «équipe.txt».";
+        assert_eq!(owes(dotted, &notes, &[], &notes), ["équipe.txt"]);
+        assert!(owes(dotted, &notes, &["équipe.txt"], &notes).is_empty());
+    }
+
+    #[test]
+    fn a_suffix_inside_a_longer_stated_path_is_that_paths_occurrence() {
+        let archived = "Notes équipe.txt doit être comparé avec ./archive/équipe.txt.";
+        let notes = ["Notes équipe.txt"];
+        let both = ["Notes équipe.txt", "./archive/équipe.txt"];
+        assert!(owes(archived, &both, &[], &notes).is_empty());
+        // The rooted path is still owed on its own.
+        assert_eq!(
+            owes(archived, &notes, &[], &notes),
+            ["./archive/équipe.txt"]
+        );
+        // A separately named `équipe.txt` stays a file of its own.
+        let beside =
+            "Notes équipe.txt et équipe.txt doivent être comparés avec ./archive/équipe.txt.";
+        assert_eq!(owes(beside, &both, &[], &notes), ["équipe.txt"]);
     }
 
     #[test]
