@@ -437,6 +437,7 @@ pub fn nika_providers::admission::InferenceAdmission::close(&self, reason: &str)
 pub fn nika_providers::admission::InferenceAdmission::new(limit: nika_types::cost::Cost) -> core::result::Result<Self, nika_kernel_ai::provider::ProviderError>
 pub fn nika_providers::admission::InferenceAdmission::qualify(provider: &str, model: &str, endpoint: &str) -> core::result::Result<nika_catalog::admission::InferenceTariff, nika_kernel_ai::provider::ProviderError>
 pub fn nika_providers::admission::InferenceAdmission::snapshot(&self) -> core::result::Result<nika_providers::admission::InferenceReceipt, nika_kernel_ai::provider::ProviderError>
+pub fn nika_providers::admission::InferenceAdmission::unbudgeted() -> Self
 impl nika_providers::admission::InferenceAdmission
 pub fn nika_providers::admission::InferenceAdmission::for_scope(&self, candidate: &str, invocation: &str) -> core::result::Result<Self, nika_kernel_ai::provider::ProviderError>
 pub fn nika_providers::admission::InferenceAdmission::new_unknown(choice: nika_providers::admission::UnknownCostChoice, policy: nika_providers::admission::UnknownCostPolicy) -> core::result::Result<Self, nika_kernel_ai::provider::ProviderError>
@@ -480,6 +481,7 @@ pub nika_providers::admission::InferenceReceipt::limit: nika_types::cost::Cost
 pub nika_providers::admission::InferenceReceipt::overridden_defaults: [core::option::Option<nika_types::cost::Cost>; 2]
 pub nika_providers::admission::InferenceReceipt::refusal: core::option::Option<alloc::string::String>
 pub nika_providers::admission::InferenceReceipt::state: nika_providers::admission::AdmissionState
+pub nika_providers::admission::InferenceReceipt::unbudgeted: bool
 pub nika_providers::admission::InferenceReceipt::unknown_attempts: alloc::vec::Vec<nika_providers::admission::UnknownAttemptReceipt>
 pub nika_providers::admission::InferenceReceipt::unknown_calls: usize
 pub nika_providers::admission::InferenceReceipt::unknown_cost: core::option::Option<nika_providers::admission::UnknownCostChoice>
@@ -2322,6 +2324,7 @@ pub fn nika_providers::admission::InferenceAdmission::close(&self, reason: &str)
 pub fn nika_providers::admission::InferenceAdmission::new(limit: nika_types::cost::Cost) -> core::result::Result<Self, nika_kernel_ai::provider::ProviderError>
 pub fn nika_providers::admission::InferenceAdmission::qualify(provider: &str, model: &str, endpoint: &str) -> core::result::Result<nika_catalog::admission::InferenceTariff, nika_kernel_ai::provider::ProviderError>
 pub fn nika_providers::admission::InferenceAdmission::snapshot(&self) -> core::result::Result<nika_providers::admission::InferenceReceipt, nika_kernel_ai::provider::ProviderError>
+pub fn nika_providers::admission::InferenceAdmission::unbudgeted() -> Self
 impl nika_providers::admission::InferenceAdmission
 pub fn nika_providers::admission::InferenceAdmission::for_scope(&self, candidate: &str, invocation: &str) -> core::result::Result<Self, nika_kernel_ai::provider::ProviderError>
 pub fn nika_providers::admission::InferenceAdmission::new_unknown(choice: nika_providers::admission::UnknownCostChoice, policy: nika_providers::admission::UnknownCostPolicy) -> core::result::Result<Self, nika_kernel_ai::provider::ProviderError>
@@ -2365,6 +2368,7 @@ pub nika_providers::InferenceReceipt::limit: nika_types::cost::Cost
 pub nika_providers::InferenceReceipt::overridden_defaults: [core::option::Option<nika_types::cost::Cost>; 2]
 pub nika_providers::InferenceReceipt::refusal: core::option::Option<alloc::string::String>
 pub nika_providers::InferenceReceipt::state: nika_providers::admission::AdmissionState
+pub nika_providers::InferenceReceipt::unbudgeted: bool
 pub nika_providers::InferenceReceipt::unknown_attempts: alloc::vec::Vec<nika_providers::admission::UnknownAttemptReceipt>
 pub nika_providers::InferenceReceipt::unknown_calls: usize
 pub nika_providers::InferenceReceipt::unknown_cost: core::option::Option<nika_providers::admission::UnknownCostChoice>

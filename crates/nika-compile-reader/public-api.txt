@@ -334,6 +334,7 @@ pub fn nika_compile_reader::hot::fold(text: &str) -> alloc::string::String
 pub fn nika_compile_reader::hot::rejections(intent: &str, reading: &nika_compile_reader::lexicon::Reading) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_compile_reader::hot::stated_destinations(intent: &str) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_compile_reader::hot::stated_sources(intent: &str) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_compile_reader::hot::unnamed_destination_floor(plan: &mut nika_compile_reader::plan::Plan)
 pub fn nika_compile_reader::hot::unopened_sources(intent: &str, plan: &nika_compile_reader::plan::Plan) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_compile_reader::hot::unproduced_content(plan: &nika_compile_reader::plan::Plan, why: &mut alloc::vec::Vec<alloc::string::String>)
 pub fn nika_compile_reader::hot::unrecheckable_revision(plan: &nika_compile_reader::plan::Plan, why: &mut alloc::vec::Vec<alloc::string::String>)
@@ -1357,6 +1358,9 @@ pub fn nika_compile_reader::rules::Rule::totals_names(&self) -> alloc::vec::Vec<
 pub fn nika_compile_reader::rules::Rule::typed(text: &str, clauses: alloc::vec::Vec<nika_compile_reader::rules::Clause>, junction: nika_compile_reader::rules::Junction, shape: nika_compile_reader::aggregate::Shape) -> Self
 pub fn nika_compile_reader::rules::Rule::verified_program(&self) -> core::option::Option<&nika_compile_reader::rules::Program>
 pub fn nika_compile_reader::rules::Rule::with_limit(self, n: u32) -> Self
+impl nika_compile_reader::rules::Rule
+pub fn nika_compile_reader::rules::Rule::source_fields(&self) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_compile_reader::rules::Rule::with_source_field(&self, from: &str, to: &str) -> core::option::Option<Self>
 impl core::clone::Clone for nika_compile_reader::rules::Rule
 pub fn nika_compile_reader::rules::Rule::clone(&self) -> nika_compile_reader::rules::Rule
 impl core::cmp::Eq for nika_compile_reader::rules::Rule

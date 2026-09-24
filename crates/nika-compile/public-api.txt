@@ -7,6 +7,106 @@ pub mod nika_compile::surface
 pub mod nika_compile::surface::assemble
 pub fn nika_compile::surface::assemble::assemble(plan: &nika_compile_reader::plan::Plan, intent: &str, request: &nika_compile::CompileRequest, out: &mut nika_compile::CompileOutcome) -> core::result::Result<(), nika_compile::CompileError>
 pub fn nika_compile::surface::assemble::unfed(plan: &nika_compile_reader::plan::Plan, intent: &str, out: &mut nika_compile::CompileOutcome) -> bool
+pub mod nika_compile::surface::observed
+pub fn nika_compile::surface::observed::columns(world: core::option::Option<&serde_json::value::Value>, path: &str) -> core::option::Option<alloc::vec::Vec<alloc::string::String>>
+pub fn nika_compile::surface::observed::field_answer(request: &nika_compile::CompileRequest, out: &mut nika_compile::CompileOutcome, key: &str, label: &str, columns: &[alloc::string::String]) -> core::option::Option<serde_json::value::Value>
+pub fn nika_compile::surface::observed::for_intent(world: core::option::Option<&serde_json::value::Value>, intent: &str) -> core::option::Option<alloc::vec::Vec<alloc::string::String>>
+pub fn nika_compile::surface::observed::record(request: &nika_compile::CompileRequest, out: &mut nika_compile::CompileOutcome)
+pub fn nika_compile::surface::observed::world(request: &nika_compile::CompileRequest) -> core::option::Option<&serde_json::value::Value>
+pub mod nika_compile::surface::pending_transform
+#[non_exhaustive] pub enum nika_compile::surface::pending_transform::PendingTransformError
+pub nika_compile::surface::pending_transform::PendingTransformError::ChangedContext
+pub nika_compile::surface::pending_transform::PendingTransformError::ChangedField
+pub nika_compile::surface::pending_transform::PendingTransformError::ChangedRule
+pub nika_compile::surface::pending_transform::PendingTransformError::Decode(serde_json::error::Error)
+pub nika_compile::surface::pending_transform::PendingTransformError::InvalidPlan(alloc::string::String)
+pub nika_compile::surface::pending_transform::PendingTransformError::MissingRecord
+pub nika_compile::surface::pending_transform::PendingTransformError::MissingSourcePath
+pub nika_compile::surface::pending_transform::PendingTransformError::PrematureRule
+impl core::convert::From<serde_json::error::Error> for nika_compile::surface::pending_transform::PendingTransformError
+pub fn nika_compile::surface::pending_transform::PendingTransformError::from(source: serde_json::error::Error) -> Self
+impl core::error::Error for nika_compile::surface::pending_transform::PendingTransformError
+pub fn nika_compile::surface::pending_transform::PendingTransformError::source(&self) -> core::option::Option<&(dyn core::error::Error + 'static)>
+impl core::fmt::Debug for nika_compile::surface::pending_transform::PendingTransformError
+pub fn nika_compile::surface::pending_transform::PendingTransformError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_compile::surface::pending_transform::PendingTransformError
+pub fn nika_compile::surface::pending_transform::PendingTransformError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_compile::surface::pending_transform::PendingTransformError
+impl<T, U> core::convert::Into<U> for nika_compile::surface::pending_transform::PendingTransformError where U: core::convert::From<T>
+pub fn nika_compile::surface::pending_transform::PendingTransformError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile::surface::pending_transform::PendingTransformError where U: core::convert::Into<T>
+pub type nika_compile::surface::pending_transform::PendingTransformError::Error = core::convert::Infallible
+pub fn nika_compile::surface::pending_transform::PendingTransformError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile::surface::pending_transform::PendingTransformError where U: core::convert::TryFrom<T>
+pub type nika_compile::surface::pending_transform::PendingTransformError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile::surface::pending_transform::PendingTransformError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_compile::surface::pending_transform::PendingTransformError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_compile::surface::pending_transform::PendingTransformError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_compile::surface::pending_transform::PendingTransformError where T: 'static + ?core::marker::Sized
+pub fn nika_compile::surface::pending_transform::PendingTransformError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile::surface::pending_transform::PendingTransformError where T: ?core::marker::Sized
+pub fn nika_compile::surface::pending_transform::PendingTransformError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile::surface::pending_transform::PendingTransformError where T: ?core::marker::Sized
+pub fn nika_compile::surface::pending_transform::PendingTransformError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_compile::surface::pending_transform::PendingTransformError
+pub fn nika_compile::surface::pending_transform::PendingTransformError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_compile::surface::pending_transform::PendingTransformError where T: 'static
+pub fn nika_compile::surface::pending_transform::PendingTransformError::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile::surface::pending_transform::PendingTransformError
+pub type nika_compile::surface::pending_transform::PendingTransformError::Output = T
+#[non_exhaustive] pub struct nika_compile::surface::pending_transform::PendingTransform
+impl nika_compile::surface::pending_transform::PendingTransform
+pub fn nika_compile::surface::pending_transform::PendingTransform::answer(&mut self, request: &nika_compile::CompileRequest, out: &mut nika_compile::CompileOutcome)
+pub fn nika_compile::surface::pending_transform::PendingTransform::answered(&self) -> bool
+pub fn nika_compile::surface::pending_transform::PendingTransform::begin_attempt(&mut self) -> bool
+pub fn nika_compile::surface::pending_transform::PendingTransform::columns(&self) -> &[alloc::string::String]
+pub fn nika_compile::surface::pending_transform::PendingTransform::context(&self) -> serde_json::value::Value
+pub fn nika_compile::surface::pending_transform::PendingTransform::detail(&self) -> &str
+pub fn nika_compile::surface::pending_transform::PendingTransform::load(intent: &str, record: &serde_json::value::Value, request: &nika_compile::CompileRequest) -> core::result::Result<(Self, nika_compile_reader::plan::Plan), nika_compile::surface::pending_transform::PendingTransformError>
+pub fn nika_compile::surface::pending_transform::PendingTransform::new(intent: &str, plan: &nika_compile_reader::plan::Plan, step: &nika_compile_reader::plan::Step, names: &[alloc::string::String], request: &nika_compile::CompileRequest) -> core::option::Option<Self>
+pub fn nika_compile::surface::pending_transform::PendingTransform::suspend(&self, plan: &nika_compile_reader::plan::Plan, out: &mut nika_compile::CompileOutcome)
+pub fn nika_compile::surface::pending_transform::PendingTransform::uses_answers(&self, fields: &[alloc::string::String]) -> bool
+pub fn nika_compile::surface::pending_transform::PendingTransform::verified_record(self, plan: &nika_compile_reader::plan::Plan, rule: &nika_compile_reader::rules::Rule) -> serde_json::value::Value
+impl core::clone::Clone for nika_compile::surface::pending_transform::PendingTransform
+pub fn nika_compile::surface::pending_transform::PendingTransform::clone(&self) -> nika_compile::surface::pending_transform::PendingTransform
+impl core::fmt::Debug for nika_compile::surface::pending_transform::PendingTransform
+pub fn nika_compile::surface::pending_transform::PendingTransform::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl serde_core::ser::Serialize for nika_compile::surface::pending_transform::PendingTransform
+pub fn nika_compile::surface::pending_transform::PendingTransform::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_compile::surface::pending_transform::PendingTransform
+pub fn nika_compile::surface::pending_transform::PendingTransform::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_compile::surface::pending_transform::PendingTransform
+impl<T, U> core::convert::Into<U> for nika_compile::surface::pending_transform::PendingTransform where U: core::convert::From<T>
+pub fn nika_compile::surface::pending_transform::PendingTransform::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile::surface::pending_transform::PendingTransform where U: core::convert::Into<T>
+pub type nika_compile::surface::pending_transform::PendingTransform::Error = core::convert::Infallible
+pub fn nika_compile::surface::pending_transform::PendingTransform::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile::surface::pending_transform::PendingTransform where U: core::convert::TryFrom<T>
+pub type nika_compile::surface::pending_transform::PendingTransform::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile::surface::pending_transform::PendingTransform::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile::surface::pending_transform::PendingTransform where T: core::clone::Clone
+pub type nika_compile::surface::pending_transform::PendingTransform::Owned = T
+pub fn nika_compile::surface::pending_transform::PendingTransform::clone_into(&self, target: &mut T)
+pub fn nika_compile::surface::pending_transform::PendingTransform::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile::surface::pending_transform::PendingTransform where T: 'static + ?core::marker::Sized
+pub fn nika_compile::surface::pending_transform::PendingTransform::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile::surface::pending_transform::PendingTransform where T: ?core::marker::Sized
+pub fn nika_compile::surface::pending_transform::PendingTransform::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile::surface::pending_transform::PendingTransform where T: ?core::marker::Sized
+pub fn nika_compile::surface::pending_transform::PendingTransform::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile::surface::pending_transform::PendingTransform where T: core::clone::Clone
+pub unsafe fn nika_compile::surface::pending_transform::PendingTransform::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile::surface::pending_transform::PendingTransform
+pub fn nika_compile::surface::pending_transform::PendingTransform::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile::surface::pending_transform::PendingTransform where T: core::clone::Clone
+pub fn nika_compile::surface::pending_transform::PendingTransform::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile::surface::pending_transform::PendingTransform where T: 'static
+pub fn nika_compile::surface::pending_transform::PendingTransform::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_compile::surface::pending_transform::PendingTransform where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> typenum::type_operators::Same for nika_compile::surface::pending_transform::PendingTransform
+pub type nika_compile::surface::pending_transform::PendingTransform::Output = T
+pub fn nika_compile::surface::pending_transform::invalid(out: &mut nika_compile::CompileOutcome, why: &str)
+pub fn nika_compile::surface::pending_transform::present(record: &serde_json::value::Value) -> bool
 pub mod nika_compile::surface::support
 #[non_exhaustive] pub struct nika_compile::surface::support::Plan
 impl core::clone::Clone for nika_compile::surface::support::Plan
@@ -276,6 +376,7 @@ pub fn nika_compile::surface::lexical_rest_is_explicit(intent: &str, reading: &n
 pub fn nika_compile::surface::literal_answer(raw: core::option::Option<&str>, key: &str, out: &mut nika_compile::CompileOutcome) -> core::option::Option<serde_json::value::Value>
 pub fn nika_compile::surface::literal_projection(source: &str) -> core::option::Option<serde_json::value::Value>
 pub fn nika_compile::surface::native_apply(record: &serde_json::value::Value, request: &nika_compile::CompileRequest, out: &mut nika_compile::CompileOutcome)
+pub fn nika_compile::surface::output_caps(model: &str) -> core::option::Option<serde_json::value::Value>
 pub fn nika_compile::surface::parse(source: &str) -> core::result::Result<nika_schema::raw::workflow::RawWorkflow, nika_schema::error::SchemaError>
 pub fn nika_compile::surface::plan_record(plan: &nika_compile_reader::plan::Plan, strategy: core::option::Option<nika_compile::Strategy>) -> serde_json::value::Value
 pub fn nika_compile::surface::question(out: &mut nika_compile::CompileOutcome, key: &str, label: &str, answer_type: nika_compile::QuestionType)

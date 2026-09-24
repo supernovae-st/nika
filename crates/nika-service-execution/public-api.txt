@@ -9,6 +9,80 @@ pub fn nika_service_execution::access::model_needs(wf: &nika_schema::raw::workfl
 pub fn nika_service_execution::access::resolve_plan(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, model_override: core::option::Option<&str>, pin: core::option::Option<&str>) -> nika_providers::plan::ExecutionAccessPlan
 pub fn nika_service_execution::access::resolve_plan_over(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, model_override: core::option::Option<&str>, pin: core::option::Option<&str>, probes: &[nika_providers::probe::ProviderProbe]) -> nika_providers::plan::ExecutionAccessPlan
 pub fn nika_service_execution::access::verb_needs(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_providers::resolve_access::VerbNeeds
+pub mod nika_service_execution::run_cost
+#[non_exhaustive] pub enum nika_service_execution::run_cost::RunShapeError
+pub nika_service_execution::run_cost::RunShapeError::Action
+pub nika_service_execution::run_cost::RunShapeError::Control
+pub nika_service_execution::run_cost::RunShapeError::DynamicPath
+pub nika_service_execution::run_cost::RunShapeError::InferShape
+pub nika_service_execution::run_cost::RunShapeError::Model
+pub nika_service_execution::run_cost::RunShapeError::NoInfer
+pub nika_service_execution::run_cost::RunShapeError::OtherModel
+pub nika_service_execution::run_cost::RunShapeError::Overflow
+pub nika_service_execution::run_cost::RunShapeError::Parallel
+pub nika_service_execution::run_cost::RunShapeError::Route
+pub nika_service_execution::run_cost::RunShapeError::Secrets
+pub nika_service_execution::run_cost::RunShapeError::Tool
+pub nika_service_execution::run_cost::RunShapeError::Unchecked
+pub nika_service_execution::run_cost::RunShapeError::UnconfinedPath
+impl core::clone::Clone for nika_service_execution::run_cost::RunShapeError
+pub fn nika_service_execution::run_cost::RunShapeError::clone(&self) -> nika_service_execution::run_cost::RunShapeError
+impl core::cmp::Eq for nika_service_execution::run_cost::RunShapeError
+impl core::cmp::PartialEq for nika_service_execution::run_cost::RunShapeError
+pub fn nika_service_execution::run_cost::RunShapeError::eq(&self, other: &nika_service_execution::run_cost::RunShapeError) -> bool
+impl core::error::Error for nika_service_execution::run_cost::RunShapeError
+impl core::fmt::Debug for nika_service_execution::run_cost::RunShapeError
+pub fn nika_service_execution::run_cost::RunShapeError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_service_execution::run_cost::RunShapeError
+pub fn nika_service_execution::run_cost::RunShapeError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_service_execution::run_cost::RunShapeError
+impl core::marker::StructuralPartialEq for nika_service_execution::run_cost::RunShapeError
+impl<D> owo_colors::OwoColorize for nika_service_execution::run_cost::RunShapeError
+impl<Q, K> equivalent::Equivalent<K> for nika_service_execution::run_cost::RunShapeError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_service_execution::run_cost::RunShapeError::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_service_execution::run_cost::RunShapeError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_service_execution::run_cost::RunShapeError::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_service_execution::run_cost::RunShapeError where U: core::convert::From<T>
+pub fn nika_service_execution::run_cost::RunShapeError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_service_execution::run_cost::RunShapeError where U: core::convert::Into<T>
+pub type nika_service_execution::run_cost::RunShapeError::Error = core::convert::Infallible
+pub fn nika_service_execution::run_cost::RunShapeError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_service_execution::run_cost::RunShapeError where U: core::convert::TryFrom<T>
+pub type nika_service_execution::run_cost::RunShapeError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_service_execution::run_cost::RunShapeError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_service_execution::run_cost::RunShapeError where T: core::clone::Clone
+pub type nika_service_execution::run_cost::RunShapeError::Owned = T
+pub fn nika_service_execution::run_cost::RunShapeError::clone_into(&self, target: &mut T)
+pub fn nika_service_execution::run_cost::RunShapeError::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_service_execution::run_cost::RunShapeError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_service_execution::run_cost::RunShapeError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_service_execution::run_cost::RunShapeError where T: 'static + ?core::marker::Sized
+pub fn nika_service_execution::run_cost::RunShapeError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_service_execution::run_cost::RunShapeError where T: ?core::marker::Sized
+pub fn nika_service_execution::run_cost::RunShapeError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_service_execution::run_cost::RunShapeError where T: ?core::marker::Sized
+pub fn nika_service_execution::run_cost::RunShapeError::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_service_execution::run_cost::RunShapeError where T: core::clone::Clone
+pub unsafe fn nika_service_execution::run_cost::RunShapeError::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_service_execution::run_cost::RunShapeError
+pub fn nika_service_execution::run_cost::RunShapeError::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_service_execution::run_cost::RunShapeError where T: core::clone::Clone
+pub fn nika_service_execution::run_cost::RunShapeError::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> iri_string::format::ToStringFallible for nika_service_execution::run_cost::RunShapeError where T: core::fmt::Display
+pub fn nika_service_execution::run_cost::RunShapeError::try_to_string(&self) -> core::result::Result<alloc::string::String, alloc::collections::TryReserveError>
+impl<T> nika_error::traits::AsAny for nika_service_execution::run_cost::RunShapeError where T: 'static
+pub fn nika_service_execution::run_cost::RunShapeError::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_service_execution::run_cost::RunShapeError where T: core::marker::Copy
+pub fn nika_service_execution::run_cost::RunShapeError::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_service_execution::run_cost::RunShapeError where T: ?core::marker::Sized
+pub fn nika_service_execution::run_cost::RunShapeError::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_service_execution::run_cost::RunShapeError::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_service_execution::run_cost::RunShapeError
+impl<T> tracing::instrument::WithSubscriber for nika_service_execution::run_cost::RunShapeError
+impl<T> typenum::type_operators::Same for nika_service_execution::run_cost::RunShapeError
+pub type nika_service_execution::run_cost::RunShapeError::Output = T
+pub fn nika_service_execution::run_cost::project_file_path(consts: &nika_check_analyzer::static_args::ConstStrings, action: &nika_schema::raw::action::RawInvokeAction) -> core::result::Result<std::path::PathBuf, nika_service_execution::run_cost::RunShapeError>
+pub fn nika_service_execution::run_cost::request_bound(wf: &nika_schema::raw::workflow::RawWorkflow, plan: &nika_providers::plan::ExecutionAccessPlan, unknown_routes: usize) -> core::result::Result<u32, nika_service_execution::run_cost::RunShapeError>
 #[non_exhaustive] pub enum nika_service_execution::ServiceExecutionStatus
 pub nika_service_execution::ServiceExecutionStatus::Cancelled
 pub nika_service_execution::ServiceExecutionStatus::Failed
