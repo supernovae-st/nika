@@ -19,14 +19,14 @@ use super::{
 use crate::fidelity::{self, Diagnostic};
 use crate::types::{EditChange, Input};
 use crate::{CompileDiagnostic, CompileError, CompileQuestion, CompileStatus, lexicon::Reading};
-use nika_kernel::ai::provider::{
-    ContentBlock, InferResponse, Message, ProviderInferDyn, Role, StopReason,
-};
+use nika_kernel::ai::provider::{Message, ProviderInferDyn, Role};
 use serde_json::{Value, json};
 
 mod answer;
+mod decode;
 mod revision;
 pub(super) use answer::{Answer, Question};
+pub(super) use decode::decode;
 
 fn schema() -> Value {
     serde_json::from_str(include_str!("../../assets/native_answer_schema.json"))
@@ -115,6 +115,8 @@ pub(super) struct Talk {
     pub(super) messages: Vec<Message>,
     pub(super) rounds: Vec<Value>,
     pub(super) last: Option<Vec<Diagnostic>>,
+    /// Exact malformed response repeated without progress; not an accepted candidate.
+    last_decode: Option<String>,
     /// The last candidate the laws refused: the record keeps its text, so a refusal can be
     /// read (a hash names nothing).
     pub(super) refused: Option<String>,
@@ -152,6 +154,7 @@ impl Talk {
             ],
             rounds: Vec::new(),
             last: None,
+            last_decode: None,
             refused: None,
             route,
             allowed,
@@ -193,15 +196,15 @@ enum Round {
     Accepted(Answer),
     /// The diagnostics went back to the seat.
     Repair,
-    /// The seat returned the same refused candidate: the budget ends honestly.
+    /// The seat repeated a refused candidate or malformed answer: stop honestly.
     Stalled,
-    /// The call failed or the answer was not decodable: nothing more to send.
+    /// A terminal call/answer failure, or no authorized syntax repair remains.
     Stop,
 }
 
-/// Author natively: the opening call, then at most `policy.repairs` repair calls, each judged
-/// by the same laws; the outcome carries the receipt of every call, the references sent and
-/// every round's diagnostics. A previous cold outcome's receipt and record are kept.
+/// Author natively: the opening call, then at most `policy.repairs` repair calls. Completed
+/// syntax errors may receive feedback; every decoded candidate faces the same laws. The
+/// receipt and diagnostics retain every call, including any previous cold round.
 pub(super) async fn author<P: ProviderInferDyn>(
     intent: &str,
     reading: &Reading,
@@ -425,8 +428,9 @@ async fn exchange<P: ProviderInferDyn>(
         talk.rounds.push(json!({"round": round, "call": "failed"}));
         return Round::Stop;
     };
-    let Some((answer, text)) = decode::<Answer>(&response, "native", round, talk, out) else {
-        return Round::Stop;
+    let (answer, text) = match decode::native(&response, round, policy, talk, out) {
+        Ok(answer) => answer,
+        Err(decision) => return decision,
     };
     let waived = revision::waivable(intent, talk.revision.as_ref(), &answer.gaps);
     let diagnostics = judge(
@@ -461,65 +465,6 @@ async fn exchange<P: ProviderInferDyn>(
     ));
     talk.last = Some(diagnostics);
     Round::Repair
-}
-
-/// The seat's text decoded as `T`, or the honest reason a talk ends: an answer cut at the
-/// authoring cap is named as such (a reasoning seat may spend the whole budget before its
-/// answer — the eco-60 `DeepSeek` V4 Pro lane, 2026-09-22: 12/60 answers cut at exactly 16384
-/// output tokens), a text that is not one complete JSON object, a JSON that is not the answer.
-pub(super) fn decode<T: serde::de::DeserializeOwned>(
-    response: &InferResponse,
-    what: &str,
-    round: u32,
-    talk: &mut Talk,
-    out: &mut CompileOutcome,
-) -> Option<(T, String)> {
-    let text = match response.content.as_slice() {
-        [ContentBlock::Text { text }] if response.stop_reason == StopReason::EndTurn => {
-            text.clone()
-        }
-        _ if response.stop_reason == StopReason::MaxTokens => {
-            talk.rounds
-                .push(json!({"round": round, "answer": "cut at the authoring cap"}));
-            super::super::finding(
-                out,
-                DiagnosticKind::Unknown,
-                "authoring_native",
-                format!(
-                    "The seat's answer was cut at the authoring cap ({} output tokens): raise --authoring-max-tokens, or seat a model that does not spend the budget on its reasoning.",
-                    response.usage.output_tokens
-                ),
-            );
-            return None;
-        }
-        _ => {
-            talk.rounds
-                .push(json!({"round": round, "answer": "not one complete JSON text"}));
-            super::super::finding(
-                out,
-                DiagnosticKind::Unknown,
-                "authoring_native",
-                "The seat did not return one complete JSON text; nothing was assembled.",
-            );
-            return None;
-        }
-    };
-    match serde_json::from_str::<T>(super::first_json_object(&text).unwrap_or(&text)) {
-        Ok(answer) => Some((answer, text)),
-        Err(error) => {
-            talk.rounds
-                .push(json!({"round": round, "answer": format!("not a {what} answer: {error}")}));
-            super::super::finding(
-                out,
-                DiagnosticKind::Unknown,
-                "authoring_native",
-                format!(
-                    "The seat's answer is not a {what} answer ({error}); nothing was assembled."
-                ),
-            );
-            None
-        }
-    }
 }
 
 /// The end of the conversation: an accepted candidate settles; an exhausted budget is an
@@ -630,8 +575,12 @@ fn journal_line(rounds: &[Value]) -> String {
             }
         }
     }
+    let judged = rounds
+        .iter()
+        .filter(|r| r.get("candidate_sha256").is_some() || r.get("sketch_sha256").is_some())
+        .count();
     format!(
-        "The seat wrote {} candidate(s) from the authoring card and the recalled references; the judge read each one: {}.",
+        "The authoring conversation recorded {} round(s), including {judged} candidate or sketch judgment(s): {}.",
         rounds.len(),
         parts.join("; ")
     )

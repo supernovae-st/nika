@@ -155,6 +155,72 @@ outputs:
     fn native_record(out: &nika_compile::CompileOutcome) -> Value {
         out.provenance.decision.as_ref().unwrap()["native"].clone()
     }
+
+    #[tokio::test]
+    async fn native_syntax_repair_uses_the_same_bounded_provider_account() {
+        let provider = Rotating::new(vec![
+            r#"{"candidate": !}"#.into(),
+            answer(&candidate_a("./data/paiements.csv"), &json!([])),
+        ]);
+        let req = CompileRequest::create(CASE_A).with_authoring_policy(policy(NativeMode::Only, 1));
+        let out = Box::pin(compile_with_provider(&req, &provider))
+            .await
+            .unwrap();
+        assert_eq!(native_record(&out)["accepted"], true, "{out:#?}");
+        let receipt = out.provenance.authoring.as_ref().unwrap();
+        assert_eq!(
+            (receipt.calls, receipt.input_tokens, receipt.output_tokens),
+            (2, Some(200), Some(100))
+        );
+        assert_eq!(provider.calls.load(std::sync::atomic::Ordering::SeqCst), 2);
+        let account = provider.account.snapshot().unwrap();
+        assert_eq!(account.attempts.len(), 2);
+        assert!(
+            account
+                .attempts
+                .iter()
+                .all(|a| a.sent && a.estimated.is_some())
+        );
+        assert_eq!(account.billed, None); // fixture estimates are never invoice evidence
+        assert!(
+            native_record(&out)["rounds"][0]
+                .get("decode_error")
+                .is_some()
+        );
+    }
+
+    #[tokio::test]
+    async fn native_syntax_feedback_cannot_bypass_zero_or_exhausted_money() {
+        let quote = nika_catalog::admission::InferenceTariff::deepseek("deepseek-v4-pro")
+            .unwrap()
+            .reserve(4096)
+            .unwrap();
+        for (limit, sent, attempted) in [(super::Cost::zero(), 0, 1), (quote, 1, 2)] {
+            let provider = Rotating::with_limit(
+                vec![
+                    r#"{"candidate": !}"#.into(),
+                    answer(&candidate_a("./data/paiements.csv"), &json!([])),
+                ],
+                limit,
+            );
+            let req =
+                CompileRequest::create(CASE_A).with_authoring_policy(policy(NativeMode::Only, 3));
+            let out = Box::pin(compile_with_provider(&req, &provider))
+                .await
+                .unwrap();
+            assert_ne!(out.status, CompileStatus::Ready);
+            assert!(out.candidate.is_none());
+            assert_eq!(
+                provider.calls.load(std::sync::atomic::Ordering::SeqCst),
+                sent
+            );
+            assert_eq!(out.provenance.authoring.as_ref().unwrap().calls, attempted);
+            let account = provider.account.snapshot().unwrap();
+            assert_eq!(account.attempts.len(), sent as usize);
+            assert!(account.refusal.is_some());
+        }
+    }
+
     #[tokio::test]
     async fn a_native_candidate_is_judged_repaired_asked_and_replayed() {
         // Round 0 names a source the request never wrote (an invented path); round 1 is right.

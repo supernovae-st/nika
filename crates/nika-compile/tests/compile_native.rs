@@ -16,6 +16,9 @@ use std::time::Duration;
 mod common;
 use common::{Rotating, keys};
 
+#[path = "compile_native/response_recovery.rs"]
+mod response_recovery;
+
 const CASE_A: &str = "prends ce fichier ./data/paiements.csv, garde uniquement les paiements payés, calcule le total et fais-moi un petit rapport dans ./out/rapport.md";
 
 fn policy(native: NativeMode, repairs: u32) -> AuthoringPolicy {

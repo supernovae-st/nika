@@ -1,0 +1,1 @@
+Native authoring can use its existing repair budget to correct a complete, metered response with invalid JSON syntax. Truncated, unmetered or repeated malformed responses remain terminal; no extra allowance or automatic model substitution is introduced.
