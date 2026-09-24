@@ -510,12 +510,7 @@ async fn exchange<P: ProviderInferDyn>(
         &answer.candidate,
         &mut answer.gaps,
     );
-    let waived = revision::waivable(
-        intent,
-        talk.revision.as_ref(),
-        &answer.gaps,
-        &answer.candidate,
-    );
+    let waived = revision::waivable(intent, talk.revision.as_ref(), &answer.gaps);
     let diagnostics = judge(
         intent,
         reading,

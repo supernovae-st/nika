@@ -237,20 +237,6 @@ async fn unproven_silent_omissions_and_creation_gaps_do_not_waive_paths() {
     );
 }
 
-#[tokio::test]
-async fn an_explicit_old_and_new_path_can_prove_the_same_substitution() {
-    let revised = BASE.replace("a.txt", "b.txt");
-    let provider = Rotating::new(vec![answer(&revised, &[])]);
-    let out = compile_with_provider(
-        &revise("Finalement, n'écris plus dans a.txt, utilise b.txt."),
-        &provider,
-    )
-    .await
-    .unwrap();
-    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
-    assert_eq!(provider.calls.load(Ordering::SeqCst), 1);
-}
-
 const FILTER_TOTAL: &str = include_str!("fixtures/compile/revision-filter-total.nika");
 const FILTER_INTENT: &str = "Lis commandes.csv, écris uniquement les commandes confirmées dans commandes-confirmees.csv et leur montant total sous forme de nombre dans total.txt.";
 const FILTER_CHANGE: &str = "Écris finalement les commandes dans commandes-finales.csv ; conserve le filtre et le total dans total.txt.";
@@ -291,6 +277,26 @@ async fn a_replacement_cannot_use_its_path_proof_to_change_a_calculation_or_add_
             &candidate,
             &["commandes-confirmees.csv is superseded."],
         )]);
+        let request = CompileRequest::edit(FILTER_TOTAL, FILTER_CHANGE)
+            .with_original_intent(FILTER_INTENT)
+            .with_authoring_policy(policy());
+        let out = compile_with_provider(&request, &provider).await.unwrap();
+        assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
+        assert!(
+            out.provenance
+                .plan
+                .as_ref()
+                .is_none_or(|p| p.get("superseded").is_none())
+        );
+    }
+}
+
+#[tokio::test]
+async fn a_recalled_path_cannot_be_silently_replaced_instead_of_the_requested_destination() {
+    // A complete literal substitution can still target the wrong obligation.
+    let wrong = FILTER_TOTAL.replace("total.txt", "commandes-finales.csv");
+    for gaps in [vec![], vec!["total.txt is superseded."]] {
+        let provider = Rotating::new(vec![answer(&wrong, &gaps)]);
         let request = CompileRequest::edit(FILTER_TOTAL, FILTER_CHANGE)
             .with_original_intent(FILTER_INTENT)
             .with_authoring_policy(policy());

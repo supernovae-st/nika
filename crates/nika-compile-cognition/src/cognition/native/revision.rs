@@ -75,15 +75,14 @@ pub(super) fn of(request: &CompileRequest) -> Option<(String, String)> {
 
 /// The paths the request states that a revised candidate may leave unopened while the human
 /// has not disposed of them: those the seat names in one of its gaps and the change words never
-/// name, or whose replacement the whole candidate proves. Empty for a creation, where a
-/// stated path is opened or the candidate is refused.
+/// name. A recalled path stays required: literal equality alone cannot decide whether
+/// the change asks to preserve or replace it. Empty for a creation.
 pub(super) fn waivable(
     intent: &str,
     revision: Option<&(String, String)>,
     gaps: &[String],
-    candidate: &str,
 ) -> Vec<String> {
-    let Some((base, words)) = revision else {
+    let Some((_, words)) = revision else {
         return Vec::new();
     };
     let kept: Vec<&str> = gaps
@@ -94,10 +93,7 @@ pub(super) fn waivable(
         .collect();
     stated(intent)
         .into_iter()
-        .filter(|path| {
-            kept.iter().any(|gap| names(gap, path))
-                && (!names(words, path) || replacement(base, words, candidate, path).is_some())
-        })
+        .filter(|path| !names(words, path) && kept.iter().any(|gap| names(gap, path)))
         .collect()
 }
 
@@ -123,7 +119,7 @@ pub(super) fn settle(
     let mut pending = Vec::new();
     let mut superseded = Vec::new();
     for gap in gaps {
-        let left = waivable(intent, revision.as_ref(), &[(*gap).to_owned()], candidate);
+        let left = waivable(intent, revision.as_ref(), &[(*gap).to_owned()]);
         let proven = match (&revision, left.as_slice()) {
             (Some((base, words)), [path]) => {
                 replacement(base, words, candidate, path).map(|by| Superseded {
@@ -143,10 +139,11 @@ pub(super) fn settle(
 }
 
 /// The path that replaces `path`, when the change proves it: the change words state a
-/// replacement and no addition, name exactly one new path (retained base paths may be recalled), and the candidate is the base with
-/// every `path` value replaced by it and nothing else changed (the workflow's name aside).
+/// replacement and no addition, omit the old path and name exactly one new path
+/// (retained base paths may be recalled). The candidate must be the base with every
+/// `path` value replaced by it and nothing else changed (the workflow's name aside).
 fn replacement(base: &str, words: &str, candidate: &str, path: &str) -> Option<String> {
-    if !says(words, REPLACING) || says(words, ADDING) {
+    if names(words, path) || !says(words, REPLACING) || says(words, ADDING) {
         return None;
     }
     let mut expected = crate::edit::literal_projection(base)?;
