@@ -1150,9 +1150,7 @@ fn a_finished_run_reads_as_a_result_and_proof_reads_its_trace() {
         panic!("an observation");
     };
     assert!(
-        result.starts_with(&format!(
-            "Done · `{COPY_DEST}` · 11 ms · 2 tasks ran · nothing sent elsewhere"
-        )),
+        result.starts_with(&format!("Done · `{COPY_DEST}` · 11 ms · 2 tasks ran")),
         "{result}"
     );
     assert!(
@@ -1161,7 +1159,7 @@ fn a_finished_run_reads_as_a_result_and_proof_reads_its_trace() {
     );
     assert!(result.contains("\n  read · ./notes/brief.md"), "{result}");
     assert!(
-        result.contains("cost · nothing metered · no model was asked"),
+        result.contains("cost · no model usage recorded"),
         "{result}"
     );
     assert!(

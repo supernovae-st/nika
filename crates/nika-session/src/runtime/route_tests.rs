@@ -293,12 +293,11 @@ fn at_a_question_a_question_explains_and_the_fallback_binds() {
     assert!(matches!(f.turn("mock/echo"), TurnOutcome::Proposal { .. }));
 }
 
-/// A change at the consent prompt, with an intelligence: the request is
-/// restated with the change (one bounded call, shown as « read as »), read
-/// again, and the new proposal names the new destination; the Meaning
-/// delta says what the words changed; `yes` then applies THAT proposal.
+/// A conversational reasoner cannot replace the original request with its
+/// paraphrase when the compiler cannot revise it. Keep the original proposal
+/// (and every obligation) rather than compiling a model-authored replacement.
 #[test]
-fn a_change_restates_the_request_and_the_revision_names_the_new_destination() {
+fn an_unsettled_revision_cannot_replace_the_original_with_a_paraphrase() {
     let dir = tree();
     std::fs::create_dir_all(dir.path().join("notes")).expect("notes");
     std::fs::write(dir.path().join("notes/brief.md"), "brief\n").expect("brief");
@@ -311,39 +310,32 @@ fn a_change_restates_the_request_and_the_revision_names_the_new_destination() {
             DataLocus::None,
         ),
         Box::new(ScriptedReasoner::new(vec![
+            // A plausible rewrite still cannot replace the original + change.
             "Read ./notes/brief.md and write it to ./out/copie-2.md".to_owned(),
         ])),
     );
     s.with_classifier(Box::new(corpus()));
-    assert!(matches!(s.turn(COPY), TurnOutcome::Proposal { .. }));
-    let TurnOutcome::Proposal { preview, .. } =
+    let TurnOutcome::Proposal { id, .. } = s.turn(COPY) else {
+        panic!("original proposal");
+    };
+    let original = s.pending.as_ref().expect("pending").clone();
+    let TurnOutcome::Held { id: held, preview } =
         s.consent("actually write it to ./out/copie-2.md instead")
     else {
-        panic!("a revised proposal");
+        panic!("an unsupported revision keeps the original proposal");
     };
-    assert!(
-        preview.contains("read as: « Read ./notes/brief.md and write it to ./out/copie-2.md »"),
-        "{preview}"
-    );
-    assert!(
-        preview.contains("copie-2.md") && preview.contains("Meaning · what changed"),
-        "{preview}"
-    );
-    let TurnOutcome::Held {
-        preview: meaning, ..
-    } = s.consent("/meaning")
-    else {
-        panic!("meaning must hold the revised proposal");
-    };
-    assert!(meaning.contains("copie-2.md"), "{meaning}");
-    assert!(
-        !meaning.contains("./out/copy.md"),
-        "stale reading: {meaning}"
+    assert_eq!(held, id);
+    assert!(preview.contains("could not revise"), "{preview}");
+    assert_eq!(s.pending.as_ref().expect("pending").goal, original.goal);
+    assert_eq!(
+        format!("{:?}", s.pending.as_ref().expect("pending").changes),
+        format!("{:?}", original.changes),
+        "a paraphrase may not replace the workflow or its obligations"
     );
     assert!(matches!(s.consent("yes"), TurnOutcome::Facts(ref t) if t.contains("applied")));
     let saved = std::fs::read_to_string(dir.path().join(COPY_DEST)).expect("saved");
     assert!(
-        saved.contains("copie-2.md") && !saved.contains("copy.md"),
+        saved.contains("copy.md") && !saved.contains("copie-2.md"),
         "{saved}"
     );
 }

@@ -11,9 +11,7 @@
 use std::fmt::Write as _;
 use std::path::PathBuf;
 
-use nika_onboard::compile::{
-    CompileOutcome, CompileQuestion, CompileRequest, CompileStatus, revise_intent,
-};
+use nika_onboard::compile::{CompileOutcome, CompileQuestion, CompileRequest, revise_intent};
 
 use super::{SessionRuntime, TurnOutcome, ceiling_in, named_files};
 use crate::activity::{Activity, Phase};
@@ -251,16 +249,9 @@ impl SessionRuntime {
         }
     }
 
-    /// The revised proposal: the new candidate proposed, with the restated
-    /// request beside it when one was read (« read as », a paraphrase the
-    /// human can correct) and the Meaning delta — what the words changed,
-    /// the base reading's ledger against the revised one (§21).
-    fn propose_revision(
-        &mut self,
-        goal: &str,
-        out: &CompileOutcome,
-        read_as: Option<&str>,
-    ) -> TurnOutcome {
+    /// Propose the revised bytes and the Meaning delta while retaining the
+    /// original request and the human's change as the source of truth.
+    fn propose_revision(&mut self, goal: &str, out: &CompileOutcome) -> TurnOutcome {
         let delta = self
             .last_outcome
             .as_ref()
@@ -277,14 +268,7 @@ impl SessionRuntime {
                 // The Meaning and details doors must describe the bytes now
                 // awaiting consent. Keep the earlier reading if proposal fails.
                 self.last_outcome = Some(out.clone());
-                let mut text = String::new();
-                if let Some(read_as) = read_as {
-                    let _ = writeln!(
-                        text,
-                        "read as: « {read_as} » (your request with the change, as Nika read it — say it differently if that is not it)"
-                    );
-                }
-                text.push_str(&preview);
+                let mut text = preview;
                 if let Some(delta) = delta {
                     text.push('\n');
                     text.push_str(&delta);
@@ -295,36 +279,10 @@ impl SessionRuntime {
         }
     }
 
-    /// The request as the human would now say it, with the change applied —
-    /// one bounded call to the chosen intelligence; `None` without one, or
-    /// when the answer is not one plain request (then the words are used as
-    /// said). A paraphrase, shown beside the proposal, never applied unseen.
-    fn restate_request(&mut self, goal: &str, change: &str) -> Option<String> {
-        if self.money_blocks_cognition() {
-            return None;
-        }
-        if !(self.intelligence.ready && self.chosen && self.reasoner.name() != "none") {
-            return None;
-        }
-        let prompt = format!(
-            "A human asked Nika, an automation tool, for this automation: «{goal}».\nNow the human says: «{change}».\nRewrite the request as the human would now state it in full, in one or two plain sentences and in the human's own language, keeping every part they did not change and applying the change exactly (a replaced destination, schedule or step replaces the old one; it is not added beside it). Answer with the rewritten request only: no quotes, no explanation."
-        );
-        let reply = self.reason_with_money(&prompt, true).ok()?;
-        let line = reply
-            .text
-            .lines()
-            .map(str::trim)
-            .find(|l| !l.is_empty())?
-            .trim_matches(|c: char| matches!(c, '"' | '«' | '»' | '\u{201c}' | '\u{201d}'))
-            .trim()
-            .to_owned();
-        (!line.is_empty() && line.len() <= 600 && line != goal).then_some(line)
-    }
-
     /// A change said while nothing waits and a workflow was accepted: the
     /// saved workflow is the base, the human's words the change; the
-    /// revision is a new proposal beside it (the same edit door, then the
-    /// request read again with the change under the seat).
+    /// revision is a new proposal beside it, through the compiler's edit door.
+    /// An unsuccessful edit never becomes a fresh request without its base.
     pub(super) fn revise_saved(&mut self, saved: &std::path::Path, change: &str) -> TurnOutcome {
         let root = self.snapshot.root.clone();
         let Ok(base) = std::fs::read_to_string(root.join(saved)) else {
@@ -353,22 +311,10 @@ impl SessionRuntime {
             request = request.with_original_intent(original);
         }
         let revised = revise_intent(&request).unwrap_or_else(|| goal.clone());
-        let mut out = match self.compile_request(&request, &revised) {
+        let out = match self.compile_request(&request, &revised) {
             Ok(out) => out,
             Err(e) => return self.machinery(&e),
         };
-        let settled = out.status == CompileStatus::Ready && out.candidate.is_some();
-        if !settled && self.seat.has_model() {
-            self.activity(&Activity::now(
-                Phase::Repairing,
-                "reading your request again with the change",
-            ));
-            let again = CompileRequest::create(goal.clone());
-            out = match self.compile_request(&again, &goal) {
-                Ok(out) => out,
-                Err(e) => return self.machinery(&e),
-            };
-        }
         match Reading::of(out) {
             Reading::Ready(out) => {
                 self.remember(change, "(revised the saved workflow)");
@@ -418,59 +364,23 @@ impl SessionRuntime {
             Phase::Authoring,
             "revising with your change",
         ));
-        // The compiler's edit door first (today it settles a constant said
-        // as « Set const.X to … »; a change in words is contract C6, asked of
-        // the Compiler lane); then, under a seat, the request read again
-        // WITH the change — the earlier proposal is replaced, never patched
-        // by the session itself. The edit reads the change beside the request
-        // the proposal answered, and its knowledge is composed for that same
-        // request from the snapshot pinned for this session.
+        // The compiler sees the exact base, original request and raw change.
+        // Its bounded edit/repair loop owns the revision; a model paraphrase
+        // must never replace these inputs through a fresh Create request.
         let request =
             CompileRequest::edit(base, change.trim()).with_original_intent(set.goal.clone());
         let revised = revise_intent(&request).unwrap_or_else(|| goal.clone());
-        let mut out = match self.compile_request(&request, &revised) {
+        let out = match self.compile_request(&request, &revised) {
             Ok(out) => out,
             Err(e) => {
                 self.pending = Some(set);
                 return self.machinery(&e);
             }
         };
-        let settled = out.status == CompileStatus::Ready && out.candidate.is_some();
-        // Until the compiler's revise door (contract C6) is shared truth, the
-        // request is RESTATED with the change by the chosen intelligence —
-        // the human's request as they would now say it, shown beside the new
-        // proposal so a paraphrase can be corrected — and read again through
-        // the same door (deterministic first, the seat when there is one).
-        // Without an intelligence the words are composed as said
-        // (« request. Change: … »), under a seat only.
-        let mut read_as: Option<String> = None;
-        if !settled {
-            let restated = self.restate_request(&set.goal, change.trim());
-            let seated = self.seat.has_model();
-            if restated.is_some() || seated {
-                self.activity(&Activity::now(
-                    Phase::Repairing,
-                    "reading your request again with the change",
-                ));
-                let text = restated
-                    .clone()
-                    .unwrap_or_else(|| format!("{}. Change: {}", set.goal, change.trim()));
-                let again = CompileRequest::create(text.clone());
-                out = match self.compile_request(&again, &text) {
-                    Ok(out) => out,
-                    Err(e) => {
-                        self.pending = Some(set);
-                        return self.machinery(&e);
-                    }
-                };
-                read_as = restated;
-            }
-        }
-        let goal = read_as.clone().unwrap_or(goal);
         match Reading::of(out) {
             Reading::Ready(out) => {
                 self.remember(change, "(revised the proposal)");
-                self.propose_revision(&goal, &out, read_as.as_deref())
+                self.propose_revision(&goal, &out)
             }
             reading => {
                 let id = self.proposal_id(&set);

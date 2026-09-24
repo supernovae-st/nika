@@ -72,7 +72,10 @@ unavailable/unsupported harness capabilities refuse visibly. No intelligence
 continues to compile deterministic requests without calling a model.
 
 Initial authoring, recorded clarification continuations and revisions use the
-same native Compiler and the same pinned authoring context. The adapter passes
+same native Compiler and the same pinned authoring context. Revisions retain
+the exact base bytes, original request and raw change. A failed edit keeps the
+previous proposal or saved workflow; Session never substitutes a model
+paraphrase as the source of a fresh Create request. The adapter passes
 the whole returned answer to Compiler validation, exposes no workflow tools,
 and accepts no tool-bearing answer. Codex authoring currently refuses before
 any call: its existing infer-grade boundary only rejects observed tool events
@@ -150,7 +153,7 @@ cost also remains unknown without a receipt, including subscription paths.
 
 An explicit positive ceiling can opt into **catalog-backed admission** on a
 qualified endpoint/model. One shared account covers classifier factories,
-conversation, semantic restatement, compilation, repair and revision. Each
+conversation, compilation, repair and revision. Each
 physical request reserves full-context input plus its explicit output limit at
 the pinned tariff. Complete validated usage settles a catalog estimate; failed,
 missing or contradictory usage retains the reservation and closes admission.
