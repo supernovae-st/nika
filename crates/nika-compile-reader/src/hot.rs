@@ -164,6 +164,24 @@ pub fn unnamed_destination_floor(plan: &mut Plan) {
             ));
         }
     }
+    // A file phrase whose clause does not say whether the result goes there is asked about,
+    // never written nor dropped silently (« the text written in a file »).
+    let unclear: Vec<String> = plan
+        .steps
+        .iter()
+        .filter(|step| step.op.carries_constraints())
+        .filter_map(|step| super::objects::unclear_destination(&step.detail))
+        .map(|excerpt| {
+            format!(
+                "`{excerpt}` does not say whether the result is written to a file; name the file to write, or restate the request without it."
+            )
+        })
+        .collect();
+    for unknown in unclear {
+        if !plan.unknowns.contains(&unknown) {
+            plan.unknowns.push(unknown);
+        }
+    }
 }
 
 /// The unnamed destinations the objects of the producing steps state, as (noun phrase,

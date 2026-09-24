@@ -45,6 +45,12 @@ use effects::{push_effect, push_obligation};
 pub(crate) use heads::Head;
 pub use slugs::slug;
 
+/// Whether a head writes content somewhere (`écris`, `save`, `enregistrer`, `salvalo`): the
+/// reader's own write heads, for a clause that denies or locates a destination.
+pub(crate) fn writes_to_path(phrase: &str) -> bool {
+    heads::writes_to_path(phrase)
+}
+
 /// The number a word spells in six languages (« five », « cinq », « fünf »), for the stages
 /// that read a count.
 pub(crate) fn number_word(folded: &str) -> Option<u32> {

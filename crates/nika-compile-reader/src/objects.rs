@@ -108,7 +108,39 @@ const INDEFINITE: &[&str] = &[
 /// file ») is one the request already has, a locative, never a new destination; a named one
 /// (« dans un fichier resume.md ») is the path laws'; and the phrase inside quotes or after a
 /// colon that opens content is content (the guard of the sentence-final cadence), not a write.
+/// A connector whose own clause denies the write or says where material already is asks for
+/// no write, and one whose clause does not say which is [`unclear_destination`]'s.
 pub(crate) fn unnamed_destination(detail: &str) -> Option<(&str, &str)> {
+    match unnamed_place(detail)? {
+        (Placement::Destination, excerpt, phrase) => Some((excerpt, phrase)),
+        _ => None,
+    }
+}
+
+/// The excerpt of an unnamed file phrase whose own clause does not say whether the result is
+/// written there (« the text written in a file », « don't put them into a file »): the reader
+/// asks, never writes it nor drops it silently.
+pub(crate) fn unclear_destination(detail: &str) -> Option<&str> {
+    match unnamed_place(detail)? {
+        (Placement::Unclear, excerpt, _) => Some(excerpt),
+        _ => None,
+    }
+}
+
+/// How a connector's own clause places the unnamed file phrase after it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Placement {
+    /// The request asks for the result there: a write.
+    Destination,
+    /// Denied, or where material already is: no write.
+    Elsewhere,
+    /// The words do not say which: a question, never a guess.
+    Unclear,
+}
+
+/// The first unnamed file phrase a connector introduces outside a denial or a location, with
+/// its placement, the excerpt from the connector to the noun and the noun phrase alone.
+fn unnamed_place(detail: &str) -> Option<(Placement, &str, &str)> {
     let lower = plain_spaces(&detail.to_lowercase());
     if lower.len() != detail.len() {
         return None;
@@ -130,6 +162,13 @@ pub(crate) fn unnamed_destination(detail: &str) -> Option<(&str, &str)> {
         if super::lexicon::quoted(before) || before.contains(": ") {
             return None;
         }
+        // The connector's own clause decides whether it names a destination at all: one it
+        // denies (« not into a file », « ne l'écris pas dans un fichier ») or one that says
+        // where material already is (« les notes contenues dans un fichier ») asks for no write.
+        let placement = placement(own_clause(before));
+        if placement == Placement::Elsewhere {
+            return None;
+        }
         let phrase_at = at + connector.len() - 1;
         let (opens, closes) = file_phrase_span(lower.get(phrase_at..)?)?;
         let noun_end = phrase_at + closes;
@@ -142,10 +181,136 @@ pub(crate) fn unnamed_destination(detail: &str) -> Option<(&str, &str)> {
             return None;
         }
         Some((
+            placement,
             detail.get(at..noun_end)?,
             detail.get(phrase_at + opens..noun_end)?,
         ))
     })
+}
+
+/// Words that open another clause inside one detail (« …, but save it in a file »).
+const CLAUSE_OPENERS: &str = "and but then et mais puis ensuite y pero und aber";
+
+/// Words that deny a destination when they end the words before its connector
+/// (« not into a file », « pas dans un fichier », « jamais dans un fichier »).
+const DENIED_RIGHT_BEFORE: &str =
+    "not never no nor pas jamais ni nunca nicht nie niemals kein keine nem";
+
+/// Words that negate what follows them in their clause. Over a write verb they deny the
+/// destination (« don't save it into a file », « sans l'enregistrer dans un fichier »).
+const NEGATORS: &str = "don't don’t doesn't doesn’t won't won’t never without ne sans jamais \
+     sin senza ohne sem";
+
+/// The negators that open a modifier of the work (« without losing details », « sans inventer
+/// de faits »): over any other verb they leave the destination to the clause.
+const MODIFIER_NEGATORS: &str = "without sans sin senza ohne sem";
+
+/// Placing verbs that are not write heads: negated, they may or may not deny the output.
+const PLACING: &str = "put putting place placing mettre mets met mis mise placer ranger range \
+     stocker stocke garder garde conserver conserve sauvegarder sauvegarde keep keeping";
+
+/// A copula, a containment participle, or « already » right before a connector: the locative
+/// then says where material is (« contenues dans un fichier », « is already in a file »).
+const LOCATED: &str = "is are was were be been lives live sits resides stays contained located \
+     found already still est sont était étaient trouve trouvent contenu contenue contenus \
+     contenues situé située situés situées présent présente présents présentes déjà encore";
+
+/// A result-state participle right before a connector: a requested result (« I want it saved
+/// in a file ») or where material is (« the text written in a file »), only the clause says.
+const RESULT_STATE: &str = "saved written stored kept écrit écrite écrits écrites enregistré \
+     enregistrée enregistrés enregistrées sauvegardé sauvegardée sauvegardés sauvegardées \
+     stocké stockée stockés stockées rangé rangée rangés rangées conservé conservée conservés \
+     conservées";
+
+/// Words that request the result a clause states (« I want », « je veux », « il faut »).
+const REQUESTING: &str = "want wants need needs please veux voudrais voudrait aimerais faut \
+     besoin souhaite quiero necesito vorrei voglio möchte quero";
+
+/// Whether `word` is one of the space-separated words of `table`.
+fn listed(table: &str, word: &str) -> bool {
+    table.split(' ').any(|entry| entry == word)
+}
+
+/// The clause a connector belongs to: what `before` (lowercase) says since its last sentence
+/// mark or clause connector.
+fn own_clause(before: &str) -> &str {
+    // A period is not a mark here: the reader split sentences already, and paths carry dots.
+    let mark = before
+        .rfind([',', ';', '!', '?', '(', '\n'])
+        .map_or(0, |at| at + 1);
+    let opener = CLAUSE_OPENERS
+        .split(' ')
+        .filter_map(|word| {
+            let padded = format!(" {word} ");
+            before.rfind(&padded).map(|at| at + padded.len())
+        })
+        .max()
+        .unwrap_or(0);
+    before.get(mark.max(opener)..).unwrap_or_default()
+}
+
+/// A word without its elided article or pronoun (« l'écrire » → « écrire »).
+fn bare(word: &str) -> &str {
+    word.split_once(['\'', '’']).map_or(word, |(_, rest)| rest)
+}
+
+/// Whether a word is exactly one of the reader's own write heads, or the gerund of one
+/// (« without saving it »). Only a write denies a file destination: a negated send, payment
+/// or publication (« without sending emails ») modifies the work and leaves the file, and a
+/// longer word that merely contains a write verb (« rewriting ») is never one.
+fn writes(word: &str) -> bool {
+    let word = bare(word);
+    super::lexicon::writes_to_path(word)
+        || matches!(word, "writing" | "saving" | "storing" | "recording")
+}
+
+/// How a connector's own clause places the file phrase after it. A denial right before the
+/// connector, or a negation over a write verb, denies it; « without »/« sans » over any other
+/// verb modifies the work and leaves it; a negated placing or unknown verb is unclear. A
+/// containment word locates material; a result-state participle is a destination when the
+/// clause requests it, unclear otherwise. French « ne … que » restricts, never negates.
+fn placement(clause: &str) -> Placement {
+    let words: Vec<&str> = clause
+        .split(|c: char| !(c.is_alphanumeric() || c == '\'' || c == '’'))
+        .filter(|w| !w.is_empty())
+        .collect();
+    let last = words.last().copied().unwrap_or_default();
+    if listed(DENIED_RIGHT_BEFORE, last) {
+        return Placement::Elsewhere;
+    }
+    let negator = words.iter().enumerate().position(|(at, w)| {
+        listed(NEGATORS, w)
+            || w.starts_with("n'")
+            || w.starts_with("n’")
+            || (*w == "not" && at > 0 && matches!(words[at - 1], "do" | "does" | "did"))
+    });
+    if let Some(at) = negator {
+        let governed = &words[at + 1..];
+        let french =
+            words[at] == "ne" || words[at].starts_with("n'") || words[at].starts_with("n’");
+        let restricts = french && governed.iter().any(|w| *w == "que" || w.starts_with("qu'"));
+        if !restricts {
+            if governed.iter().any(|w| writes(w)) {
+                return Placement::Elsewhere;
+            }
+            if governed.iter().any(|w| listed(PLACING, bare(w)))
+                || !listed(MODIFIER_NEGATORS, words[at])
+            {
+                return Placement::Unclear;
+            }
+        }
+    }
+    if listed(LOCATED, last) {
+        return Placement::Elsewhere;
+    }
+    if listed(RESULT_STATE, last) {
+        return if words.iter().any(|w| listed(REQUESTING, w)) {
+            Placement::Destination
+        } else {
+            Placement::Unclear
+        };
+    }
+    Placement::Destination
 }
 
 /// The text with every typographic space (a no-break space before « : », U+202F) spelled as
@@ -926,6 +1091,9 @@ pub fn carried(target: &str, plan: &Plan) -> bool {
     let object = object_before_destination(target);
     refers_back(&object, plan.steps.iter().map(|s| s.detail.as_str()))
 }
+
+#[cfg(test)]
+mod placement_tests;
 
 #[cfg(test)]
 mod tests {
