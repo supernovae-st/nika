@@ -50,6 +50,8 @@ pub(super) struct Saved {
 #[serde(rename_all = "snake_case")]
 pub(super) enum Operation {
     Turn,
+    /// A closed Run request; its ceiling does not amend Session inference.
+    Run,
     Choice,
     Consent,
     Gate,
@@ -306,7 +308,7 @@ impl History {
 
     fn recover(&mut self) {
         self.uncertain |= self.started.is_some() || self.run == RunState::AwaitingObservation;
-        if let Some((Operation::Turn, input)) = self.started.take() {
+        if let Some((Operation::Turn | Operation::Run, input)) = self.started.take() {
             self.recovery_line(
                 input,
                 "[Interrupted turn: no completed reply was recorded.]",

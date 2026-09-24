@@ -25,6 +25,7 @@ mod question_identity;
 mod recovery;
 mod restart;
 mod revision_question;
+mod run_scope;
 mod scopes;
 mod unknown_cost;
 pub(crate) mod wire;

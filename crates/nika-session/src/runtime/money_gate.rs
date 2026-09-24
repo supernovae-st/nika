@@ -317,12 +317,6 @@ impl SessionRuntime {
             return Ok(());
         }
         let mut decision = self.money_decision(input, &parsed);
-        if decision
-            .effective_usd
-            .is_none_or(|v| !v.is_finite() || v < 0.0)
-        {
-            return Err(self.refuse_money(input, money_parse::INVALID));
-        }
         if continuation && let Some(previous) = &self.money.draft {
             decision
                 .original_intent
@@ -422,20 +416,32 @@ impl SessionRuntime {
         self.money.current = Some(decision);
     }
 
+    /// Run refusals change the Run observation, never the shared Session account.
+    pub(super) fn refuse_run_money(&mut self, input: &str, reason: &str) -> TurnOutcome {
+        self.money.current = Some(self.inference_observation(self.rejected_money(input, reason)));
+        TurnOutcome::Refusal(Refusal::new(RefusalClass::NotAllowed, reason))
+    }
+
     pub(super) fn run_money(
         &mut self,
         input: &str,
         workflow: &std::path::Path,
         explicit: Option<f64>,
     ) -> Result<f64, TurnOutcome> {
-        if explicit.is_none() {
+        let parsed = self
+            .read_money(input)
+            .map_err(|reason| self.refuse_run_money(input, &reason))?;
+        if explicit.is_some() {
+            self.money.current =
+                Some(self.inference_observation(self.money_decision(input, &parsed)));
+        } else {
             self.restore_run_money(input, workflow)?;
         }
         self.money
             .current
             .as_ref()
             .and_then(|d| d.effective_usd)
-            .ok_or_else(|| self.refuse_money(input, money_parse::INVALID))
+            .ok_or_else(|| self.refuse_run_money(input, money_parse::INVALID))
     }
 
     fn restore_run_money(
@@ -445,7 +451,7 @@ impl SessionRuntime {
     ) -> Result<(), TurnOutcome> {
         let target = self.snapshot.root.join(workflow);
         let Ok(resolved) = target.canonicalize() else {
-            return Err(self.refuse_money(
+            return Err(self.refuse_run_money(
                 input,
                 "the workflow identity could not be resolved — review it before running",
             ));
@@ -466,13 +472,13 @@ impl SessionRuntime {
             .filter(|saved| matches(&saved.path) || saved.resolved.as_ref() == Some(&resolved));
         if let Some(saved_money) = saved.next() {
             if saved.next().is_some() {
-                return Err(self.refuse_money(input, "multiple saved monetary decisions resolve to this workflow — prepare and review one unambiguous revision"));
+                return Err(self.refuse_run_money(input, "multiple saved monetary decisions resolve to this workflow — prepare and review one unambiguous revision"));
             }
             let unchanged = saved_money.resolved.as_ref() == Some(&resolved)
                 && std::fs::read(&target)
                     .is_ok_and(|bytes| Witness::of(&bytes) == saved_money.witness);
             if !unchanged {
-                return Err(self.refuse_money(input, "the prepared workflow changed since its monetary decision — prepare and review the revision before running"));
+                return Err(self.refuse_run_money(input, "the prepared workflow changed since its monetary decision — prepare and review the revision before running"));
             }
             self.money.current = Some(self.inference_observation(saved_money.decision.clone()));
             return Ok(());
@@ -484,13 +490,13 @@ impl SessionRuntime {
         // execution authority or equate distinct files by their bytes.
         let records = match ConsentRecord::read_all(&self.snapshot.root) {
             Ok(records) if records.iter().all(|r| r.version == ConsentRecord::VERSION) => records,
-            _ => return Err(self.refuse_money(input, "saved monetary evidence is unreadable — provide an explicit Run ceiling or prepare and review the workflow again")),
+            _ => return Err(self.refuse_run_money(input, "saved monetary evidence is unreadable — provide an explicit Run ceiling or prepare and review the workflow again")),
         };
         if records
             .iter()
             .any(|record| record.written.iter().any(|path| matches(path)))
         {
-            return Err(self.refuse_money(input, "the saved spending constraint cannot be proved in this session — provide an explicit Run ceiling or prepare and review the workflow again; no default was substituted"));
+            return Err(self.refuse_run_money(input, "the saved spending constraint cannot be proved in this session — provide an explicit Run ceiling or prepare and review the workflow again; no default was substituted"));
         }
         // No saved identity or journal claim binds this file. Its own Run
         // default does not amend the ongoing Session inference allowance.

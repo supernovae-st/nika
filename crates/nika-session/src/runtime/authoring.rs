@@ -769,41 +769,42 @@ impl SessionRuntime {
         Ok(round)
     }
 
+    /// Whether this turn reaches only Run validation, without Session cognition.
+    pub(super) fn local_run_line(&self, input: &str) -> bool {
+        !self.waiting_cost_choice()
+            && self.authoring.is_none()
+            && self.run_inputs.is_none()
+            && self.activation.is_none()
+            && run_prefix(input)
+                .is_some_and(|lower| ceiling_in(input).is_err() || run_line_is_plain(&lower))
+    }
+
     /// An explicit run line — `run it` · `run brief.nika with a ceiling of
     /// 0.05` · `test it now` — runs a workflow the human named or the one
     /// last accepted, only when its check on disk is clean. `None` when
     /// the line is not a run line.
     pub(super) fn run_turn(&mut self, input: &str) -> Option<TurnOutcome> {
-        let lower = input.trim().to_lowercase();
-        let first = lower
-            .split(|c: char| c.is_whitespace() || c == ',' || c == ':')
-            .next()?;
-        if !is_run_verb(first) {
-            return None;
-        }
+        let lower = run_prefix(input)?;
         // A label from the conversational router cannot turn an invalid
         // amount (or an unqualified time/count) into permission to run.
         let ceiling = match ceiling_in(input) {
             Ok(ceiling) => ceiling,
-            Err(reason) => {
-                return Some(self.refuse_money(input, reason));
-            }
+            Err(reason) => return Some(self.refuse_run_money(input, reason)),
         };
+        if self.pending_gate.is_some() || self.money.gate.is_some() {
+            return Some(self.refuse_run_money(
+                input,
+                "a paused gate waits; answer it before requesting another Run",
+            ));
+        }
+        if self.money.reconfirm && ceiling.is_none() {
+            return Some(self.refuse_run_money(input, &self.restored_refusal()));
+        }
         // The run grammar is closed: the verb, the workflow named or « it »,
         // a ceiling. A line that carries more (« run it, but only on
         // Fridays ») is not a run: its act is a bounded decision, and a
         // change comes before any run.
         if !run_line_is_plain(&lower) {
-            let workflow = named_files(input)
-                .into_iter()
-                .map(PathBuf::from)
-                .find(|p| self.snapshot.root.join(p).is_file())
-                .or_else(|| self.last_workflow.clone());
-            if let Some(workflow) = workflow
-                && let Err(refusal) = self.run_money(input, &workflow, ceiling)
-            {
-                return Some(refusal);
-            }
             return match self.classify(SessionPhase::Idle, input).act {
                 TurnAct::RequestRun => Some(self.run_plain(input, ceiling)),
                 TurnAct::Modify | TurnAct::Mixed => Some(TurnOutcome::Refusal(Refusal::new(
@@ -1381,4 +1382,12 @@ fn run_line_is_plain(lower: &str) -> bool {
                 || super::money_parse::parse(w).is_ok_and(|money| money.money_only)
                 || w.trim_start_matches('$').parse::<f64>().is_ok()
         })
+}
+
+fn run_prefix(input: &str) -> Option<String> {
+    let lower = input.trim().to_lowercase();
+    let first = lower
+        .split(|c: char| c.is_whitespace() || c == ',' || c == ':')
+        .next()?;
+    is_run_verb(first).then_some(lower)
 }

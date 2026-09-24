@@ -95,7 +95,12 @@ impl SessionRuntime {
         if input.trim() == "/restore" {
             return self.restore_draft();
         }
-        self.recorded(Operation::Turn, input, |s| {
+        let operation = if self.local_run_line(input) {
+            Operation::Run
+        } else {
+            Operation::Turn
+        };
+        self.recorded(operation, input, |s| {
             if s.waiting_cost_choice() {
                 s.cost_answer(input)
             } else {

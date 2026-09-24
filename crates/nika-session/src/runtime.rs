@@ -849,10 +849,12 @@ impl SessionRuntime {
             self.remember(input, &fact);
             return TurnOutcome::Facts(fact);
         }
-        if let Err(refusal) = self.admit_money(original, false) {
+        if !self.local_run_line(original)
+            && let Err(refusal) = self.admit_money(original, false)
+        {
             return refusal;
         }
-        if let Some(outcome) = self.run_turn(input) {
+        if let Some(outcome) = self.run_turn(original) {
             return outcome;
         }
         // « activate »: the schedule the last saved workflow asked for

@@ -488,7 +488,7 @@ fn run_uses_the_same_currency_reader_and_still_refuses_unbound_numeric_condition
 }
 
 #[test]
-fn a_saved_explicit_ceiling_still_blocks_cognition_on_a_qualified_run() {
+fn a_saved_explicit_ceiling_keeps_run_and_cognition_constraints_separate() {
     let dir = tempfile::tempdir().expect("fixture");
     let (mut runtime, calls) = session(dir.path());
     runtime.turn(COPY);
@@ -497,13 +497,17 @@ fn a_saved_explicit_ceiling_still_blocks_cognition_on_a_qualified_run() {
     let outcome = runtime.turn("run it but only on Fridays");
     assert!(!matches!(outcome, TurnOutcome::RunRequested { .. }));
     assert_eq!(calls.load(Ordering::SeqCst), 0);
+    // A mixed line has no Run decision yet; its Session restriction still blocks cognition.
     assert_eq!(
-        runtime
-            .monetary_decision()
-            .expect("bound money")
-            .effective_usd,
-        Some(0.0)
+        runtime.monetary_decision().expect("money").inference,
+        InferenceEnforcement::CallsBlocked
     );
+    // Only a closed Run restores the exact ceiling bound to the saved workflow.
+    assert!(
+        matches!(runtime.turn("run it"), TurnOutcome::RunRequested { ref run, .. }
+        if run.max_cost_usd.to_bits() == 0.0_f64.to_bits())
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
 }
 
 #[test]
