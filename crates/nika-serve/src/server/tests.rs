@@ -547,9 +547,12 @@ fn one_sse_limits() -> ServerLimits {
 fn live_sse_limits() -> ServerLimits {
     ServerLimits::new(
         1024,
-        Duration::from_millis(500),
+        // Admission captures and persists the workflow before SSE begins. Allow
+        // filesystem contention on a shared CI host without weakening the test:
+        // the stream below must remain live beyond this actual request deadline.
+        Duration::from_secs(5),
+        Duration::from_secs(30),
         Duration::from_secs(2),
-        Duration::from_millis(200),
         2,
         8,
         64,
@@ -687,10 +690,22 @@ async fn sse_outlives_request_timeout_and_disconnect_does_not_block_execution() 
 
     let (mut stream, headers) = open_sse(server.address, &events_request(&id, None)).await;
     assert_eq!(headers.status, 200, "{}", headers.body);
-    tokio::time::sleep(Duration::from_millis(600)).await;
     let events = collect_sse(&mut stream, headers.body, 1).await;
     assert_eq!(events[0]["kind"], "execution.started");
     assert_allowlisted(&events[0]);
+    // Drain heartbeats continuously: reading a buffered start event after a
+    // sleep alone would also pass if the stream had already timed out.
+    let beyond_request = tokio::time::Instant::now()
+        + live_sse_limits().request_timeout()
+        + Duration::from_millis(200);
+    while tokio::time::Instant::now() < beyond_request {
+        let mut chunk = [0; 512];
+        let count = tokio::time::timeout(Duration::from_secs(2), stream.read(&mut chunk))
+            .await
+            .expect("live stream heartbeat")
+            .expect("read stream");
+        assert_ne!(count, 0, "SSE closed at the ordinary request deadline");
+    }
     drop(stream);
 
     backend.release(1);
