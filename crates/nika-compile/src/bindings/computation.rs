@@ -17,13 +17,7 @@ pub(super) fn synthesized_rule(
     b: &Bindings,
     request: &CompileRequest,
 ) -> Option<rules::Rule> {
-    let observed = match &b.read {
-        Need::Bound(Source::File(path)) => {
-            crate::observed::columns(crate::observed::world(request), path)
-        }
-        _ => None,
-    };
-    let hint = observed.unwrap_or_else(|| crate::columns::columns_hint(intent));
+    let hint = source_columns(b, request, intent);
     // A validated rule stated for this very step first (the semantic frontend's typed
     // predicate, or a promoted constraint: meaning before syntax), then the closed grammar
     // over the whole detail. A detail the plan joined from several clauses (` ; `) must
@@ -113,6 +107,16 @@ pub(super) fn synthesized_rule(
         }
         _ => None,
     }
+}
+
+fn source_columns(b: &Bindings, request: &CompileRequest, intent: &str) -> Vec<String> {
+    let observed = match &b.read {
+        Need::Bound(Source::File(path)) => {
+            crate::observed::columns(crate::observed::world(request), path)
+        }
+        _ => None,
+    };
+    observed.unwrap_or_else(|| crate::columns::columns_hint(intent))
 }
 
 /// The plan's rules with the plain twins removed: the promoted constraint of a clause

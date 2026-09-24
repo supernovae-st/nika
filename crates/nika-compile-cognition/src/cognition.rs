@@ -168,7 +168,6 @@ pub async fn compile_with_cognition<P: ProviderInferDyn>(
     Ok(out)
 }
 
-#[allow(clippy::too_many_lines)] // the resolution ladder reads top to bottom
 async fn compile_inner<P: ProviderInferDyn>(
     request: &CompileRequest,
     cognition: Cognition<'_, P>,
@@ -209,6 +208,23 @@ async fn compile_inner<P: ProviderInferDyn>(
     // Apostrophes fold once here so reading, anchoring and the proposal see one text.
     let effective_intent =
         lexicon::fold_apostrophes(&clarification.unwrap_or_else(|| intent.clone()));
+    Box::pin(resolve_create(
+        &effective_intent,
+        request,
+        &assembly_request,
+        cognition,
+        out,
+    ))
+    .await
+}
+
+async fn resolve_create<P: ProviderInferDyn>(
+    intent: &str,
+    request: &CompileRequest,
+    assembly_request: &CompileRequest,
+    cognition: Cognition<'_, P>,
+    mut out: CompileOutcome,
+) -> Result<CompileOutcome, CompileError> {
     // An answer round replays the plan its previous round produced: no reading, no seat,
     // no proposal, the same candidate.
     if let Some(record) = &request.plan {
@@ -221,11 +237,11 @@ async fn compile_inner<P: ProviderInferDyn>(
             );
             return Ok(out);
         }
-        replay(&effective_intent, record, &assembly_request, &mut out)?;
+        replay(intent, record, assembly_request, &mut out)?;
         if record.get("pending_transform").is_some()
             && let (Some(policy), Some(provider)) = (&request.authoring, cognition.provider)
         {
-            if !policy_bounded(policy, &effective_intent) {
+            if !policy_bounded(policy, intent) {
                 super::finding(
                     &mut out,
                     DiagnosticKind::Missed,
@@ -234,27 +250,36 @@ async fn compile_inner<P: ProviderInferDyn>(
                 );
                 return Ok(out);
             }
-            return transform::resume(&effective_intent, &assembly_request, policy, provider, out)
-                .await;
+            return transform::resume(intent, assembly_request, policy, provider, out).await;
         }
         return Ok(out);
     }
     // The exact grammar keeps its zero-call, fail-closed path when a provider is permitted.
-    if let Ok(Some(plan)) = super::support::resolve(&effective_intent) {
-        super::support::assemble(&plan, &assembly_request, &mut out)?;
+    if let Ok(Some(plan)) = super::support::resolve(intent) {
+        super::support::assemble(&plan, assembly_request, &mut out)?;
         out.provenance.strategy = Some(Strategy::Support);
         return Ok(out);
     }
-    let mut route: Vec<String> = Vec::new();
-    record_retrieval(&mut out, &effective_intent, None);
-    let mut reading = lexicon::read(&effective_intent);
-    if let Some(columns) = nika_compile::surface::observed::for_intent(
-        assembly_request.knowledge.as_ref(),
-        &effective_intent,
-    ) {
+    record_retrieval(&mut out, intent, None);
+    let mut reading = lexicon::read(intent);
+    if let Some(columns) =
+        nika_compile::surface::observed::for_intent(assembly_request.knowledge.as_ref(), intent)
+    {
         reading.columns = columns;
     }
-    backstop(&effective_intent, &mut reading.plan);
+    backstop(intent, &mut reading.plan);
+    route_create(intent, request, assembly_request, cognition, reading, out).await
+}
+
+async fn route_create<P: ProviderInferDyn>(
+    intent: &str,
+    request: &CompileRequest,
+    assembly_request: &CompileRequest,
+    cognition: Cognition<'_, P>,
+    reading: Reading,
+    mut out: CompileOutcome,
+) -> Result<CompileOutcome, CompileError> {
+    let mut route = Vec::new();
     // The deterministic door judges the reading with its stated rules promoted: a rule
     // carries its own constraint, and the words inside it are its literals. The reading
     // itself keeps its constraints: they are the policy floor a seat's proposal inherits.
@@ -263,7 +288,7 @@ async fn compile_inner<P: ProviderInferDyn>(
     if let (Some(policy), Some(provider)) = (&request.authoring, cognition.provider)
         && matches!(policy.native, NativeMode::Only | NativeMode::Sketch)
     {
-        if !policy_bounded(policy, &effective_intent) {
+        if !policy_bounded(policy, intent) {
             super::finding(
                 &mut out,
                 DiagnosticKind::Missed,
@@ -275,11 +300,11 @@ async fn compile_inner<P: ProviderInferDyn>(
         if policy.native == NativeMode::Sketch {
             route.push("native: sketch".to_owned());
             return sketch::author(
-                &effective_intent,
+                intent,
                 &reading,
                 policy,
                 provider,
-                &assembly_request,
+                assembly_request,
                 route,
                 out,
             )
@@ -287,49 +312,61 @@ async fn compile_inner<P: ProviderInferDyn>(
         }
         route.push("native: only".to_owned());
         return native::author(
-            &effective_intent,
+            intent,
             &reading,
             policy,
             provider,
-            &assembly_request,
+            assembly_request,
             route,
             out,
         )
         .await;
     }
     let mut admitted = reading.clone();
-    super::shape::promote_stated_rules(&mut admitted.plan, &effective_intent);
-    match admit_hot(&effective_intent, &admitted, request.hot) {
+    super::shape::promote_stated_rules(&mut admitted.plan, intent);
+    match admit_hot(intent, &admitted, request.hot) {
         Ok(()) => {
             route.push("hot".to_owned());
             record_route(&mut out, &route);
-            let hot = settle(
-                Strategy::Hot,
-                &admitted.plan,
-                &effective_intent,
-                &assembly_request,
-                out,
-            )?;
-            let seat = (request, cognition.provider, &assembly_request);
+            let hot = settle(Strategy::Hot, &admitted.plan, intent, assembly_request, out)?;
+            let seat = (request, cognition.provider, assembly_request);
             // Boxed: the seat door is rare and large; it must not grow every compile future.
-            return Box::pin(contradiction_to_seat(
-                &effective_intent,
-                &reading,
-                seat,
-                route,
-                hot,
-            ))
-            .await;
+            return Box::pin(contradiction_to_seat(intent, &reading, seat, route, hot)).await;
         }
         Err(why) => route.push(format!("hot rejected: {}", why.reasons().join("; "))),
     }
+    choose_create(
+        intent,
+        request,
+        assembly_request,
+        cognition,
+        reading,
+        route,
+        out,
+    )
+    .await
+}
+
+async fn choose_create<P: ProviderInferDyn>(
+    intent: &str,
+    request: &CompileRequest,
+    assembly_request: &CompileRequest,
+    cognition: Cognition<'_, P>,
+    mut reading: Reading,
+    mut route: Vec<String>,
+    mut out: CompileOutcome,
+) -> Result<CompileOutcome, CompileError> {
     // WARM on lexical ambiguity: every clause is known; a few carry a finite set of readings
     // and the rest of the reading is strictly explicit.
     if reading.unresolved.is_empty()
         && !reading.ambiguous.is_empty()
         && request.hot != HotPolicy::Off
         && let Some(seat) = cognition.seat
-        && lexical_rest_is_explicit(&effective_intent, &admitted)
+        && lexical_rest_is_explicit(intent, &{
+            let mut admitted = reading.clone();
+            super::shape::promote_stated_rules(&mut admitted.plan, intent);
+            admitted
+        })
     {
         out.provenance.cognition = AuthoringCognition::ExplicitDecision;
         let mut records = Vec::new();
@@ -343,7 +380,7 @@ async fn compile_inner<P: ProviderInferDyn>(
             let question = ChoiceQuestion::new(
                 format!("clause-{index}"),
                 "Which operation does this clause of the request ask for? Judge the clause in the context of the whole request; an option you cannot support from the text is not a fit.",
-                json!({"request": effective_intent, "clause": ambiguity.clause, "object": ambiguity.detail}),
+                json!({"request": intent, "clause": ambiguity.clause, "object": ambiguity.detail}),
                 options,
             );
             let answer = seat.choose(&question).await;
@@ -383,20 +420,35 @@ async fn compile_inner<P: ProviderInferDyn>(
         if settled_all {
             route.push("warm".to_owned());
             record_route(&mut out, &route);
-            return settle(
-                Strategy::Warm,
-                &reading.plan,
-                &effective_intent,
-                &assembly_request,
-                out,
-            );
+            return settle(Strategy::Warm, &reading.plan, intent, assembly_request, out);
         }
         route.push("warm: none".to_owned());
         reading.ambiguous.clear();
     }
+    author_create(
+        intent,
+        request,
+        assembly_request,
+        cognition,
+        reading,
+        route,
+        out,
+    )
+    .await
+}
+
+async fn author_create<P: ProviderInferDyn>(
+    intent: &str,
+    request: &CompileRequest,
+    assembly_request: &CompileRequest,
+    cognition: Cognition<'_, P>,
+    reading: Reading,
+    mut route: Vec<String>,
+    mut out: CompileOutcome,
+) -> Result<CompileOutcome, CompileError> {
     // COLD: explicitly authorized generative proposals, constrained by the deterministic facts.
     if let (Some(policy), Some(provider)) = (&request.authoring, cognition.provider) {
-        if !policy_bounded(policy, &effective_intent) {
+        if !policy_bounded(policy, intent) {
             super::finding(
                 &mut out,
                 DiagnosticKind::Missed,
@@ -415,11 +467,11 @@ async fn compile_inner<P: ProviderInferDyn>(
         {
             route.push("native: informed generation".to_owned());
             return native::author(
-                &effective_intent,
+                intent,
                 &reading,
                 policy,
                 provider,
-                &assembly_request,
+                assembly_request,
                 route,
                 out,
             )
@@ -427,12 +479,12 @@ async fn compile_inner<P: ProviderInferDyn>(
         }
         route.push(format!("cold: {} sample(s)", policy.samples.clamp(1, 5)));
         let cold = sampled(
-            &effective_intent,
+            intent,
             policy,
             provider,
             cognition.seat,
             &reading,
-            &assembly_request,
+            assembly_request,
             route.clone(),
             out,
         )
@@ -451,11 +503,11 @@ async fn compile_inner<P: ProviderInferDyn>(
             let mut route = route;
             route.push("native: escalated".to_owned());
             return native::author(
-                &effective_intent,
+                intent,
                 &reading,
                 policy,
                 provider,
-                &assembly_request,
+                assembly_request,
                 route,
                 cold,
             )

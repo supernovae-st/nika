@@ -1,1 +1,1 @@
-Saving a new workflow proposal clears the previous workflow’s Run status, including when the saved path is reused. Save no longer appears to have executed the newly saved bytes.
+- **Clear stale Run evidence when saving a proposal.** Saving a new workflow proposal clears the previous workflow’s Run status, including when the saved path is reused. Save no longer appears to have executed the newly saved bytes.
