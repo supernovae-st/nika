@@ -63,11 +63,15 @@ fn seated(source: &str, model: &str) -> String {
 
 #[test]
 fn a_first_pass_cap_nobody_named_is_sized_once_the_model_is_answered() {
-    for model in [OSS, FLASH, "acme/unheard-of-model"] {
+    for (model, cap) in [
+        (OSS, 16384),
+        (FLASH, 16384),
+        ("acme/unheard-of-model", 4096),
+    ] {
         let out = replayed(DEFAULT, &candidate(None), model);
         let doc = literal_projection(out.candidate.as_deref().unwrap()).unwrap();
         let mut expected = literal_projection(&seated(&candidate(None), model)).unwrap();
-        expected["tasks"]["extract"]["infer"]["max_tokens"] = json!(4096);
+        expected["tasks"]["extract"]["infer"]["max_tokens"] = json!(cap);
         assert_eq!(doc, expected, "{model}: the default and nothing else");
     }
 }
@@ -108,5 +112,5 @@ fn the_authoring_facts_for_the_gpt_oss_name_claim_no_route() {
     assert_eq!(facts["thinking_counted_in_cap"], json!("unknown"));
     assert_eq!(facts["route"], json!("resolved at run time"));
     assert_eq!(facts["max_output_tokens"], Value::Null);
-    assert_eq!(facts["suggested_default_max_tokens"], json!(4096));
+    assert_eq!(facts["suggested_default_max_tokens"], json!(16384));
 }

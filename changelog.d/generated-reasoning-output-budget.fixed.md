@@ -1,0 +1,1 @@
+Compiler-generated inference limits allow 16,384 output tokens for catalog-known reasoning models, bounded by model capacity and run admission. Explicit task limits stay unchanged; structured summaries have room to complete after reasoning.

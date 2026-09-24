@@ -18,7 +18,7 @@ fn current_deepseek_drafts_budget_for_reasoning_and_the_structured_answer() {
             source["tasks"]["draft"]["infer"]["max_tokens"]
                 .as_u64()
                 .unwrap()
-                >= 4096
+                >= 16384
         );
         assert!(source["tasks"]["draft"]["infer"]["schema"].is_object());
         assert!(out.check_preview.as_ref().unwrap().report.is_clean());

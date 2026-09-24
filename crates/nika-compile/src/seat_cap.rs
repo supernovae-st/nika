@@ -15,9 +15,11 @@ use crate::{CompileOutcome, DiagnosticKind};
 
 /// The generated cap on a seat the catalog records as reasoning: room for a thinking trace
 /// before the visible answer. 1200 was measured too small (openai/gpt-5-mini · `NIKA-INFER-002
-/// · cut off at the token limit`); 4096 leaves the answer its room. A cap is a ceiling the run
-/// never exceeds, never a spend.
-pub(crate) const REASONING_MAX_TOKENS: u32 = 4096;
+/// · cut off at the token limit`); a real `DeepSeek` structured summary exhausted 4096
+/// tokens in reasoning with no visible answer. Leave 16384 for thinking plus the answer.
+/// This remains a finite ceiling subject to the known model limit and run admission,
+/// never a spend or permission to raise a cap the requester explicitly supplied.
+pub(crate) const REASONING_MAX_TOKENS: u32 = 16_384;
 
 /// A seat's provider and model when the catalog can judge it: never `mock` (its fixture row
 /// claims every capability) and never a template (`nika check` judges the resolved seat).
@@ -104,7 +106,8 @@ pub(crate) const NEUTRAL_MAX_TOKENS: u32 = 4096;
 
 /// Fills the cap of every `infer:` task that states none, once the workflow's model is seated.
 /// Nobody named a bound there, so the default is the compiler's: the neutral cap, bounded by
-/// the recorded output limit. A stated cap is never touched. The edit goes through the
+/// the recorded output limit, with the reasoning floor when the catalog records it.
+/// A stated cap is never touched. The edit goes through the
 /// presentation-preserving emitter; `None` when nothing is missing or the edit cannot be proven
 /// safe (the candidate then stays as written, and Check says it is unbounded).
 pub(crate) fn fill_defaults(source: &str) -> Option<String> {
@@ -124,12 +127,7 @@ pub(crate) fn fill_defaults(source: &str) -> Option<String> {
             .and_then(Value::as_str)
             .map(str::to_owned)
             .or_else(|| envelope.clone());
-        let limit = seat
-            .as_deref()
-            .and_then(judged)
-            .and_then(|(provider, name)| known_limit(provider, name))
-            .map(|(limit, _)| limit);
-        let cap = bounded(false, limit, NEUTRAL_MAX_TOKENS);
+        let cap = sized(seat.as_deref(), NEUTRAL_MAX_TOKENS);
         infer.insert("max_tokens".to_owned(), json!(cap));
         filled = true;
     }
@@ -179,7 +177,7 @@ mod tests {
             assert_eq!(bounded(true, None, base), REASONING_MAX_TOKENS);
             assert_eq!(bounded(false, None, base), base);
         }
-        assert_eq!(bounded(true, None, 6000), 6000, "a larger cap stays");
+        assert_eq!(bounded(true, None, 24_000), 24_000, "a larger cap stays");
         assert_eq!(bounded(true, Some(2048), 800), 2048, "the known limit wins");
         assert_eq!(bounded(false, Some(512), 800), 512);
     }
@@ -254,7 +252,7 @@ mod tests {
         let doc = crate::edit::literal_projection(&filled).expect("a document");
         assert_eq!(
             doc["tasks"]["draft"]["infer"]["max_tokens"],
-            json!(NEUTRAL_MAX_TOKENS)
+            json!(REASONING_MAX_TOKENS)
         );
         assert_eq!(doc["tasks"]["named"]["infer"]["max_tokens"], json!(700));
         assert_eq!(
