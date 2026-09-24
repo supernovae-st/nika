@@ -504,3 +504,50 @@ fn a_secret_in_a_kept_draft_is_redacted_on_disk_and_the_rebuild_refuses() {
         BASE
     );
 }
+
+/// The TUI sends a close at its review prompt through consent, not turn. Both close tokens
+/// keep the same draft evidence, expire the old authority and require a new review after open.
+#[test]
+fn quitting_at_review_keeps_the_draft_for_fresh_consent_after_reopening() {
+    for line in ["/quit", "/exit"] {
+        let root = project();
+        let home = tempfile::tempdir().expect("home");
+        let (mut first, _) = open(root.path(), &[ANSWER]);
+        first.enable_history(home.path()).expect("history");
+        let old = proposed(first.turn(COPY));
+        let bytes = first.pending.as_ref().expect("proposal").changes[0]
+            .content()
+            .to_owned();
+        assert!(matches!(first.consent(line), TurnOutcome::Quit));
+        assert!(
+            first.pending_proposal().is_none(),
+            "closing expires authority"
+        );
+        assert!(!root.path().join(LANDED).exists());
+        drop(first);
+        let (mut resumed, seen) = open(root.path(), &[ANSWER]);
+        resumed.enable_history(home.path()).expect("reopen");
+        assert_eq!(
+            kept(&resumed).files[0].text.as_deref(),
+            Some(bytes.as_str())
+        );
+        assert_eq!(
+            refused(resumed.consent_to(&old, "yes")).class,
+            RefusalClass::WrongState
+        );
+        let fresh = proposed(resumed.repropose_restored_draft());
+        assert!(!root.path().join(LANDED).exists(), "restore is not save");
+        assert!(matches!(
+            resumed.consent_to(&fresh, "yes"),
+            TurnOutcome::Facts(_)
+        ));
+        assert_eq!(
+            std::fs::read_to_string(root.path().join(LANDED)).expect("saved"),
+            bytes
+        );
+        assert!(
+            seen.lock().expect("calls").is_empty(),
+            "no model on restore"
+        );
+    }
+}

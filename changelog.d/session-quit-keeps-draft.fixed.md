@@ -1,0 +1,1 @@
+- **Keep a pending draft when quitting its review.** `/quit` and `/exit` from a proposal now use the ordinary close boundary: previous consent expires, while reopening can offer the exact draft for fresh review and explicit save without another model call.
