@@ -137,6 +137,57 @@ pub fn destination_floor(intent: &str, plan: &mut Plan) {
             EffectPolicy::Automatic,
         ));
     }
+    unnamed_destination_floor(plan);
+}
+
+/// The unnamed-destination floor, the named one's twin for a file the request asks for without
+/// naming it (« Résume mes notes dans un fichier », « summarize ./notes.md into a new file »).
+/// The destination rode inside a producing step's object, and the step alone was READY with
+/// nothing written (the S98 J02 witness). It becomes a write whose target is the noun phrase and
+/// whose evidence is the connector and the phrase, verbatim: the assembler asks its exact path
+/// (`const.output_path`), an answer round replays the write with the plan, and nothing is granted
+/// before the human names the file. A read, a fetch, a lookup or a search consumes material
+/// (« lis les notes dans un fichier »), never a destination; a step whose clause a write already
+/// carries is left alone, so the floor is idempotent and a replay may apply it to an older record.
+pub fn unnamed_destination_floor(plan: &mut Plan) {
+    let found: Vec<(String, String, String)> = plan
+        .steps
+        .iter()
+        .filter(|step| step.op.carries_constraints())
+        .filter_map(|step| {
+            let (excerpt, phrase) = super::objects::unnamed_destination(&step.detail)?;
+            // The evidence is the request's own words (a replay anchors it): a detail the reader
+            // could only lower keeps the whole clause as the excerpt.
+            let evidence = if step.evidence.contains(excerpt) {
+                excerpt
+            } else {
+                step.evidence.as_str()
+            };
+            Some((
+                phrase.to_owned(),
+                evidence.to_owned(),
+                step.evidence.clone(),
+            ))
+        })
+        .collect();
+    for (phrase, evidence, clause) in found {
+        let written = plan.effects.iter().any(|effect| {
+            let carried = effect.evidence.trim();
+            effect.verb == EffectVerb::Write
+                && !carried.is_empty()
+                && (carried.contains(evidence.as_str())
+                    || clause.contains(carried)
+                    || carried.contains(clause.trim()))
+        });
+        if !written {
+            plan.effects.push(Effect::new(
+                EffectVerb::Write,
+                phrase,
+                evidence,
+                EffectPolicy::Automatic,
+            ));
+        }
+    }
 }
 
 /// The source-shaped paths of the request, in order, without duplicates.
@@ -1096,6 +1147,67 @@ mod tests {
             assert!(
                 !why.iter().any(|w| w.contains("recurrence")),
                 "{carried}: {why:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_file_the_request_asks_for_without_naming_it_is_a_write_and_nothing_else_is() {
+        // The S98 J02 witness at 53f8c640: one draft and no effect, READY after the model alone.
+        for (intent, target, evidence) in [
+            (
+                "Résume mes notes dans un fichier.",
+                "un fichier",
+                "dans un fichier",
+            ),
+            (
+                "Écris un haïku dans un fichier.",
+                "un fichier",
+                "dans un fichier",
+            ),
+            (
+                "Summarize ./notes.md into a new file.",
+                "a new file",
+                "into a new file",
+            ),
+        ] {
+            let reading = lexicon::read(intent);
+            let writes: Vec<(&str, &str)> = reading
+                .plan
+                .effects
+                .iter()
+                .filter(|e| e.verb == EffectVerb::Write)
+                .map(|e| (e.target.as_str(), e.evidence.as_str()))
+                .collect();
+            assert_eq!(writes, [(target, evidence)], "{intent}: {:?}", reading.plan);
+            let why = reading.hot_rejections();
+            assert!(why.is_empty(), "{intent}: {why:?}");
+            let why = rejections(intent, &reading);
+            assert!(why.is_empty(), "{intent}: {why:?}");
+            // Idempotent: a second pass over the read plan adds nothing.
+            let mut again = reading.plan.clone();
+            unnamed_destination_floor(&mut again);
+            assert_eq!(again.effects, reading.plan.effects, "{intent}");
+        }
+        // A locative over a file the request already has, quoted words, a read, and a named
+        // destination add no unnamed write.
+        for intent in [
+            "Résume les notes dans le fichier.",
+            "Summarize the notes in my file.",
+            "Traduis « dans un fichier » en anglais.",
+            "Lis les notes dans un fichier.",
+            "Résume mes notes dans ./out/resume.md.",
+        ] {
+            let reading = lexicon::read(intent);
+            assert!(
+                reading
+                    .plan
+                    .effects
+                    .iter()
+                    .all(|e| e.verb != EffectVerb::Write
+                        || super::super::paths::single_file(&e.target).is_some()),
+                "{intent}: {:?}",
+                reading.plan.effects
             );
         }
     }

@@ -84,6 +84,23 @@ while `nika-compile` stood at its wall; they ascended to `nika-compile-fidelity`
   schedule. The French plural weekdays (« tous les lundis ») join the cadence tables
   (`cadence_words.txt`, `trigger_words::{WEEKLY, TIME_WORDS}`): the head « Tous les lundis, … »
   was read as an event.
+- The unnamed-destination floor keeps an output the request asks for without naming it.
+  Before it, « Résume mes notes dans un fichier. » compiled READY after the model answer alone:
+  one draft, no effect, the transformation ledgered as realized (S98 J02 on 53f8c640, through
+  the real TUI and the zero-provider CLI alike). No cue or head is added.
+  `objects::unnamed_destination` reads the destination grammar `destination_at` states (its
+  connector tables, now shared), an indefinite singular determiner (the module's own law: an
+  indefinite object is new), at most two modifiers that are no function word, and a file noun of
+  `paths`' table, with no file name after it in its clause. Inside quotes, or after a colon that
+  opens content, it reads nothing: the sentence-final cadence's guard (`cadence::quoted`).
+  `hot::unnamed_destination_floor` turns such a destination inside a producing step's object
+  into a write, whose target is the noun phrase and whose evidence is the connector and the
+  phrase; the assembler then asks its exact path (`const.output_path`) and grants nothing
+  before the answer. The floor is idempotent, and `nika-compile` applies it again when it
+  replays a HOT record, so a record an earlier engine wrote cannot make that request READY.
+  A definite or possessive file (« dans le fichier », « in my file ») stays a locative. A
+  plural one (« dans des fichiers ») is not read: a compiled workflow writes one named file per
+  request, and that case is unchanged.
 - Every public type is `#[non_exhaustive]` (the forward-compatibility ratchet of the
   boundary); the composer builds plan elements through `Step::new`, `Effect::new`,
   `Obligation::new`, `Binding::new`, `Clause::new`, `Aggregation::new` and `Derived::new`

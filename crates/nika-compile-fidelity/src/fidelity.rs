@@ -144,6 +144,7 @@ pub fn laws(
     approvals(plan, doc, out);
     invented_gates(plan, doc, out);
     dropped_effects(plan, doc, out);
+    unnamed_writes(plan, doc, out);
     prohibitions(plan, doc, out);
     raw_text_as_records(doc, out);
     invented(intent, &literals, allowed, out);
@@ -453,6 +454,34 @@ pub fn dropped_effects(plan: &Plan, doc: &Value, out: &mut Vec<Diagnostic>) {
             message: format!(
                 "DROPPED EFFECT: the request states `{}` (« {} ») and no task carries it — no `nika:fetch` beyond GET, no `nika:notify`, no `nika:emit`, no `mcp:` tool. Realize it (a destination the request leaves open is ONE `const.<name>_endpoint` question), never drop it.",
                 effect.verb.word(),
+                effect.evidence.trim()
+            ),
+        });
+    }
+}
+
+/// Law 22b: a write into a file the request leaves unnamed (« dans un fichier », « into a new
+/// file »: a planned write whose target names no single file) is carried by a `nika:write`
+/// task. No stated path witnesses it (Law 1 sees none) and Law 22 leaves writes to their paths,
+/// so without this law a candidate that drafts and writes nothing passed. The path is ONE asked
+/// placeholder the answer completes, never an invented path and never a dropped write.
+fn unnamed_writes(plan: &Plan, doc: &Value, out: &mut Vec<Diagnostic>) {
+    let (effects, _) = effect_and_gate_tasks(doc);
+    if effects
+        .iter()
+        .any(|task| tool_of(doc, task) == "nika:write")
+    {
+        return;
+    }
+    for effect in plan.effects.iter().filter(|e| {
+        e.verb == EffectVerb::Write
+            && matches!(e.policy, EffectPolicy::Automatic | EffectPolicy::HumanFirst)
+            && paths::single_file(&e.target).is_none()
+    }) {
+        out.push(Diagnostic {
+            kind: "destination",
+            message: format!(
+                "UNWRITTEN DESTINATION: the request asks to write into a file it does not name (« {} ») and no `nika:write` task carries it. Write it with `nika:write` to `${{{{ const.output_path }}}}`: declare `output_path: \"\"` under `const:`, ask `const.output_path` in `questions`, and leave `permits.fs.write: [\"\"]` for the answer to complete. Never invent the path, never drop the write.",
                 effect.evidence.trim()
             ),
         });
@@ -875,5 +904,57 @@ mod tests {
         assert!(depends_on(&doc, "send", &gates));
         assert!(depends_on(&doc, "save", &gates));
         assert!(!depends_on(&doc, "look", &gates));
+    }
+
+    #[test]
+    fn a_write_into_an_unnamed_file_is_owed_a_write_task() {
+        let unnamed = |policy: EffectPolicy| {
+            let mut plan = Plan::default();
+            plan.effects.push(crate::plan::Effect::new(
+                crate::plan::EffectVerb::Write,
+                "un fichier",
+                "dans un fichier",
+                policy,
+            ));
+            plan
+        };
+        // The S98 J02 shape: a draft, nothing written.
+        let drafted = serde_json::json!({"tasks": {
+            "draft": {"infer": {"prompt": "Résume les notes fournies."}}
+        }});
+        let mut out = Vec::new();
+        unnamed_writes(&unnamed(EffectPolicy::Automatic), &drafted, &mut out);
+        assert_eq!(out.len(), 1, "{out:?}");
+        assert_eq!(out[0].kind, "destination");
+        assert!(
+            out[0].message.starts_with("UNWRITTEN DESTINATION")
+                && out[0].message.contains("« dans un fichier »"),
+            "{}",
+            out[0].message
+        );
+        let written = serde_json::json!({"tasks": {
+            "draft": {"infer": {"prompt": "Résume les notes fournies."}},
+            "write_output": {"with": {"text": "${{ tasks.draft.output }}"}, "invoke": {"tool": "nika:write", "args": {"path": "${{ const.output_path }}", "content": "${{ with.text }}"}}}
+        }});
+        let mut out = Vec::new();
+        unnamed_writes(&unnamed(EffectPolicy::HumanFirst), &written, &mut out);
+        assert!(out.is_empty(), "{out:?}");
+        // A prohibited or undecided write owes no task, and a named one is Law 1's.
+        let mut named = Plan::default();
+        named.effects.push(crate::plan::Effect::new(
+            crate::plan::EffectVerb::Write,
+            "./out/resume.md",
+            "dans ./out/resume.md",
+            EffectPolicy::Automatic,
+        ));
+        for plan in [
+            unnamed(EffectPolicy::Forbidden),
+            unnamed(EffectPolicy::Undecided),
+            named,
+        ] {
+            let mut out = Vec::new();
+            unnamed_writes(&plan, &drafted, &mut out);
+            assert!(out.is_empty(), "{:?}: {out:?}", plan.effects);
+        }
     }
 }

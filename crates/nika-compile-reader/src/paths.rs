@@ -145,12 +145,12 @@ fn rooted(word: &str) -> bool {
     ROOTS.iter().any(|root| word.starts_with(root))
 }
 
-fn function_word(word: &str) -> bool {
+pub(crate) fn function_word(word: &str) -> bool {
     let lower = word.to_lowercase();
     FUNCTION_WORDS.lines().any(|w| w == lower)
 }
 
-fn file_noun(word: &str) -> bool {
+pub(crate) fn file_noun(word: &str) -> bool {
     FILE_NOUNS.contains(&word.to_lowercase().as_str())
 }
 

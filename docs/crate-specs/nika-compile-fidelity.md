@@ -64,6 +64,12 @@ needs keeps its default.
   `candidate` build plan elements through `Step::new` and `Effect::new` (INV-019) — a struct
   expression of a `#[non_exhaustive]` reader type compiles only inside the reader. The values
   are identical (`categories` empty, `policy_literal` absent).
+- Added after the move, Law 22b (`fidelity::unnamed_writes`, private, run by `laws`): a
+  planned write whose target names no single file must be carried by a `nika:write` task. Such
+  a write comes from the reader's unnamed-destination floor or from an unsettled copy. A
+  candidate that drafts and writes nothing is refused by name (`UNWRITTEN DESTINATION`), at the
+  native and sketch doors as at the assembler's emission. Law 1 witnesses stated paths only,
+  and Law 22 leaves writes to their paths, so such a write was judged by neither.
 - The reader's modules are bound at the crate root under the names the moved files always
   used (`crate::plan`, `super::hot::fold`, `crate::lexicon::GATE_WITHOUT_EFFECT`); the member
   re-exports nothing of the reader.

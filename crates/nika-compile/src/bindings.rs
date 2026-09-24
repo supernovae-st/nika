@@ -1266,20 +1266,20 @@ fn ask_write_path(
         "Which exact file path should receive `{}`? One path-shaped token (for example ./out/result.md), no prose; a directory is not a file.",
         effect.target.trim()
     );
-    match answer(request, out, &key, &label, true).and_then(|v| v.as_str().and_then(paths::token)) {
-        Some(PathShape::File(path)) => Some(path),
-        Some(_) => {
-            reject(
-                out,
-                &key,
-                &label,
-                true,
-                "Name one exact file, not a directory, a glob or a placeholder.",
-            );
-            None
-        }
-        None => None,
+    // An answer that is no file (a directory, a glob, a placeholder, or prose that names no path
+    // at all) keeps the question asked: the write never loses its question to an answer.
+    let value = answer(request, out, &key, &label, true)?;
+    if let Some(PathShape::File(path)) = value.as_str().and_then(paths::token) {
+        return Some(path);
     }
+    reject(
+        out,
+        &key,
+        &label,
+        true,
+        "Name one exact file, not a directory, a glob or a placeholder.",
+    );
+    None
 }
 
 /// The first http(s) URL a phrase names, trailing punctuation stripped.

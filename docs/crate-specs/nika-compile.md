@@ -65,6 +65,10 @@ answered endpoint's host (`permits.net.http`), and an answered bare `${{ const.<
 path, which replaces the seat's empty `permits.fs` placeholder (`[""]`, flow or block
 `- ""`) in the direction the capability inference derives — never a path that escapes the
 workspace, never a glob, never a direction the seat declared with any other entry.
+A replayed HOT record receives the reader's unnamed-destination floor again (idempotent), so a
+record written before that law asks the path of the write it lacked (« … dans un fichier »).
+The assembler's `const.output_path` question stays open when the answer names no file:
+prose, like a directory, a glob or a placeholder, is refused and asked again, never dropped.
 `assemble`, `bindings`, `approval`, `laws`, `ledger`, `network`, `realize`, `support`,
 `trigger` and `writes` implement deterministic compilation. `edit`, `edit_source`,
 `materialize`, `retrieve`, `types`, `pattern` and `wire` retain their existing roles.

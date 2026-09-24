@@ -30,6 +30,7 @@ use super::plan::{
     Binding, Effect, EffectPolicy, EffectVerb, Obligation, ObligationKind, Op, Plan, Step,
 };
 use super::{gates, hot, objects};
+pub(crate) use cadence::quoted;
 use cadence::{cut_head, cut_tail, record_recurrence, settle_tails};
 pub use cues::settle_retrieval;
 pub(crate) use cues::{ARTICLES, OBJECT_CONNECTORS};

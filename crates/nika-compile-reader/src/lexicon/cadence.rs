@@ -234,8 +234,9 @@ fn names_a_period(phrase: &str) -> bool {
 }
 
 /// Whether text ends inside quotes: an odd count of straight double quotes or backticks, or
-/// more opening than closing guillemets or curly double quotes.
-fn quoted(before: &str) -> bool {
+/// more opening than closing guillemets or curly double quotes. The unnamed-destination law
+/// reads its connector through the same guard.
+pub(crate) fn quoted(before: &str) -> bool {
     let count = |c: char| before.matches(c).count();
     count('"') % 2 == 1 || count('`') % 2 == 1 || count('«') > count('»') || count('“') > count('”')
 }

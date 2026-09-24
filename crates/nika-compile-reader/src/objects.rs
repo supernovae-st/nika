@@ -56,6 +56,16 @@ pub fn as_clause(residue: &str) -> &str {
     }
 }
 
+/// The connectors that introduce a write's destination wherever its object follows them.
+const DESTINATION_ANYWHERE: &[&str] = &[
+    " to ", " into ", " dans ", " sous ", " vers ", " → ", " -> ",
+];
+
+/// The locatives that introduce a destination only when its object follows them at once.
+const DESTINATION_ADJACENT: &[&str] = &[
+    " in ", " en ", " nel ", " nella ", " su ", " sul ", " sulla ",
+];
+
 /// The byte position of the destination connector of a write (`… to ./out/x.md`), when the
 /// path follows it. A path before the connector is a source, not a destination. A
 /// locative (`in ./x.md`, `en ./x.md`, `nel ./x.md`) is a destination only when the path
@@ -63,31 +73,107 @@ pub fn as_clause(residue: &str) -> &str {
 /// the object (`salvalo in ./x.md` reads as `in ./x.md`): the position is then 0.
 #[must_use]
 pub fn destination_at(detail_lower: &str, path_at: usize) -> Option<usize> {
-    const ANYWHERE: &[&str] = &[
-        " to ", " into ", " dans ", " sous ", " vers ", " → ", " -> ",
-    ];
-    const ADJACENT: &[&str] = &[
-        " in ", " en ", " nel ", " nella ", " su ", " sul ", " sulla ",
-    ];
     let padded = format!(" {detail_lower}");
     let path_at = path_at + 1;
     // A connector right before the path is the destination's own (« dans l'ordre, une par
     // ligne → ./out/titres.txt »: the arrow, never the locative « dans » before it).
-    let right_before = ANYWHERE
+    let right_before = DESTINATION_ANYWHERE
         .iter()
-        .chain(ADJACENT)
+        .chain(DESTINATION_ADJACENT)
         .filter(|c| c.len() <= path_at)
         .find(|c| padded[..path_at].ends_with(**c))
         .map(|c| path_at - c.len());
     if let Some(pos) = right_before {
         return Some(pos.saturating_sub(1));
     }
-    ANYWHERE
+    DESTINATION_ANYWHERE
         .iter()
         .filter_map(|c| padded.find(c))
         .filter(|pos| *pos < path_at)
         .min()
         .map(|pos| pos.saturating_sub(1))
+}
+
+/// Indefinite singular determiners (EN · FR · ES · IT · PT · DE): what one opens is new, a thing
+/// the request names nowhere else (the law this module states: an indefinite object is new).
+const INDEFINITE: &[&str] = &[
+    "a", "an", "un", "une", "una", "uno", "um", "uma", "ein", "eine", "einen", "einem", "einer",
+];
+
+/// The file a clause writes into without naming it: a destination connector (the grammar of
+/// [`destination_at`]), an indefinite determiner, at most two modifiers and a file noun, with
+/// no file name after it in its clause (« dans un fichier », « into a new file », « in a text
+/// file »). Returns the excerpt from the connector to the noun and the noun phrase alone, both
+/// verbatim slices of `detail`. A definite or possessive file (« dans le fichier », « in my
+/// file ») is one the request already has, a locative, never a new destination; a named one
+/// (« dans un fichier resume.md ») is the path laws'; and the phrase inside quotes or after a
+/// colon that opens content is content (the guard of the sentence-final cadence), not a write.
+pub(crate) fn unnamed_destination(detail: &str) -> Option<(&str, &str)> {
+    let lower = detail.to_lowercase();
+    if lower.len() != detail.len() {
+        return None;
+    }
+    let padded = format!(" {lower} ");
+    let mut starts: Vec<(usize, &str)> = DESTINATION_ANYWHERE
+        .iter()
+        .chain(DESTINATION_ADJACENT)
+        .flat_map(|connector| {
+            padded
+                .match_indices(*connector)
+                .map(move |(at, _)| (at, *connector))
+        })
+        .collect();
+    starts.sort_unstable();
+    starts.into_iter().find_map(|(at, connector)| {
+        // `at` is the connector's leading space in `padded`: its word starts at `at` in `lower`.
+        let before = lower.get(..at)?;
+        if super::lexicon::quoted(before) || before.contains(": ") {
+            return None;
+        }
+        let phrase_at = at + connector.len() - 1;
+        let noun_end = phrase_at + file_phrase_end(lower.get(phrase_at..)?)?;
+        let rest = lower.get(noun_end..)?;
+        let clause_rest = rest
+            .split([',', ';', ':', '!', '?'])
+            .next()
+            .unwrap_or_default();
+        if !super::paths::literals(clause_rest).is_empty() {
+            return None;
+        }
+        Some((detail.get(at..noun_end)?, detail.get(phrase_at..noun_end)?))
+    })
+}
+
+/// Where the indefinite file phrase opening `text` ends (« un fichier », « a new file », « a
+/// plain text file »): the determiner, at most two modifiers (no function word, no path), then a
+/// file noun; `None` for anything else.
+fn file_phrase_end(text: &str) -> Option<usize> {
+    let mut start = 0;
+    let mut modifiers = 0;
+    for (index, raw) in text.split(' ').enumerate() {
+        let word = raw.trim_end_matches(['.', ',', ';', ':', '!', '?', ')', '»', '"', '”']);
+        let end = start + word.len();
+        start += raw.len() + 1;
+        if index == 0 {
+            if word.len() != raw.len() || !INDEFINITE.contains(&word) {
+                return None;
+            }
+            continue;
+        }
+        if super::paths::file_noun(word) {
+            return Some(end);
+        }
+        modifiers += 1;
+        if modifiers > 2
+            || word.is_empty()
+            || word.len() != raw.len()
+            || !word.chars().all(|c| c.is_alphabetic() || c == '-')
+            || super::paths::function_word(word)
+        {
+            return None;
+        }
+    }
+    None
 }
 
 /// The target an effect phrase names: its destination path when a connector introduces one
@@ -1056,5 +1142,61 @@ mod tests {
             ["Lis ./notes/brief.md"].iter().copied()
         ));
         assert!(!refers_back("a French translation", none.iter().copied()));
+    }
+
+    #[test]
+    fn an_indefinite_file_after_a_destination_connector_is_an_unnamed_destination() {
+        for (detail, excerpt, phrase) in [
+            ("mes notes dans un fichier", "dans un fichier", "un fichier"),
+            (
+                "./notes.md dans un fichier",
+                "dans un fichier",
+                "un fichier",
+            ),
+            (
+                "un résumé de mes notes dans un nouveau fichier",
+                "dans un nouveau fichier",
+                "un nouveau fichier",
+            ),
+            ("my notes into a file", "into a file", "a file"),
+            ("my notes in a file", "in a file", "a file"),
+            (
+                "a haiku to a plain text file, in three lines",
+                "to a plain text file",
+                "a plain text file",
+            ),
+            ("le mie note in un file", "in un file", "un file"),
+            ("mis notas en un archivo", "en un archivo", "un archivo"),
+            ("the totals → a CSV file", "→ a CSV file", "a CSV file"),
+        ] {
+            assert_eq!(
+                unnamed_destination(detail),
+                Some((excerpt, phrase)),
+                "{detail}"
+            );
+        }
+        for detail in [
+            // A definite, possessive or partitive file is one the request already has.
+            "les notes dans le fichier",
+            "les notes dans mon fichier",
+            "les notes du fichier",
+            "the notes in my file",
+            "the notes in the file",
+            // A named file is the path laws'.
+            "mes notes dans un fichier resume.md",
+            "my notes into a file called ./out/summary.md",
+            // Words inside quotes, or after a colon that opens content, are content.
+            "« mes notes dans un fichier »",
+            "\"my notes in a file\"",
+            "« dans un fichier » en anglais",
+            "en anglais : mets-le dans un fichier",
+            // No file, or no one file.
+            "mes notes dans un dossier",
+            "the rows into a list of files",
+            "mes notes dans des fichiers",
+            "",
+        ] {
+            assert_eq!(unnamed_destination(detail), None, "{detail}");
+        }
     }
 }

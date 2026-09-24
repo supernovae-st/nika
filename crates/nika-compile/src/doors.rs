@@ -199,6 +199,12 @@ pub fn replay(
     // A record from an earlier engine may still carry a numeric rule as guidance.
     let mut plan = plan;
     super::shape::promote_stated_rules(&mut plan, intent);
+    // Or it may lack the write a destination the request leaves unnamed asks for (« … dans un
+    // fichier »): the reader's floor restores it, so an answer round never makes READY a draft
+    // that writes nothing. The floor is idempotent on a current record.
+    if strategy == Some(Strategy::Hot) {
+        super::hot::unnamed_destination_floor(&mut plan);
+    }
     // A seat's plan (or a record with no strategy word) that works on nothing is asked,
     // never assembled; the reader's own HOT plan was already judged explicit.
     if strategy != Some(Strategy::Hot) && super::assemble::unfed(&plan, intent, out) {
