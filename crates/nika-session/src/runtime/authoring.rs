@@ -805,10 +805,7 @@ impl SessionRuntime {
         let first = lower
             .split(|c: char| c.is_whitespace() || c == ',' || c == ':')
             .next()?;
-        if !matches!(
-            first,
-            "run" | "execute" | "test" | "lance" | "exécute" | "teste" | "run:"
-        ) {
+        if !is_run_verb(first) {
             return None;
         }
         // A label from the conversational router cannot turn an invalid
@@ -1332,6 +1329,22 @@ fn human_reason(raw: &str) -> String {
         return format!("the draft invented a value (« {value} ») your request never gave");
     }
     r.to_owned()
+}
+
+/// The first word of an explicit run line (EN/FR). The French imperative
+/// with its object pronoun — « lance-le », « exécute-la », « relance-le » —
+/// is the same verb: it reaches the same run gate (check, money, the fresh
+/// Run decision), never a conversation and never a run by itself.
+pub(super) fn is_run_verb(first: &str) -> bool {
+    let first = first.trim_end_matches(['.', '!']);
+    let verb = match first.rsplit_once('-') {
+        Some((verb, "le" | "la" | "les" | "moi")) => verb,
+        _ => first,
+    };
+    matches!(
+        verb,
+        "run" | "execute" | "test" | "lance" | "exécute" | "teste" | "relance" | "run:"
+    )
 }
 
 /// Whether a run line is the closed grammar and nothing more: the verb,

@@ -29,7 +29,9 @@ use crate::snapshot::ProjectSnapshot;
 mod answer;
 mod aside;
 mod authoring;
+mod decision;
 mod details;
+mod draft;
 mod durable;
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
@@ -40,10 +42,13 @@ mod money_gate;
 mod money_parse;
 mod question;
 mod recovery;
+mod restore;
 mod route;
 mod run_budget;
 mod unknown_cost;
 
+pub use decision::{DecisionAnswer, decision_answer};
+use decision::{is_gate_token, is_no, is_yes, local_command_of};
 use run_budget::ceiling_in;
 mod schedule;
 
@@ -238,6 +243,8 @@ pub struct SessionRuntime {
     home: Option<PathBuf>,
     factory: Option<ReasonerFactory>,
     pending: Option<ProjectChangeSet>,
+    /// The proposal pending when an earlier session closed: evidence, never authority.
+    restored_draft: Option<draft::Restored>,
     money: money_gate::MoneyState,
     unknown_cost: unknown_cost::UnknownCostState,
     pending_gate: Option<PendingGate>,
@@ -334,6 +341,7 @@ impl SessionRuntime {
             home: None,
             factory: None,
             pending: None,
+            restored_draft: None,
             money: money_gate::MoneyState::default(),
             unknown_cost: unknown_cost::UnknownCostState::default(),
             pending_gate: None,
@@ -410,6 +418,7 @@ impl SessionRuntime {
                 2 => "Not run · the check refused",
                 3 => "Not run · the environment refused",
                 4 => "Paused · a gate waits",
+                130 => "Stopped · the run was interrupted",
                 _ => "Done · an unknown code",
             };
             return match &self.last_workflow {
@@ -653,6 +662,11 @@ impl SessionRuntime {
             };
             return TurnOutcome::Facts(text.to_owned());
         }
+        // A local command beside the first screen answers from the session's
+        // own facts; the choice keeps waiting (a slash line is never a choice).
+        if let Some(command) = local_command_of(answer) {
+            return self.answer_locally(command);
+        }
         let pref = match census.choose(answer) {
             Ok(pref) => pref,
             // The screen stays on the table with the line it holds: the
@@ -767,7 +781,7 @@ impl SessionRuntime {
         let input = input.trim();
         match input {
             "/quit" | "/exit" => return TurnOutcome::Quit,
-            "/help" => return TurnOutcome::Help(HELP.to_owned()),
+            "/help" => return TurnOutcome::Help(self.help_card()),
             "/status" => return TurnOutcome::Facts(self.status()),
             "/why" => return self.explain_pending(),
             "/meaning" => return self.meaning_unrecorded(),
@@ -957,6 +971,12 @@ impl SessionRuntime {
         if crate::authoring::is_meaning(answer) {
             self.pending = Some(set);
             return self.meaning_unrecorded();
+        }
+        // A local command beside the proposal answers from the session's own
+        // facts, the proposal held: never the model, never a consent.
+        if let Some(command) = local_command_of(answer) {
+            self.pending = Some(set);
+            return self.answer_locally(command);
         }
         // The exact bytes, on request, the proposal held: consent stays a yes.
         if matches!(answer.trim(), "/show" | "show") {
@@ -1271,6 +1291,12 @@ impl SessionRuntime {
             self.pending_gate = Some(gate);
             return TurnOutcome::Aside(text);
         }
+        // A local command beside the gate answers from the session's own
+        // facts, the gate kept: a slash line is never the gate's answer.
+        if let Some(command) = local_command_of(line) {
+            self.pending_gate = Some(gate);
+            return self.answer_locally(command);
+        }
         if line.trim().is_empty() {
             self.pending_gate = Some(gate);
             return TurnOutcome::Refusal(Refusal::new(
@@ -1324,6 +1350,7 @@ impl SessionRuntime {
             4 => {
                 "paused for a human answer — `nika run <file> --resume <trace> --answer <task>=<value>` continues it"
             }
+            130 => "interrupted before it finished (Ctrl+C) — the trace shows what ran",
             _ => "ended with an unknown code",
         };
         let line = match trace {
@@ -1421,32 +1448,6 @@ fn is_quit(answer: &str) -> bool {
     matches!(answer.trim(), "/quit" | "/exit")
 }
 
-/// The whole-line tokens a confirm gate accepts — a protocol, not a
-/// reading of language (a longer line is routed, never reduced to one).
-fn is_gate_token(line: &str) -> bool {
-    matches!(
-        line.trim().to_lowercase().as_str(),
-        "yes" | "y" | "true" | "ok" | "oui" | "approve" | "no" | "n" | "false" | "non" | "deny"
-    )
-}
-
-/// The refusal line: `no` in the few words a human types for it.
-fn is_no(answer: &str) -> bool {
-    matches!(
-        answer.trim().to_lowercase().as_str(),
-        "no" | "n" | "non" | "discard" | "cancel" | "drop" | "nope" | "stop"
-    )
-}
-
-/// The consent line, and nothing else: `yes` in the few words a human
-/// types for it.
-fn is_yes(answer: &str) -> bool {
-    matches!(
-        answer.trim().to_lowercase().as_str(),
-        "yes" | "y" | "apply" | "ok" | "oui" | "go" | "do it"
-    )
-}
-
 fn named_files(input: &str) -> Vec<String> {
     input
         .split(|c: char| {
@@ -1473,6 +1474,9 @@ mod authoring_tests;
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod choice_tests;
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod restore_tests;
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod route_tests;

@@ -465,7 +465,9 @@ fn a_failed_intelligence_leaves_a_recovery_card_repeated_without_a_call() {
             && card.text.contains("your request: «")
             && card
                 .text
-                .contains("Nothing was written and nothing was sent elsewhere")
+                .contains("the selected model (mistral API) may have received this turn's context")
+            && card.text.contains("billed cost unknown")
+            && !card.text.contains("nothing was sent")
             && card.text.contains("/intelligence"),
         "{}",
         card.text

@@ -39,6 +39,11 @@ pub(super) struct Saved {
     pub decisions: Vec<String>,
     pub unresolved: Vec<String>,
     pub recent: Vec<(String, String)>,
+    /// The proposal pending when the record was written, as a versioned draft value
+    /// (`draft.rs`): read only by the draft schema, kept unchanged otherwise. Absent from
+    /// records that had none, whose bytes stay exactly as before.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pending: Option<serde_json::Value>,
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize)]

@@ -544,3 +544,254 @@ fn the_seat_offer_says_before_enter_when_the_seat_is_unpriced() {
     let none = crate::authoring::AuthoringSeat::Deterministic { why: None };
     assert!(super::authoring::seat_offer(&none).is_none());
 }
+
+// ---- one decision grammar, local commands, French run lines ---------------
+
+/// Counts every classification: a local command must never reach the route
+/// (the classifier stands where the session's model would read the line).
+struct Counting(std::sync::Arc<std::sync::atomic::AtomicUsize>);
+
+impl TurnClassifier for Counting {
+    fn classify(&mut self, _context: &TurnContext, _raw: &str) -> TurnDecision {
+        self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        TurnDecision::new(TurnAct::Unknown, RoutingMethod::Model)
+    }
+}
+
+fn counted() -> (
+    std::sync::Arc<std::sync::atomic::AtomicUsize>,
+    tempfile::TempDir,
+    SessionRuntime,
+) {
+    let calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let (dir, s) = session_with(Box::new(Counting(std::sync::Arc::clone(&calls))));
+    (calls, dir, s)
+}
+
+fn classified(calls: &std::sync::Arc<std::sync::atomic::AtomicUsize>) -> usize {
+    calls.load(std::sync::atomic::Ordering::SeqCst)
+}
+
+/// The Session's cost choice and the Run's cost decision read ONE
+/// grammar. A whole-line yes approves (English or French); a refusal may lead
+/// a longer line; anything else is unknown and is asked again — never a yes.
+#[test]
+fn one_decision_grammar_reads_english_and_french_and_never_guesses_a_yes() {
+    for yes in ["yes", "YES", "y", "oui", "Oui !", "OUI", "ok", "ok."] {
+        assert_eq!(decision_answer(yes), DecisionAnswer::Approve, "{yes}");
+    }
+    for no in [
+        "no",
+        "non",
+        "NON",
+        "n",
+        "Non.",
+        "cancel",
+        "non, finalement pas maintenant",
+        "no thanks",
+    ] {
+        assert_eq!(decision_answer(no), DecisionAnswer::Decline, "{no}");
+    }
+    for details in ["details", "DETAILS", "/details", "/why", "why?"] {
+        assert_eq!(
+            decision_answer(details),
+            DecisionAnswer::Details,
+            "{details}"
+        );
+    }
+    for unknown in [
+        "",
+        "   ",
+        "peut-être",
+        "c'est payant ?",
+        "yes please",
+        "yes?",
+        "yes, but only once",
+        "yes no",
+        "okay",
+        "yep",
+        "sure",
+        "oui oui",
+        "oui mais pas maintenant",
+        "run it",
+        "1",
+        "/status",
+        "/help",
+    ] {
+        assert_eq!(
+            decision_answer(unknown),
+            DecisionAnswer::Unknown,
+            "{unknown:?}"
+        );
+    }
+}
+
+/// The French imperative with its object pronoun is the same run
+/// verb as the English one; words that merely start alike are not.
+#[test]
+fn french_imperatives_with_their_pronoun_are_run_verbs() {
+    for verb in [
+        "run",
+        "run:",
+        "lance",
+        "lance-le",
+        "lance-la",
+        "lance-les",
+        "exécute",
+        "exécute-le",
+        "exécute-la",
+        "relance",
+        "relance-le",
+        "teste-le",
+        "lance-le.",
+    ] {
+        assert!(super::authoring::is_run_verb(verb), "{verb}");
+    }
+    for not_run in [
+        "lancement",
+        "lance-toi",
+        "launch",
+        "running",
+        "le",
+        "exécuter",
+        "",
+    ] {
+        assert!(!super::authoring::is_run_verb(not_run), "{not_run}");
+    }
+}
+
+/// `/help`, `/status`, `/details`, `/why` typed while a proposal
+/// waits answer from the session's own facts: the proposal is kept, nothing
+/// is written, and the line never reaches the route (the model's seat).
+#[test]
+fn slash_commands_beside_a_proposal_stay_local_and_keep_it() {
+    let (calls, dir, mut s) = counted();
+    let TurnOutcome::Proposal { id, .. } = s.turn(COPY) else {
+        panic!("proposal");
+    };
+    let before = classified(&calls);
+    assert!(
+        matches!(s.consent("/help"), TurnOutcome::Help(ref card) if card.contains("/details")),
+        "/help at apply? is the help card"
+    );
+    assert!(
+        matches!(s.consent("/status"), TurnOutcome::Facts(ref t) if t.starts_with("session\n")),
+        "/status at apply? is the status card"
+    );
+    assert!(
+        matches!(s.consent("/details"), TurnOutcome::Facts(_)),
+        "/details at apply? is the local details card"
+    );
+    assert!(
+        matches!(s.consent("/why"), TurnOutcome::Aside(ref t) if t.contains("the proposal still waits")),
+        "/why at apply? explains the proposal"
+    );
+    assert_eq!(
+        classified(&calls),
+        before,
+        "a local command was routed like open language"
+    );
+    assert_eq!(
+        s.pending_proposal().as_ref(),
+        Some(&id),
+        "the proposal was lost"
+    );
+    assert!(
+        !dir.path().join(COPY_DEST).exists(),
+        "a local command wrote the proposal"
+    );
+    assert!(
+        matches!(s.consent("no"), TurnOutcome::Facts(ref t) if t.contains("discarded")),
+        "the proposal still takes its own answer afterwards"
+    );
+}
+
+/// A slash line typed at a paused human gate is never its answer:
+/// it answers locally and the gate keeps waiting for the human's own answer.
+#[test]
+fn a_slash_command_is_never_the_answer_to_a_gate() {
+    const GATE: &str = "nika: gate\npermits: { fs: { read: [\"./draft.md\"], write: [\"./final.md\"] }, tools: [\"nika:read\", \"nika:prompt\", \"nika:write\"] }\ntasks:\n  read_draft:\n    invoke: { tool: \"nika:read\", args: { path: \"./draft.md\" } }\n  approve:\n    invoke: { tool: \"nika:prompt\", args: { mode: confirm, message: \"Write final.md?\" } }\n  write_final:\n    after: { approve: success }\n    with: { go: \"${{ tasks.approve.output }}\", text: \"${{ tasks.read_draft.output }}\" }\n    when: \"${{ with.go == true }}\"\n    invoke: { tool: \"nika:write\", args: { path: \"./final.md\", content: \"${{ with.text }}\" } }\n";
+    const PAUSED: &str = "{\"kind\":\"workflow_paused\",\"fields\":[{\"key\":\"task\",\"value\":\"approve\"},{\"key\":\"mode\",\"value\":\"confirm\"},{\"key\":\"message\",\"value\":\"Write final.md?\"}]}\n";
+    let (calls, dir, mut s) = counted();
+    std::fs::write(dir.path().join("draft.md"), "the draft\n").expect("draft");
+    std::fs::write(dir.path().join("gate.nika"), GATE).expect("gate");
+    assert!(matches!(
+        s.turn("run gate.nika"),
+        TurnOutcome::RunRequested { .. }
+    ));
+    let store = dir.path().join(".nika").join("traces");
+    std::fs::create_dir_all(&store).expect("store");
+    let trace = store.join("paused.ndjson");
+    std::fs::write(&trace, PAUSED).expect("trace");
+    assert!(matches!(
+        s.observe_run(4, Some(&trace)),
+        TurnOutcome::GateAsk { .. }
+    ));
+    let before = classified(&calls);
+    for line in ["/status", "/help", "/details"] {
+        let outcome = s.answer_gate(line);
+        assert!(
+            !matches!(outcome, TurnOutcome::ResumeRequested { .. }),
+            "{line} answered the gate: {outcome:?}"
+        );
+        assert!(
+            s.waiting_gate().is_some(),
+            "{line}: the gate stopped waiting"
+        );
+    }
+    assert_eq!(classified(&calls), before, "a slash line was routed");
+    assert!(
+        matches!(s.answer_gate("yes"), TurnOutcome::ResumeRequested { .. }),
+        "the human's own answer still resumes the run"
+    );
+}
+
+/// « lance-le » after a saved workflow is a run line: it reaches
+/// the existing run gate (check on disk, the money, then the door's fresh Run
+/// decision), exactly like « run it » — never the model, never a conversation.
+#[test]
+fn lance_le_reaches_the_same_run_gate_as_run_it() {
+    let (calls, dir, mut s) = counted();
+    let TurnOutcome::Proposal { .. } = s.turn(COPY) else {
+        panic!("proposal");
+    };
+    let _ = s.consent("yes");
+    assert!(dir.path().join(COPY_DEST).exists(), "the saved workflow");
+    let before = classified(&calls);
+    let french = s.turn("lance-le");
+    assert!(
+        matches!(french, TurnOutcome::RunRequested { .. }),
+        "« lance-le » is a run request: {french:?}"
+    );
+    assert_eq!(classified(&calls), before, "« lance-le » was routed");
+}
+
+/// A declined Run is not an observed exit: nothing ran, the status
+/// keeps the last real run, and the interrupted exit (130) is named as such.
+#[test]
+fn a_declined_run_is_typed_not_run_and_130_is_an_interruption() {
+    let (_calls, _dir, mut s) = counted();
+    let TurnOutcome::Proposal { .. } = s.turn(COPY) else {
+        panic!("proposal");
+    };
+    let _ = s.consent("yes");
+    let before = s.status_line();
+    let TurnOutcome::Facts(text) = s.observe_declined_run() else {
+        panic!("a declined run is a fact");
+    };
+    assert!(text.starts_with("not run · "), "{text}");
+    assert!(text.contains("nothing sent, nothing written"), "{text}");
+    assert!(
+        !text.contains("exit") && !text.contains("unknown code"),
+        "{text}"
+    );
+    assert_eq!(s.status_line(), before, "a decline changed the run status");
+    assert!(matches!(s.turn("run it"), TurnOutcome::RunRequested { .. }));
+    let _ = s.observe_run(130, None);
+    assert!(
+        s.status_line()
+            .starts_with("Stopped · the run was interrupted"),
+        "{}",
+        s.status_line()
+    );
+}

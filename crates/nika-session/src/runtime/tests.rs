@@ -1316,8 +1316,10 @@ fn the_recovery_card_says_its_headline_once() {
     assert_eq!(card.text.matches("I couldn't use").count(), 1);
     assert_eq!(card.text.matches("for this part").count(), 1);
     assert!(
+        card.text.contains("may have received this turn's context")
+            && !card.text.contains("nothing was sent"),
+        "{}",
         card.text
-            .contains("Nothing was written and nothing was sent elsewhere.")
     );
 }
 
@@ -1350,5 +1352,54 @@ fn the_recovery_card_names_the_seat_it_failed_on() {
         named.text.contains("(HTTP 404)\n  seat: openai/gpt-5.2"),
         "{}",
         named.text
+    );
+}
+
+/// A failed call is no proof that nothing was sent: once a model reasons for the session,
+/// the card says the selected model may have received the turn's context and gives the
+/// Session's own cost accounting, never an inferred zero. The subscription seat keeps its
+/// disclosure, and only a session where no model reasons says nothing was sent.
+#[test]
+fn the_recovery_card_never_denies_what_a_model_may_have_received() {
+    fn card(s: &mut SessionRuntime) -> String {
+        let TurnOutcome::Refusal(card) = s.recovery(
+            Some(RefusalClass::IntelligenceRefused),
+            "I couldn't use the authoring model for this part",
+            "rate limited (HTTP 429)",
+        ) else {
+            panic!("a classed recovery is a refusal");
+        };
+        card.text
+    }
+    let dir = tree();
+    let mut s = ready_with(dir.path(), vec![]);
+    s.seat = crate::authoring::AuthoringSeat::Provider {
+        model: "mistral/mistral-small-latest".to_owned(),
+    };
+    let provider = card(&mut s);
+    assert!(
+        provider.contains("No workflow output was written or Run requested; the selected model (mistral/mistral-small-latest) may have received this turn's context")
+            && provider.contains("\n  Session inference (separate from proposal/Run): ")
+            && provider.contains("cost unknown")
+            && !provider.contains("nothing was sent"),
+        "{provider}"
+    );
+    s.seat = crate::authoring::AuthoringSeat::Harness {
+        seat: "codex".to_owned(),
+        model: None,
+    };
+    let harness = card(&mut s);
+    assert!(
+        harness.contains("No workflow was written or Run requested; the selected subscription may have received compiler context; billed cost remains unknown.")
+            && !harness.contains("nothing was sent"),
+        "{harness}"
+    );
+    s.seat = crate::authoring::AuthoringSeat::Deterministic { why: None };
+    s.intelligence.locus = DataLocus::None;
+    let none = card(&mut s);
+    assert!(
+        none.contains("Nothing was written and nothing was sent elsewhere.")
+            && !none.contains("may have received"),
+        "{none}"
     );
 }

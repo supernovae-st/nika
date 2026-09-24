@@ -6,6 +6,7 @@
 //! structured record (#1464 · `.nika/session-state.json`) and the consent
 //! journal (#1465 · `.nika/consents.ndjson`).
 
+use super::draft::{self, Restored};
 use super::history::{
     AuthorityState, EffectState, History, HistoryMode, Operation, RunState, Saved,
 };
@@ -56,6 +57,7 @@ impl SessionRuntime {
             unresolved: history.state.unresolved.clone(),
         });
         self.recent.clone_from(&history.state.recent);
+        self.restored_draft = history.state.pending.clone().map(Restored::from_raw);
         self.money.reconfirm |= history.restored && history.monetary_seen;
         if self.money.reconfirm {
             // Legacy history cannot distinguish spent/unknown Session exposure
@@ -66,6 +68,13 @@ impl SessionRuntime {
             let mut text = "conversation restored · previous proposals and gates require fresh validation".to_owned();
             if history.uncertain {
                 text.push_str("\ninterrupted operation: its result may be unknown; inspect effects and receipts before retrying · nothing was replayed");
+            }
+            if let Some(restored) = &self.restored_draft {
+                text.push('\n');
+                text.push_str(&draft::restored_line(restored, self.money.reconfirm));
+                if self.restored_draft_id().is_some() {
+                    text.push_str(super::restore::RESTORE_HINT);
+                }
             }
             text
         });
@@ -81,6 +90,10 @@ impl SessionRuntime {
             self.pending = None;
             self.pending_gate = None;
             return TurnOutcome::Quit;
+        }
+        // `/restore` records itself as the re-proposal act; what already waits refuses it.
+        if input.trim() == "/restore" {
+            return self.restore_draft();
         }
         self.recorded(Operation::Turn, input, |s| {
             if s.waiting_cost_choice() {
@@ -425,6 +438,10 @@ impl SessionRuntime {
         }
         let charged_before = self.uncertain_charges();
         let outcome = perform(self);
+        // A new proposal replaces a draft kept from an earlier session.
+        if self.pending.is_some() {
+            self.restored_draft = None;
+        }
         // A choice that resumed a waiting line is judged by that line's
         // own outcome: the record sees what the human's request became.
         let judged = match &outcome {
@@ -505,6 +522,11 @@ impl SessionRuntime {
                 .iter()
                 .map(|(a, b)| (redact(a), redact(b)))
                 .collect(),
+            pending: self
+                .pending
+                .as_ref()
+                .and_then(|set| draft::capture(&self.proposal_id(set), set))
+                .or_else(|| self.restored_draft.as_ref().map(|r| r.raw().clone())),
         }
     }
 }

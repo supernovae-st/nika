@@ -4,7 +4,7 @@
 |---|---|
 | Status | **DESCENDED 2026-08-11** from `nika-cli` — NOT a fresh admission: a size-cap member split of an already-admitted unit per D-2026-07-09-N1 (one architectural unit · two workspace members · the ADR-110 `nika-cli-host` precedent). `nika-cli` measured 15,040 prod LOC at the vector-24 gate (cap 15,000); the trace-reading plane was the clean seam (every consumer reaches it through `verbs::trace*`, and the compute half — chain walk · anchor wire · recover · store scan — had already descended to `nika-dap` 2026-07-09). |
 | Layer | **L4** — the operator surface's read half: renders + routes, every effect already below. |
-| Design | The **flight-recorder reader** — every surface that READS `.nika/traces/` (the NDJSON journals a run records): `trace show\|replay\|outputs\|peek\|flow` (the fold's render), `trace ls\|rm` (store management · ADR-100), `trace verify` (tamper-evidence chain · minisign signature · anchor tiers), `trace anchor` (Rekor v2 · RFC 3161 notary), `trace reproduce`, `trace export` (OTel), the `evidence` pack, the `receipt` explainer, the learned-truth `forecast` behind `explain --forecast`, and the bin's `trace` dispatch arm (`dispatch.rs` — the replay loop + door routing descended verbatim from `main.rs`, which keeps a one-line arm). `nika-cli` re-exports every public item at its historical `verbs::` path — call sites, the 32 integration suites and the clap tree read unchanged. |
+| Design | The **flight-recorder reader** — every surface that READS `.nika/traces/` (the NDJSON journals a run records): `trace show\|replay\|outputs\|peek\|flow` (the fold's render), `trace ls\|rm` (store management · ADR-100), `trace verify` (tamper-evidence chain · minisign signature · anchor tiers), `trace anchor` (Rekor v2 · RFC 3161 notary), `trace reproduce`, `trace export` (OTel), the `evidence` pack, the `receipt` explainer, the learned-truth `forecast` behind `explain --forecast`, the run facts (`run_view::RunFacts`) behind the native session's result, gate and `/proof` views (moved in 2026-09-24 · §2), and the bin's `trace` dispatch arm (`dispatch.rs` — the replay loop + door routing descended verbatim from `main.rs`, which keeps a one-line arm). `nika-cli` re-exports every public item at its historical `verbs::` path — call sites, the 32 integration suites and the clap tree read unchanged. |
 | Name | `nika-trace` — the plane it reads, named after the verb it serves. Descent precedent: `nika-cli-host` (2026-07-31). |
 | LOC | ~6087 LOC src (`scripts/crate-metrics.sh --loc nika-trace` · ±15% band per vector 6) — ≈3.3k of it prod (the counter's cfg(test) scope); the descent lifted `nika-cli` from 15,040 to 11,851 prod. |
 | Deps | `nika-dap` (the forensics compute), `nika-cli-host` (VerbOutput/exit · retention config), `nika-display` (Theme · RunView · frame), `nika-event`, `nika-types`, `clap`, `serde`, `serde_json`. dev: `uuid`. |
@@ -43,3 +43,25 @@ Two reasons, one mechanism (the same two as every descent):
   `explain_file`'s census) now read the descended homes directly
   (`nika_dap::store` · `nika_cli_host::retention`). `nika-cli`'s public
   surface did not gain an item.
+- **The run facts moved in (2026-09-24).** `run_view` came verbatim from
+  `nika-session`. It reads a run's journal frames (tasks · permit decisions ·
+  approvals · the pause · the seal · the terminal word and cost counters) and
+  says three views of them: the result after a run ended, the gate when it
+  paused, and the proof through the ONE verify door (`trace_verify::verify`).
+  It is the same plane as the rest of this member, read-only over
+  `.nika/traces/`, and it needed no new dependency (`nika-event` for the
+  digests, `serde_json` for the frames). The session owned none of it; it
+  kept only when a view is shown, the gate's question and the gated tasks it
+  reads from the workflow's bytes. The public seam is deliberately four
+  read-only doors, `RunFacts::{read, result, gate, proof}` (`#[non_exhaustive]`,
+  every field and every per-task, permit, approval, pause or seal fact
+  crate-private); `nika-session` reads it laterally (L4→L4, never back)
+  through a private `use nika_trace::run_view`, so its `crate::run_view` path is
+  unchanged, and `nika-cli` does not re-export it. The move answers the size
+  cap the same way the 2026-08-11 descent did: `nika-session` stood above
+  15,000 prod LOC, and `nika-trace` stays far below it. Its tests moved with
+  it. Their paused/resumed fixtures (and `gated.nika`, the workflow they
+  record) now live in `tests/fixtures/traces/` here. `copy.ndjson` is
+  copied, because the session's own observation test still reads its copy.
+  Their temporary directories use `std::env::temp_dir()` like this member's
+  other suites, not a new `tempfile` dev-dependency.

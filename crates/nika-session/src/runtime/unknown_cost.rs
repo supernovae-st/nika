@@ -166,10 +166,7 @@ impl SessionRuntime {
             .next()
             .unwrap_or("")
             .to_lowercase();
-        if matches!(
-            first.as_str(),
-            "run" | "execute" | "test" | "lance" | "exécute" | "teste"
-        ) {
+        if super::authoring::is_run_verb(&first) {
             return Ok(());
         }
         if self.unknown_cost.active
@@ -283,14 +280,41 @@ impl SessionRuntime {
         if matches!(answer.trim(), "/details" | "/why" | "/status") {
             return TurnOutcome::Facts(self.cost_choice_details().unwrap_or_default());
         }
+        // The help card beside the review: local, the review keeps waiting.
+        if answer.trim() == "/help" {
+            return TurnOutcome::Help(super::HELP.to_owned());
+        }
         let Some(pending) = self.unknown_cost.pending.take() else {
             return cost_refusal("no cost review waits".into());
         };
-        if !super::is_yes(answer.trim()) {
-            self.pending = None;
-            self.money.pending = None;
-            self.authoring = None;
-            return TurnOutcome::Facts("Unknown-cost request cancelled; nothing sent. Describe the next request to review it afresh.".into());
+        // One grammar with the Run's cost decision (EN/FR): an unknown line
+        // is asked again with the same review — it never approves, never
+        // spends and never silently cancels.
+        match super::decision_answer(answer) {
+            super::DecisionAnswer::Approve => {}
+            super::DecisionAnswer::Decline => {
+                self.pending = None;
+                self.money.pending = None;
+                self.authoring = None;
+                return TurnOutcome::Facts("Unknown-cost request cancelled; nothing sent. Describe the next request to review it afresh.".into());
+            }
+            super::DecisionAnswer::Details => {
+                self.unknown_cost.pending = Some(pending);
+                return TurnOutcome::Facts(self.cost_choice_details().unwrap_or_default());
+            }
+            super::DecisionAnswer::Unknown => {
+                let question = format!(
+                    "« {} » is not a yes or a no · nothing was sent · `yes`/`oui` continues once · `no`/`non` cancels · `details` shows the evidence\nThe request is unchanged: « {} ». To change it, cancel this review and describe the new request.\n{}",
+                    answer.trim(),
+                    pending.input,
+                    pending.review.question()
+                );
+                self.unknown_cost.pending = Some(pending);
+                return TurnOutcome::Question {
+                    key: "unknown_cost".into(),
+                    question,
+                };
+            }
         }
         let result = (|| {
             let candidate = self.cost_candidate(&pending.input)?;

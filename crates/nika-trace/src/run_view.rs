@@ -1,5 +1,16 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 //! What a run's trace proves — the result, the gate and the proof views,
 //! read from the journal's own frames, never from what the run printed.
+//!
+//! Owned by the flight-recorder reader since 2026-09-24 (moved verbatim
+//! from `nika-session`, which read nothing of its own here: frames in,
+//! text out, plus the ONE verify door this crate already hosts). The
+//! session decides WHEN a view is shown and what it asks; this module says
+//! what the trace proves. The public surface is the four read-only doors of
+//! [`RunFacts`] (`read` · `result` · `gate` · `proof`); its fields and the
+//! per-task, permit, approval, pause and seal facts stay crate-private.
 //!
 //! One reading (`RunFacts::read`) feeds three views:
 //! - RESULT · after a run ended: produced · read · sent · asked · approved
@@ -98,9 +109,11 @@ pub(crate) struct Seal {
     pub(crate) escapes: Option<u64>,
 }
 
-/// Everything a trace's frames say about one run.
+/// Everything a trace's frames say about one run. Read-only outside this
+/// crate: built by [`RunFacts::read`], said by its three views.
 #[derive(Clone, Debug, Default)]
-pub(crate) struct RunFacts {
+#[non_exhaustive]
+pub struct RunFacts {
     pub(crate) trace: PathBuf,
     pub(crate) workflow: Option<String>,
     pub(crate) workflow_sha256: Option<String>,
@@ -149,7 +162,8 @@ fn count(map: &BTreeMap<String, Value>, key: &str) -> Option<u64> {
 impl RunFacts {
     /// Read a trace's frames. `None` when the file cannot be read or no
     /// line is an event (the view then falls back to the door's line).
-    pub(crate) fn read(trace: &Path) -> Option<Self> {
+    #[must_use]
+    pub fn read(trace: &Path) -> Option<Self> {
         let raw = std::fs::read_to_string(trace).ok()?;
         let mut facts = Self {
             trace: trace.to_path_buf(),
@@ -367,7 +381,8 @@ impl RunFacts {
     }
 
     /// The result view, once a run ended (exit 0 or 1).
-    pub(crate) fn result(&self, root: &Path, workflow: &Path) -> String {
+    #[must_use]
+    pub fn result(&self, root: &Path, workflow: &Path) -> String {
         if self.status.as_deref() == Some("failed")
             || self.tasks.iter().any(|t| t.state == TaskState::Failed)
         {
@@ -483,13 +498,8 @@ impl RunFacts {
 
     /// The gate view, when a run paused: so far · the question · what a
     /// yes lets happen (`gated`, from the workflow's bytes) · what a no does.
-    pub(crate) fn gate(
-        &self,
-        workflow: &Path,
-        message: &str,
-        mode: &str,
-        gated: &[String],
-    ) -> String {
+    #[must_use]
+    pub fn gate(&self, workflow: &Path, message: &str, mode: &str, gated: &[String]) -> String {
         let mut view = format!(
             "Paused · `{}` asks you before it goes on",
             workflow.display()
@@ -529,7 +539,8 @@ impl RunFacts {
 
     /// The proof view: the chain verdict from the ONE verify door, the
     /// workflow's identity, the boundary, the digests, the limits.
-    pub(crate) fn proof(&self, root: &Path) -> String {
+    #[must_use]
+    pub fn proof(&self, root: &Path) -> String {
         let mut view = format!(
             "Proof · `{}` · what the engine MEASURED, hash-chained as it happened",
             self.trace.display()
@@ -606,7 +617,7 @@ impl RunFacts {
 /// machine without the signing key (CI, another operator) cannot judge
 /// the SEAL and exits 3, while the chain it walked is still intact.
 fn chain_verdict(trace: &Path) -> (String, String) {
-    let out = nika_trace::trace_verify::verify(&trace.display().to_string());
+    let out = crate::trace_verify::verify(&trace.display().to_string());
     let lines: Vec<&str> = out
         .text
         .lines()
@@ -711,6 +722,31 @@ mod tests {
             .join(name)
     }
 
+    /// A scratch directory removed on drop: the `tempfile::TempDir` shape
+    /// these tests were written against, without a dev-dependency this
+    /// crate does not carry (its other suites use `std::env::temp_dir()`
+    /// the same way). One name per test, one directory per process.
+    struct Scratch(PathBuf);
+
+    impl Scratch {
+        fn path(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    impl Drop for Scratch {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn tempdir(test: &str) -> Scratch {
+        let dir = std::env::temp_dir().join(format!("nika-run-view-{test}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("tmp");
+        Scratch(dir)
+    }
+
     /// A real trace of the deterministic copy (engine 0.120.3): two
     /// invoke tasks, four permit decisions, a seal — the result names what
     /// was produced and read from the permit frames, and the cost is
@@ -730,7 +766,7 @@ mod tests {
             (seal.declared, seal.exercised, seal.escapes),
             (Some(2), Some(2), Some(0))
         );
-        let root = tempfile::tempdir().expect("tmp");
+        let root = tempdir("copy-result");
         std::fs::create_dir_all(root.path().join("out")).expect("out");
         std::fs::write(
             root.path().join("out/copie.md"),
@@ -810,7 +846,7 @@ mod tests {
             .find(|t| t.id == "read_source")
             .expect("read_source");
         assert_eq!(read.state, TaskState::CacheHit);
-        let root = tempfile::tempdir().expect("tmp");
+        let root = tempdir("resumed-result");
         let view = facts.result(root.path(), Path::new("gated.nika"));
         assert!(
             view.starts_with(
@@ -837,7 +873,7 @@ mod tests {
     #[test]
     fn the_proof_reads_the_chain_through_the_verify_door() {
         let facts = RunFacts::read(&fixture("resumed.ndjson")).expect("frames");
-        let root = tempfile::tempdir().expect("tmp");
+        let root = tempdir("proof");
         std::fs::create_dir_all(root.path().join("out")).expect("out");
         std::fs::write(
             root.path().join("out/copie.md"),
@@ -886,7 +922,7 @@ mod tests {
     /// the view names the task, its detail, what ran before, what never ran.
     #[test]
     fn a_failed_task_reads_as_a_failure() {
-        let dir = tempfile::tempdir().expect("tmp");
+        let dir = tempdir("failed");
         let trace = dir.path().join("failed.ndjson");
         std::fs::write(
             &trace,
@@ -924,7 +960,7 @@ mod tests {
     /// observation line stands alone.
     #[test]
     fn a_non_journal_is_not_read() {
-        let dir = tempfile::tempdir().expect("tmp");
+        let dir = tempdir("non-journal");
         let path = dir.path().join("not.ndjson");
         std::fs::write(&path, "hello\n{\"no\":\"kind\"}\n").expect("file");
         assert!(RunFacts::read(&path).is_none());

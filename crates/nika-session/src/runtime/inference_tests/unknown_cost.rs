@@ -140,7 +140,7 @@ fn defaults_need_explicit_override_and_hard_or_unknown_caps_never_send() {
     assert_eq!(peer.bodies().len(), 2);
 }
 #[test]
-fn wrong_model_source_revision_cancel_and_old_yes_cannot_spend() {
+fn changed_model_or_source_and_declined_reviews_cannot_spend() {
     let peer = Peer::start(vec![(200, unpriced_response("hello"))]);
     let _transport = test_transport::install(&peer.url);
     let dir = tempfile::tempdir().unwrap();
@@ -160,10 +160,16 @@ fn wrong_model_source_revision_cancel_and_old_yes_cannot_spend() {
     .unwrap();
     assert!(matches!(s.turn("yes"), TurnOutcome::Refusal(_)));
     asked(&s.turn("hello"));
-    let _ = s.turn("hello revised request");
-    assert!(!s.waiting_cost_choice());
-    assert!(matches!(s.turn("yes"), TurnOutcome::Refusal(_)));
-    asked(&s.turn("hello"));
+    let unknown = s.turn("hello revised request");
+    asked(&unknown);
+    let TurnOutcome::Question { question, .. } = unknown else {
+        panic!("an unrecognized line must repeat the review");
+    };
+    assert!(question.contains("The request is unchanged: « hello »"));
+    assert!(s.waiting_cost_choice());
+    assert!(peer.bodies().is_empty());
+    // A proposed revision is not silently accepted or authorized by a later
+    // yes. The review names its unchanged request and explains cancellation.
     let _ = s.turn("cancel");
     assert!(matches!(s.turn("yes"), TurnOutcome::Refusal(_)));
     assert!(peer.bodies().is_empty());

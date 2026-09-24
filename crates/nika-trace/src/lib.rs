@@ -10,8 +10,10 @@
 //! `trace ls|rm` (the store's management), `trace verify` (tamper-evidence
 //! chain · signature · anchor tiers), `trace anchor` (Rekor · RFC 3161
 //! notary), `trace reproduce`, `trace export` (`OTel`), the `evidence` pack,
-//! the `receipt` explainer, and the learned-truth `forecast` behind
-//! `explain --forecast`. The compute (chain walk · anchor wire · recover ·
+//! the `receipt` explainer, the learned-truth `forecast` behind
+//! `explain --forecast`, and the `run_view` facts behind the native
+//! session's result, gate and `/proof` views (read laterally by
+//! `nika-session`). The compute (chain walk · anchor wire · recover ·
 //! store scan) stays in `nika-dap` (the 2026-07-09 W0 descent); this
 //! member is the render/routing half. `nika-cli` re-exports every public
 //! item at its historical `verbs::` path, so call sites and the bin
@@ -39,6 +41,7 @@ pub mod dispatch;
 pub mod evidence;
 pub mod forecast;
 pub mod receipt;
+pub mod run_view;
 pub mod trace;
 pub mod trace_anchor;
 pub mod trace_otel;

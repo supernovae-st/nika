@@ -24,8 +24,10 @@
 //! (ADR-126 · wave 5). A reasoner's reply is words: it never becomes a file.
 //!
 //! What the session must NOT own is what it queries: the grammar, the
-//! catalogs, the codes, the checker, the compiler, the runtime. Its
-//! identity core ([`identity`]) says so to the model in six laws.
+//! catalogs, the codes, the checker, the compiler, the runtime, and what a
+//! run's trace proves (`nika_trace::run_view`, read for the result, gate
+//! and `/proof` views). Its identity core ([`identity`]) says so to the
+//! model in six laws.
 
 pub mod activity;
 pub mod authoring;
@@ -42,11 +44,15 @@ pub mod money;
 pub mod outcome;
 pub mod reasoner;
 pub mod review;
-mod run_view;
 pub mod runtime;
 pub mod snapshot;
 pub mod state;
 pub mod turn;
+
+// What a run's trace proves (the result, gate and `/proof` views) is read
+// here, never owned: the flight-recorder reader holds it, and
+// `crate::run_view` stays the session's one path to it.
+use nika_trace::run_view;
 
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]

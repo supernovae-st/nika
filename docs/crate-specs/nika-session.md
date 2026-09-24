@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | Status | **WIP → ADMISSION** (One Door · wave 4 · ADR-125). In `workspace.metadata.diamond.wip` until the 12 gates land (Gate 5 mutation and Gate 11 swarm owed). |
-| Layer | **L4 — interface** (the human's terminal) · a host runtime over the installed engine · **sync** on the terminal, one current-thread runtime per inference · lateral `nika-session → nika-cli-host` for the ONE probe and the ONE oracle facade (the ADR-124 precedent). |
+| Layer | **L4 — interface** (the human's terminal) · a host runtime over the installed engine · **sync** on the terminal, one current-thread runtime per inference · lateral `nika-session → nika-cli-host` for the ONE probe and the ONE oracle facade (the ADR-124 precedent) · lateral `nika-session → nika-trace` for the run facts behind the result, gate and `/proof` views (never back). |
 | Sub-tier | L4-surface — bare `nika` on an interactive terminal. The first run asks how Nika should think with the human (an AI app they already have · an API · a local engine · none · in that order, in human words) and keeps the answer at `~/.nika/session-intelligence.json`; the session observes the project once, answers Nika facts from the engine, hands the chosen intelligence a minimal typed bundle, and reads every reply through the hallucination guard. |
 | Design | Eight modules, one law each: `identity` (the six laws + the language digest) · `snapshot` (the proven root · the project file · the ONE walker) · `intelligence` (the census · the persisted choice · the resolution that refuses, never replaces · the data locus) · `reasoner` (ONE inference over the seat, the provider registry, or none — never a temporary workflow) · `broker` (the bundle: named files inside the root, bounded, redacted, with provenance · the environment never injected) · `guard` (builtins · models · codes · MCP servers · verbs · fields · claimed ignorance, corrected under the reply) · `facts` (the workflows · the builtins · the providers · a verdict through the facade · a code through the ladder · a shape through the ONE router) · `change` (ADR-126 · the typed change set a reply proposes: previewed from the exact bytes the apply consumes · witnessed against stale targets · landed atomically only on the consent line · the real check after it lands · a run requested only on a clean check · the pending gate read from a paused trace) · `runtime` (the loop · the proposal · the consent · the run observed). Owns nothing the engine owns. |
 | LOC budget | ≤15k crate · ≤1500/file · ≤100/fn (Diamond caps) |
@@ -17,7 +17,25 @@
 
 ## What it must NOT own
 
-The workflow grammar · the builtin catalog · the model catalog · the error definitions · the check semantics · the runtime · the ARM semantics · the trace verification · the project file grammar. It queries those authorities (`nika_pack` · `nika_builtin` · `nika_catalog` · `nika_error` · `nika_cli_host::oracle` · `nika_dap::inventory` · `nika_vocab::project` · `nika_onboard::routing`).
+The workflow grammar · the builtin catalog · the model catalog · the error definitions · the check semantics · the runtime · the ARM semantics · the trace verification · what a run's trace proves · the project file grammar. It queries those authorities (`nika_pack` · `nika_builtin` · `nika_catalog` · `nika_error` · `nika_cli_host::oracle` · `nika_dap::inventory` · `nika_vocab::project` · `nika_onboard::routing` · `nika_trace::run_view`).
+
+## Run facts: read here, owned by the trace reader
+
+The views of a run the session observed are read from the run's own
+journal, never from what the run printed. The reading and its three views
+(the result after exit 0 or 1, the gate at exit 4, `/proof` on request)
+live in `nika_trace::run_view` since 2026-09-24. The session owned no part
+of it: frames in, text out, the chain judged by the ONE verify door that
+crate already hosts. What stays here is the session's side of the
+boundary: when a view is shown, which trace is under the root, the gate's
+question and the tasks a yes lets happen (read from the workflow's bytes),
+and the observation line that stands alone when no journal can be read.
+The seam is four read-only doors, `RunFacts::{read, result, gate, proof}`;
+the facts' fields stay private to `nika-trace`. A private
+`use nika_trace::run_view` in `lib.rs` keeps the session's one path,
+`crate::run_view`. The paused/resumed trace fixtures moved with their
+tests; `tests/fixtures/traces/copy.ndjson` stays here too, because the
+runtime's observation test reads it.
 
 ## Exact schedule activation
 

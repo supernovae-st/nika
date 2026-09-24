@@ -336,6 +336,328 @@ fn an_interruption_ends_a_run_review_without_a_reply() {
     assert!(reply.is_empty(), "a cancelled review answered: {reply:?}");
 }
 
+fn reply_of(room: &Room) -> Vec<u8> {
+    std::fs::read(room.0.join("reply.json")).unwrap_or_default()
+}
+
+fn run_cost_wait() -> Waiting {
+    Waiting::Question {
+        key: "run_cost".to_owned(),
+    }
+}
+
+/// `oui` answers the Run review exactly as it answers
+/// the Session's own choice — one reply, once, and the review is over.
+#[test]
+fn oui_answers_a_run_review_like_the_session_choice_once() {
+    let room = Room::new("run-oui");
+    let mut live = run_live(&room);
+    let _ = live.submit("run one.nika");
+    assert!(live.fresh_input_required());
+    let _ = live.submit("oui");
+    let sent = String::from_utf8(reply_of(&room)).expect("utf-8 reply");
+    assert!(sent.contains(r#""nonce":"nonce-s90""#), "{sent}");
+    assert!(sent.ends_with(r#""yes":true}"#), "{sent}");
+    assert_eq!(
+        sent.matches("nika/run-cost-response@1").count(),
+        1,
+        "{sent}"
+    );
+    assert!(!live.fresh_input_required());
+}
+
+/// An unknown line never approves and never cancels: the review is asked
+/// again, the child gets nothing, the fresh decision keeps waiting.
+#[test]
+fn an_unknown_line_asks_the_run_review_again_and_sends_nothing() {
+    let room = Room::new("run-unknown");
+    let mut live = run_live(&room);
+    let _ = live.submit("run one.nika");
+    for line in [
+        "peut-être",
+        "c'est payant ?",
+        "yes please",
+        "oui mais pas maintenant",
+        "",
+    ] {
+        let asked = live.submit(line).beats;
+        let text = question(&asked);
+        assert!(
+            text.contains("is not a yes or a no · nothing was sent"),
+            "{line:?}: {text}"
+        );
+        assert!(
+            text.contains("`yes`/`oui` runs it once"),
+            "{line:?}: {text}"
+        );
+        assert_eq!(waits(&asked), Some(run_cost_wait()), "{line:?}");
+        assert!(live.fresh_input_required(), "{line:?} ended the review");
+        assert!(reply_of(&room).is_empty(), "{line:?} answered the child");
+    }
+}
+
+/// `/help`, `/status` and `/details` beside a Run review answer
+/// from the session's own facts; the review keeps waiting, unanswered.
+#[test]
+fn local_commands_beside_a_run_review_answer_locally_and_keep_it() {
+    let room = Room::new("run-local");
+    let mut live = run_live(&room);
+    let _ = live.submit("run one.nika");
+    let help = live.submit("/help").beats;
+    let text = joined(&help);
+    assert!(
+        text.contains("/details") && text.contains("/status"),
+        "{text}"
+    );
+    assert!(text.contains("still waits"), "{text}");
+    assert_eq!(waits(&help), Some(run_cost_wait()));
+    let status = live.submit("/status").beats;
+    assert!(
+        joined(&status).starts_with("session\n"),
+        "{}",
+        joined(&status)
+    );
+    assert_eq!(waits(&status), Some(run_cost_wait()));
+    let details = question(&live.submit("/details").beats);
+    assert!(details.contains("challenge nonce-s90"), "{details}");
+    assert!(live.fresh_input_required());
+    assert!(
+        reply_of(&room).is_empty(),
+        "a local command answered the child"
+    );
+    let _ = live.submit("yes");
+    assert!(
+        String::from_utf8(reply_of(&room))
+            .expect("utf-8 reply")
+            .ends_with(r#""yes":true}"#),
+        "the review still takes its own answer"
+    );
+}
+
+/// A declined review is « not run », never an observed
+/// exit 130 « ended with an unknown code »; no decision carries to the next
+/// line or the next Run.
+#[test]
+fn a_declined_run_review_is_not_run_and_nothing_carries() {
+    let room = Room::new("run-declined");
+    let mut live = run_live(&room);
+    let _ = live.submit("run one.nika");
+    let text = joined(&live.submit("non, finalement pas maintenant").beats);
+    assert!(
+        text.contains("Run cost decision cancelled; nothing sent"),
+        "{text}"
+    );
+    assert!(text.contains("not run · "), "{text}");
+    for wrong in ["exit 130", "unknown code", "run observed"] {
+        assert!(!text.contains(wrong), "{wrong}: {text}");
+    }
+    assert!(!live.fresh_input_required());
+    let late = joined(&live.submit("yes").beats);
+    assert!(late.contains("nothing waits for a yes or a no"), "{late}");
+    assert!(
+        reply_of(&room).is_empty(),
+        "a declined review answered the child"
+    );
+    let interrupted = joined(&{
+        let _ = live.submit("run one.nika");
+        live.cancel_pending()
+    });
+    assert!(interrupted.contains("not run · "), "{interrupted}");
+    assert!(!interrupted.contains("unknown code"), "{interrupted}");
+    assert!(
+        reply_of(&room).is_empty(),
+        "an interruption answered the child"
+    );
+}
+
+/// The Session's own one-time choice reads the same grammar: an unknown line
+/// is asked again (never cancelled), `/help` is local, `oui` approves once,
+/// and the unknown-cost route is never called unmetered.
+#[test]
+fn the_session_choice_asks_an_unknown_line_again_and_keeps_help_local() {
+    let room = Room::new("choice-unknown");
+    let unmetered = Arc::new(AtomicUsize::new(0));
+    let mut live = session_live(&room, &unmetered);
+    let _ = live.submit("hello");
+    let again = question(&live.submit("peut-être").beats);
+    assert!(
+        again.contains("« peut-être » is not a yes or a no · nothing was sent"),
+        "{again}"
+    );
+    assert!(
+        again.ends_with("\nContinue once? yes / no / details"),
+        "{again}"
+    );
+    assert!(live.fresh_input_required());
+    let help = joined(&live.submit("/help").beats);
+    assert!(help.contains("/details"), "{help}");
+    assert!(live.fresh_input_required(), "/help cancelled the review");
+    let answered = joined(&live.submit("oui").beats);
+    assert!(answered.contains("no catalog admission seam"), "{answered}");
+    assert!(!live.fresh_input_required());
+    assert_eq!(unmetered.load(Ordering::SeqCst), 0);
+}
+
+/// The transcript an actual beginner produces at a Run review: a worried
+/// question, the help card, the evidence, then a French yes. Every line
+/// before `oui` is answered locally and the child receives exactly one reply.
+#[test]
+fn a_beginner_transcript_at_the_run_review() {
+    let room = Room::new("run-beginner");
+    let mut live = run_live(&room);
+    let mut transcript = Vec::new();
+    for line in [
+        "run one.nika",
+        "ça coûte combien ?",
+        "/help",
+        "details",
+        "oui",
+    ] {
+        let beats = live.submit(line).beats;
+        transcript.push(format!("› {line}\n{}", joined(&beats)));
+        if line != "oui" {
+            assert!(reply_of(&room).is_empty(), "{line} answered the child");
+        }
+    }
+    let transcript = transcript.join("\n");
+    for expected in [
+        "Fresh Run cost decision · deepseek/s90-unpriced-fixture at https://api.deepseek.com\n",
+        "« ça coûte combien ? » is not a yes or a no · nothing was sent",
+        "the fresh Run cost decision still waits · `yes`/`oui` runs it once · `no`/`non` cancels · `details` shows the evidence",
+        "challenge nonce-s90",
+    ] {
+        assert!(
+            transcript.contains(expected),
+            "{expected}\n---\n{transcript}"
+        );
+    }
+    assert!(!transcript.contains("unknown code"), "{transcript}");
+    let sent = String::from_utf8(reply_of(&room)).expect("utf-8 reply");
+    assert_eq!(
+        sent.matches("nika/run-cost-response@1").count(),
+        1,
+        "{sent}"
+    );
+    assert!(sent.ends_with(r#""yes":true}"#), "{sent}");
+}
+
+/// Local commands hold in every state, the first intelligence screen
+/// included: `/help`, `/status` and `/details` answer from the session's own
+/// facts, the choice keeps waiting, and nothing reaches the model.
+#[test]
+fn local_commands_beside_the_intelligence_choice_keep_it_waiting() {
+    let room = Room::new("choice-local");
+    let unmetered = Arc::new(AtomicUsize::new(0));
+    let mut live = session_live(&room, &unmetered);
+    let asked = live.submit("/intelligence").beats;
+    assert_eq!(waits(&asked), Some(Waiting::Choosing));
+    for line in ["/help", "/status", "/details"] {
+        let beats = live.submit(line).beats;
+        assert!(!joined(&beats).is_empty(), "{line}: nothing said");
+        assert_eq!(
+            waits(&beats),
+            Some(Waiting::Choosing),
+            "{line}: the choice stopped waiting"
+        );
+    }
+    let kept = joined(&live.submit("cancel").beats);
+    assert!(kept.contains("the choice stands"), "{kept}");
+    assert_eq!(unmetered.load(Ordering::SeqCst), 0);
+}
+
+/// Lines that start with a yes but qualify it are not a yes: each one is
+/// asked again and the child receives nothing.
+#[test]
+fn yes_qualified_lines_never_approve_a_run_review() {
+    let room = Room::new("run-qualified");
+    let mut live = run_live(&room);
+    let _ = live.submit("run one.nika");
+    for line in [
+        "yes please",
+        "yes?",
+        "yes, but only once",
+        "yes no",
+        "okay",
+        "yep",
+        "oui oui",
+        "oui mais pas maintenant",
+    ] {
+        let asked = live.submit(line).beats;
+        assert!(
+            question(&asked).contains("is not a yes or a no · nothing was sent"),
+            "{line}"
+        );
+        assert!(live.fresh_input_required(), "{line} ended the review");
+        assert!(reply_of(&room).is_empty(), "{line} answered the child");
+    }
+}
+
+/// Slash commands while the Session's own cost choice waits answer locally
+/// and keep it waiting; nothing reaches the unknown-cost route.
+#[test]
+fn slash_commands_keep_the_session_choice_waiting() {
+    let room = Room::new("choice-slash");
+    let unmetered = Arc::new(AtomicUsize::new(0));
+    let mut live = session_live(&room, &unmetered);
+    let _ = live.submit("hello");
+    for line in ["/help", "/status", "/details", "/why"] {
+        let said = joined(&live.submit(line).beats);
+        assert!(!said.is_empty(), "{line}: nothing said");
+        assert!(live.fresh_input_required(), "{line} ended the choice");
+    }
+    assert_eq!(unmetered.load(Ordering::SeqCst), 0);
+}
+
+/// A declined review has no effect: no reply, no trace, and the status line
+/// keeps the selected workflow's checked, not-run state.
+#[test]
+fn a_declined_run_review_has_no_effect() {
+    let room = Room::new("run-no-effect");
+    let mut live = run_live(&room);
+    let _ = live.submit("run one.nika");
+    let before = live
+        .runtime
+        .as_ref()
+        .map(SessionRuntime::status_line)
+        .unwrap_or_default();
+    assert!(before.contains("nothing has run"), "{before}");
+    let _ = live.submit("no");
+    assert!(
+        reply_of(&room).is_empty(),
+        "a declined review answered the child"
+    );
+    assert!(
+        !room.0.join(".nika").join("traces").exists(),
+        "a declined review left a trace"
+    );
+    let after = live
+        .runtime
+        .as_ref()
+        .map(SessionRuntime::status_line)
+        .unwrap_or_default();
+    assert_eq!(after, before, "a declined review changed the status");
+}
+
+/// An interrupted review (Ctrl+C) is « not run », answers nothing, and the
+/// next line finds no decision to answer.
+#[test]
+fn an_interrupted_run_review_is_not_run_and_answers_nothing() {
+    let room = Room::new("run-interrupted");
+    let mut live = run_live(&room);
+    let _ = live.submit("run one.nika");
+    let text = joined(&live.cancel_pending());
+    assert!(text.contains("not run · "), "{text}");
+    assert!(!text.contains("unknown code"), "{text}");
+    assert!(!live.fresh_input_required());
+    assert!(
+        reply_of(&room).is_empty(),
+        "an interruption answered the child"
+    );
+    let late = joined(&live.submit("yes").beats);
+    assert!(late.contains("nothing waits for a yes or a no"), "{late}");
+    assert!(reply_of(&room).is_empty(), "a late yes answered the child");
+}
+
 #[test]
 fn the_authoring_projection_keeps_any_other_wording_whole() {
     assert_eq!(

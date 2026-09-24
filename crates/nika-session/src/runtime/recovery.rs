@@ -12,8 +12,13 @@ use std::fmt::Write as _;
 
 use super::{SessionRuntime, TurnOutcome};
 use crate::authoring::AuthoringSeat;
+use crate::intelligence::DataLocus;
 use crate::outcome::{Refusal, RefusalClass};
 
+/// What a failed turn on the subscription seat did not do, and what it may have done.
+const HARNESS_NOT_DONE: &str = "No workflow was written or Run requested; the selected subscription may have received compiler context; billed cost remains unknown.";
+/// What a failed turn did not do when no model reasons for the session.
+const NOTHING_SENT: &str = "Nothing was written and nothing was sent elsewhere.";
 /// How many decisions the card lists before « … ».
 const KEPT_DECISIONS: usize = 3;
 /// The longest request line the card quotes before an ellipsis.
@@ -58,11 +63,7 @@ impl SessionRuntime {
                 let _ = write!(text, "\n    ✓ {line}");
             }
         }
-        if matches!(self.seat, AuthoringSeat::Harness { .. }) {
-            text.push_str("\n  No workflow was written or Run requested; the selected subscription may have received compiler context; billed cost remains unknown.");
-        } else {
-            text.push_str("\n  Nothing was written and nothing was sent elsewhere.");
-        }
+        let _ = write!(text, "\n  {}", self.not_done_line());
         text.push_str(
             "\n  To continue:\n    · say it again to try once more with the same intelligence\n    · `/intelligence` to choose another one\n    · keep going without it: the facts still answer, and work Nika reads on its own compiles\n  « what happened? » repeats this card",
         );
@@ -71,6 +72,30 @@ impl SessionRuntime {
             Some(class) => TurnOutcome::Refusal(Refusal::new(class, text)),
             None => TurnOutcome::Facts(text),
         }
+    }
+
+    /// What the failed turn did not do, and what it may have done. A failed call is no
+    /// proof that nothing was sent: once a model reasons for this session, its provider may
+    /// have received the turn's context, and the cost is the Session's own accounting (a
+    /// known subtotal, or unknown), never an inferred zero. Only a session where no model
+    /// reasons says nothing was sent.
+    fn not_done_line(&self) -> String {
+        let who = match &self.seat {
+            AuthoringSeat::Harness { .. } => return HARNESS_NOT_DONE.to_owned(),
+            AuthoringSeat::Provider { model } => model.clone(),
+            AuthoringSeat::Deterministic { .. } | AuthoringSeat::Unavailable { .. }
+                if self.intelligence.locus == DataLocus::None =>
+            {
+                return NOTHING_SENT.to_owned();
+            }
+            AuthoringSeat::Deterministic { .. } | AuthoringSeat::Unavailable { .. } => {
+                self.reasoner.name()
+            }
+        };
+        format!(
+            "No workflow output was written or Run requested; the selected model ({who}) may have received this turn's context: a failed call can still have been sent.\n  {}",
+            self.inference_line()
+        )
     }
 
     /// The seat the failed turn ran on, and the gateway its bytes went to
@@ -104,7 +129,7 @@ impl SessionRuntime {
             }
         }
         for decision in self.intent.decisions.iter().rev().take(KEPT_DECISIONS) {
-            kept.push(decision.clone());
+            kept.push(decision_for_display(decision));
         }
         kept
     }
@@ -113,6 +138,31 @@ impl SessionRuntime {
     /// when nothing failed in this session.
     pub(super) fn last_recovery(&self) -> Option<TurnOutcome> {
         self.last_recovery.clone().map(TurnOutcome::Facts)
+    }
+}
+
+impl SessionRuntime {
+    /// The durable decisions as a human reads them.
+    #[must_use]
+    pub fn decision_lines(&self) -> Vec<String> {
+        self.intent
+            .decisions
+            .iter()
+            .map(|d| decision_for_display(d))
+            .collect()
+    }
+}
+
+/// What the legacy monetary marker means today. The records keep its exact bytes (it is
+/// matched by equality), but its words promised a reconfirmation no restart accepts.
+const RECONFIRM_SHOWN: &str = "monetary constraint recorded · after a restart, Session inference stays blocked while an earlier charge may be unknown (no ceiling can cover it) · a saved workflow still runs under its own Run ceiling";
+
+/// A decision as a human reads it.
+pub(super) fn decision_for_display(decision: &str) -> String {
+    if decision == super::inference::RECONFIRM {
+        RECONFIRM_SHOWN.to_owned()
+    } else {
+        decision.to_owned()
     }
 }
 

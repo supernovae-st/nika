@@ -402,6 +402,21 @@ impl Live {
         self.run_result(result)
     }
 
+    /// A declined (or interrupted) Run review: the child got no answer,
+    /// nothing was sent, nothing ran — a typed « not run », never an
+    /// observed exit code, so the status keeps the last real run.
+    fn declined_run(&mut self, story: &str) -> Vec<Beat> {
+        let mut beats = vec![Beat::Say(Committed::new(Kind::Run, story))];
+        let Some(runtime) = self.runtime.as_mut() else {
+            beats.push(Beat::Quit);
+            return beats;
+        };
+        let outcome = runtime.observe_declined_run();
+        let (more, _) = self.map(outcome);
+        beats.extend(more);
+        beats
+    }
+
     fn run_result(
         &mut self,
         (code, trace, story): (u8, Option<PathBuf>, Vec<String>),
@@ -452,6 +467,8 @@ impl Live {
 /// the same words as the first screen of a fresh Run cost question.
 const REVIEW_CHOICE: &str = "Continue once? yes / no";
 const CHOICES: &str = "Continue once? yes / no / details";
+/// The Run review, still waiting after a local command or an unknown line.
+const RUN_STILL_WAITS: &str = "the fresh Run cost decision still waits · `yes`/`oui` runs it once · `no`/`non` cancels · `details` shows the evidence";
 
 /// The Session's one-time unknown-cost question, told apart from Save and
 /// Run and closing on the three choices; the Session's sentences stay whole.
@@ -466,9 +483,15 @@ fn authoring_cost_question(question: &str) -> String {
 
 impl Conversation for Live {
     fn commands(&self) -> Vec<String> {
-        nika_session::runtime::SLASH_COMMANDS
-            .iter()
-            .map(|c| (*c).to_owned())
+        // `/restore` completes only while a kept draft can be proposed again.
+        self.runtime
+            .as_ref()
+            .map_or_else(
+                || nika_session::runtime::SLASH_COMMANDS.to_vec(),
+                SessionRuntime::slash_commands,
+            )
+            .into_iter()
+            .map(str::to_owned)
             .collect()
     }
 
@@ -489,30 +512,69 @@ impl Conversation for Live {
 
     fn submit(&mut self, line: &str) -> Turn {
         if let Some(pending) = self.pending_run.take() {
-            let beats = if line.trim().eq_ignore_ascii_case("details") {
-                let details = pending.details();
+            use nika_session::runtime::{DecisionAnswer, decision_answer};
+            let trimmed = line.trim();
+            // The review's own answer grammar is the Session's (EN/FR); a
+            // local command answers from the session's facts; an unknown line
+            // is asked again. Only an approval answers the child, once.
+            let beats = if matches!(trimmed, "/help" | "/status") {
+                let facts = match (trimmed, self.runtime.as_ref()) {
+                    ("/help", Some(runtime)) => runtime.help_card(),
+                    ("/help", None) => nika_session::runtime::HELP.to_owned(),
+                    (_, Some(runtime)) => runtime.status(),
+                    (_, None) => String::new(),
+                };
                 self.pending_run = Some(pending);
                 vec![
-                    Beat::Say(Committed::new(Kind::Question, details)),
+                    Beat::Say(Committed::new(Kind::Notice, facts)),
+                    Beat::Say(Committed::new(Kind::Question, RUN_STILL_WAITS)),
                     Beat::Wait(self.waiting()),
                 ]
-            } else if line.trim().eq_ignore_ascii_case("yes") {
-                let busy = self
-                    .busy
-                    .lock()
-                    .ok()
-                    .and_then(|g| g.clone())
-                    .unwrap_or_else(|| std::sync::mpsc::channel().0);
-                self.run_result((*pending).answer(true, &busy))
-            } else {
+            } else if trimmed == "/quit" {
                 drop(pending);
-                let mut beats = self.run_result((130, None, vec![
-                    "Run cost decision cancelled; nothing sent. Request Run again for a fresh review.".into(),
-                ]));
-                if line.trim() == "/quit" {
-                    beats.push(Beat::Quit);
-                }
+                let mut beats = self.declined_run("Run cost decision cancelled; nothing sent.");
+                beats.push(Beat::Quit);
                 beats
+            } else {
+                match decision_answer(trimmed) {
+                    DecisionAnswer::Details => {
+                        let details = pending.details();
+                        self.pending_run = Some(pending);
+                        vec![
+                            Beat::Say(Committed::new(Kind::Question, details)),
+                            Beat::Wait(self.waiting()),
+                        ]
+                    }
+                    DecisionAnswer::Approve => {
+                        let busy = self
+                            .busy
+                            .lock()
+                            .ok()
+                            .and_then(|g| g.clone())
+                            .unwrap_or_else(|| std::sync::mpsc::channel().0);
+                        self.run_result((*pending).answer(true, &busy))
+                    }
+                    DecisionAnswer::Decline => {
+                        drop(pending);
+                        self.declined_run(
+                            "Run cost decision cancelled; nothing sent. Request Run again for a fresh review.",
+                        )
+                    }
+                    // Unknown, and any answer this door does not know yet
+                    // (the grammar is non-exhaustive): asked again, never a yes.
+                    _ => {
+                        self.pending_run = Some(pending);
+                        vec![
+                            Beat::Say(Committed::new(
+                                Kind::Question,
+                                format!(
+                                    "« {trimmed} » is not a yes or a no · nothing was sent\n{RUN_STILL_WAITS}"
+                                ),
+                            )),
+                            Beat::Wait(self.waiting()),
+                        ]
+                    }
+                }
             };
             return Turn {
                 beats,
@@ -561,11 +623,7 @@ impl Conversation for Live {
 
     fn cancel_pending(&mut self) -> Vec<Beat> {
         if self.pending_run.take().is_some() {
-            return self.run_result((
-                130,
-                None,
-                vec!["Run cost decision cancelled; nothing sent".into()],
-            ));
+            return self.declined_run("Run cost decision cancelled; nothing sent");
         }
         let Some(runtime) = self.runtime.as_mut() else {
             return Vec::new();
