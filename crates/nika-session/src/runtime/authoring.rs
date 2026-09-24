@@ -109,7 +109,13 @@ impl SessionRuntime {
                 ),
             ));
         }
-        match Reading::of(out) {
+        let reading = Reading::of(out);
+        // Only work owns the automation goal. Keep this round before any
+        // seat/admission failure; an earlier conversation is not its request.
+        if !matches!(reading, Reading::NotWork(_)) {
+            self.intent.goal = Some(round.effective_intent());
+        }
+        match reading {
             // Not work the reader knows: open language. A question-shaped
             // line is the conversation's at once (a fast path, never a veto:
             // nothing waits, so nothing can be modified); otherwise the act
@@ -127,9 +133,15 @@ impl SessionRuntime {
                     // without a seat the first screen is asked in context,
                     // as for an unsettled reading (never a conversational
                     // paraphrase of a plan that nothing will build).
-                    TurnAct::NewWork if seat_reads => Some(self.compile_under_seat(round)),
-                    TurnAct::NewWork if !self.chosen || !self.intelligence.ready => {
-                        Some(self.ask_for_intelligence(intent, super::Need::Authoring))
+                    TurnAct::NewWork => {
+                        self.intent.goal = Some(round.effective_intent());
+                        if seat_reads {
+                            Some(self.compile_under_seat(round))
+                        } else if !self.chosen || !self.intelligence.ready {
+                            Some(self.ask_for_intelligence(intent, super::Need::Authoring))
+                        } else {
+                            None
+                        }
                     }
                     TurnAct::Modify | TurnAct::Mixed => {
                         let saved = self.last_workflow.clone()?;

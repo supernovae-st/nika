@@ -814,9 +814,6 @@ impl SessionRuntime {
         if schedule::is_activate(input) {
             return self.activate_turn();
         }
-        if self.intent.goal.is_none() {
-            self.intent.goal = Some(input.to_owned());
-        }
         // Work to build reaches the ONE compiler; only a line that reads as
         // no work at all goes to the conversation.
         if let Some(outcome) = self.author_unrecorded(original) {
@@ -871,7 +868,8 @@ impl SessionRuntime {
                     "I couldn't use {} (the conversational intelligence) for this part",
                     self.reasoner.name()
                 );
-                self.recovery(
+                self.recovery_for(
+                    Some(input),
                     Some(RefusalClass::IntelligenceRefused),
                     &what,
                     &e.to_string(),

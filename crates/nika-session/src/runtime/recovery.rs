@@ -34,11 +34,24 @@ impl SessionRuntime {
         headline: &str,
         reason: &str,
     ) -> TurnOutcome {
+        let request = self.intent.goal.clone();
+        self.recovery_for(request.as_deref(), class, headline, reason)
+    }
+
+    /// A conversational failure keeps its own line in the recovery card,
+    /// without turning chat into an automation goal or replacing one.
+    pub(super) fn recovery_for(
+        &mut self,
+        request: Option<&str>,
+        class: Option<RefusalClass>,
+        headline: &str,
+        reason: &str,
+    ) -> TurnOutcome {
         let mut text = format!("{headline} — {reason}");
         if let Some(seat) = self.seat_line() {
             let _ = write!(text, "\n  {seat}");
         }
-        let kept = self.kept_lines();
+        let kept = self.kept_lines(request);
         if !kept.is_empty() {
             text.push_str("\n  I still have:");
             for line in kept {
@@ -73,9 +86,9 @@ impl SessionRuntime {
 
     /// What survives a failed turn, in the human's own words: the request,
     /// the answers already given, the last decisions.
-    fn kept_lines(&self) -> Vec<String> {
+    fn kept_lines(&self, request: Option<&str>) -> Vec<String> {
         let mut kept = Vec::new();
-        if let Some(goal) = &self.intent.goal {
+        if let Some(goal) = request {
             kept.push(format!("your request: « {} »", quote(goal)));
         }
         if let Some(round) = &self.authoring {

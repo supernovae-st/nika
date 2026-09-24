@@ -217,6 +217,11 @@ fn an_invented_grammar_is_corrected_before_the_human_sees_it() {
         ),
         Box::new(ScriptedReasoner::new(vec![invented.to_owned()])),
     );
+    // This fixture exercises a reply to classified work on a words-only
+    // seat; an UNKNOWN/chat route must no longer invent an automation goal.
+    s.with_classifier(Box::new(crate::turn::ReasonerClassifier::new(Box::new(
+        ScriptedReasoner::new(vec!["NEW_WORK".to_owned()]),
+    ))));
     let out = s.turn("make me a workflow that fetches a site and notifies telegram");
     let TurnOutcome::Reply(text) = out else {
         panic!("{out:?}");
