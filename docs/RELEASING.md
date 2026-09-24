@@ -34,8 +34,9 @@ assets. Keep failed tags intact.
 Dispatch an existing-tag replay from the current workflow with `--ref main`;
 the separate tag input identifies the immutable source. Missing tag-context
 SLSA requires the original tag-push run, not a branch-context replacement.
-The root ceremony also owns required `NPM_TOKEN` and `TAP_DEPLOY_KEY` setup,
-the newest-public-stable proof, and post-public Homebrew/latest convergence.
+The root ceremony also owns npm trusted-publisher configuration (GitHub OIDC,
+no npm write token) and `TAP_DEPLOY_KEY` setup, the newest-public-stable proof,
+and post-public Homebrew/latest convergence.
 Do not use a manual formula write to bypass those checks.
 
 ## Downstream owners

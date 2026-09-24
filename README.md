@@ -101,9 +101,13 @@ nika compile --base workflow.nika --change 'Set const.topic to "new topic"' --js
 ```
 
 Add `--output edited.nika` to materialize a Ready edit. The base source
-remains explicit. Unsupported natural language stays incomplete without a
-substitute workflow. Full natural-language authoring and Graph editing are not
-implemented by this bounded CLI.
+remains explicit. Unresolved intent stays incomplete without a substitute
+workflow. In this source tree, `--authoring-model` explicitly enables bounded
+model-assisted authoring and text revisions; `--authoring-strategy` selects
+`escalate`, `only`, `sketch` or `off`. The compiler checks the proposed source
+and its fidelity to the request. This is not a guarantee of arbitrary-language
+understanding, and Graph editing is not implemented by this CLI. Check the
+installed engine's help before using source-tree features.
 
 Compile's Check preview judges source only. `nika check` and `nika run` judge
 the actual environment separately. For a real model, choose the provider and

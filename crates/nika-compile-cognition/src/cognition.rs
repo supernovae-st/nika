@@ -152,8 +152,9 @@ async fn revise<P: ProviderInferDyn>(
 }
 
 /// Compile with explicit cognition: a decision seat (WARM) and/or a generative provider (COLD).
-/// Exact skeletons, EDIT, bounded support clauses and strictly explicit intents keep the
-/// deterministic path and never call either seat.
+/// Exact skeletons and resolved constant edits keep the zero-call path. A text revision
+/// may use native authoring under an explicit policy; CREATE follows the selected strategy,
+/// including native/sketch modes that can precede the deterministic intent path.
 ///
 /// # Errors
 /// Returns the same representation/registry machinery failures as [`super::compile`].
