@@ -128,3 +128,11 @@ answer cannot fill two different outputs, and an answered file already assigned
 to another output is refused. Content fidelity checks data edges separately from
 ordering or guard edges; this structural floor is not a general proof of semantic
 correspondence between every producer and every requested result.
+
+The assembler owns one compute binding. Independent typed computations feeding
+several files leave that binding unresolved instead of reparsing their joined
+descriptions into one partial rule. The normal authoring escalation can generate
+the complete native task graph. A typed rule for the whole detail retains its
+deterministic path, as does a single-output pipeline whose parsed rule retains
+every recorded typed stage. This structural boundary does not prove arbitrary
+model-generated computations semantically correct.
