@@ -156,3 +156,94 @@ fn a_second_ctrl_c_aborts_mid_flight_and_says_so() {
         "the second signal spoke:\n{stderr}"
     );
 }
+
+// This is a synthetic regression fixture, not a qualification corpus case.
+const WRITE_WORKFLOW: &str = r#"
+nika: cancelled-write-checkpoint
+permits:
+  tools: ["nika:write"]
+  exec: ["cat"]
+  fs: { read: ["./gate/**"], write: ["a.txt", "b.txt"] }
+tasks:
+  write_a:
+    invoke: { tool: "nika:write", args: { path: "a.txt", content: "A\n" } }
+  b:
+    after: { write_a: success }
+    exec: { command: ["cat", "./gate/release"] }
+  write_b:
+    after: { b: success }
+    invoke: { tool: "nika:write", args: { path: "b.txt", content: "A\n" } }
+"#;
+
+#[test]
+fn a_cancelled_run_retains_its_confirmed_write_for_resume() {
+    use std::os::unix::fs::MetadataExt as _;
+    let dir = tempfile::tempdir().expect("fixture directory");
+    let work = dir.path().join("work");
+    let home = dir.path().join("home");
+    std::fs::create_dir(&work).expect("work");
+    std::fs::create_dir(&home).expect("home");
+    std::fs::write(work.join("nika.yaml"), "nika: cancellation-fixture\n").expect("project");
+    std::fs::write(work.join("wait.nika"), WRITE_WORKFLOW).expect("workflow");
+    let mut command = Command::new(env!("CARGO_BIN_EXE_nika"));
+    command
+        .args([
+            "run",
+            "wait.nika",
+            "--json",
+            "--access",
+            "local",
+            "--max-cost-usd",
+            "0",
+        ])
+        .env_clear()
+        .env("PATH", "/usr/bin:/bin")
+        .env("HOME", &home)
+        .env("NIKA_KEYCHAIN", "off")
+        .current_dir(&work);
+    // Returning proves the downstream cat opened its FIFO: write_a is already
+    // complete and write_b cannot start until the acknowledged cancel is set.
+    let mut child = HeldRun::spawn(command, &work);
+    let first = work.join("a.txt");
+    assert_eq!(std::fs::read(&first).expect("confirmed write"), b"A\n");
+    let before = std::fs::metadata(&first).expect("first identity");
+    assert!(!work.join("b.txt").exists());
+    child.signal(Signal::SIGINT);
+    child.wait_cancelling();
+    let (code, stdout, stderr) = child.finish(true);
+    assert_eq!(code, 130, "{stderr}\n{stdout}");
+    let frames: Vec<serde_json::Value> = stdout
+        .lines()
+        .map(|line| serde_json::from_str(line).expect("native event"))
+        .collect();
+    let settlements: Vec<_> = frames
+        .iter()
+        .filter(|e| e["kind"] == "run_settled")
+        .collect();
+    assert_eq!(settlements.len(), 1);
+    assert_eq!(settlements[0]["status"], "cancelled");
+    assert_eq!(settlements[0]["tasks"]["ok"], 2);
+    assert_eq!(settlements[0]["tasks"]["cancelled"], 1);
+    assert_eq!(
+        std::fs::read(&first).expect("confirmed effect survives teardown"),
+        b"A\n"
+    );
+    let after = std::fs::metadata(&first).expect("retained identity");
+    assert_eq!((before.dev(), before.ino()), (after.dev(), after.ino()));
+    assert_eq!(
+        (before.mtime(), before.mtime_nsec()),
+        (after.mtime(), after.mtime_nsec())
+    );
+    assert_eq!(
+        (before.ctime(), before.ctime_nsec()),
+        (after.ctime(), after.ctime_nsec())
+    );
+    assert!(
+        !work.join("b.txt").exists(),
+        "the unstarted writer stays unstarted"
+    );
+    assert!(
+        !work.join(".nika/quarantine").exists(),
+        "cancellation is not failed-run debt"
+    );
+}
