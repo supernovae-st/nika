@@ -196,6 +196,7 @@ fn build_request(
         obj.remove("max_completion_tokens");
         obj.insert(tariff.output_token_param.into(), json!(max));
     }
+    super::json_mode::bounded_reasoning(&mut body, &req, rp.profile.id, &rp.wire_model);
     let bytes = serde_json::to_vec(&body).map_err(|e| ProviderError::Other {
         reason: format!("request serialization failed: {e}"),
     })?;
