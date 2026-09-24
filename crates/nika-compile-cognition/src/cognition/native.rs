@@ -13,16 +13,18 @@
 //! for jq, a glob or any internal syntax: those are the compiler's diagnostics, not questions.
 
 use super::knowledge::{self, Reference};
-use super::{
-    AuthoringPolicy, CompileOutcome, CompileRequest, DiagnosticKind, QuestionType, Strategy,
-};
+use super::{AuthoringPolicy, CompileOutcome, CompileRequest, DiagnosticKind, Strategy};
 use crate::fidelity::{self, Diagnostic};
 use crate::types::{EditChange, Input};
 use crate::{CompileDiagnostic, CompileError, CompileQuestion, CompileStatus, lexicon::Reading};
 use nika_kernel::ai::provider::{Message, ProviderInferDyn, Role};
 use serde_json::{Value, json};
 
+#[cfg(test)]
+use super::QuestionType;
+
 mod answer;
+mod bounds;
 mod decode;
 mod revision;
 pub(super) use answer::{Answer, Question};
@@ -293,9 +295,18 @@ pub(super) async fn author<P: ProviderInferDyn>(
         request,
     );
     let mut accepted: Option<Answer> = None;
+    let mut round_policy = policy.clone();
+    round_policy.max_tokens = policy.initial_max_tokens.unwrap_or(policy.max_tokens);
     for round in 0..=policy.repairs.min(5) {
         match exchange(
-            round, &mut talk, intent, reading, policy, provider, &mut out,
+            round,
+            &mut talk,
+            intent,
+            reading,
+            &mut round_policy,
+            policy.max_tokens,
+            provider,
+            &mut out,
         )
         .await
         {
@@ -470,7 +481,8 @@ async fn exchange<P: ProviderInferDyn>(
     talk: &mut Talk,
     intent: &str,
     reading: &Reading,
-    policy: &AuthoringPolicy,
+    policy: &mut AuthoringPolicy,
+    hard_max_tokens: u32,
     provider: &P,
     out: &mut CompileOutcome,
 ) -> Round {
@@ -485,6 +497,9 @@ async fn exchange<P: ProviderInferDyn>(
         talk.rounds.push(json!({"round": round, "call": "failed"}));
         return Round::Stop;
     };
+    if bounds::expand(&response, round, policy, hard_max_tokens, talk) {
+        return Round::Repair;
+    }
     let (answer, text) = match decode::native(&response, round, policy, talk, out) {
         Ok(answer) => answer,
         Err(decision) => return decision,
@@ -503,6 +518,7 @@ async fn exchange<P: ProviderInferDyn>(
     talk.rounds.push(json!({
         "round": round,
         "candidate_sha256": knowledge::sha256(&answer.candidate),
+        "candidate": answer.candidate,
         "questions": answer.questions.iter().map(|q| q.key.clone()).collect::<Vec<_>>(),
         "gaps": answer.gaps.clone(),
         "notes": answer.notes.clone(),
@@ -511,8 +527,10 @@ async fn exchange<P: ProviderInferDyn>(
     if diagnostics.is_empty() {
         return Round::Accepted(answer);
     }
+    let repeated = talk.refused.as_ref() == Some(&answer.candidate)
+        && talk.last.as_ref() == Some(&diagnostics);
     talk.refused = Some(answer.candidate.clone());
-    if talk.last.as_ref() == Some(&diagnostics) {
+    if repeated {
         return Round::Stalled;
     }
     talk.messages.push(Message::text(Role::Assistant, text));
@@ -525,7 +543,7 @@ async fn exchange<P: ProviderInferDyn>(
 }
 
 /// The end of the conversation: an accepted candidate settles; an exhausted budget is an
-/// honest finding and the clarification question, never a substitute workflow.
+/// honest technical finding, never a replacement request or a substitute workflow.
 pub(super) fn conclude(
     intent: &str,
     reading: &Reading,
@@ -584,41 +602,23 @@ pub(super) fn conclude(
             super::record_route(out, &route);
             out.questions.extend(cold.questions);
             out.diagnostics.extend(cold.diagnostics);
-            // A call that failed (transport, status, timeout) is the provider's finding, already
-            // recorded with its cause: nothing judged the request wrong, so the human is not
-            // asked to replace it. The door stays incomplete; a rerun is the
-            // operator's decision. A cold round's own questions above still stand.
-            let provider_failed = talk
-                .rounds
-                .last()
-                .is_some_and(|round| round["call"] == "failed")
-                && out
-                    .diagnostics
-                    .iter()
-                    .any(|d| d.target == "authoring_provider");
-            if out.questions.is_empty() && !provider_failed {
-                super::super::question(
-                    out,
-                    "intent.clarification",
-                    "Supply a complete replacement request including all work still wanted. It explicitly replaces the earlier intent.",
-                    QuestionType::Text,
-                );
-            }
+            out.questions.retain(|question| {
+                !matches!(
+                    question.key.as_str(),
+                    "intent.clarification" | "const.rule_expression" | "const.source_glob"
+                )
+            });
+            // Technical failures preserve the request and the recorded cause. They do
+            // not invent a business decision or ask the human to replace their intent.
         }
         None => {
             route.push("native: exhausted".to_owned());
             super::record_route(out, &route);
             super::super::finding(
                 out,
-                DiagnosticKind::RequiresHuman,
+                DiagnosticKind::Unknown,
                 "authoring_native",
-                "No candidate survived the fidelity laws within the repair budget; the rounds and their diagnostics are recorded, no substitute workflow was emitted.",
-            );
-            super::super::question(
-                out,
-                "intent.clarification",
-                "Supply a complete replacement request including all work still wanted. It explicitly replaces the earlier intent.",
-                QuestionType::Text,
+                "No candidate passed the checks within the repair budget; the original request, candidates and diagnostics are retained. No workflow was emitted. Inspect the last diagnostic before another bounded attempt.",
             );
         }
     }

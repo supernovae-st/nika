@@ -682,3 +682,35 @@ async fn fully_readable_intents_never_call_a_permitted_seat() {
     assert!(seat.asked.lock().unwrap().is_empty());
     assert_eq!(provider.calls.load(Ordering::SeqCst), 0);
 }
+
+#[tokio::test]
+async fn attached_knowledge_does_not_bypass_a_useful_warm_choice() {
+    use nika_compile::{AuthoringKnowledge, KnowledgeReference, NativeMode};
+    let seat = Seat {
+        choice: "lookup",
+        asked: Mutex::new(Vec::new()),
+    };
+    let provider = Provider::new(plan());
+    let request = CompileRequest::create(WARM)
+        .with_authoring_policy(policy().with_native(NativeMode::Escalate))
+        .with_authoring_knowledge(AuthoringKnowledge {
+            references: vec![KnowledgeReference {
+                id: "block:lookup".into(),
+                kind: "block".into(),
+                text: "finite lookup".into(),
+            }],
+            ..AuthoringKnowledge::default()
+        });
+    let out = compile_with_cognition(
+        &request,
+        Cognition {
+            provider: Some(&provider),
+            seat: Some(&seat),
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(out.provenance.strategy, Some(Strategy::Warm));
+    assert_eq!(seat.asked.lock().unwrap().len(), 1);
+    assert_eq!(provider.calls.load(Ordering::SeqCst), 0);
+}

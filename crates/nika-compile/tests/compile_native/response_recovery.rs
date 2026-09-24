@@ -303,14 +303,13 @@ async fn a_failed_call_reports_its_cause_without_asking_to_replace_the_request()
 }
 
 #[tokio::test]
-async fn a_completed_answer_that_is_not_an_answer_still_hands_the_request_back() {
-    // Not a provider failure: the call returned and its text was not an answer. With no
-    // repair authorized, the existing honest end stands, clarification included.
+async fn a_completed_invalid_answer_retains_a_technical_cause_without_replacing_the_request() {
+    // A bad model envelope is a technical failure; no business information is missing.
     let seat = Seat::new([reply(r#"{"candidate": !}"#)]);
     let out = author(&seat, 0).await;
     refused(&out);
     assert_eq!(seat.calls(), 1);
-    assert!(keys(&out).contains(&"intent.clarification"), "{out:#?}");
+    assert!(!keys(&out).contains(&"intent.clarification"), "{out:#?}");
 }
 
 #[tokio::test]
@@ -345,4 +344,110 @@ async fn sketch_syntax_failure_keeps_its_existing_terminal_contract() {
     assert!(out.candidate.is_none());
     assert_eq!(seat.calls(), 1);
     assert_eq!(out.provenance.authoring.as_ref().unwrap().calls, 1);
+}
+
+#[tokio::test]
+async fn changed_candidates_can_progress_despite_identical_diagnostics() {
+    let first = candidate_a("./data/payments.csv");
+    let second = first.replace("paid-total-report", "paid-total-report-revised");
+    let seat = Seat::new([
+        reply(&answer(&first, &json!([]))),
+        reply(&answer(&second, &json!([]))),
+        reply(&good()),
+    ]);
+    let out = author(&seat, 2).await;
+    assert_eq!(seat.calls(), 3);
+    let record = native_record(&out);
+    assert_eq!(record["accepted"], true, "{out:#?}");
+    assert_eq!(
+        record["rounds"][0]["diagnostics"],
+        record["rounds"][1]["diagnostics"]
+    );
+    assert_ne!(
+        record["rounds"][0]["candidate_sha256"],
+        record["rounds"][1]["candidate_sha256"]
+    );
+    assert_eq!(record["rounds"][0]["candidate"], first);
+    assert_eq!(record["rounds"][1]["candidate"], second);
+}
+
+#[tokio::test]
+async fn attached_knowledge_reaches_the_first_open_generation_with_answers_and_world() {
+    use nika_compile::{AuthoringKnowledge, KnowledgeReference};
+    let pack = AuthoringKnowledge {
+        references: vec![KnowledgeReference {
+            id: "block:test-filter-total".into(),
+            kind: "block".into(),
+            text: "SYNTHETIC-REFERENCE-FILTER-TOTAL".into(),
+        }],
+        ..AuthoringKnowledge::default()
+    };
+    let world = json!({"observed":[{"path":"./data/paiements.csv","columns":["statut","montant"],"state":"observed","kind":"csv","values":{"statut":["payé"]}}]});
+    let request = CompileRequest::create(CASE_A)
+        .with_authoring_policy(policy(NativeMode::Escalate, 1))
+        .with_authoring_knowledge(pack)
+        .with_knowledge(world)
+        .answer("model", "\"deepseek/deepseek-flash\"");
+    let seat = Seat::new([reply(&good())]);
+    let out = compile_with_provider(&request, &seat).await.unwrap();
+    assert_eq!(seat.calls(), 1);
+    assert_eq!(
+        out.provenance.authoring.as_ref().unwrap().context[0]["call"],
+        "native"
+    );
+    let requests = seat.requests.lock().unwrap();
+    let text = format!("{:?}", requests[0].messages);
+    for evidence in [
+        CASE_A,
+        "SYNTHETIC-REFERENCE-FILTER-TOTAL",
+        "observed_world",
+        "statut",
+        "answers_already_given",
+        "deepseek/deepseek-flash",
+    ] {
+        assert!(text.contains(evidence), "missing {evidence}");
+    }
+    assert_eq!(native_record(&out)["accepted"], true, "{out:#?}");
+}
+
+#[tokio::test]
+async fn reported_truncation_can_use_a_repair_below_the_original_hard_limit() {
+    let mut truncated = completed("unfinished");
+    truncated.stop_reason = StopReason::MaxTokens;
+    truncated.usage.output_tokens = 4096;
+    let seat = Seat::new([Reply::Answer(Box::new(truncated)), reply(&good())]);
+    let policy = AuthoringPolicy::new("mock/authoring", 8192, Duration::from_secs(2))
+        .with_native(NativeMode::Only)
+        .with_repairs(1)
+        .with_initial_max_tokens(4096);
+    let request = CompileRequest::create(CASE_A).with_authoring_policy(policy);
+    let out = compile_with_provider(&request, &seat).await.unwrap();
+    assert_eq!(native_record(&out)["accepted"], true, "{out:#?}");
+    let requests = seat.requests.lock().unwrap();
+    assert_eq!(
+        requests.iter().map(|r| r.max_tokens).collect::<Vec<_>>(),
+        [Some(4096), Some(8192)]
+    );
+    let context = &out.provenance.authoring.as_ref().unwrap().context;
+    assert_eq!(context[0]["max_output_tokens"], 4096);
+    assert_eq!(context[1]["max_output_tokens"], 8192);
+    assert_eq!(native_record(&out)["rounds"][0]["hard_max_tokens"], 8192);
+}
+
+#[tokio::test]
+async fn invalid_initial_limit_cannot_override_the_hard_limit() {
+    for initial in [0, 8193] {
+        let seat = Seat::new([]);
+        let policy = AuthoringPolicy::new("mock/authoring", 8192, Duration::from_secs(2))
+            .with_native(NativeMode::Only)
+            .with_initial_max_tokens(initial);
+        let out = compile_with_provider(
+            &CompileRequest::create(CASE_A).with_authoring_policy(policy),
+            &seat,
+        )
+        .await
+        .unwrap();
+        assert!(out.candidate.is_none());
+        assert_eq!(seat.calls(), 0);
+    }
 }

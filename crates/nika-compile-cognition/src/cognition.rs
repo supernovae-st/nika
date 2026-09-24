@@ -405,6 +405,26 @@ async fn compile_inner<P: ProviderInferDyn>(
             );
             return Ok(out);
         }
+        // HOT and finite WARM judgments keep their place. Open generation starts with
+        // the attached knowledge instead of first paying for a plan that cannot read it.
+        if policy.native == NativeMode::Escalate
+            && request
+                .authoring_knowledge
+                .as_ref()
+                .is_some_and(|pack| !pack.references.is_empty())
+        {
+            route.push("native: informed generation".to_owned());
+            return native::author(
+                &effective_intent,
+                &reading,
+                policy,
+                provider,
+                &assembly_request,
+                route,
+                out,
+            )
+            .await;
+        }
         route.push(format!("cold: {} sample(s)", policy.samples.clamp(1, 5)));
         let cold = sampled(
             &effective_intent,
@@ -482,6 +502,9 @@ const POLICY_BOUNDS: &str = "Authoring requires an explicit model, 1..32768 outp
 fn policy_bounded(policy: &AuthoringPolicy, intent: &str) -> bool {
     !policy.model.trim().is_empty()
         && (1..=32_768).contains(&policy.max_tokens)
+        && policy
+            .initial_max_tokens
+            .is_none_or(|initial| (1..=policy.max_tokens).contains(&initial))
         && !policy.timeout.is_zero()
         && policy.timeout <= std::time::Duration::from_secs(600)
         && intent.len() <= 32_768
@@ -651,6 +674,10 @@ async fn call_with_schema<P: ProviderInferDyn>(
     receipt
         .context
         .push(context_entry(role, &messages, &schema));
+    if let Some(context) = receipt.context.last_mut() {
+        context["max_output_tokens"] = json!(policy.max_tokens);
+        context["timeout_ms"] = json!(policy.timeout.as_millis());
+    }
     let start = std::time::Instant::now();
     let result = tokio::time::timeout(
         policy.timeout,
@@ -658,9 +685,21 @@ async fn call_with_schema<P: ProviderInferDyn>(
     )
     .await;
     if let Some(receipt) = out.provenance.authoring.as_mut() {
-        receipt.elapsed_ms = receipt
-            .elapsed_ms
-            .saturating_add(u64::try_from(start.elapsed().as_millis()).unwrap_or(u64::MAX));
+        let elapsed_ms = u64::try_from(start.elapsed().as_millis()).unwrap_or(u64::MAX);
+        receipt.elapsed_ms = receipt.elapsed_ms.saturating_add(elapsed_ms);
+        if let Some(context) = receipt.context.last_mut() {
+            context["elapsed_ms"] = json!(elapsed_ms);
+            context["result"] = match &result {
+                Ok(Ok(response)) => json!({
+                    "stop_reason": format!("{:?}", response.stop_reason),
+                    "usage_reported": response.usage_reported,
+                    "input_tokens": response.usage_reported.then_some(response.usage.input_tokens),
+                    "output_tokens": response.usage_reported.then_some(response.usage.output_tokens),
+                }),
+                Ok(Err(_)) => json!({"failure_kind": "provider_error"}),
+                Err(_) => json!({"failure_kind": "timeout"}),
+            };
+        }
     }
     let response = match result {
         Ok(Ok(response)) => response,

@@ -143,3 +143,13 @@ authoring sees those open readings separately from settled constraints; any real
 uncertain effect is stated in review. Literal-targeted bans retain their own scope,
 including relative paths and referenced constant destinations. These readings grant
 no permissions: Check, exact-byte review, consent and runtime admission still apply.
+
+With attached authoring references, Escalate tries complete HOT and finite WARM judgments
+first, then gives the first open generation the native language card, original request,
+answers, observed world and selected references. It avoids a preliminary private-plan
+call that cannot consume that context. Native repair progress compares both candidate
+identity and diagnostics; changed candidates may use the remaining bounded attempts.
+A technical failure retains the request and round candidates instead of requesting a
+replacement intent. An optional initial output limit can increase after a reported
+truncation, using the same repair count and never exceeding the original hard limit.
+Per-call receipts record the output limit, timeout, elapsed time, stop reason and usage.

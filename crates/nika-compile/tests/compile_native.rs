@@ -286,7 +286,10 @@ tasks:
     );
     // The same candidate twice makes no progress: two rounds, then the honest end.
     assert_eq!(native["rounds"].as_array().unwrap().len(), 2, "{native:#}");
-    assert!(keys(&out).contains(&"intent.clarification"), "{out:#?}");
+    assert!(
+        !keys(&out).contains(&"intent.clarification"),
+        "technical failure is not a replacement request: {out:#?}"
+    );
 }
 
 /// The reader's floor is the floor at every door: a request that skips an approval is refused

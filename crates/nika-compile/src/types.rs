@@ -446,6 +446,9 @@ impl NativeMode {
 pub struct AuthoringPolicy {
     pub model: String,
     pub max_tokens: u32,
+    /// Optional first native output limit, within `max_tokens`. A reported truncation
+    /// can raise it using the existing repair count, never beyond the hard ceiling.
+    pub initial_max_tokens: Option<u32>,
     pub timeout: std::time::Duration,
     pub samples: u32,
     pub native: NativeMode,
@@ -456,6 +459,13 @@ impl AuthoringPolicy {
     #[must_use]
     pub fn with_native(mut self, native: NativeMode) -> Self {
         self.native = native;
+        self
+    }
+    /// Start native generation below the hard output limit; a completed truncation may
+    /// use a repair to increase it. Zero or a value above `max_tokens` is refused.
+    #[must_use]
+    pub fn with_initial_max_tokens(mut self, initial: u32) -> Self {
+        self.initial_max_tokens = Some(initial);
         self
     }
     /// How many repair rounds a native candidate may buy (0..=5, default 3): one call each.
@@ -478,6 +488,7 @@ impl AuthoringPolicy {
         Self {
             model: model.into(),
             max_tokens,
+            initial_max_tokens: None,
             timeout,
             samples: 1,
             native: NativeMode::default(),
