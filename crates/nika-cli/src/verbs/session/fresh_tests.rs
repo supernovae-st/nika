@@ -215,6 +215,12 @@ fn an_unterminated_prequestion_yes_then_a_bare_enter_never_approves() {
     asked(&mut p);
     assert_eq!(calls(root.path()), 0);
     p.send("\r").unwrap();
+    // An empty answer keeps the fresh review pending. The buffered pre-question
+    // `yes` must not become consent when Enter arrives after that boundary.
+    p.expect("is not a yes or a no").unwrap();
+    p.expect("continue once? ›").unwrap();
+    assert_eq!(calls(root.path()), 0);
+    p.send("non\r").unwrap();
     p.expect("cancelled").unwrap();
     p.expect("nothing").unwrap();
     p.expect("sent").unwrap();
