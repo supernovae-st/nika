@@ -24,7 +24,23 @@
 mod banner;
 mod bootstrap;
 pub mod briefs;
-pub use nika_compile as compile;
+/// The Compile unit at the paths every caller reads: the deterministic core (`nika-compile`)
+/// and the seats' doors (`nika-compile-cognition`), one unit in several members (ADR-137 ·
+/// ADR-138 · ADR-140).
+pub mod compile {
+    pub use nika_compile::{
+        AuthoringCognition, AuthoringKnowledge, AuthoringPolicy, AuthoringReceipt,
+        COMPILE_WIRE_VERSION, ChoiceOffer, CompileDiagnostic, CompileError, CompileOutcome,
+        CompilePreview, CompileProvenance, CompileQuestion, CompileRequest, CompileStatus,
+        DiagnosticKind, Hit, HitKind, HotPolicy, KnowledgeReference, MaterializeError, NativeMode,
+        PreviewScope, QuestionType, RepresentationError, Strategy, TriggerKind, TriggerRequirement,
+        TriggerStatus, compile, fold, intent_sha256, materialize_ready, outcome_document, retrieve,
+        retrieve_by_ops, revise_intent, stated_destinations, stated_sources, text,
+    };
+    pub use nika_compile_cognition::{
+        Cognition, NoProvider, compile_with_cognition, compile_with_provider, decide,
+    };
+}
 pub mod fixtures;
 pub mod founding;
 mod gitignore;

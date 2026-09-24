@@ -24,6 +24,10 @@ use super::{
     plan::{Op, Plan, Step},
     types::{EditChange, Input},
 };
+use super::{
+    admit_hot, intent_sha256, lexical_rest_is_explicit, plan_record, record_ledger,
+    record_retrieval, record_route, replay, unresolved,
+};
 use nika_kernel::ai::provider::{
     ContentBlock, InferRequest, InferResponse, Message, ProviderInferDyn, ResponseFormat, Role,
 };
@@ -38,7 +42,7 @@ mod proposal;
 mod sketch;
 mod transform;
 use proposal::{Proposal, decode, merge};
-pub(super) use proposal::{ProposedRegion, exact_excerpt, nullable_default};
+pub(super) use proposal::{ProposedRegion, nullable_default};
 
 /// The explicit cognition a caller permits for one request. Absent seats are not consent.
 #[derive(Clone, Copy)]
@@ -266,7 +270,7 @@ pub async fn compile_with_cognition<P: ProviderInferDyn>(
                 out,
             );
         }
-        Err(why) => route.push(format!("hot rejected: {}", why.join("; "))),
+        Err(why) => route.push(format!("hot rejected: {}", why.reasons().join("; "))),
     }
     // WARM on lexical ambiguity: every clause is known; a few carry a finite set of readings
     // and the rest of the reading is strictly explicit.
@@ -386,73 +390,6 @@ pub async fn compile_with_cognition<P: ProviderInferDyn>(
     Ok(out)
 }
 
-/// The strict admission contract, the legacy one, or none.
-fn admit_hot(intent: &str, reading: &Reading, hot: HotPolicy) -> Result<(), Vec<String>> {
-    match hot {
-        HotPolicy::Off => Err(vec!["hot policy off".to_owned()]),
-        HotPolicy::Legacy => {
-            if reading.complete() {
-                Ok(())
-            } else {
-                Err(vec!["reading incomplete".to_owned()])
-            }
-        }
-        HotPolicy::Strict => {
-            let mut why = reading.hot_rejections();
-            why.extend(super::hot::rejections(intent, reading));
-            if why.is_empty() { Ok(()) } else { Err(why) }
-        }
-    }
-}
-
-/// Under the strict contract, a lexical WARM may only settle an otherwise explicit reading.
-fn lexical_rest_is_explicit(intent: &str, reading: &Reading) -> bool {
-    let mut why = reading.hot_rejections();
-    why.extend(super::hot::rejections(intent, reading));
-    why.iter().all(|why| why.contains("ambiguous clause"))
-}
-
-/// Recall only: what the embedded candidate index returns for the request text and, once a
-/// plan exists, for its operation words. Recorded so recall can be measured against labeled
-/// cases; nothing here selects a candidate, ranks a verdict or widens authority.
-fn record_retrieval(out: &mut CompileOutcome, intent: &str, plan: Option<&Plan>) {
-    let mut decision = out.provenance.decision.take().unwrap_or_else(|| json!({}));
-    if decision.get("intent_sha256").is_none() {
-        // The key a transport files a recorded plan under; the same fold as the reader.
-        decision["intent_sha256"] = json!(intent_sha256(intent));
-    }
-    if decision.get("retrieval").is_none() {
-        decision["retrieval"] = json!({});
-    }
-    let project = |hits: Vec<super::retrieve::Hit>| -> serde_json::Value {
-        json!(
-            hits.iter()
-                .map(|hit| {
-                    json!({
-                        "id": hit.id,
-                        "kind": if hit.kind == super::retrieve::HitKind::Skeleton { "skeleton" } else { "family" },
-                        "score": (hit.score * 1000.0).round() / 1000.0,
-                    })
-                })
-                .collect::<Vec<_>>()
-        )
-    };
-    if decision["retrieval"].get("by_intent").is_none() {
-        decision["retrieval"]["by_intent"] = project(super::retrieve::retrieve(intent, 10));
-    }
-    if let Some(plan) = plan {
-        let mut words: Vec<&str> = plan.steps.iter().map(|step| step.op.word()).collect();
-        words.extend(plan.effects.iter().map(|effect| effect.verb.word()));
-        words.extend(
-            plan.obligations
-                .iter()
-                .map(|obligation| obligation.kind.word()),
-        );
-        decision["retrieval"]["by_ops"] = project(super::retrieve::retrieve_by_ops(&words, 10));
-    }
-    out.provenance.decision = Some(decision);
-}
-
 const POLICY_BOUNDS: &str = "Authoring requires an explicit model, 1..32768 output tokens, a timeout up to 600 seconds, and an intent no larger than 32768 bytes.";
 
 /// The bounds every seat call honors: an explicit model, a bounded answer, a bounded wait,
@@ -503,231 +440,6 @@ pub(super) fn first_json_object(text: &str) -> Option<&str> {
         }
     }
     None
-}
-
-fn record_route(out: &mut CompileOutcome, route: &[String]) {
-    let mut decision = out.provenance.decision.take().unwrap_or_else(|| json!({}));
-    decision["route"] = json!(route);
-    out.provenance.decision = Some(decision);
-}
-
-/// The sha256 (lowercase hex) of an intent as the compiler reads it: typographic
-/// apostrophes folded, nothing else changed. A transport keys a recorded plan by this
-/// value so an answer round can find the plan its previous round produced; the compiler
-/// records it in `provenance.decision.intent_sha256` on every general-path outcome.
-#[must_use]
-pub fn intent_sha256(intent: &str) -> String {
-    knowledge::sha256(&lexicon::fold_apostrophes(intent))
-}
-
-/// The provenance projection of a settled plan: the plan itself plus the strategy that
-/// settled it, so the record replays under the same name.
-/// The plan projection with its strategy word and the obligation ledger the plan states
-/// (every duty typed with its state), for provenance and for the answer-round replay.
-fn plan_record(plan: &Plan, strategy: Option<Strategy>) -> Value {
-    let mut record = plan.to_json();
-    if let Some(strategy) = strategy {
-        record["strategy"] = json!(strategy.word());
-    }
-    record
-}
-
-/// Record the obligation ledger a plan states in the decision record (the assembler
-/// overwrites it with the realized one when it emits): the plan record itself stays the
-/// replayable identity of the plan, byte-identical across answer rounds.
-fn record_ledger(out: &mut CompileOutcome, ledger: &super::ledger::Ledger) {
-    let mut decision = out.provenance.decision.take().unwrap_or_else(|| json!({}));
-    decision["ledger"] = ledger.to_json();
-    out.provenance.decision = Some(decision);
-}
-
-/// Replay a recorded plan for the same intent: straight to the deterministic assembler,
-/// with zero reading, zero seat calls and zero provider calls. The record's own `strategy`
-/// word is kept as the outcome's strategy; the route says `replayed plan`. A record that
-/// does not parse, is not anchored in this intent or still carries unknown work is a
-/// finding on `recorded_plan`, never a candidate.
-pub(super) fn replay(
-    intent: &str,
-    record: &Value,
-    request: &CompileRequest,
-    out: &mut CompileOutcome,
-) -> Result<(), CompileError> {
-    let folded = lexicon::fold_apostrophes(intent);
-    let intent = folded.as_str();
-    if record.get("strategy").and_then(Value::as_str) == Some(Strategy::Native.word()) {
-        native::replay(intent, record, request, out);
-        return Ok(());
-    }
-    record_route(out, &["replayed plan".to_owned()]);
-    record_retrieval(out, intent, None);
-    let plan = match Plan::from_json(record) {
-        Ok(plan) => plan,
-        Err(why) => {
-            super::finding(
-                out,
-                DiagnosticKind::Unknown,
-                "recorded_plan",
-                format!(
-                    "The recorded plan cannot be replayed ({why}). Compile the intent again without it."
-                ),
-            );
-            return Ok(());
-        }
-    };
-    let strategy = record
-        .get("strategy")
-        .and_then(Value::as_str)
-        .and_then(Strategy::parse);
-    if !plan.anchored(intent) {
-        super::finding(
-            out,
-            DiagnosticKind::Unknown,
-            "recorded_plan",
-            "The recorded plan is not anchored in this request: an operation, effect or obligation names an excerpt the request does not contain. Compile the intent again without it.",
-        );
-        return Ok(());
-    }
-    if !plan.unknowns.is_empty() {
-        super::finding(
-            out,
-            DiagnosticKind::Unknown,
-            "recorded_plan",
-            "The recorded plan still carries unresolved requested work; no substitute workflow was emitted.",
-        );
-        for unknown in &plan.unknowns {
-            super::finding(out, DiagnosticKind::Unknown, "intent", unknown.clone());
-        }
-        super::question(
-            out,
-            "intent.clarification",
-            "Supply a complete replacement request including all work still wanted. It explicitly replaces the earlier intent.",
-            QuestionType::Text,
-        );
-        record_ledger(out, &super::ledger::Ledger::extract(&plan));
-        out.provenance.plan = Some(plan_record(&plan, strategy));
-        return Ok(());
-    }
-    // A record from an earlier engine may still carry a numeric rule as guidance.
-    let mut plan = plan;
-    super::shape::promote_stated_rules(&mut plan, intent);
-    // A seat's plan (or a record with no strategy word) that works on nothing is asked,
-    // never assembled; the reader's own HOT plan was already judged explicit.
-    if strategy != Some(Strategy::Hot) && super::assemble::unfed(&plan, intent, out) {
-        out.provenance.plan = Some(plan_record(&plan, strategy));
-        return Ok(());
-    }
-    super::assemble::assemble(&plan, intent, request, out)?;
-    record_retrieval(out, intent, Some(&plan));
-    out.provenance.strategy = strategy;
-    out.provenance.plan = Some(plan_record(&plan, strategy));
-    Ok(())
-}
-
-/// The deterministic-only door: HOT under the request's contract, or an honest report.
-pub(super) fn hot(
-    intent: &str,
-    request: &CompileRequest,
-    out: &mut CompileOutcome,
-) -> Result<bool, CompileError> {
-    let folded = lexicon::fold_apostrophes(intent);
-    let intent = folded.as_str();
-    let mut reading = lexicon::read(intent);
-    backstop(intent, &mut reading.plan);
-    // The deterministic door judges the reading with its stated rules promoted: a rule
-    // carries its own constraint, and the words inside it are its literals.
-    let mut admitted = reading.clone();
-    super::shape::promote_stated_rules(&mut admitted.plan, intent);
-    match admit_hot(intent, &admitted, request.hot) {
-        Ok(()) => {
-            record_route(out, &["hot".to_owned()]);
-            super::assemble::assemble(&admitted.plan, intent, request, out)?;
-            record_retrieval(out, intent, Some(&admitted.plan));
-            out.provenance.strategy = Some(Strategy::Hot);
-            out.provenance.plan = Some(plan_record(&admitted.plan, Some(Strategy::Hot)));
-            Ok(true)
-        }
-        Err(why) => {
-            if reading.plan.steps.is_empty()
-                && reading.plan.effects.is_empty()
-                && reading.ambiguous.is_empty()
-                && reading.unresolved.len() <= 1
-                && reading.clauses <= 1
-            {
-                // Nothing recognizable: keep the historical message of the exact-skeleton door.
-                return Ok(false);
-            }
-            record_route(
-                out,
-                &[
-                    format!("hot rejected: {}", why.join("; ")),
-                    "needs cognition".to_owned(),
-                ],
-            );
-            record_retrieval(out, intent, None);
-            unresolved(&reading, out);
-            if reading.unresolved.is_empty() && reading.ambiguous.is_empty() {
-                super::finding(
-                    out,
-                    DiagnosticKind::Unknown,
-                    "intent",
-                    format!(
-                        "The deterministic reader cannot admit this request on its own ({}). Permit an authoring model (`--authoring-model`) or a decision seat, or rephrase with explicit operations and literals.",
-                        why.join("; ")
-                    ),
-                );
-            }
-            Ok(true)
-        }
-    }
-}
-
-fn unresolved(reading: &Reading, out: &mut CompileOutcome) {
-    for clause in &reading.unresolved {
-        super::finding(
-            out,
-            DiagnosticKind::Unknown,
-            "intent",
-            format!(
-                "Unresolved clause: {clause}. No requested operation was dropped; no substitute workflow was selected."
-            ),
-        );
-    }
-    for ambiguity in &reading.ambiguous {
-        super::finding(
-            out,
-            DiagnosticKind::Unknown,
-            "intent",
-            format!(
-                "Ambiguous clause: {} (could be {}). A bounded decision seat or an explicit rephrase settles it; no substitute workflow was selected.",
-                ambiguity.clause,
-                ambiguity
-                    .options
-                    .iter()
-                    .map(|op| op.word())
-                    .collect::<Vec<_>>()
-                    .join(" | ")
-            ),
-        );
-    }
-    for unknown in &reading.plan.unknowns {
-        super::finding(out, DiagnosticKind::Unknown, "intent", unknown.clone());
-    }
-    if !out
-        .questions
-        .iter()
-        .any(|q| q.key == "intent.clarification")
-    {
-        super::question(
-            out,
-            "intent.clarification",
-            "Supply a complete replacement request including all work still wanted. It explicitly replaces the earlier intent.",
-            QuestionType::Text,
-        );
-    }
-    // The reading's own ledger: the plan's duties plus every clause the reader could not
-    // settle, so the unresolved work is typed beside the plan.
-    record_ledger(out, &super::ledger::Ledger::extract_reading(reading));
-    out.provenance.plan = Some(reading.plan.to_json());
 }
 
 fn settle(
@@ -849,15 +561,7 @@ async fn call_with_schema<P: ProviderInferDyn>(
     let receipt = out
         .provenance
         .authoring
-        .get_or_insert_with(|| AuthoringReceipt {
-            model: policy.model.clone(),
-            calls: 0,
-            input_tokens: None,
-            output_tokens: None,
-            elapsed_ms: 0,
-            context: Vec::new(),
-            backend: None,
-        });
+        .get_or_insert_with(|| AuthoringReceipt::new(policy.model.clone()));
     receipt.calls += 1;
     receipt
         .context
@@ -1020,15 +724,13 @@ async fn sampled<P: ProviderInferDyn>(
         route.push(format!("cold: repair {repairs}"));
     }
     out.provenance.cognition = AuthoringCognition::ExplicitProvider;
-    out.provenance.authoring = Some(AuthoringReceipt {
-        model: policy.model.clone(),
-        calls,
-        input_tokens,
-        output_tokens,
-        elapsed_ms,
-        context,
-        backend: None,
-    });
+    let mut receipt = AuthoringReceipt::new(policy.model.clone());
+    receipt.calls = calls;
+    receipt.input_tokens = input_tokens;
+    receipt.output_tokens = output_tokens;
+    receipt.elapsed_ms = elapsed_ms;
+    receipt.context = context;
+    out.provenance.authoring = Some(receipt);
     // Distinct admissible signatures, for the sample record.
     let mut distinct: Vec<Vec<String>> = Vec::new();
     for (_, plan) in &accepted {

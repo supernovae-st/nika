@@ -7,23 +7,23 @@ use std::collections::BTreeMap;
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct CompileRequest {
-    pub(super) input: Input,
-    pub(super) answers: BTreeMap<String, String>,
-    pub(super) workflow_id: Option<String>,
-    pub(super) authoring: Option<AuthoringPolicy>,
-    pub(super) hot: HotPolicy,
+    pub input: Input,
+    pub answers: BTreeMap<String, String>,
+    pub workflow_id: Option<String>,
+    pub authoring: Option<AuthoringPolicy>,
+    pub hot: HotPolicy,
     /// A previously produced private plan to replay for the same intent (see [`Self::with_plan`]).
-    pub(super) plan: Option<serde_json::Value>,
+    pub plan: Option<serde_json::Value>,
     /// What the caller observed about the world the request names (the shape of its stated
     /// files: columns, keys, small value sets), stated to an authoring seat as data — see
     /// [`Self::with_knowledge`].
-    pub(super) knowledge: Option<serde_json::Value>,
+    pub knowledge: Option<serde_json::Value>,
     /// The authoring pack a knowledge door composed for this intent — see
     /// [`Self::with_authoring_knowledge`].
-    pub(super) authoring_knowledge: Option<AuthoringKnowledge>,
+    pub authoring_knowledge: Option<AuthoringKnowledge>,
     /// The request the base candidate answered, when the caller has it — see
     /// [`Self::with_original_intent`]; an edit's laws read it beside the change.
-    pub(super) original_intent: Option<String>,
+    pub original_intent: Option<String>,
 }
 
 /// One reference a knowledge snapshot recalled for the seat: its kind (`pattern` · `block` ·
@@ -76,13 +76,15 @@ impl HotPolicy {
 }
 
 #[derive(Clone, Debug)]
-pub(super) enum Input {
+#[non_exhaustive]
+pub enum Input {
     Create(String),
     Edit { source: String, change: EditChange },
 }
 
 #[derive(Clone, Debug)]
-pub(super) enum EditChange {
+#[non_exhaustive]
+pub enum EditChange {
     Text(String),
     Constant { name: String, literal_json: String },
 }
@@ -390,7 +392,7 @@ impl Strategy {
         }
     }
     /// The strategy a recorded plan names, if the word is one of ours.
-    pub(super) fn parse(word: &str) -> Option<Self> {
+    pub(crate) fn parse(word: &str) -> Option<Self> {
         [
             Self::Skeleton,
             Self::Support,
@@ -442,12 +444,12 @@ impl NativeMode {
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct AuthoringPolicy {
-    pub(super) model: String,
-    pub(super) max_tokens: u32,
-    pub(super) timeout: std::time::Duration,
-    pub(super) samples: u32,
-    pub(super) native: NativeMode,
-    pub(super) repairs: u32,
+    pub model: String,
+    pub max_tokens: u32,
+    pub timeout: std::time::Duration,
+    pub samples: u32,
+    pub native: NativeMode,
+    pub repairs: u32,
 }
 impl AuthoringPolicy {
     /// When the native candidate is written (default: after the private plan fails a human).
@@ -509,6 +511,23 @@ pub struct AuthoringReceipt {
     /// harness through ACP: adapter, observed model, cost basis, no fabricated token meter).
     /// None when the transport did not say.
     pub backend: Option<serde_json::Value>,
+}
+
+impl AuthoringReceipt {
+    /// A receipt for the model named, nothing spent yet (INV-019: the type is
+    /// `#[non_exhaustive]`; the member fills the fields it measures).
+    #[must_use]
+    pub fn new(model: impl Into<String>) -> Self {
+        Self {
+            model: model.into(),
+            calls: 0,
+            input_tokens: None,
+            output_tokens: None,
+            elapsed_ms: 0,
+            context: Vec::new(),
+            backend: None,
+        }
+    }
 }
 
 /// Authoring provenance is not program identity or execution Proof.
@@ -639,7 +658,9 @@ pub enum CompileError {
 }
 
 impl CompileError {
-    pub(super) fn representation(error: serde_yaml_bw::Error) -> Self {
+    /// Preserve the representation backend error as the source of a compile error.
+    #[must_use]
+    pub fn representation(error: serde_yaml_bw::Error) -> Self {
         Self::Representation(RepresentationError { source: error })
     }
 }

@@ -5,7 +5,8 @@
 //! obligations), and a single digit in a language step's paraphrase is an enumeration, not
 //! a literal the workflow carries (sv3-15, E19B).
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-use nika_compile::{CompileRequest, CompileStatus, compile_with_provider};
+use nika_compile::{CompileRequest, CompileStatus};
+use nika_compile_cognition::compile_with_provider;
 use serde_json::{Value, json};
 
 mod common;

@@ -4692,16 +4692,14 @@ dependencies = [
 name = "nika-compile"
 version = "0.120.3"
 dependencies = [
- "jaq-core",
- "jaq-json",
- "jaq-std",
  "marked-yaml",
  "miette",
  "nika-bm25",
  "nika-cadence",
- "nika-cap",
  "nika-catalog",
  "nika-check",
+ "nika-compile-cognition",
+ "nika-compile-fidelity",
  "nika-compile-reader",
  "nika-error",
  "nika-kernel",
@@ -4722,11 +4720,40 @@ dependencies = [
 ]
 
 [[package]]
-name = "nika-compile-reader"
+name = "nika-compile-cognition"
+version = "0.120.3"
+dependencies = [
+ "jaq-core",
+ "jaq-json",
+ "jaq-std",
+ "nika-cap",
+ "nika-check",
+ "nika-compile",
+ "nika-compile-fidelity",
+ "nika-compile-reader",
+ "nika-kernel",
+ "nika-pack",
+ "serde",
+ "serde_json",
+ "serde_yaml_bw",
+ "thiserror 2.0.20",
+ "tokio",
+]
+
+[[package]]
+name = "nika-compile-fidelity"
 version = "0.120.3"
 dependencies = [
  "nika-check-analyzer",
+ "nika-compile-reader",
  "nika-schema",
+ "serde_json",
+]
+
+[[package]]
+name = "nika-compile-reader"
+version = "0.120.3"
+dependencies = [
  "serde_json",
 ]
 
@@ -5158,6 +5185,7 @@ dependencies = [
  "nika-catalog",
  "nika-check",
  "nika-compile",
+ "nika-compile-cognition",
  "nika-display",
  "nika-pack",
  "nika-schema",

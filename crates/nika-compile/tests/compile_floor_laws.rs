@@ -4,7 +4,8 @@
 //! `draft` the reader guessed over a write clause is the write of a computed value, and a
 //! `revision_check` proposed over a gate phrase is the gate the effect's policy carries.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-use nika_compile::{CompileRequest, compile_with_provider, outcome_document};
+use nika_compile::{CompileRequest, outcome_document};
+use nika_compile_cognition::compile_with_provider;
 use serde_json::{Value, json};
 
 mod common;

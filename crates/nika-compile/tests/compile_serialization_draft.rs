@@ -4,7 +4,8 @@
 //! language work: the write takes the computed rows as they are (measured on the sealed-v3
 //! treatment lane, 2026-09-22: three such drafts ran under gpt-5-mini and failed at runtime).
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-use nika_compile::{CompileRequest, CompileStatus, compile_with_provider};
+use nika_compile::{CompileRequest, CompileStatus};
+use nika_compile_cognition::compile_with_provider;
 use serde_json::{Value, json};
 
 mod common;

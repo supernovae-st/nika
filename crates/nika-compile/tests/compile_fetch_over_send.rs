@@ -5,7 +5,8 @@
 //! as a `fetch` beside the human-first `send` over the same words, and the candidate
 //! performed a GET on the endpoint before the gate). One clause is one element.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-use nika_compile::{CompileRequest, compile_with_provider};
+use nika_compile::CompileRequest;
+use nika_compile_cognition::compile_with_provider;
 use serde_json::{Value, json};
 
 mod common;

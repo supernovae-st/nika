@@ -90,6 +90,7 @@ pub(crate) fn emit(
         &d.root,
         &crate::fidelity::allowed_values(laws.answers),
         &waived,
+        &crate::fidelity::clarified_sources(laws.answers),
         &mut refusals,
     );
     refusals.dedup();

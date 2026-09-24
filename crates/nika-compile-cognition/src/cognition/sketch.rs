@@ -90,6 +90,7 @@ fn judge_sketch(
     reading: &Reading,
     sketch: &Sketch,
     allowed: &[String],
+    clarified: &[String],
 ) -> Vec<Diagnostic> {
     let mut out: Vec<Diagnostic> = ir::structural_laws(sketch, intent, allowed)
         .into_iter()
@@ -100,7 +101,15 @@ fn judge_sketch(
         .collect();
     if out.is_empty() {
         let doc = ir::document(sketch, &[]);
-        fidelity::laws(intent, &reading.plan, &doc, allowed, &[], &mut out);
+        fidelity::laws(
+            intent,
+            &reading.plan,
+            &doc,
+            allowed,
+            &[],
+            clarified,
+            &mut out,
+        );
     }
     out.dedup();
     out
@@ -183,7 +192,7 @@ async fn propose<P: ProviderInferDyn>(
         let record = json!({"name": answer.name, "tasks": answer.tasks});
         let (diagnostics, parsed) = match Sketch::from_json(&record) {
             Ok(parsed) => (
-                judge_sketch(intent, reading, &parsed, &talk.allowed),
+                judge_sketch(intent, reading, &parsed, &talk.allowed, &talk.clarified),
                 Some(parsed),
             ),
             Err(message) => (
@@ -277,6 +286,7 @@ async fn fill<P: ProviderInferDyn>(
             &candidate,
             &answer.questions,
             &talk.allowed,
+            &talk.clarified,
             talk.observed.as_ref(),
         );
         talk.rounds.push(json!({

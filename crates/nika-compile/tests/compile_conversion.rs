@@ -6,7 +6,8 @@
 //! expects zero calls). Deterministically the clause is a read, a compute and a write;
 //! through a seat, the proposed `extract` that names the conversion becomes that computation.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-use nika_compile::{CompileRequest, compile, compile_with_provider};
+use nika_compile::{CompileRequest, compile};
+use nika_compile_cognition::compile_with_provider;
 use serde_json::{Value, json};
 
 mod common;

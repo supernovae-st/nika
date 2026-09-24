@@ -8,7 +8,8 @@
 //! the jq keeps the first occurrence in place with every column, and the order constraint is
 //! carried by the compute task, which keeps the source order by construction.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-use nika_compile::{CompileRequest, CompileStatus, compile, compile_with_provider};
+use nika_compile::{CompileRequest, CompileStatus, compile};
+use nika_compile_cognition::compile_with_provider;
 use serde_json::{Value, json};
 
 mod common;

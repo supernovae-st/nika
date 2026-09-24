@@ -1121,15 +1121,10 @@ mod tests {
         reading
     }
     fn hit(id: &str, patterns: &[&str]) -> Hit {
-        Hit {
-            id: id.to_owned(),
-            kind: HitKind::Family,
-            title: id.to_owned(),
-            patterns: patterns.iter().map(|p| (*p).to_owned()).collect(),
-            score: 1.0,
-            skeleton: None,
-            signature: None,
-        }
+        let mut hit = Hit::new(id, HitKind::Family, id);
+        hit.patterns = patterns.iter().map(|p| (*p).to_owned()).collect();
+        hit.score = 1.0;
+        hit
     }
 
     #[test]

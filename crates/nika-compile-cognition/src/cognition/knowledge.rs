@@ -32,16 +32,7 @@ impl Reference {
     }
 }
 
-pub(super) fn sha256(text: &str) -> String {
-    use sha2::Digest as _;
-    use std::fmt::Write as _;
-    sha2::Sha256::digest(text.as_bytes())
-        .iter()
-        .fold(String::with_capacity(64), |mut hex, byte| {
-            let _ = write!(hex, "{byte:02x}");
-            hex
-        })
-}
+pub(super) use nika_compile::surface::sha256;
 
 /// The identity every native call is stamped with: the engine, the embedded language pack,
 /// the spec pin and the digests of the card and of the engine's output conventions.
@@ -55,13 +46,7 @@ pub(super) fn identity() -> Value {
     })
 }
 
-pub(crate) fn spec_pin() -> &'static str {
-    include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../SPEC_PIN"))
-        .lines()
-        .map(str::trim)
-        .find(|line| !line.is_empty() && !line.starts_with('#'))
-        .unwrap_or("")
-}
+use nika_compile::surface::spec_pin;
 
 /// The path of the stable card in the embedded pack: the laws, the language in one page and the
 /// canonical fragments, written from the 0.120 canon (`nika spec --canon`) and the assembler's
@@ -119,6 +104,7 @@ pub(super) fn references(intent: &str, skeletons: usize) -> Vec<Reference> {
         let name = match hit.kind {
             crate::retrieve::HitKind::Skeleton => Some(hit.id.clone()),
             crate::retrieve::HitKind::Family => hit.skeleton.clone(),
+            _ => None,
         };
         if let Some(name) = name
             && !named.contains(&name)

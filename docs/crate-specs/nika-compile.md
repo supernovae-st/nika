@@ -3,8 +3,8 @@
 | | |
 |---|---|
 | Status | **MEMBER** (size-cap split of the admitted `nika-onboard` unit · ADR-137 · D-2026-07-09-N1 · 2026-09-21) |
-| Layer | L4 — a library surface; lateral L4→L4 edges `nika-onboard → nika-compile` and `nika-compile → nika-compile-reader` (ADR-138), never back |
-| Design | the stateless Compile core: one `CompileRequest` in, one `CompileOutcome` out — the finite composer and its feasibility rules over the reader's typed plan, the deterministic assembler, the Check preview, the recorded-plan replay across answer rounds; the deterministic reader (frozen: a safety floor) and the private typed semantic plan (operations · effects · obligations · constraints · typed computations) live in `nika-compile-reader` since ADR-138 |
+| Layer | L4 — a library surface; lateral L4→L4 edges `nika-onboard → nika-compile`, `nika-compile → nika-compile-reader` (ADR-138) and `nika-compile → nika-compile-fidelity` (ADR-141), never back |
+| Design | the stateless Compile core: one `CompileRequest` in, one `CompileOutcome` out — deterministic HOT admission, native record application, the assembler, the Check preview, the recorded-plan replay across answer rounds; the deterministic reader (frozen: a safety floor) and the private typed semantic plan (operations · effects · obligations · constraints · typed computations) live in `nika-compile-reader` since ADR-138 |
 | IMPL | measured by `scripts/crate-metrics.sh nika-compile` at each freeze; the crate carries what `nika-onboard::compile` carried on 2026-09-21 minus the reader and the plan, descended to `nika-compile-reader` the same day (ADR-138 · the gate's own counter: 9,778 prod LOC after the split · 52 unit tests · 15 integration suites) |
 | LOC budget | ≤15k crate · ≤1500/file · ≤100/fn (the frozen reader's tables and their `lookup-table` LOC-EXEMPT live in `nika-compile-reader` since ADR-138) |
 | Crate version | tracks workspace |
@@ -22,11 +22,15 @@ Compile core descends here, the onboarding surface (`nika init`, the gallery, th
 stays in `nika-onboard`, which re-exports this crate at its historical path:
 
 ```rust
-pub use nika_compile as compile;
+// nika_onboard::compile explicitly re-exports the supported core API and:
+// Cognition, NoProvider, compile_with_cognition, compile_with_provider, decide.
+// The member-only surface and outcome-building helpers remain in nika_compile.
 ```
 
 Every caller keeps writing `nika_onboard::compile::…` (`nika-cli-host`, `nika-serve`, the
-MCP oracle). The boundary moved; the surface did not.
+MCP integration). Existing explicit facade imports remain available. ADR-140 adds a
+shared Rust surface and moves direct core seat exports to `nika_compile_cognition`; see
+the current member boundary below. This is not a claim of an identical public API.
 
 ## 2. The boundary, measured
 
@@ -41,9 +45,10 @@ back on the surface.
 
 ## 3. Contracts kept
 
-- `CompileRequest` / `CompileOutcome` / `provenance.plan` (the recorded plan a sidecar
-  replays with zero provider calls) are byte-identical: the arena's trusted-plan control,
-  the clause-drop probe and the canaries are the regression gates.
+- The split retains the machine wire projection and recorded-plan format. The Rust
+  request surface grows under ADR-140; it is not byte-identical API text. Zero-call replay,
+  candidate semantics and provenance remain contracts to verify on the composed source
+  with the compiler and transport regression suites.
 - The deterministic reader is frozen: no cue or head is added; every new law is a structural
   one (path boundaries, anaphora, the shape of a human gate, the carrier of a constraint) or
   lives in the typed semantic plan.
@@ -52,14 +57,23 @@ back on the surface.
   attestations for the compile core are owed as pending evidence, tracked with the season-2
   debt wave, never claimed.
 
-## 4. Module map
+## 4. Current member boundary (ADR-140)
 
-`cognition`, `predicate` (the typed proposal and its validation) · `compose` (the finite
-candidate set and rules 1–14) · `bindings`, `shape`, `network`, `laws`, `trigger`,
-`assemble` (the deterministic assembler) · `retrieve` (recall over the gallery, provenance
-only) · `decide` (the closed-choice seat) · `edit`, `edit_source`, `materialize`, `wire`,
-`support`, `types`, `pattern`. The reader (`lexicon`), the admission laws (`objects`,
-`gates`, `hot`, `paths`, `columns`), the typed plan and its computations (`plan`, `rules`,
-`aggregate`, `rule_tokens`, `rule_cues`, `stages`) and the shared `text` helpers are read
-from `nika-compile-reader` at these same module paths (ADR-138 ·
-`docs/crate-specs/nika-compile-reader.md`).
+`doors` owns deterministic HOT admission, plan/native replay and record application;
+`assemble`, `bindings`, `approval`, `laws`, `ledger`, `network`, `realize`, `support`,
+`trigger` and `writes` implement deterministic compilation. `edit`, `edit_source`,
+`materialize`, `retrieve`, `types`, `pattern` and `wire` retain their existing roles.
+`surface` states the contracts used by the cognition member, including the one spec pin
+reader and the assembler laws its tests compare against.
+
+The COLD composer, proposal decoder, predicates, decision seats and native/sketch/transform/
+knowledge authoring now live above this crate in `nika-compile-cognition`. Core depends on
+Reader for the frozen reading/plan and on Fidelity for deterministic candidate laws
+(ADR-141); it never depends on cognition in production. Kernel/Tokio are development
+dependencies for the unchanged compiler suites. The supported onboarding facade combines
+core and cognition; the direct core crate's seat exports move to the cognition member.
+
+The split is implemented under the authorized consolidation. Compilation, complete suite
+execution and canonical API qualification remain integration checks; the inherited
+mutation/property attestations remain pending. Historical counts above describe their
+recorded revision, not current test or size results.

@@ -6,7 +6,8 @@
 //! payload » over « bouton Slack de validation », and a lookup over the revision-check words
 //! whose detail named the record kept a second element the request never asked).
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-use nika_compile::{CompileRequest, compile_with_provider};
+use nika_compile::CompileRequest;
+use nika_compile_cognition::compile_with_provider;
 use serde_json::{Value, json};
 
 mod common;

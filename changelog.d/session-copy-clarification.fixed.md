@@ -1,1 +1,1 @@
-Copy authoring preserves quoted Unicode paths, asks for a missing destination, and retains an explicitly selected authoring model. The intelligence chooser accepts an explicit provider/model or engine/model selection and rejects trailing input it cannot interpret.
+- **Whole file names and explicit model choice.** Copy authoring preserves quoted Unicode paths, asks for a missing destination, and retains an explicitly selected authoring model. The intelligence chooser accepts an explicit provider/model or engine/model selection and rejects trailing input it cannot interpret.

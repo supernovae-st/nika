@@ -6,7 +6,8 @@
 //! safeguard, an effect over a language step's own words is that step, and two effects
 //! with kindred verbs over one clause are one effect.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-use nika_compile::{CompileRequest, compile_with_provider};
+use nika_compile::CompileRequest;
+use nika_compile_cognition::compile_with_provider;
 use serde_json::{Value, json};
 
 mod common;

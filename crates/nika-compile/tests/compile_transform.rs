@@ -5,7 +5,8 @@
 //! own example is the test, the runtime's jq the judge, and a human is never asked for a jq
 //! expression. Measured: 15/60 sealed seeds asked `const.rule_expression` on lane10.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-use nika_compile::{CompileRequest, CompileStatus, compile, compile_with_provider};
+use nika_compile::{CompileRequest, CompileStatus, compile};
+use nika_compile_cognition::compile_with_provider;
 use serde_json::{Value, json};
 
 mod common;

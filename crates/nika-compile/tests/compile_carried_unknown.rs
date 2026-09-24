@@ -6,7 +6,8 @@
 //! a rephrase, where the corpus expects a typed `const.*` question). The write whose target
 //! names no file asks its output path; the computation with no rule asks its jq.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-use nika_compile::{CompileRequest, compile_with_provider};
+use nika_compile::CompileRequest;
+use nika_compile_cognition::compile_with_provider;
 use serde_json::{Value, json};
 
 mod common;

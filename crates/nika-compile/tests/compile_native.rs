@@ -8,10 +8,8 @@
 //! uniquement les paiements payés, calcule le total et fais-moi un petit rapport dans
 //! ./out/rapport.md » must end in a candidate, never a jq question.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-use nika_compile::{
-    AuthoringPolicy, CompileRequest, CompileStatus, NativeMode, Strategy, compile,
-    compile_with_provider,
-};
+use nika_compile::{AuthoringPolicy, CompileRequest, CompileStatus, NativeMode, Strategy, compile};
+use nika_compile_cognition::compile_with_provider;
 use serde_json::{Value, json};
 use std::time::Duration;
 

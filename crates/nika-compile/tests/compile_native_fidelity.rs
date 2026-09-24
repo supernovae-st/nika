@@ -11,10 +11,8 @@
 //! - line files lost their final newline and named shapes were rewrapped: the seat now reads
 //!   the engine's output conventions beside the card, and the receipt names their digest.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-use nika_compile::{
-    AuthoringPolicy, CompileOutcome, CompileRequest, CompileStatus, NativeMode,
-    compile_with_provider,
-};
+use nika_compile::{AuthoringPolicy, CompileOutcome, CompileRequest, CompileStatus, NativeMode};
+use nika_compile_cognition::compile_with_provider;
 use nika_kernel::ai::provider::{
     ContentBlock, InferRequest, InferResponse, ProviderError, ProviderInferDyn, Role, StopReason,
     TokenUsage,
@@ -107,7 +105,7 @@ fn the_approval_request_reads_as_a_final_gate_the_reader_cannot_bind() {
     // these tests must move to a phrasing the reader still leaves unbound.
     let plan = nika_compile_reader::lexicon::read(UNBOUND).plan;
     assert!(
-        nika_compile_reader::fidelity::unbound_final_gate(&plan),
+        nika_compile_fidelity::fidelity::unbound_final_gate(&plan),
         "{:?} · {:?}",
         plan.unknowns,
         plan.effects

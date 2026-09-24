@@ -23,7 +23,6 @@ use nika_kernel::ai::provider::{
     ContentBlock, InferResponse, Message, ProviderInferDyn, Role, StopReason,
 };
 use serde_json::{Value, json};
-use std::collections::BTreeSet;
 
 mod answer;
 pub(super) use answer::{Answer, Question};
@@ -100,6 +99,7 @@ pub(super) fn cold_report(out: &CompileOutcome) -> Value {
         CompileStatus::Ready => "ready",
         CompileStatus::Incomplete => "incomplete",
         CompileStatus::Refused => "refused",
+        _ => "other",
     };
     json!({
         "status": status,
@@ -120,6 +120,9 @@ pub(super) struct Talk {
     pub(super) route: Vec<String>,
     /// The values the human answered: a candidate may carry them without inventing them.
     pub(super) allowed: Vec<String>,
+    /// The whole names the human typed for the read's source question: the laws read a stated
+    /// source through them exactly as the assembler's emission does.
+    pub(super) clarified: Vec<String>,
     /// The repair principles a knowledge snapshot wires to diagnostic codes, for the repair
     /// message.
     pub(super) repairs: std::collections::BTreeMap<String, Vec<String>>,
@@ -148,6 +151,7 @@ impl Talk {
             refused: None,
             route,
             allowed,
+            clarified: fidelity::clarified_sources(&request.answers),
             observed: request.knowledge.clone(),
             repairs: request
                 .authoring_knowledge
@@ -297,7 +301,7 @@ pub(super) fn record(
             "delta": accepted.and_then(|answer| {
                 let base = crate::edit::literal_projection(source)?;
                 let revised = crate::edit::literal_projection(&answer.candidate)?;
-                Some(nika_compile_reader::candidate::delta(&base, &revised))
+                Some(nika_compile_fidelity::candidate::delta(&base, &revised))
             }),
         })),
     });
@@ -425,6 +429,7 @@ async fn exchange<P: ProviderInferDyn>(
         &answer.candidate,
         &answer.questions,
         &talk.allowed,
+        &talk.clarified,
         talk.observed.as_ref(),
     );
     talk.rounds.push(json!({
@@ -832,13 +837,22 @@ pub(super) fn judge(
     candidate: &str,
     questions: &[Question],
     allowed: &[String],
+    clarified: &[String],
     observed: Option<&Value>,
 ) -> Vec<Diagnostic> {
     let mut out = Vec::new();
     let Some(doc) = admit(candidate, questions, &mut out) else {
         return out;
     };
-    fidelity::laws(intent, &reading.plan, &doc, allowed, &[], &mut out);
+    fidelity::laws(
+        intent,
+        &reading.plan,
+        &doc,
+        allowed,
+        &[],
+        clarified,
+        &mut out,
+    );
     if let Err(diagnostic) = admitted_questions(candidate, questions, observed) {
         out.push(diagnostic);
     }
@@ -1035,280 +1049,14 @@ fn settle(
     // obligations · bindings), so provenance reads the native strategy as it reads the
     // others; `operations_from` says the reading is of the bytes, not of the intent.
     if let Some(doc) = crate::edit::literal_projection(candidate) {
-        let built = nika_compile_reader::candidate::plan_of_document(&doc).to_json();
+        let built = nika_compile_fidelity::candidate::plan_of_document(&doc).to_json();
         for key in ["operations", "effects", "obligations", "bindings"] {
             record[key] = built[key].clone();
         }
         record["operations_from"] = json!("candidate");
     }
     out.provenance.plan = Some(record.clone());
-    apply(&record, request, out);
-}
-
-/// The trigger the request states is recorded beside the candidate, never in it: the same
-/// reading the assembler makes (a cadence, a time of day, an event), bound to the schedule
-/// answers when the human gives them.
-fn record_trigger(record: &Value, request: &CompileRequest, out: &mut CompileOutcome) {
-    let Some(phrase) = record["trigger"].as_str().filter(|p| !p.trim().is_empty()) else {
-        return;
-    };
-    if matches!(
-        crate::trigger::classify(phrase),
-        crate::trigger::TriggerForm::Sequence
-    ) {
-        return;
-    }
-    let mut plan = crate::plan::Plan::default();
-    plan.trigger = Some(phrase.to_owned());
-    if let Some(mut trigger) = crate::trigger::requirement(&plan, false) {
-        let mut recognized = BTreeSet::new();
-        crate::trigger::bind_schedule(&mut trigger, request, out, &mut recognized);
-        super::super::finding(
-            out,
-            DiagnosticKind::Applied,
-            "trigger",
-            crate::trigger::note(&trigger),
-        );
-        out.requested_trigger = Some(trigger);
-    }
-}
-
-/// Replay a native record: the same candidate with this round's answers, zero calls.
-pub(super) fn replay(
-    intent: &str,
-    record: &Value,
-    request: &CompileRequest,
-    out: &mut CompileOutcome,
-) {
-    super::record_route(out, &["replayed native candidate".to_owned()]);
-    if record["intent_sha256"].as_str() != Some(super::intent_sha256(intent).as_str()) {
-        super::super::finding(
-            out,
-            DiagnosticKind::Unknown,
-            "recorded_plan",
-            "The recorded native candidate was written for another request; compile the intent again without it.",
-        );
-        return;
-    }
-    out.provenance.strategy = Some(Strategy::Native);
-    out.provenance.plan = Some(record.clone());
-    apply(record, request, out);
-}
-
-/// Bake the answers into the recorded source and finish it: every unanswered question stays
-/// mandatory and no candidate is emitted until all are answered; the `model` placeholder takes
-/// the human's model.
-fn apply(record: &Value, request: &CompileRequest, out: &mut CompileOutcome) {
-    let mut source = record["source"].as_str().unwrap_or_default().to_owned();
-    let mut open = false;
-    record_trigger(record, request, out);
-    for question in record["questions"].as_array().into_iter().flatten() {
-        let key = question["key"].as_str().unwrap_or_default();
-        if let Some(literal) = request.answers.get(key) {
-            if !bake(&mut source, question, literal, out) {
-                open = true;
-            }
-        } else {
-            open = true;
-            ask(question, out);
-        }
-    }
-    // An unused envelope model is not a runtime requirement. Ask only when Check
-    // proves language work remains, including parametric fan-out calls.
-    let language_work = crate::parse(&source)
-        .is_ok_and(|wf| !nika_check::check(&wf).certificate.llm_calls.is_zero());
-    if language_work
-        && source.contains("model: mock/echo")
-        && !seat_model(&mut source, request, out)
-    {
-        open = true;
-    }
-    dispose_gaps(record, request, out);
-    if open {
-        // Questions stay; the candidate waits for them (the same contract as the assembler).
-        return;
-    }
-    super::super::finish(source, out);
-}
-
-/// The clauses the seat could not realize never vanish: each is a `Missed` diagnostic on every
-/// transport (the clause verbatim, the candidate does not carry it) and an optional question
-/// `gap.<n>` the human answers — « drop » or how it should be done — recorded as the human's
-/// disposition in the decision record, never baked into the candidate (MP §3.1: nothing
-/// important silently disappears into READY).
-fn dispose_gaps(record: &Value, request: &CompileRequest, out: &mut CompileOutcome) {
-    let gaps: Vec<&str> = record["gaps"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter_map(Value::as_str)
-        .collect();
-    if gaps.is_empty() {
-        return;
-    }
-    let mut dispositions = Vec::new();
-    for (n, clause) in gaps.iter().enumerate() {
-        let key = format!("gap.{}", n + 1);
-        if let Some(answer) = request.answers.get(&key) {
-            dispositions.push(json!({"clause": clause, "disposition": answer}));
-            continue;
-        }
-        super::super::finding(
-            out,
-            DiagnosticKind::Missed,
-            "gap",
-            format!(
-                "the seat could not realize « {clause} »; the candidate does not carry it — answer `{key}` with \"drop\" to accept that, or say in words how it should be done"
-            ),
-        );
-        out.questions.push(super::super::CompileQuestion {
-            key,
-            label: format!(
-                "« {clause} » is not in the candidate: drop it, or say how it should be done"
-            ),
-            answer_type: QuestionType::Text,
-            why: "A clause the request states never disappears silently; the human disposes of it."
-                .to_owned(),
-            mandatory: false,
-            options: Vec::new(),
-        });
-    }
-    if !dispositions.is_empty() {
-        let mut decision = out.provenance.decision.take().unwrap_or_else(|| json!({}));
-        decision["gap_dispositions"] = json!(dispositions);
-        out.provenance.decision = Some(decision);
-    }
-}
-
-/// Bake one answered question into the source's `const:`; false when it could not be.
-fn bake(source: &mut String, question: &Value, literal: &str, out: &mut CompileOutcome) -> bool {
-    let key = question["key"].as_str().unwrap_or_default();
-    let slug = key.trim_start_matches("const.");
-    let Some(value) = super::super::literal_answer(Some(literal), key, out) else {
-        return false;
-    };
-    let value = if question["answer_type"] == "literal" {
-        value
-    } else {
-        match value {
-            Value::String(s) => Value::String(s),
-            other => Value::String(other.to_string()),
-        }
-    };
-    let baked = crate::edit::literal_projection(source.as_str()).and_then(|before| {
-        let mut after = before.clone();
-        after["const"][slug] = value.clone();
-        let edited = crate::edit_source::emit(source.as_str(), &before, &after, slug)?;
-        // An answered endpoint also grants its host: the boundary is the compiler's to
-        // complete from the answer, never the seat's to guess.
-        if !grant_host(&mut after, &value) {
-            return Some(edited);
-        }
-        let before = crate::edit::literal_projection(&edited)?;
-        crate::edit_source::emit_at(&edited, &before, &after, &["permits", "net", "http"])
-    });
-    if let Some(edited) = baked {
-        *source = edited;
-        super::super::finding(
-            out,
-            DiagnosticKind::Applied,
-            key,
-            "Answer applied to the candidate's const.",
-        );
-        true
-    } else {
-        super::super::finding(
-            out,
-            DiagnosticKind::Missed,
-            key,
-            "The answer could not be baked into the candidate's const; it was not applied.",
-        );
-        false
-    }
-}
-
-/// Add the host of an answered URL to `permits.net.http` when that list exists and lacks it.
-fn grant_host(after: &mut Value, value: &Value) -> bool {
-    let Some(host) = value.as_str().and_then(host_of) else {
-        return false;
-    };
-    let Some(list) = after
-        .pointer_mut("/permits/net/http")
-        .and_then(Value::as_array_mut)
-    else {
-        return false;
-    };
-    if list.iter().any(|h| h.as_str() == Some(host)) {
-        return false;
-    }
-    list.push(Value::String(host.to_owned()));
-    true
-}
-
-/// The host of an `http(s)://` URL, without its port: the form `permits.net.http` lists (the
-/// assembler grants `url.host_str()`; the loopback declassification compares exact hosts).
-fn host_of(url: &str) -> Option<&str> {
-    let rest = url
-        .strip_prefix("https://")
-        .or_else(|| url.strip_prefix("http://"))?;
-    let end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
-    let authority = &rest[..end];
-    let host = if authority.starts_with('[') {
-        authority
-            .find(']')
-            .map_or(authority, |close| &authority[..=close])
-    } else {
-        authority.split(':').next().unwrap_or(authority)
-    };
-    (!host.is_empty()).then_some(host)
-}
-
-/// Ask one recorded business question, mandatory.
-fn ask(question: &Value, out: &mut CompileOutcome) {
-    out.questions.push(super::super::CompileQuestion {
-        key: question["key"].as_str().unwrap_or_default().to_owned(),
-        label: question["label"].as_str().unwrap_or_default().to_owned(),
-        answer_type: if question["answer_type"] == "literal" {
-            QuestionType::Literal
-        } else {
-            QuestionType::Text
-        },
-        why: question["why"]
-            .as_str()
-            .filter(|w| !w.is_empty())
-            .unwrap_or("The compiler cannot invent this business value.")
-            .to_owned(),
-        mandatory: true,
-        options: Vec::new(),
-    });
-}
-
-/// The model placeholder: the human's `model` answer replaces it; else the question is asked.
-fn seat_model(source: &mut String, request: &CompileRequest, out: &mut CompileOutcome) -> bool {
-    let Some(literal) = request.answers.get("model") else {
-        super::super::question(
-            out,
-            "model",
-            "Which model runs the language work of this workflow? Answer a `provider/name` string.",
-            QuestionType::Text,
-        );
-        return false;
-    };
-    match super::super::literal_answer(Some(literal), "model", out) {
-        Some(Value::String(model)) if model.contains('/') => {
-            *source = source.replacen("model: mock/echo", &format!("model: {model}"), 1);
-            true
-        }
-        _ => {
-            super::super::finding(
-                out,
-                DiagnosticKind::Missed,
-                "model",
-                "Answer must be a `provider/name` string.",
-            );
-            false
-        }
-    }
+    crate::native_apply(&record, request, out);
 }
 
 #[cfg(test)]
@@ -1444,31 +1192,5 @@ mod tests {
         );
         assert_eq!(super::super::first_json_object("no object"), None);
         assert_eq!(super::super::first_json_object("{\"open\": true"), None);
-    }
-
-    #[test]
-    fn an_answered_url_grants_its_host_without_its_port() {
-        assert_eq!(
-            host_of("https://hooks.example.invalid/recap"),
-            Some("hooks.example.invalid")
-        );
-        assert_eq!(host_of("http://127.0.0.1:8793/hook"), Some("127.0.0.1"));
-        assert_eq!(host_of("http://[::1]:8080/x"), Some("[::1]"));
-        assert_eq!(host_of("./out/report.md"), None);
-        let mut doc = json!({"permits": {"net": {"http": []}}});
-        assert!(grant_host(
-            &mut doc,
-            &json!("https://hooks.example.invalid/recap")
-        ));
-        assert!(!grant_host(
-            &mut doc,
-            &json!("https://hooks.example.invalid/again")
-        ));
-        assert_eq!(
-            doc["permits"]["net"]["http"],
-            json!(["hooks.example.invalid"])
-        );
-        let mut none = json!({"permits": {}});
-        assert!(!grant_host(&mut none, &json!("https://x.invalid/")));
     }
 }

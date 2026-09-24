@@ -7,7 +7,8 @@
 //! a jq over the lines and a write; through a seat, the proposed `extract` over the same
 //! words becomes that computation and the draft over the destination is folded.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-use nika_compile::{CompileRequest, compile, compile_with_provider};
+use nika_compile::{CompileRequest, compile};
+use nika_compile_cognition::compile_with_provider;
 use serde_json::{Value, json};
 
 mod common;

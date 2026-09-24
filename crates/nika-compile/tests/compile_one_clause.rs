@@ -4,7 +4,8 @@
 //! one thing seven times (measured on the sealed-v3 lane of 2026-09-22, gpt-5-mini over
 //! sv3-01), and a retrieval or a validation over a write clause is the write itself.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-use nika_compile::{CompileRequest, CompileStatus, compile_with_provider};
+use nika_compile::{CompileRequest, CompileStatus};
+use nika_compile_cognition::compile_with_provider;
 use serde_json::{Value, json};
 
 mod common;

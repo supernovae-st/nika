@@ -160,22 +160,11 @@ pub fn delta(base: &Value, revised: &Value) -> Value {
 }
 
 fn step(op: Op, evidence: &str, detail: String) -> Step {
-    Step {
-        op,
-        evidence: evidence.to_owned(),
-        detail,
-        categories: Vec::new(),
-    }
+    Step::new(op, evidence, detail, Vec::new())
 }
 
 fn effect(verb: EffectVerb, target: &str, evidence: &str, policy: EffectPolicy) -> Effect {
-    Effect {
-        verb,
-        target: target.to_owned(),
-        evidence: evidence.to_owned(),
-        policy,
-        policy_literal: None,
-    }
+    Effect::new(verb, target, evidence, policy)
 }
 
 fn bind(plan: &mut Plan, role: &'static str, literal: String) {

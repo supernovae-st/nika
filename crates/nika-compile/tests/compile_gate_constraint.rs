@@ -7,7 +7,8 @@
 //! beside the effect the reading already gated is that gate: the ledger filed it as a format
 //! duty nobody carried and refused READY for a silent obligation. Folded.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-use nika_compile::{CompileRequest, compile_with_provider};
+use nika_compile::CompileRequest;
+use nika_compile_cognition::compile_with_provider;
 use serde_json::{Value, json};
 
 mod common;

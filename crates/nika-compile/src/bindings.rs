@@ -26,6 +26,10 @@ const STATE_LABEL: &str = "Which JSON file keeps the identifiers already process
 const SEARCH_LABEL: &str = "Which local directory holds the documents to search?";
 const URL_LABEL: &str = "Which exact URL should be fetched?";
 const SOURCE_PATHS_LABEL: &str = "Which exact local files should be read? Answer a JSON array of file paths, one per file, without prose.";
+/// Punctuation that may follow a file name without being part of it.
+const TAIL: [char; 6] = ['.', ',', ';', ':', '!', '?'];
+/// What ends a phrase: a name read backwards from its file never runs over it.
+const PHRASE_ENDS: [char; 12] = [',', ';', ':', '.', '!', '?', ')', ']', '»', '"', '`', '”'];
 
 /// One value a plan may need: not needed, asked and pending, or bound.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -364,7 +368,7 @@ pub(super) fn bind(
     });
     let written = written_targets(plan);
     let read = Need::from_step(plan.step(Op::Read).filter(|_| !read_consumed), |step| {
-        resolve_read(step, &written, request, out, recognized)
+        resolve_read(step, &written, intent, request, out, recognized)
     });
     let absent = matches!(lookup, Need::Absent) && matches!(fetch, Need::Absent);
     let read = locate_items(
@@ -594,10 +598,13 @@ fn resolve_lookup(
 
 /// The read step settles where the document comes from: the supplied item when it
 /// names no path, one file, several files, a glob; a directory or a placeholder is a
-/// stable question, never a path literal.
+/// stable question, never a path literal. A file keeps the name the request states: a
+/// detail that is one of the request's files is that file whole, and a bare file a
+/// longer name may end in is never cut to its last word ([`stated_name`]).
 fn resolve_read(
     step: &Step,
     written: &[String],
+    intent: &str,
     request: &CompileRequest,
     out: &mut CompileOutcome,
     recognized: &mut BTreeSet<String>,
@@ -606,10 +613,22 @@ fn resolve_read(
     let mut globs = Vec::new();
     let mut directories = Vec::new();
     let mut placeholders = Vec::new();
-    for shape in paths::literals(&step.detail) {
+    let stated = paths::literals(intent);
+    let whole = step.detail.trim().trim_end_matches(TAIL);
+    let shapes = if states_file(&stated, whole) {
+        vec![PathShape::File(whole.to_owned())]
+    } else {
+        paths::literals(&step.detail)
+    };
+    for shape in shapes {
         match shape {
-            PathShape::File(p) if written.iter().any(|w| w == &p) => {}
-            PathShape::File(p) => files.push(p),
+            PathShape::File(p) => match stated_name(&step.detail, &p, intent, &stated) {
+                Some(file) if written.contains(&file) => {}
+                Some(file) => files.push(file),
+                None => placeholders.push(p),
+            },
+            PathShape::Placeholder(p) if states_file(&stated, &p) && written.contains(&p) => {}
+            PathShape::Placeholder(p) if states_file(&stated, &p) => files.push(p),
             PathShape::Glob(p) => globs.push(p),
             PathShape::Directory(p) => directories.push(p),
             PathShape::Placeholder(p) => placeholders.push(p),
@@ -634,7 +653,7 @@ fn resolve_read(
     {
         return resolve_directory(directory, request, out, recognized);
     }
-    let key = "const.source_paths";
+    let key = crate::fidelity::SOURCE_PATHS;
     recognized.insert(key.to_owned());
     let value = answer(request, out, key, SOURCE_PATHS_LABEL, false)?;
     let files: Option<Vec<String>> = value.as_array().and_then(|items| {
@@ -663,6 +682,90 @@ fn resolve_read(
             None
         }
     }
+}
+
+/// Whether the request's own reading states `name` as one file: a literal of its own (a
+/// token, a quoted or rooted name) or a capitalized run it glues to a file (`lis Notes
+/// équipe.txt`, `dans Copie équipe.txt`), never a template to fill (`<slug>`, `{name}`).
+fn states_file(stated: &[PathShape], name: &str) -> bool {
+    stated.iter().any(|shape| match shape {
+        PathShape::File(file) => file == name,
+        PathShape::Placeholder(run) => {
+            run == name
+                && run.starts_with(char::is_uppercase)
+                && run.contains(char::is_whitespace)
+                && !run.contains(['<', '>', '{', '}', '$'])
+        }
+        _ => false,
+    })
+}
+
+/// The file a bare name in a read detail stands for. A capitalized word a name admits may
+/// open a longer name before it (`Notes équipe.txt` at the head of a detail), and a
+/// longer name is never cut to its last word: the request states the longer name, or
+/// states this file alone without the plan's longer phrase in any case, or the question
+/// asks (`None`). A file the request names only inside a longer one is asked too.
+fn stated_name(detail: &str, file: &str, intent: &str, stated: &[PathShape]) -> Option<String> {
+    if file.contains(char::is_whitespace) || file.starts_with(['.', '/', '~']) {
+        return Some(file.to_owned());
+    }
+    let words: Vec<&str> = detail.split_whitespace().collect();
+    let at = words
+        .iter()
+        .position(|word| word.trim_end_matches(TAIL) == file)
+        .unwrap_or(0);
+    let mut from = at;
+    while from > 0 && phrase_word(words[from - 1]) {
+        from -= 1;
+    }
+    let longer: Vec<String> = (from..at)
+        .filter(|&start| opens_name(words[start]))
+        .map(|start| format!("{} {file}", words[start..at].join(" ")))
+        .collect();
+    if let Some(name) = longer
+        .iter()
+        .find(|name| states_file(stated, name.as_str()))
+    {
+        return Some(name.clone());
+    }
+    let alone = states_file(stated, file);
+    let spoken = intent.to_lowercase();
+    if !longer.is_empty()
+        && (!alone
+            || longer
+                .iter()
+                .any(|name| spoken.contains(&name.to_lowercase())))
+    {
+        return None;
+    }
+    let suffix = format!(" {file}");
+    let inside = stated.iter().any(|shape| {
+        matches!(shape, PathShape::File(name) | PathShape::Placeholder(name)
+            if name.ends_with(suffix.as_str()))
+    });
+    (alone || !inside).then(|| file.to_owned())
+}
+
+/// A word a name may run over, read backwards from its file: no phrase end, no path, some
+/// letter or digit, and no file noun, after which a name opens (`le fichier entree.txt`).
+/// The reader's own law is the oracle, never a second word list: after a file noun, and
+/// only there, it reads a lowercase run and its file as one name (`fichier name a.txt`).
+fn phrase_word(word: &str) -> bool {
+    !word.ends_with(PHRASE_ENDS)
+        && paths::token(word).is_none()
+        && word.chars().any(char::is_alphanumeric)
+        && !matches!(paths::literals(&format!("{word} name a.txt")).as_slice(),
+            [PathShape::Placeholder(run)] if run == "name a.txt")
+}
+
+/// A capitalized word the reader admits inside an unquoted name: followed by a file, it
+/// reads as one name only when it is no function word, file noun or path.
+fn opens_name(word: &str) -> bool {
+    word.starts_with(char::is_uppercase)
+        && matches!(
+            paths::token(&format!("{word} a.txt")),
+            Some(PathShape::File(_))
+        )
 }
 
 /// A request that quantifies over a set it never locates (« for each invoice », with no file,
@@ -817,7 +920,7 @@ fn synthesized_rule(plan: &Plan, step: &Step, intent: &str, b: &Bindings) -> Opt
     // silently drop it. A seat's detail is its own paraphrase, not the request's sentences:
     // its length says nothing about a second computation (the request's coverage is the
     // accounting of its regions), so the rule anchored on its evidence stands.
-    let verbatim = super::cognition::exact_excerpt(intent, detail).is_some();
+    let verbatim = super::text::exact_excerpt(intent, detail).is_some();
     let fold = |text: &str| {
         text.split(|c: char| !c.is_alphanumeric())
             .filter(|w| !w.is_empty())

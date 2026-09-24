@@ -4,7 +4,8 @@
 //! treatment lane, 2026-09-22: five seeds with the right rule recorded still asked
 //! `const.rule_expression`); a verbatim detail keeps the sentence-coverage law.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-use nika_compile::{CompileRequest, CompileStatus, compile, compile_with_provider};
+use nika_compile::{CompileRequest, CompileStatus, compile};
+use nika_compile_cognition::compile_with_provider;
 use serde_json::{Value, json};
 
 mod common;

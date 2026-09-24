@@ -4,9 +4,9 @@
 //! choice, and the anchoring laws over a proposal's evidence. All seats are injected
 //! hermetic doubles. Split from `compile_cognition.rs` at the file-LOC cap.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-use nika_compile::{
-    Cognition, CompileRequest, CompileStatus, Strategy, compile_with_cognition,
-    compile_with_provider, decide::NONE_OPTION, outcome_document,
+use nika_compile::{CompileRequest, CompileStatus, Strategy, outcome_document};
+use nika_compile_cognition::{
+    Cognition, compile_with_cognition, compile_with_provider, decide::NONE_OPTION,
 };
 use serde_json::{Value, json};
 

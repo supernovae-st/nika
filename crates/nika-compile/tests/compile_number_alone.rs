@@ -6,7 +6,8 @@
 //! CSV con intestazione esatta » were kept as drafts, and the candidates asked a model where
 //! the corpus expects zero calls). The number beside prose stays a draft.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-use nika_compile::{CompileRequest, compile_with_provider};
+use nika_compile::CompileRequest;
+use nika_compile_cognition::compile_with_provider;
 use serde_json::{Value, json};
 
 mod common;

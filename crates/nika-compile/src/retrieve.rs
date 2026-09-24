@@ -66,6 +66,23 @@ pub struct Hit {
     pub signature: Option<String>,
 }
 
+impl Hit {
+    /// A hit of a kind, by id and title, with no patterns, no score, no skeleton, no
+    /// signature yet (INV-019: the type is `#[non_exhaustive]`).
+    #[must_use]
+    pub fn new(id: impl Into<String>, kind: HitKind, title: impl Into<String>) -> Self {
+        Self {
+            id: id.into(),
+            kind,
+            title: title.into(),
+            patterns: Vec::new(),
+            score: 0.0,
+            skeleton: None,
+            signature: None,
+        }
+    }
+}
+
 /// Recall at most `k` candidates for a free-form intent, best first.
 ///
 /// An intent that carries no signal (function words only · unknown words)

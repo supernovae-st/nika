@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Status | **MEMBER** (size-cap split of `nika-compile`, itself a member of the admitted `nika-onboard` unit · ADR-138 · D-2026-07-09-N1 · 2026-09-21) |
-| Layer | L4 — a library surface; lateral L4→L4 edge `nika-compile → nika-compile-reader`, never back |
+| Layer | L4 — a library surface; lateral L4→L4 edges `nika-compile → nika-compile-reader` and `nika-compile-fidelity → nika-compile-reader` (ADR-141), never back |
 | Design | the frozen deterministic reader and the typed semantic plan it produces: the multilingual head, cue and marker tables (`lexicon`), the structural laws (`objects` · `gates` · `paths` · `columns` · `hot`), the closed rule grammar and its typed computations (`rules` · `aggregate` · `rule_tokens` · `rule_cues` · `stages`), the plan and its provenance record (`plan`), the text helpers the compiler and the onboarding surface share (`text`) |
 | IMPL | measured by `scripts/crate-metrics.sh nika-compile-reader` at each freeze; the crate carries what `nika-compile` read on 2026-09-21 (the gate's own counter: 8,432 prod LOC at the split · 46 unit tests · the multilingual sentence battery runs in `nika-compile` as `compile_reader_sentences`, where both members are in reach) |
 | LOC budget | ≤15k crate · ≤1500/file (`lexicon.rs` carries a `lookup-table` LOC-EXEMPT: the frozen reader's head, cue and marker tables) · ≤100/fn |
@@ -40,6 +40,12 @@ included). The boundary moved; the surface did not.
 `serde_json` is the only dependency: the reader is deterministic, keyless and offline by
 construction, and the dependency graph proves it.
 
+The laws a candidate document is judged by (`fidelity`), the sketch a seat proposes
+(`sketch`) and the plan a candidate states (`candidate`) were placed here on 2026-09-22/23
+while `nika-compile` stood at its wall; they ascended to `nika-compile-fidelity` on
+2026-09-24 (ADR-141) with the two dependencies their approval laws had brought
+(`nika-schema`, `nika-check-analyzer`), so the statement above holds again.
+
 ## 3. Contracts kept
 
 - The deterministic reader is FROZEN: no cue or head is added; every new law is a
@@ -49,7 +55,9 @@ construction, and the dependency graph proves it.
 - Every public type is `#[non_exhaustive]` (the forward-compatibility ratchet of the
   boundary); the composer builds plan elements through `Step::new`, `Effect::new`,
   `Obligation::new`, `Binding::new`, `Clause::new`, `Aggregation::new` and `Derived::new`
-  (INV-019) and matches the reader's enums with a wildcard arm.
+  (INV-019) and matches the reader's enums with a wildcard arm. Five public types added
+  after the split (`cardinality::{Bound, Measure}`, `shape::{LiteralLookup, Shape}`,
+  `structure::Law`) are not yet `#[non_exhaustive]`: that ratchet is owed, not claimed.
 - `provenance.plan` (the recorded plan a sidecar replays with zero provider calls) is the
   reader's `Plan::to_json` / `Plan::from_json` pair, byte-identical.
 - The 12 ADR-003 gates were passed by `nika-onboard` at its admission; this member inherits

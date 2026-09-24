@@ -95,8 +95,8 @@ mod native {
     use super::{MODEL, Metered as Rotating};
     use nika_compile::{
         AuthoringPolicy, CompileRequest, CompileStatus, NativeMode, Strategy, compile,
-        compile_with_provider,
     };
+    use nika_compile_cognition::compile_with_provider;
     use serde_json::{Value, json};
     use std::time::Duration;
     const CASE_A: &str = "prends ce fichier ./data/paiements.csv, garde uniquement les paiements payés, calcule le total et fais-moi un petit rapport dans ./out/rapport.md";
@@ -487,9 +487,9 @@ mod cold {
     use super::common::{INTENT, plan, route};
     use super::{MODEL, Metered as Rotating};
     use nika_compile::{
-        AuthoringPolicy, CompileRequest, CompileStatus, Strategy, compile_with_provider,
-        outcome_document,
+        AuthoringPolicy, CompileRequest, CompileStatus, Strategy, outcome_document,
     };
+    use nika_compile_cognition::compile_with_provider;
     use serde_json::json;
     use std::sync::atomic::Ordering;
     fn policy() -> AuthoringPolicy {
@@ -569,9 +569,8 @@ mod cold {
 mod transform {
     use super::common::keys;
     use super::{MODEL, Metered as Rotating};
-    use nika_compile::{
-        AuthoringPolicy, CompileRequest, CompileStatus, compile, compile_with_provider,
-    };
+    use nika_compile::{AuthoringPolicy, CompileRequest, CompileStatus, compile};
+    use nika_compile_cognition::compile_with_provider;
     use serde_json::{Value, json};
     fn policy() -> AuthoringPolicy {
         AuthoringPolicy::new(MODEL, 1024, std::time::Duration::from_secs(2))
@@ -634,7 +633,8 @@ mod transform {
 
 #[tokio::test]
 async fn repair_boundary_stops_the_second_physical_call_and_replay_costs_nothing() {
-    use nika_compile::{AuthoringPolicy, CompileRequest, NativeMode, compile_with_provider};
+    use nika_compile::{AuthoringPolicy, CompileRequest, NativeMode};
+    use nika_compile_cognition::compile_with_provider;
     let quote = nika_catalog::admission::InferenceTariff::deepseek("deepseek-v4-pro")
         .unwrap()
         .reserve(4096)
@@ -672,7 +672,8 @@ async fn repair_boundary_stops_the_second_physical_call_and_replay_costs_nothing
 
 #[tokio::test]
 async fn cold_to_native_escalation_uses_the_same_account() {
-    use nika_compile::{AuthoringPolicy, CompileRequest, NativeMode, compile_with_provider};
+    use nika_compile::{AuthoringPolicy, CompileRequest, NativeMode};
+    use nika_compile_cognition::compile_with_provider;
     let provider = Metered::new(vec!["{}".into()]);
     let req = CompileRequest::create(common::INTENT).with_authoring_policy(
         AuthoringPolicy::new(MODEL, 4096, std::time::Duration::from_secs(2))

@@ -9,7 +9,8 @@ description = "nika's onboarding surface — project bootstrap (init), read-only
 repository  = "https://github.com/supernovae-st/nika"
 
 [dependencies]
-nika-compile = { path = "../nika-compile", version = "0.120.3" } # the Compile core, ONE unit in two members (ADR-137) · re-exported at `compile`
+nika-compile = { path = "../nika-compile", version = "0.120.3" }
+nika-compile-cognition = { path = "../nika-compile-cognition", version = "0.120.3" } # the seats' doors (ADR-140) · re-exported under `compile` beside the core
 nika-pack    = { path = "../nika-pack", version = "0.120.3" }    # templates · examples (the scaffold corpus)
 nika-vocab   = { path = "../nika-vocab", version = "0.120.3" }   # the project file — the wizard's starter nika.yaml rides its STARTER const (zero drift · D-2026-08-11-N5)
 nika-bm25    = { path = "../nika-bm25", version = "0.120.3" }    # intent→template routing (the deterministic floor)

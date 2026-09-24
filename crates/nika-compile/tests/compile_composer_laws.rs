@@ -4,7 +4,8 @@
 //! restated clause is not a free constraint, `search` and `lookup` are one retrieval
 //! family, and a `write` twin of a `create` over the same words is that create.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-use nika_compile::{CompileRequest, compile_with_provider, outcome_document};
+use nika_compile::{CompileRequest, outcome_document};
+use nika_compile_cognition::compile_with_provider;
 use serde_json::{Value, json};
 
 mod common;

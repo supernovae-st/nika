@@ -7,7 +7,8 @@
 //! gpt-5-mini, in six languages, ended in a catch-all clarification because the seat listed
 //! the destination and the hour as unknowns — values the compiler already asks or binds.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-use nika_compile::{CompileRequest, CompileStatus, compile, compile_with_provider};
+use nika_compile::{CompileRequest, CompileStatus, compile};
+use nika_compile_cognition::compile_with_provider;
 use serde_json::{Value, json};
 
 mod common;

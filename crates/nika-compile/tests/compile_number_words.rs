@@ -3,7 +3,8 @@
 //! A number the request spells beyond ten (« duzentos », « cien », « twenty ») is a literal
 //! of the request, never an invented one (sealed-v3 treatment lane, 2026-09-22: sv3-57).
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-use nika_compile::{CompileRequest, compile_with_provider};
+use nika_compile::CompileRequest;
+use nika_compile_cognition::compile_with_provider;
 use serde_json::{Value, json};
 
 mod common;

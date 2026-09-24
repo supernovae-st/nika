@@ -7,7 +7,8 @@
 //! typed `const.*` question). The slot is asked as a const, and the answered value rides
 //! beside the records into the rule's jq.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-use nika_compile::{CompileRequest, QuestionType, compile_with_provider};
+use nika_compile::{CompileRequest, QuestionType};
+use nika_compile_cognition::compile_with_provider;
 use serde_json::{Value, json};
 
 mod common;

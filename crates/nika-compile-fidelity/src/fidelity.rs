@@ -11,6 +11,7 @@
 //! Moved from nika-compile to the reader at the 15k prod-LOC wall (2026-09-22), unchanged.
 
 use crate::plan::{EffectPolicy, EffectVerb, Plan};
+use nika_compile_reader::paths::{self, PathShape};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -124,18 +125,21 @@ pub fn depends_on(doc: &Value, task: &str, roots: &[String]) -> bool {
 
 /// The fidelity laws over a projected candidate: the stated paths realized, the stated
 /// approval respected, the prohibited effect absent, no invented path or host (a value the
-/// human answered is `allowed`).
+/// human answered is `allowed`). `clarified` holds the whole names the human typed for the
+/// read's source question ([`clarified_sources`]), the only answer through which a stated
+/// source reads whole.
 pub fn laws(
     intent: &str,
     plan: &Plan,
     doc: &Value,
     allowed: &[String],
     waived: &[String],
+    clarified: &[String],
     out: &mut Vec<Diagnostic>,
 ) {
     let mut literals = Vec::new();
     strings(doc, &mut literals);
-    stated_paths(intent, doc, waived, out);
+    stated_paths(intent, doc, waived, clarified, out);
     approvals(plan, doc, out);
     invented_gates(plan, doc, out);
     dropped_effects(plan, doc, out);
@@ -154,6 +158,31 @@ pub fn allowed_values(answers: &BTreeMap<String, String>) -> Vec<String> {
                 .ok()
                 .and_then(|v| v.as_str().map(str::to_owned))
                 .unwrap_or_else(|| raw.clone())
+        })
+        .collect()
+}
+
+/// The key of the read's source question: the assembler asks it when the request leaves the
+/// file a read opens undecided (a directory, a placeholder, a name whose extent it leaves
+/// open), and its typed answer is a JSON array of exact file paths.
+pub const SOURCE_PATHS: &str = "const.source_paths";
+
+/// The whole file names the human typed for the read's source question, each item read by
+/// the path law the assembler binds it with: that one answer only, never another answered
+/// value, a revision's literal or a candidate's.
+#[must_use]
+pub fn clarified_sources(answers: &BTreeMap<String, String>) -> Vec<String> {
+    let typed = answers
+        .get(SOURCE_PATHS)
+        .and_then(|raw| serde_json::from_str::<Value>(raw).ok());
+    typed
+        .as_ref()
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|item| match item.as_str().and_then(paths::token) {
+            Some(PathShape::File(file)) => Some(file),
+            _ => None,
         })
         .collect()
 }
@@ -198,12 +227,35 @@ fn granted(doc: &Value, axis: &str, path: &str) -> bool {
 /// names that the boundary does not cover is a dropped clause, whatever a prompt says about
 /// it. (The reader's source/destination split is a hint for the seat, never the law: a
 /// destination it reads as a source must still be opened one way or the other.)
-pub fn stated_paths(intent: &str, doc: &Value, waived: &[String], out: &mut Vec<Diagnostic>) {
-    let mut paths = crate::hot::stated_sources(intent);
+///
+/// The reader reads a name it cannot bound as its last word (`Notes équipe.txt` opening a
+/// sentence names `équipe.txt`); when the human typed the whole name for the source question
+/// and the candidate reads it, a stated source every occurrence of which the request writes
+/// inside that name is that name, and only then: an occurrence outside it is still a file
+/// of its own, and a stated destination is never a source's.
+pub fn stated_paths(
+    intent: &str,
+    doc: &Value,
+    waived: &[String],
+    clarified: &[String],
+    out: &mut Vec<Diagnostic>,
+) {
+    let sources = crate::hot::stated_sources(intent);
+    let mut paths = sources.clone();
     paths.extend(crate::hot::stated_destinations(intent));
     paths.dedup();
+    let spans: Vec<(usize, usize)> = clarified
+        .iter()
+        .filter(|name| granted(doc, "read", name))
+        .flat_map(|name| {
+            occurrences(intent, name)
+                .into_iter()
+                .map(move |at| (at, at + name.len()))
+        })
+        .collect();
     for path in paths {
-        if waived.iter().any(|w| w == &path) {
+        let read_whole = sources.contains(&path) && inside(intent, &path, &spans);
+        if waived.iter().any(|w| w == &path) || read_whole {
             continue;
         }
         if !granted(doc, "read", &path) && !granted(doc, "write", &path) {
@@ -213,6 +265,32 @@ pub fn stated_paths(intent: &str, doc: &Value, waived: &[String], out: &mut Vec<
             out.push(Diagnostic { kind: "path", message: format!("UNREALIZED PATH: the request names `{path}`; no `permits.fs.read` or `permits.fs.write` entry covers it (permits.fs = {boundary}), so no task opens it. Read it (nika:read / nika:glob + fs.read) or write it (nika:write + fs.write) as the request means, or name it in `gaps` if it cannot be reached.") });
         }
     }
+}
+
+/// Where the request writes `literal` verbatim with no letter or digit continuing it on
+/// either side: the byte offset of each occurrence.
+fn occurrences(text: &str, literal: &str) -> Vec<usize> {
+    text.match_indices(literal)
+        .map(|(at, _)| at)
+        .filter(|&at| {
+            let before = text.get(..at).and_then(|head| head.chars().next_back());
+            let after = text
+                .get(at + literal.len()..)
+                .and_then(|tail| tail.chars().next());
+            !before.is_some_and(char::is_alphanumeric) && !after.is_some_and(char::is_alphanumeric)
+        })
+        .collect()
+}
+
+/// Whether the request writes `path`, and every time inside one of `spans`.
+fn inside(intent: &str, path: &str, spans: &[(usize, usize)]) -> bool {
+    let found = occurrences(intent, path);
+    !found.is_empty()
+        && found.iter().all(|&at| {
+            spans
+                .iter()
+                .any(|&(from, to)| from <= at && at + path.len() <= to)
+        })
 }
 
 /// Law 3: a stated approval gates the effect family it names (a send · a notify · a publish;
@@ -523,6 +601,7 @@ mod tests {
             "Copie entree.txt dans sortie.txt.",
             &doc,
             &[],
+            &[],
             &mut diagnostics,
         );
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
@@ -534,6 +613,88 @@ mod tests {
         assert!(!covers("./entree.txt", "/entree.txt"));
         assert!(!covers("./entree.txt", "dir/../entree.txt"));
         assert!(!covers("./entree.txt", ".entree.txt"));
+    }
+
+    /// The paths `stated_paths` still owes for `intent` once the candidate reads `read` and
+    /// the human typed `clarified` for the source question.
+    fn owed(intent: &str, read: &[&str], clarified: &[&str]) -> Vec<String> {
+        let doc = serde_json::json!({"permits": {"fs": {"read": read, "write": ["sortie.txt"]}}});
+        let clarified: Vec<String> = clarified.iter().map(|name| (*name).to_owned()).collect();
+        let mut diagnostics = Vec::new();
+        stated_paths(intent, &doc, &[], &clarified, &mut diagnostics);
+        diagnostics
+            .iter()
+            .filter_map(|d| d.message.split('`').nth(1).map(str::to_owned))
+            .collect()
+    }
+
+    #[test]
+    fn a_typed_whole_name_realizes_the_occurrences_it_holds_and_no_other() {
+        let opening = "Notes équipe.txt doit être copié tel quel dans sortie.txt.";
+        assert_eq!(owed(opening, &["Notes équipe.txt"], &[]), ["équipe.txt"]);
+        assert!(owed(opening, &["Notes équipe.txt"], &["Notes équipe.txt"]).is_empty());
+        let lowercase = "Copie notes équipe.txt tel quel dans sortie.txt.";
+        assert!(owed(lowercase, &["notes équipe.txt"], &["notes équipe.txt"]).is_empty());
+        let worded = "Lis le fichier Notes de réunion.txt et écris son contenu dans sortie.txt.";
+        let whole = "Notes de réunion.txt";
+        assert!(owed(worded, &[whole], &[whole]).is_empty());
+        // A separately named `équipe.txt` stays a file of its own.
+        let beside = "Notes équipe.txt doit être fusionné avec équipe.txt dans sortie.txt.";
+        let name = "Notes équipe.txt";
+        assert_eq!(owed(beside, &[name], &[name]), ["équipe.txt"]);
+        assert!(owed(beside, &[name, "équipe.txt"], &[name]).is_empty());
+        // A typed name the request never writes, or one the candidate never opens, holds nothing.
+        assert_eq!(
+            owed(opening, &["autre.txt"], &["autre.txt"]),
+            ["équipe.txt"]
+        );
+        assert_eq!(
+            owed(opening, &["autre.txt"], &["Notes équipe.txt"]),
+            ["équipe.txt"]
+        );
+        // An unquoted traversal: the folder and the file the reader split are the one name.
+        let traversal = "Lis ../Partage/Notes équipe.txt et écris son contenu dans sortie.txt.";
+        let exact = "../Partage/Notes équipe.txt";
+        assert_eq!(
+            owed(traversal, &[exact], &[]),
+            ["../Partage/Notes", "équipe.txt"]
+        );
+        assert!(owed(traversal, &[exact], &[exact]).is_empty());
+        // The source answer never realizes a stated destination, even inside its own span.
+        let doc = serde_json::json!({"permits": {"fs": {"read": ["Notes dans sortie.txt"]}}});
+        let typed = ["Notes dans sortie.txt".to_owned()];
+        let mut diagnostics = Vec::new();
+        stated_paths(
+            "Lis Notes dans sortie.txt.",
+            &doc,
+            &[],
+            &typed,
+            &mut diagnostics,
+        );
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+        assert!(
+            diagnostics[0].message.contains("`sortie.txt`"),
+            "{diagnostics:?}"
+        );
+    }
+
+    #[test]
+    fn the_typed_source_answer_is_the_only_clarification() {
+        let answers = BTreeMap::from([
+            (
+                SOURCE_PATHS.to_owned(),
+                r#"["«Notes de réunion.txt»", "Notes équipe.txt", "./in/", "./a.md"]"#.to_owned(),
+            ),
+            (
+                "const.output_path".to_owned(),
+                r#""Copie équipe.txt""#.to_owned(),
+            ),
+        ]);
+        assert_eq!(
+            clarified_sources(&answers),
+            ["Notes de réunion.txt", "Notes équipe.txt", "./a.md"]
+        );
+        assert!(clarified_sources(&BTreeMap::new()).is_empty());
     }
 
     #[test]

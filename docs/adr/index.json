@@ -1581,7 +1581,7 @@
       "affects_layers": ["L4"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-137"],
+      "related": ["ADR-137","ADR-141"],
       "requires": [],
       "enables": []
     }
@@ -1605,15 +1605,31 @@
     {
       "id": "ADR-140",
       "title": "nika-compile size-cap member split: the seats' doors ascend to nika-compile-cognition",
-      "status": "proposed",
+      "status": "accepted",
       "date": "2026-09-23",
       "filename": "adr-140-nika-compile-cognition.md",
       "tags": ["architecture","crates","split","size-cap","compile","authoring"],
-      "affects_crates": ["nika-compile","nika-compile-reader","nika-compile-cognition","nika-onboard","nika-cli-host"],
+      "affects_crates": ["nika-compile","nika-compile-reader","nika-compile-fidelity","nika-compile-cognition","nika-onboard","nika-cli-host"],
       "affects_layers": ["L4"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-137","ADR-138"],
+      "related": ["ADR-137","ADR-138","ADR-141"],
+      "requires": [],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-141",
+      "title": "nika-compile-reader size-cap member split: the candidate laws ascend to nika-compile-fidelity",
+      "status": "accepted",
+      "date": "2026-09-24",
+      "filename": "adr-141-nika-compile-reader-member-split-nika-compile-fidelity.md",
+      "tags": ["architecture","crates","split","size-cap","compile"],
+      "affects_crates": ["nika-compile-reader","nika-compile-fidelity","nika-compile"],
+      "affects_layers": ["L4"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-137","ADR-138","ADR-140"],
       "requires": [],
       "enables": []
     }

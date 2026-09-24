@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+[package]
+name        = "nika-compile-cognition"
+version.workspace = true
+edition     = "2024"
+rust-version = "1.88"
+license     = "AGPL-3.0-or-later"
+description = "The seats' doors of the Compile core: the COLD proposal (a private semantic plan a seat proposes, decoded, merged, composed), the native door (a seat writes the .nika, the compiler judges it), the sketch door (structure judged first, typed holes filled, the document emitted), the verified transform, the knowledge door and the bounded decision seats — above the deterministic compiler, never below it (ADR-140)."
+repository  = "https://github.com/supernovae-st/nika"
+publish     = false  # member of the nika-onboard unit — never on crates.io alone
+
+[dependencies]
+nika-compile        = { path = "../nika-compile", version = "0.120.3" }        # the deterministic core and its stated surface, one unit in several members (ADR-140)
+nika-compile-reader = { path = "../nika-compile-reader", version = "0.120.3" } # the frozen reader and typed plan
+nika-compile-fidelity = { path = "../nika-compile-fidelity", version = "0.120.3" } # candidate read-back, fidelity and sketch laws (ADR-141)
+nika-kernel = { path = "../nika-kernel", version = "0.120.3" } # explicit authoring provider seam
+nika-check  = { path = "../nika-check", version = "0.120.3" }  # the same pure Check core the native door judges a candidate with
+nika-pack   = { path = "../nika-pack", version = "0.120.3" }   # the card, the skeletons and the examples a seat is shown
+serde      = { workspace = true } # private semantic-plan decoder
+serde_json = { workspace = true } # the plan, the provenance, the schema
+serde_yaml_bw = { workspace = true } # the sketch's document, emitted deterministically
+tokio      = { workspace = true } # bounded authoring timeout
+thiserror  = { workspace = true }
+# The transform verifier runs a seat's program on the seat's own example with the SAME jaq
+# stack and capability policy the runtime `nika:jq` installs (mirrored, as nika-check-analyzer
+# mirrors it: the layering hosts no shared engine below both).
+jaq-core = { workspace = true }
+jaq-std  = { workspace = true }
+jaq-json = { workspace = true }
+nika-cap = { path = "../nika-cap", version = "0.120.3" }
+
+[package.metadata.lore]
+daemon        = "forgeron"
+archetype     = "compiler-smith"
+spirit_role   = "seat authoring proposes, writes or sketches; the compiler judges, repairs and replays"
+
+[lints]
+workspace = true

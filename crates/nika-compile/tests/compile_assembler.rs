@@ -7,8 +7,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 use nika_compile::{
     AuthoringPolicy, CompileOutcome, CompileRequest, CompileStatus, DiagnosticKind,
-    compile_with_provider,
 };
+use nika_compile_cognition::compile_with_provider;
 use nika_kernel::ai::provider::{
     ContentBlock, InferRequest, InferResponse, ProviderError, ProviderInferDyn, StopReason,
     TokenUsage,

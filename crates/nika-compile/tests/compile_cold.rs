@@ -4,9 +4,9 @@
 //! contract's escalation, semantic accounting, WARM after COLD and recall. All seats are
 //! injected hermetic doubles. Split from `compile_cognition.rs` at the file-LOC cap.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-use nika_compile::{
-    Cognition, CompileRequest, CompileStatus, HotPolicy, Strategy, compile_with_cognition,
-    compile_with_provider, decide::NONE_OPTION, outcome_document,
+use nika_compile::{CompileRequest, CompileStatus, HotPolicy, Strategy, outcome_document};
+use nika_compile_cognition::{
+    Cognition, compile_with_cognition, compile_with_provider, decide::NONE_OPTION,
 };
 use nika_kernel::ai::provider::{
     ContentBlock, InferRequest, InferResponse, ProviderError, ProviderInferDyn, Role, StopReason,

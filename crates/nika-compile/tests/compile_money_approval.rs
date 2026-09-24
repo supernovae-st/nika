@@ -4,7 +4,8 @@
 //! (`effect.<verb>.approval`: `human_first` | `forbidden`), never the catch-all clarification, on
 //! the deterministic path and under a seat alike; the answer sets the policy at assembly.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-use nika_compile::{CompileRequest, CompileStatus, QuestionType, compile, compile_with_provider};
+use nika_compile::{CompileRequest, CompileStatus, QuestionType, compile};
+use nika_compile_cognition::compile_with_provider;
 use serde_json::{Value, json};
 
 mod common;

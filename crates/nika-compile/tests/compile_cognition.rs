@@ -3,11 +3,10 @@
 //! Explicit cognition contracts: HOT reads alone, WARM asks a bounded seat, COLD asks
 //! one generative provider. All seats are injected hermetic doubles.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-use nika_compile::{
-    AuthoringPolicy, Cognition, CompileRequest, CompileStatus, NoProvider, Strategy,
-    compile_with_cognition, compile_with_provider,
+use nika_compile::{AuthoringPolicy, CompileRequest, CompileStatus, Strategy, outcome_document};
+use nika_compile_cognition::{
+    Cognition, NoProvider, compile_with_cognition, compile_with_provider,
     decide::{ChoiceAnswer, ChoiceFuture, ChoiceQuestion, DecisionSeat, NONE_OPTION},
-    outcome_document,
 };
 use nika_kernel::ai::provider::{
     ContentBlock, InferRequest, InferResponse, ProviderError, ProviderInferDyn, StopReason,

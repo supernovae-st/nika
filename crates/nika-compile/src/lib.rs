@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! The stateless Compile core: one intent in, one [`CompileOutcome`] out. The deterministic
-//! reader, the typed semantic plan, the finite composer, the deterministic assembler and
-//! the Check preview live here; `nika-onboard` re-exports this crate at its historical
-//! `compile` path, so every caller keeps writing `nika_compile::…`.
+//! assembler, exact skeletons, edit door, record replay and Check preview live here.
+//! The frozen reader is `nika-compile-reader`; seat orchestration and the COLD composer
+//! live above this core in `nika-compile-cognition`. `nika-onboard` exposes the complete
+//! unit at its historical `nika_onboard::compile` path.
 //!
 //! Descended from `nika-onboard` at the 15k prod-LOC wall (2026-09-21 · ADR-137): per
-//! D-2026-07-09-N1 this is ONE architectural unit in TWO workspace members. The member
+//! D-2026-07-09-N1 this is one architectural unit in several workspace members. The core
 //! never depends back on the surface.
 //!
 //! Stateless authoring foundation: explicit request → ordinary source → pure Check preview.
@@ -27,9 +28,9 @@
 //! `.nika` write adapter: no silent overwrite, run, or grant. Source-only
 //! preview is not full host Check or admission: Run must judge the candidate
 //! again under its actual environment.
-//! [`compile_with_provider`] accepts explicit bounded authoring policy and an injected
-//! kernel provider. Its closed private semantic plan rejoins deterministic motif
-//! assembly before Check. Model output is never final YAML or runtime authority.
+//! `nika_compile_cognition::compile_with_provider` accepts explicit bounded authoring
+//! policy and an injected kernel provider. Its proposals and native candidates are judged
+//! before they rejoin this core; model output never grants runtime authority.
 //! General natural-language qualification and Graph integration remain separate work.
 //! Transports (the CLI, Serve) consume these typed outcomes and
 //! print the one machine document of [`outcome_document`]; none re-projects an outcome.
@@ -70,9 +71,7 @@
 mod approval;
 mod assemble;
 mod bindings;
-mod cognition;
-mod compose;
-pub mod decide;
+mod doors;
 mod edit;
 mod edit_source;
 mod laws;
@@ -80,7 +79,6 @@ mod ledger;
 mod materialize;
 mod network;
 pub(crate) mod pattern;
-mod predicate;
 mod realize;
 mod retrieve;
 mod support;
@@ -89,12 +87,12 @@ mod types;
 mod wire;
 mod writes;
 
-// The frozen reader and the typed plan live in the second member of this unit (the
-// ADR-137 precedent); the composer, the assembler and the preview read them at their
-// historical module paths.
+// The frozen reader and the typed plan live in one member of this unit (ADR-138), the laws a
+// candidate is judged by in another (ADR-141); the composer, the assembler and the preview
+// read both at their historical module paths.
+use nika_compile_fidelity::fidelity;
 use nika_compile_reader::{
-    cardinality, columns, fidelity, gates, hot, lexicon, objects, paths, plan, rule_tokens, rules,
-    shape, sketch, structure, unknowns, words,
+    cardinality, columns, gates, hot, lexicon, objects, paths, plan, rules, shape, structure,
 };
 
 use std::collections::BTreeSet;
@@ -103,9 +101,7 @@ use nika_schema::{FileId, ParseMode, raw::RawWorkflow};
 use serde_json::Value;
 use types::{EditChange, Input};
 
-pub use cognition::{
-    Cognition, NoProvider, compile_with_cognition, compile_with_provider, intent_sha256,
-};
+pub use doors::intent_sha256;
 pub use materialize::{MaterializeError, materialize_ready};
 pub use nika_compile_reader::hot::{fold, stated_destinations, stated_sources};
 pub use nika_compile_reader::text;
@@ -118,6 +114,8 @@ pub use types::{
     TriggerRequirement, TriggerStatus,
 };
 pub use wire::{COMPILE_WIRE_VERSION, outcome_document};
+
+pub mod surface;
 
 /// Compile without effects or hidden state. Repeating a request produces the same candidate.
 ///
@@ -146,7 +144,7 @@ pub fn compile(request: &CompileRequest) -> Result<CompileOutcome, CompileError>
         && record.get("strategy").and_then(Value::as_str) == Some(types::Strategy::Native.word())
         && let Some(intent) = revise_intent(request)
     {
-        cognition::replay(&intent, record, request, &mut outcome)?;
+        doors::replay(&intent, record, request, &mut outcome)?;
         return Ok(outcome);
     }
     match &request.input {
@@ -175,7 +173,9 @@ pub fn revise_intent(request: &CompileRequest) -> Option<String> {
     Some(lexicon::fold_apostrophes(&intent))
 }
 
-fn initial() -> CompileOutcome {
+/// An outcome with nothing decided yet: incomplete, no candidate, the compiler's own identity.
+#[must_use]
+pub fn initial() -> CompileOutcome {
     CompileOutcome {
         status: CompileStatus::Incomplete,
         candidate: None,
@@ -187,7 +187,7 @@ fn initial() -> CompileOutcome {
         provenance: CompileProvenance {
             authoring: None,
             compiler_version: env!("CARGO_PKG_VERSION").to_owned(),
-            spec_pin: cognition::knowledge::spec_pin().to_owned(),
+            spec_pin: surface::spec_pin().to_owned(),
             skeleton: None,
             cognition: AuthoringCognition::DeterministicOnly,
             strategy: None,
@@ -198,7 +198,8 @@ fn initial() -> CompileOutcome {
     }
 }
 
-fn finding(
+/// One diagnostic on the outcome, of a kind, on a target, with its message.
+pub fn finding(
     out: &mut CompileOutcome,
     kind: DiagnosticKind,
     target: &str,
@@ -211,7 +212,8 @@ fn finding(
     });
 }
 
-fn question(out: &mut CompileOutcome, key: &str, label: &str, answer_type: QuestionType) {
+/// One mandatory question the compiler cannot answer by itself.
+pub fn question(out: &mut CompileOutcome, key: &str, label: &str, answer_type: QuestionType) {
     out.questions.push(CompileQuestion {
         key: key.to_owned(),
         label: label.to_owned(),
@@ -268,7 +270,11 @@ fn optional_question(
     });
 }
 
-fn parse(source: &str) -> Result<RawWorkflow, nika_schema::SchemaError> {
+/// The strict parse of an in-memory candidate.
+///
+/// # Errors
+/// The candidate is not a workflow document.
+pub fn parse(source: &str) -> Result<RawWorkflow, nika_schema::SchemaError> {
     nika_schema::parse(source, FileId::new(0), ParseMode::Strict)
 }
 
@@ -287,7 +293,7 @@ fn create(
     } else {
         // An answer round replays the plan its previous round produced (zero reading).
         if let Some(record) = &request.plan {
-            return cognition::replay(intent, record, request, out);
+            return doors::replay(intent, record, request, out);
         }
         // A partial support match is not a verdict: the general reader is a superset.
         if let Ok(Some(plan)) = support::resolve(intent) {
@@ -295,7 +301,7 @@ fn create(
             out.provenance.strategy = Some(types::Strategy::Support);
             return Ok(());
         }
-        if cognition::hot(intent, request, out)? {
+        if doors::hot(intent, request, out)? {
             return Ok(());
         }
         finding(
@@ -503,7 +509,8 @@ fn finish_changed(
     Ok(())
 }
 
-fn literal_answer(raw: Option<&str>, key: &str, out: &mut CompileOutcome) -> Option<Value> {
+/// An answer as the JSON literal it must be; a malformed one is a diagnostic, never a guess.
+pub fn literal_answer(raw: Option<&str>, key: &str, out: &mut CompileOutcome) -> Option<Value> {
     let raw = raw?;
     let value = match serde_json::from_str::<Value>(raw) {
         Ok(value) => value,
@@ -575,7 +582,8 @@ fn unknown_answers(
     }
 }
 
-fn finish(source: String, out: &mut CompileOutcome) {
+/// Finish an outcome on a candidate source: parsed, checked, previewed, its status settled.
+pub fn finish(source: String, out: &mut CompileOutcome) {
     out.candidate = Some(source);
     let wf = match parse(out.candidate.as_deref().unwrap_or_default()) {
         Ok(wf) => wf,

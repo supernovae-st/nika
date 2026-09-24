@@ -6,7 +6,8 @@
 //! candidate was refused for an unanchored effect). The request's own words are used, never
 //! the seat's; a citation that could name two spans, or a short one, is still refused.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-use nika_compile::{CompileRequest, compile_with_provider};
+use nika_compile::CompileRequest;
+use nika_compile_cognition::compile_with_provider;
 use serde_json::{Value, json};
 
 mod common;

@@ -3,10 +3,8 @@
 //! Helpers the compile suites share: one hermetic generative provider that returns a fixed
 //! text and counts its calls, the bounded authoring policy, the question keys of an outcome.
 #![allow(dead_code, clippy::unwrap_used, clippy::expect_used)]
-use nika_compile::{
-    AuthoringPolicy, CompileRequest,
-    decide::{ChoiceAnswer, ChoiceFuture, ChoiceQuestion, DecisionSeat},
-};
+use nika_compile::{AuthoringPolicy, CompileRequest};
+use nika_compile_cognition::decide::{ChoiceAnswer, ChoiceFuture, ChoiceQuestion, DecisionSeat};
 use nika_kernel::ai::provider::{
     ContentBlock, InferRequest, InferResponse, ProviderError, ProviderInferDyn, StopReason,
     TokenUsage,

@@ -57,7 +57,7 @@ pub(super) const SELECT_BY_KEY: &str = ". as $lookup | ($lookup.directory | from
 
 /// The first record whose field equals the literal identifier or its canonical numeric
 /// spelling in an array directory; the keyed entry in an object directory.
-pub(super) const SELECT_BY_FIELD: &str = ". as $l | ($l.directory | fromjson) | if type == \"array\" then (map(select(type == \"object\" and (.[$l.field] == $l.id or ((.[$l.field] | type) == \"number\" and (.[$l.field] | tostring) == $l.id)))) | .[0]) else .[$l.id] end";
+pub const SELECT_BY_FIELD: &str = ". as $l | ($l.directory | fromjson) | if type == \"array\" then (map(select(type == \"object\" and (.[$l.field] == $l.id or ((.[$l.field] | type) == \"number\" and (.[$l.field] | tostring) == $l.id)))) | .[0]) else .[$l.id] end";
 
 /// The header order of a CSV source: its first line, `\r` trimmed, split on commas,
 /// the surrounding double quotes stripped from each cell. A quoted header holding a
@@ -71,7 +71,7 @@ pub(super) const SOURCE_COLUMNS_UNION: &str = r#"[.[] | split("\n") | .[0] | rtr
 
 /// The lines of a text source: split on newlines, `\r` trimmed, the empty segment after
 /// the file's final newline dropped (it is the terminator, not a line).
-pub(super) const LINES: &str =
+pub const LINES: &str =
     r#"split("\n") | map(rtrimstr("\r")) | if .[-1] == "" then .[:-1] else . end"#;
 
 /// The zip of a fan-out: one `{path, text}` per read file, in item order.

@@ -349,7 +349,10 @@ fn guidance(plan: &Plan, consumed: &[String]) -> String {
 /// Assemble one plan. Missing bindings become stable questions; nothing is invented. The
 /// request text is read only for structural shape (a heading per file, a per-item
 /// draft); every element still comes from the plan.
-pub(super) fn assemble(
+///
+/// # Errors
+/// Returns representation failures while emitting the deterministic candidate.
+pub fn assemble(
     plan: &Plan,
     intent: &str,
     request: &CompileRequest,
@@ -527,7 +530,7 @@ fn refused(plan: &Plan, out: &mut CompileOutcome) -> bool {
 /// item. It is a question for the human, never a candidate. The deterministic door reads
 /// only an explicit object ("write a haiku") and already asks for a vague one, so this law
 /// judges the plans a seat proposed or a record replays, not the reader's own.
-pub(super) fn unfed(plan: &Plan, intent: &str, out: &mut CompileOutcome) -> bool {
+pub fn unfed(plan: &Plan, intent: &str, out: &mut CompileOutcome) -> bool {
     let sourced = plan
         .steps
         .iter()

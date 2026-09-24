@@ -7,7 +7,8 @@
 //! was refused. The leading clause is the trigger, daily at 07:00, and the proposed
 //! constraint over the same words is folded.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-use nika_compile::{CompileRequest, compile_with_provider, outcome_document};
+use nika_compile::{CompileRequest, outcome_document};
+use nika_compile_cognition::compile_with_provider;
 use serde_json::{Value, json};
 
 mod common;

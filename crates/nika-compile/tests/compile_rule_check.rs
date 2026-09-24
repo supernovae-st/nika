@@ -6,7 +6,8 @@
 //! preview said clean because the assembler bound the answer as `${{ const.rule_expression }}`,
 //! a templated program the checker never reads.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-use nika_compile::{CompileRequest, CompileStatus, compile_with_provider};
+use nika_compile::{CompileRequest, CompileStatus};
+use nika_compile_cognition::compile_with_provider;
 use serde_json::{Value, json};
 
 mod common;

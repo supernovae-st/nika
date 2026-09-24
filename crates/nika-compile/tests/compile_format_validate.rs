@@ -5,7 +5,8 @@
 //! was listed as a `validate` beside the drop-filter, and the candidate asked a model to
 //! check what the jq guarantees, where the corpus expects zero calls).
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-use nika_compile::{CompileRequest, compile_with_provider};
+use nika_compile::CompileRequest;
+use nika_compile_cognition::compile_with_provider;
 use serde_json::{Value, json};
 
 mod common;
