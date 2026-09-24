@@ -303,7 +303,7 @@ fn real_tui_yes_dispatches_once_and_observation_survives_without_authority() {
 }
 #[test]
 fn no_cancel_revision_changed_source_and_restart_send_nothing() {
-    for response in ["no", "cancel", "change input to revised"] {
+    for response in ["no", "cancel"] {
         let root = new_root();
         let mut p = spawn(root.path());
         ask(&mut p);
@@ -339,6 +339,36 @@ fn no_cancel_revision_changed_source_and_restart_send_nothing() {
     assert_eq!(calls(root.path()), 0);
     leave(&mut p);
     let mut p = spawn(root.path());
+    p.send("yes\r").unwrap();
+    p.expect("waits").unwrap();
+    assert_eq!(calls(root.path()), 0);
+    leave(&mut p);
+}
+#[test]
+fn an_unknown_cost_answer_keeps_the_review_pending_until_explicitly_declined() {
+    let root = new_root();
+    let mut p = spawn(root.path());
+    ask(&mut p);
+    p.send("change input to revised\r").unwrap();
+    p.expect("not").unwrap();
+    p.expect("nothing").unwrap();
+    p.expect("sent").unwrap();
+    p.expect("still").unwrap();
+    p.expect("waits").unwrap();
+    p.expect("reply ›").unwrap();
+    assert_eq!(calls(root.path()), 0);
+    // An unknown answer is neither a decline nor consent. Inspect the still-live
+    // review, then explicitly decline it before testing a stale approval.
+    // Sending yes here could approve the live review; matching its buffered
+    // "waits" text would not prove that the approval was rejected.
+    p.send("details\r").unwrap();
+    p.expect("SHA-256").unwrap();
+    p.expect("reply ›").unwrap();
+    assert_eq!(calls(root.path()), 0);
+    p.send("no\r").unwrap();
+    p.expect("cancelled").unwrap();
+    p.expect("declined").unwrap();
+    p.expect("nika ›").unwrap();
     p.send("yes\r").unwrap();
     p.expect("waits").unwrap();
     assert_eq!(calls(root.path()), 0);
