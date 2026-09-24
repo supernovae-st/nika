@@ -320,7 +320,7 @@ fn a_kept_choice_that_cannot_answer_asks_in_context_and_resumes_the_line() {
             answers_here: false,
         }],
         api_keys: vec!["mistral".to_owned()],
-        locals: vec![],
+        locals: vec!["ollama".into()],
     };
     let pref = UserIntelligencePreference::new(
         IntelligenceKind::Harness {
@@ -332,7 +332,9 @@ fn a_kept_choice_that_cannot_answer_asks_in_context_and_resumes_the_line() {
     let calls = Arc::new(AtomicUsize::new(0));
     let seat_calls = Arc::clone(&calls);
     let factory: ReasonerFactory = Box::new(move |resolved| match &resolved.kind {
-        IntelligenceKind::Api { .. } => Box::new(ScriptedReasoner::new(vec!["seated".to_owned()])),
+        IntelligenceKind::Local { .. } => {
+            Box::new(ScriptedReasoner::new(vec!["seated".to_owned()]))
+        }
         IntelligenceKind::Harness { .. } => Box::new(Failing(Arc::clone(&seat_calls))),
         _ => Box::new(NoReasoner),
     });
@@ -365,12 +367,12 @@ fn a_kept_choice_that_cannot_answer_asks_in_context_and_resumes_the_line() {
         matches!(s.choose("1 gemini-cli"), TurnOutcome::Refusal(ref r) if r.text.contains("cannot get an answer through it") && r.text.contains("previous choice stands"))
     );
     assert!(s.pending_choice());
-    // The API answers, the line resumes as typed, the kept choice moves.
-    let TurnOutcome::Resumed { notice, outcome } = s.choose("2") else {
+    // A local scripted path answers; real API admission has dedicated HTTP fixtures.
+    let TurnOutcome::Resumed { notice, outcome } = s.choose("3") else {
         panic!("the choice resumes the waiting line");
     };
     assert!(
-        notice.contains("mistral") && notice.contains("kept"),
+        notice.contains("local") && notice.contains("kept"),
         "{notice}"
     );
     assert!(
@@ -381,8 +383,8 @@ fn a_kept_choice_that_cannot_answer_asks_in_context_and_resumes_the_line() {
     let back = UserIntelligencePreference::load(home.path()).expect("kept");
     assert_eq!(
         back.kind,
-        IntelligenceKind::Api {
-            provider: "mistral".to_owned()
+        IntelligenceKind::Local {
+            provider: "ollama".to_owned()
         }
     );
 }
@@ -438,12 +440,10 @@ fn a_failed_intelligence_leaves_a_recovery_card_repeated_without_a_call() {
     let mut s = SessionRuntime::open(
         dir.path(),
         ready(
-            IntelligenceKind::Api {
-                provider: "mistral".to_owned(),
+            IntelligenceKind::Local {
+                provider: "scripted".to_owned(),
             },
-            DataLocus::Metered {
-                provider: "mistral".to_owned(),
-            },
+            DataLocus::Local,
         ),
         Box::new(Failing(Arc::clone(&calls))),
     );

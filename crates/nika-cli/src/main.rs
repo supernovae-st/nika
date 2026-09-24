@@ -413,6 +413,9 @@ struct RunArgs {
     /// Machine NDJSON: compact events or one pre-run refusal object, never pretty JSON.
     #[arg(long)]
     json: bool,
+    /// Negotiate a fresh one-use local cost review over stdio; never approves a charge.
+    #[arg(long, requires = "json", conflicts_with_all = ["inputs_json", "resume", "dry_run"])]
+    cost_review_stdio: bool,
     /// Print the typed `outputs:` as ONE JSON object on stdout
     /// (progress → stderr) · the export contract · powers
     /// `exec: nika run sub.yaml --output json` + `capture: stdout`.
@@ -981,7 +984,8 @@ fn run_verb(
         args.max_cost_usd,
         args.no_gc,
         args.require_signature,
-        repair_target,
+        nika_cli_host::lane::RunHostOptions::from(repair_target)
+            .with_cost_review_stdio(args.cost_review_stdio),
     )
 }
 

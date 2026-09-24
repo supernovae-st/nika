@@ -139,3 +139,12 @@ also pins the adapter side of the same contract.
 
 Gates 1/3/4/8/12 hold at the descent commit; gates 2/6/11 are owed with the
 admission ceremony.
+
+## Host-configured monetary admission
+
+`compose_with_config` selects service metadata-only versus local stderr
+projection at the same `production_runtime_with_emitter` seam. The host must
+have scope-bound the live account in `RuntimeConfig` before composition; this
+does not grant effects, replace the admitted workflow/report, or replay a
+persisted observation. The driver remains filesystem-blind. No configured
+composition wrapper or Runtime-to-driver dependency is introduced.

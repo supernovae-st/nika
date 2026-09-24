@@ -1,0 +1,304 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
+//! A revision in words over an accepted base (« Finalement, utilise b.txt. »): which path the
+//! request states a revised candidate may leave unopened, and on what evidence. The seat names
+//! the path in its `gaps` and the change words never name it, or the path law stands as it
+//! stands for a creation. The change then supersedes the path only on proof: the change words
+//! state a replacement (« utilise », « plutôt », « instead ») and no addition (« aussi »,
+//! « also »), name exactly one path, and the candidate is the base with the old path replaced
+//! by that one and nothing else changed (its name aside). Short of that proof the path is a gap
+//! the human disposes of before the candidate is READY: a path the change words omit, plus a
+//! seat's gap, is never by itself a removal the requester asked for.
+
+use serde_json::Value;
+
+use crate::CompileRequest;
+use crate::types::{EditChange, Input};
+
+/// Words that state a change as a replacement (FR · EN, folded, whole words).
+const REPLACING: &[&str] = &[
+    "finalement",
+    "plutot",
+    "a la place",
+    "au lieu",
+    "remplace",
+    "remplacer",
+    "utilise",
+    "utiliser",
+    "change",
+    "changer",
+    "modifie",
+    "modifier",
+    "desormais",
+    "dorenavant",
+    "instead",
+    "rather",
+    "replace",
+    "use",
+    "switch",
+    "actually",
+    "from now on",
+];
+
+/// Words that state a change as an addition (FR · EN, folded, whole words): whatever else the
+/// change says, the old path is then kept, never replaced.
+const ADDING: &[&str] = &[
+    "aussi",
+    "egalement",
+    "en plus",
+    "de plus",
+    "en outre",
+    "ajoute",
+    "ajouter",
+    "rajoute",
+    "also",
+    "too",
+    "as well",
+    "additionally",
+    "in addition",
+    "add",
+    "append",
+];
+
+/// How many gaps an accepted candidate's record keeps: a path is waived only through a gap the
+/// record keeps, so the human always sees what the candidate leaves behind.
+pub(super) const KEPT_GAPS: usize = 8;
+
+/// The base and the change words of a revision in words; none for a creation or a structured
+/// edit.
+pub(super) fn of(request: &CompileRequest) -> Option<(String, String)> {
+    match &request.input {
+        Input::Edit {
+            source,
+            change: EditChange::Text(words),
+        } => Some((source.clone(), words.clone())),
+        _ => None,
+    }
+}
+
+/// The paths the request states that a revised candidate may leave unopened while the human
+/// has not disposed of them: those the seat names in one of its gaps and the change words never
+/// name. Empty for a creation, where a stated path is opened or the candidate is refused.
+pub(super) fn waivable(
+    intent: &str,
+    revision: Option<&(String, String)>,
+    gaps: &[String],
+) -> Vec<String> {
+    let Some((_, words)) = revision else {
+        return Vec::new();
+    };
+    let kept: Vec<&str> = gaps
+        .iter()
+        .map(|gap| gap.trim())
+        .filter(|gap| !gap.is_empty())
+        .take(KEPT_GAPS)
+        .collect();
+    stated(intent)
+        .into_iter()
+        .filter(|path| !names(words, path) && kept.iter().any(|gap| names(gap, path)))
+        .collect()
+}
+
+/// A gap the change supersedes on proof: the stated path the candidate no longer opens, the
+/// path the change puts in its place, the seat's own words.
+pub(super) struct Superseded {
+    pub(super) path: String,
+    pub(super) by: String,
+    pub(super) gap: String,
+}
+
+/// An accepted candidate's gaps: those still pending, each disposed of by the human before the
+/// candidate is READY, and those a revision supersedes on proof. A gap is superseded only when
+/// the one stated path it leaves behind is proven replaced; anything else it names keeps it
+/// pending.
+pub(super) fn settle(
+    intent: &str,
+    request: &CompileRequest,
+    candidate: &str,
+    gaps: &[&str],
+) -> (Vec<String>, Vec<Superseded>) {
+    let revision = of(request);
+    let mut pending = Vec::new();
+    let mut superseded = Vec::new();
+    for gap in gaps {
+        let left = waivable(intent, revision.as_ref(), &[(*gap).to_owned()]);
+        let proven = match (&revision, left.as_slice()) {
+            (Some((base, words)), [path]) => {
+                replacement(base, words, candidate, path).map(|by| Superseded {
+                    path: path.clone(),
+                    by,
+                    gap: (*gap).to_owned(),
+                })
+            }
+            _ => None,
+        };
+        match proven {
+            Some(proof) => superseded.push(proof),
+            None => pending.push((*gap).to_owned()),
+        }
+    }
+    (pending, superseded)
+}
+
+/// The path that replaces `path`, when the change proves it: the change words state a
+/// replacement and no addition, name exactly that one path, and the candidate is the base with
+/// every `path` value replaced by it and nothing else changed (the workflow's name aside).
+fn replacement(base: &str, words: &str, candidate: &str, path: &str) -> Option<String> {
+    if !says(words, REPLACING) || says(words, ADDING) {
+        return None;
+    }
+    let [by]: [String; 1] = stated(words).try_into().ok()?;
+    if same(&by, path) {
+        return None;
+    }
+    let mut expected = crate::edit::literal_projection(base)?;
+    if !substitute(&mut expected, path, &by) {
+        return None;
+    }
+    let mut revised = crate::edit::literal_projection(candidate)?;
+    for doc in [&mut expected, &mut revised] {
+        doc.as_object_mut()?.remove("nika");
+        unrooted(doc);
+    }
+    (expected == revised).then_some(by)
+}
+
+/// The paths a text states, as the path law reads them: its sources, then its destinations.
+fn stated(text: &str) -> Vec<String> {
+    let mut paths = crate::hot::stated_sources(text);
+    for path in crate::hot::stated_destinations(text) {
+        if !paths.contains(&path) {
+            paths.push(path);
+        }
+    }
+    paths
+}
+
+/// Whether `text` names `path` whole: no letter, digit or path character glued to either end
+/// (« data.txt » and « out/a.txt » never name `a.txt`; « `a.txt` », « ./a.txt » and « a.txt. »
+/// do).
+fn names(text: &str, path: &str) -> bool {
+    let path = path.trim_start_matches("./");
+    if path.is_empty() {
+        return false;
+    }
+    let glued = |c: Option<char>| {
+        c.is_some_and(|c| c.is_alphanumeric() || matches!(c, '/' | '_' | '-' | '~' | '.'))
+    };
+    text.match_indices(path).any(|(at, _)| {
+        let head = text.get(..at).unwrap_or_default();
+        let head = head.strip_suffix("./").unwrap_or(head);
+        let tail = text.get(at + path.len()..).unwrap_or_default();
+        let tail = tail.trim_start_matches(['.', ',', ';', ':', '!', '?']);
+        !glued(head.chars().next_back()) && !glued(tail.chars().next())
+    })
+}
+
+/// One relative path however it is spelled (`./b.txt` is `b.txt`).
+fn same(a: &str, b: &str) -> bool {
+    a.trim_start_matches("./") == b.trim_start_matches("./")
+}
+
+/// Whether the words say one of `cues`, whole words compared folded.
+fn says(words: &str, cues: &[&str]) -> bool {
+    let folded = crate::hot::fold(words);
+    let padded = format!(
+        " {} ",
+        folded
+            .split(|c: char| !c.is_alphanumeric())
+            .filter(|w| !w.is_empty())
+            .collect::<Vec<_>>()
+            .join(" ")
+    );
+    cues.iter().any(|cue| padded.contains(&format!(" {cue} ")))
+}
+
+/// Every string value equal to `from` becomes `to`; whether one did.
+fn substitute(value: &mut Value, from: &str, to: &str) -> bool {
+    match value {
+        Value::String(text) if same(text, from) => {
+            to.clone_into(text);
+            true
+        }
+        Value::Array(items) => {
+            let mut any = false;
+            for item in items {
+                any |= substitute(item, from, to);
+            }
+            any
+        }
+        Value::Object(map) => {
+            let mut any = false;
+            for item in map.values_mut() {
+                any |= substitute(item, from, to);
+            }
+            any
+        }
+        _ => false,
+    }
+}
+
+/// Every string value without its leading `./`: one relative path, one spelling.
+fn unrooted(value: &mut Value) {
+    match value {
+        Value::String(text) => {
+            if text.starts_with("./") {
+                text.replace_range(..2, "");
+            }
+        }
+        Value::Array(items) => items.iter_mut().for_each(unrooted),
+        Value::Object(map) => map.values_mut().for_each(unrooted),
+        _ => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ADDING, REPLACING, names, says};
+
+    #[test]
+    fn a_path_is_named_whole_and_never_as_a_piece_of_another() {
+        for (text, path) in [
+            ("`a.txt` is superseded by the change", "a.txt"),
+            ("écrit dans ./a.txt.", "a.txt"),
+            ("a.txt, puis b.txt", "./a.txt"),
+            ("(a.txt)", "a.txt"),
+        ] {
+            assert!(names(text, path), "{text} names {path}");
+        }
+        for (text, path) in [
+            ("data.txt is missing", "a.txt"),
+            ("out/a.txt is written", "a.txt"),
+            ("a.txt.bak stays", "a.txt"),
+            ("a.txt_old", "a.txt"),
+            ("", "a.txt"),
+            ("a.txt", ""),
+        ] {
+            assert!(!names(text, path), "{text} does not name {path:?}");
+        }
+    }
+
+    #[test]
+    fn a_replacement_is_said_as_one_and_an_addition_never_is() {
+        for words in [
+            "Finalement, utilise b.txt.",
+            "Écris plutôt dans ./out/c.md",
+            "Use ./out/second.txt instead.",
+            "Mets le résultat dans b.txt à la place",
+        ] {
+            assert!(says(words, REPLACING) && !says(words, ADDING), "{words}");
+        }
+        for words in [
+            "Écris aussi dans b.txt.",
+            "Also use b.txt",
+            "Ajoute b.txt en plus",
+        ] {
+            assert!(says(words, ADDING), "{words}");
+        }
+        for words in ["Et dans b.txt.", "Ajoute une ligne vide", "b.txt"] {
+            assert!(!says(words, REPLACING), "{words}");
+        }
+        assert!(!says("because the tool adds", REPLACING) && !says("tool address", ADDING));
+    }
+}

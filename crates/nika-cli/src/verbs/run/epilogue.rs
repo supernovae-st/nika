@@ -17,8 +17,8 @@ use std::collections::BTreeMap;
 use serde_json::Value;
 
 pub(super) use nika_cli_host::run_protocol::{
-    envelope_message, error_envelope_line, outputs_json_line, outputs_note, paused_envelope_line,
-    resume_carry, resume_hint_line,
+    emit_diagnostic, envelope_message, error_envelope_line, outputs_json_line, outputs_note,
+    paused_envelope_line, resume_carry, resume_hint_line,
 };
 use nika_runtime::RunOutcome;
 
@@ -173,25 +173,6 @@ pub(super) fn scoped_outputs(outcome: &RunOutcome) -> BTreeMap<String, Value> {
         .iter()
         .map(|(id, record)| (id.clone(), record.output.clone()))
         .collect()
-}
-
-/// Route a human-readable diagnostic to the spec-correct stream: stderr in
-/// `--output json` mode (stdout MUST stay a clean JSON object · the export
-/// contract · `capture: stdout` composition), stdout in the human modes.
-/// In machine mode the failure ALSO lands on stdout as the `{"error":{…}}`
-/// envelope (F6) — the machine surface is self-sufficient, success or not.
-pub(super) fn emit_diagnostic(text: &str, output_json: bool) {
-    // Terminal-newline law (gauntlet 08-01, Marc): the red pre-run
-    // diagnostic ended flush against the next shell prompt and dirtied
-    // concatenated CI logs — every diagnostic ends its own line, and a
-    // text already carrying one is not doubled.
-    let text = text.strip_suffix('\n').unwrap_or(text);
-    if output_json {
-        eprintln!("{text}");
-        println!("{}", error_envelope_line(envelope_message(text)));
-    } else {
-        println!("{text}");
-    }
 }
 
 /// Frame an existing Check verdict for `run --json` without changing its

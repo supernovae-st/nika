@@ -7,6 +7,11 @@ use nika_types::cost::Cost;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 mod declared;
+mod review;
+pub use review::{
+    CapEvidence, CostChallenge, CostHostEvidence, CostResponse, CostReview, CostRoute,
+    PendingCostReview, monetary_default, native_catalog_price_known,
+};
 mod unknown;
 pub use declared::{DeclaredTariff, TariffUnit};
 pub use unknown::{HardMonetaryCap, UnknownAttemptReceipt, UnknownCostChoice, UnknownCostPolicy};

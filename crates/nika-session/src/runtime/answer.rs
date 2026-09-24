@@ -22,6 +22,19 @@
 //!   question keeps waiting and says why;
 //! - without a chosen intelligence the line is the value, as the question says.
 //!
+//! A choice among offered keys (a column the request leaves open among the observed
+//! ones: « La colonne montant. » to `montant · autre`, DIALOG-03 of 2026-09-24) reads the
+//! same way against its OWN offers. An offered key typed alone — or written as its JSON
+//! string, the shape the compiler asks — is the answer: no call. Otherwise, under a chosen
+//! intelligence, the same one bounded reading is shown the exact keys offered now and
+//! binds only a copy that IS one of them, verbatim and made of whole tokens of the human's
+//! line; a line that carries no offered key is not read at all. A key the line does not
+//! carry, a word that is not offered, a piece of a word, a second answer, an empty or
+//! failed reply and a spending limit bind nothing, and the choice keeps waiting. Which of
+//! the offered keys the line chooses — one of several, one it rejects — is the reading's,
+//! never the first match's, and it is said beside the outcome. Without an intelligence the
+//! line is the answer as typed. Either way the compiler admits the answer or asks again.
+//!
 //! A reading is never a consent: the candidate it completes is reviewed, and nothing
 //! is written before the human's yes.
 
@@ -49,15 +62,65 @@ pub(super) const AS_TYPED_NOTICE: &str =
 /// A question whose answer is a business value the compiler bakes as a literal. The
 /// seat's `model` (provider selection keeps its own door), the replacement request
 /// (`intent.clarification`: its answer IS words), a clause's disposition (`gap.N`,
-/// answered in words), a rule asked in words and a choice among offered keys are not.
+/// answered in words), a rule asked in words and a choice among offered keys are not
+/// (a choice reads against its own offers: `is_offered_choice`).
 pub(super) fn is_value_question(question: &CompileQuestion) -> bool {
     matches!(
         question.answer_type,
         QuestionType::Text | QuestionType::Literal
-    ) && question.key != "model"
+    ) && keeps_the_reading(question)
+}
+
+/// A choice among the keys the question offers: its answer is one of them, verbatim. The
+/// doors that are not a value's keep theirs whatever their shape.
+pub(super) fn is_offered_choice(question: &CompileQuestion) -> bool {
+    matches!(question.answer_type, QuestionType::Choice)
+        && !question.options.is_empty()
+        && keeps_the_reading(question)
+}
+
+/// Not one of the doors that keep their own reading: the seat's `model`, the replacement
+/// request, a clause's disposition, a rule asked in words.
+fn keeps_the_reading(question: &CompileQuestion) -> bool {
+    question.key != "model"
         && question.key != "intent.clarification"
         && !question.key.starts_with("gap.")
         && !super::authoring::asks_for_syntax(question)
+}
+
+/// Whether `text` is one of the keys the question offers, exactly.
+fn is_offered(question: &CompileQuestion, text: &str) -> bool {
+    question.options.iter().any(|offer| offer.key == text)
+}
+
+/// The line is an offered key alone — as written, or as its JSON string (the shape the
+/// compiler asks) — spacing aside: its own answer, no reading.
+fn names_an_offer_alone(question: &CompileQuestion, line: &str) -> bool {
+    let line = line.trim();
+    if let Ok(serde_json::Value::String(text)) = serde_json::from_str::<serde_json::Value>(line) {
+        return is_offered(question, &text);
+    }
+    is_offered(question, line)
+}
+
+/// Whether the line carries at least one offered key as whole tokens: the only lines a
+/// reading could bind from. A necessary condition, never a choice — which offered key the
+/// line chooses (one of several, not the one it rejects) is the reading's, then the human's.
+fn carries_an_offer(question: &CompileQuestion, line: &str) -> bool {
+    question
+        .options
+        .iter()
+        .any(|offer| !offer.key.is_empty() && whole_part(line.trim(), &offer.key))
+}
+
+/// The keys offered now, in the compiler's order.
+fn offered_keys(question: &CompileQuestion) -> String {
+    question
+        .options
+        .iter()
+        .map(|offer| offer.key.as_str())
+        .collect::<Vec<_>>()
+        .join(" · ")
 }
 
 /// The line is its own value without any reading: a JSON literal (`42` · `true` ·
@@ -82,6 +145,23 @@ fn reading_prompt(question: &CompileQuestion, line: &str) -> String {
     )
 }
 
+/// The one bounded reading of a choice: the question in its own words, the exact keys it
+/// offers now, the reply verbatim, and one instruction — copy the offered answer the reply
+/// chooses, or say NONE.
+fn choice_prompt(question: &CompileQuestion, line: &str) -> String {
+    let offers = question
+        .options
+        .iter()
+        .map(|offer| format!("«{}»", offer.key))
+        .collect::<Vec<_>>()
+        .join(" · ");
+    format!(
+        "Nika, an automation tool, asked a human to choose one answer: «{label}».\nThe offered answers are exactly: {offers}.\nThe human replied: «{reply}».\nCopy the one offered answer the reply chooses, exactly as it appears in the reply, character for character: only that answer, without the words or the sentence punctuation around it. Never correct, translate, complete or add anything. If the reply chooses none of the offered answers, more than one, or only rejects one, answer NONE.\nValue:",
+        label = question.label,
+        reply = line.trim(),
+    )
+}
+
 /// The value a reply points at: one line, its own `Value:` cue and one pair of quotes
 /// around it removed (both are the model's, never part of the value), kept only when it
 /// is made of whole tokens of the human's line (`whole_part`).
@@ -94,6 +174,13 @@ fn verbatim_part(reply: &str, line: &str) -> Option<String> {
     let value = unquoted(first.strip_prefix("Value:").map_or(first, str::trim));
     (!value.is_empty() && value != "NONE" && whole_part(line.trim(), value))
         .then(|| value.to_owned())
+}
+
+/// The offered key a reply points at: the verbatim whole-token copy (`verbatim_part`), kept
+/// only when it IS one of the keys the question offers now — a word the human typed that
+/// is not offered, several keys, a key with anything around it bind nothing.
+fn offered_part(reply: &str, line: &str, question: &CompileQuestion) -> Option<String> {
+    verbatim_part(reply, line).filter(|value| is_offered(question, value))
 }
 
 /// One pair of quotes around a copy, removed.
@@ -176,25 +263,55 @@ impl SessionRuntime {
 
     /// The typed reading of `line` as the answer to `question`: as typed, a verbatim
     /// part, or nothing bound. One metered call at most, and only for several words at
-    /// a value question under a chosen intelligence.
+    /// a value question — or a line that is not an offered key alone but carries one at a
+    /// choice — under a chosen intelligence.
     fn read_answer(&mut self, question: &CompileQuestion, line: &str) -> AnswerReading {
-        if !is_value_question(question) || as_typed(line) || !self.reads_answers() {
+        let choice = is_offered_choice(question);
+        let unread = if choice {
+            names_an_offer_alone(question, line)
+        } else {
+            !is_value_question(question) || as_typed(line)
+        };
+        if unread || !self.reads_answers() {
             return AnswerReading::AsTyped;
+        }
+        // No offered key in the line: no copy of it could bind, so nothing is asked of anyone.
+        if choice && !carries_an_offer(question, line) {
+            return AnswerReading::Waits(format!(
+                "none of the offered answers ({}) is in your reply as you typed it — nothing was bound",
+                offered_keys(question)
+            ));
         }
         self.activity(&crate::activity::Activity::now(
             crate::activity::Phase::Understanding,
             "reading your answer",
         ));
+        let prompt = if choice {
+            choice_prompt(question, line)
+        } else {
+            reading_prompt(question, line)
+        };
         // The Session's metered label seat: a spending limit refuses before any call.
-        match self.reason_with_money(&reading_prompt(question, line), true) {
-            Ok(reply) => match verbatim_part(&reply.text, line) {
-                Some(value) if value == line.trim() => AnswerReading::AsTyped,
-                Some(value) => AnswerReading::Part(value),
-                None => AnswerReading::Waits(format!(
-                    "I did not find one value for « {} » in your reply as you typed it — nothing was bound",
-                    question.label
-                )),
-            },
+        match self.reason_with_money(&prompt, true) {
+            Ok(reply) => {
+                let part = if choice {
+                    offered_part(&reply.text, line, question)
+                } else {
+                    verbatim_part(&reply.text, line)
+                };
+                match part {
+                    Some(value) if value == line.trim() => AnswerReading::AsTyped,
+                    Some(value) => AnswerReading::Part(value),
+                    None if choice => AnswerReading::Waits(format!(
+                        "I did not find one of the offered answers ({}) in your reply as you typed it — nothing was bound",
+                        offered_keys(question)
+                    )),
+                    None => AnswerReading::Waits(format!(
+                        "I did not find one value for « {} » in your reply as you typed it — nothing was bound",
+                        question.label
+                    )),
+                }
+            }
             Err(error) => AnswerReading::Waits(format!(
                 "I could not read your answer ({error}) — nothing was bound"
             )),
@@ -214,12 +331,14 @@ impl SessionRuntime {
             AnswerReading::Part(value) => value,
             AnswerReading::Waits(why) => return self.answer_waits(round, &why),
         };
+        let asked = self.question_id_of(&round);
         let Some(key) = round.answer_current(&value) else {
             return TurnOutcome::Refusal(Refusal::new(
                 RefusalClass::WrongState,
                 "no authoring question waits",
             ));
         };
+        self.questions.close(asked);
         if value == line {
             self.remember(line, &format!("(answered {key})"));
             return self.compile_again(round);
@@ -420,5 +539,149 @@ mod tests {
             !prompt.contains("JSON"),
             "a natural request, never a format: {prompt}"
         );
+    }
+
+    /// A choice as the compiler asks it: an observed-column record (DIALOG-03's shape)
+    /// replayed with zero calls.
+    fn column_choice() -> CompileQuestion {
+        let intent = "Additionne une colonne de ventes.csv dans total.txt.";
+        let record = serde_json::json!({
+            "strategy": "native",
+            "intent_sha256": nika_onboard::compile::intent_sha256(intent),
+            "source": "",
+            "questions": [{
+                "key": "const.sum_column",
+                "label": "Quelle colonne additionner ?",
+                "answer_type": "choice",
+                "why": "La demande ne dit pas quelle colonne.",
+                "options": [
+                    {"key": "montant", "label": "column `montant` of ventes.csv"},
+                    {"key": "autre", "label": "column `autre` of ventes.csv"},
+                ],
+            }],
+            "gaps": [],
+            "trigger": null,
+        });
+        let out = nika_onboard::compile::compile(
+            &nika_onboard::compile::CompileRequest::create(intent).with_plan(record),
+        )
+        .expect("replays");
+        out.questions
+            .into_iter()
+            .next()
+            .expect("the column is asked")
+    }
+
+    /// An offered key alone is its own answer; a line is read only when it carries one.
+    #[test]
+    fn an_offered_key_alone_is_its_answer_and_only_a_line_carrying_one_is_read() {
+        let choice = column_choice();
+        assert_eq!(choice.answer_type, QuestionType::Choice);
+        assert!(is_offered_choice(&choice) && !is_value_question(&choice));
+        assert_eq!(offered_keys(&choice), "montant · autre");
+        for line in ["montant", "  autre ", "\"montant\""] {
+            assert!(names_an_offer_alone(&choice, line), "{line}");
+        }
+        for line in [
+            "Montant",
+            "montant.",
+            "total",
+            "\"mont\"",
+            "La colonne montant.",
+        ] {
+            assert!(!names_an_offer_alone(&choice, line), "{line}");
+        }
+        for line in [
+            "La colonne montant.",
+            "Use « autre », please",
+            "Pas montant, autre.",
+        ] {
+            assert!(carries_an_offer(&choice, line), "{line}");
+        }
+        for line in [
+            "La colonne des montants.",
+            "La colonne mont.",
+            "La colonne l'autre.",
+            "total",
+        ] {
+            assert!(!carries_an_offer(&choice, line), "{line}");
+        }
+    }
+
+    /// A copy binds only when it IS an offered key, verbatim and whole in the human's line.
+    #[test]
+    fn a_copy_binds_only_as_an_offered_key_the_line_carries_whole() {
+        let choice = column_choice();
+        let line = "La colonne montant.";
+        for reply in ["montant", "Value: montant", "«montant»", "\"montant\""] {
+            assert_eq!(
+                offered_part(reply, line, &choice).as_deref(),
+                Some("montant"),
+                "{reply}"
+            );
+        }
+        for reply in [
+            "autre",
+            "La colonne",
+            "mont",
+            "montant.",
+            "montant\n{\"choice\": \"autre\"}",
+            "montant {\"choice\": \"autre\"}",
+            "{\"choice\": \"montant\"}",
+            "NONE",
+            "",
+        ] {
+            assert_eq!(offered_part(reply, line, &choice), None, "{reply}");
+        }
+        // Several offered keys, or a rejected one: the reading chooses, never the first match.
+        let both = "Pas montant, autre.";
+        assert_eq!(
+            offered_part("autre", both, &choice).as_deref(),
+            Some("autre")
+        );
+        assert_eq!(offered_part("montant autre", both, &choice), None);
+    }
+
+    #[test]
+    fn the_choice_prompt_shows_the_exact_offers_and_asks_for_a_copy() {
+        let choice = column_choice();
+        let prompt = choice_prompt(&choice, "  La colonne montant.  ");
+        assert!(
+            prompt.contains("«Quelle colonne additionner ?»"),
+            "{prompt}"
+        );
+        assert!(prompt.contains("«montant» · «autre»"), "{prompt}");
+        assert!(prompt.contains("«La colonne montant.»"), "{prompt}");
+        assert!(
+            prompt.contains("answer NONE") && prompt.ends_with("Value:"),
+            "{prompt}"
+        );
+        assert!(
+            !prompt.contains("JSON"),
+            "a natural request, never a format: {prompt}"
+        );
+    }
+
+    /// The seat's `model`, the replacement request, a clause's disposition, a rule asked as
+    /// code and a choice that offers nothing keep their own doors whatever their shape.
+    #[test]
+    fn the_doors_that_keep_their_reading_are_never_read_as_a_choice() {
+        let choice = column_choice();
+        for key in [
+            "model",
+            "intent.clarification",
+            "gap.1",
+            "const.sum_expression",
+        ] {
+            let mut door = choice.clone();
+            door.key = key.to_owned();
+            assert!(!is_offered_choice(&door), "{key}");
+        }
+        let mut code = choice.clone();
+        code.label = "Which jq expression sums the column?".to_owned();
+        assert!(!is_offered_choice(&code));
+        let mut nothing = choice;
+        nothing.options.clear();
+        assert!(!is_offered_choice(&nothing));
     }
 }

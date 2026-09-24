@@ -131,10 +131,21 @@ fn s49_greeting_then_refusals_retain_current_copy_and_monetary_guards() {
     s.with_classifier(Box::new(crate::turn::ReasonerClassifier::new(Box::new(
         ScriptedReasoner::new(vec!["DISCUSS".into()]),
     ))));
+    // The scripted greeting is a local fixture, not an unpriced API adapter.
+    let selected = std::mem::replace(
+        &mut s.intelligence,
+        ready(
+            IntelligenceKind::Local {
+                provider: "scripted".into(),
+            },
+            DataLocus::Local,
+        ),
+    );
     let greeting = "Bonjour, réponds simplement bonjour.";
     assert!(matches!(s.turn(greeting), TurnOutcome::Reply(_)));
     assert!(s.intent.goal.is_none(), "chat is not an automation goal");
     s.reasoner = provider;
+    s.intelligence = selected;
     s.classifier = None;
     let calls = peer.bodies().len();
     for input in [

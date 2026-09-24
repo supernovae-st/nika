@@ -456,3 +456,19 @@ Garcia-Molina & Salem 1987 (Sagas · cleanup canon) · Gunther
 arXiv:0808.1431 (USL · future cap fitting) · Schroeder et al. 2006
 (NSDI · closed-loop caps) · Temporal/Restate/Azure-DF/SFN/Flyte docs
 (determinism + retry + timeout layering cross-engine canon).
+
+## Configured production composition
+
+`RuntimeConfig` remains the shared execution configuration owner. The existing
+`production_runtime` and `service_runtime` doors retain their defaults; the
+shared `compose::production_runtime_with_emitter` seam also accepts a live,
+host-bound config for the admitted service-execution driver. Its service
+projection uses `StderrEmitter::metadata_only`; all paths share the same
+HTTP, registry, sandbox, and execution composition. The two duplicate configured
+wrappers proposed during S81 are replaced by this existing seam before release.
+
+The provider, image and TTS key readers all reuse `ladder_key` at the same
+Runtime environment boundary. Existing variable names, precedence, empty-value
+handling, cloud endpoint overrides and local URL normalization are unchanged.
+The pending cost review contract lives in provider admission; Runtime preserves
+the narrow `cost_choice` compatibility path and the configuration binding test.

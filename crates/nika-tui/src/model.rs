@@ -118,12 +118,17 @@ impl Waiting {
         }
     }
 
-    /// The one-line hint under the composer for this state.
+    /// The one-line hint under the composer for this state. A spending
+    /// question (the session's `unknown_cost` and `run_cost` keys) names its
+    /// three choices in words, never by colour alone.
     #[must_use]
     pub fn hint(&self) -> &'static str {
         match self {
             Self::Free => "describe work · /help · Ctrl+T focus view · Ctrl+C twice to leave",
             Self::Choosing => "type a number · `cancel` continues without a choice",
+            Self::Question { key } if key == "unknown_cost" || key == "run_cost" => {
+                "yes approves once · no or Ctrl+C cancels · details shows the full evidence"
+            }
             Self::Question { .. } => "answer the question · an empty line takes the default",
             Self::Proposal => "yes applies these exact bytes · no keeps the file untouched · /show",
             Self::Gate => "approve or refuse · nothing else answers a gate",
@@ -381,6 +386,14 @@ pub struct Turn {
 /// `Send`: the shell computes a turn on a worker thread so the terminal
 /// stays live (the busy state changes while a seat is called).
 pub trait Conversation: Send {
+    /// Discard typeahead when a fresh human decision first becomes visible.
+    fn fresh_input_required(&self) -> bool {
+        false
+    }
+    /// Invalidate an unsubmitted decision on interruption, without running it.
+    fn cancel_pending(&mut self) -> Vec<Beat> {
+        Vec::new()
+    }
     /// The beats of the opening (banner, restored state, first prompt).
     fn open(&mut self) -> Vec<Beat>;
     /// The beats of one submitted line, and the handoff it asks for.
@@ -443,6 +456,28 @@ mod tests {
             "reply › "
         );
         assert_eq!(Waiting::Choosing.prompt(), "› ");
+    }
+
+    /// A spending question names its choices in plain words (no colour is
+    /// needed to read them); any other question keeps its own hint.
+    #[test]
+    fn a_spending_question_names_its_three_choices_in_words() {
+        for key in ["unknown_cost", "run_cost"] {
+            let hint = Waiting::Question {
+                key: key.to_owned(),
+            }
+            .hint();
+            for choice in ["yes approves once", "no or Ctrl+C cancels", "details"] {
+                assert!(hint.contains(choice), "{key}: {hint}");
+            }
+        }
+        assert_eq!(
+            Waiting::Question {
+                key: "model".to_owned()
+            }
+            .hint(),
+            "answer the question · an empty line takes the default"
+        );
     }
 
     #[test]

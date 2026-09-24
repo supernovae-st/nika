@@ -30,7 +30,7 @@ use super::plan::{
     Binding, Effect, EffectPolicy, EffectVerb, Obligation, ObligationKind, Op, Plan, Step,
 };
 use super::{gates, hot, objects};
-use cadence::cut_head;
+use cadence::{cut_head, cut_tail, record_recurrence, settle_tails};
 pub use cues::settle_retrieval;
 pub(crate) use cues::{ARTICLES, OBJECT_CONNECTORS};
 use cues::{
@@ -323,6 +323,11 @@ fn remainder<'a>(original: &'a str, lower: &'a str, consumed: usize) -> &'a str 
 pub const GATE_WITHOUT_EFFECT: &str =
     "a final action requires human validation, but no final effect was recognized";
 
+/// The unknown work a request is when it states two triggers one workflow cannot both start
+/// on (an event or a head and a sentence-final cadence that differs from it, or two different
+/// sentence-final cadences): its first words, followed by both triggers.
+pub const TWO_TRIGGERS: &str = "the request states two triggers";
+
 /// Sentences of a request: `.`, `!`, `?` end one only before whitespace or the end (a dot
 /// inside `./out/sent.md` or `127.0.0.1` does not); `;` and a newline always do.
 pub fn split_sentences(intent: &str) -> Vec<&str> {
@@ -539,6 +544,8 @@ struct ReadState {
     conflict_marker: bool,
     final_gate: bool,
     money_sentences: Vec<String>,
+    /// The sentence-final cadences cut off during the walk, settled once it ends.
+    tails: Vec<String>,
 }
 
 fn earliest<'a>(text: &str, markers: &'a [&'a str]) -> Option<(usize, &'a str)> {
@@ -869,6 +876,7 @@ pub fn read(intent: &str) -> Reading {
         conflict_marker: false,
         final_gate: false,
         money_sentences: Vec::new(),
+        tails: Vec::new(),
     };
     for sentence in split_sentences(intent) {
         let lower = normalize(sentence);
@@ -899,6 +907,13 @@ pub fn read(intent: &str) -> Reading {
             || body_lower.starts_with("n'")
             || body_lower.starts_with("non ")
             || body_lower.starts_with("nunca ");
+        // A sentence-final cadence (« … chaque lundi », « … every Monday ») is cut off as a
+        // head is, then settled against the heads once every sentence is read.
+        let body = if negated_sentence {
+            body
+        } else {
+            cut_tail(body, &body_lower, &mut state.tails)
+        };
         let clauses = if negated_sentence {
             vec![body]
         } else {
@@ -928,6 +943,8 @@ pub fn read(intent: &str) -> Reading {
             effect.policy_literal = state.money_sentences.first().cloned();
         }
     }
+    settle_tails(&state.tails, &mut reading);
+    record_recurrence(intent, &mut reading);
     super::hot::destination_floor(intent, &mut reading.plan);
     literals::collect_bindings(intent, &mut reading.plan);
     reading

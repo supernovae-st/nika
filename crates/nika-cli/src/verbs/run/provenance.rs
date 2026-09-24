@@ -73,8 +73,18 @@ pub fn run_with_inputs_json(
     max_cost_usd: Option<f64>,
     no_gc: bool,
     require_signature: bool,
-    repair_target: nika_display::check_render::RepairTarget,
+    host: impl Into<nika_cli_host::lane::RunHostOptions>,
 ) -> u8 {
+    let host = host.into();
+    if host.cost_review_stdio
+        && (!json || inputs_json.is_some() || file == "-" || resume.is_some() || dry_run)
+    {
+        epilogue::emit_diagnostic(
+            "Run review requires --json, a file and a fresh invocation without stdin inputs",
+            true,
+        );
+        return exit::ENV;
+    }
     let literal = match super::literal_inputs::capture(
         inputs_json,
         vars,
@@ -105,7 +115,7 @@ pub fn run_with_inputs_json(
         max_cost_usd,
         no_gc,
         require_signature,
-        Some(repair_target),
+        host,
     )
     .code
 }
@@ -158,14 +168,16 @@ pub(crate) fn run_verdict(
     max_cost_usd: Option<f64>,
     no_gc: bool,
     require_signature: bool,
-    repair_target: Option<nika_display::check_render::RepairTarget>,
+    host: impl Into<nika_cli_host::lane::RunHostOptions>,
 ) -> RunVerdict {
+    let host = host.into();
+    let invocation_cost = max_cost_usd;
     let (output_json, max_cost_usd) = match preflight(output, json, max_cost_usd, no_gc, dry_run) {
         Ok(pair) => pair,
         Err(verdict) => return *verdict,
     };
     let (source, wf, report) =
-        match provenance::capture_checked_source(file, repair_target, (output_json, json)) {
+        match provenance::capture_checked_source(file, host.repair_target, (output_json, json)) {
             Ok(checked) => checked,
             Err(verdict) => return *verdict,
         };
@@ -201,5 +213,7 @@ pub(crate) fn run_verdict(
         task_filter,
         no_outputs,
         max_cost_usd,
+        invocation_cost,
+        host.cost_review_stdio,
     )
 }

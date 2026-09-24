@@ -553,6 +553,7 @@ impl SessionRuntime {
                     let text = syntax_question_text(clause.as_deref().unwrap_or_default());
                     self.intent.unresolved = vec![text.clone()];
                     self.remember(&round.intent, &text);
+                    self.questions.ask();
                     self.authoring = Some(round);
                     return TurnOutcome::Question {
                         key,
@@ -570,6 +571,7 @@ impl SessionRuntime {
                 }
                 self.intent.unresolved = vec![question.label.clone()];
                 self.remember(&round.intent, &text);
+                self.questions.ask();
                 self.authoring = Some(round);
                 TurnOutcome::Question {
                     key,
@@ -645,6 +647,8 @@ impl SessionRuntime {
             return TurnOutcome::Aside(text);
         }
         if is_cancel(line) {
+            let asked = self.question_id_of(&round);
+            self.questions.close(asked);
             self.intent.unresolved.clear();
             self.remember(line, "(authoring discarded)");
             return TurnOutcome::Facts(
@@ -686,6 +690,8 @@ impl SessionRuntime {
             let intent = round.intent.replacen(&clause, line.trim(), 1);
             let mut restated = AuthoringRound::new(intent);
             restated.restatements = round.restatements.saturating_add(1);
+            let asked = self.question_id_of(&round);
+            self.questions.close(asked);
             self.remember(line, &format!("(restated « {clause} » in words)"));
             return self.compile_again(restated);
         }
@@ -758,6 +764,8 @@ impl SessionRuntime {
         };
         match act {
             TurnAct::Cancel => {
+                let asked = self.question_id_of(&round);
+                self.questions.close(asked);
                 self.intent.unresolved.clear();
                 self.remember(line, "(authoring discarded)");
                 return Err(TurnOutcome::Facts(

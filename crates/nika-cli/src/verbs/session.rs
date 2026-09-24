@@ -80,16 +80,23 @@ fn drive<R: BufRead, W: Write>(
     home: Option<&std::path::Path>,
     cwd: &std::path::Path,
     theme: Theme,
+    factory: nika_session::runtime::ReasonerFactory,
 ) -> std::io::Result<u8> {
     // The kept choice opens the session as chosen; without one the session
     // opens all the same and asks the first screen in context, the first
     // time a turn needs an intelligence.
     let mut session = match home.and_then(UserIntelligencePreference::load) {
-        Some(pref) => {
-            SessionRuntime::open_with(cwd, census.clone(), &pref, home, Box::new(reasoner_for))
-        }
-        None => SessionRuntime::open_unchosen(cwd, census.clone(), home, Box::new(reasoner_for)),
+        Some(pref) => SessionRuntime::open_with(cwd, census.clone(), &pref, home, factory),
+        None => SessionRuntime::open_unchosen(cwd, census.clone(), home, factory),
     };
+    // This unmanaged interactive host has no configured hard-cap source.
+    // Project discovery is re-read by Session on review and confirmation.
+    if std::io::IsTerminal::is_terminal(&std::io::stdin())
+        && std::io::IsTerminal::is_terminal(&std::io::stdout())
+    {
+        session
+            .set_cost_host_evidence(nika_session::CostHostEvidence::unmanaged_interactive_local());
+    }
     // A truthful line while the compiler works under a seat — to the
     // terminal the human watches, never a percentage, never an ETA.
     session.on_progress(Box::new(|line| {
@@ -120,7 +127,10 @@ fn drive<R: BufRead, W: Write>(
     // authoring question (each its own prompt: a `yes` never crosses from
     // one to another). The door keeps no bit of its own.
     loop {
-        let prompt = if session.pending_choice() {
+        let prompt = if session.waiting_cost_choice() {
+            nika_cli_host::lines::fresh_terminal(output)?;
+            "continue once? › "
+        } else if session.pending_choice() {
             "› "
         } else if session.pending_proposal().is_some() {
             "apply? › "
@@ -140,7 +150,9 @@ fn drive<R: BufRead, W: Write>(
         if input.read_line(&mut line)? == 0 {
             return Ok(exit::OK);
         }
-        let outcome = if session.pending_choice() {
+        let outcome = if session.waiting_cost_choice() {
+            session.turn(&line)
+        } else if session.pending_choice() {
             session.choose(line.trim())
         } else if session.pending_proposal().is_some() {
             session.consent(line.trim())
@@ -329,38 +341,23 @@ fn run_tapped(
     slot: &ChildSlot,
 ) -> (u8, Option<std::path::PathBuf>, Vec<String>) {
     use nika_tui::session::Work;
-    let mut args: Vec<String> = vec!["run".to_owned()];
-    match work {
+    let args = match work {
         Work::Run(run) => {
-            args.push(root.join(&run.workflow).display().to_string());
-            args.push("--json".to_owned());
-            args.push("--max-cost-usd".to_owned());
-            args.push(format!("{}", run.max_cost_usd));
-            for var in &run.vars {
-                args.push("--var".to_owned());
-                args.push(var.clone());
-            }
+            nika_cli_host::lane::run_args(root, &run.workflow, run.max_cost_usd, &run.vars)
         }
         Work::Resume {
             workflow,
             trace,
             answer,
-        } => {
-            args.push(root.join(workflow).display().to_string());
-            args.push("--json".to_owned());
-            args.push("--resume".to_owned());
-            args.push(trace.display().to_string());
-            args.push("--answer".to_owned());
-            args.push(answer.clone());
-        }
+        } => nika_cli_host::lane::resume_args(root, workflow, trace, answer),
         _ => {
             return (
                 exit::ENV,
                 None,
-                vec!["a kind of work this door cannot run".to_owned()],
+                vec!["a kind of work this door cannot run".into()],
             );
         }
-    }
+    };
     let Ok(exe) = std::env::current_exe() else {
         return (
             exit::ENV,
@@ -418,7 +415,23 @@ pub fn run_tui(theme: Theme) -> u8 {
             run_tapped(root, work, busy, &slot)
         })),
     };
-    let live = Live::new(cwd, census, kept, home, Box::new(reasoner_for), runners);
+    let slot = std::sync::Arc::clone(&child);
+    let live = Live::new(cwd, census, kept, home, Box::new(reasoner_for), runners)
+        .with_cost_host_evidence(nika_session::CostHostEvidence::unmanaged_interactive_local())
+        .with_run_review(Box::new(move |root, run, busy| {
+            let args =
+                nika_cli_host::lane::run_args(root, &run.workflow, run.max_cost_usd, &run.vars);
+            match std::env::current_exe() {
+                Ok(exe) => {
+                    nika_cli_host::lane::drive_reviewed_child(&exe, &args, root, busy, &slot)
+                }
+                Err(e) => nika_cli_host::lane::RunProgress::Complete((
+                    exit::ENV,
+                    None,
+                    vec![e.to_string()],
+                )),
+            }
+        }));
     let left = nika_tui::app::run_on(taken, live, options);
     // A run still in flight when the door leaves is ended, never orphaned:
     // the engine cancels on SIGTERM and its trace says so.
@@ -454,6 +467,7 @@ pub fn run(theme: Theme) -> u8 {
         home.as_deref(),
         &cwd,
         theme,
+        Box::new(reasoner_for),
     ) {
         Ok(code) => code,
         Err(error) => {
@@ -485,6 +499,7 @@ mod tests {
                 Some(home.path()),
                 project.path(),
                 Theme::new(false, false, false),
+                Box::new(reasoner_for),
             )
             .expect("drive");
             (code, String::from_utf8(output).expect("text"))
@@ -537,6 +552,7 @@ mod tests {
             Some(home.path()),
             project.path(),
             Theme::new(false, false, false),
+            Box::new(reasoner_for),
         )
         .expect("io");
         assert_eq!(code, exit::OK);
@@ -589,6 +605,7 @@ mod tests {
             Some(home.path()),
             project.path(),
             Theme::new(false, false, false),
+            Box::new(reasoner_for),
         )
         .expect("io");
         assert_eq!(code, exit::OK, "EOF closes the session cleanly");
@@ -637,6 +654,7 @@ mod tests {
             Some(home.path()),
             project.path(),
             Theme::new(false, false, false),
+            Box::new(reasoner_for),
         )
         .expect("io");
         assert_eq!(code, exit::OK);
@@ -649,5 +667,8 @@ mod tests {
     }
 }
 
+#[cfg(test)]
+#[cfg(unix)]
+mod fresh_tests;
 #[cfg(test)]
 mod run_tests;

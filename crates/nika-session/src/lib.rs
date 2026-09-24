@@ -69,7 +69,8 @@ pub use intelligence::{
     UserIntelligencePreference,
 };
 pub use lifecycle::{Lifecycle, LifecycleFacts, RunFact, Stage};
-pub use outcome::{GateId, ProposalId, Refusal, RefusalClass};
+pub use nika_runtime::cost_choice::{CapEvidence, CostHostEvidence};
+pub use outcome::{GateId, ProposalId, QuestionId, Refusal, RefusalClass};
 pub use reasoner::{ReasonError, Reply, ScriptedReasoner, SessionReasoner};
 pub use runtime::{SessionRuntime, TurnOutcome};
 pub use snapshot::ProjectSnapshot;

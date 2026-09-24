@@ -305,7 +305,7 @@ fn a_change_restates_the_request_and_the_revision_names_the_new_destination() {
     let mut s = SessionRuntime::open(
         dir.path(),
         ready(
-            IntelligenceKind::Api {
+            IntelligenceKind::Local {
                 provider: "mock".to_owned(),
             },
             DataLocus::None,

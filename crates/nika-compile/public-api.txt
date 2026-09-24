@@ -1509,6 +1509,7 @@ pub type nika_compile::RepresentationError::Output = T
 pub nika_compile::TriggerRequirement::at: core::option::Option<alloc::string::String>
 pub nika_compile::TriggerRequirement::cadence: core::option::Option<alloc::string::String>
 pub nika_compile::TriggerRequirement::ceiling: core::option::Option<alloc::string::String>
+pub nika_compile::TriggerRequirement::cron: core::option::Option<alloc::string::String>
 pub nika_compile::TriggerRequirement::event_hint: core::option::Option<alloc::string::String>
 pub nika_compile::TriggerRequirement::kind: nika_compile::TriggerKind
 pub nika_compile::TriggerRequirement::missed: core::option::Option<alloc::string::String>

@@ -38,9 +38,11 @@ mod history;
 mod inference;
 mod money_gate;
 mod money_parse;
+mod question;
 mod recovery;
 mod route;
 mod run_budget;
+mod unknown_cost;
 
 use run_budget::ceiling_in;
 mod schedule;
@@ -237,6 +239,7 @@ pub struct SessionRuntime {
     factory: Option<ReasonerFactory>,
     pending: Option<ProjectChangeSet>,
     money: money_gate::MoneyState,
+    unknown_cost: unknown_cost::UnknownCostState,
     pending_gate: Option<PendingGate>,
     decided: Option<ProposalId>,
     answered: Option<GateId>,
@@ -249,6 +252,8 @@ pub struct SessionRuntime {
     last_trace: Option<PathBuf>,
     /// The authoring round whose question the next line answers.
     authoring: Option<AuthoringRound>,
+    /// Who asks that question and which ones were answered (memory only).
+    questions: question::Identities,
     /// The cognition the compiler may use, derived from the reasoner.
     seat: AuthoringSeat,
     /// The strategy and the knowledge snapshot a provider seat authors
@@ -281,6 +286,8 @@ pub struct SessionRuntime {
     last_trigger: Option<TriggerRequirement>,
     /// The activation under way: its questions own the next lines.
     activation: Option<schedule::Activation>,
+    /// Identifies the schedule declaration solely to discard it on revision, never to grant it.
+    activation_proposal: Option<ProposalId>,
     /// The bounded classifier of open language, when a door injects one
     /// (a decision seat, a scripted one in tests); otherwise the session's
     /// own intelligence answers the routing prompt, or the fallback.
@@ -328,6 +335,7 @@ impl SessionRuntime {
             factory: None,
             pending: None,
             money: money_gate::MoneyState::default(),
+            unknown_cost: unknown_cost::UnknownCostState::default(),
             pending_gate: None,
             decided: None,
             answered: None,
@@ -336,6 +344,7 @@ impl SessionRuntime {
             last_check_clean: None,
             last_trace: None,
             authoring: None,
+            questions: question::Identities::default(),
             seat: AuthoringSeat::Deterministic { why: None },
             authoring_context: crate::authoring::AuthoringContext::default(),
             progress: None,
@@ -350,6 +359,7 @@ impl SessionRuntime {
             pending_trigger: None,
             last_trigger: None,
             activation: None,
+            activation_proposal: None,
         };
         session.refresh_seat();
         session
@@ -360,6 +370,9 @@ impl SessionRuntime {
     /// the machine's own facts, never a concatenation of flags.
     #[must_use]
     pub fn status_line(&self) -> String {
+        if self.waiting_cost_choice() {
+            return "Waiting for a one-time unknown-cost decision · nothing sent".into();
+        }
         if self.pending_choice {
             return "Needs your choice of intelligence · the request waits".to_owned();
         }
@@ -1097,6 +1110,12 @@ impl SessionRuntime {
     /// as already consumed when that proposal was decided, as the wrong
     /// state when none is pending. Never applied twice.
     pub fn consent_to(&mut self, id: &ProposalId, answer: &str) -> TurnOutcome {
+        if self.waiting_cost_choice() {
+            return TurnOutcome::Refusal(Refusal::new(
+                RefusalClass::StaleRevision,
+                "a new cost review waits; old proposal consent cannot answer it",
+            ));
+        }
         match self.pending_proposal() {
             Some(waiting) if waiting != *id => TurnOutcome::Refusal(Refusal::new(
                 RefusalClass::StaleRevision,

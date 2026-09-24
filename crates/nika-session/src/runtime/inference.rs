@@ -47,6 +47,10 @@ impl SessionRuntime {
     }
     pub(super) fn inference_line(&self) -> String {
         let account = match self.inference_receipt() {
+            Ok(Some(r)) if r.unknown_cost.is_some() => format!(
+                "explicit unknown cost · known USD subtotal {} · unknown calls {} · {:?} · invoice unknown · fresh review required for another invocation",
+                r.estimated, r.unknown_calls, r.state
+            ),
             Ok(Some(r)) => {
                 let provenance = r.attempts.last().map_or_else(String::new, |a| {
                     format!(
@@ -60,7 +64,11 @@ impl SessionRuntime {
                     r.limit, r.estimated, r.active, r.held_unknown, r.available, r.state
                 )
             }
-            Ok(None) if self.money.reconfirm => RESTORED_EXPOSURE.into(),
+            Ok(None) if self.money.reconfirm => format!(
+                "{} · {} historical cost observation(s), without authority",
+                RESTORED_EXPOSURE,
+                self.unknown_cost.observations.len()
+            ),
             Ok(None) => self
                 .money
                 .admission_note

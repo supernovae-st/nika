@@ -68,18 +68,11 @@ pub fn block_lines(block: &Committed, color: bool) -> Vec<Line<'static>> {
 /// The rows `lines` take at `width` once wrapped, at least one.
 #[must_use]
 pub fn wrapped_rows(lines: &[Line<'_>], width: u16) -> u16 {
-    let width = usize::from(width.max(1));
-    let rows: usize = lines
-        .iter()
-        .map(|line| {
-            let cells: usize = line
-                .spans
-                .iter()
-                .map(|s| unicode_width::UnicodeWidthStr::width(s.content.as_ref()))
-                .sum();
-            cells.div_ceil(width).max(1)
-        })
-        .sum();
+    // Use the same word wrapper as rendering. Cell-count division can
+    // underestimate rows and hide the last line of a consent question.
+    let rows = Paragraph::new(lines.to_vec())
+        .wrap(Wrap { trim: false })
+        .line_count(width.max(1));
     u16::try_from(rows.max(1)).unwrap_or(u16::MAX)
 }
 
@@ -274,7 +267,30 @@ mod tests {
         assert_eq!(lines[0].spans[0].content.as_ref(), "⏸ ");
         assert_eq!(lines[1].spans[0].content.as_ref(), "  ");
         assert_eq!(wrapped_rows(&lines, 80), 2);
-        assert_eq!(wrapped_rows(&lines, 10), 4);
+        // Word wrapping needs five rows; cell division used to clip the last one.
+        assert_eq!(wrapped_rows(&lines, 10), 5);
+    }
+
+    #[test]
+    fn word_wrapping_preserves_the_final_confirmation_line() {
+        let block = Committed::new(
+            Kind::Question,
+            "alpha bravo charlie delta echo foxtrot échéance alpha bravo charlie delta echo foxtrot\nContinue once? yes / no",
+        );
+        for width in [12, 20, 40, 80] {
+            let rows = wrapped_rows(&block_lines(&block, false), width);
+            let mut buffer = Buffer::empty(Rect::new(0, 0, width, rows));
+            render_block(&block, false, &mut buffer);
+            let shown = (0..rows)
+                .map(|y| row(&buffer, y))
+                .collect::<Vec<_>>()
+                .join(" ");
+            let words = shown.split_whitespace().collect::<Vec<_>>().join(" ");
+            assert!(
+                words.ends_with("Continue once? yes / no"),
+                "width {width}: {shown:?}"
+            );
+        }
     }
 
     /// The busy row's marker turns with the loader's frame and stays the

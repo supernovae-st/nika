@@ -11,6 +11,8 @@ homepage.workspace     = true
 publish                = false  # Internal member of the nika-cli unit (the binary ships, the lib doesn't).
 
 [dependencies]
+nika-fs = { path = "../nika-fs", version = "0.120.3" } # descriptor-rooted cost observation journal
+nika-vocab = { path = "../nika-vocab", version = "0.120.3" } # the existing project monetary-default discovery
 tokio = { workspace = true, features = ["process", "io-util"] } # bounded authoring and machine lane child I/O
 futures-core = { workspace = true } # the harness event stream an authoring seat drains
 nika-onboard = { path = "../nika-onboard", version = "0.120.3" } # typed Compile core; host adapter only materializes explicit Ready results
@@ -27,7 +29,7 @@ nika-providers = { path = "../nika-providers", version = "0.120.3" } # ProviderR
 nika-runtime   = { path = "../nika-runtime", version = "0.120.3" }   # trace-store shapes retention walks + WorkflowPause/Stamper (notify · ADR-111)
 nika-service-execution = { path = "../nika-service-execution", version = "0.120.3" } # the ONE access-plan resolver + probe door every door executes (One Door · wave 1b)
 nika-registry-client = { path = "../nika-registry-client", version = "0.120.3" } # canonical registry cache root for --fix provenance
-nix            = { workspace = true, features = ["fs", "feature", "user", "poll"] }   # FIFO fixtures · sysconf RAM probe · account-home lookup · the paste-burst poll (`lines`)
+nix            = { workspace = true, features = ["fs", "feature", "user", "poll", "term"] }   # FIFO fixtures · sysconf RAM probe · account-home lookup · the paste-burst poll and the fresh-input termios boundary (`lines`)
 nika-schema    = { path = "../nika-schema", version = "0.120.3" }    # RawWorkflow (context envelope · glance)
 nika-source    = { path = "../nika-source", version = "0.120.3" }    # lexical program-source naming (#1684)
 nika-http      = { path = "../nika-http", version = "0.120.3" }      # ReqwestHttp — the notify webhook client (ADR-111 · SSRF floor)

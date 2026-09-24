@@ -22,7 +22,35 @@ pub fn rejections(intent: &str, reading: &Reading) -> Vec<String> {
     unproduced_content(&reading.plan, &mut why);
     unrecheckable_revision(&reading.plan, &mut why);
     why.extend(unopened_sources(intent, &reading.plan));
+    why.extend(unbound_recurrence(intent, &reading.plan));
     why
+}
+
+/// A recurrence the request states without its cadence (« régulièrement », « from time to
+/// time ») that the plan's trigger does not carry. The reader records it as the trigger when no
+/// head took the trigger first, so this is the request whose head did (« Pour chaque fichier
+/// de ./notes/*.md, résume-le régulièrement … »): admitted, the work would run once per
+/// invocation and the recurrence would vanish. A trigger that names a period (« Chaque lundi,
+/// … régulièrement ») carries it.
+fn unbound_recurrence(intent: &str, plan: &Plan) -> Option<String> {
+    use super::trigger_words::{DAILY, HOURLY, MINUTELY, MONTHLY, WEEKDAYS, WEEKLY};
+    let lower = intent.to_lowercase();
+    let phrase = super::words::recurrence(&lower).and_then(|(start, end)| lower.get(start..end))?;
+    let carried = plan.trigger.as_deref().is_some_and(|trigger| {
+        let folded = fold(trigger);
+        folded.contains(&fold(phrase))
+            || folded.split(|c: char| !c.is_alphanumeric()).any(|word| {
+                [DAILY, WEEKDAYS, WEEKLY, MONTHLY, HOURLY, MINUTELY]
+                    .iter()
+                    .any(|table| table.contains(&word))
+                    || super::words::day_part_compound(word).is_some()
+            })
+    });
+    (!carried).then(|| {
+        format!(
+            "the request asks for `{phrase}` and the plan's trigger does not carry it: the work would run once and the recurrence would vanish"
+        )
+    })
 }
 
 /// A source the request names that nothing opens: a path stated as a source (at least one
@@ -1035,5 +1063,40 @@ mod tests {
             "{:?}",
             rejections(intent, &reading)
         );
+    }
+
+    #[test]
+    fn a_recurrence_the_trigger_does_not_carry_is_never_hot() {
+        for (intent, head) in [
+            (
+                "Pour chaque fichier de ./notes/*.md, résume-le régulièrement dans ./out/resume.md",
+                "pour chaque fichier de ./notes/*.md",
+            ),
+            (
+                "Quand un ticket arrive, rédige régulièrement un accusé de réception dans ./out/accuse.md",
+                "quand un ticket arrive",
+            ),
+        ] {
+            let reading = lexicon::read(intent);
+            assert_eq!(reading.plan.trigger.as_deref(), Some(head), "{intent}");
+            let why = rejections(intent, &reading);
+            assert!(
+                why.iter().any(|w| w.contains("`régulièrement`")),
+                "{intent}: {why:?}"
+            );
+        }
+        // The trigger the reader records carries it, and so does a head that names a period.
+        for carried in [
+            "Fais-moi un rapport des trucs importants régulièrement",
+            "Régulièrement, fais-moi un rapport des trucs importants",
+            "Chaque lundi, résume ./notes.md régulièrement dans ./out/resume.md",
+            "Résume ./notes.md dans ./out/resume.md en vérifiant la régularité des dépenses",
+        ] {
+            let why = rejections(carried, &lexicon::read(carried));
+            assert!(
+                !why.iter().any(|w| w.contains("recurrence")),
+                "{carried}: {why:?}"
+            );
+        }
     }
 }

@@ -468,14 +468,7 @@ where
             }
 
             // Decide this turn — the ONE exit-conditions site (spec §2).
-            let ctx = TurnCtx {
-                input: &input,
-                whitelist,
-                turns: st.turns,
-                total_tokens: st.total_tokens,
-                last_text: &st.last_text,
-                repairs: st.repair_budget(self.schema_retry_budget),
-            };
+            let ctx = turn_context(&input, whitelist, &st, self.schema_retry_budget);
             // Terminals return one output (FinalText shapes to `schema:` ·
             // BUG#11); the other verdicts feed back and iterate.
             let output = match classify_turn(&response, &text, &ctx)? {
@@ -1117,6 +1110,23 @@ where
                 ))
             }
         }
+    }
+}
+
+/// Read the loop's current limits without advancing its state or spending a repair.
+fn turn_context<'a>(
+    input: &'a AgentInput,
+    whitelist: &'a Whitelist,
+    st: &'a turn::LoopState,
+    schema_retry_budget: u8,
+) -> TurnCtx<'a> {
+    TurnCtx {
+        input,
+        whitelist,
+        turns: st.turns,
+        total_tokens: st.total_tokens,
+        last_text: &st.last_text,
+        repairs: st.repair_budget(schema_retry_budget),
     }
 }
 

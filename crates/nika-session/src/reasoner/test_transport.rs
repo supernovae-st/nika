@@ -7,12 +7,14 @@ use nika_kernel::http::{HttpError, HttpPostDyn, HttpRequest, HttpResponse, HttpS
 use nika_kernel::secret::Secret;
 use nika_providers::ProvidersConfig;
 use std::cell::RefCell;
-thread_local! { static TARGET: RefCell<Option<String>> = const { RefCell::new(None) }; }
+thread_local! { static TARGET: RefCell<Option<String>> = const { RefCell::new(None) };
+static CONFIG: RefCell<Option<ProvidersConfig>> = const { RefCell::new(None) }; }
 
 pub(crate) struct Installed;
 impl Drop for Installed {
     fn drop(&mut self) {
         TARGET.with(|v| *v.borrow_mut() = None);
+        CONFIG.with(|v| *v.borrow_mut() = None);
     }
 }
 pub(crate) fn install(target: &str) -> Installed {
@@ -20,7 +22,13 @@ pub(crate) fn install(target: &str) -> Installed {
     TARGET.with(|v| *v.borrow_mut() = Some(target.to_owned()));
     Installed
 }
+pub(crate) fn set_config(config: ProvidersConfig) {
+    CONFIG.with(|v| *v.borrow_mut() = Some(config));
+}
 pub(crate) fn config() -> Option<ProvidersConfig> {
+    if let Some(config) = CONFIG.with(|v| v.borrow().clone()) {
+        return Some(config);
+    }
     TARGET.with(|v| {
         v.borrow().as_ref().map(|_| {
             ProvidersConfig::new().with_key("deepseek", Secret::new("s34-test-not-a-credential"))
@@ -52,6 +60,7 @@ impl HttpPostDyn for Client {
                 request.url.as_str(),
                 "https://api.deepseek.com/v1/chat/completions"
                     | "https://api.deepseek.com/chat/completions"
+                    | "https://api.scaleway.ai/v1/chat/completions"
             ));
             assert!(
                 !request.follow_redirects,

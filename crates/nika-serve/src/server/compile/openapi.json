@@ -159,7 +159,7 @@
       },
       "requested_trigger": {
         "additionalProperties": true,
-        "description": "The trigger the request names (kind · source_hint · event_hint · cadence · at · payload_input · status · timezone · missed · overlap · ceiling), stated beside the candidate whose bytes carry no cadence, host or event. A requirement the operator binds through the schedule contract, never a grant or a schedule row; the last four are the answered binding values (null until answered)",
+        "description": "The trigger the request names (kind · source_hint · event_hint · cadence · at · payload_input · status · timezone · missed · overlap · ceiling · cron), stated beside the candidate whose bytes carry no cadence, host or event. A requirement the operator binds through the schedule contract, never a grant or a schedule row. timezone, missed, overlap and ceiling are the answered binding values (null until answered). cron is the exact five-field schedule projection when supported and fully specified, otherwise null; older engines omit it. It never supplies a missing time or timezone.",
         "type": [
           "object",
           "null"

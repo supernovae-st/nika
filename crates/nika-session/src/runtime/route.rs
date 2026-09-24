@@ -166,6 +166,13 @@ impl SessionRuntime {
                     "discarded · nothing was written · ask again for the change when ready".to_owned(),
                 )
             }
+            TurnAct::Modify | TurnAct::Mixed if self.activation_proposal.as_ref() == Some(&id) => {
+                self.activation_proposal = None;
+                self.decided = Some(id);
+                super::TurnOutcome::Facts(
+                    "discarded the old schedule declaration · nothing was written · restate the work with the revised cadence, save it, then activate again for a fresh review".to_owned(),
+                )
+            }
             TurnAct::Modify | TurnAct::Mixed => self.revise_pending(set, raw),
             TurnAct::Discuss => self.discuss_pending(set, id, raw),
             TurnAct::RequestRun => self.hold_pending(

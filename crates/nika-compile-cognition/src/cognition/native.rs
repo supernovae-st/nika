@@ -25,6 +25,7 @@ use nika_kernel::ai::provider::{
 use serde_json::{Value, json};
 
 mod answer;
+mod revision;
 pub(super) use answer::{Answer, Question};
 
 fn schema() -> Value {
@@ -129,6 +130,9 @@ pub(super) struct Talk {
     /// The observed world of the stated files, when the host read one: a column, field, key
     /// or value name is stated there, never asked.
     pub(super) observed: Option<Value>,
+    /// The base and the change words of a revision in words: a stated path the change leaves
+    /// behind is waived only as `revision` proves it or the human disposes of it.
+    pub(super) revision: Option<(String, String)>,
 }
 
 impl Talk {
@@ -153,6 +157,7 @@ impl Talk {
             allowed,
             clarified: fidelity::clarified_sources(&request.answers),
             observed: request.knowledge.clone(),
+            revision: revision::of(request),
             repairs: request
                 .authoring_knowledge
                 .as_ref()
@@ -423,12 +428,14 @@ async fn exchange<P: ProviderInferDyn>(
     let Some((answer, text)) = decode::<Answer>(&response, "native", round, talk, out) else {
         return Round::Stop;
     };
+    let waived = revision::waivable(intent, talk.revision.as_ref(), &answer.gaps);
     let diagnostics = judge(
         intent,
         reading,
         &answer.candidate,
         &answer.questions,
         &talk.allowed,
+        &waived,
         &talk.clarified,
         talk.observed.as_ref(),
     );
@@ -748,14 +755,88 @@ fn observed_names(observed: Option<&Value>) -> Option<String> {
     (!lines.is_empty()).then(|| lines.join(" · "))
 }
 
+/// Phrases that leave a column or a field of a file open (FR · EN, folded, whole words): which
+/// one is the human's business choice, never the seat's.
+const OPEN_COLUMNS: &[&str] = &[
+    "une colonne",
+    "une des colonnes",
+    "l une des colonnes",
+    "un champ",
+    "un des champs",
+    "a column",
+    "one column",
+    "one of the columns",
+    "a field",
+    "one of the fields",
+];
+
+/// The slug endings that ask for a column or a field by its name.
+const COLUMN_SLUGS: &[&str] = &["_column", "_col", "_field", "_header"];
+
+/// A text's folded words, one space apart and one around: whole-word phrases match inside.
+fn spaced(text: &str) -> String {
+    let folded = crate::hot::fold(text);
+    let words: Vec<&str> = folded
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|w| !w.is_empty())
+        .collect();
+    format!(" {} ", words.join(" "))
+}
+
+/// The observed alternatives of a column the request leaves open (« Additionne une colonne de
+/// ventes.csv »): the request speaks of « une colonne », names none of the columns of the one
+/// file the host observed with several, and the question asks for a column by name. Each
+/// offer is one of that file's observed columns, verbatim, never a name the seat's label
+/// proposes. None otherwise: the observed world then states the name, and it is not asked.
+fn open_column(intent: &str, slug: &str, observed: Option<&Value>) -> Option<Vec<Value>> {
+    if !COLUMN_SLUGS.iter().any(|end| slug.ends_with(end)) {
+        return None;
+    }
+    let words = spaced(intent);
+    if !OPEN_COLUMNS
+        .iter()
+        .any(|phrase| words.contains(&format!(" {phrase} ")))
+    {
+        return None;
+    }
+    let observed = observed?;
+    let rows = observed
+        .get("observed")
+        .and_then(Value::as_array)
+        .or_else(|| observed.as_array())?;
+    let mut files = rows.iter().filter_map(|row| {
+        let path = row.get("path")?.as_str()?;
+        let columns: Vec<&str> = row
+            .get("columns")?
+            .as_array()?
+            .iter()
+            .filter_map(Value::as_str)
+            .collect();
+        (columns.len() >= 2).then_some((path, columns))
+    });
+    let (path, columns) = files.next()?;
+    // Two observed files: which one the column belongs to is not the question's to say.
+    if files.next().is_some() || columns.iter().any(|column| words.contains(&spaced(column))) {
+        return None;
+    }
+    Some(
+        columns
+            .iter()
+            .map(|column| json!({"key": column, "label": format!("column `{column}` of {path}")}))
+            .collect(),
+    )
+}
+
 /// A candidate's questions, admitted: `const.<snake_slug>` keys only, each declared under
 /// `const:` in the candidate as a placeholder, at most eight; never a machine's construct;
-/// never a name the observed world states.
+/// never a name the observed world states. A column the request leaves open is admitted with
+/// its observed alternatives (`open_column`), the only answers the compiler takes.
 fn admitted_questions(
+    intent: &str,
     candidate: &str,
     questions: &[Question],
     observed: Option<&Value>,
-) -> Result<Vec<Question>, Diagnostic> {
+) -> Result<Vec<(Question, Vec<Value>)>, Diagnostic> {
     let world = observed_names(observed);
     let doc = crate::edit::literal_projection(candidate);
     let consts = doc
@@ -789,17 +870,23 @@ fn admitted_questions(
         }
         // A column, field, key or value name of a file the host read is stated in the
         // observed world, never asked (2026-09-22 22:5xZ, claude-code/sonnet: `const.status_field`,
-        // `const.open_value`, `const.region_column` beside the observed header and value set).
+        // `const.open_value`, `const.region_column` beside the observed header and value set) —
+        // unless the request leaves the column open among the observed ones (DIALOG-03,
+        // 2026-09-24: « Additionne une colonne de ventes.csv » over `montant, autre`).
+        let mut options = Vec::new();
         if let Some(world) = world.as_deref()
             && STRUCTURE_SLUGS.lines().any(|s| slug.ends_with(s))
         {
-            return Err(Diagnostic {
-                kind: "question",
-                message: format!(
-                    "the question `{}` asks the human for a column, field, key or value name; the observed world states them — {world} — write those exact names and values into the candidate, never a question",
-                    question.key
-                ),
-            });
+            let Some(offered) = open_column(intent, slug, observed) else {
+                return Err(Diagnostic {
+                    kind: "question",
+                    message: format!(
+                        "the question `{}` asks the human for a column, field, key or value name; the observed world states them — {world} — write those exact names and values into the candidate, never a question",
+                        question.key
+                    ),
+                });
+            };
+            options = offered;
         }
         if slug == "channel" || slug.ends_with("_channel") {
             return Err(Diagnostic {
@@ -824,19 +911,22 @@ fn admitted_questions(
                 ),
             });
         }
-        admitted.push(question.clone());
+        admitted.push((question.clone(), options));
     }
     Ok(admitted)
 }
 
 /// The judge: the strict parser, the pure Check, then the fidelity laws against the original
-/// request and the reader's floor. Every refusal is one structured diagnostic.
+/// request and the reader's floor. Every refusal is one structured diagnostic. A `waived` path
+/// is one a revision's seat names in its gaps and the change never names (`revision`): the
+/// path law leaves it to the gap, which the settlement proves or leaves to the human.
 pub(super) fn judge(
     intent: &str,
     reading: &Reading,
     candidate: &str,
     questions: &[Question],
     allowed: &[String],
+    waived: &[String],
     clarified: &[String],
     observed: Option<&Value>,
 ) -> Vec<Diagnostic> {
@@ -849,11 +939,11 @@ pub(super) fn judge(
         &reading.plan,
         &doc,
         allowed,
-        &[],
+        waived,
         clarified,
         &mut out,
     );
-    if let Err(diagnostic) = admitted_questions(candidate, questions, observed) {
+    if let Err(diagnostic) = admitted_questions(intent, candidate, questions, observed) {
         out.push(diagnostic);
     }
     out.dedup();
@@ -1017,6 +1107,17 @@ fn bound_placeholder(task: &Value, url: &str, slug: &str) -> bool {
         .is_some_and(|bound| names_placeholder(bound, slug))
 }
 
+/// One admitted question as the record keeps it: a column the request leaves open is a closed
+/// choice among its observed alternatives, the only answers the replay bakes.
+fn recorded(question: &Question, options: &[Value]) -> Value {
+    let mut record = json!({"key": question.key, "label": question.label, "answer_type": question.answer_type, "why": question.why});
+    if !options.is_empty() {
+        record["answer_type"] = json!("choice");
+        record["options"] = json!(options);
+    }
+    record
+}
+
 /// An accepted candidate settles: its questions are asked (mandatory), the answered ones are
 /// baked into the candidate, the `model` answer replaces the placeholder, and the source goes
 /// through the same finish as every candidate. The record replays it with zero calls.
@@ -1029,22 +1130,44 @@ fn settle(
     request: &CompileRequest,
     out: &mut CompileOutcome,
 ) {
-    let admitted =
-        admitted_questions(candidate, questions, request.knowledge.as_ref()).unwrap_or_default();
+    let admitted = admitted_questions(intent, candidate, questions, request.knowledge.as_ref())
+        .unwrap_or_default();
     let gaps: Vec<&str> = gaps
         .iter()
         .map(|g| g.trim())
         .filter(|g| !g.is_empty())
-        .take(8)
+        .take(revision::KEPT_GAPS)
         .collect();
+    // A revision's gap the change proves superseded is recorded and applied, never asked; every
+    // other gap stays for the human.
+    let (gaps, superseded) = revision::settle(intent, request, candidate, &gaps);
     let mut record = json!({
         "strategy": Strategy::Native.word(),
         "intent_sha256": super::intent_sha256(intent),
         "source": candidate,
-        "questions": admitted.iter().map(|q| json!({"key": q.key, "label": q.label, "answer_type": q.answer_type, "why": q.why})).collect::<Vec<_>>(),
+        "questions": admitted.iter().map(|(q, options)| recorded(q, options)).collect::<Vec<_>>(),
         "gaps": gaps,
         "trigger": trigger,
     });
+    if !superseded.is_empty() {
+        record["superseded"] = json!(
+            superseded
+                .iter()
+                .map(|s| json!({"path": s.path, "by": s.by, "gap": s.gap}))
+                .collect::<Vec<_>>()
+        );
+    }
+    for proof in &superseded {
+        super::super::finding(
+            out,
+            DiagnosticKind::Applied,
+            "revision",
+            format!(
+                "`{}` is replaced by `{}`, as the change states: the revised candidate is the base with that path replaced and nothing else changed.",
+                proof.path, proof.by
+            ),
+        );
+    }
     // What the candidate BUILDS, in the plan record's own vocabulary (operations · effects ·
     // obligations · bindings), so provenance reads the native strategy as it reads the
     // others; `operations_from` says the reading is of the bytes, not of the intent.
@@ -1144,19 +1267,22 @@ mod tests {
             answer_type: "text".to_owned(),
             why: String::new(),
         };
-        assert!(admitted_questions(candidate, &[asked("const.source_glob")], None).is_err());
-        assert!(admitted_questions(candidate, &[asked("const.filter_expression")], None).is_err());
-        assert!(admitted_questions(candidate, &[asked("const.missing")], None).is_err());
+        assert!(admitted_questions("", candidate, &[asked("const.source_glob")], None).is_err());
         assert!(
-            admitted_questions(candidate, &[asked("const.notify_channel")], None).is_err(),
+            admitted_questions("", candidate, &[asked("const.filter_expression")], None).is_err()
+        );
+        assert!(admitted_questions("", candidate, &[asked("const.missing")], None).is_err());
+        assert!(
+            admitted_questions("", candidate, &[asked("const.notify_channel")], None).is_err(),
             "a channel is never a question (the live run of 2026-09-22 asked two for one send)"
         );
-        assert!(admitted_questions(candidate, &[asked("model")], None).is_err());
+        assert!(admitted_questions("", candidate, &[asked("model")], None).is_err());
         // A name the observed world states is never a question; without an observed world the
         // same slug is a declared placeholder like any other.
         let shaped = "nika: x\nconst:\n  status_field: \"\"\n  region_column: \"\"\ntasks: {}\n";
         let world = json!({"observed": [{"path": "./tickets.json", "kind": "json", "columns": ["id", "status", "topic"], "values": {"status": ["closed", "open"]}}]});
-        let Err(refused) = admitted_questions(shaped, &[asked("const.status_field")], Some(&world))
+        let Err(refused) =
+            admitted_questions("", shaped, &[asked("const.status_field")], Some(&world))
         else {
             panic!("a field name the observed world states is refused");
         };
@@ -1167,15 +1293,81 @@ mod tests {
             "{}",
             refused.message
         );
-        assert!(admitted_questions(shaped, &[asked("const.region_column")], Some(&world)).is_err());
+        assert!(
+            admitted_questions("", shaped, &[asked("const.region_column")], Some(&world)).is_err()
+        );
         assert_eq!(
-            admitted_questions(shaped, &[asked("const.status_field")], None).map(|q| q.len()),
+            admitted_questions("", shaped, &[asked("const.status_field")], None).map(|q| q.len()),
             Ok(1)
         );
         assert_eq!(
-            admitted_questions(candidate, &[asked("const.source_folder")], None).map(|q| q.len()),
+            admitted_questions("", candidate, &[asked("const.source_folder")], None)
+                .map(|q| q.len()),
             Ok(1)
         );
+    }
+
+    #[test]
+    fn a_column_the_request_leaves_open_is_a_choice_among_the_observed_ones_and_nothing_else_is() {
+        let asked = |key: &str| Question {
+            key: key.to_owned(),
+            label: "Quelle colonne additionner ?".to_owned(),
+            answer_type: "text".to_owned(),
+            why: String::new(),
+        };
+        let shaped = "nika: x\nconst:\n  sum_column: \"\"\n  status_value: \"\"\ntasks: {}\n";
+        let world = json!({"observed": [{"path": "ventes.csv", "kind": "csv", "delimiter": ",", "columns": ["montant", "autre"]}]});
+        let open = "Additionne une colonne de ventes.csv dans total.txt.";
+        let Ok(admitted) =
+            admitted_questions(open, shaped, &[asked("const.sum_column")], Some(&world))
+        else {
+            panic!("an open column over two observed ones is the human's choice");
+        };
+        assert_eq!(
+            admitted[0].1,
+            vec![
+                json!({"key": "montant", "label": "column `montant` of ventes.csv"}),
+                json!({"key": "autre", "label": "column `autre` of ventes.csv"}),
+            ]
+        );
+        let record = recorded(&admitted[0].0, &admitted[0].1);
+        assert_eq!(record["answer_type"], "choice", "{record}");
+        assert_eq!(record["options"][0]["key"], "montant", "{record}");
+        assert!(
+            admitted_questions(
+                "Sum a column of ventes.csv into total.txt",
+                shaped,
+                &[asked("const.sum_column")],
+                Some(&world)
+            )
+            .is_ok()
+        );
+        // A named column is stated; a value is not a column; two observed files or one column
+        // leave nothing the question could choose among; « les montants » names the column.
+        let two = json!({"observed": [
+            {"path": "ventes.csv", "columns": ["montant", "autre"]},
+            {"path": "achats.csv", "columns": ["prix", "quantite"]}]});
+        let one = json!({"observed": [{"path": "ventes.csv", "columns": ["montant"]}]});
+        for (intent, key, observed) in [
+            (
+                "Additionne la colonne montant de ventes.csv dans total.txt.",
+                "const.sum_column",
+                &world,
+            ),
+            (open, "const.status_value", &world),
+            (open, "const.sum_column", &two),
+            (open, "const.sum_column", &one),
+            (
+                "Additionne les montants de ventes.csv dans total.txt.",
+                "const.sum_column",
+                &world,
+            ),
+        ] {
+            assert!(
+                admitted_questions(intent, shaped, &[asked(key)], Some(observed)).is_err(),
+                "{intent} · {key}"
+            );
+        }
     }
 
     #[test]

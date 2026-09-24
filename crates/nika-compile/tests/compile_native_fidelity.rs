@@ -210,26 +210,37 @@ tasks:
 }
 
 #[tokio::test]
-async fn a_bound_write_approved_by_a_defaulted_yes_is_refused_and_the_human_confirm_passes() {
+async fn a_bound_write_approved_by_a_defaulted_gate_is_refused_and_the_human_confirm_passes() {
     // Red at 4a06aa3a: Check is clean (the affirmative-consent lane judges the answer, not who
     // gives it) and Law 3 accepted any dependency on the prompt, so a `default: true` that says
-    // yes with nobody there reached the write. The repair asks a human.
-    let provider = Rotating::new(vec![
-        answer(&write_draft(", default: true")),
-        answer(&write_draft("")),
-    ]);
-    let req = CompileRequest::create(DRAFT).with_authoring_policy(policy(1));
-    let out = compile_with_provider(&req, &provider).await.unwrap();
-    let rounds = rounds(&out);
-    assert_eq!(rounds.len(), 2, "{rounds:?}");
-    assert!(
-        rounds[0]
-            .iter()
-            .any(|m| m.starts_with("APPROVAL ORDER") && m.contains("`write_final`")),
-        "{rounds:?}"
-    );
-    assert!(rounds[1].is_empty(), "{rounds:?}");
-    assert_eq!(native(&out)["accepted"], true, "{out:#?}");
+    // yes with nobody there reached the write. Red at e6bc576b for `default: false` (AUTH-01/02/06):
+    // the gate answers « no » unattended, the run exits 0 without ever asking. The repair drops
+    // the default, and the run asks a human.
+    for defaulted in [", default: true", ", default: false"] {
+        let provider = Rotating::new(vec![
+            answer(&write_draft(defaulted)),
+            answer(&write_draft("")),
+        ]);
+        let req = CompileRequest::create(DRAFT).with_authoring_policy(policy(1));
+        let out = compile_with_provider(&req, &provider).await.unwrap();
+        let rounds = rounds(&out);
+        assert_eq!(rounds.len(), 2, "{defaulted}: {rounds:?}");
+        assert!(
+            rounds[0]
+                .iter()
+                .any(|m| m.starts_with("APPROVAL ORDER") && m.contains("`write_final`")),
+            "{defaulted}: {rounds:?}"
+        );
+        assert!(rounds[1].is_empty(), "{defaulted}: {rounds:?}");
+        assert_eq!(native(&out)["accepted"], true, "{defaulted}: {out:#?}");
+        assert!(
+            !out.candidate
+                .as_deref()
+                .unwrap_or_default()
+                .contains("default:"),
+            "{defaulted}: {out:#?}"
+        );
+    }
 }
 
 const TICKETS: &str = "Lis ./tickets.json et écris le ticket 42 dans ./out/ticket.json.";

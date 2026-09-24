@@ -82,3 +82,23 @@ The split is implemented under the authorized consolidation. Compilation, comple
 execution and canonical API qualification remain integration checks; the inherited
 mutation/property attestations remain pending. Historical counts above describe their
 recorded revision, not current test or size results.
+
+## Exact schedule requirement
+
+`requested_trigger.cadence` remains a coarse label. Additive nullable `cron`
+contains the exact five fields of the existing cadence grammar when a bounded
+FR/EN trigger phrase is complete. The original `source_hint` stays evidence;
+a `trigger.cadence` answer is projected by the same reader and survives plan
+replay. Neither field is a grant, timezone choice, project row or execution.
+Older machine documents lacking `cron` remain readable by tolerant consumers;
+absence must never be reconstructed from the coarse label for activation.
+
+Supported exact forms are daily/weekday/single named weekday with an explicit
+clock, and every N hours/minutes where N divides 24/60 (digits, plus one/two in
+FR/EN). Examples: every Tuesday at 09:15, chaque vendredi à 18h30, toutes les
+deux heures. The interval phase is zero on the local clock, not elapsed time;
+the activation review displays it and the canonical scheduler owns DST. Missing
+time/weekday, conflicting periods/clocks, mixed periods, monthly/alternate-week
+recurrence and non-divisor intervals retain their words and yield null `cron`.
+This does not claim unrestricted natural-language cadence understanding or add
+another cron parser. `nika-cadence` alone validates/executes the bound expression.

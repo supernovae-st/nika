@@ -49,6 +49,15 @@ Check's refusal substitution (`nika-check-analyzer`, NEP-0020): those two depend
 into the reader with the laws and leave it with them, so the reader depends on `serde_json`
 alone again (the ADR-138 property).
 
+The guard of a stated approval is stricter than the analyzer's consent predicate: it counts a
+confirm gate only when its `nika:prompt` declares no `default:` (`final_gate::blocking`), the
+blocking human gate of Check's trifecta and of ADR-099's pause rider. A `default: false` is a
+consent gate for `human_confirm`, and stays one there, yet unattended it answers « no » by
+policy and the run exits 0 without asking (AUTH-01/02/06, 2026-09-24: « Demande-moi
+explicitement avant de l'envoyer »). The refusal teaches the repair: omit the default; an
+unattended « no » is the invocation's `--answer <id>=false`. A prompt no stated approval
+needs keeps its default.
+
 ## 3. Contracts kept
 
 - The laws are unchanged: the five moved files keep their bytes, except that the two helpers of

@@ -359,6 +359,13 @@ impl<C: Conversation + 'static> Shell<C> {
     }
 
     fn interrupt(&mut self) -> io::Result<Step> {
+        if let Some(conversation) = self.conversation.as_mut() {
+            let beats = conversation.cancel_pending();
+            if !beats.is_empty() {
+                self.apply_all(beats)?;
+                return Ok(Step::Stay);
+            }
+        }
         if self.state.busy.is_some() {
             self.state.busy = None;
             self.state.transcript.push(Committed::new(
@@ -415,10 +422,44 @@ impl<C: Conversation + 'static> Shell<C> {
             out.flush()?;
         }
         self.apply_all(turn.beats)?;
+        if self.conversation()?.fresh_input_required()
+            && let Some(exit) = self.fresh_input(broker)?
+        {
+            return Ok(Submitted::Left(exit));
+        }
         if self.options.exit_after == Some(self.submitted) {
             self.state.quit = true;
         }
         Ok(Submitted::Handoff(turn.handoff))
+    }
+
+    /// Paint before accepting a fresh answer, retaining cancellation signals.
+    fn fresh_input(&mut self, broker: &mut Broker) -> io::Result<Option<Exit>> {
+        // Paint the question before accepting input; reveal its reply prompt
+        // only after the broker has discarded pre-question typeahead.
+        let waiting = std::mem::replace(&mut self.state.waiting, Waiting::Free);
+        self.draw()?;
+        let buffered = broker.discard_typeahead();
+        self.state.waiting = waiting;
+        let buffered = buffered?;
+        let mut cancel = false;
+        for event in buffered {
+            match event {
+                UiEvent::Signal(Signal::Terminate) => {
+                    return Ok(Some(Exit::Terminated));
+                }
+                UiEvent::Closed => return Ok(Some(Exit::Closed)),
+                UiEvent::Signal(Signal::Interrupt) => cancel = true,
+                UiEvent::Key(ref key) if is_ctrl_c(key) => cancel = true,
+                UiEvent::Resize(_, _) => self.deferred.push_back(event),
+                _ => {}
+            }
+        }
+        if cancel {
+            let beats = self.conversation()?.cancel_pending();
+            self.apply_all(beats)?;
+        }
+        Ok(None)
     }
 
     /// Hand the terminal back for one piece of work and take it again. The
@@ -560,7 +601,29 @@ impl<C: Conversation + 'static> Shell<C> {
                 shown = u64::MAX;
             }
             match done_rx.try_recv() {
-                Ok((conversation, turn)) => {
+                Ok((mut conversation, mut turn)) => {
+                    if conversation.fresh_input_required() {
+                        let buffered: Vec<_> = self
+                            .deferred
+                            .drain(..)
+                            .chain(std::iter::from_fn(|| broker.try_recv()))
+                            .collect();
+                        for event in buffered {
+                            match event {
+                                UiEvent::Signal(Signal::Terminate) => {
+                                    return Ok(TurnEnd::Left(Exit::Terminated));
+                                }
+                                UiEvent::Closed => return Ok(TurnEnd::Left(Exit::Closed)),
+                                UiEvent::Signal(Signal::Interrupt) => armed = true,
+                                UiEvent::Key(ref key) if is_ctrl_c(key) => armed = true,
+                                UiEvent::Resize(_, _) => self.deferred.push_back(event),
+                                _ => {}
+                            }
+                        }
+                        if armed {
+                            turn.beats = conversation.cancel_pending();
+                        }
+                    }
                     self.conversation = Some(conversation);
                     return Ok(TurnEnd::Done(turn));
                 }

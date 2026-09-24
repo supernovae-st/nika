@@ -99,3 +99,24 @@ existe :
   les deux divergences assumées avec tachyonfx · l'ordre)
 - les 9 goldens du studio · la preuve de rendu à reproduire
 - D-2026-08-11-N6 · l'arbitrage d'ordre
+
+## Fresh local Run cost decision
+
+`session::Live::with_run_review` accepts the existing CLI host's typed child
+runner through an acyclic L4 dependency (`nika-tui` → `nika-cli-host`, never the
+reverse). A pending Run question is separate from Session authoring and Save
+consent, survives only while that child is alive, and is never persisted.
+The broker discards input queued before the question is painted. A new `yes`
+answers only this question; `no`, cancellation, revision and leaving drop the
+child. Ctrl+C invalidates a pending decision immediately. Native catalog
+currency evidence and unknown USD remain distinct; the renderer invents no
+price, policy exception, endpoint, grant or reusable admission authority.
+
+The Session's one-time unknown-cost choice (`SessionRuntime::waiting_cost_choice`)
+is the second fresh spending question and keeps the same broker contract:
+typeahead from before it was painted is discarded, Ctrl+C cancels it through the
+Session's own answer path (nothing sent), and `details` reads
+`cost_choice_details` without a turn. Its first screen is headed as an authoring
+decision that never approves a Save or a Run; the Run question approves one Run
+that no authoring or Save approval does. Both first screens close on
+`yes / no / details`, and the hint row names the same choices in words.

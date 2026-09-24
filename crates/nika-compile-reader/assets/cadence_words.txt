@@ -44,6 +44,13 @@ jeudi
 vendredi
 samedi
 dimanche
+lundis
+mardis
+mercredis
+jeudis
+vendredis
+samedis
+dimanches
 matin
 matins
 matinee

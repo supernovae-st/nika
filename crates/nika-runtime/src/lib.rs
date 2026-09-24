@@ -55,6 +55,7 @@ pub mod approval;
 pub mod child;
 pub mod compose;
 pub mod config;
+pub mod cost_choice;
 mod dispatch;
 mod emit_items;
 mod emit_task;

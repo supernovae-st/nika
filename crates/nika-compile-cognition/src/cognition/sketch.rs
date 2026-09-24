@@ -50,7 +50,7 @@ struct Filling {
 }
 
 /// The sketch instruction in the embedded pack, read beside the card.
-const SKETCH_PATH: &str = "stdlib/authoring-sketch-v0.1.md";
+const SKETCH: &str = include_str!("../../assets/native_authoring_sketch.md");
 
 /// The two answer schemas, embedded beside the crate (the `tests` prove they parse).
 const SKETCH_SCHEMA: &str = include_str!("../../assets/sketch_schema.json");
@@ -280,12 +280,15 @@ async fn fill<P: ProviderInferDyn>(
                 return None;
             }
         };
+        // The sketch door authors creations only (a revision in words goes to the native
+        // door): every stated path is opened, none waived.
         let diagnostics = judge(
             intent,
             reading,
             &candidate,
             &answer.questions,
             &talk.allowed,
+            &[],
             &talk.clarified,
             talk.observed.as_ref(),
         );
@@ -344,7 +347,7 @@ pub(super) async fn author<P: ProviderInferDyn>(
     } = prelude(intent, reading, request);
     let mut system = system_message(&references, &callables);
     system.push_str("\n\n");
-    system.push_str(nika_pack::doc(SKETCH_PATH).unwrap_or_default());
+    system.push_str(SKETCH);
     let mut talk = Talk::open(
         system,
         format!("{opening}\n\nAnswer with the SKETCH (call 1), not a file."),

@@ -154,12 +154,10 @@ fn the_reasoner_receives_only_the_bundle() {
     let mut s = SessionRuntime::open(
         dir.path(),
         ready(
-            IntelligenceKind::Api {
-                provider: "mistral".to_owned(),
+            IntelligenceKind::Local {
+                provider: "scripted".to_owned(),
             },
-            DataLocus::Metered {
-                provider: "mistral".to_owned(),
-            },
+            DataLocus::Local,
         ),
         Box::new(ScriptedReasoner::new(vec!["It reads a file.".to_owned()])),
     );

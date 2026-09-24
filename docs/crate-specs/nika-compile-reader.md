@@ -52,6 +52,38 @@ while `nika-compile` stood at its wall; they ascended to `nika-compile-fidelity`
   structural one (path boundaries, anaphora, the shape of a human gate, the carrier of a
   constraint) or lives in the typed semantic plan. The reading of every intent is
   byte-identical to `nika-compile` before the split (216 `#[test]` before, 216 after).
+  The recurrence-fidelity correction preserves an explicitly recurring request.
+  Previously, « Fais-moi un rapport des trucs importants régulièrement » could become
+  READY with the recurrence silently missing:
+  the closed FR · EN table `trigger_words::RECURRENT` of recurrences stated without their
+  cadence (« régulièrement », « de temps en temps », « regularly », « from time to time »),
+  found whole-word and folded by `words::recurrence`. It adds no operation: the phrase
+  becomes the plan's `trigger` (cut as a head when it leads its sentence, left in its
+  clause otherwise, never over a head the sentence already states), `nika-compile` asks
+  the cadence as a mandatory `trigger.cadence` question (`manual` is an answer), and
+  `hot::rejections` refuses a reading whose trigger another head took, so the recurrence
+  never vanishes under an event or a distribution. The adjectives (« un rapport
+  régulier », « a regular report ») and the frequency words (« souvent », « often ») stay
+  out: they also name kinds of things (« une expression régulière », « regular
+  customers »); a recurrence stated only that way is still not read.
+  The reader also preserves a cadence stated at the end of a sentence (« Fais-moi
+  un rapport des trucs importants chaque lundi », « … tous les matins », « … every Monday »),
+  which the head-only reader left in the draft's words, a one-shot READY with no trigger
+  (e6bc576b witness). No new parser: a quantifier of the closed tail list (« chaque », « tous
+  les », « toutes les », « every », « each ») not first in its sentence, followed by the head
+  grammar itself (`head_bounds`: cadence words, their small words, clock tokens) naming a
+  period and ending the sentence. It is cut off as a head is, so the clause reads exactly as
+  without it, and settled once every sentence is read: the plan's trigger when no head
+  recorded one, the completion of a recurrence head that stated no cadence, nothing more
+  when the head already says it. An event, a distribution, a sequence or a different cadence
+  beside it, in either sentence order, or two different tails, is the unknown work
+  `lexicon::TWO_TRIGGERS` naming both, never one kept in silence. A quantifier after a
+  grouping, negation or exception word (« de chaque mois », « pour chaque mois », « sales of
+  every month », « mais pas chaque lundi »), inside quotes, after a colon that opens content
+  (« Écris dans note.txt : réunion chaque lundi »), or in a negated sentence opens no
+  schedule. The French plural weekdays (« tous les lundis ») join the cadence tables
+  (`cadence_words.txt`, `trigger_words::{WEEKLY, TIME_WORDS}`): the head « Tous les lundis, … »
+  was read as an event.
 - Every public type is `#[non_exhaustive]` (the forward-compatibility ratchet of the
   boundary); the composer builds plan elements through `Step::new`, `Effect::new`,
   `Obligation::new`, `Binding::new`, `Clause::new`, `Aggregation::new` and `Derived::new`

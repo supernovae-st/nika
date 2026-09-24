@@ -69,11 +69,12 @@ pub(super) fn final_effects(doc: &Value, effects: &[String]) -> Vec<String> {
         .collect()
 }
 
-/// Whether `task` runs only on a human's typed yes: a confirm gate of the candidate
-/// ([`human_confirm`]) whose answer the task's own `when:` affirms ([`affirmed_by`]). Both read
-/// the parsed AST of a view that keeps only what they judge (each `nika:prompt`'s `invoke:`,
-/// `on_error:` and `for_each:`, the task's `with:` and `when:`), so a field the parser refuses
-/// elsewhere (a hole a sketch has not filled yet) neither hides an approval nor fakes one.
+/// Whether `task` runs only on a human's typed yes: a blocking confirm gate of the candidate
+/// ([`human_confirm`] and `blocking`) whose answer the task's own `when:` affirms
+/// ([`affirmed_by`]). Both read the parsed AST of a view that keeps only what they judge (each
+/// `nika:prompt`'s `invoke:`, `on_error:` and `for_each:`, the task's `with:` and `when:`), so a
+/// field the parser refuses elsewhere (a hole a sketch has not filled yet) neither hides an
+/// approval nor fakes one.
 pub(super) fn affirmed(doc: &Value, task: &str) -> bool {
     let Some(node) = doc.get("tasks").and_then(|t| t.get(task)) else {
         return false;
@@ -106,8 +107,22 @@ pub(super) fn affirmed(doc: &Value, task: &str) -> bool {
     raw.is_some_and(|t| {
         parsed
             .iter()
-            .any(|g| human_confirm(g) && affirmed_by(t, &g.id.value))
+            .any(|g| human_confirm(g) && blocking(doc, &g.id.value) && affirmed_by(t, &g.id.value))
     })
+}
+
+/// Whether the confirm gate `gate` blocks: its `nika:prompt` declares no `default:`, so an
+/// unattended run pauses for the human (the trifecta's human gate, ADR-099's pause rider)
+/// instead of answering itself. A `default: true` approves and a `default: false` refuses with
+/// nobody there (AUTH-01/02/06, 2026-09-24: « Demande-moi explicitement avant de l'envoyer »
+/// ran to exit 0 on `decision=deny source=policy`, never asking); neither is the human's
+/// answer a stated approval waits for. Only this guard reads it: the analyzer's
+/// [`human_confirm`] keeps its public meaning, and a prompt no stated approval needs keeps its
+/// default.
+fn blocking(doc: &Value, gate: &str) -> bool {
+    doc["tasks"][gate]["invoke"]["args"]
+        .get("default")
+        .is_none()
 }
 
 /// The refusal of an approved effect that does not run only on the human's yes.
@@ -115,7 +130,7 @@ pub(super) fn order(task: &str) -> Diagnostic {
     Diagnostic {
         kind: "gate",
         message: format!(
-            "APPROVAL ORDER: the effect task `{task}` does not run only on the human's yes. Bind a confirm `nika:prompt`'s output whole in its `with:` (`approved: ${{{{ tasks.review.output }}}}`) and guard it with `when: \"${{{{ with.approved == true }}}}\"`: an `after:` wait, a guard a « no » or a skipped prompt passes (`== false`, `!`, `||`, `!= false`), a derived value, a choice or input prompt, a `default: true` and an `on_error:` on the prompt approve nothing."
+            "APPROVAL ORDER: the effect task `{task}` does not run only on the human's yes. Bind a confirm `nika:prompt`'s output whole in its `with:` (`approved: ${{{{ tasks.review.output }}}}`) and guard it with `when: \"${{{{ with.approved == true }}}}\"`: an `after:` wait, a guard a « no » or a skipped prompt passes (`== false`, `!`, `||`, `!= false`), a derived value, a choice or input prompt, a `default:` on the prompt (`true` or `false`: it answers the gate unattended and never asks — omit it; an unattended « no » is the invocation's `--answer <id>=false`) and an `on_error:` on the prompt approve nothing."
         ),
     }
 }
@@ -196,12 +211,13 @@ mod tests {
             .collect()
     }
 
-    /// read → review → send, the send guarded by the review's answer.
+    /// read → review → send, the send guarded by the review's answer; the review declares no
+    /// `default:`, so unattended it pauses for the human.
     fn gated() -> Value {
         serde_json::json!({"tasks": {
             "read_note": {"invoke": {"tool": "nika:read", "args": {"path": "./note.txt"}}},
             "review": {"with": {"note": "${{ tasks.read_note.output }}"},
-                       "invoke": {"tool": "nika:prompt", "args": {"message": "Envoyer ? ${{ with.note }}", "default": false}}},
+                       "invoke": {"tool": "nika:prompt", "args": {"message": "Envoyer ? ${{ with.note }}"}}},
             "send": {"with": {"approved": "${{ tasks.review.output }}", "note": "${{ tasks.read_note.output }}"},
                      "when": "${{ with.approved == true }}",
                      "invoke": {"tool": "nika:fetch", "args": {"url": "https://hooks.example.test/in", "method": "POST", "body": "${{ with.note }}"}}}
@@ -286,14 +302,17 @@ mod tests {
         assert!(out.is_empty(), "{out:?}");
     }
 
-    /// A choice or input prompt answers a string; a `default: true` answers yes with nobody
-    /// there; a recovered error stands in for the answer: none is a typed human yes.
+    /// A choice or input prompt answers a string; a `default: true` answers yes and a
+    /// `default: false` answers no with nobody there (AUTH-01/02/06: the run decided « no » by
+    /// policy and never asked); a recovered error stands in for the answer: none is a typed
+    /// human yes. The same gate without its default (`gated()`) is one.
     #[test]
     fn a_prompt_that_is_not_a_human_confirm_approves_nothing() {
         for args in [
             serde_json::json!({"message": "Envoyer ?", "mode": "choice", "choices": ["oui", "non"]}),
             serde_json::json!({"message": "Envoyer ?", "mode": "input"}),
             serde_json::json!({"message": "Envoyer ?", "default": true}),
+            serde_json::json!({"message": "Envoyer ?", "default": false}),
         ] {
             let mut doc = gated();
             doc["tasks"]["review"]["invoke"]["args"] = args.clone();
@@ -434,10 +453,36 @@ mod tests {
                 write(house.clone()),
                 serde_json::json!({"message": "Écrire ?", "mode": "choice", "choices": ["oui", "non"]}),
             ),
+            (
+                "default false",
+                write(house.clone()),
+                serde_json::json!({"message": "Écrire ?", "default": false}),
+            ),
+            (
+                "default true",
+                write(house.clone()),
+                serde_json::json!({"message": "Écrire ?", "default": true}),
+            ),
         ] {
             let out = judge(&bound_write(), &doc(write, args));
             assert_eq!(heads(&out), ["APPROVAL ORDER"], "{why}: {out:?}");
         }
+    }
+
+    /// Only the gate that holds a stated approval must block: another prompt of the candidate
+    /// (an input asked with a default) keeps its default, and without a stated approval no
+    /// law reads a prompt's default at all.
+    #[test]
+    fn a_default_disarms_only_the_gate_of_a_stated_approval() {
+        let mut doc = gated();
+        doc["tasks"]["subject"] = serde_json::json!({"invoke": {"tool": "nika:prompt",
+            "args": {"message": "Objet ?", "mode": "input", "default": "Note"}}});
+        assert!(judge(&unbound(), &doc).is_empty());
+        let asked = serde_json::json!({"tasks": {
+            "name": {"invoke": {"tool": "nika:prompt", "args": {"message": "Nom ?", "mode": "input", "default": "anonyme"}}},
+            "greet": {"with": {"name": "${{ tasks.name.output }}"}, "infer": {"prompt": "Salue ${{ with.name }}"}}
+        }});
+        assert!(judge(&Plan::default(), &asked).is_empty());
     }
 
     /// An `mcp:` tool, a process, a child workflow or an agent with effect tools may be the

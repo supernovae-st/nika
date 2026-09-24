@@ -280,3 +280,23 @@ Bounded nonstreaming response parsing refuses duplicate decoded object keys befo
 usage validation or model binding, including equal duplicates and nested/escaped
 keys. Such ambiguity retains the sent reservation as unknown charge. Unbounded
 JSON parsing remains compatible with its existing last-value behavior.
+
+## Host cost review contract
+
+`admission::{CostRoute, CapEvidence, CostHostEvidence, CostReview,
+monetary_default, native_catalog_price_known}` owns the shared pending review
+beside `UnknownCostChoice` and its account. Hosts supply observed configuration
+evidence and obtain explicit confirmation; Providers does not read the host's
+files, environment or terminal. Missing evidence remains Unknown. The existing
+Runtime `cost_choice` path is a narrow compatibility export. Moving ownership
+does not change any finite bound, default override, hard-cap refusal, exact route
+or candidate binding, observation format, or the separate subscription plane.
+
+`CostChallenge::display` is the first screen of a fresh Run decision: the
+provider/model and the endpoint's origin, the review's own unknown-USD, request,
+output-token, time, default and hard-cap sentences, the native catalog line
+(never an invoice, never a converted price) and `yes / no / details`.
+`CostChallenge::details` projects the same challenge whole: nonce, full
+endpoint, source and input digests, candidate, invocation, native price and the
+host/cap evidence record. Both read `&self`; neither changes the challenge, its
+nonce or any authority.

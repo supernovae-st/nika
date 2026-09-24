@@ -42,6 +42,8 @@ pub enum InferenceEnforcement {
     /// One shared catalog allowance covers qualified calls; provider billing
     /// remains unknown. This is separate from any later execution ceiling.
     CatalogAdmission,
+    /// Explicit one-time unknown cost; finite request/token/time bounds, no USD guarantee.
+    ExplicitUnknown,
     /// No explicit inference budget was given. Inference has no aggregate
     /// USD admission/receipt seam; the default applies to a later `RunRequest`.
     NotMetered,
@@ -89,6 +91,9 @@ impl MonetaryDecision {
     pub(crate) fn line(&self) -> String {
         if let Some(reason) = &self.refusal {
             return format!("money: refused · {reason}");
+        }
+        if self.inference == InferenceEnforcement::ExplicitUnknown {
+            return "money: explicitly accepted unknown inference cost for one invocation; numeric defaults overridden for this call only; billed cost unknown; Run requires independent review".into();
         }
         let scope = if self.inference == InferenceEnforcement::CatalogAdmission {
             " · catalog-backed admission ceiling: conservative token reservations at pinned prices, not a provider invoice or hard billing cap; authoring and Run have separate scopes"

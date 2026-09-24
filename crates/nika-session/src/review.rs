@@ -404,8 +404,12 @@ fn runs_line(trigger: Option<&TriggerRequirement>) -> String {
                 (None, Some(at)) => format!("at {at}"),
                 (None, None) => "on a schedule".to_owned(),
             };
+            let exact = t.cron.as_deref().map_or_else(
+                || "incomplete, conflicting or unsupported cadence · activation refuses until restated with an explicit supported period/time".to_owned(),
+                |fields| format!("proposed cron `{fields}` · timezone still belongs to activation"),
+            );
             format!(
-                "  ↗ {when}{quoted} · a schedule to activate AFTER saving · saving alone activates nothing"
+                "  ↗ {when}{quoted} · a schedule to activate AFTER saving · saving alone activates nothing\n    {exact}"
             )
         }
         TriggerKind::Webhook => format!(

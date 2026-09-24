@@ -23,6 +23,7 @@ use nika_kernel::process::ShellRunDyn;
 use nika_kernel::tool_executor::ToolExecuteDyn;
 use nika_schema::raw::{ForEachValue, RawAction, RawTask, RawWorkflow};
 use nika_schema::types::{OnErrorAction, Permits, WhenGate};
+use nika_types::cost::InferenceCall;
 use serde_json::Value;
 
 use crate::Runtime;
@@ -34,6 +35,7 @@ use crate::expr::{self, Scope};
 use crate::record::{TaskErrorRecord, TaskRecord, TaskStatus};
 use crate::retry::jitter_key;
 pub(crate) use crate::retry::on_error_applies;
+use crate::usage::UsageSplit;
 use crate::witness::PermitWitness;
 use with_map::{render_boundary_with, render_with};
 
@@ -837,11 +839,7 @@ where
         run_start: nika_kernel::tool_executor::ToolRunStart,
     ) -> RanTask {
         let started = self.clock.now();
-        let max_attempts = task
-            .retry
-            .as_ref()
-            .map_or(1, |r| r.value.max_attempts.max(1));
-        let jitter_key = jitter_key(task, scope);
+        let (max_attempts, jitter_key) = retry_parameters(task, scope);
         let mut note = String::new();
         let mut retries: Vec<RetryStamp> = Vec::new();
         // Outside the timeout-cancellable region — survives the attempt's drop (review F1).
@@ -881,11 +879,7 @@ where
                             // attempts debited theirs; frame reports all).
                             ledger.debit_ok(&ok);
                             ok.fold_failed_spend(failed_cost, failed_unpriced);
-                            crate::usage::UsageSplit::join_calls(
-                                &mut ok.usage,
-                                &failed_calls,
-                                true,
-                            );
+                            UsageSplit::join_calls(&mut ok.usage, &failed_calls, true);
                             return Ok(ok);
                         }
                         Err(failed) => {
@@ -903,14 +897,7 @@ where
                                     max_attempts,
                                     &jitter_key,
                                 )
-                                .map_err(|mut failed| {
-                                    crate::usage::UsageSplit::join_calls(
-                                        &mut failed.usage,
-                                        &failed_calls,
-                                        false,
-                                    );
-                                    failed
-                                })?;
+                                .map_err(|failed| retain_failed_calls(failed, &failed_calls))?;
                             retries.push(RetryStamp {
                                 attempt,
                                 max_attempts,
@@ -926,9 +913,7 @@ where
             self.race_budget(attempts, budget).await
         };
         let duration_ms = self.since_ms(started);
-        if note.is_empty() {
-            verb_note_prefix(&task.action).clone_into(&mut note); // timed out pre-dispatch
-        }
+        let note = attempt_note(note, &task.action);
 
         let (result, evidence, usage) = dispatch_result(task, scope, outcome);
         RanTask {
@@ -1004,6 +989,26 @@ where
             .checked_duration_since(started)
             .map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX))
     }
+}
+
+fn retry_parameters(task: &RawTask, scope: &Scope<'_>) -> (u32, String) {
+    let max_attempts = task
+        .retry
+        .as_ref()
+        .map_or(1, |r| r.value.max_attempts.max(1));
+    (max_attempts, jitter_key(task, scope))
+}
+
+fn retain_failed_calls(mut failed: FailedOutcome, calls: &[InferenceCall]) -> FailedOutcome {
+    UsageSplit::join_calls(&mut failed.usage, calls, false);
+    failed
+}
+
+fn attempt_note(mut note: String, action: &RawAction) -> String {
+    if note.is_empty() {
+        verb_note_prefix(action).clone_into(&mut note); // timed out pre-dispatch
+    }
+    note
 }
 
 /// Evaluate the task's `output:` named bindings (spec 04 §Output binding)

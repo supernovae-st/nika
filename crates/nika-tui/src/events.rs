@@ -133,6 +133,39 @@ impl Broker {
         self.rx.try_recv().ok()
     }
 
+    /// Drain pre-question input after painting a fresh consent question. The
+    /// reader is parked, so the broker remains the single input owner. Signals
+    /// and terminal changes are returned to the shell instead of discarded.
+    ///
+    /// # Errors
+    /// Returns an error if the reader cannot be parked, terminal input fails,
+    /// or queued input exceeds the bounded drain. The reader is resumed before
+    /// returning in each case.
+    pub fn discard_typeahead(&mut self) -> std::io::Result<Vec<UiEvent>> {
+        self.pause();
+        let result = (|| {
+            if !self.parked.load(Ordering::SeqCst) {
+                return Err(std::io::Error::other(
+                    "cannot establish fresh input boundary",
+                ));
+            }
+            let mut events: Vec<_> = self.rx.try_iter().collect();
+            for _ in 0..4096 {
+                if !crossterm::event::poll(Duration::ZERO)? {
+                    return Ok(events);
+                }
+                if let Some(event) = decode(crossterm::event::read()?) {
+                    events.push(event);
+                }
+            }
+            Err(std::io::Error::other(
+                "terminal typeahead exceeds fresh review bound",
+            ))
+        })();
+        self.resume();
+        result
+    }
+
     /// Park the reader: it stops touching the terminal's input until
     /// [`Broker::resume`]. Returns once the thread has acknowledged (or after
     /// one second if it never does), so the caller may query the cursor.
@@ -147,6 +180,12 @@ impl Broker {
     /// Let the reader read again.
     pub fn resume(&self) {
         self.paused.store(false, Ordering::SeqCst);
+        // A later pause must not mistake the previous parked acknowledgement
+        // for its own while the reader is resuming a terminal read.
+        let deadline = std::time::Instant::now() + PAUSE_ACK;
+        while self.parked.load(Ordering::SeqCst) && std::time::Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(1));
+        }
     }
 
     /// Release stdin for good: the reader thread ends within one poll
@@ -182,12 +221,10 @@ fn read_loop(
             }
         }
         let event = match crossterm::event::read() {
-            Ok(Event::Key(key)) if key.kind == KeyEventKind::Press => UiEvent::Key(key),
-            Ok(Event::Key(_) | Event::Mouse(_)) => continue,
-            Ok(Event::Paste(text)) => UiEvent::Paste(text),
-            Ok(Event::Resize(cols, rows)) => UiEvent::Resize(cols, rows),
-            Ok(Event::FocusGained) => UiEvent::FocusGained,
-            Ok(Event::FocusLost) => UiEvent::FocusLost,
+            Ok(event) => match decode(event) {
+                Some(event) => event,
+                None => continue,
+            },
             Err(_) => UiEvent::Closed,
         };
         let closing = event == UiEvent::Closed;
@@ -195,6 +232,17 @@ fn read_loop(
             return;
         }
     }
+}
+
+fn decode(event: Event) -> Option<UiEvent> {
+    Some(match event {
+        Event::Key(key) if key.kind == KeyEventKind::Press => UiEvent::Key(key),
+        Event::Key(_) | Event::Mouse(_) => return None,
+        Event::Paste(text) => UiEvent::Paste(text),
+        Event::Resize(cols, rows) => UiEvent::Resize(cols, rows),
+        Event::FocusGained => UiEvent::FocusGained,
+        Event::FocusLost => UiEvent::FocusLost,
+    })
 }
 
 #[cfg(unix)]

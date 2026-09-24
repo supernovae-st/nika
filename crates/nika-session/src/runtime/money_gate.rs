@@ -69,9 +69,14 @@ impl SessionRuntime {
         id: &ProposalId,
         answer: &str,
     ) -> TurnOutcome {
+        // Keep custody of the exact reviewed proposal while a cost question waits.
+        if self.unreviewed_unknown_route() {
+            self.pending = Some(set.clone());
+        }
         if let Err(refusal) = self.admit_money(answer, true) {
             return refusal;
         }
+        self.pending = None;
         // A closed monetary-only amendment changes Session's own ceiling,
         // never workflow bytes. It has its own preview and fresh consent id.
         if money_parse::parse(answer).is_ok_and(|p| p.money_only) {
@@ -269,6 +274,7 @@ impl SessionRuntime {
         input: &str,
         continuation: bool,
     ) -> Result<(), TurnOutcome> {
+        self.maybe_review_unknown(input)?;
         // A fresh turn is not an escape from a still-pending gate amendment.
         if self.money.gate.is_some() {
             return self.admit_gate_money(input);
@@ -297,7 +303,9 @@ impl SessionRuntime {
                 .original_intent
                 .clone_from(&previous.original_intent);
         }
-        if parsed.amount.is_some() {
+        if self.unknown_cost.active {
+            decision.inference = InferenceEnforcement::ExplicitUnknown;
+        } else if parsed.amount.is_some() {
             self.retain_money_guard();
             self.configure_admission(&mut decision);
             self.money.inference_guard = Some(decision.clone());
@@ -319,12 +327,16 @@ impl SessionRuntime {
     /// Called at every cognition seam. Deterministic reading stays available;
     /// the selected intelligence is never substituted by a monetary decision.
     pub(super) fn money_blocks_cognition(&self) -> bool {
+        if self.unreviewed_unknown_route() {
+            return true;
+        }
         if self.money.gate.is_some() || self.money.reconfirm {
             return true;
         }
         if let Some(a) = &self.money.account
             && a.snapshot().map_or(true, |r| {
-                r.state != nika_providers::AdmissionState::Open || r.limit.nano_usd == 0
+                r.state != nika_providers::AdmissionState::Open
+                    || (r.unknown_cost.is_none() && r.limit.nano_usd == 0)
             })
         {
             return true;
@@ -460,6 +472,8 @@ impl SessionRuntime {
     fn inference_observation(&self, mut decision: MonetaryDecision) -> MonetaryDecision {
         decision.inference = if self.money_blocks_cognition() {
             InferenceEnforcement::CallsBlocked
+        } else if self.unknown_cost.active {
+            InferenceEnforcement::ExplicitUnknown
         } else if self.money.account.is_some() {
             InferenceEnforcement::CatalogAdmission
         } else {
@@ -490,6 +504,7 @@ fn scoped_money_line(decision: &MonetaryDecision) -> String {
         return decision.line();
     }
     let inference = match decision.inference {
+        InferenceEnforcement::ExplicitUnknown => "explicit unknown cost · finite one-time inference · no USD guarantee · separate Run review required".into(),
         InferenceEnforcement::CatalogAdmission => decision.admission.as_ref().map_or_else(
             || "catalog allowance tracked separately".to_owned(),
             |receipt| format!("catalog allowance {}", receipt.limit),

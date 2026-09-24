@@ -90,6 +90,7 @@ fn trigger_document(trigger: &TriggerRequirement) -> Value {
         "source_hint": trigger.source_hint,
         "event_hint": trigger.event_hint,
         "cadence": trigger.cadence,
+        "cron": trigger.cron,
         "at": trigger.at,
         "payload_input": trigger.payload_input,
         "status": trigger.status.word(),

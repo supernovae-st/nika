@@ -370,9 +370,12 @@ where
             let mut sent = false;
             let mut call = None;
             let mut route = None;
-            let result =
-                wire::openai_compat::infer_tracked(self, request, &mut sent, &mut route, &mut call)
-                    .await;
+            // Keep this alternate wire future boxed as well: even a mock call
+            // carries the largest branch in the async state machine.
+            let result = Box::pin(wire::openai_compat::infer_tracked(
+                self, request, &mut sent, &mut route, &mut call,
+            ))
+            .await;
             report.record(call);
             report.attempts = u32::from(sent);
             return result

@@ -414,6 +414,7 @@ pub unsafe fn nika_compile_reader::lexicon::Reading::clone_to_uninit(&self, dest
 impl<T> core::convert::From<T> for nika_compile_reader::lexicon::Reading
 pub fn nika_compile_reader::lexicon::Reading::from(t: T) -> T
 pub const nika_compile_reader::lexicon::GATE_WITHOUT_EFFECT: &str
+pub const nika_compile_reader::lexicon::TWO_TRIGGERS: &str
 pub fn nika_compile_reader::lexicon::effect_words(lower: &str, columns: &[alloc::string::String]) -> alloc::vec::Vec<nika_compile_reader::plan::EffectVerb>
 pub fn nika_compile_reader::lexicon::fold_apostrophes(intent: &str) -> alloc::string::String
 pub fn nika_compile_reader::lexicon::read(intent: &str) -> nika_compile_reader::lexicon::Reading
@@ -1582,9 +1583,11 @@ pub const nika_compile_reader::trigger_words::COMPLETION_WORDS: &[&str]
 pub const nika_compile_reader::trigger_words::DAILY: &[&str]
 pub const nika_compile_reader::trigger_words::EVENT_HEADS: &[&str]
 pub const nika_compile_reader::trigger_words::HOURLY: &[&str]
+pub const nika_compile_reader::trigger_words::MANUAL: &[&str]
 pub const nika_compile_reader::trigger_words::MINUTELY: &[&str]
 pub const nika_compile_reader::trigger_words::MONTHLY: &[&str]
 pub const nika_compile_reader::trigger_words::NAMED_TIMES: &[(&str, &str)]
+pub const nika_compile_reader::trigger_words::RECURRENT: &[&str]
 pub const nika_compile_reader::trigger_words::SEQUENCE_HEADS: &[&str]
 pub const nika_compile_reader::trigger_words::TIME_UNITS: &[&str]
 pub const nika_compile_reader::trigger_words::TIME_WORDS: &[&str]
@@ -1606,4 +1609,5 @@ pub fn nika_compile_reader::words::content_words(text: &str) -> impl core::iter:
 pub fn nika_compile_reader::words::day_part_compound(folded: &str) -> core::option::Option<(&'static str, &'static str)>
 pub fn nika_compile_reader::words::fold_words(text: &str) -> alloc::string::String
 pub fn nika_compile_reader::words::only_format_words(detail: &str) -> bool
+pub fn nika_compile_reader::words::recurrence(text: &str) -> core::option::Option<(usize, usize)>
 pub fn nika_compile_reader::words::serialization_draft(detail: &str) -> bool

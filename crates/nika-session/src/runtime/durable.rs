@@ -74,11 +74,18 @@ impl SessionRuntime {
     pub fn turn(&mut self, input: &str) -> TurnOutcome {
         // Closing remains possible even after storage failure.
         if matches!(input.trim(), "/quit" | "/exit") {
+            self.set_cost_host_evidence(nika_runtime::cost_choice::CostHostEvidence::default());
             self.pending = None;
             self.pending_gate = None;
             return TurnOutcome::Quit;
         }
-        self.recorded(Operation::Turn, input, |s| s.turn_unrecorded(input))
+        self.recorded(Operation::Turn, input, |s| {
+            if s.waiting_cost_choice() {
+                s.cost_answer(input)
+            } else {
+                s.turn_unrecorded(input)
+            }
+        })
     }
 
     /// Answer the current intelligence choice through the same durable boundary.
@@ -92,6 +99,10 @@ impl SessionRuntime {
     /// project's structured record (#1464); a held question, a stale
     /// revision or a blocked history decides nothing and writes nothing.
     pub fn consent(&mut self, answer: &str) -> TurnOutcome {
+        if self.waiting_cost_choice() {
+            return self.turn(answer);
+        }
+        self.unknown_cost.in_consent = true;
         let staged = self.pending_proposal();
         let outcome = self.recorded(Operation::Consent, answer, |s| {
             let outcome = s.consent_unrecorded(answer);
@@ -102,6 +113,7 @@ impl SessionRuntime {
             }
             outcome
         });
+        self.unknown_cost.in_consent = false;
         let decided = staged.is_some()
             && self.pending.is_none()
             && !matches!(
@@ -181,6 +193,10 @@ impl SessionRuntime {
                 ));
             }
         };
+        self.unknown_cost.observations = state.inference_observations;
+        if !self.unknown_cost.observations.is_empty() {
+            self.money.reconfirm = true;
+        }
         self.restore_intent(IntentDraft {
             goal: state.goal,
             decisions: state.decisions,
@@ -312,6 +328,7 @@ impl SessionRuntime {
     fn projected_state(&self) -> SessionState {
         let redact = |s: &String| crate::broker::redact(s).0;
         let mut state = SessionState::new(now_rfc3339());
+        state.inference_observations = self.cost_observations();
         state.goal = self.intent.goal.as_ref().map(redact);
         state.decisions = self.saved_decisions();
         state.unresolved = self.intent.unresolved.iter().map(redact).collect();
@@ -327,6 +344,12 @@ impl SessionRuntime {
     /// Keep the structured record after an operation that decided or
     /// observed something. A refused write rides the outcome's own text:
     /// the effect happened, and the human must know the record did not.
+    pub(super) fn save_cost_state(&self) -> Result<(), String> {
+        self.projected_state()
+            .save(&self.snapshot.root)
+            .map_err(|e| e.to_string())
+    }
+
     fn keep_state(&self, outcome: TurnOutcome) -> TurnOutcome {
         match self.projected_state().save(&self.snapshot.root) {
             Ok(()) => outcome,

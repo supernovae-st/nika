@@ -323,6 +323,7 @@ pub fn unresolved(reading: &Reading, out: &mut CompileOutcome) {
 /// reading the assembler makes (a cadence, a time of day, an event), bound to the schedule
 /// answers when the human gives them.
 fn record_trigger(record: &Value, request: &CompileRequest, out: &mut CompileOutcome) {
+    two_triggers(record, request, out);
     let Some(phrase) = record["trigger"].as_str().filter(|p| !p.trim().is_empty()) else {
         return;
     };
@@ -344,6 +345,47 @@ fn record_trigger(record: &Value, request: &CompileRequest, out: &mut CompileOut
             crate::trigger::note(&trigger),
         );
         out.requested_trigger = Some(trigger);
+    }
+}
+
+/// Two triggers the request states that one workflow cannot both start on (an event or another
+/// head beside a sentence-final cadence, two different cadences): a seat's record keeps one
+/// trigger, so the reading of the request the record was authored from names both as unknown
+/// work and asks the clarification the assembler's refusal asks — never one of them kept in
+/// silence. A record authored from a replacement request (its digest is another one) is left to
+/// that request's reading.
+fn two_triggers(record: &Value, request: &CompileRequest, out: &mut CompileOutcome) {
+    let intent = if let super::Input::Create(intent) = &request.input {
+        lexicon::fold_apostrophes(intent)
+    } else if let Some(intent) = super::revise_intent(request) {
+        intent
+    } else {
+        return;
+    };
+    if record["intent_sha256"].as_str() != Some(intent_sha256(&intent).as_str()) {
+        return;
+    }
+    let reading = lexicon::read(&intent);
+    let Some(conflict) = reading
+        .plan
+        .unknowns
+        .iter()
+        .find(|unknown| unknown.starts_with(lexicon::TWO_TRIGGERS))
+    else {
+        return;
+    };
+    super::finding(out, DiagnosticKind::Unknown, "intent", conflict.clone());
+    if !out
+        .questions
+        .iter()
+        .any(|q| q.key == "intent.clarification")
+    {
+        super::question(
+            out,
+            "intent.clarification",
+            "Supply a complete replacement request including all work still wanted. It explicitly replaces the earlier intent.",
+            QuestionType::Text,
+        );
     }
 }
 
@@ -472,6 +514,30 @@ fn bake(source: &mut String, question: &Value, literal: &str, out: &mut CompileO
     let Some(value) = super::literal_answer(Some(literal), key, out) else {
         return false;
     };
+    // A choice takes one of its offered keys (a column the request left open, among the
+    // observed ones); any other answer is a finding and the question stays.
+    let offered = offers(question);
+    if !offered.is_empty()
+        && !offered
+            .iter()
+            .any(|o| value.as_str() == Some(o.key.as_str()))
+    {
+        super::finding(
+            out,
+            DiagnosticKind::Missed,
+            key,
+            format!(
+                "Answer one of the offered keys as a JSON string: {}.",
+                offered
+                    .iter()
+                    .map(|o| o.key.as_str())
+                    .collect::<Vec<_>>()
+                    .join(" · ")
+            ),
+        );
+        ask(question, out);
+        return false;
+    }
     let value = if question["answer_type"] == "literal" {
         value
     } else {
@@ -626,22 +692,51 @@ fn host_of(url: &str) -> Option<&str> {
 
 /// Ask one recorded business question, mandatory.
 fn ask(question: &Value, out: &mut CompileOutcome) {
+    let options = offers(question);
+    let why = question["why"]
+        .as_str()
+        .filter(|w| !w.is_empty())
+        .unwrap_or("The compiler cannot invent this business value.");
+    // A transport that shows no options still shows what a choice takes.
+    let why = if options.is_empty() {
+        why.to_owned()
+    } else {
+        let keys: Vec<&str> = options.iter().map(|o| o.key.as_str()).collect();
+        format!("{why} Answer one of: {}.", keys.join(" · "))
+    };
     out.questions.push(super::CompileQuestion {
         key: question["key"].as_str().unwrap_or_default().to_owned(),
         label: question["label"].as_str().unwrap_or_default().to_owned(),
         answer_type: if question["answer_type"] == "literal" {
             QuestionType::Literal
-        } else {
+        } else if options.is_empty() {
             QuestionType::Text
+        } else {
+            QuestionType::Choice
         },
-        why: question["why"]
-            .as_str()
-            .filter(|w| !w.is_empty())
-            .unwrap_or("The compiler cannot invent this business value.")
-            .to_owned(),
+        why,
         mandatory: true,
-        options: Vec::new(),
+        options,
     });
+}
+
+/// The closed offers a recorded choice carries (the observed alternatives the judge admitted),
+/// or none for any other question.
+fn offers(question: &Value) -> Vec<super::types::ChoiceOffer> {
+    if question["answer_type"] != "choice" {
+        return Vec::new();
+    }
+    question["options"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|o| {
+            Some(super::types::ChoiceOffer::new(
+                o["key"].as_str()?,
+                o["label"].as_str()?,
+            ))
+        })
+        .collect()
 }
 
 /// The model placeholder: the human's `model` answer replaces it; else the question is asked.

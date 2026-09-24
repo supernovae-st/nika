@@ -80,7 +80,9 @@ pub struct StderrEmitter {
 }
 
 impl StderrEmitter {
-    const fn metadata_only() -> Self {
+    /// Service projection: builtin log/emit payloads never reach stderr.
+    #[must_use]
+    pub const fn metadata_only() -> Self {
         Self {
             project_payloads: false,
         }
@@ -270,6 +272,12 @@ fn ladder_key(lookup: &dyn Fn(&str) -> Option<String>, id: &str, env_var: &str) 
         .or_else(|| lookup(env_var).filter(|v| !v.is_empty()))
 }
 
+/// The one ambient read behind the composition root's existing key/endpoint ladders.
+#[allow(clippy::disallowed_methods)] // sanctioned env→secret boundary
+fn env_lookup(name: &str) -> Option<String> {
+    std::env::var(name).ok()
+}
+
 /// The cloud-endpoint override for one provider: `NIKA_<ID>_BASE_URL`,
 /// verbatim (a COMPLETE endpoint URL · empty counts as absent). Only the
 /// explicit `NIKA_` form exists here — cloud providers have no
@@ -285,13 +293,11 @@ fn cloud_base_url(lookup: &dyn Fn(&str) -> Option<String>, id: &str) -> Option<S
 #[must_use]
 pub fn config_from_env() -> ProvidersConfig {
     let mut config = ProvidersConfig::new();
-    #[allow(clippy::disallowed_methods)] // the sanctioned env→secret boundary (see doc)
-    let lookup = |name: &str| std::env::var(name).ok();
     for provider in nika_catalog::all_providers() {
         if provider.env_var.is_empty() {
             continue;
         }
-        if let Some(value) = ladder_key(&lookup, provider.id, provider.env_var) {
+        if let Some(value) = ladder_key(&env_lookup, provider.id, provider.env_var) {
             config = config.with_key(provider.id, Secret::new(value));
         }
     }
@@ -308,7 +314,7 @@ pub fn config_from_env() -> ProvidersConfig {
         if LOCAL_BASE_ENV.iter().any(|(id, _, _)| *id == provider.id) {
             continue;
         }
-        if let Some(url) = cloud_base_url(&lookup, provider.id) {
+        if let Some(url) = cloud_base_url(&env_lookup, provider.id) {
             config = config.with_base_url(provider.id, url);
         }
     }
@@ -320,16 +326,9 @@ pub fn config_from_env() -> ProvidersConfig {
     // URL) all resolve; a bare host gets the provider's default port.
     for (id, conventional, default_port) in LOCAL_BASE_ENV {
         let ours = format!("NIKA_{}_BASE_URL", id.to_uppercase());
-        #[allow(clippy::disallowed_methods)] // the sanctioned env boundary (see doc)
-        let raw = std::env::var(&ours)
-            .ok()
+        let raw = env_lookup(&ours)
             .filter(|v| !v.is_empty())
-            .or_else(|| {
-                conventional.and_then(|name| {
-                    #[allow(clippy::disallowed_methods)] // the sanctioned env boundary (see doc)
-                    std::env::var(name).ok().filter(|v| !v.is_empty())
-                })
-            });
+            .or_else(|| conventional.and_then(env_lookup).filter(|v| !v.is_empty()));
         if let Some(raw) = raw {
             config = config.with_base_url(id, normalize_local_base_url(&raw, default_port));
         }
@@ -396,35 +395,25 @@ fn normalize_local_base_url(raw: &str, default_port: u16) -> String {
 /// (naming the ladder) only when a workflow actually targets that
 /// provider; the mock provider needs no key at all.
 fn image_keys_from_env() -> ImageKeys {
-    let read = |ladder: [&str; 2]| {
-        ladder.into_iter().find_map(|name| {
-            #[allow(clippy::disallowed_methods)] // the sanctioned env→secret boundary (see doc)
-            let value = std::env::var(name).ok()?;
-            (!value.is_empty()).then(|| Secret::new(value))
-        })
-    };
+    let read = |id, conventional| ladder_key(&env_lookup, id, conventional).map(Secret::new);
     let mut keys = ImageKeys::new();
-    if let Some(key) = read(["NIKA_OPENAI_API_KEY", "OPENAI_API_KEY"]) {
+    if let Some(key) = read("openai", "OPENAI_API_KEY") {
         keys = keys.with_openai(key);
     }
-    if let Some(key) = read(["NIKA_GEMINI_API_KEY", "GEMINI_API_KEY"]) {
+    if let Some(key) = read("gemini", "GEMINI_API_KEY") {
         keys = keys.with_gemini(key);
     }
-    if let Some(key) = read(["NIKA_XAI_API_KEY", "XAI_API_KEY"]) {
+    if let Some(key) = read("xai", "XAI_API_KEY") {
         keys = keys.with_xai(key);
     }
     // The LOCAL image server: base URL + optional key (both engine config
     // — the base URL is deliberately NOT a secret, but it crosses the env
     // at the same sanctioned boundary).
-    #[allow(clippy::disallowed_methods)] // the sanctioned env boundary (see doc)
-    if let Ok(url) = std::env::var("NIKA_IMAGE_LOCAL_URL")
-        && !url.is_empty()
-    {
+    if let Some(url) = env_lookup("NIKA_IMAGE_LOCAL_URL").filter(|url| !url.is_empty()) {
         keys = keys.with_local_base_url(url);
     }
-    // Single-name read (no conventional fallback exists for a local key —
-    // the array shape just reuses the ladder helper).
-    if let Some(key) = read(["NIKA_IMAGE_LOCAL_API_KEY", "NIKA_IMAGE_LOCAL_API_KEY"]) {
+    // Local media has no conventional fallback: both ladder rungs name our key.
+    if let Some(key) = read("image_local", "NIKA_IMAGE_LOCAL_API_KEY") {
         keys = keys.with_local_api_key(key);
     }
     keys
@@ -433,27 +422,18 @@ fn image_keys_from_env() -> ImageKeys {
 /// The TTS plane's composition-root env resolution — the exact sibling of
 /// [`image_keys_from_env`] (same sanctioned boundary · same laddering).
 fn tts_keys_from_env() -> TtsKeys {
-    let read = |ladder: [&str; 2]| {
-        ladder.into_iter().find_map(|name| {
-            #[allow(clippy::disallowed_methods)] // the sanctioned env→secret boundary (see doc)
-            let value = std::env::var(name).ok()?;
-            (!value.is_empty()).then(|| Secret::new(value))
-        })
-    };
+    let read = |id, conventional| ladder_key(&env_lookup, id, conventional).map(Secret::new);
     let mut keys = TtsKeys::new();
-    if let Some(key) = read(["NIKA_OPENAI_API_KEY", "OPENAI_API_KEY"]) {
+    if let Some(key) = read("openai", "OPENAI_API_KEY") {
         keys = keys.with_openai(key);
     }
-    if let Some(key) = read(["NIKA_ELEVENLABS_API_KEY", "ELEVENLABS_API_KEY"]) {
+    if let Some(key) = read("elevenlabs", "ELEVENLABS_API_KEY") {
         keys = keys.with_elevenlabs(key);
     }
-    #[allow(clippy::disallowed_methods)] // the sanctioned env boundary (see doc)
-    if let Ok(url) = std::env::var("NIKA_TTS_LOCAL_URL")
-        && !url.is_empty()
-    {
+    if let Some(url) = env_lookup("NIKA_TTS_LOCAL_URL").filter(|url| !url.is_empty()) {
         keys = keys.with_local_base_url(url);
     }
-    if let Some(key) = read(["NIKA_TTS_LOCAL_API_KEY", "NIKA_TTS_LOCAL_API_KEY"]) {
+    if let Some(key) = read("tts_local", "NIKA_TTS_LOCAL_API_KEY") {
         keys = keys.with_local_api_key(key);
     }
     keys
@@ -609,11 +589,16 @@ const PROVIDER_TRANSPORT_CEILING: std::time::Duration = std::time::Duration::fro
 // `HttpConfig` is `#[non_exhaustive]`, so the struct-literal/FRU form clippy
 // would suggest is a cross-crate compile error — field assignment is the only
 // way (the same idiom nika-http's own tests use).
-#[allow(clippy::field_reassign_with_default)]
 pub fn provider_http() -> Result<ReqwestHttp, nika_kernel::HttpError> {
+    provider_http_for_admission(false)
+}
+
+#[allow(clippy::field_reassign_with_default)]
+fn provider_http_for_admission(bounded: bool) -> Result<ReqwestHttp, nika_kernel::HttpError> {
     let mut config = HttpConfig::default();
     config.ssrf = SsrfMode::Disabled;
     config.timeout = PROVIDER_TRANSPORT_CEILING;
+    config.retry_protocol_nacks = !bounded;
     ReqwestHttp::with_config(config)
 }
 
@@ -716,6 +701,7 @@ pub fn production_runtime(
         run,
         StderrEmitter::default(),
         std::env::current_dir().unwrap_or_default(),
+        None,
     )
 }
 
@@ -737,15 +723,21 @@ pub fn service_runtime(
         run,
         StderrEmitter::metadata_only(),
         sandbox_root,
+        None,
     )
 }
 
-fn production_runtime_with_emitter(
+/// The shared production composition seam for admitted service/local hosts.
+/// `host_config` carries live, independently scope-bound admission, never a receipt.
+/// # Errors
+/// The same HTTP, sandbox and policy refusals as [`production_runtime`].
+pub fn production_runtime_with_emitter(
     default_model: &str,
     caps: RuntimeCapabilities,
     run: Option<&RunDecl>,
     emitter: StderrEmitter,
     sandbox_root: std::path::PathBuf,
+    host_config: Option<RuntimeConfig>,
 ) -> Result<ProdRuntime, ComposeError> {
     // Resolve seams once; `run` binds jq from the opening event stamp.
     let seams = RunSeams::of(run);
@@ -764,10 +756,11 @@ fn production_runtime_with_emitter(
     // The fetch/builtin client enforces SSRF (workflow URLs) AND the
     // declared permits.net.http boundary (NIKA-SEC-004 · per-hop).
     let http = Arc::new(fetch_http(caps.net)?);
-    // The provider path gets its OWN client (SSRF disabled · see the
-    // `provider_http` doc): the fetch/builtin plane below keeps `http`
-    // (SSRF enforced · workflow-controlled URLs).
-    let provider_http = Arc::new(provider_http()?);
+    // Providers use their own client (see `provider_http`); fetch retains SSRF checks.
+    let runtime_config = host_config.unwrap_or_else(|| RuntimeConfig::new(None, seams.jitter_seed));
+    let provider_http = Arc::new(provider_http_for_admission(
+        runtime_config.inference_admission.is_some(),
+    )?);
     let config = config_from_env();
     let access_probes = nika_providers::probe::collect_access_probes_env(config.clone());
 
@@ -785,11 +778,8 @@ fn production_runtime_with_emitter(
             Arc::clone(&inspect),
         )
         .with_fs_boundary(caps.fs)
-        // The IMAGE PLANE (`nika:image_generate`): provider calls ride the
-        // SSRF-disabled provider client (const studio-fixed endpoints ·
-        // the 600s transport ceiling image renders need — the fetch
-        // client's idle guard would kill them), with keys resolved at THIS
-        // boundary only.
+        // Images use fixed provider endpoints and their 600s transport ceiling;
+        // the fetch idle guard is unsuitable. Resolve keys only at this boundary.
         .with_image_plane(Arc::clone(&provider_http), image_keys_from_env())
         .with_tts_plane(Arc::clone(&provider_http), tts_keys_from_env()),
     );
@@ -798,8 +788,11 @@ fn production_runtime_with_emitter(
     // The provider registry (real http + env keys) drives infer directly
     // and the agent via the per-call RegistryProvider bridge. Its
     // transport backoff sleeps on the run's declared clock.
-    let registry =
-        Arc::new(ProviderRegistry::new(provider_http, config).with_backoff(seams.backoff()));
+    let mut registry = ProviderRegistry::new(provider_http, config).with_backoff(seams.backoff());
+    if let Some(account) = &runtime_config.inference_admission {
+        registry = registry.with_inference_admission(account.clone());
+    }
+    let registry = Arc::new(registry);
     let agent_provider = Arc::new(RegistryProvider::new(Arc::clone(&registry), default_model));
     // A broken adapter refuses at composition (A-4). `nika test` never seats.
     let harness_seat = crate::harness_seat::seat_from_env()?;
@@ -822,7 +815,7 @@ fn production_runtime_with_emitter(
             harness_seat,
         ),
         seams.clock,
-        RuntimeConfig::new(None, seams.jitter_seed)
+        runtime_config
             .with_approval_operator(operator::identity())
             .with_project_root(&sandbox_root)
             .with_sandbox_root(sandbox_root)

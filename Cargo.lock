@@ -4653,6 +4653,7 @@ dependencies = [
  "nika-display",
  "nika-error",
  "nika-event",
+ "nika-fs",
  "nika-harness",
  "nika-http",
  "nika-kernel",
@@ -4668,6 +4669,7 @@ dependencies = [
  "nika-service-execution",
  "nika-source",
  "nika-types",
+ "nika-vocab",
  "nix 0.31.3",
  "serde",
  "serde_json",
@@ -5540,6 +5542,7 @@ version = "0.120.3"
 dependencies = [
  "crossterm",
  "expectrl",
+ "nika-cli-host",
  "nika-session",
  "ratatui",
  "ratatui-textarea",

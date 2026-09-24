@@ -606,7 +606,7 @@
         "unknowns": []
       },
       "skeleton": null,
-      "spec_pin": "4b6eaadde483bcc9db9c05b022afbedfb107f37e",
+      "spec_pin": "01ace416c2b6d7211ffa297798c85fdde8cf621f",
       "strategy": "hot",
       "suggested_file": "open.nika"
     },
@@ -658,6 +658,7 @@
       "at": "08:00",
       "cadence": "weekdays",
       "ceiling": "0.1",
+      "cron": "0 8 * * 1-5",
       "event_hint": null,
       "kind": "schedule",
       "missed": "rattraper-une-fois",

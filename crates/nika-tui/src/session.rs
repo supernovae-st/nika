@@ -11,8 +11,12 @@
 //! consent). A run keeps the plain path: the session asks for a
 //! [`Handoff`], the shell hands the terminal back, the caller's runners do
 //! the run through the very path `nika run` owns, and the observation comes
-//! back through `observe_run`. Capturing a run's frames inside the renderer
-//! is a later wave.
+//! back through `observe_run`. The optional reviewed runner retains the live
+//! child and its frames across a distinct fresh Run cost question. That
+//! question and the Session's one-time unknown-cost choice are both fresh
+//! spending questions: typeahead from before they were painted is discarded,
+//! an interruption cancels them without sending anything, and `details` reads
+//! the same review's evidence without answering it.
 //!
 //! Without a kept intelligence choice the runtime opens all the same
 //! (`open_unchosen`): the first screen is asked through the composer under
@@ -23,7 +27,11 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 
+use nika_cli_host::lane::{PendingRun, RunProgress};
 use nika_session::RunRequest;
+
+/// A fresh Run may suspend at a child-owned cost question.
+pub type RunReviewed = Box<dyn Fn(&Path, &RunRequest, &Sender<String>) -> RunProgress + Send>;
 use nika_session::intelligence::{IntelligenceCensus, UserIntelligencePreference};
 use nika_session::runtime::{ReasonerFactory, SessionRuntime, TurnOutcome};
 
@@ -96,6 +104,8 @@ pub struct Live {
     factory: Option<ReasonerFactory>,
     runtime: Option<SessionRuntime>,
     runners: Runners,
+    run_review: Option<RunReviewed>,
+    pending_run: Option<Box<PendingRun>>,
     pending: Option<(u64, Work)>,
     next_id: u64,
     busy: BusySlot,
@@ -130,12 +140,30 @@ impl Live {
             factory: Some(factory),
             runtime: None,
             runners,
+            run_review: None,
+            pending_run: None,
             pending: None,
             next_id: 1,
             busy: Arc::new(Mutex::new(None)),
         };
         live.open_runtime(kept);
         live
+    }
+
+    /// Supply actual monetary scope evidence for this host, before opening beats.
+    #[must_use]
+    pub fn with_cost_host_evidence(mut self, evidence: nika_session::CostHostEvidence) -> Self {
+        if let Some(runtime) = self.runtime.as_mut() {
+            runtime.set_cost_host_evidence(evidence);
+        }
+        self
+    }
+
+    /// Keep a real child alive across a distinct fresh Run cost decision.
+    #[must_use]
+    pub fn with_run_review(mut self, runner: RunReviewed) -> Self {
+        self.run_review = Some(runner);
+        self
     }
 
     fn open_runtime(&mut self, pref: Option<UserIntelligencePreference>) {
@@ -204,10 +232,19 @@ impl Live {
 
     /// What the runtime waits for, by the same reading as the plain loop.
     fn waiting(&self) -> Waiting {
+        if self.pending_run.is_some() {
+            return Waiting::Question {
+                key: "run_cost".into(),
+            };
+        }
         let Some(runtime) = self.runtime.as_ref() else {
             return Waiting::Free;
         };
-        if runtime.pending_choice() {
+        if runtime.waiting_cost_choice() {
+            Waiting::Question {
+                key: "unknown_cost".into(),
+            }
+        } else if runtime.pending_choice() {
             Waiting::Choosing
         } else if runtime.pending_proposal().is_some() {
             Waiting::Proposal
@@ -266,11 +303,17 @@ impl Live {
                     run.max_cost_usd
                 );
                 beats.push(Beat::Say(Committed::new(Kind::Report, label.clone())));
-                if self.runners.run_tapped.is_some() {
+                if self.runners.run_tapped.is_some() || self.run_review.is_some() {
                     beats.extend(self.run_inline(&Work::Run(run)));
                     return (beats, None);
                 }
                 handoff = Some(self.keep(Work::Run(run), label));
+            }
+            TurnOutcome::Question { key, question, .. } if key == "unknown_cost" => {
+                beats.push(Beat::Say(Committed::new(
+                    Kind::Question,
+                    authoring_cost_question(&question),
+                )));
             }
             TurnOutcome::Question { question, .. } => {
                 beats.push(Beat::Say(Committed::new(Kind::Question, question)));
@@ -290,7 +333,7 @@ impl Live {
                     trace,
                     answer,
                 };
-                if self.runners.run_tapped.is_some() {
+                if self.runners.run_tapped.is_some() || self.run_review.is_some() {
                     beats.extend(self.run_inline(&work));
                     return (beats, None);
                 }
@@ -333,10 +376,36 @@ impl Live {
             .ok()
             .and_then(|guard| guard.clone())
             .unwrap_or_else(|| std::sync::mpsc::channel().0);
+        if let Work::Run(run) = work
+            && let Some(review) = self.run_review.as_ref()
+        {
+            return match review(&root, run, &busy) {
+                RunProgress::Complete(result) => self.run_result(result),
+                RunProgress::Review(pending) => {
+                    let question = pending.question();
+                    self.pending_run = Some(pending);
+                    vec![
+                        Beat::Say(Committed::new(Kind::Question, question)),
+                        Beat::Wait(self.waiting()),
+                    ]
+                }
+                _ => vec![Beat::Say(Committed::new(
+                    Kind::Refusal,
+                    "unsupported Run review response",
+                ))],
+            };
+        }
         let Some(tap) = self.runners.run_tapped.as_ref() else {
             return Vec::new();
         };
-        let (code, trace, story) = tap(&root, work, &busy);
+        let result = tap(&root, work, &busy);
+        self.run_result(result)
+    }
+
+    fn run_result(
+        &mut self,
+        (code, trace, story): (u8, Option<PathBuf>, Vec<String>),
+    ) -> Vec<Beat> {
         let mut beats = Vec::new();
         if !story.is_empty() {
             beats.push(Beat::Say(Committed::new(Kind::Run, story.join("\n"))));
@@ -358,6 +427,41 @@ impl Live {
         }
         beats
     }
+
+    /// `details` under the Session's cost question: the same review's
+    /// evidence, read without a turn (nothing recorded, answered or reviewed
+    /// again); `None` when no such question waits.
+    fn cost_details(&self, line: &str) -> Option<Vec<Beat>> {
+        if !line.trim().eq_ignore_ascii_case("details") {
+            return None;
+        }
+        let details = self.runtime.as_ref()?.cost_choice_details()?;
+        Some(vec![
+            Beat::Say(Committed::new(
+                Kind::Question,
+                format!(
+                    "Authoring cost decision details · the same review; reading them approves nothing\n{details}\n{REVIEW_CHOICE}"
+                ),
+            )),
+            Beat::Wait(self.waiting()),
+        ])
+    }
+}
+
+/// The review's own closing line, and the line that also names `details`:
+/// the same words as the first screen of a fresh Run cost question.
+const REVIEW_CHOICE: &str = "Continue once? yes / no";
+const CHOICES: &str = "Continue once? yes / no / details";
+
+/// The Session's one-time unknown-cost question, told apart from Save and
+/// Run and closing on the three choices; the Session's sentences stay whole.
+fn authoring_cost_question(question: &str) -> String {
+    let body = question
+        .strip_suffix(REVIEW_CHOICE)
+        .map_or(question, str::trim_end);
+    format!(
+        "Fresh authoring cost decision · this request only; approving it never saves or runs anything\n{body}\n{CHOICES}"
+    )
 }
 
 impl Conversation for Live {
@@ -384,6 +488,43 @@ impl Conversation for Live {
     }
 
     fn submit(&mut self, line: &str) -> Turn {
+        if let Some(pending) = self.pending_run.take() {
+            let beats = if line.trim().eq_ignore_ascii_case("details") {
+                let details = pending.details();
+                self.pending_run = Some(pending);
+                vec![
+                    Beat::Say(Committed::new(Kind::Question, details)),
+                    Beat::Wait(self.waiting()),
+                ]
+            } else if line.trim().eq_ignore_ascii_case("yes") {
+                let busy = self
+                    .busy
+                    .lock()
+                    .ok()
+                    .and_then(|g| g.clone())
+                    .unwrap_or_else(|| std::sync::mpsc::channel().0);
+                self.run_result((*pending).answer(true, &busy))
+            } else {
+                drop(pending);
+                let mut beats = self.run_result((130, None, vec![
+                    "Run cost decision cancelled; nothing sent. Request Run again for a fresh review.".into(),
+                ]));
+                if line.trim() == "/quit" {
+                    beats.push(Beat::Quit);
+                }
+                beats
+            };
+            return Turn {
+                beats,
+                handoff: None,
+            };
+        }
+        if let Some(beats) = self.cost_details(line) {
+            return Turn {
+                beats,
+                handoff: None,
+            };
+        }
         let outcome = {
             let Some(runtime) = self.runtime.as_mut() else {
                 return Turn {
@@ -391,7 +532,9 @@ impl Conversation for Live {
                     handoff: None,
                 };
             };
-            if runtime.pending_choice() {
+            if runtime.waiting_cost_choice() {
+                runtime.turn(line)
+            } else if runtime.pending_choice() {
                 runtime.choose(line.trim())
             } else if runtime.pending_proposal().is_some() {
                 runtime.consent(line.trim())
@@ -405,8 +548,45 @@ impl Conversation for Live {
         Turn { beats, handoff }
     }
 
+    /// Both fresh spending questions: the retained Run review and the
+    /// Session's one-time unknown-cost choice. Any other waiting state keeps
+    /// its typeahead and grants nothing here.
+    fn fresh_input_required(&self) -> bool {
+        self.pending_run.is_some()
+            || self
+                .runtime
+                .as_ref()
+                .is_some_and(SessionRuntime::waiting_cost_choice)
+    }
+
+    fn cancel_pending(&mut self) -> Vec<Beat> {
+        if self.pending_run.take().is_some() {
+            return self.run_result((
+                130,
+                None,
+                vec!["Run cost decision cancelled; nothing sent".into()],
+            ));
+        }
+        let Some(runtime) = self.runtime.as_mut() else {
+            return Vec::new();
+        };
+        if !runtime.waiting_cost_choice() {
+            return Vec::new();
+        }
+        // The Session's own answer path: every answer but yes cancels the
+        // review and sends nothing; the interruption never becomes a yes.
+        let outcome = runtime.turn("cancel");
+        self.map(outcome).0
+    }
+
     fn busy_label(&self, line: &str) -> Option<String> {
+        if self.pending_run.is_some() {
+            return Some("answering the fresh Run cost question".into());
+        }
         let runtime = self.runtime.as_ref()?;
+        if runtime.waiting_cost_choice() {
+            return Some("answering the fresh authoring cost question".into());
+        }
         let label = if runtime.pending_choice() {
             "seating the intelligence you chose"
         } else if runtime.pending_proposal().is_some() {
@@ -465,3 +645,6 @@ impl Conversation for Live {
         beats
     }
 }
+
+#[cfg(all(test, unix))]
+mod tests;

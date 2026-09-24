@@ -9,7 +9,7 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
 };
 
-struct LegacyCalls(Arc<AtomicUsize>);
+pub(super) struct LegacyCalls(pub(super) Arc<AtomicUsize>);
 impl SessionReasoner for LegacyCalls {
     fn name(&self) -> String {
         "counting unmetered fixture".into()
@@ -267,6 +267,10 @@ fn a_gate_only_amendment_ends_without_creating_a_session_allowance() {
             // do not weaken its endpoint/redirect assertions for an unmetered call.
             let calls = Arc::new(AtomicUsize::new(0));
             s.reasoner = Box::new(LegacyCalls(calls.clone()));
+            s.intelligence.kind = IntelligenceKind::Local {
+                provider: "scripted".into(),
+            };
+            s.intelligence.locus = DataLocus::Local;
             s.refresh_seat();
             assert!(matches!(
                 s.turn("What can you tell me about stars?"),

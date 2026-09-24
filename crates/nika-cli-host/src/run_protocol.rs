@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Pure run protocol formatting shared by operator and literal input channels.
+//! Run protocol formatting and diagnostic projection shared by operator/input channels.
+
+// Host interaction/protocol projection is this module's effect boundary.
+#![allow(clippy::disallowed_macros, clippy::print_stdout, clippy::print_stderr)]
+
 use crate::output::sh_word;
 use nika_runtime::WorkflowPause;
 use serde_json::Value;
@@ -183,4 +187,22 @@ pub fn envelope_message(text: &str) -> &str {
         .find(|l| l.contains("NIKA-"))
         .unwrap_or(first)
         .trim()
+}
+/// Route a human-readable diagnostic to the spec-correct stream: stderr in
+/// `--output json` mode (stdout MUST stay a clean JSON object · the export
+/// contract · `capture: stdout` composition), stdout in the human modes.
+/// In machine mode the failure ALSO lands on stdout as the `{"error":{…}}`
+/// envelope (F6) — the machine surface is self-sufficient, success or not.
+pub fn emit_diagnostic(text: &str, output_json: bool) {
+    // Terminal-newline law (gauntlet 08-01, Marc): the red pre-run
+    // diagnostic ended flush against the next shell prompt and dirtied
+    // concatenated CI logs — every diagnostic ends its own line, and a
+    // text already carrying one is not doubled.
+    let text = text.strip_suffix('\n').unwrap_or(text);
+    if output_json {
+        eprintln!("{text}");
+        println!("{}", error_envelope_line(envelope_message(text)));
+    } else {
+        println!("{text}");
+    }
 }

@@ -136,23 +136,7 @@ impl Activation {
     /// when the words cannot be turned into a cadence yet.
     pub(super) fn cadence(&self) -> Option<String> {
         let tz = self.answers.get(TIMEZONE)?;
-        let (hour, minute) = self
-            .trigger
-            .at
-            .as_deref()
-            .and_then(|at| {
-                let (h, m) = at.split_once(':')?;
-                Some((h.parse::<u8>().ok()?, m.parse::<u8>().ok()?))
-            })
-            .unwrap_or((8, 0));
-        let days = match self.trigger.cadence.as_deref()? {
-            "daily" | "every day" | "quotidien" => "*",
-            "weekdays" | "every weekday" | "semaine" => "1-5",
-            "weekly" | "hebdomadaire" => "1",
-            "hourly" => return Some(format!("TZ={tz} 0 * * * *")),
-            _ => return None,
-        };
-        Some(format!("TZ={tz} {minute} {hour} * * {days}"))
+        Some(format!("TZ={tz} {}", self.trigger.cron.as_deref()?))
     }
 
     /// The `arm:` entry, as the project file's grammar writes it.
@@ -188,6 +172,12 @@ impl SessionRuntime {
             return TurnOutcome::Facts(format!(
                 "the request asked for a trigger Nika cannot declare in `nika.yaml` yet ({:?}) · the workflow runs when you ask",
                 trigger.kind
+            ));
+        }
+        if trigger.cron.is_none() {
+            return TurnOutcome::Refusal(Refusal::new(
+                RefusalClass::WrongState,
+                "The requested schedule is incomplete, conflicting or unsupported; nothing was declared. Restate the work with one explicit supported cadence: every Tuesday at 09:00 / chaque mardi à 9h, every day at 18:00, or every 2 hours. Daily/weekly schedules need an explicit time, and weekly needs a weekday. No hour or weekday is assumed.",
             ));
         }
         let activation = Activation::new(workflow, trigger);
@@ -306,7 +296,7 @@ impl SessionRuntime {
         let bytes = set.preview();
         let id = crate::ProposalId::of(&bytes);
         let mut preview = format!(
-            "Nika proposes to declare the schedule in `nika.yaml`:\nRuns\n  {} · {cadence}\n  if missed · {}\n  ceiling · ${} per scheduled run\nChanges\n  {} `nika.yaml`\nDeclared is not active · after saving, a firer on this machine must run it: `nika serve` (resident), or the OS unit `nika arm --emit launchd --write` · `nika arm` lists what is declared and proves what fired\n",
+            "Nika proposes to declare the schedule in `nika.yaml`:\nRuns\n  {} · {cadence}\n  calendar slots in that zone · minute / hour / day / month / weekday (Sunday = 0)\n  interval steps start at zero on the local clock; DST follows the cadence contract\n  if missed · {}\n  ceiling · ${} per scheduled run\nChanges\n  {} `nika.yaml`\nDeclared is not active · after saving, a firer on this machine must run it: `nika serve` (resident), or the OS unit `nika arm --emit launchd --write` · `nika arm` lists what is declared and proves what fired\n",
             activation
                 .trigger
                 .source_hint
@@ -325,6 +315,7 @@ impl SessionRuntime {
             "  └─\n  identity {id} · `yes` writes these exact bytes · `no` discards"
         );
         self.remember("(activation)", &format!("(proposed {id})"));
+        self.activation_proposal = Some(id.clone());
         self.pending = Some(set);
         TurnOutcome::Proposal { id, preview }
     }

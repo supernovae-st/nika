@@ -25,6 +25,10 @@ pub struct RuntimeConfig {
     /// (local · mock · unpriced) can never trip it — the budget bounds
     /// what the ledger can SEE, said loudly at the preflight.
     pub max_cost_usd: Option<f64>,
+    /// Live admission account supplied by the host after a fresh cost decision.
+    /// Production composition attaches this SAME account to infer and agent.
+    /// Receipts may be persisted; this handle must never be reconstructed from them.
+    pub inference_admission: Option<nika_providers::InferenceAdmission>,
     /// The root relative `permits:` globs anchor at for the exec sandbox's
     /// absolute grants (ADR-095 Layer 6 — the SAME root the builtin
     /// `FsBoundary` canonicalizes against, so check≡run≡jail cannot drift).
@@ -77,6 +81,7 @@ impl RuntimeConfig {
             wave_parallelism,
             jitter_seed,
             max_cost_usd: None,
+            inference_admission: None,
             sandbox_root: None,
             sandbox_backend: None,
             sandbox_policy: None,
@@ -104,6 +109,19 @@ impl RuntimeConfig {
     pub fn with_max_cost_usd(mut self, budget: Option<f64>) -> Self {
         self.max_cost_usd = budget;
         self
+    }
+
+    /// Bind a host-approved account to the independently observed candidate and invocation.
+    /// # Errors
+    /// Stale candidate/invocation or unavailable account.
+    pub fn with_inference_admission(
+        mut self,
+        account: &nika_providers::InferenceAdmission,
+        candidate: &str,
+        invocation: &str,
+    ) -> Result<Self, nika_kernel::ai::provider::ProviderError> {
+        self.inference_admission = Some(account.for_scope(candidate, invocation)?);
+        Ok(self)
     }
 
     /// Pin the sandbox grants root (builder — the composer sets the launch

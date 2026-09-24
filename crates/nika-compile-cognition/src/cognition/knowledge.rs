@@ -48,18 +48,14 @@ pub(super) fn identity() -> Value {
 
 use nika_compile::surface::spec_pin;
 
-/// The path of the stable card in the embedded pack: the laws, the language in one page and the
-/// canonical fragments, written from the 0.120 canon (`nika spec --canon`) and the assembler's
-/// own emitted shapes, which every check admits; versioned with the pack and by its digest in
-/// the receipt.
-pub(super) const CARD_PATH: &str = "stdlib/authoring-card-v0.1.md";
-
-/// The card's text; empty only when the pack lacks it (the receipt's digest says so).
+/// The compiler-owned authoring card: local fidelity laws, language summary
+/// and emitted shapes. It is versioned with this engine, independently from
+/// the canonical Spec pack; every call records its actual digest.
 pub(super) fn card() -> &'static str {
-    nika_pack::doc(CARD_PATH).unwrap_or_default()
+    include_str!("../../assets/native_authoring_card.md")
 }
 
-/// The engine's output conventions sent after the spec's card (the `LINES` law, named shapes).
+/// The engine's output conventions sent after its authoring card.
 pub(super) const CONVENTIONS: &str = include_str!("../../assets/native_output_conventions.md");
 
 /// The stdlib sections of the callables a candidate may reach: the builtins named in the
@@ -163,7 +159,7 @@ mod tests {
     #[test]
     fn the_card_is_versioned_and_the_callables_are_cut_from_the_embedded_page() {
         let id = identity();
-        assert!(card().contains("# Laws"), "the pack carries the card");
+        assert!(card().contains("# Laws"), "the compiler embeds its card");
         assert_eq!(id["card_sha256"].as_str().map(str::len), Some(64));
         assert!(!id["pack"].as_str().unwrap_or_default().is_empty());
         let cut = callables(&["read".to_owned(), "jq".to_owned(), "nope".to_owned()]);

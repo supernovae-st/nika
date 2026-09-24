@@ -96,6 +96,13 @@ pub const WEEKLY: &[&str] = &[
     "vendredi",
     "samedi",
     "dimanche",
+    "lundis",
+    "mardis",
+    "mercredis",
+    "jeudis",
+    "vendredis",
+    "samedis",
+    "dimanches",
     "settimana",
     "settimanale",
     "lunedi",
@@ -326,6 +333,13 @@ pub const TIME_WORDS: &[&str] = &[
     "vendredi",
     "samedi",
     "dimanche",
+    "lundis",
+    "mardis",
+    "mercredis",
+    "jeudis",
+    "vendredis",
+    "samedis",
+    "dimanches",
     "manana",
     "mananas",
     "tarde",
@@ -461,4 +475,42 @@ pub const ARRIVAL_WORDS: &[&str] = &[
     "recebidos",
     "recebidas",
     "a chegar",
+];
+
+/// Phrases that ask for the work again and again without saying when (FR · EN, folded, whole
+/// words): « régulièrement », « de temps en temps », « regularly », « from time to time ». The
+/// cadence is the human's to state, never the compiler's to guess. The adjectives (« un
+/// rapport régulier », « a regular report ») and the frequency words (« souvent », « often »)
+/// are left out: they also name a kind of thing (« une expression régulière », « regular
+/// customers ») or a proportion, not a repetition of the run.
+pub const RECURRENT: &[&str] = &[
+    "regulierement",
+    "periodiquement",
+    "de temps en temps",
+    "de temps a autre",
+    "a intervalles reguliers",
+    "a intervalle regulier",
+    "de facon reguliere",
+    "de maniere reguliere",
+    "sur une base reguliere",
+    "regularly",
+    "periodically",
+    "from time to time",
+    "every so often",
+    "at regular intervals",
+    "on a regular basis",
+];
+
+/// The whole answers that say each run starts by hand, never on a cadence (FR · EN, folded).
+pub const MANUAL: &[&str] = &[
+    "manual",
+    "manually",
+    "by hand",
+    "on demand",
+    "manuel",
+    "manuelle",
+    "manuellement",
+    "a la main",
+    "a la demande",
+    "sur demande",
 ];

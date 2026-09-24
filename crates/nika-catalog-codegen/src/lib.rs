@@ -251,25 +251,7 @@ pub fn generate(
     features: FeatureSet,
 ) -> Result<Emitted, CodegenError> {
     let mut emitted = Emitted::new();
-
-    // Walk the data dir to register `cargo:rerun-if-changed` paths even
-    // for files we don't end up emitting from. Matches legacy behavior :
-    // a TOML edit triggers rebuild regardless of feature gate, so the
-    // gate-flip itself produces a fresh emission.
-    let read_dir = fs::read_dir(data_dir).map_err(|source| CodegenError::Io {
-        path: data_dir.to_path_buf(),
-        source,
-    })?;
-    for entry in read_dir {
-        let entry = entry.map_err(|source| CodegenError::Io {
-            path: data_dir.to_path_buf(),
-            source,
-        })?;
-        let path = entry.path();
-        if path.extension() == Some(OsStr::new("toml")) {
-            emitted.rerun_paths.push(path);
-        }
-    }
+    track_catalog_sources(data_dir, &mut emitted)?;
 
     // Providers are parsed unconditionally when `providers` OR
     // `embeddings` OR `capabilities` is on — both downstream catalogs
@@ -347,6 +329,28 @@ pub fn generate(
     }
 
     Ok(emitted)
+}
+
+// Walk the data dir to register `cargo:rerun-if-changed` paths even
+// for files we don't end up emitting from. Matches legacy behavior :
+// a TOML edit triggers rebuild regardless of feature gate, so the
+// gate-flip itself produces a fresh emission.
+fn track_catalog_sources(data_dir: &Path, emitted: &mut Emitted) -> Result<(), CodegenError> {
+    let read_dir = fs::read_dir(data_dir).map_err(|source| CodegenError::Io {
+        path: data_dir.to_path_buf(),
+        source,
+    })?;
+    for entry in read_dir {
+        let entry = entry.map_err(|source| CodegenError::Io {
+            path: data_dir.to_path_buf(),
+            source,
+        })?;
+        let path = entry.path();
+        if path.extension() == Some(OsStr::new("toml")) {
+            emitted.rerun_paths.push(path);
+        }
+    }
+    Ok(())
 }
 
 fn read_file(path: &Path) -> Result<Vec<u8>, CodegenError> {

@@ -38,6 +38,40 @@ pub fn read_burst(buf: &mut Vec<u8>) -> std::io::Result<usize> {
     Ok(total)
 }
 
+/// Fresh-input boundary of a spending question: flush `out`, discard all typeahead without
+/// blocking (Rust stdin buffer, terminal queue, unterminated line), restore. Not atomic.
+/// # Errors
+/// Not a terminal, a failed mode change, or typeahead over 1 MiB: fail closed.
+pub fn fresh_terminal<W: std::io::Write + ?Sized>(out: &mut W) -> std::io::Result<()> {
+    use nix::sys::termios::{FlushArg, LocalFlags, SetArg, SpecialCharacterIndices as Cc};
+    out.flush()?;
+    let stdin = std::io::stdin();
+    let saved = nix::sys::termios::tcgetattr(&stdin)?;
+    let mut drain = saved.clone();
+    drain.local_flags.remove(LocalFlags::ICANON);
+    drain.control_chars[Cc::VMIN as usize] = 0;
+    drain.control_chars[Cc::VTIME as usize] = 0;
+    nix::sys::termios::tcsetattr(&stdin, SetArg::TCSANOW, &drain)?;
+    let drained = discard(&mut stdin.lock(), 1 << 20);
+    nix::sys::termios::tcsetattr(&stdin, SetArg::TCSANOW, &saved)?;
+    nix::sys::termios::tcflush(&stdin, FlushArg::TCIFLUSH)?;
+    drained
+}
+
+/// Consume what `source` yields until it has nothing now, refusing past `bound` bytes.
+fn discard(source: &mut impl BufRead, bound: usize) -> std::io::Result<()> {
+    let mut seen = 0;
+    while seen <= bound {
+        let n = source.fill_buf()?.len();
+        if n == 0 {
+            return Ok(());
+        }
+        source.consume(n);
+        seen += n;
+    }
+    Err(std::io::Error::other("typeahead exceeds its bound"))
+}
+
 /// Is another line already waiting on stdin, right now (a zero wait)?
 #[must_use]
 pub fn stdin_pending() -> bool {
@@ -103,3 +137,6 @@ where
         self.pos = (self.pos + amt).min(self.buf.len());
     }
 }
+
+#[cfg(all(test, unix))]
+mod tests;

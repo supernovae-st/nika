@@ -1,10 +1,12 @@
 //! The machine's typed answers (ADR-133 · the portable session): what a
 //! host renders, and what a REMOTE host judges by identity — the proposal
-//! a consent names, the gate an answer names, the class of a refusal. The
-//! terminal door reads the same types; no host parses prose.
+//! a consent names, the gate or the question an answer names, the class of
+//! a refusal. The terminal door reads the same types; no host parses prose.
 
 use std::fmt;
+use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Weak};
 
 use crate::change::{ChangeError, Witness};
 
@@ -58,6 +60,77 @@ impl GateId {
 impl fmt::Display for GateId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "`{}` in {}", self.task, self.trace.display())
+    }
+}
+
+/// The identity of one authoring question as ONE session asked it: the
+/// witness of the question, of the request revision it belongs to and of
+/// the intelligence that reads its answer, held with the session that
+/// asked it. Only a session hands one out
+/// (`SessionRuntime::pending_question_id`); an answer that names it answers
+/// that question in that session, or nothing. It grants no consent and no
+/// run, and nothing keeps it: the same question asked again — a new
+/// revision, another intelligence, a restarted session — is another
+/// identity. The text names the question and its revision, never the
+/// session: two sessions that ask the same question share the text, not
+/// the identity. The key the question fills stays the compiler's.
+#[derive(Clone)]
+#[non_exhaustive]
+pub struct QuestionId {
+    witness: String,
+    asker: Weak<Incarnation>,
+}
+
+/// One session, told apart from every other by identity alone: no clock,
+/// no randomness, no counter shared between sessions.
+#[derive(Debug, Default)]
+pub(crate) struct Incarnation;
+
+impl QuestionId {
+    /// The identity of `witness` as `asker` asked it.
+    pub(crate) fn new(witness: String, asker: &Arc<Incarnation>) -> Self {
+        Self {
+            witness,
+            asker: Arc::downgrade(asker),
+        }
+    }
+
+    /// The witness, hex: the question, its revision and the intelligence
+    /// that reads its answer — not the session that asked it.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.witness
+    }
+
+    /// Whether `asker` is the session that asked this question.
+    pub(crate) fn asked_by(&self, asker: &Arc<Incarnation>) -> bool {
+        Weak::ptr_eq(&self.asker, &Arc::downgrade(asker))
+    }
+}
+
+impl PartialEq for QuestionId {
+    fn eq(&self, other: &Self) -> bool {
+        self.witness == other.witness && Weak::ptr_eq(&self.asker, &other.asker)
+    }
+}
+
+impl Eq for QuestionId {}
+
+impl Hash for QuestionId {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.witness.hash(state);
+    }
+}
+
+impl fmt::Debug for QuestionId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("QuestionId").field(&self.witness).finish()
+    }
+}
+
+impl fmt::Display for QuestionId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.witness.get(..12).unwrap_or(&self.witness))
     }
 }
 
@@ -160,6 +233,34 @@ mod tests {
         assert_eq!(gate, GateId::new(Path::new("/t/x.ndjson"), "gate"));
         assert_ne!(gate, GateId::new(Path::new("/t/y.ndjson"), "gate"));
         assert!(gate.to_string().contains("`gate`"));
+    }
+
+    /// A question's identity is its witness AND the session that asked it:
+    /// the same text asked by another session — a restart — is another
+    /// identity, whether or not the first session still lives.
+    #[test]
+    fn a_question_identity_is_its_witness_and_the_session_that_asked_it() {
+        let first = Arc::new(Incarnation);
+        let second = Arc::new(Incarnation);
+        let witness = Witness::of(b"question").0;
+        let asked = QuestionId::new(witness.clone(), &first);
+        assert_eq!(asked, asked.clone());
+        assert_eq!(asked, QuestionId::new(witness.clone(), &first));
+        assert_ne!(asked, QuestionId::new(Witness::of(b"other").0, &first));
+        let elsewhere = QuestionId::new(witness.clone(), &second);
+        assert_eq!(
+            elsewhere.as_str(),
+            asked.as_str(),
+            "the text never names the session"
+        );
+        assert_ne!(asked, elsewhere, "the identity does");
+        assert!(asked.asked_by(&first) && !asked.asked_by(&second));
+        assert_eq!(asked.as_str().len(), 64);
+        assert_eq!(asked.to_string(), &witness[..12]);
+        drop(first);
+        let reopened = Arc::new(Incarnation);
+        assert!(!asked.asked_by(&reopened), "a later session never asked it");
+        assert_ne!(asked, QuestionId::new(witness, &reopened));
     }
 
     #[test]

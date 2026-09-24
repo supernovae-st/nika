@@ -19,6 +19,28 @@
 
 The workflow grammar · the builtin catalog · the model catalog · the error definitions · the check semantics · the runtime · the ARM semantics · the trace verification · the project file grammar. It queries those authorities (`nika_pack` · `nika_builtin` · `nika_catalog` · `nika_error` · `nika_cli_host::oracle` · `nika_dap::inventory` · `nika_vocab::project` · `nika_onboard::routing`).
 
+## Exact schedule activation
+
+Saving a scheduled candidate activates nothing. Activation consumes Compile's
+exact unbound `requested_trigger.cron`, never its coarse cadence label or a
+re-parsed source hint. Missing/unsupported/conflicting requirements refuse
+before a declaration proposal, naming the need to restate a supported period
+and explicit daily/weekly time; there is no implicit 08:00 or Monday.
+
+The existing activation questions still require timezone, missed-run policy
+and positive per-occurrence ceiling. The full `TZ=...` expression is validated
+by `nika-cadence`, shown with its field meanings, zero interval phase and local
+clock/DST semantics, and recorded unchanged only after explicit declaration
+consent. The canonical overlap/after-skip defaults are unchanged. A recognized
+revision discards the old pending declaration and asks for a restated, saved
+candidate followed by fresh activation; it cannot hold old consent as authority.
+Cancel, stale project bytes and restart never authorize that declaration.
+The lifecycle reports Declared, never proven Active or Run from this gesture.
+
+`tests/schedule_activation.rs` drives the real deterministic Compiler through
+public Session and asserts persisted registry bytes and typed lifecycle stages.
+It has no model or firer and does not qualify live scheduled execution.
+
 ## Subscription authoring
 
 The selected reasoner declares its subscription authoring capability separately
@@ -164,6 +186,40 @@ decision is neither proof of execution nor proof that all downstream costs are
 bounded. Public deterministic tests and observed loopback protocol doubles
 verify mechanics; they are not live provider or subscription qualification.
 
+## Question identity
+
+A host that is not at the keyboard answers an authoring question by identity,
+as it consents to a proposal or answers a gate (ADR-133).
+`SessionRuntime::pending_question_id()` names the question the next line
+answers: a witness of the question, of the request revision it belongs to
+(intent, answers, recorded plan, open questions), of the ordinal of its asking
+and of the intelligence, seat and authoring context that read its answer,
+held with the session that asked it. It stays the same while the question
+waits — an aside, a refusal, a reply that bound nothing — and changes when the
+request is read again or revised, when the question is asked again, when the
+intelligence changes and when the session restarts, even for the same key and
+the same words. `answer_question_for(&id, line)` refuses before any classifier,
+reading, compiler call, record or effect, and whatever waits keeps waiting:
+another question waits (`stale_revision`, also for an identity another session
+asked), the question was answered or dropped in this session
+(`already_consumed`), none waits (`wrong_state`), a cost review waits
+(`stale_revision`, as for a proposal's consent), or the intelligence choice, a
+proposal or a paused run owns the next line (`wrong_state`). The waiting
+question takes the line exactly as `turn` gives it at the keyboard, and the
+terminal and the TUI keep answering the question they show that way; the
+`Question` outcome is unchanged. `CompileQuestion.key` stays the compiler's
+semantic hole. The identity lives in memory only: it is never persisted, never
+restored and grants no consent and no Run. Its text names the question and its
+revision, not the session — the session is told apart by the value itself, with
+no clock, randomness or shared counter — so a host keeps the value the session
+handed out; a wire host needs ADR-133's session identity follow-up.
+
+`runtime/inference_tests/question_identity.rs` drives real Session → Compiler
+clarifications: the deterministic compiler's `model` question, and a native
+destination question over the loopback seat in DIALOG-11's shape, where the
+same key asked again for the revised request is another identity. These are
+mechanics, not a live provider qualification.
+
 ## The tests that admit it
 
 - a chat turn writes nothing (no temp workflow · no `.nika/` · no trace);
@@ -175,6 +231,6 @@ verify mechanics; they are not live provider or subscription qualification.
 - the first screen speaks the atelier order in human words, never a class name;
 - on the real binary (`session_pty.rs`): a pipe is the concierge, the TTY is the session, the first run asks once, the kept choice never asks again, `nika thread` is the parser's own refusal;
 - a reply carrying a file is a proposal and nothing is written before the consent line (`no` discards · a classified cancellation discards the whole pending proposal without effects · questions keep the proposal pending · `yes` lands the exact bytes the preview printed, byte for byte); an update is witnessed and a stale target applies nothing; a path outside the root or a file the human never named is refused before any preview; the fix ladder's prepass repairs the reply's dead forms before the preview and says so; the preview's effect rows come from the report's own permits and requirements; the real check follows every workflow written; « create and run it » requests the run ONLY on a clean on-disk check and findings stop it; the door's observation of the run is a fact; the last run is read from its trace, never from memory;
-- an authoring value said in words binds through its typed reading (`runtime/answer_tests.rs`): a JSON literal or one token is the value as typed, with no call; several words are read once through the metered label seat and bind only as whole tokens copied verbatim from the human's line (a piece cut out of a token — an extension, the name under a folder, the local part of an address — binds nothing), said beside the outcome; whole tokens bound the copy but do not prove its meaning — which tokens are the value is the model's reading, reviewed by the human before consent; no value, several values, an invented or partial copy, a failed call or a spending limit bind nothing and the question waits, saying why; with no intelligence chosen the reply is the value as typed and the question says so; the seat's `model`, the replacement request, a clause's disposition and a choice keep their own doors; a reading is never a consent;
+- an authoring value said in words binds through its typed reading (`runtime/answer_tests.rs`): a JSON literal or one token is the value as typed, with no call; several words are read once through the metered label seat and bind only as whole tokens copied verbatim from the human's line (a piece cut out of a token — an extension, the name under a folder, the local part of an address — binds nothing), said beside the outcome; whole tokens bound the copy but do not prove its meaning — which tokens are the value is the model's reading, reviewed by the human before consent; no value, several values, an invented or partial copy, a failed call or a spending limit bind nothing and the question waits, saying why; with no intelligence chosen the reply is the value as typed and the question says so; a choice among offered keys (an open column among the observed `montant · autre`) binds an offered key typed alone — or written as its JSON string — with no call, and under a chosen intelligence the same one bounded reading is shown the exact keys offered now and binds only a copy that IS one of them, verbatim and whole in the human's line (« La colonne montant. » → `montant`, said beside the proposal); a line carrying no offered key is not read, and a key the line does not carry, a word not offered, a piece of a word, a trailing second answer, an empty or failed reply or a spending limit bind nothing and the choice waits; which offered key a line chooses — one of several, not the one it rejects — is the reading's, never the first match's; without an intelligence the line is the answer as typed and the compiler, the final authority, keeps the choice asked with its offered keys; the seat's `model`, the replacement request, a clause's disposition and a rule asked in words keep their own doors; a reading is never a consent;
 - a run that paused at a human gate (exit 4) returns to the session as the gate's own question, read from the trace's pause event; the human's line becomes the resume the door runs (`--resume <trace> --answer <task>=<value>`), an empty line is refused and nothing answers for them, a gate is answered once; the repair round lands a witnessed update from « fix it » and the on-disk check reads clean.
 - the controlled episode over the public seams (`episode_tests`): a local brief proposed from fixture pages lands on a consent that names it, byte for byte, the run handed back as data (the session never executes); the destination's preimage appearing, changing or disappearing after the preview — alone or as the second file of a set — refuses as stale with not one byte of the tree moved and the proposal undecided, and the next revision witnesses what is there now; a restarted host holds no consent from before; a missing grant is named at preview from the checker's own finding and stops the run, never the preparation; the player's prompt carries the bundle and never the oracle outside the root, an unnamed page body or the environment, and is not consulted between the preview and the consent.

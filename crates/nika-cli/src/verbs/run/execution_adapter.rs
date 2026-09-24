@@ -97,6 +97,8 @@ struct CliExecutionRequest<'a> {
     task_filter: Option<&'a str>,
     no_outputs: bool,
     max_cost_usd: Option<f64>,
+    review_channel: nika_cli_host::run_cost::ReviewChannel,
+    invocation_cost: Option<f64>,
 }
 
 impl CliExecutionRequest<'_> {
@@ -136,6 +138,8 @@ pub(crate) fn run_arm_context(
         task_filter: None,
         no_outputs: false,
         max_cost_usd: Some(shot.ceiling()),
+        review_channel: nika_cli_host::run_cost::ReviewChannel::Unavailable,
+        invocation_cost: Some(shot.ceiling()),
     };
     run_admitted_context(context, &request, shot.root().to_path_buf())
 }
@@ -156,6 +160,8 @@ pub(super) fn run_admitted(
     task_filter: Option<&str>,
     no_outputs: bool,
     max_cost_usd: Option<f64>,
+    invocation_cost: Option<f64>,
+    cost_review_stdio: bool,
 ) -> RunVerdict {
     let machine = output_json || json;
     let (project, root, display_root) = match execution_project(file) {
@@ -193,6 +199,12 @@ pub(super) fn run_admitted(
         task_filter,
         no_outputs,
         max_cost_usd,
+        review_channel: if cost_review_stdio && json && resume.is_none() {
+            nika_cli_host::run_cost::ReviewChannel::Stdio
+        } else {
+            (!(json || output_json) && resume.is_none()).into()
+        },
+        invocation_cost,
     };
     let session = service.begin(admitted);
     let outcome = run_admitted_context(session.context(), &request, display_root);
@@ -286,7 +298,26 @@ fn run_admitted_context(
             request.output_json,
         );
     }
-    if let Err(code) = budget_gate(&wf, &report, request, machine, &plan) {
+    let cost = match unknown_cost::review(
+        &world.display_root,
+        request.file,
+        source,
+        format!("{:?}", world.execution_id),
+        &wf,
+        &plan,
+        &inputs.values,
+        request.invocation_cost,
+        request.review_channel,
+    ) {
+        Ok(cost) => cost,
+        Err(why) => {
+            epilogue::emit_diagnostic(&why, machine);
+            return RunVerdict::bare(exit::ENV);
+        }
+    };
+    if cost.is_none()
+        && let Err(code) = budget_gate(&wf, &report, request, machine, &plan)
+    {
         return RunVerdict::bare(code);
     }
     let setup = match resume_setup(
@@ -306,7 +337,12 @@ fn run_admitted_context(
         &plan,
         inputs,
         setup,
-        request.max_cost_usd,
+        if cost.is_some() {
+            None
+        } else {
+            request.max_cost_usd
+        },
+        cost.as_ref().map(|c| c.config.clone()),
         (request.no_trace_file, machine),
         &world,
     ) {
@@ -315,10 +351,37 @@ fn run_admitted_context(
         Err(code) => return RunVerdict::bare(code),
     };
     announce_access(&plan, (request.json, request.output_json), request.mode);
+    let verdict = execute_request(&runtime, request, &cancel, &world);
+    finish_cost(cost.as_ref(), verdict, machine)
+}
+
+fn finish_cost(
+    cost: Option<&nika_cli_host::run_cost::RunCost>,
+    verdict: RunVerdict,
+    machine: bool,
+) -> RunVerdict {
+    if let Some(cost) = cost
+        && let Err(why) = cost.finish()
+    {
+        epilogue::emit_diagnostic(
+            &format!("Run may have been billed; cost observation failed: {why}"),
+            machine,
+        );
+        return RunVerdict::bare(exit::ENV);
+    }
+    verdict
+}
+
+fn execute_request(
+    runtime: &AuthorizedRuntime,
+    request: &CliExecutionRequest<'_>,
+    cancel: &nika_types::cancel::CancelCtx,
+    world: &AdmittedWorld,
+) -> RunVerdict {
     execute_and_ask(
-        &runtime,
+        runtime,
         request.file,
-        (&wf, &report),
+        (world.driver.workflow(), world.driver.report()),
         request.resume.is_some_and(|resume| resume.trace.is_some()),
         request.binding,
         request.model_override,
@@ -333,8 +396,8 @@ fn run_admitted_context(
             request.no_outputs,
             request.task_filter.is_some(),
         ),
-        &cancel,
-        &world,
+        cancel,
+        world,
     )
 }
 
@@ -534,6 +597,8 @@ mod tests {
             task_filter: None,
             no_outputs: false,
             max_cost_usd: None,
+            review_channel: nika_cli_host::run_cost::ReviewChannel::Unavailable,
+            invocation_cost: None,
         };
         let session = service.begin(admitted);
         let outcome =
