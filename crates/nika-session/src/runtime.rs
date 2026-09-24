@@ -26,6 +26,7 @@ use crate::outcome::{GateId, ProposalId, Refusal, RefusalClass};
 use crate::reasoner::{ReasonError, SessionReasoner};
 use crate::snapshot::ProjectSnapshot;
 
+mod answer;
 mod aside;
 mod authoring;
 mod details;
@@ -1431,6 +1432,9 @@ fn named_files(input: &str) -> Vec<String> {
         .collect()
 }
 
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod answer_tests;
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod authoring_tests;

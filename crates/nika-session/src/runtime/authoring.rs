@@ -559,6 +559,9 @@ impl SessionRuntime {
                 {
                     let _ = write!(text, "\n  {offer}");
                 }
+                if let Some(notice) = self.as_typed_notice(question) {
+                    let _ = write!(text, "\n  {notice}");
+                }
                 self.intent.unresolved = vec![question.label.clone()];
                 self.remember(&round.intent, &text);
                 self.authoring = Some(round);
@@ -662,7 +665,7 @@ impl SessionRuntime {
             line.to_owned()
         };
         let line = line.as_str();
-        let mut round = match self.route_at_question(round, line) {
+        let round = match self.route_at_question(round, line) {
             Ok(round) => round,
             Err(outcome) => return outcome,
         };
@@ -696,21 +699,15 @@ impl SessionRuntime {
                 question: text,
             };
         }
-        let Some(key) = round.answer_current(line) else {
-            return TurnOutcome::Refusal(Refusal::new(
-                RefusalClass::WrongState,
-                "no authoring question waits",
-            ));
-        };
-        self.remember(line, &format!("(answered {key})"));
-        self.compile_again(round)
+        // A value said in words binds through its typed reading (`answer.rs`).
+        self.bind_answer(round, line)
     }
 
     /// The round compiled again after an answer or a restatement: a
     /// provider seat climbs the same ladder as the request itself (the
     /// stronger model before « cannot express » — the product law: quality
     /// first); the deterministic seat settles what it reads.
-    fn compile_again(&mut self, round: AuthoringRound) -> TurnOutcome {
+    pub(super) fn compile_again(&mut self, round: AuthoringRound) -> TurnOutcome {
         if self.money_blocks_cognition() {
             return match compile_deterministic(&round.request()) {
                 Ok(out) => self.settle(round, Reading::of(out)),
@@ -1049,7 +1046,7 @@ fn input_question(workflow: &std::path::Path, name: &str, remaining: usize) -> S
 
 /// The question as the human reads it: the compiler's label, why it
 /// cannot invent the value, what it could not settle, how to abandon.
-fn question_text(question: &CompileQuestion, reasons: &[String]) -> String {
+pub(super) fn question_text(question: &CompileQuestion, reasons: &[String]) -> String {
     let mut text = question.label.clone();
     if !question.why.is_empty() {
         text.push_str("\n  (");

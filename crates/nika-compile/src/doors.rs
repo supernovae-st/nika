@@ -391,6 +391,13 @@ pub fn native_apply(record: &Value, request: &CompileRequest, out: &mut CompileO
             ask(question, out);
         }
     }
+    if !open {
+        grant_answered_paths(
+            record["source"].as_str().unwrap_or_default(),
+            &mut source,
+            out,
+        );
+    }
     // An unused envelope model is not a runtime requirement. Ask only when Check
     // proves language work remains, including parametric fan-out calls.
     let language_work = crate::parse(&source)
@@ -521,6 +528,82 @@ fn grant_host(after: &mut Value, value: &Value) -> bool {
     }
     list.push(Value::String(host.to_owned()));
     true
+}
+
+/// Complete the read or write boundary a seat left as its empty placeholder (`[""]`, the
+/// one narrow shape the judge admits while a path is still asked) with the exact paths the
+/// answers introduced, as `grant_host` completes an answered endpoint. The paths are the
+/// capability inference's own (`nika check --infer-permits`), taken over the seat's source
+/// and over the answered one: only their difference, in the direction the tool uses, bound
+/// to a bare `${{ const.<slug> }}` (the inference resolves nothing else). A path that
+/// escapes the workspace is never inferred; a glob, or a direction the seat declared with
+/// any other entry, is never touched — the check then refuses the candidate, as before.
+fn grant_answered_paths(seat_source: &str, source: &mut String, out: &mut CompileOutcome) {
+    let (Ok(seat), Ok(answered)) = (crate::parse(seat_source), crate::parse(source)) else {
+        return;
+    };
+    let (seat, answered) = (
+        nika_check::infer_permits(&seat),
+        nika_check::infer_permits(&answered),
+    );
+    for direction in ["read", "write"] {
+        let introduced: Vec<String> = inferred_paths(&answered, direction)
+            .difference(&inferred_paths(&seat, direction))
+            .cloned()
+            .collect();
+        if introduced.is_empty()
+            || introduced
+                .iter()
+                .any(|path| path.is_empty() || path.contains(['*', '?', '[']))
+        {
+            continue;
+        }
+        let Some(before) = crate::edit::literal_projection(source) else {
+            return;
+        };
+        let placeholder = before
+            .pointer(&format!("/permits/fs/{direction}"))
+            .and_then(Value::as_array)
+            .is_some_and(|list| matches!(list.as_slice(), [only] if only.as_str() == Some("")));
+        if !placeholder {
+            continue;
+        }
+        let mut after = before.clone();
+        after["permits"]["fs"][direction] = json!(introduced);
+        if let Some(edited) =
+            crate::edit_source::emit_at(source, &before, &after, &["permits", "fs", direction])
+        {
+            *source = edited;
+            super::finding(
+                out,
+                DiagnosticKind::Applied,
+                &format!("permits.fs.{direction}"),
+                format!(
+                    "The answered path completes the empty placeholder the candidate declared: {}.",
+                    introduced.join(" · ")
+                ),
+            );
+        }
+    }
+}
+
+/// The `permits.fs` entries one inference derived for a direction.
+fn inferred_paths(inferred: &nika_check::InferredPermits, direction: &str) -> BTreeSet<String> {
+    inferred
+        .permits
+        .fs
+        .as_ref()
+        .map(|fs| {
+            if direction == "write" {
+                &fs.write
+            } else {
+                &fs.read
+            }
+        })
+        .into_iter()
+        .flatten()
+        .cloned()
+        .collect()
 }
 
 /// The host of an `http(s)://` URL, without its port: the form `permits.net.http` lists (the

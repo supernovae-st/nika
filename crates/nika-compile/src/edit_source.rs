@@ -8,8 +8,9 @@ use marked_yaml::{LoaderOptions, Node, parse_yaml_with_options};
 use serde_json::Value;
 
 /// Called only after the canonical parser's resource guards and pure Check.
-/// A no-op preserves all bytes. Otherwise only a single-line scalar or a flow
-/// collection is replaced; ambiguous/block presentation keeps the original.
+/// A no-op preserves all bytes. Otherwise only a single-line scalar, a flow
+/// collection or a block sequence ending in a one-line scalar item (rewritten as
+/// its flow form) is replaced; any other presentation keeps the original.
 pub(super) fn emit(source: &str, before: &Value, after: &Value, name: &str) -> Option<String> {
     let declaration = before.get("const")?.get(name)?;
     let typed = declaration.get("type").is_some() && declaration.get("value").is_some();
@@ -22,7 +23,9 @@ pub(super) fn emit(source: &str, before: &Value, after: &Value, name: &str) -> O
 
 /// The same bounded edit at any key path of the document (`permits` · `net` · `http`): the
 /// literal at that path in `after` replaces the one the source presents there, when that
-/// presentation is a single-line scalar or a flow collection.
+/// presentation is a single-line scalar, a flow collection or a block sequence ending in a
+/// one-line scalar item — whose flow form then takes its place, from its first `-` to its
+/// last item.
 pub(super) fn emit_at(
     source: &str,
     before: &Value,

@@ -59,7 +59,12 @@ back on the surface.
 
 ## 4. Current member boundary (ADR-140)
 
-`doors` owns deterministic HOT admission, plan/native replay and record application;
+`doors` owns deterministic HOT admission, plan/native replay and record application.
+Record application completes a native candidate's boundary only from its answers: an
+answered endpoint's host (`permits.net.http`), and an answered bare `${{ const.<slug> }}`
+path, which replaces the seat's empty `permits.fs` placeholder (`[""]`, flow or block
+`- ""`) in the direction the capability inference derives — never a path that escapes the
+workspace, never a glob, never a direction the seat declared with any other entry.
 `assemble`, `bindings`, `approval`, `laws`, `ledger`, `network`, `realize`, `support`,
 `trigger` and `writes` implement deterministic compilation. `edit`, `edit_source`,
 `materialize`, `retrieve`, `types`, `pattern` and `wire` retain their existing roles.
