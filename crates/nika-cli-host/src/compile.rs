@@ -10,7 +10,7 @@ pub mod knowledge;
 mod observe;
 mod render;
 mod sidecar;
-mod typesafe;
+pub mod typesafe;
 
 use crate::output::{VerbOutput, exit};
 use nika_onboard::compile::{CompileRequest, CompileStatus, compile, intent_sha256, revise_intent};

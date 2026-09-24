@@ -117,8 +117,11 @@ impl SessionRuntime {
         let observed = self
             .observed_line()
             .map_or_else(String::new, |line| format!(" · {line}"));
-        let account =
-            format!("Session inference (separate from proposal/Run): {account}{observed}");
+        let decision = decision_line(&self.cost_observations())
+            .map_or_else(String::new, |line| format!(" · {line}"));
+        let account = format!(
+            "Session inference (separate from proposal/Run): {account}{observed}{decision}"
+        );
         if self.money.gate.is_some() {
             format!(
                 "confirm-gate monetary amendment held; no paid inference admitted; paused Run unchanged; answer yes or no separately\n{account}"
@@ -239,8 +242,15 @@ impl SessionRuntime {
             AuthoringSeat::Provider { model } => Some(model.as_str()),
             _ => None,
         };
+        // An operator-selected decision seat may be consulted inside this compile: the line
+        // written before transport names it too, so an interruption never hides its call.
+        let decision = self
+            .authoring_context
+            .decision()
+            .filter(|setup| setup.refusal().is_none())
+            .map(crate::authoring::DecisionSetup::model);
         let (account, entered) = self
-            .enter_dispatch(model)
+            .enter_dispatch_naming(model, decision)
             .map_err(|e| AuthoringError::Seat(format!("{UNRECORDED}: {e}")))?;
         let out = compile(account.as_ref());
         self.leave_paid_dispatch(entered);
@@ -306,6 +316,15 @@ impl SessionRuntime {
         &self,
         model: Option<&str>,
     ) -> Result<(Option<InferenceAdmission>, bool), String> {
+        self.enter_dispatch_naming(model, None)
+    }
+    /// [`Self::enter_dispatch`] whose no-budget line also names the operator-selected decision
+    /// seat the dispatch may consult (its cost unknown, outside the observation's subtotal).
+    pub(super) fn enter_dispatch_naming(
+        &self,
+        model: Option<&str>,
+        decision: Option<&str>,
+    ) -> Result<(Option<InferenceAdmission>, bool), String> {
         if let Some(account) = &self.money.account {
             if self.unknown_cost.active {
                 return Ok((Some(account.clone()), false));
@@ -323,7 +342,7 @@ impl SessionRuntime {
             .snapshot()
             .map_or(true, |r| r.state == nika_providers::AdmissionState::Open);
         if open {
-            self.save_boundary(Some(observed_marker(model)))?;
+            self.save_boundary(Some(observed_marker(model, decision)))?;
         }
         Ok((Some(self.money.observed.clone()), open))
     }
@@ -349,7 +368,15 @@ impl SessionRuntime {
             .iter()
             .filter(|o| o["state"] == "Uncertain")
             .count();
-        self.money.account.as_ref().map_or(0, live) + live(&self.money.observed) + kept
+        // A decision-seat request left without a response may have been billed as well.
+        let decisions = self.authoring_context.decision().map_or(0, |setup| {
+            setup
+                .observations()
+                .iter()
+                .filter(|o| o["state"] == "Uncertain")
+                .count()
+        });
+        self.money.account.as_ref().map_or(0, live) + live(&self.money.observed) + kept + decisions
     }
     /// New work starts on a clean no-budget account; a continuation (an
     /// answer, a revision at consent, a repair) stays on the one its work
@@ -376,7 +403,7 @@ impl SessionRuntime {
         let observations = self.cost_observations();
         let observed: Vec<_> = observations
             .iter()
-            .filter(|o| o["unbudgeted"] == true)
+            .filter(|o| o["unbudgeted"] == true && !is_decision(o))
             .collect();
         let sent: usize = observed
             .iter()
@@ -446,11 +473,55 @@ fn priced_route(model: &str) -> bool {
         .is_ok_and(|route| !route.needs_unknown_choice())
 }
 
-fn observed_marker(model: &str) -> String {
+fn observed_marker(model: &str, decision: Option<&str>) -> String {
+    let decision = decision.map_or_else(String::new, |seat| {
+        format!(
+            " · the operator-selected decision seat {seat} may also have been called (cost unknown)"
+        )
+    });
     format!(
-        "{OBSERVED_PREFIX}{model} · no Session budget: observed, no allowance or cap · recorded {} before transport; no settlement followed, so its request(s) may have been sent and billed · usage and cost unknown",
+        "{OBSERVED_PREFIX}{model}{decision} · no Session budget: observed, no allowance or cap · recorded {} before transport; no settlement followed, so its request(s) may have been sent and billed · usage and cost unknown",
         crate::intelligence::now_rfc3339()
     )
+}
+
+/// Whether one persisted observation is the operator-selected decision seat's (never part of
+/// the no-budget priced subtotal: its cost is unknown).
+fn is_decision(observation: &serde_json::Value) -> bool {
+    observation["schema"] == crate::authoring::DECISION_SCHEMA
+}
+
+/// The decision seat's line: what it was asked, sent and refused; its cost unknown, never zero.
+fn decision_line(observations: &[serde_json::Value]) -> Option<String> {
+    let seats: Vec<&serde_json::Value> = observations.iter().filter(|o| is_decision(o)).collect();
+    if seats.is_empty() {
+        return None;
+    }
+    let attempts: Vec<&serde_json::Value> = seats
+        .iter()
+        .filter_map(|o| o["attempts"].as_array())
+        .flatten()
+        .collect();
+    let count = |outcome: &str| attempts.iter().filter(|a| a["outcome"] == outcome).count();
+    let sent = attempts.iter().filter(|a| a["sent"] == true).count();
+    let unresolved = count("in_flight") + count("transport_error");
+    let refused = count("refused") + count("capped");
+    let mut names: Vec<&str> = seats.iter().filter_map(|o| o["seat"].as_str()).collect();
+    names.dedup();
+    let usage: u64 = attempts
+        .iter()
+        .filter_map(|a| a["usage"]["input_tokens"].as_u64())
+        .chain(
+            attempts
+                .iter()
+                .filter_map(|a| a["usage"]["output_tokens"].as_u64()),
+        )
+        .sum();
+    Some(format!(
+        "decision seat {} (operator-selected, outside any allowance or cap): {sent} call(s) sent · {} answered · {unresolved} without a response · {refused} need(s) refused before sending · {usage} token(s) reported · cost unknown (no catalog tariff), never zero; not in the no-budget subtotal · invoice unknown",
+        names.join(", "),
+        count("chosen") + count("none") + count("outside_options")
+    ))
 }
 
 /// Convert the already validated binary number downward without another
@@ -485,8 +556,40 @@ fn allowance(amount: f64) -> Result<Cost, String> {
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used)]
 mod tests {
-    use super::allowance;
+    use super::{allowance, decision_line, observed_marker};
+    use serde_json::json;
+
+    #[test]
+    fn the_line_before_transport_names_the_decision_seat_it_may_call() {
+        let plain = observed_marker("deepseek/deepseek-flash", None);
+        assert!(!plain.contains("decision seat"));
+        let named = observed_marker("deepseek/deepseek-flash", Some("typesafe/jev-1.13.0"));
+        assert!(named.starts_with(super::OBSERVED_PREFIX));
+        assert!(named.contains("decision seat typesafe/jev-1.13.0 may also have been called"));
+    }
+
+    #[test]
+    fn the_decision_line_counts_its_own_calls_and_never_prices_them() {
+        let observations = [
+            json!({"unbudgeted": true, "attempts": [{"sent": true}]}),
+            json!({"schema": crate::authoring::DECISION_SCHEMA, "seat": "typesafe/jev-1.13.0",
+                "unbudgeted": true, "attempts": [
+                    {"sent": true, "outcome": "chosen", "usage": {"input_tokens": 40, "output_tokens": 2}},
+                    {"sent": true, "outcome": "transport_error"},
+                    {"sent": false, "outcome": "refused"}]}),
+        ];
+        let line = decision_line(&observations).expect("a decision seat was needed");
+        assert!(line.contains("typesafe/jev-1.13.0"), "{line}");
+        assert!(line.contains("2 call(s) sent"), "{line}");
+        assert!(line.contains("1 answered"), "{line}");
+        assert!(line.contains("1 without a response"), "{line}");
+        assert!(line.contains("1 need(s) refused"), "{line}");
+        assert!(line.contains("42 token(s) reported"), "{line}");
+        assert!(line.contains("cost unknown"), "{line}");
+        assert!(decision_line(&observations[..1]).is_none());
+    }
     #[test]
     fn conversion_floors_nanos_and_refuses_nonfinite_or_overflow() {
         assert!(matches!(allowance(0.5), Ok(cost) if cost.nano_usd == 500_000_000));

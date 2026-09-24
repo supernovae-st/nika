@@ -23,6 +23,8 @@ use nika_cli_host::compile::knowledge::{KnowledgeError, Snapshot};
 use nika_onboard::compile::{AuthoringKnowledge, NativeMode};
 use serde_json::{Value, json};
 
+use super::DecisionSetup;
+
 /// Why a session's authoring configuration cannot be honored.
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 #[non_exhaustive]
@@ -55,6 +57,15 @@ pub enum AuthoringContextError {
         pinned: String,
         /// The identity found on disk, in the same words.
         found: String,
+    },
+    /// The operator selected a decision seat the session cannot build (no key, a malformed
+    /// model, a vendor not wired here): refused visibly, never silently dropped.
+    #[error("decision seat {seat}: {why}")]
+    Decision {
+        /// The selection as named (`typesafe/jev-1.13.0`).
+        seat: String,
+        /// Why it cannot be built.
+        why: String,
     },
 }
 
@@ -122,6 +133,7 @@ pub struct AuthoringContext {
     knowledge: Option<KnowledgePin>,
     refusal: Option<AuthoringContextError>,
     source: &'static str,
+    decision: Option<DecisionSetup>,
 }
 
 impl Default for AuthoringContext {
@@ -131,17 +143,44 @@ impl Default for AuthoringContext {
             knowledge: None,
             refusal: None,
             source: "default",
+            decision: None,
         }
     }
 }
 
 impl AuthoringContext {
     /// The configuration the environment names (`NIKA_AUTHORING_STRATEGY` · `NIKA_KNOWLEDGE` ·
-    /// `NIKA_KNOWLEDGE_EXCLUDE` · `NIKA_KNOWLEDGE_PACK`), read now — a host door reads it once,
+    /// `NIKA_KNOWLEDGE_EXCLUDE` · `NIKA_KNOWLEDGE_PACK`, and the session's operator-selected
+    /// decision seat [`DECISION_ENV`](super::DECISION_ENV)), read now — a host door reads it once,
     /// when it opens the session. A named snapshot is opened now to pin its identity.
     #[must_use]
     pub fn from_env() -> Self {
         Self::from_settings(&AuthoringSettings::none(), &AuthoringSettings::from_env())
+            .with_decision(DecisionSetup::from_env())
+    }
+
+    /// This operator-selected decision seat (or none). A seat that cannot be built becomes this
+    /// context's refusal — said at `/status`, refused at the first seated turn — unless an
+    /// earlier refusal already stands.
+    #[must_use]
+    pub fn with_decision(mut self, decision: Option<DecisionSetup>) -> Self {
+        if let Some(setup) = &decision
+            && let Some(why) = setup.refusal()
+            && self.refusal.is_none()
+        {
+            self.refusal = Some(AuthoringContextError::Decision {
+                seat: setup.model().to_owned(),
+                why: why.to_owned(),
+            });
+        }
+        self.decision = decision;
+        self
+    }
+
+    /// The operator-selected decision seat, when one is named.
+    #[must_use]
+    pub fn decision(&self) -> Option<&DecisionSetup> {
+        self.decision.as_ref()
     }
 
     /// A host's typed values over the environment's (either may name nothing), resolved by the
@@ -161,6 +200,7 @@ impl AuthoringContext {
                 knowledge,
                 refusal: None,
                 source,
+                decision: None,
             },
             Err(error) => Self {
                 refusal: Some(error),
@@ -228,12 +268,25 @@ impl AuthoringContext {
         self.source
     }
 
-    /// The `/status` line: the strategy and its source, the pinned knowledge, or the refusal.
+    /// The `/status` line: the strategy and its source, the pinned knowledge, or the refusal —
+    /// and the operator-selected decision seat, when one is named.
     #[must_use]
     pub fn line(&self) -> String {
+        let decision = self
+            .decision
+            .as_ref()
+            .map_or_else(String::new, |d| format!(" · {}", d.line()));
         if let Some(why) = &self.refusal {
-            return format!("authoring context · refused ({}): {why}", self.source);
+            return format!(
+                "authoring context · refused ({}): {why}{decision}",
+                self.source
+            );
         }
+        format!("{}{decision}", self.base_line())
+    }
+
+    /// The strategy and knowledge words of the `/status` line.
+    fn base_line(&self) -> String {
         let strategy = self.strategy.word();
         match &self.knowledge {
             None => format!(

@@ -44,8 +44,10 @@ use crate::intelligence::{IntelligenceKind, ResolvedSessionIntelligence};
 use crate::reasoner::SessionReasoner;
 
 mod context;
+pub(crate) mod decision;
 mod harness;
 pub use context::{AuthoringContext, AuthoringContextError, KnowledgePin};
+pub use decision::{DECISION_ENV, DECISION_SCHEMA, DecisionSetup, MAX_DECISION_CALLS};
 
 /// The compiler's question for a whole replacement request (its own key).
 const CLARIFICATION_KEY: &str = "intent.clarification";
@@ -792,7 +794,7 @@ fn compile_attached(
         AuthoringSeat::Harness { seat, model } => {
             harness::compile(seat, model.as_deref(), &request)?
         }
-        _ => seated(&model, &request, admission)?,
+        _ => seated(&model, &request, admission, context.decision())?,
     };
     let knowledge = match (attach, &pack, context.knowledge()) {
         (Attach::Compose(_), Some(pack), Some(pin)) => Some(composed_record(pin, pack, &out)),
@@ -915,12 +917,16 @@ fn presented_knowledge(out: &CompileOutcome) -> Option<Value> {
 /// host transport stamps its backend into the receipt: the strategy and its
 /// source, the knowledge attached (or none).
 fn stamp(out: &mut CompileOutcome, context: &AuthoringContext, knowledge: Option<&Value>) {
-    let record = json!({"authoring": {
+    let mut record = json!({"authoring": {
         "strategy": context.strategy().word(),
         "source": context.source(),
         "knowledge": knowledge,
     }});
     let mut decision = out.provenance.decision.take().unwrap_or_else(|| json!({}));
+    // The decision seat's receipt, stamped by the seated call, stays beside it.
+    if let Some(seat) = decision.pointer("/session/decision_seat").cloned() {
+        record["decision_seat"] = seat;
+    }
     if let Some(map) = decision.as_object_mut() {
         map.insert("session".to_owned(), record);
     }
@@ -934,7 +940,12 @@ fn seated(
     model: &str,
     request: &CompileRequest,
     admission: Option<&nika_providers::InferenceAdmission>,
+    selected: Option<&DecisionSetup>,
 ) -> Result<CompileOutcome, AuthoringError> {
+    // The operator-selected decision seat for this ONE compile: consulted by the compiler only
+    // for a finite ambiguity (WARM), charged only on the no-budget observation; a need met under
+    // a numeric allowance is refused and recorded, never claimed as used.
+    let consulted = selected.map(|setup| setup.consult(decision::admit(admission)));
     // The provider plane's client (SSRF off · the transport ceiling), as
     // the conversation's reasoner and the engine's run path use.
     let http =
@@ -957,9 +968,24 @@ fn seated(
         request,
         Cognition {
             provider: Some(&provider),
-            seat: None,
+            seat: consulted
+                .as_ref()
+                .map(|seat| seat as &dyn nika_onboard::compile::decide::DecisionSeat),
         },
     )))?;
+    // What the seat was asked, sent, answered or refused (`decision.session.decision_seat`),
+    // beside the compiler's own record of the same questions.
+    if let Some(receipt) = consulted.as_ref().and_then(decision::SessionSeat::receipt) {
+        let record = out.provenance.decision.get_or_insert_with(|| json!({}));
+        if let Some(record) = record.as_object_mut()
+            && let Some(session) = record
+                .entry("session")
+                .or_insert_with(|| json!({}))
+                .as_object_mut()
+        {
+            session.insert("decision_seat".to_owned(), receipt);
+        }
+    }
     // The receipt names its backend as the CLI's does, with the host the
     // calls really went to (an overridden base URL is a gateway: said).
     if let Some(receipt) = out.provenance.authoring.as_mut() {

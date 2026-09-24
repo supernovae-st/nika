@@ -17,6 +17,7 @@ use crate::reasoner::{ProviderReasoner, test_transport};
 use crate::turn::{SessionPhase, TurnAct, TurnClassifier, TurnContext, TurnDecision};
 use nika_providers::AdmissionState;
 use serde_json::{Value, json};
+mod decision_seat;
 mod interrupted;
 mod no_budget;
 mod question_identity;

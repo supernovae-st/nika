@@ -52,7 +52,8 @@ impl SessionRuntime {
             .map(|p| p.review.details())
     }
     /// Historical observations plus the current account and, once it observed
-    /// a call, the no-budget account. No entry is authority.
+    /// a call, the no-budget account — and, once it was needed, the operator-selected
+    /// decision seat's journal (its own schema, cost unknown). No entry is authority.
     #[must_use]
     pub fn cost_observations(&self) -> Vec<serde_json::Value> {
         let mut observations = self.unknown_cost.observations.clone();
@@ -63,6 +64,9 @@ impl SessionRuntime {
             && !receipt.attempts.is_empty()
         {
             observations.push(receipt.observation());
+        }
+        if let Some(setup) = self.authoring_context.decision() {
+            observations.extend(setup.observations());
         }
         observations
     }

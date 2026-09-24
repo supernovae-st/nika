@@ -209,17 +209,10 @@ fn typesafe_seat(
     args: &super::CompileArgs,
 ) -> Result<Option<super::typesafe::TypesafeSeat>, String> {
     match args.decision_model.as_deref() {
-        Some(model) if model.starts_with("typesafe/") => {
-            #[allow(clippy::disallowed_methods)]
-            // the sanctioned env→secret boundary for an explicitly named seat (compose.rs precedent)
-            let key = std::env::var("TYPESAFE_API_KEY").map_err(|_| {
-                "TYPESAFE_API_KEY is required for a typesafe decision seat".to_owned()
-            })?;
-            Ok(Some(super::typesafe::TypesafeSeat::new(
-                key,
-                model.trim_start_matches("typesafe/"),
-            )?))
-        }
+        // the one shared adapter reads the key only now that the flag named the seat
+        Some(model) if model.starts_with("typesafe/") => Ok(Some(
+            super::typesafe::TypesafeSeat::from_env(model.trim_start_matches("typesafe/"))?,
+        )),
         _ => Ok(None),
     }
 }
