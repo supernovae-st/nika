@@ -1,0 +1,1 @@
+A conversational destination replacement can recall an unchanged secondary output. The compiler records a replacement only when the complete candidate preserves every other value and task; an exact substitution no longer needs a model-written gap or a redundant repair call. Native revision guidance treats the change as an update to the original request.

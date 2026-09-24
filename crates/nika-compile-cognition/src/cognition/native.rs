@@ -500,11 +500,22 @@ async fn exchange<P: ProviderInferDyn>(
     if bounds::expand(&response, round, policy, hard_max_tokens, talk) {
         return Round::Repair;
     }
-    let (answer, text) = match decode::native(&response, round, policy, talk, out) {
+    let (mut answer, text) = match decode::native(&response, round, policy, talk, out) {
         Ok(answer) => answer,
         Err(decision) => return decision,
     };
-    let waived = revision::waivable(intent, talk.revision.as_ref(), &answer.gaps);
+    revision::record_proven_paths(
+        intent,
+        talk.revision.as_ref(),
+        &answer.candidate,
+        &mut answer.gaps,
+    );
+    let waived = revision::waivable(
+        intent,
+        talk.revision.as_ref(),
+        &answer.gaps,
+        &answer.candidate,
+    );
     let diagnostics = judge(
         intent,
         reading,

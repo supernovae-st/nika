@@ -1,13 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
-//! A revision in words is judged against the original request and its change together. The
-//! campaign's DIALOG-06 (« Copie entree.txt dans a.txt. », then « Finalement, utilise
-//! b.txt. ») refused every faithful revision: the path law demanded `a.txt`, and the seat's gap
-//! naming it counted for nothing. A path the change leaves behind is now waived for the law
-//! only when the seat names it in its gaps and the change never names it; it is superseded
-//! only on proof (a replacement stated as one, exactly one path named, the base with that path
-//! replaced and nothing else changed), and otherwise stays a gap the human disposes of before
-//! READY. A creation, and a change that names the old path, keep the law whole.
+//! Conversational revisions preserve the full base. One literal path substitution is
+//! proven against the complete document, with unchanged secondary paths allowed in the
+//! change. Additions, invented destinations and changes to other obligations do not
+//! inherit that proof. The model need not announce a gap for an exact substitution.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 use nika_compile::{
     AuthoringPolicy, CompileOutcome, CompileRequest, CompileStatus, DiagnosticKind, NativeMode,
@@ -52,8 +48,6 @@ tasks:
         create_dirs: false
 outputs: {}
 "#;
-/// The seat's gap of the campaign's second round, verbatim.
-const GAP: &str = "`a.txt` is superseded by the change \"Finalement, utilise b.txt\" and is not opened or written.";
 
 fn policy() -> AuthoringPolicy {
     AuthoringPolicy::new("mock/authoring", 4096, Duration::from_secs(2))
@@ -101,31 +95,24 @@ fn without_the_write() -> String {
 #[tokio::test]
 async fn the_campaign_revision_replaces_the_destination_and_supersedes_the_old_path() {
     let revised = BASE.replace("a.txt", "b.txt");
-    // Round 0 as the campaign's seat answered it (no gap), round 1 with its gap.
-    let provider = Rotating::new(vec![answer(&revised, &[]), answer(&revised, &[GAP])]);
+    // A faithful first answer is enough: no artificial gap-writing repair.
+    let provider = Rotating::new(vec![answer(&revised, &[])]);
     let out = compile_with_provider(&revise(CHANGE), &provider)
         .await
         .unwrap();
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
-    assert_eq!(provider.calls.load(Ordering::SeqCst), 2, "{out:#?}");
+    assert_eq!(provider.calls.load(Ordering::SeqCst), 1, "{out:#?}");
     let candidate = out.candidate.as_deref().unwrap();
     assert!(
         candidate.contains("b.txt") && !candidate.contains("a.txt"),
         "{candidate}"
     );
     let rounds = rounds(&out);
-    assert!(
-        rounds[0]["diagnostics"].to_string().contains("`a.txt`"),
-        "round 0 still drops it without a word: {rounds:#?}"
-    );
-    assert_eq!(rounds[1]["diagnostics"], json!([]), "{rounds:#?}");
+    assert_eq!(rounds[0]["diagnostics"], json!([]), "{rounds:#?}");
     let record = out.provenance.plan.clone().unwrap();
     assert_eq!(record["gaps"], json!([]), "{record:#}");
-    assert_eq!(
-        record["superseded"],
-        json!([{"path": "a.txt", "by": "b.txt", "gap": GAP}]),
-        "{record:#}"
-    );
+    assert_eq!(record["superseded"][0]["path"], "a.txt");
+    assert_eq!(record["superseded"][0]["by"], "b.txt");
     assert!(!keys(&out).contains(&"gap.1"), "{out:#?}");
     assert!(
         out.diagnostics
@@ -218,31 +205,18 @@ async fn short_of_proof_the_old_path_is_a_gap_the_human_disposes_of_before_ready
 }
 
 #[tokio::test]
-async fn the_path_law_stands_when_the_seat_is_silent_the_change_names_the_path_or_nothing_is_revised()
- {
+async fn unproven_silent_omissions_and_creation_gaps_do_not_waive_paths() {
     let revised = BASE.replace("a.txt", "b.txt");
-    // No gap: the old path is dropped without a word, every round.
-    let silent = Rotating::new(vec![answer(&revised, &[])]);
+    // A silent omission plus another change is not a proven substitution.
+    let silent = Rotating::new(vec![answer(
+        &revised.replace("overwrite: true", "overwrite: false"),
+        &[],
+    )]);
     let out = compile_with_provider(&revise(CHANGE), &silent)
         .await
         .unwrap();
     assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
     assert!(out.candidate.is_none(), "{out:#?}");
-    // The change names the old path: whatever it says of it, the law keeps it.
-    let named = Rotating::new(vec![answer(&revised, &[GAP])]);
-    let out = compile_with_provider(
-        &revise("Finalement, n'écris plus dans a.txt, utilise b.txt."),
-        &named,
-    )
-    .await
-    .unwrap();
-    assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
-    assert!(
-        rounds(&out)
-            .iter()
-            .all(|r| r["diagnostics"].to_string().contains("`a.txt`")),
-        "{out:#?}"
-    );
     // A creation opens every stated path; a gap waives none.
     let created = Rotating::new(vec![answer(
         &without_the_write(),
@@ -261,4 +235,72 @@ async fn the_path_law_stands_when_the_seat_is_silent_the_change_names_the_path_o
             .all(|r| r["diagnostics"].to_string().contains("UNREALIZED PATH")),
         "{out:#?}"
     );
+}
+
+#[tokio::test]
+async fn an_explicit_old_and_new_path_can_prove_the_same_substitution() {
+    let revised = BASE.replace("a.txt", "b.txt");
+    let provider = Rotating::new(vec![answer(&revised, &[])]);
+    let out = compile_with_provider(
+        &revise("Finalement, n'écris plus dans a.txt, utilise b.txt."),
+        &provider,
+    )
+    .await
+    .unwrap();
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert_eq!(provider.calls.load(Ordering::SeqCst), 1);
+}
+
+const FILTER_TOTAL: &str = include_str!("fixtures/compile/revision-filter-total.nika");
+const FILTER_INTENT: &str = "Lis commandes.csv, écris uniquement les commandes confirmées dans commandes-confirmees.csv et leur montant total sous forme de nombre dans total.txt.";
+const FILTER_CHANGE: &str = "Écris finalement les commandes dans commandes-finales.csv ; conserve le filtre et le total dans total.txt.";
+
+#[tokio::test]
+async fn a_destination_replacement_preserves_the_recalled_total_and_full_computation() {
+    let revised = FILTER_TOTAL.replace("commandes-confirmees.csv", "commandes-finales.csv");
+    let provider = Rotating::new(vec![answer(&revised, &[])]);
+    let request = CompileRequest::edit(FILTER_TOTAL, FILTER_CHANGE)
+        .with_original_intent(FILTER_INTENT)
+        .with_authoring_policy(policy());
+    let out = compile_with_provider(&request, &provider).await.unwrap();
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert_eq!(provider.calls.load(Ordering::SeqCst), 1);
+    let emitted =
+        nika_compile::surface::literal_projection(out.candidate.as_deref().unwrap()).unwrap();
+    let expected = nika_compile::surface::literal_projection(&revised).unwrap();
+    assert_eq!(
+        emitted, expected,
+        "every task, calculation and other destination survives"
+    );
+    assert_eq!(
+        out.provenance.plan.as_ref().unwrap()["superseded"][0]["by"],
+        "commandes-finales.csv"
+    );
+}
+
+#[tokio::test]
+async fn a_replacement_cannot_use_its_path_proof_to_change_a_calculation_or_add_a_destination() {
+    let revised = FILTER_TOTAL.replace("commandes-confirmees.csv", "commandes-finales.csv");
+    let changed_calculation = revised.replace("| add // 0", "| length");
+    assert_ne!(changed_calculation, revised);
+    for candidate in [
+        changed_calculation,
+        revised.replace("commandes-finales.csv", "invented.csv"),
+    ] {
+        let provider = Rotating::new(vec![answer(
+            &candidate,
+            &["commandes-confirmees.csv is superseded."],
+        )]);
+        let request = CompileRequest::edit(FILTER_TOTAL, FILTER_CHANGE)
+            .with_original_intent(FILTER_INTENT)
+            .with_authoring_policy(policy());
+        let out = compile_with_provider(&request, &provider).await.unwrap();
+        assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
+        assert!(
+            out.provenance
+                .plan
+                .as_ref()
+                .is_none_or(|p| p.get("superseded").is_none())
+        );
+    }
 }

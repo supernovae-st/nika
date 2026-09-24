@@ -1,15 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! A revision in words over an accepted base (« Finalement, utilise b.txt. »): which path the
-//! request states a revised candidate may leave unopened, and on what evidence. The seat names
-//! the path in its `gaps` and the change words never name it, or the path law stands as it
-//! stands for a creation. The change then supersedes the path only on proof: the change words
-//! state a replacement (« utilise », « plutôt », « instead ») and no addition (« aussi »,
-//! « also »), name exactly one path, and the candidate is the base with the old path replaced
-//! by that one and nothing else changed (its name aside). Short of that proof the path is a gap
-//! the human disposes of before the candidate is READY: a path the change words omit, plus a
-//! seat's gap, is never by itself a removal the requester asked for.
+//! A revision in words may replace one path while retaining every other obligation.
+//! The proof compares complete documents: only that literal path and the workflow name
+//! may differ. Paths recalled by the change but already present in the base are not new
+//! destinations. An explicit addition never proves a replacement. A proven substitution
+//! is journaled without making the model invent a gap; other omissions remain pending.
 
 use serde_json::Value;
 
@@ -79,13 +75,15 @@ pub(super) fn of(request: &CompileRequest) -> Option<(String, String)> {
 
 /// The paths the request states that a revised candidate may leave unopened while the human
 /// has not disposed of them: those the seat names in one of its gaps and the change words never
-/// name. Empty for a creation, where a stated path is opened or the candidate is refused.
+/// name, or whose replacement the whole candidate proves. Empty for a creation, where a
+/// stated path is opened or the candidate is refused.
 pub(super) fn waivable(
     intent: &str,
     revision: Option<&(String, String)>,
     gaps: &[String],
+    candidate: &str,
 ) -> Vec<String> {
-    let Some((_, words)) = revision else {
+    let Some((base, words)) = revision else {
         return Vec::new();
     };
     let kept: Vec<&str> = gaps
@@ -96,7 +94,10 @@ pub(super) fn waivable(
         .collect();
     stated(intent)
         .into_iter()
-        .filter(|path| !names(words, path) && kept.iter().any(|gap| names(gap, path)))
+        .filter(|path| {
+            kept.iter().any(|gap| names(gap, path))
+                && (!names(words, path) || replacement(base, words, candidate, path).is_some())
+        })
         .collect()
 }
 
@@ -122,7 +123,7 @@ pub(super) fn settle(
     let mut pending = Vec::new();
     let mut superseded = Vec::new();
     for gap in gaps {
-        let left = waivable(intent, revision.as_ref(), &[(*gap).to_owned()]);
+        let left = waivable(intent, revision.as_ref(), &[(*gap).to_owned()], candidate);
         let proven = match (&revision, left.as_slice()) {
             (Some((base, words)), [path]) => {
                 replacement(base, words, candidate, path).map(|by| Superseded {
@@ -142,17 +143,21 @@ pub(super) fn settle(
 }
 
 /// The path that replaces `path`, when the change proves it: the change words state a
-/// replacement and no addition, name exactly that one path, and the candidate is the base with
+/// replacement and no addition, name exactly one new path (retained base paths may be recalled), and the candidate is the base with
 /// every `path` value replaced by it and nothing else changed (the workflow's name aside).
 fn replacement(base: &str, words: &str, candidate: &str, path: &str) -> Option<String> {
     if !says(words, REPLACING) || says(words, ADDING) {
         return None;
     }
-    let [by]: [String; 1] = stated(words).try_into().ok()?;
+    let mut expected = crate::edit::literal_projection(base)?;
+    let new_paths: Vec<String> = stated(words)
+        .into_iter()
+        .filter(|named| !contains_path(&expected, named))
+        .collect();
+    let [by]: [String; 1] = new_paths.try_into().ok()?;
     if same(&by, path) {
         return None;
     }
-    let mut expected = crate::edit::literal_projection(base)?;
     if !substitute(&mut expected, path, &by) {
         return None;
     }
@@ -162,6 +167,43 @@ fn replacement(base: &str, words: &str, candidate: &str, path: &str) -> Option<S
         unrooted(doc);
     }
     (expected == revised).then_some(by)
+}
+
+/// Record a substitution the complete candidate proves even when the model supplied
+/// no gap. This does not rewrite the candidate or waive any other requirement.
+pub(super) fn record_proven_paths(
+    intent: &str,
+    revision: Option<&(String, String)>,
+    candidate: &str,
+    gaps: &mut Vec<String>,
+) {
+    let Some((base, words)) = revision else {
+        return;
+    };
+    for path in stated(intent) {
+        if gaps.len() >= KEPT_GAPS {
+            break;
+        }
+        if gaps.iter().any(|gap| names(gap, &path)) {
+            continue;
+        }
+        if let Some(by) = replacement(base, words, candidate, &path) {
+            gaps.push(format!(
+                "`{path}` is superseded by `{by}` in the requested revision."
+            ));
+        }
+    }
+}
+
+/// A literal path already present in the base, including a retained source or
+/// secondary destination mentioned again in the change.
+fn contains_path(value: &Value, path: &str) -> bool {
+    match value {
+        Value::String(text) => same(text, path),
+        Value::Array(items) => items.iter().any(|item| contains_path(item, path)),
+        Value::Object(map) => map.values().any(|item| contains_path(item, path)),
+        _ => false,
+    }
 }
 
 /// The paths a text states, as the path law reads them: its sources, then its destinations.
