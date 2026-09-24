@@ -443,9 +443,14 @@ pub(super) fn prelude<'a>(
         } => Some((source.as_str(), words.as_str())),
         _ => None,
     };
+    let floor_key = if revision.is_some() {
+        "reader_observations_before_applying_change"
+    } else {
+        "facts_the_compiler_holds_you_to"
+    };
     let mut opening = json!({
         "request": intent,
-        "facts_the_compiler_holds_you_to": floor(intent, reading),
+        (floor_key): floor(intent, reading),
         "observed_world": request.knowledge,
         "answers_already_given": request.answers,
         "output_caps": knowledge::output_caps(&request.answers),
@@ -504,14 +509,19 @@ async fn exchange<P: ProviderInferDyn>(
         Ok(answer) => answer,
         Err(decision) => return decision,
     };
-    revision::record_proven_paths(
+    revision::record_path_changes(
         intent,
         talk.revision.as_ref(),
         &answer.candidate,
         &mut answer.gaps,
     );
-    let waived = revision::waivable(intent, talk.revision.as_ref(), &answer.gaps);
-    let diagnostics = judge(
+    let waived = revision::waivable(
+        intent,
+        talk.revision.as_ref(),
+        &answer.gaps,
+        &answer.candidate,
+    );
+    let mut diagnostics = judge(
         intent,
         reading,
         &answer.candidate,
@@ -521,6 +531,9 @@ async fn exchange<P: ProviderInferDyn>(
         &talk.clarified,
         talk.observed.as_ref(),
     );
+    if let Some(diagnostic) = revision::duplicate_write(talk.revision.as_ref(), &answer.candidate) {
+        diagnostics.push(diagnostic);
+    }
     talk.rounds.push(json!({
         "round": round,
         "candidate_sha256": knowledge::sha256(&answer.candidate),
@@ -956,8 +969,8 @@ fn admitted_questions(
 
 /// The judge: the strict parser, the pure Check, then the fidelity laws against the original
 /// request and the reader's floor. Every refusal is one structured diagnostic. A `waived` path
-/// is one a revision's seat names in its gaps and the change never names (`revision`): the
-/// path law leaves it to the gap, which the settlement proves or leaves to the human.
+/// is journaled in a revision gap by the model or the compiler (`revision`): the path
+/// law leaves it to settlement, which proves it or requires a human decision.
 pub(super) fn judge(
     intent: &str,
     reading: &Reading,

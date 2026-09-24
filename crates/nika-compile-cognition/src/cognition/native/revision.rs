@@ -10,6 +10,7 @@
 use serde_json::Value;
 
 use crate::CompileRequest;
+use crate::fidelity::Diagnostic;
 use crate::types::{EditChange, Input};
 
 /// Words that state a change as a replacement (FR · EN, folded, whole words).
@@ -74,15 +75,16 @@ pub(super) fn of(request: &CompileRequest) -> Option<(String, String)> {
 }
 
 /// The paths the request states that a revised candidate may leave unopened while the human
-/// has not disposed of them: those the seat names in one of its gaps and the change words never
-/// name. A recalled path stays required: literal equality alone cannot decide whether
-/// the change asks to preserve or replace it. Empty for a creation.
+/// has not disposed of them. A recalled path needs a complete structural substitution
+/// before it can become a pending gap; it is never automatically superseded. Empty for
+/// a creation. A gap never authorizes application or execution by itself.
 pub(super) fn waivable(
     intent: &str,
     revision: Option<&(String, String)>,
     gaps: &[String],
+    candidate: &str,
 ) -> Vec<String> {
-    let Some((_, words)) = revision else {
+    let Some((base, words)) = revision else {
         return Vec::new();
     };
     let kept: Vec<&str> = gaps
@@ -93,12 +95,15 @@ pub(super) fn waivable(
         .collect();
     stated(intent)
         .into_iter()
-        .filter(|path| !names(words, path) && kept.iter().any(|gap| names(gap, path)))
+        .filter(|path| {
+            kept.iter().any(|gap| names(gap, path))
+                && (!names(words, path) || substitution(base, words, candidate, path).is_some())
+        })
         .collect()
 }
 
 /// A gap the change supersedes on proof: the stated path the candidate no longer opens, the
-/// path the change puts in its place, the seat's own words.
+/// path the change puts in its place, and the recorded explanation (model or compiler).
 pub(super) struct Superseded {
     pub(super) path: String,
     pub(super) by: String,
@@ -119,7 +124,7 @@ pub(super) fn settle(
     let mut pending = Vec::new();
     let mut superseded = Vec::new();
     for gap in gaps {
-        let left = waivable(intent, revision.as_ref(), &[(*gap).to_owned()]);
+        let left = waivable(intent, revision.as_ref(), &[(*gap).to_owned()], candidate);
         let proven = match (&revision, left.as_slice()) {
             (Some((base, words)), [path]) => {
                 replacement(base, words, candidate, path).map(|by| Superseded {
@@ -143,7 +148,15 @@ pub(super) fn settle(
 /// (retained base paths may be recalled). The candidate must be the base with every
 /// `path` value replaced by it and nothing else changed (the workflow's name aside).
 fn replacement(base: &str, words: &str, candidate: &str, path: &str) -> Option<String> {
-    if names(words, path) || !says(words, REPLACING) || says(words, ADDING) {
+    if names(words, path) {
+        return None;
+    }
+    substitution(base, words, candidate, path)
+}
+
+/// Structural substitution only; a named old path still needs a human gap decision.
+fn substitution(base: &str, words: &str, candidate: &str, path: &str) -> Option<String> {
+    if !says(words, REPLACING) || says(words, ADDING) {
         return None;
     }
     let mut expected = crate::edit::literal_projection(base)?;
@@ -166,9 +179,10 @@ fn replacement(base: &str, words: &str, candidate: &str, path: &str) -> Option<S
     (expected == revised).then_some(by)
 }
 
-/// Record a substitution the complete candidate proves even when the model supplied
-/// no gap. This does not rewrite the candidate or waive any other requirement.
-pub(super) fn record_proven_paths(
+/// Journal compiler-observed substitutions even when the model supplied no gap.
+/// An old path named by the change stays pending; literal equality cannot establish
+/// whether those words asked to retain it. This never rewrites the candidate.
+pub(super) fn record_path_changes(
     intent: &str,
     revision: Option<&(String, String)>,
     candidate: &str,
@@ -184,10 +198,13 @@ pub(super) fn record_proven_paths(
         if gaps.iter().any(|gap| names(gap, &path)) {
             continue;
         }
-        if let Some(by) = replacement(base, words, candidate, &path) {
-            gaps.push(format!(
-                "`{path}` is superseded by `{by}` in the requested revision."
-            ));
+        if let Some(by) = substitution(base, words, candidate, &path) {
+            let qualifier = if names(words, &path) {
+                "compiler-observed substitution; this recalled path requires your decision"
+            } else {
+                "compiler-proven substitution under the revision rule"
+            };
+            gaps.push(format!("`{path}` becomes `{by}` ({qualifier})."));
         }
     }
 }
@@ -201,6 +218,88 @@ fn contains_path(value: &Value, path: &str) -> bool {
         Value::Object(map) => map.values().any(|item| contains_path(item, path)),
         _ => false,
     }
+}
+
+/// A replacement that duplicates a known write to the new destination is a repair,
+/// not a faithful substitution. This bounded check compares literal paths and the
+/// same content producer; it makes no claim about arbitrary equivalent programs.
+pub(super) fn duplicate_write(
+    revision: Option<&(String, String)>,
+    candidate: &str,
+) -> Option<Diagnostic> {
+    let (base, words) = revision?;
+    if !says(words, REPLACING) || says(words, ADDING) {
+        return None;
+    }
+    let base = crate::edit::literal_projection(base)?;
+    let new: Vec<_> = stated(words)
+        .into_iter()
+        .filter(|path| !contains_path(&base, path))
+        .collect();
+    let [new]: [String; 1] = new.try_into().ok()?;
+    let candidate = crate::edit::literal_projection(candidate)?;
+    let writes = writes(&candidate);
+    let prior = writes_of_base(&base);
+    for (_, content) in writes.iter().filter(|(path, _)| same(path, &new)) {
+        if let Some((old, _)) = writes.iter().find(|(path, other)| {
+            !same(path, &new) && prior.iter().any(|p| same(p, path)) && other == content
+        }) {
+            return Some(Diagnostic {
+                kind: "revision",
+                message: format!(
+                    "REVISION DUPLICATES DESTINATION: the change states a replacement, but the same content is written to both `{old}` and `{new}`. Revise the existing destination and its permit; preserve the other computations and outputs. If both destinations are really needed, ask for that business decision instead of silently adding a write."
+                ),
+            });
+        }
+    }
+    None
+}
+
+fn writes_of_base(doc: &Value) -> Vec<String> {
+    writes(doc).into_iter().map(|(path, _)| path).collect()
+}
+
+/// Resolve only bare constants and task-local bindings, with a fixed depth bound.
+/// Task-output expressions stay as producer identities; no expression is evaluated.
+fn bound<'a>(doc: &'a Value, task: &'a Value, value: &'a Value) -> &'a Value {
+    let mut value = value;
+    for _ in 0..4 {
+        let Some(inner) = value
+            .as_str()
+            .and_then(|s| s.trim().strip_prefix("${{"))
+            .and_then(|s| s.strip_suffix("}}"))
+        else {
+            break;
+        };
+        let inner = inner.trim();
+        let next = inner
+            .strip_prefix("const.")
+            .and_then(|key| doc.get("const")?.get(key))
+            .or_else(|| {
+                inner
+                    .strip_prefix("with.")
+                    .and_then(|key| task.get("with")?.get(key))
+            });
+        let Some(next) = next else { break };
+        value = next;
+    }
+    value
+}
+
+fn writes(doc: &Value) -> Vec<(String, Value)> {
+    doc.get("tasks")
+        .and_then(Value::as_object)
+        .into_iter()
+        .flat_map(|tasks| tasks.values())
+        .filter_map(|task| {
+            if task.pointer("/invoke/tool")?.as_str()? != "nika:write" {
+                return None;
+            }
+            let path = bound(doc, task, task.pointer("/invoke/args/path")?).as_str()?;
+            let content = bound(doc, task, task.pointer("/invoke/args/content")?).clone();
+            Some((path.to_owned(), content))
+        })
+        .collect()
 }
 
 /// The paths a text states, as the path law reads them: its sources, then its destinations.

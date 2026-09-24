@@ -310,3 +310,109 @@ async fn a_recalled_path_cannot_be_silently_replaced_instead_of_the_requested_de
         );
     }
 }
+
+fn doubled() -> String {
+    let doubled = FILTER_TOTAL
+        .replace(
+            "  confirmed_path: \"commandes-confirmees.csv\"\n",
+            "  confirmed_path: \"commandes-confirmees.csv\"\n  final_path: \"commandes-finales.csv\"\n",
+        )
+        .replace(
+            "write: [\"commandes-confirmees.csv\", \"total.txt\"]",
+            "write: [\"commandes-confirmees.csv\", \"commandes-finales.csv\", \"total.txt\"]",
+        )
+        .replace(
+            "  write_total:\n",
+            "  write_final:\n    with: { content: \"${{ tasks.confirmed_csv.output }}\" }\n    invoke: { tool: \"nika:write\", args: { path: \"${{ const.final_path }}\", content: \"${{ with.content }}\", overwrite: true } }\n  write_total:\n",
+        );
+    assert!(doubled.contains("write_final") && doubled.contains("final_path"));
+    doubled
+}
+
+#[tokio::test]
+async fn a_replacement_repairs_the_observed_duplicate_write_but_an_addition_keeps_both() {
+    let faithful = FILTER_TOTAL.replace("commandes-confirmees.csv", "commandes-finales.csv");
+    let provider = Rotating::new(vec![answer(&doubled(), &[]), answer(&faithful, &[])]);
+    let request = CompileRequest::edit(FILTER_TOTAL, FILTER_CHANGE)
+        .with_original_intent(FILTER_INTENT)
+        .with_authoring_policy(policy());
+    let out = compile_with_provider(&request, &provider).await.unwrap();
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert_eq!(provider.calls.load(Ordering::SeqCst), 2);
+    assert!(
+        rounds(&out)[0]["diagnostics"]
+            .to_string()
+            .contains("REVISION DUPLICATES DESTINATION")
+    );
+    assert!(
+        !out.candidate
+            .as_ref()
+            .unwrap()
+            .contains("commandes-confirmees.csv")
+    );
+    let addition = Rotating::new(vec![answer(&doubled(), &[])]);
+    let request = CompileRequest::edit(
+        FILTER_TOTAL,
+        "Écris aussi les commandes dans commandes-finales.csv ; conserve le total dans total.txt.",
+    )
+    .with_original_intent(FILTER_INTENT)
+    .with_authoring_policy(policy());
+    let out = compile_with_provider(&request, &addition).await.unwrap();
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+}
+
+#[tokio::test]
+async fn an_explicit_old_path_waits_for_a_gap_decision_instead_of_forcing_a_duplicate_write() {
+    let faithful = FILTER_TOTAL.replace("commandes-confirmees.csv", "commandes-finales.csv");
+    let change = "Remplace commandes-confirmees.csv par commandes-finales.csv ; conserve le total dans total.txt.";
+    let provider = Rotating::new(vec![answer(&faithful, &[])]);
+    let request = CompileRequest::edit(FILTER_TOTAL, change)
+        .with_original_intent(FILTER_INTENT)
+        .with_authoring_policy(policy());
+    let out = compile_with_provider(&request, &provider).await.unwrap();
+    assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert_eq!(provider.calls.load(Ordering::SeqCst), 1);
+    assert!(pending_gap(&out), "{out:#?}");
+    let record = out.provenance.plan.clone().unwrap();
+    assert!(record.get("superseded").is_none());
+    let resumed = compile(
+        &CompileRequest::edit(FILTER_TOTAL, change)
+            .with_original_intent(FILTER_INTENT)
+            .with_plan(record)
+            .answer("gap.1", r#""drop""#),
+    )
+    .unwrap();
+    assert_eq!(resumed.status, CompileStatus::Ready, "{resumed:#?}");
+    assert!(
+        !resumed
+            .candidate
+            .unwrap()
+            .contains("commandes-confirmees.csv")
+    );
+}
+
+struct RevisionContext(Rotating);
+impl nika_kernel::ai::provider::ProviderInferDyn for RevisionContext {
+    async fn infer(
+        &self,
+        request: nika_kernel::ai::provider::InferRequest,
+    ) -> Result<nika_kernel::ai::provider::InferResponse, nika_kernel::ai::provider::ProviderError>
+    {
+        let messages = format!("{:?}", request.messages);
+        assert!(messages.contains("reader_observations_before_applying_change"));
+        assert!(!messages.contains("facts_the_compiler_holds_you_to"));
+        assert!(messages.contains("base_candidate") && messages.contains("change"));
+        self.0.infer(request).await
+    }
+}
+
+#[tokio::test]
+async fn the_first_revision_call_carries_observations_without_imposing_superseded_destinations() {
+    let faithful = FILTER_TOTAL.replace("commandes-confirmees.csv", "commandes-finales.csv");
+    let provider = RevisionContext(Rotating::new(vec![answer(&faithful, &[])]));
+    let request = CompileRequest::edit(FILTER_TOTAL, FILTER_CHANGE)
+        .with_original_intent(FILTER_INTENT)
+        .with_authoring_policy(policy());
+    let out = compile_with_provider(&request, &provider).await.unwrap();
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+}
