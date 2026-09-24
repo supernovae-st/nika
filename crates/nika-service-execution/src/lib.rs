@@ -45,6 +45,7 @@ use nika_runtime::compose::{
 use nika_runtime::{EventSink, InputOrigin, RunOutcome, RunSeams, RuntimeError, Stamper};
 
 pub mod access;
+pub mod run_cost;
 
 pub use nika_providers::ExecutionAccessPlan;
 

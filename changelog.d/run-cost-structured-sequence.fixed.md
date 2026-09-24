@@ -1,0 +1,1 @@
+Explicit unknown-cost Run approval now supports bounded sequential structured inference with project-file input and output. Check and Run share the request-bound analysis, including schema repair calls, while filesystem containment, current consent and per-request admission remain enforced.

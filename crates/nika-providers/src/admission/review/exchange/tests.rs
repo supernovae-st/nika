@@ -194,7 +194,8 @@ fn the_first_screen_reads_as_one_decision_and_keeps_identities_on_details() {
     for fact in [
         "USD cost is unknown; a charge is possible",
         "At most 1 requests; each at most 8192 output tokens and 120 seconds",
-        "No automatic retry.",
+        "Any schema re-asks consume this same request bound.",
+        "No automatic transport retry.",
         "(invocation: $0.250000; project: none)",
         "no hard cap is overridden",
         "Native currency: price and invoice unknown\n",

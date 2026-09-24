@@ -1,0 +1,94 @@
+const:
+  output_path: ./output.txt
+  source_path: ./input.txt
+model: deepseek/s87-unpriced-fixture
+nika: compiled-workflow
+outputs:
+  draft: ${{ tasks.draft.output.body }}
+  write_status: ${{ tasks.write_output.status }}
+permits:
+  fs:
+    read:
+    - ./input.txt
+    write:
+    - ./output.txt
+  tools:
+  - nika:assert
+  - nika:jq
+  - nika:read
+  - nika:write
+tasks:
+  draft:
+    after:
+      read_source: success
+    infer:
+      max_tokens: 32
+      prompt: 'Use only the supplied material. Return body and facts_used with verbatim source anchors. document: ${{ with.document }}'
+      schema:
+        additionalProperties: false
+        properties:
+          body:
+            minLength: 1
+            type: string
+          facts_used:
+            items:
+              additionalProperties: false
+              properties:
+                anchor:
+                  description: 'the source span the claim rests on: one contiguous span of the supplied text copied character for character, never a paraphrase'
+                  minLength: 1
+                  type: string
+                claim:
+                  description: the fact as the draft states it, in the draft's own words
+                  minLength: 1
+                  type: string
+              required:
+              - claim
+              - anchor
+              type: object
+            type: array
+        required:
+        - body
+        - facts_used
+        type: object
+    timeout: 5m
+    with:
+      document: ${{ tasks.read_source.output }}
+  draft_admit:
+    invoke:
+      args:
+        condition: ${{ with.valid }}
+        message: Every declared draft claim needs an exact source anchor; this is structural evidence, not semantic proof of the prose.
+      tool: nika:assert
+    with:
+      valid: ${{ tasks.draft_anchors.output }}
+  draft_anchors:
+    invoke:
+      args:
+        expression: '. as $root | [$root | del(.facts_used, .body) | to_entries[] | (.value | if type == "string" then . else tojson end) as $v | ($v, "\(.key): \($v)") | gsub("\\s*,\\s*"; ",") | gsub("\\s*:\\s*"; ":") | gsub("\\s*\\{\\s*"; "{") | gsub("\\s*\\}\\s*"; "}") | gsub("\\s*\\[\\s*"; "[") | gsub("\\s*\\]\\s*"; "]") | gsub("\\s+"; " ") | ascii_downcase] as $corpus | ($root.body | length) > 0 and all(.facts_used[]; . as $f | ($f.anchor | length) > 0 and any($corpus[]; contains($f.anchor | gsub("\\s*,\\s*"; ",") | gsub("\\s*:\\s*"; ":") | gsub("\\s*\\{\\s*"; "{") | gsub("\\s*\\}\\s*"; "}") | gsub("\\s*\\[\\s*"; "[") | gsub("\\s*\\]\\s*"; "]") | gsub("\\s+"; " ") | ascii_downcase)))'
+        input:
+          body: ${{ with.body }}
+          document: ${{ with.document }}
+          facts_used: ${{ with.facts_used }}
+      tool: nika:jq
+    with:
+      body: ${{ tasks.draft.output.body }}
+      document: ${{ tasks.read_source.output }}
+      facts_used: ${{ tasks.draft.output.facts_used }}
+  read_source:
+    invoke:
+      args:
+        path: ${{ const.source_path }}
+      tool: nika:read
+  write_output:
+    after:
+      draft_admit: success
+    invoke:
+      args:
+        content: ${{ with.content }}
+        create_dirs: true
+        overwrite: true
+        path: ${{ const.output_path }}
+      tool: nika:write
+    with:
+      content: ${{ tasks.draft.output.body }}

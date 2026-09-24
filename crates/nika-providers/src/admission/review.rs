@@ -275,7 +275,7 @@ impl CostReview {
             .defaults
             .map(|c| c.map_or_else(|| "none".into(), |v| v.to_string()));
         format!(
-            "USD cost is unknown; a charge is possible on {}/{}.\nAt most {} requests; each at most 8192 output tokens and 120 seconds (at most {} seconds of model wait). No automatic retry.\nOverrides only the shown defaults (invocation: {}; project: {}); no hard cap is overridden.\nContinue once? yes / no",
+            "USD cost is unknown; a charge is possible on {}/{}.\nAt most {} requests; each at most 8192 output tokens and 120 seconds (at most {} seconds of model wait). Any schema re-asks consume this same request bound. No automatic transport retry.\nOverrides only the shown defaults (invocation: {}; project: {}); no hard cap is overridden.\nContinue once? yes / no",
             self.route.provider,
             self.route.model,
             self.max_requests,

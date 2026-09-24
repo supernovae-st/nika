@@ -10,8 +10,10 @@ use nika_providers::admission::{CostHostEvidence, CostReview, CostRoute, monetar
 use std::io::Read as _;
 use std::path::Path;
 mod exchange;
+mod readiness;
 mod shape;
 pub use exchange::ReviewChannel;
+pub(crate) use readiness::readiness;
 const JOURNAL: &str = "inference-cost-observations.ndjson";
 
 /// A fresh Run decision and its observation journal; never recovered authority.
@@ -112,23 +114,7 @@ pub fn review(
     channel: impl Into<ReviewChannel>,
 ) -> Result<Option<RunCost>, String> {
     let config = nika_runtime::compose::config_from_env();
-    let mut unknown = Vec::new();
-    for (model, lane) in plan.admitted() {
-        if lane.plan.chosen == nika_types::access::AccessClass::Api {
-            match CostRoute::observe(model, config.clone()) {
-                Ok(route) if route.needs_unknown_choice() => {
-                    unknown.push((model.to_owned(), route));
-                }
-                Ok(_) => {}
-                Err(_)
-                    if nika_providers::admission::native_catalog_price_known(
-                        model,
-                        config.clone(),
-                    ) => {}
-                Err(why) => return Err(why),
-            }
-        }
-    }
+    let mut unknown = readiness::unknown_routes(plan, &config)?;
     if unknown.is_empty() {
         return Ok(None);
     }
@@ -136,7 +122,7 @@ pub fn review(
     if !channel.available() {
         return Err("price unknown: this host cannot obtain a fresh one-time choice; use an interactive local `nika run` or a host with explicit cap evidence and confirmation".into());
     }
-    let bound = shape::review(wf, plan, unknown.len())?;
+    let bound = nika_service_execution::run_cost::request_bound(wf, plan, unknown.len())?;
     let files = shape::read_witness(root, wf)?;
     if invocation_default == Some(0.0) {
         return Err("zero invocation ceiling refuses unknown spend before HTTP".into());

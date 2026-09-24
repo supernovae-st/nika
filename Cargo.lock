@@ -5441,6 +5441,7 @@ dependencies = [
  "nika-runtime",
  "nika-schema",
  "nika-types",
+ "nika-verb-infer",
  "serde_json",
  "tempfile",
  "tokio",

@@ -32,6 +32,9 @@ fn fixture_stdout(value: impl std::fmt::Display) {
     writeln!(out, "{value}").unwrap();
     out.flush().unwrap();
 }
+#[path = "compound_run_cost/structured.rs"]
+mod structured;
+
 const MODEL: &str = "deepseek/s87-unpriced-fixture";
 const INPUT: &str = "alpha café\r\nbeta\n";
 const ONE: &str = r#"nika: compound-run
@@ -102,10 +105,15 @@ impl HttpPostDyn for FixtureHttp {
             .unwrap();
         writeln!(log, "{body}").unwrap();
         let uncertain = self.root.join(format!("uncertain-{call}")).exists();
-        let response = serde_json::json!({"model":"s87-unpriced-fixture", "id":format!("fixture-{call}"),
-            "choices":[{"message":{"content":format!("SUMMARY-{call}\n")},"finish_reason":"stop"}],
+        let content = std::fs::read_to_string(self.root.join(format!("reply-{call}.txt")))
+            .unwrap_or_else(|_| format!("SUMMARY-{call}\n"));
+        let mut response = serde_json::json!({"model":"s87-unpriced-fixture", "id":format!("fixture-{call}"),
+            "choices":[{"message":{"content":content},"finish_reason":"stop"}],
             "usage":{"prompt_tokens":10,"completion_tokens":3,"prompt_cache_hit_tokens":0,
                 "prompt_cache_miss_tokens":10,"total_tokens":13}});
+        if self.root.join(format!("missing-usage-{call}")).exists() {
+            response.as_object_mut().unwrap().remove("usage");
+        }
         Ok(HttpResponse::new(
             if uncertain { 503 } else { 200 },
             BTreeMap::new(),
@@ -166,7 +174,11 @@ fn compound_fixture_child() {
         &wf,
         &plan,
         &BTreeMap::new(),
-        Some(1.0),
+        Some(if root.join("zero-ceiling").exists() {
+            0.0
+        } else {
+            1.0
+        }),
         nika_cli_host::run_cost::ReviewChannel::Stdio,
     );
     let cost = match reviewed {
@@ -594,7 +606,7 @@ fn unsupported_shapes_refuse_before_any_model_or_output_effect() {
         ONE.replace("    infer:\n", "    for_each: { items: [a, b] }\n    infer:\n"),
         ONE.replace("    infer:\n", "    agent:\n").replace("max_tokens:", "max_tokens_total:"),
         ONE.replace("      max_tokens: 32", "      max_tokens: 32\n      model: openai/gpt-4o-mini"),
-        ONE.replace("      max_tokens: 32", "      max_tokens: 32\n      schema: { type: string }"),
+        ONE.replace("      max_tokens: 32", "      max_tokens: 32\n      thinking: { enabled: true }"),
         ONE.replace("  write:\n", "  extra:\n    invoke: { tool: 'nika:fetch', args: { url: 'https://example.com/' } }\n  write:\n"),
         ONE.replace("  write:\n", "  extra:\n    invoke: { workflow: child.nika }\n  write:\n"),
     ];

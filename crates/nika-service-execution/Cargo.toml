@@ -11,6 +11,7 @@ homepage.workspace     = true
 publish                = false  # Internal L3 orchestration crate.
 
 [dependencies]
+nika-verb-infer = { path = "../nika-verb-infer", version = "0.120.3" } # production schema retry bound, owned by the verb
 nika-runtime     = { path = "../nika-runtime", version = "0.120.3" }      # the composition root + child seam this driver drives (same-layer L3)
 nika-execution   = { path = "../nika-execution", version = "0.120.3" }    # sealed owned-byte admission authority (ExecutionContext · ExecutionSnapshot)
 nika-check       = { path = "../nika-check", version = "0.120.3" }        # CheckReport — the audit-before-run pair sealed to the snapshot
