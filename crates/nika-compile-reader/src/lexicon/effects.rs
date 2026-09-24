@@ -120,7 +120,7 @@ pub(super) fn negation_reaches(after: &str, columns: &[String]) -> bool {
 /// Whether a directly negated clause bans an object of its own rather than the requested
 /// effect of the same verb: it names an object after its effect word, shares no literal (URL,
 /// address, path) with the request, and does not refer back to it (« it », a repeated noun).
-/// « post the digest to <url>; never post the raw CSV » is a request and a targeted ban.
+/// « post the digest to `<url>`; never post the raw CSV » is a request and a targeted ban.
 fn bans_another_object(requested: &Effect, ban: &Effect) -> bool {
     if requested.evidence == ban.evidence {
         return false;
