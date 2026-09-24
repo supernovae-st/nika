@@ -35,8 +35,8 @@ use nika_cli_host::compile::knowledge::{PACK_BUILDER, pack_sha256};
 use nika_event::source_id::sha256_hex;
 use nika_onboard::compile::{
     AuthoringKnowledge, AuthoringPolicy, AuthoringReceipt, Cognition, CompileError, CompileOutcome,
-    CompileQuestion, CompileRequest, CompileStatus, DiagnosticKind, QuestionType, Strategy,
-    compile, compile_with_cognition,
+    CompileQuestion, CompileRequest, CompileStatus, DiagnosticKind, NativeMode, QuestionType,
+    Strategy, compile, compile_with_cognition,
 };
 use serde_json::{Value, json};
 
@@ -114,10 +114,40 @@ pub fn host_of(url: &str) -> String {
     let rest = url.split("://").nth(1).unwrap_or(url);
     rest.split('/').next().unwrap_or(rest).to_owned()
 }
-/// Output tokens one authoring call may spend (the compiler's ceiling; deep work needs room).
-const AUTHORING_MAX_TOKENS: u32 = 8192;
-/// Wall time one authoring call may take (the compiler's own ceiling).
-const AUTHORING_TIMEOUT: Duration = Duration::from_secs(120);
+/// The hard output ceiling of one Session authoring call (the compiler's own maximum: a
+/// reasoning seat spends part of it on its reasoning, and a complete candidate needs the rest).
+pub const AUTHORING_MAX_TOKENS: u32 = 32_768;
+/// The first native generation's output limit: a REPORTED truncation spends one of the native
+/// repairs to widen it, up to [`AUTHORING_MAX_TOKENS`] — never a transport retry.
+pub const AUTHORING_INITIAL_TOKENS: u32 = 16_384;
+/// Wall time one Session authoring call may take.
+pub const AUTHORING_TIMEOUT: Duration = Duration::from_secs(180);
+/// The native repair rounds one Session authoring may buy (one call each).
+pub const AUTHORING_REPAIRS: u32 = 3;
+/// The most provider calls one seated Session compile may make under the escalate strategy:
+/// the COLD plan and its one evidence repair (2), then the native candidate (1) and its repairs.
+/// The turn's classification is one more call outside the compile; a fresh unknown-cost review
+/// admits exactly those (`SESSION_REVIEW_MAX_REQUESTS`).
+pub const AUTHORING_CALLS_PER_COMPILE: u32 = 2 + 1 + AUTHORING_REPAIRS;
+
+/// The one policy a Session seat authors under: the hard ceiling, the first native limit, the
+/// deadline (a subscription harness keeps its own longer one), the native repairs and the
+/// session's strategy.
+#[must_use]
+pub fn session_policy(model: &str, harness: bool, strategy: NativeMode) -> AuthoringPolicy {
+    AuthoringPolicy::new(
+        model,
+        AUTHORING_MAX_TOKENS,
+        if harness {
+            Duration::from_secs(300)
+        } else {
+            AUTHORING_TIMEOUT
+        },
+    )
+    .with_initial_max_tokens(AUTHORING_INITIAL_TOKENS)
+    .with_repairs(AUTHORING_REPAIRS)
+    .with_native(strategy)
+}
 
 /// The cognition the compiler may use for this session's authoring —
 /// derived from the intelligence the human chose, never from the
@@ -325,7 +355,7 @@ impl AuthoringRound {
     ) -> Result<CompileOutcome, AuthoringError> {
         let intent = self.effective_intent();
         let attach = if self.continuation.is_some() {
-            Attach::Carried(self.knowledge.as_ref())
+            Attach::Carried(self.knowledge.as_ref(), &intent)
         } else {
             Attach::Compose(&intent)
         };
@@ -422,7 +452,7 @@ impl AuthoringRound {
     ) -> Result<CompileOutcome, AuthoringError> {
         let intent = self.effective_intent();
         let attach = if self.continuation.is_some() {
-            Attach::Carried(self.knowledge.as_ref())
+            Attach::Carried(self.knowledge.as_ref(), &intent)
         } else {
             Attach::Compose(&intent)
         };
@@ -741,11 +771,12 @@ pub fn compile_in_with_admission(
 
 /// What knowledge one seated compile attaches: a pack composed for an
 /// intent, or the record carried from the round that authored a replayed
-/// candidate (a replay presents nothing).
+/// candidate (a replay presents nothing) — with the intent the compiler reads,
+/// whose named files the project observation describes either way.
 #[derive(Clone, Copy)]
 enum Attach<'a> {
     Compose(&'a str),
-    Carried(Option<&'a Value>),
+    Carried(Option<&'a Value>, &'a str),
 }
 
 fn compile_attached(
@@ -771,24 +802,30 @@ fn compile_attached(
     if let Some(why) = context.refusal() {
         return Err(AuthoringError::Context(why.clone()));
     }
-    let mut request = request.clone().with_authoring_policy(
-        AuthoringPolicy::new(
-            &model,
-            AUTHORING_MAX_TOKENS,
-            if matches!(seat, AuthoringSeat::Harness { .. }) {
-                Duration::from_secs(300)
-            } else {
-                AUTHORING_TIMEOUT
-            },
-        )
-        .with_native(context.strategy()),
-    );
+    let mut request = request.clone().with_authoring_policy(session_policy(
+        &model,
+        matches!(seat, AuthoringSeat::Harness { .. }),
+        context.strategy(),
+    ));
     let pack = match attach {
         Attach::Compose(intent) => context.compose(intent)?,
-        Attach::Carried(_) => None,
+        Attach::Carried(..) => None,
     };
     if let Some(pack) = &pack {
         request = request.with_authoring_knowledge(pack.clone());
+    }
+    // The project as it is NOW, for the intent the compiler reads (a fresh request, its
+    // answers' round, a revision's request with its change): the files it names, observed by
+    // the shared bounded observer under the session's root — never outside it.
+    let contextual = match attach {
+        Attach::Compose(intent) | Attach::Carried(_, intent) => intent,
+    };
+    let observed = context
+        .project_root()
+        .filter(|_| !contextual.trim().is_empty())
+        .and_then(|root| nika_cli_host::compile::observe::world(root, contextual));
+    if let Some(world) = &observed {
+        request = request.with_knowledge(world.clone());
     }
     let mut out = match seat {
         AuthoringSeat::Harness { seat, model } => {
@@ -798,11 +835,39 @@ fn compile_attached(
     };
     let knowledge = match (attach, &pack, context.knowledge()) {
         (Attach::Compose(_), Some(pack), Some(pin)) => Some(composed_record(pin, pack, &out)),
-        (Attach::Carried(record), _, _) => record.map(carried_record),
+        (Attach::Carried(record, _), _, _) => record.map(carried_record),
         _ => None,
     };
     stamp(&mut out, context, knowledge.as_ref());
+    if let (Some(world), Some(record)) = (&observed, out.provenance.decision.as_mut()) {
+        record["session"]["observed"] = observed_record(world, out.provenance.authoring.as_ref());
+    }
     Ok(out)
+}
+
+/// What the session observed and presented, in brief: each named path, its state, its kind and
+/// how many columns or keys it holds (the names themselves ride the request, not the receipt).
+fn observed_record(world: &Value, receipt: Option<&AuthoringReceipt>) -> Value {
+    let presented = receipt.is_some_and(|receipt| {
+        receipt
+            .context
+            .iter()
+            .any(|call| call["call"].as_str().is_some_and(reads_knowledge))
+    });
+    let rows: Vec<Value> = world["observed"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|row| {
+            json!({
+                "path": row["path"],
+                "state": row["state"],
+                "kind": row["kind"],
+                "columns": row["columns"].as_array().map_or(0, Vec::len),
+            })
+        })
+        .collect();
+    json!({ "attached": true, "presented": presented, "under": "project root", "rows": rows })
 }
 
 /// The session's record of the pack it attached to one call: the pinned

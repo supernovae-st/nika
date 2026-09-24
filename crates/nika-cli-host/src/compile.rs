@@ -7,7 +7,7 @@ pub mod config;
 #[cfg(feature = "access-harness")]
 mod harness_seat;
 pub mod knowledge;
-mod observe;
+pub mod observe;
 mod render;
 mod sidecar;
 pub mod typesafe;

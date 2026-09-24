@@ -20,6 +20,7 @@ use serde_json::{Value, json};
 mod decision_seat;
 mod interrupted;
 mod no_budget;
+mod observed_project;
 mod question_identity;
 mod recovery;
 mod restart;

@@ -232,7 +232,7 @@ fn a_request_in_flight_is_recorded_before_transport_and_its_restart_replays_noth
     let line = in_flight(&during.decisions);
     assert_eq!(line.len(), 1, "{:?}", during.decisions);
     assert!(
-        line[0].contains(UNPRICED) && line[0].contains("at most 3 request(s)"),
+        line[0].contains(UNPRICED) && line[0].contains("at most 7 request(s)"),
         "{}",
         line[0]
     );

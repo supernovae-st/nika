@@ -310,3 +310,9 @@ output-token, time, default and hard-cap sentences, the native catalog line
 endpoint, source and input digests, candidate, invocation, native price and the
 host/cap evidence record. Both read `&self`; neither changes the challenge, its
 nonce or any authority.
+
+`CostReview::for_session` applies the Session preparation bounds: at most seven
+requests, 32768 output tokens and 180 seconds per request. The displayed review
+and consuming admission use these same values. `CostReview::new` and
+`with_run_requests` retain the Run per-request limits (8192 tokens, 120 seconds);
+unknown outcomes freeze their account and never grant a transport retry.

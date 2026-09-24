@@ -172,9 +172,9 @@ fn the_session_cost_question_is_fresh_and_its_details_answer_nothing() {
     );
     for fact in [
         "USD cost is unknown",
-        "At most 3 requests",
-        "8192 output tokens",
-        "120 seconds",
+        "At most 7 requests",
+        "32768 output tokens",
+        "180 seconds",
         "no hard cap is overridden",
     ] {
         assert!(first.contains(fact), "{fact}: {first}");

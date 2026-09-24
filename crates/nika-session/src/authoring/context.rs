@@ -134,6 +134,7 @@ pub struct AuthoringContext {
     refusal: Option<AuthoringContextError>,
     source: &'static str,
     decision: Option<DecisionSetup>,
+    project: Option<PathBuf>,
 }
 
 impl Default for AuthoringContext {
@@ -144,6 +145,7 @@ impl Default for AuthoringContext {
             refusal: None,
             source: "default",
             decision: None,
+            project: None,
         }
     }
 }
@@ -183,6 +185,28 @@ impl AuthoringContext {
         self.decision.as_ref()
     }
 
+    /// This project root: a seated compile observes the files its request names under it (the
+    /// shared bounded observer — headers, keys, short categorical values, never a row), never
+    /// through a link that leads outside it. Without a root nothing is observed.
+    #[must_use]
+    pub fn with_project_root(mut self, root: impl Into<PathBuf>) -> Self {
+        self.project = Some(root.into());
+        self
+    }
+
+    /// The project root a seated compile observes under, when one is set.
+    #[must_use]
+    pub fn project_root(&self) -> Option<&std::path::Path> {
+        self.project.as_deref()
+    }
+
+    /// Set the project root in place (the session's own root, at each seated compile).
+    pub(crate) fn set_project_root(&mut self, root: &std::path::Path) {
+        if self.project.as_deref() != Some(root) {
+            self.project = Some(root.to_path_buf());
+        }
+    }
+
     /// A host's typed values over the environment's (either may name nothing), resolved by the
     /// parser every door shares; a named snapshot is opened, verified and pinned now.
     #[must_use]
@@ -201,6 +225,7 @@ impl AuthoringContext {
                 refusal: None,
                 source,
                 decision: None,
+                project: None,
             },
             Err(error) => Self {
                 refusal: Some(error),

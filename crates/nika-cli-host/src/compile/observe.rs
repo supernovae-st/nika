@@ -3,12 +3,18 @@
 
 //! What the host observes about the files a request names, for the authoring seat: a CSV's
 //! header columns, a JSON file's top-level keys, a JSONL line's keys — read once, bounded,
-//! under the working directory only, never a row's value. The observation rides the request
+//! under the project root only, never a row's value. The observation rides the request
 //! as knowledge (`observed_world` in the seat's opening message) so a candidate names the
 //! columns the file spells, asks for none of them and invents none. The live run of
 //! nika-076a2a91 (2026-09-22) measured the seat asking `const.status_column` ·
 //! `const.paid_value` · `const.amount_column` for a CSV the request named but never described.
-use std::path::{Component, Path};
+//!
+//! Containment is judged on the REAL location: a stated path is resolved (every symlink
+//! followed) and observed only when it lands under the project root's own real location. A
+//! linked file or folder that leads outside the project is reported `outside_project` and never
+//! read. What is observed is data (names, keys, short categorical values), never an instruction.
+//! `nika compile` observes under its working directory; the Session door under its project root.
+use std::path::{Component, Path, PathBuf};
 
 use serde_json::{Value, json};
 
@@ -20,12 +26,15 @@ const WHOLE_JSON_BYTES: u64 = 8 * 1024 * 1024;
 /// The most files observed inside one stated folder.
 const FOLDER_FILES: usize = 8;
 
-/// Positive observations and explicit unavailable states for stated paths under `cwd`. A stated
-/// folder (« les trois fichiers de ventes dans ./reports/ ») contributes its tabular and JSON
-/// files, sorted by name, the first eight. Sources and destinations alike: the reader hears
-/// « dans ./reports/ » as a destination connector, and a destination that already exists
-/// has a shape worth stating too.
-pub(super) fn world(cwd: &Path, intent: &str) -> Option<Value> {
+/// Positive observations and explicit unavailable states for stated paths under `root` (the
+/// project root: `nika compile`'s working directory, a Session's project). A stated folder
+/// (« les trois fichiers de ventes dans ./reports/ ») contributes its tabular and JSON files,
+/// sorted by name, the first eight. Sources and destinations alike: the reader hears « dans
+/// ./reports/ » as a destination connector, and a destination that already exists has a shape
+/// worth stating too. Bounded: 64 KiB peeked per file, eight files per folder, headers, keys
+/// and short categorical values only.
+#[must_use]
+pub fn world(root: &Path, intent: &str) -> Option<Value> {
     let mut stated = nika_onboard::compile::stated_sources(intent);
     for path in nika_onboard::compile::stated_destinations(intent) {
         if !stated.contains(&path) {
@@ -36,10 +45,10 @@ pub(super) fn world(cwd: &Path, intent: &str) -> Option<Value> {
         .iter()
         .flat_map(|path| {
             let mut rows = Vec::new();
-            if let Some(row) = observe(cwd, path) {
+            if let Some(row) = observe(root, path) {
                 rows.push(row);
             } else {
-                rows.extend(observe_folder(cwd, path));
+                rows.extend(observe_folder(root, path));
             }
             rows
         })
@@ -48,8 +57,8 @@ pub(super) fn world(cwd: &Path, intent: &str) -> Option<Value> {
 }
 
 /// The files of a stated folder, each observed as if stated: `./reports/juillet.csv`.
-fn observe_folder(cwd: &Path, stated: &str) -> Vec<Value> {
-    let Some(full) = under_cwd(cwd, stated) else {
+fn observe_folder(root: &Path, stated: &str) -> Vec<Value> {
+    let Some(Located::Inside(full)) = locate(root, stated) else {
         return Vec::new();
     };
     if !full.is_dir() {
@@ -80,13 +89,13 @@ fn observe_folder(cwd: &Path, stated: &str) -> Vec<Value> {
     names
         .iter()
         .take(FOLDER_FILES)
-        .filter_map(|name| observe(cwd, &format!("./{folder}/{name}")))
+        .filter_map(|name| observe(root, &format!("./{folder}/{name}")))
         .collect()
 }
 
-/// The stated path resolved under the working directory, or None for an absolute path or
-/// one that climbs out.
-fn under_cwd(cwd: &Path, stated: &str) -> Option<std::path::PathBuf> {
+/// The stated path joined under the root, or None for an absolute path or one that climbs out
+/// by its words (`..`).
+fn under_root(root: &Path, stated: &str) -> Option<PathBuf> {
     let relative = Path::new(stated.strip_prefix("./").unwrap_or(stated));
     if relative.is_absolute()
         || relative
@@ -95,12 +104,43 @@ fn under_cwd(cwd: &Path, stated: &str) -> Option<std::path::PathBuf> {
     {
         return None;
     }
-    Some(cwd.join(relative))
+    Some(root.join(relative))
 }
 
-/// One stated path: under the working directory, a regular file, a tabular or JSON format.
-fn observe(cwd: &Path, stated: &str) -> Option<Value> {
-    let full = under_cwd(cwd, stated)?;
+/// Where a stated path really lands.
+enum Located {
+    /// Its real location (every symlink resolved) lies under the root's real location.
+    Inside(PathBuf),
+    /// A symlink on the way leads outside the project: never read.
+    Outside,
+    /// It cannot be resolved (absent, or unreadable), with the reason's kind.
+    Unresolved(std::io::ErrorKind),
+}
+
+/// Resolve a stated path the way the filesystem will: the containment check is made on the
+/// real location, so a link inside the project that points outside it is refused.
+fn locate(root: &Path, stated: &str) -> Option<Located> {
+    let joined = under_root(root, stated)?;
+    let real_root = root.canonicalize().ok()?;
+    Some(match joined.canonicalize() {
+        Ok(real) if real.starts_with(&real_root) => Located::Inside(real),
+        Ok(_) => Located::Outside,
+        Err(error) => Located::Unresolved(error.kind()),
+    })
+}
+
+/// One stated path: under the project root (really), a regular file, a tabular or JSON format.
+fn observe(root: &Path, stated: &str) -> Option<Value> {
+    let full = match locate(root, stated)? {
+        Located::Inside(real) => real,
+        Located::Outside => {
+            return Some(json!({"path": stated, "state": "outside_project", "complete": false}));
+        }
+        Located::Unresolved(kind) => {
+            return Some(json!({"path": stated, "state":
+            if kind == std::io::ErrorKind::NotFound { "absent" } else { "unreadable" }, "complete": false}));
+        }
+    };
     let meta = match std::fs::metadata(&full) {
         Ok(meta) => meta,
         Err(error) => {
@@ -467,6 +507,55 @@ mod tests {
             json!(["open", "closed"])
         );
         assert!(seen["observed"][0]["values"].get("topic").is_none());
+    }
+
+    /// A link inside the project that leads outside it — a file or a folder — is never read:
+    /// its real location is judged, not its words. A link that stays inside is observed.
+    #[cfg(unix)]
+    #[test]
+    fn a_link_leading_outside_the_project_is_refused_and_one_inside_is_observed() {
+        let project = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        std::fs::write(
+            outside.path().join("secret.csv"),
+            "secret_col,private_amount\nx,1\n",
+        )
+        .unwrap();
+        std::fs::create_dir_all(outside.path().join("vault")).unwrap();
+        std::fs::write(outside.path().join("vault/ledger.csv"), "vault_col\n1\n").unwrap();
+        std::os::unix::fs::symlink(
+            outside.path().join("secret.csv"),
+            project.path().join("ventes.csv"),
+        )
+        .unwrap();
+        std::os::unix::fs::symlink(outside.path().join("vault"), project.path().join("reports"))
+            .unwrap();
+        std::fs::write(project.path().join("real.csv"), "id,statut\n1,paye\n").unwrap();
+        std::os::unix::fs::symlink(
+            project.path().join("real.csv"),
+            project.path().join("alias.csv"),
+        )
+        .unwrap();
+        let seen = super::world(
+            project.path(),
+            "lis ./ventes.csv et ./alias.csv, puis les fichiers de ./reports/",
+        )
+        .expect("observed");
+        let text = seen.to_string();
+        for leaked in ["secret_col", "private_amount", "vault_col", "ledger.csv"] {
+            assert!(!text.contains(leaked), "{leaked} leaked: {text}");
+        }
+        let rows = seen["observed"].as_array().unwrap();
+        let state = |path: &str| {
+            rows.iter()
+                .find(|r| r["path"] == path)
+                .map(|r| r["state"].clone())
+        };
+        assert_eq!(state("./ventes.csv"), Some(json!("outside_project")));
+        assert_eq!(state("./reports/"), Some(json!("outside_project")));
+        assert_eq!(state("./alias.csv"), Some(json!("observed")));
+        let alias = rows.iter().find(|r| r["path"] == "./alias.csv").unwrap();
+        assert_eq!(alias["columns"], json!(["id", "statut"]));
     }
 
     #[test]

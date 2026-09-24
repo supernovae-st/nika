@@ -32,8 +32,8 @@ fn unpriced_response(text: &str) -> Value {
 fn asked(out: &TurnOutcome) {
     assert!(
         matches!(out, TurnOutcome::Question { key, question }
-        if key == "unknown_cost" && question.contains("3 requests") && question.contains("8192")
-        && question.contains("120 seconds") && question.contains("USD cost is unknown")),
+        if key == "unknown_cost" && question.contains("7 requests") && question.contains("32768")
+        && question.contains("180 seconds") && question.contains("USD cost is unknown")),
         "{out:?}"
     );
 }

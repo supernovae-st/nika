@@ -67,16 +67,24 @@ impl SessionRuntime {
         if self.money_blocks_cognition() {
             return compile_deterministic(request);
         }
+        // The session's own project root, never the process's working directory.
+        let context = self
+            .authoring_context
+            .clone()
+            .with_project_root(self.snapshot.root.clone());
         self.seated(&self.seat, |account| match account {
             Some(a) => crate::authoring::compile_in_with_admission(
-                &self.seat,
-                &self.authoring_context,
-                request,
-                intent,
-                a,
+                &self.seat, &context, request, intent, a,
             ),
-            None => compile_in(&self.seat, &self.authoring_context, request, intent),
+            None => compile_in(&self.seat, &context, request, intent),
         })
+    }
+
+    /// Every seated round observes the files its request names under the session's own
+    /// project root (never the process's working directory, never through a link outside it).
+    fn observe_project(&mut self) {
+        let root = self.snapshot.root.clone();
+        self.authoring_context.set_project_root(&root);
     }
 
     /// A free-text line as work to build: the deterministic ladder first
@@ -178,6 +186,7 @@ impl SessionRuntime {
         if self.money_blocks_cognition() {
             return self.cognition_money_refusal();
         }
+        self.observe_project();
         self.activity(&Activity::now(Phase::Authoring, self.authoring_note()));
         match self.compile_round(&round, &self.seat) {
             Ok(out) => match Reading::of(out) {
@@ -322,9 +331,10 @@ impl SessionRuntime {
             }
             reading => {
                 let why = human_reasons(reasons(reading.outcome())).join(" · ");
+                let way = revision_way(reading.outcome());
                 self.last_outcome = Some(reading.outcome().clone());
                 TurnOutcome::Facts(format!(
-                    "I could not revise `{}` with « {} »{} — the saved workflow is unchanged · say the change another way, or describe the whole automation again",
+                    "I could not revise `{}` with « {} »{} — the saved workflow is unchanged · {way}",
                     saved.display(),
                     change.trim(),
                     if why.is_empty() {
@@ -385,11 +395,12 @@ impl SessionRuntime {
             reading => {
                 let id = self.proposal_id(&set);
                 let why = human_reasons(reasons(reading.outcome())).join(" · ");
+                let way = revision_way(reading.outcome());
                 self.pending = Some(set);
                 TurnOutcome::Held {
                     id,
                     preview: format!(
-                        "I could not revise the proposal with « {} »{}\n(the proposal still waits · `yes` applies it · `no` discards it · say the change another way)",
+                        "I could not revise the proposal with « {} »{}\n(the proposal still waits · `yes` applies it · `no` discards it · {way})",
                         change.trim(),
                         if why.is_empty() {
                             String::new()
@@ -637,6 +648,7 @@ impl SessionRuntime {
         if self.seat.has_model() {
             return self.compile_under_seat(round);
         }
+        self.observe_project();
         match self.compile_round(&round, &self.seat) {
             Ok(out) => {
                 let reading = Reading::of(out);
@@ -992,13 +1004,28 @@ pub(super) fn question_text(question: &CompileQuestion, reasons: &[String]) -> S
 /// the deterministic reader's unsupported clause is a gap in what Nika
 /// can express. Neither is the human's ambiguity (mandate: a compiler gap
 /// is never presented as user ambiguity, nor an authoring failure as a gap).
+/// The way on after a revision that could not settle: an authoring failure (a seat tried and
+/// failed on Nika's side) keeps the base and the change — the same words try again; a reading
+/// the compiler could not settle asks for the change in other words. Never « describe the whole
+/// automation again »: the base and the original request are kept.
+pub(super) fn revision_way(out: &CompileOutcome) -> &'static str {
+    if matches!(
+        out.provenance.cognition,
+        nika_onboard::compile::AuthoringCognition::ExplicitProvider
+    ) {
+        "an authoring step failed on Nika's side: your change is kept — send it again unchanged for another attempt, or `/intelligence` for another model"
+    } else {
+        "say the change another way"
+    }
+}
+
 pub(super) fn cannot_express_text(out: &CompileOutcome) -> String {
     let authoring_failed = matches!(
         out.provenance.cognition,
         nika_onboard::compile::AuthoringCognition::ExplicitProvider
     );
     let mut text = if authoring_failed {
-        "Nika could not build this automation faithfully yet — the model's draft lost part of your request and Nika refused it; nothing was written.".to_owned()
+        "Nika could not finish building this automation — an authoring step failed on Nika's side (below), not because of how you asked; nothing was written.".to_owned()
     } else {
         "Nika cannot express this automation yet — nothing was written.".to_owned()
     };
@@ -1010,8 +1037,10 @@ pub(super) fn cannot_express_text(out: &CompileOutcome) -> String {
             text.push_str(&reason);
         }
     }
+    // An internal failure never asks the human to rewrite or split what they asked: the
+    // request stays the goal, and the same words make another attempt.
     text.push_str(if authoring_failed {
-        "\n  what helps: say it again (another attempt, or `/intelligence` for another model, may hold every part), or split the work in two requests · `/meaning` shows what was understood"
+        "\n  your request is kept as the goal: send it again unchanged for another attempt, or `/intelligence` for another model · `/meaning` shows what was understood"
     } else {
         "\n  what helps: say the outcome in one sentence (what to read · what to produce · where it goes), or split the work in two requests · `/meaning` shows what was understood"
     });
@@ -1202,6 +1231,23 @@ pub(crate) fn human_reasons(reasons: Vec<String>) -> Vec<String> {
 /// is kept as the compiler said it.
 fn human_reason(raw: &str) -> String {
     let r = raw.trim().trim_end_matches('.');
+    // A cut answer is the seat's output limit, an internal cause: its command-line advice
+    // (`--authoring-max-tokens`) is no gesture a Session has, and the request is not at fault.
+    if r.contains("--authoring-max-tokens") {
+        let tokens: String = r
+            .chars()
+            .skip_while(|c| !c.is_ascii_digit())
+            .take_while(char::is_ascii_digit)
+            .collect();
+        let limit = if tokens.is_empty() {
+            "its output limit".to_owned()
+        } else {
+            format!("its {tokens}-token output limit")
+        };
+        return format!(
+            "the model's answer was cut at {limit} before it was complete — an internal limit of this attempt, not a problem with your request"
+        );
+    }
     let r = match r.find("is not feasible: ") {
         Some(at) if r.starts_with("Candidate ") => &r[at + "is not feasible: ".len()..],
         _ => r,

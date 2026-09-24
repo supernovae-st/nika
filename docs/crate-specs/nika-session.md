@@ -309,3 +309,19 @@ The selected decision adapter and bounded journal are shared from
 its public path. Session retains its monetary admission decision and durable
 observation persistence. This is an ownership move within existing surface
 members, with no new provider, crate, retry or permission.
+
+## Project context and preparation bounds
+
+Every seated authoring round observes the named files under the Session project
+root through the shared `compile::observe::world` reader. It carries bounded
+headers, keys and categorical values into the full original request, answers
+and revision context. The receipt separates attachment from presentation in a
+model call; a deterministic result or replay does not claim a presentation.
+
+The initial native output limit is 16384 tokens, with a 32768 hard ceiling and
+180 seconds per API call. Three repair rounds cover reported truncation and
+candidate diagnostics; they do not retry an uncertain transport. A fresh
+unknown-cost review covers at most seven provider requests: classification,
+two COLD steps, then the native candidate and its three repairs. Numeric
+allowances still reserve the actual worst-case call and never widen themselves.
+Execution keeps its separate review and permissions.

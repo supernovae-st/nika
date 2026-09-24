@@ -168,6 +168,21 @@ pub fn native_catalog_price_known(model: &str, config: ProvidersConfig) -> bool 
         })
 }
 
+/// The per-request output ceiling of a Run review (and of any review not built for a Session).
+pub const RUN_REVIEW_MAX_OUTPUT_TOKENS: u32 = 8192;
+/// The per-request deadline of a Run review (and of any review not built for a Session).
+pub const RUN_REVIEW_TIMEOUT: Duration = Duration::from_secs(120);
+/// The requests one Session authoring turn may make under a fresh unknown-cost review: the turn
+/// classification (1), the COLD plan with its one evidence repair (2), the native candidate (1)
+/// and its three repair rounds (3) — a reported truncation spends one of those repairs to widen
+/// the output, never a transport retry. A stronger-model retry never runs under an account.
+pub const SESSION_REVIEW_MAX_REQUESTS: u32 = 7;
+/// The Session's hard per-request output ceiling (its first native call starts lower and may
+/// widen up to this only after a reported truncation).
+pub const SESSION_REVIEW_MAX_OUTPUT_TOKENS: u32 = 32_768;
+/// The Session's per-request deadline.
+pub const SESSION_REVIEW_TIMEOUT: Duration = Duration::from_secs(180);
+
 /// One pending review. No callable admission handle exists until confirmation.
 #[derive(Debug)]
 #[non_exhaustive]
@@ -178,11 +193,14 @@ pub struct CostReview {
     evidence: CostHostEvidence,
     defaults: [Option<Cost>; 2],
     max_requests: u32,
+    max_output_tokens: u32,
+    request_timeout: Duration,
     reviewed_at: std::time::Instant,
     clock: Arc<dyn ReviewClock>,
 }
 impl CostReview {
-    /// One request, 8192 output tokens, 120 seconds; retries remain zero.
+    /// One request, [`RUN_REVIEW_MAX_OUTPUT_TOKENS`] output tokens, [`RUN_REVIEW_TIMEOUT`];
+    /// retries remain zero.
     /// # Errors
     /// Invalid review identity or host evidence that cannot admit unknown cost.
     pub fn new(
@@ -222,6 +240,8 @@ impl CostReview {
             evidence,
             defaults: [invocation_default, project_default],
             max_requests: 1,
+            max_output_tokens: RUN_REVIEW_MAX_OUTPUT_TOKENS,
+            request_timeout: RUN_REVIEW_TIMEOUT,
             reviewed_at: nika_kernel::clock::ClockDyn::now(clock.as_ref()),
             clock,
         };
@@ -233,11 +253,33 @@ impl CostReview {
             .map_err(|e| e.to_string())?;
         Ok(review)
     }
-    /// Session classifier/reader/candidate share one finite review.
+    /// Session classifier/reader/candidate share one finite review, sized to the calls one
+    /// Session authoring turn may actually make ([`SESSION_REVIEW_MAX_REQUESTS`]) with the
+    /// Session's per-request output ceiling and deadline. A Run review keeps its own bounds.
     #[must_use]
     pub fn for_session(mut self) -> Self {
-        self.max_requests = 3;
+        self.max_requests = SESSION_REVIEW_MAX_REQUESTS;
+        self.max_output_tokens = SESSION_REVIEW_MAX_OUTPUT_TOKENS;
+        self.request_timeout = SESSION_REVIEW_TIMEOUT;
         self
+    }
+
+    /// The requests this review would admit.
+    #[must_use]
+    pub fn max_requests(&self) -> u32 {
+        self.max_requests
+    }
+
+    /// The per-request output ceiling this review would admit.
+    #[must_use]
+    pub fn max_output_tokens(&self) -> u32 {
+        self.max_output_tokens
+    }
+
+    /// The per-request deadline this review would admit.
+    #[must_use]
+    pub fn request_timeout(&self) -> Duration {
+        self.request_timeout
     }
 
     /// A Run host derives this upper bound from checked, sequential direct infers.
@@ -260,8 +302,8 @@ impl CostReview {
             self.route.model.clone(),
             self.route.endpoint.clone(),
             self.max_requests,
-            8192,
-            Duration::from_secs(120),
+            self.max_output_tokens,
+            self.request_timeout,
         )
         .map_err(|e| e.to_string())
     }
@@ -274,12 +316,15 @@ impl CostReview {
         let defaults = self
             .defaults
             .map(|c| c.map_or_else(|| "none".into(), |v| v.to_string()));
+        let seconds = self.request_timeout.as_secs();
         format!(
-            "USD cost is unknown; a charge is possible on {}/{}.\nAt most {} requests; each at most 8192 output tokens and 120 seconds (at most {} seconds of model wait). Any schema re-asks consume this same request bound. No automatic transport retry.\nOverrides only the shown defaults (invocation: {}; project: {}); no hard cap is overridden.\nContinue once? yes / no",
+            "USD cost is unknown; a charge is possible on {}/{}.\nAt most {} requests; each at most {} output tokens and {} seconds (at most {} seconds of model wait). Any schema re-asks consume this same request bound. No automatic transport retry.\nOverrides only the shown defaults (invocation: {}; project: {}); no hard cap is overridden.\nContinue once? yes / no",
             self.route.provider,
             self.route.model,
             self.max_requests,
-            u64::from(self.max_requests) * 120,
+            self.max_output_tokens,
+            seconds,
+            u64::from(self.max_requests) * seconds,
             defaults[0],
             defaults[1]
         )
@@ -450,7 +495,7 @@ mod tests {
         assert!(CostRoute::observe("codex/gpt-5", ProvidersConfig::new()).is_err());
         assert!(CostRoute::observe("anthropic/claude-opus", ProvidersConfig::new()).is_err());
         let review = review().for_session();
-        assert!(review.question().contains("3 requests"));
-        assert!(review.question().contains("360 seconds"));
+        assert!(review.question().contains("7 requests"));
+        assert!(review.question().contains("1260 seconds"));
     }
 }

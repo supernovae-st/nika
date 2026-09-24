@@ -397,14 +397,35 @@ fn the_cannot_build_card_tells_an_authoring_failure_from_a_language_gap() {
     out.provenance.cognition = nika_onboard::compile::AuthoringCognition::ExplicitProvider;
     let failed = super::authoring::cannot_express_text(&out);
     assert!(
-        failed.starts_with("Nika could not build this automation faithfully yet"),
+        failed.starts_with("Nika could not finish building this automation"),
         "{failed}"
     );
     assert!(
-        failed.contains("say it again") && failed.contains("`/intelligence`"),
+        failed.contains("send it again unchanged") && failed.contains("`/intelligence`"),
         "{failed}"
     );
-    assert!(!failed.contains("rephrase"), "never « rephrase »: {failed}");
+    // An internal failure never asks the human to rewrite or split the request.
+    for misleading in ["rephrase", "split the work", "describe the whole"] {
+        assert!(
+            !failed.contains(misleading),
+            "never « {misleading} »: {failed}"
+        );
+    }
+}
+
+/// A cut answer is named precisely, without the command line's advice, as an internal limit.
+#[test]
+fn a_truncated_answer_is_named_as_an_internal_limit_not_the_request() {
+    let said = super::authoring::human_reasons(vec![
+        "The seat's answer was cut at the authoring cap (16384 output tokens): raise --authoring-max-tokens, or seat a model that does not spend the budget on its reasoning.".to_owned(),
+    ]);
+    assert_eq!(said.len(), 1);
+    assert!(said[0].contains("16384-token output limit"), "{said:?}");
+    assert!(
+        said[0].contains("not a problem with your request"),
+        "{said:?}"
+    );
+    assert!(!said[0].contains("--authoring-max-tokens"), "{said:?}");
 }
 
 /// A cloud model the catalog does not price is refused at the model
