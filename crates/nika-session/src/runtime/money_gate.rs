@@ -211,6 +211,7 @@ impl SessionRuntime {
         self.money.pending = None;
         self.pending = None;
         self.authoring = None;
+        self.revising = None;
         self.run_inputs = None;
         self.interrupted = None;
         self.intent.unresolved.clear();

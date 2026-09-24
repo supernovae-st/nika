@@ -259,6 +259,9 @@ pub struct SessionRuntime {
     last_trace: Option<PathBuf>,
     /// The authoring round whose question the next line answers.
     authoring: Option<AuthoringRound>,
+    /// The proposal a revision's question set aside, with the reading it came from: it waits
+    /// again unchanged unless the revised proposal replaces it (`keep_revising`).
+    revising: Option<(ProjectChangeSet, Option<CompileOutcome>)>,
     /// Who asks that question and which ones were answered (memory only).
     questions: question::Identities,
     /// The cognition the compiler may use, derived from the reasoner.
@@ -352,6 +355,7 @@ impl SessionRuntime {
             last_check_clean: None,
             last_trace: None,
             authoring: None,
+            revising: None,
             questions: question::Identities::default(),
             seat: AuthoringSeat::Deterministic { why: None },
             authoring_context: crate::authoring::AuthoringContext::default(),
@@ -813,7 +817,8 @@ impl SessionRuntime {
             if let Err(refusal) = self.admit_money(original, true) {
                 return refusal;
             }
-            return self.answer_question_unrecorded(input);
+            let outcome = self.answer_question_unrecorded(input);
+            return self.keep_revising(outcome);
         }
         // A run waiting on a declared input owns the next line the same way.
         if self.run_inputs.is_some() {

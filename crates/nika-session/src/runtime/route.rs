@@ -231,7 +231,7 @@ impl SessionRuntime {
     }
 
     /// The proposal held with a line beside it.
-    fn hold_pending(
+    pub(super) fn hold_pending(
         &mut self,
         set: crate::change::ProjectChangeSet,
         id: crate::outcome::ProposalId,

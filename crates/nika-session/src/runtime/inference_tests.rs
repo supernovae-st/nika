@@ -24,6 +24,7 @@ mod observed_project;
 mod question_identity;
 mod recovery;
 mod restart;
+mod revision_question;
 mod scopes;
 mod unknown_cost;
 pub(crate) mod wire;

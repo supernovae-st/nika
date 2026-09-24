@@ -315,10 +315,9 @@ impl SessionRuntime {
         // The revision reads the change beside the request the saved workflow
         // answered (the whole meaning, never the change alone), and its
         // knowledge is composed for that same request from the pinned snapshot.
-        let mut request = CompileRequest::edit(base, change.trim());
-        if let Some(original) = original {
-            request = request.with_original_intent(original);
-        }
+        let mut round = AuthoringRound::new(goal.clone());
+        round.edit = Some((base, change.trim().to_owned(), original));
+        let request = round.request();
         let revised = revise_intent(&request).unwrap_or_else(|| goal.clone());
         let out = match self.compile_request(&request, &revised) {
             Ok(out) => out,
@@ -329,6 +328,8 @@ impl SessionRuntime {
                 self.remember(change, "(revised the saved workflow)");
                 self.propose(&goal, &out)
             }
+            // What the revision asks waits in its round: the same EDIT, answered.
+            reading if round.asks(&reading) => self.settle(round, reading),
             reading => {
                 let why = human_reasons(reasons(reading.outcome())).join(" · ");
                 let way = revision_way(reading.outcome());
@@ -377,8 +378,9 @@ impl SessionRuntime {
         // The compiler sees the exact base, original request and raw change.
         // Its bounded edit/repair loop owns the revision; a model paraphrase
         // must never replace these inputs through a fresh Create request.
-        let request =
-            CompileRequest::edit(base, change.trim()).with_original_intent(set.goal.clone());
+        let mut round = AuthoringRound::new(goal.clone());
+        round.edit = Some((base, change.trim().to_owned(), Some(set.goal.clone())));
+        let request = round.request();
         let revised = revise_intent(&request).unwrap_or_else(|| goal.clone());
         let out = match self.compile_request(&request, &revised) {
             Ok(out) => out,
@@ -391,6 +393,13 @@ impl SessionRuntime {
             Reading::Ready(out) => {
                 self.remember(change, "(revised the proposal)");
                 self.propose_revision(&goal, &out)
+            }
+            // What the revision asks (a value, a clause's disposition) waits in its round; the
+            // proposal it revises waits aside, never consentable meanwhile (`keep_revising`).
+            reading if round.asks(&reading) => {
+                self.revising = Some((set, self.last_outcome.clone()));
+                let asked = self.settle(round, reading);
+                self.keep_revising(asked)
             }
             reading => {
                 let id = self.proposal_id(&set);
@@ -409,6 +418,26 @@ impl SessionRuntime {
                         }
                     ),
                 }
+            }
+        }
+    }
+
+    /// After a line at a revision's question: it still waits, the revised proposal replaced the
+    /// one it revises, or that one waits again exactly as it was — an answer never applies it.
+    pub(super) fn keep_revising(&mut self, outcome: TurnOutcome) -> TurnOutcome {
+        let kept = self.revising.take_if(|_| self.authoring.is_none());
+        let Some((set, reading)) = kept.filter(|_| self.pending.is_none()) else {
+            return outcome;
+        };
+        let id = ProposalId::of(&self.draft_preview(&set));
+        self.last_outcome = reading;
+        self.intent.unresolved.clear();
+        self.bind_proposal_money(&id);
+        match outcome {
+            TurnOutcome::Facts(text) => self.hold_pending(set, id, &text),
+            other => {
+                self.pending = Some(set);
+                other
             }
         }
     }
@@ -445,7 +474,17 @@ impl SessionRuntime {
     fn settle(&mut self, mut round: AuthoringRound, reading: Reading) -> TurnOutcome {
         // The compiler's reading is what `/meaning` shows, clause by clause.
         self.last_outcome = Some(reading.outcome().clone());
+        // A revision left unsettled may still ask its clauses' dispositions (`absorb`).
+        let reading = match reading {
+            Reading::Unsettled(out) if round.edit.is_some() => Reading::Questions(out),
+            reading => reading,
+        };
         match reading {
+            // The revised proposal replaces the one it revises: the delta reads from that one.
+            Reading::Ready(out) if self.revising.is_some() => {
+                self.last_outcome = self.revising.as_ref().and_then(|(_, base)| base.clone());
+                self.propose_revision(&round.intent, &out)
+            }
             Reading::Ready(out) => self.propose(&round.intent, &out),
             Reading::Questions(out) => {
                 round.absorb(&out);
@@ -457,13 +496,14 @@ impl SessionRuntime {
                 // as code: once, the clause is asked in words (the human's
                 // words replace it in the request); a second time, or a
                 // clause the request does not carry verbatim, is an honest
-                // incomplete that names the way on.
+                // incomplete that names the way on — as for a revision, whose
+                // EDIT is never restated as a fresh request.
                 if asks_for_syntax(question) {
                     let clause = clause_of(&question.label);
                     let carried = clause
                         .as_deref()
                         .is_some_and(|c| round.intent.contains(c));
-                    if round.restatements > 0 || !carried {
+                    if round.restatements > 0 || !carried || round.edit.is_some() {
                         self.intent.unresolved.clear();
                         let text = syntax_incomplete(clause.as_deref());
                         self.remember(&round.intent, &text);
@@ -565,7 +605,10 @@ impl SessionRuntime {
             self.authoring = Some(round);
             return TurnOutcome::Aside(text);
         }
-        if is_cancel(line) {
+        // `drop` is the disposition a clause's question names (`gap.N`): its answer there.
+        let disposes = line.trim().eq_ignore_ascii_case("drop")
+            && round.current().is_some_and(|q| q.key.starts_with("gap."));
+        if is_cancel(line) && !disposes {
             let asked = self.question_id_of(&round);
             self.questions.close(asked);
             self.intent.unresolved.clear();
@@ -594,7 +637,12 @@ impl SessionRuntime {
             line.to_owned()
         };
         let line = line.as_str();
-        let round = match self.route_at_question(round, line) {
+        let routed = if disposes {
+            Ok(round)
+        } else {
+            self.route_at_question(round, line)
+        };
+        let round = match routed {
             Ok(round) => round,
             Err(outcome) => return outcome,
         };
@@ -645,7 +693,8 @@ impl SessionRuntime {
                 Err(e) => self.machinery(&e),
             };
         }
-        if self.seat.has_model() {
+        // A revision's answer replays its EDIT on this seat: no stronger model reads it again.
+        if self.seat.has_model() && round.edit.is_none() {
             return self.compile_under_seat(round);
         }
         self.observe_project();
@@ -701,6 +750,8 @@ impl SessionRuntime {
                 self.authoring = Some(round);
                 return Err(TurnOutcome::Aside(text));
             }
+            // A revision's question is answered in words, never read again as a fresh request.
+            TurnAct::Modify | TurnAct::Mixed | TurnAct::NewWork if round.edit.is_some() => {}
             TurnAct::Modify | TurnAct::Mixed | TurnAct::NewWork => {
                 return Err(self.restate_round(&round, line));
             }

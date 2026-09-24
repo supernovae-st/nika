@@ -300,6 +300,7 @@ impl SessionRuntime {
                 self.pending = None;
                 self.money.pending = None;
                 self.authoring = None;
+                self.revising = None;
                 return TurnOutcome::Facts("Unknown-cost request cancelled; nothing sent. Describe the next request to review it afresh.".into());
             }
             super::DecisionAnswer::Details => {

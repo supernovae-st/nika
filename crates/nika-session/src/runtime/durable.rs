@@ -132,6 +132,7 @@ impl SessionRuntime {
         self.unknown_cost.in_consent = false;
         let decided = staged.is_some()
             && self.pending.is_none()
+            && self.revising.is_none()
             && !matches!(
                 &outcome,
                 TurnOutcome::Refusal(Refusal {
@@ -525,6 +526,7 @@ impl SessionRuntime {
             pending: self
                 .pending
                 .as_ref()
+                .or(self.revising.as_ref().map(|(set, _)| set))
                 .and_then(|set| draft::capture(&self.proposal_id(set), set))
                 .or_else(|| self.restored_draft.as_ref().map(|r| r.raw().clone())),
         }

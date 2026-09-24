@@ -36,7 +36,7 @@ use nika_event::source_id::sha256_hex;
 use nika_onboard::compile::{
     AuthoringKnowledge, AuthoringPolicy, AuthoringReceipt, Cognition, CompileError, CompileOutcome,
     CompileQuestion, CompileRequest, CompileStatus, DiagnosticKind, NativeMode, QuestionType,
-    Strategy, compile, compile_with_cognition,
+    Strategy, compile, compile_with_cognition, revise_intent,
 };
 use serde_json::{Value, json};
 
@@ -310,6 +310,9 @@ pub struct AuthoringRound {
     /// Subscription evidence of the round that authored the replayed plan.
     /// Kept independently of optional knowledge; replay does not call this seat.
     pub authoring_receipt: Option<AuthoringReceipt>,
+    /// A revision's EDIT — the exact base, the human's change, the request the base answered:
+    /// every request of the round is that EDIT, never a fresh CREATE.
+    pub(crate) edit: Option<(String, String, Option<String>)>,
 }
 
 impl AuthoringRound {
@@ -325,14 +328,18 @@ impl AuthoringRound {
             restatements: 0,
             knowledge: None,
             authoring_receipt: None,
+            edit: None,
         }
     }
 
-    /// The intent the compiler reads for this round: an answered
-    /// `intent.clarification` replaces the request (the compiler's own law),
-    /// else the request as stated.
+    /// The intent the compiler reads for this round: a revision's original
+    /// request and change, folded; an answered `intent.clarification` replaces
+    /// the request (the compiler's own law), else the request as stated.
     #[must_use]
     pub fn effective_intent(&self) -> String {
+        if self.edit.is_some() {
+            return revise_intent(&self.request()).unwrap_or_else(|| self.intent.clone());
+        }
         self.answers
             .get(CLARIFICATION_KEY)
             .and_then(|literal| serde_json::from_str::<Value>(literal).ok())
@@ -364,11 +371,17 @@ impl AuthoringRound {
         Ok(out)
     }
 
-    /// The typed request this round is: the intent, every answer, the
-    /// recorded plan when one settled.
+    /// The typed request this round is: the intent (a revision's EDIT), every
+    /// answer, the recorded plan when one settled.
     #[must_use]
     pub fn request(&self) -> CompileRequest {
-        let mut request = CompileRequest::create(self.intent.clone());
+        let mut request = match &self.edit {
+            Some((base, change, original)) => original.iter().fold(
+                CompileRequest::edit(base.clone(), change.clone()),
+                |edit, original| edit.with_original_intent(original.clone()),
+            ),
+            None => CompileRequest::create(self.intent.clone()),
+        };
         for (key, literal) in &self.answers {
             request = request.answer(key.clone(), literal.clone());
         }
@@ -381,8 +394,8 @@ impl AuthoringRound {
     /// Keep what the outcome settled: the plan once a strategy settled it
     /// (a plan that still carries unknown work is never replayed) with the
     /// knowledge record of the call that authored it when the native door
-    /// presented a pack, the mandatory questions in the compiler's order,
-    /// its reasons.
+    /// presented a pack, the mandatory questions in the compiler's order (a
+    /// revision's clause dispositions too), its reasons.
     pub fn absorb(&mut self, out: &CompileOutcome) {
         if self.continuation.is_none() && out.provenance.strategy.is_some() {
             self.continuation.clone_from(&out.provenance.plan);
@@ -400,10 +413,14 @@ impl AuthoringRound {
                     .cloned();
             }
         }
+        let revision = self.edit.is_some();
         self.questions = out
             .questions
             .iter()
-            .filter(|q| q.mandatory)
+            // A revision's Ready also waits on its clauses' dispositions (`gap.N`); a
+            // replacement request would be a fresh CREATE, never its EDIT.
+            .filter(|q| q.mandatory || (revision && q.key.starts_with("gap.")))
+            .filter(|q| !(revision && q.key == CLARIFICATION_KEY))
             .cloned()
             .collect();
         self.reasons = out
@@ -430,6 +447,15 @@ impl AuthoringRound {
     #[must_use]
     pub fn current(&self) -> Option<&CompileQuestion> {
         self.questions.first()
+    }
+
+    /// Whether `reading` leaves a question this round asks (a value, a revision's clause
+    /// disposition): only a reading that asks or is left unsettled, never a refusal.
+    pub(crate) fn asks(&self, reading: &Reading) -> bool {
+        let mut probe = self.clone();
+        probe.absorb(reading.outcome());
+        matches!(reading, Reading::Questions(_) | Reading::Unsettled(_))
+            && probe.current().is_some()
     }
 
     /// Answer the current question with the human's line, typed to the
