@@ -1073,6 +1073,9 @@ impl SessionRuntime {
         // request asked for is what « activate » declares.
         let landed_workflow = set.workflows().into_iter().next();
         if let Some(first) = landed_workflow.clone() {
+            // Run evidence belongs to the previous saved bytes. A new Save is not a Run,
+            // including when it replaces the workflow at the same path.
+            self.last_run = None;
             self.last_workflow = Some(first);
             self.last_check_clean = Some(all_clean);
             self.last_trigger = self.pending_trigger.take();

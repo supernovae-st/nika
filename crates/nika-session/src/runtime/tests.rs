@@ -1401,3 +1401,25 @@ fn the_recovery_card_never_denies_what_a_model_may_have_received() {
         "{none}"
     );
 }
+
+/// Saving a second proposal, at the same path or another one, must not display
+/// the earlier run as evidence for the newly saved bytes.
+#[test]
+fn saving_a_new_proposal_clears_the_previous_run_status() {
+    for previous in ["compiled-workflow.nika", "previous.nika"] {
+        let dir = tree();
+        let mut s = ready_with(dir.path(), vec![]);
+        s.last_workflow = Some(std::path::PathBuf::from(previous));
+        s.last_check_clean = Some(true);
+        s.last_run = Some((0, "the previous run succeeded".to_owned()));
+        assert!(matches!(s.turn(COPY), TurnOutcome::Proposal { .. }));
+        assert!(matches!(s.consent("yes"), TurnOutcome::Facts(_)));
+        assert!(
+            s.status_line().contains("nothing has run"),
+            "{}",
+            s.status_line()
+        );
+        assert!(s.lifecycle().rail().ends_with("Run ○"));
+        assert!(!dir.path().join("out/copy.md").exists());
+    }
+}
