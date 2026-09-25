@@ -10,8 +10,8 @@
 <h1 align="center">Repeat useful AI work. Keep the plan.</h1>
 
 <p align="center">
-  Nika turns repeatable AI work into files you can inspect, run and share.<br>
-  Your instructions, tools and rules stay in a readable <code>.nika</code> file.
+  Say what you want done. Nika turns it into a readable <code>.nika</code> workflow.<br>
+  You review it, save it, run it when you decide, and inspect what it did.
 </p>
 
 <p align="center">
@@ -51,11 +51,25 @@ Telegram and Slack updates, and an updated Linear issue.
 integrations are shown; no live messages are sent. The current starting point
 is a terminal and a workflow file, not a visual drag-and-drop editor.*
 
-## Start here
+## How it works
 
-**Turn your meeting notes into action items with owners and deadlines.**
-Use the AI access you already have. Get a real file you can review and import,
-not an echo or a simulated answer.
+1. **Describe the outcome.** Run `nika` in a project folder and say what you
+   want, in your own words. Nika works only under that folder.
+2. **Answer its questions.** When a value it needs, such as a file, a column
+   or a model, is unclear, Nika can ask you for it.
+3. **Review a real file.** The proposal is a `.nika` workflow: its steps, the
+   files it reads and writes, the tools and model it may use, and the result of
+   its check. `/show` prints its exact bytes.
+4. **Save it.** `yes` writes exactly the reviewed bytes and checks them.
+   Nothing runs.
+5. **Run it when you decide.** `run it` is a separate request, and its spending
+   ceiling is announced first. Approval steps in the workflow still ask you.
+6. **Inspect the result.** Nika reports what the run produced and read.
+   `/proof` shows what its trace records and what the trace does not prove.
+
+The file stays yours: read it, review it in Git, run it again, share it.
+
+## Start here
 
 **1. Install Nika** on macOS or Linux:
 
@@ -63,30 +77,84 @@ not an echo or a simulated answer.
 curl -LsSf https://nika.sh/install.sh | sh
 ```
 
-**2. Create the offline hello lesson at an explicit destination:**
+**2. Describe a first workflow.** This one needs no AI account: Nika's
+deterministic compiler settles it without calling a model.
 
 ```sh
-mkdir first-workflow
-cd first-workflow
-nika compile hello hello.nika
+mkdir -p orders-demo/data && cd orders-demo
+cat > data/orders.csv <<'EOF'
+order_id,customer,status,amount
+1001,Juniper Books,paid,18.00
+1002,Kestrel Cafe,pending,9.50
+1003,Linden Studio,paid,13.50
+1004,Moss Supply,refunded,6.00
+EOF
+nika
 ```
 
-Compile uses the same stateless core for this lesson and exact skeletons. Hello
-always uses `mock/echo`, including when provider keys are present. It does not
-call a model, run the workflow, or choose access on your behalf.
+At the prompt, type:
 
-**3. Check and run the file:**
+```text
+Read ./data/orders.csv, keep only the rows whose status is paid, and write them to ./out/paid.csv.
+```
+
+Read the proposal, type `yes` to save it, then type `run it`. `out/paid.csv`
+gets the header and the two paid rows. With the same Nika version and the same
+input, this request gives the same workflow and the same output.
+
+**3. Add a model.** Requests with several outputs and most open-ended work
+need a model to write the workflow, and workflows such as summaries call a
+model each time they run. Nika reads provider keys from the environment, so
+keep yours in your shell startup file. For DeepSeek:
 
 ```sh
+# in ~/.zshrc or ~/.bashrc, then open a new terminal
+export DEEPSEEK_API_KEY='your-key'
+```
+
+The first request that needs a model shows a numbered choice. Answer
+`2 deepseek/deepseek-flash`. Nika keeps the choice for later Sessions, and
+`/intelligence` changes it. Other API providers and local engines work too.
+Your provider meters and bills these calls. Nika's cost figures are catalog
+estimates, not invoices.
+
+The [Session guide](docs/usage/conversational-session.md) covers questions,
+changing a proposal, spending ceilings, `/restore`, a model-written summary,
+optional settings (knowledge snapshots, the Jev decision model) and current
+limits.
+
+**4. Use the file directly.** A workflow is an ordinary file that the command
+line can compile, check, run and verify. This offline lesson needs no provider:
+
+```sh
+nika compile hello hello.nika
 nika check hello.nika
 nika run hello.nika
+nika trace verify
 ```
 
-The greeting is a mock echo: this proves the workflow runs without a provider.
-The file stays yours to inspect, review in Git, and share. Run records its local
-trace under `.nika/traces/`; creation adds that directory to `.gitignore`.
+`hello` always uses `mock/echo`, including when provider keys are present. It
+proves that the workflow runs, not that a model answered. Run records its trace
+under `.nika/traces/`; creation adds that directory to `.gitignore`.
+`nika trace verify` checks the latest trace's integrity, not the truth of an AI
+answer.
 
-## Make it yours
+### Know the limits
+
+- Nika is pre-1.0. The conversational path was qualified on six synthetic tasks
+  with one macOS installation ([qualification note](docs/qa/delivery-a-2026-09.md)).
+  That is not a general reliability claim.
+- Public releases do not include a knowledge snapshot. Without one, authoring
+  uses the language card built into the binary.
+- Some requests cannot be expressed yet. Nika then says what stopped it and
+  writes nothing.
+- A clean check describes a file's structure and boundary. It does not prove
+  that model output is true.
+- This README follows the source tree. An older installed release may lack
+  features described here: compare `nika --version` with the
+  [changelog](CHANGELOG.md).
+
+## Compile from the command line
 
 `nika compile --list` lists exact skeletons. Preview one with
 `nika compile <slug> --json`, then answer its stable questions with repeatable
@@ -102,17 +170,16 @@ nika compile --base workflow.nika --change 'Set const.topic to "new topic"' --js
 
 Add `--output edited.nika` to materialize a Ready edit. The base source
 remains explicit. Unresolved intent stays incomplete without a substitute
-workflow. In this source tree, `--authoring-model` explicitly enables bounded
-model-assisted authoring and text revisions; `--authoring-strategy` selects
-`escalate`, `only`, `sketch` or `off`. The compiler checks the proposed source
-and its fidelity to the request. This is not a guarantee of arbitrary-language
-understanding, and Graph editing is not implemented by this CLI. Check the
-installed engine's help before using source-tree features.
+workflow. `--authoring-model` explicitly enables bounded model-assisted
+authoring and text revisions; `--authoring-strategy` selects `escalate`,
+`only`, `sketch` or `off`. The compiler checks the proposed source and its
+fidelity to the request. This is not a guarantee of arbitrary-language
+understanding, and Graph editing is not implemented by this CLI.
 
 Compile's Check preview judges source only. `nika check` and `nika run` judge
 the actual environment separately. For a real model, choose the provider and
 access explicitly; [model setup documentation](https://docs.nika.sh) explains
-local, API and supported harness choices. `nika try` remains the example gallery.
+local, API and supported harness choices.
 
 ## Why keep the plan in a file?
 
@@ -213,6 +280,7 @@ All the buildings: [nika-spec](https://github.com/supernovae-st/nika-spec) ·
 
 ## Go further
 
+[Session guide](docs/usage/conversational-session.md) ·
 [Examples](examples/README.md) ·
 [Documentation](https://docs.nika.sh) ·
 [TypeScript SDK](https://www.npmjs.com/package/@supernovae-st/nika) ·

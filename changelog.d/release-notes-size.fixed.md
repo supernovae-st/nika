@@ -1,1 +1,0 @@
-- **Publish large release notes.** Large releases link their complete tagged changelog when it exceeds the release-page allowance, preserving the full record while leaving room for GitHub's generated pull request index. This prevents draft creation from failing after an immutable version tag has already been pushed.

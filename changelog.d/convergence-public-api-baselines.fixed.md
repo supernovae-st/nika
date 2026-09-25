@@ -1,1 +1,0 @@
-- **Refresh the converged authoring API snapshots.** Record the canonical Ubuntu renderings for shared knowledge loading, Session decision routing, authoring limits and fidelity checks, preserving the existing CLI-host knowledge re-export. The snapshots use nightly-2026-08-24 and cargo-public-api 0.51.0 from the public-api CI artifact.

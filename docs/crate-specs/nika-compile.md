@@ -153,3 +153,30 @@ A technical failure retains the request and round candidates instead of requesti
 replacement intent. An optional initial output limit can increase after a reported
 truncation, using the same repair count and never exceeding the original hard limit.
 Per-call receipts record the output limit, timeout, elapsed time, stop reason and usage.
+
+## Door cognition, knowledge and reproducibility
+
+`provenance.cognition` names the cognition an outcome used. `deterministicOnly`
+made no provider call; a model-assisted outcome carries its per-call receipts.
+`nika compile` permits a model only through `--authoring-model` and a decision
+seat only through `--decision-model`; an ambient key is never consent. The
+Session reaches the same core under the intelligence the human chose: an API
+or a local engine can author, and with no intelligence the door stays
+deterministic.
+
+Knowledge is attached only when named: `--knowledge` or `NIKA_KNOWLEDGE` for a
+snapshot, and on the CLI `--knowledge-pack` or `NIKA_KNOWLEDGE_PACK` for a pack
+composed for one request. There is no default location, and release archives
+carry no snapshot. Without one, native authoring composes the embedded
+language card with the request, answers and observed world.
+
+A deterministic candidate follows from the request, answers, observed sources
+and engine version. On the installed 0.120.3 candidate (`4c728c980`), the same
+filter request (« Read ./data/orders.csv, keep only the rows whose status is
+paid, and write them to ./out/paid.csv. ») compiled deterministically through
+the CLI and through the Session. The two files differed only in the `nika:` id
+their destinations named. That is one observation, not a proof for every
+request. A two-output variant with a stated total stayed `incomplete` without
+an authoring model. A model-assisted candidate is not reproducible across
+calls. Its recorded plan replays answer rounds with zero calls, and the
+reviewed bytes are what runs.

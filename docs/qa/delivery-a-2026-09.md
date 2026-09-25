@@ -6,7 +6,7 @@ This records a bounded macOS qualification of the conversational Session path. I
 
 ## What was exercised
 
-The installed executable was started with the bare `nika` command from a fresh login shell. Persistent provider configuration and a shipped technical knowledge snapshot were used; the driver supplied no provider credentials or temporary authoring settings.
+The installed executable was started with the bare `nika` command from a fresh login shell. Persistent provider configuration and an operator-installed technical knowledge snapshot (not distributed by the public installers) were used; the driver supplied no provider credentials or temporary authoring settings.
 
 | Journey | Request and oracle |
 | --- | --- |

@@ -1,1 +1,0 @@
-- **Keep the current request in recovery.** A greeting no longer becomes the automation goal shown after an authoring refusal. Recovery retains the current work and its budget guards; a failed conversation keeps its own words without replacing the saved automation goal.

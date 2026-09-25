@@ -1,1 +1,0 @@
-- **Preserve the whole source name after clarification.** The compiler asks when a file name is ambiguous and binds the user's exact answer. Fidelity recognizes that whole name without forgetting a separately named file or broadening filesystem permissions.

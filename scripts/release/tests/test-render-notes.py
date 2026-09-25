@@ -37,6 +37,12 @@ class ReleaseNotes(unittest.TestCase):
                 self.assertIn("/blob/v0.121.0/CHANGELOG.md", result)
                 self.assertNotIn(text, result)
 
+    def test_large_release_preserves_its_curated_introduction(self):
+        intro = "Pair SDK 0.121.0 with this engine. Keep old histories when rolling back."
+        result = self.render(intro + "\n\n### Fixed\n" + "x" * 133392)
+        self.assertIn(intro, result)
+        self.assertIn("/blob/v0.121.0/CHANGELOG.md", result)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -529,7 +529,7 @@ fn relevance_not_id_order_decides_the_patterns_and_blocks_presented() {
 /// Two obligations, two families: four blocks realize the leading family's patterns and sort
 /// first, one realizes the secondary family's; the secondary obligation keeps its block.
 #[test]
-fn a_secondary_obligation_keeps_its_block_beside_the_leading_familys() {
+fn a_secondary_obligation_keeps_its_block_beside_the_leading_family() {
     let mut blocks = Vec::new();
     let mut relations = vec![
         edge("family:filter", "RECOMMENDS", "pack:filter"),

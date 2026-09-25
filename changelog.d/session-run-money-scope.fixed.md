@@ -1,1 +1,0 @@
-- **Keep explicit Run ceilings separate from Session inference.** A closed Run request validates its own spending decision without amending the conversation account; a missing or invalid Run ceiling does not install a persistent Session restriction. Existing zero allowances, unknown charges and restart restrictions remain in force for cognition.

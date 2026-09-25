@@ -1,1 +1,0 @@
-- **Check the committed ADR rationale.** A new crate may arrive with a completed existing ADR in the same commit. The admission hook reads staged document contents, so an unstaged mention cannot satisfy the requirement.

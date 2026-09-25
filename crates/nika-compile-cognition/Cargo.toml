@@ -10,12 +10,12 @@ repository  = "https://github.com/supernovae-st/nika"
 publish     = false  # member of the nika-onboard unit — never on crates.io alone
 
 [dependencies]
-nika-compile        = { path = "../nika-compile", version = "0.120.3" }        # the deterministic core and its stated surface, one unit in several members (ADR-140)
-nika-compile-reader = { path = "../nika-compile-reader", version = "0.120.3" } # the frozen reader and typed plan
-nika-compile-fidelity = { path = "../nika-compile-fidelity", version = "0.120.3" } # candidate read-back, fidelity and sketch laws (ADR-141)
-nika-kernel = { path = "../nika-kernel", version = "0.120.3" } # explicit authoring provider seam
-nika-check  = { path = "../nika-check", version = "0.120.3" }  # the same pure Check core the native door judges a candidate with
-nika-pack   = { path = "../nika-pack", version = "0.120.3" }   # the card, the skeletons and the examples a seat is shown
+nika-compile        = { path = "../nika-compile", version = "0.121.0" }        # the deterministic core and its stated surface, one unit in several members (ADR-140)
+nika-compile-reader = { path = "../nika-compile-reader", version = "0.121.0" } # the frozen reader and typed plan
+nika-compile-fidelity = { path = "../nika-compile-fidelity", version = "0.121.0" } # candidate read-back, fidelity and sketch laws (ADR-141)
+nika-kernel = { path = "../nika-kernel", version = "0.121.0" } # explicit authoring provider seam
+nika-check  = { path = "../nika-check", version = "0.121.0" }  # the same pure Check core the native door judges a candidate with
+nika-pack   = { path = "../nika-pack", version = "0.121.0" }   # the card, the skeletons and the examples a seat is shown
 serde      = { workspace = true } # private semantic-plan decoder
 serde_json = { workspace = true } # the plan, the provenance, the schema
 serde_yaml_bw = { workspace = true } # the sketch's document, emitted deterministically
@@ -27,7 +27,7 @@ thiserror  = { workspace = true }
 jaq-core = { workspace = true }
 jaq-std  = { workspace = true }
 jaq-json = { workspace = true }
-nika-cap = { path = "../nika-cap", version = "0.120.3" }
+nika-cap = { path = "../nika-cap", version = "0.121.0" }
 
 [package.metadata.lore]
 daemon        = "forgeron"

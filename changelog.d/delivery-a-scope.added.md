@@ -1,1 +1,0 @@
-- **Document the qualified conversational delivery A scope.** Record installed CSV, DeepSeek summary, revision/recovery, Jev and variant journeys with output oracles and bounded cost evidence. New Run-scoped history is readable by this candidate but not older executables; downgrade and gate behavior are documented in `docs/qa/delivery-a-2026-09.md`.

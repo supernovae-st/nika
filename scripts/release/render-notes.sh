@@ -29,7 +29,9 @@ what="$(awk -v ver="$version" '
 ' CHANGELOG.md)"
 # strip leading blank lines; trailing ones are harmless in markdown
 what="$(printf '%s\n' "$what" | sed -e '/[^[:space:]]/,$!d')"
-if [ -z "${what//[[:space:]]/}" ]; then
+# The preceding trim already makes an all-whitespace section empty. Avoid
+# repeatedly removing characters from a large release in Bash itself.
+if [ -z "$what" ]; then
   what="Curated notes pending for this tag: the full diff: https://github.com/${repo}/compare/$(git describe --tags --abbrev=0 "${tag}^" 2>/dev/null || echo "v0.90.0")..${tag}"
 fi
 # GitHub rejects release bodies above 125,000 characters. Keep the complete
@@ -37,7 +39,13 @@ fi
 # Count bytes conservatively, and link the whole section rather than cutting
 # through a Markdown fence or silently dropping the end of a change.
 if [ "$(printf '%s' "$what" | wc -c | tr -d ' ')" -gt 64000 ]; then
-  what="Read the [complete changes for ${tag}](https://github.com/${repo}/blob/${tag}/CHANGELOG.md). The full changelog is preserved in this release's source tree; the pull request index follows below."
+  intro="$(printf '%s\n' "$what" | awk '/^### / { stop = 1 } !stop { print }')"
+  if [ "$(printf '%s' "$intro" | wc -c | tr -d ' ')" -gt 16000 ]; then
+    intro=""
+  fi
+  what="${intro}
+
+Read the [complete changes for ${tag}](https://github.com/${repo}/blob/${tag}/CHANGELOG.md). The full changelog is preserved in this release's source tree; the pull request index follows below."
 fi
 
 cat <<EOF

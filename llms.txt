@@ -1,6 +1,6 @@
 # Nika
 
-> Nika is the sovereign workflow engine for AI — 4 verbs (`infer · exec · invoke · agent`), AGPL-3.0-or-later, local-first, multi-provider. Workflows are `.nika` files carrying the nine-key envelope forever (`nika: <kebab-id>` opens every file · model · inputs · const · secrets · permits · run · tasks · outputs). This repository is the "Diamond" rebuild: a layered Rust workspace (L0 primitives → L5 binary) where every crate passes a 12-gate admission protocol. This file is the agent on-ramp — read these in order, then dive into the specific layer you need.
+> Nika is the sovereign workflow engine for AI — 4 verbs (`infer · exec · invoke · agent`), AGPL-3.0-or-later, local-first, multi-provider. Workflows are `.nika` files carrying the nine-key envelope forever (`nika: <kebab-id>` opens every file · model · inputs · const · secrets · permits · run · tasks · outputs). People describe work to bare `nika` (the Session), which proposes such a file for review, or write the file directly; either way it is checked before it runs, saving never runs it, and each run leaves a trace. This repository is the "Diamond" rebuild: a layered Rust workspace (L0 primitives → L5 binary) where every crate passes a 12-gate admission protocol. This file is the agent on-ramp — read these in order, then dive into the specific layer you need.
 
 ## Start here
 
@@ -10,12 +10,19 @@
 - [DIAMOND.md](DIAMOND.md): The Diamond rewrite philosophy — why an orphan-branch rebuild, CRAFT-not-extraction.
 - [ROADMAP.md](ROADMAP.md): The real-semver plan toward the 1.0 launch, the crate sequence (dep-ordered), the tag scheme. Run `bash scripts/refresh-status.sh` for the live canonical state (no volatile counts are hardcoded in docs).
 
+## Use Nika
+
+- [README.md#start-here](README.md#start-here): Install, describe a first workflow in the Session with no AI account, set up a provider key, then compile · check · run · verify a file directly. Ends with the current limits.
+- [docs/usage/conversational-session.md](docs/usage/conversational-session.md): Bare `nika` on a terminal — describe · clarify · review · save (`yes`) · run (`run it`) · inspect (`/proof`). Provider keys come from the environment (DeepSeek example); the AI choice is kept in `~/.nika/session-intelligence.json`. Covers spending ceilings, `/restore`, optional `NIKA_KNOWLEDGE` snapshots (none ship with public releases) and the optional Jev decision model, and downgrade limits.
+- [docs/qa/delivery-a-2026-09.md](docs/qa/delivery-a-2026-09.md): The bounded qualification of the conversational path: six synthetic journeys, one macOS installation, not a general reliability claim.
+- [docs/architecture/session-history.md](docs/architecture/session-history.md): Where Session history lives, how reopening and recovery work, and their limits.
+
 ## Architecture (the non-negotiables)
 
 - [docs/architecture/forward-compat-invariants.md](docs/architecture/forward-compat-invariants.md): 8 patterns + 10 rules. Gate 12. Public API is protected; only strictly-additive changes pass.
 - [docs/architecture/crate-layer-registry.md](docs/architecture/crate-layer-registry.md): L0→L4 layer discipline, allowed I/O axes, strict downward dependencies.
-- [docs/architecture/BLUEPRINT_2036.md](docs/architecture/BLUEPRINT_2036.md): The 42-crate ladder (cap 100), the collapse-vs-publish principle, the 10-year horizon, SOTA angles.
-- [docs/architecture/VISION_2040_intelligence-layer.md](docs/architecture/VISION_2040_intelligence-layer.md): The intelligence layer — LSP, the workflow generator, agent-comprehension, the Connectome memory organism, Nika-OS.
+- [docs/architecture/BLUEPRINT_2036.md](docs/architecture/BLUEPRINT_2036.md): A proposal, not a ratified contract — the crate ladder (cap 100), the collapse-vs-publish principle, the 10-year horizon, SOTA angles.
+- [docs/architecture/VISION_2040_intelligence-layer.md](docs/architecture/VISION_2040_intelligence-layer.md): Non-binding direction — the intelligence layer: LSP, the workflow generator, agent-comprehension, the Connectome memory organism, Nika-OS.
 
 ## How to work in this repo
 

@@ -4,10 +4,10 @@
 |---|---|
 | Status | **WIP → ADMISSION** (One Door · wave 4 · ADR-125). In `workspace.metadata.diamond.wip` until the 12 gates land (Gate 5 mutation and Gate 11 swarm owed). |
 | Layer | **L4 — interface** (the human's terminal) · a host runtime over the installed engine · **sync** on the terminal, one current-thread runtime per inference · lateral `nika-session → nika-cli-host` for the ONE probe and the ONE oracle facade (the ADR-124 precedent) · lateral `nika-session → nika-trace` for the run facts behind the result, gate and `/proof` views (never back). |
-| Sub-tier | L4-surface — bare `nika` on an interactive terminal. The first run asks how Nika should think with the human (an AI app they already have · an API · a local engine · none · in that order, in human words) and keeps the answer at `~/.nika/session-intelligence.json`; the session observes the project once, answers Nika facts from the engine, hands the chosen intelligence a minimal typed bundle, and reads every reply through the hallucination guard. |
+| Sub-tier | L4-surface — bare `nika` on an interactive terminal (the `nika-tui` renderer by default · the plain loop with `--plain` or `NIKA_TUI=0`, and as the renderer's fallback · a pipe gets the concierge). The session opens on the human's request; the deterministic compiler and the engine facts answer with no choice made. The first line only an intelligence can answer asks, in context, how Nika should think with the human (an AI app they already have · an API · a local engine · none · in that order, in human words), resumes that line exactly as typed once chosen, and keeps the answer at `~/.nika/session-intelligence.json`. The session observes the project once, answers Nika facts from the engine, hands the chosen intelligence a minimal typed bundle, and reads every reply through the hallucination guard. |
 | Design | Eight modules, one law each: `identity` (the six laws + the language digest) · `snapshot` (the proven root · the project file · the ONE walker) · `intelligence` (the census · the persisted choice · the resolution that refuses, never replaces · the data locus) · `reasoner` (ONE inference over the seat, the provider registry, or none — never a temporary workflow) · `broker` (the bundle: named files inside the root, bounded, redacted, with provenance · the environment never injected) · `guard` (builtins · models · codes · MCP servers · verbs · fields · claimed ignorance, corrected under the reply) · `facts` (the workflows · the builtins · the providers · a verdict through the facade · a code through the ladder · a shape through the ONE router) · `change` (ADR-126 · the typed change set a reply proposes: previewed from the exact bytes the apply consumes · witnessed against stale targets · landed atomically only on the consent line · the real check after it lands · a run requested only on a clean check · the pending gate read from a paused trace) · `runtime` (the loop · the proposal · the consent · the run observed). Owns nothing the engine owns. |
 | LOC budget | ≤15k crate · ≤1500/file · ≤100/fn (Diamond caps) |
-| IMPL | ~1900 LOC src (2026-09-03 live · `scripts/crate-metrics.sh nika-session`) |
+| IMPL | projected, never hand-typed: `scripts/crate-metrics.sh nika-session` (src LOC · largest file · unit and integration tests) |
 | Crate version | tracks workspace · License `AGPL-3.0-or-later` · Edition 2024 · Publish `false` (Foundation crate · ADR-022) |
 | ADRs | ADR-003 (12-gate admission) · **ADR-125 (the native session)** · **ADR-126 (project changes from the session)** · ADR-124 (the oracle facade the facts read) · ADR-122 / ADR-123 (the access plan and the layered verdicts the verdict fact carries) |
 | Error range | **none user-facing** — `ReasonError` is the reasoner's refusal (no intelligence · the seat · the provider · the runtime) and `ChangeError` a change set's (outside the root · unnamed · stale · the file system), both spoken in the session as a refusal with its fix; the engine's own codes travel through the facts (`explain`) untouched. |
@@ -325,3 +325,42 @@ unknown-cost review covers at most seven provider requests: classification,
 two COLD steps, then the native candidate and its three repairs. Numeric
 allowances still reserve the actual worst-case call and never widen themselves.
 Execution keeps its separate review and permissions.
+
+## Configuration read when a door opens
+
+A host door reads this configuration once, when it opens the session. Model
+selection and credentials are operator configuration; none of it is taken from
+a workflow, a reply or retrieved context.
+
+| Source | Meaning |
+|---|---|
+| `NIKA_<PROVIDER>_API_KEY` or the catalog's variable (`DEEPSEEK_API_KEY` …) | Presence only, for the census; the provider client reads the value when it calls |
+| `~/.nika/session-intelligence.json` | The kept choice (kind · model · time); a corrupt file reads as never chosen |
+| `NIKA_AUTHORING_STRATEGY` · `NIKA_KNOWLEDGE` · `NIKA_KNOWLEDGE_EXCLUDE` | The authoring context, through the parser `nika compile` uses; a named snapshot is opened and pinned now. `NIKA_KNOWLEDGE_PACK` is refused: a pack was composed for one request |
+| `NIKA_SESSION_DECISION_MODEL` with `TYPESAFE_API_KEY` | The optional decision seat (`typesafe/<jev>` only) |
+| `NIKA_TUI` | `0` · `off` · `false` · `no` · `plain` keep bare `nika` on the plain loop |
+
+There is no provider credential store and no default knowledge location. A
+clean install therefore presents no snapshot: native authoring composes the
+embedded language card, the request, answers and observed world. Release
+archives carry no snapshot. An operator who wants these values in every
+session sets them in the login environment.
+
+## Persisted state and version compatibility
+
+| Path | Contents |
+|---|---|
+| `~/.nika/session-intelligence.json` | the intelligence choice |
+| `~/.nika/sessions/<project-digest>/events.ndjson` | the private conversation history (`docs/architecture/session-history.md`) |
+| `<root>/.nika/session-state.json` | the project's structured record (#1464) |
+| `<root>/.nika/consents.ndjson` | the consent journal (#1465): which files Save wrote |
+
+Since `4c728c980`, a closed Run request is journaled as its own `run`
+operation, apart from a conversation turn, so its ceiling never amends Session
+inference. This reader accepts earlier histories and keeps their legacy
+restrictions. Executables that predate the operation, v0.120.3 included,
+refuse a history that contains it: an unknown operation is refused, never
+guessed. Rolling an installation back restores the executable and its
+configuration, not the history format. There is no reverse migration, and
+deleting history is not a way to reset spending uncertainty. The user-facing
+account is in `docs/usage/conversational-session.md`.
