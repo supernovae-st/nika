@@ -89,8 +89,8 @@ Returns `true` on pass. Throws · `NIKA-BUILTIN-ASSERT-001` (assertion failed ·
 
 ### `nika:prompt`
 ```yaml
-# confirm (default) — a yes/no gate
-invoke: { tool: "nika:prompt", args: { message: "Approve deploy to production?", default: false } }
+# confirm (default mode) — require an answer before deployment
+invoke: { tool: "nika:prompt", args: { message: "Approve deploy to production?" } }
 # input — collect a free-text value
 invoke: { tool: "nika:prompt", args: { mode: input, message: "Paste the OTP:", default: "" } }
 # choice — pick one of N
@@ -111,6 +111,14 @@ Non-interactive contract (normative · all modes) · when no human can answer
 `default:`) when absent: never hang forever · never silently pick an answer.
 A `choice` whose `default:` is not an element of `choices:` is a parse error
 (`NIKA-BUILTIN-PROMPT-002` · `validation_error`).
+
+For a workflow that requires fresh human approval, omit `default:` from the
+confirmation prompt and gate the effect on its answer. `default: false` is an
+automatic refusal in a non-interactive run; it does not request an answer or
+pause for a human. Keep an unattended refusal in the invocation instead of
+changing the workflow's human gate; for example, the reference engine accepts
+`nika run workflow.nika --answer approval=false` when the prompt task is named
+`approval`. See the [human-gated shipping template](../templates/human-gated-ship.nika).
 
 ### `nika:done`
 ```yaml
