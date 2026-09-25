@@ -500,7 +500,7 @@ fn a_mute_cursor_report_falls_back_to_the_plain_session() {
 
 /// A loopback endpoint that accepts and never answers: the seat call it
 /// receives stalls until the door gives up (or the caller leaves). Returns
-/// the base URL an openai-compatible route reads from `NIKA_OPENAI_BASE_URL`.
+/// the base URL a local engine route reads from `NIKA_OLLAMA_BASE_URL`.
 fn stall_server() -> String {
     let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("a loopback port");
     let port = listener.local_addr().expect("addr").port();
@@ -521,8 +521,11 @@ fn stall_server() -> String {
     format!("http://127.0.0.1:{port}")
 }
 
-/// Drive the renderer to a seat call that stalls: the seat is `2 openai`
-/// on the stalling endpoint, the line is a question only a seat answers.
+/// Drive the renderer to a seat call that stalls: the seat is a local engine
+/// (`3 ollama/…`) on the stalling endpoint, the line is a question only a
+/// seat answers. Not an API seat: an unknown-cost API route over plain HTTP
+/// is refused before any request leaves (`nika-providers` admission review ·
+/// exact HTTPS route and model), so a loopback stub never holds its call.
 fn stalled_turn(tag: &str) -> (TeeSession, Tee) {
     let (project, home) = rig(tag);
     let base = stall_server();
@@ -531,18 +534,15 @@ fn stalled_turn(tag: &str) -> (TeeSession, Tee) {
         home.path(),
         80,
         24,
-        &[
-            ("NIKA_OPENAI_BASE_URL", base.as_str()),
-            ("OPENAI_API_KEY", "sk-test-stall"),
-        ],
+        &[("NIKA_OLLAMA_BASE_URL", base.as_str())],
     );
     answer_until(&mut session, &tee, 24, "automate?");
     session.send("/intelligence\r").expect("the first screen");
     answer_until(&mut session, &tee, 24, "conversation");
     session
-        .send("2 openai\r")
-        .expect("a metered seat on the stalling endpoint");
-    answer_until(&mut session, &tee, 24, "metered");
+        .send("3 ollama/stall-fixture\r")
+        .expect("a local seat on the stalling endpoint");
+    answer_until(&mut session, &tee, 24, "private");
     session
         .send("Que penses-tu de ce projet ?\r")
         .expect("a line only a seat answers");
@@ -731,9 +731,11 @@ fn tab_completes_a_slash_command_and_unicode_goes_through_whole() {
 #[test]
 fn a_refused_run_names_its_reason_inside_the_viewport() {
     let (project, home) = rig("refused-run");
+    // A directly priced route reaches the floor; an unpriced route asks for
+    // a fresh cost decision instead, which is exercised by tui_run_cost.
     std::fs::write(
         project.path().join("floor.nika"),
-        "nika: floor\nmodel: openai/gpt-5-mini\npermits: {}\ntasks:\n  t:\n    infer: { prompt: \"hi\", max_tokens: 5000 }\n",
+        "nika: floor\nmodel: deepseek/deepseek-flash\npermits: {}\ntasks:\n  t:\n    infer: { prompt: \"hi\", max_tokens: 5000 }\n",
     )
     .expect("a priced workflow");
     let (mut session, tee) = spawn_sized(project.path(), home.path(), 100, 30);

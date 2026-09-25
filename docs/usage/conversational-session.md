@@ -258,6 +258,8 @@ clause by clause.
   otherwise the `ceiling:` in the project's `nika.yaml`, otherwise USD 0.25.
   It bounds the run's metered spend as the runtime estimates it. It does not
   cover authoring and it is not an invoice.
+- After reopening a history whose saved spending constraint cannot be proved,
+  state a fresh Run ceiling. No default replaces that missing evidence.
 - When a workflow declares a required input without a default, the Session asks
   for it before the run.
 - When a run pauses at an approval step, the Session shows that step's
@@ -324,6 +326,23 @@ earlier Session, name its ceiling:
   at most three repairs. A call whose delivery is uncertain is not replayed.
 - Catalog estimates are not invoices. Your provider's bill is the reference.
 - The run ceiling is separate from authoring (see above).
+
+**Run provider limits in 0.121.0.** A price shown in the model catalog is not
+enough to admit an OpenAI-compatible API route automatically. The qualified
+DeepSeek direct route is admitted. Other routes, including default OpenAI and
+Mistral endpoints, require a fresh Run cost review if their exact route and
+model are not admitted. Scripts and CI invocations without a review channel
+refuse before dispatch. The production Serve backend also refuses those routes:
+HTTP jobs are queued normally, then settle as `failed` / `admission_refused`
+before any model or tool effect. Resident schedule fires use the same gate. The full-screen Session and interactive local
+`nika run` can ask for this choice; an explicit `--cost-review-stdio` host must
+implement the review exchange. A workflow's saved ceiling is not that choice.
+
+Unknown-price review is limited to bounded HTTPS OpenAI-compatible text calls.
+HTTP API overrides and native Anthropic/Gemini gateway overrides refuse even
+interactively. Catalog-priced native models at their default endpoints and
+explicit local-provider lanes follow separate admission rules. These limits
+apply to Run, independently of which provider authored the workflow.
 
 ## Optional operator settings
 

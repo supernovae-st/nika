@@ -338,7 +338,7 @@
     ],
     "provenance": {
       "cognition": "deterministicOnly",
-      "compiler_version": "0.120.3",
+      "compiler_version": "0.121.0",
       "decision": {
         "intent_sha256": "39931fc2ff06e46a46963f34699435afe7c5e79a5548f24d09e25e3cb48e3346",
         "ledger": [
@@ -606,7 +606,7 @@
         "unknowns": []
       },
       "skeleton": null,
-      "spec_pin": "01ace416c2b6d7211ffa297798c85fdde8cf621f",
+      "spec_pin": "95ed1acf09c7798314a36fb208c9a5546b6ca658",
       "strategy": "hot",
       "suggested_file": "open.nika"
     },

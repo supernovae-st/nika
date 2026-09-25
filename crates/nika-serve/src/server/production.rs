@@ -245,6 +245,14 @@ async fn drive_resident_execution(
     // CLI door does. A job body `access` is `--access` (a pin is a pin);
     // absent, the unpinned plan. No silent substitution after admission.
     let plan = driver.resolve_access_plan(None, access_pin);
+    // This door has no Run cost review: an admitted API route whose price
+    // needs a fresh one-time choice refuses here, before the worker starts
+    // (no model, tool or journal effect), where `nika run` without a review
+    // channel refuses the same route. Named, snapshot and scheduled jobs
+    // all reach this seam.
+    if let Some(why) = unknown_cost_refusal(&plan, &nika_runtime::compose::config_from_env()) {
+        return ExecutionOutcome::failed("admission_refused", why);
+    }
     let (cancel_tx, cancel_rx) = tokio::sync::oneshot::channel();
     let _cancel = CancelOnDrop(Some(cancel_tx));
     let job = ResidentJob {
@@ -264,6 +272,36 @@ async fn drive_resident_execution(
         Ok(outcome) => outcome,
         Err(_) => ExecutionOutcome::failed("NIKA-COMP-001", "execution worker did not finish"),
     }
+}
+
+/// The unattended resident's unknown-cost gate: the same route observation
+/// `nika run` makes before it asks for a review (`run_cost::readiness`).
+/// Only admitted API lanes are observed; a route that needs a fresh
+/// one-time price choice, or that cannot be observed at all and has no
+/// catalog price, refuses. Exact priced routes (`DeepSeek` direct),
+/// catalog-priced native defaults and local lanes pass unchanged. The plan
+/// is never rewritten: no silent route substitution.
+fn unknown_cost_refusal(
+    plan: &nika_service_execution::ExecutionAccessPlan,
+    config: &nika_providers::ProvidersConfig,
+) -> Option<String> {
+    use nika_providers::admission::{CostRoute, native_catalog_price_known};
+    for (model, lane) in plan.admitted() {
+        if lane.plan.chosen != nika_types::access::AccessClass::Api {
+            continue;
+        }
+        let reason = match CostRoute::observe(model, config.clone()) {
+            Ok(route) if !route.needs_unknown_choice() => continue,
+            Ok(_) => "its exact route needs a fresh one-time price choice".to_owned(),
+            Err(_) if native_catalog_price_known(model, config.clone()) => continue,
+            Err(why) => why,
+        };
+        return Some(format!(
+            "price unknown for `{model}`: {reason}; an unattended Serve run cannot obtain a fresh \
+             one-time cost review (use an admitted priced route or an interactive local `nika run`)"
+        ));
+    }
+    None
 }
 
 /// Everything the blocking worker holds for one admitted job.
@@ -691,3 +729,7 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "production_cost_tests.rs"]
+mod cost_tests;

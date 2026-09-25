@@ -465,3 +465,17 @@ The receipt continues to name job/execution/trace/snapshot identity; input origi
 claims belong to the journal and its evidence projection, not a fabricated
 receipt field. Hash checks detect inconsistent edits, not a coherent rewrite by
 an attacker controlling the entire local store and its unkeyed hashes.
+
+## Resident Run cost admission
+
+The production `ResidentExecutionBackend` checks the frozen access plan against
+Run route pricing before starting the effecting worker. Named jobs, snapshot jobs
+and resident schedule fires share that gate. An admitted API lane that needs a
+fresh unknown-cost choice is refused: this host has no monetary review protocol.
+The job can already have been accepted with HTTP 202; its terminal result is
+`failed` with code `admission_refused`, before any model or tool effect.
+
+Exact priced routes such as DeepSeek direct, catalog-priced native models at their
+default endpoint and explicit local lanes retain their existing rules. A numeric
+ceiling cannot substitute for the missing review. Custom execution backends own
+their implementation of this host policy.

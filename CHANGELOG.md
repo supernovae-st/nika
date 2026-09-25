@@ -36,6 +36,17 @@ refuse the newer Run history records: rolling back a binary does not migrate
 history backwards. Foundry snapshots and Jev remain optional; public installers
 do not distribute the operator's private knowledge snapshot or provider keys.
 
+**Run cost compatibility:** the informational price catalog does not by itself
+authorize an OpenAI-compatible API route. DeepSeek's admitted direct routes work
+without an unknown-price review. Other routes, including default OpenAI and
+Mistral endpoints, require a fresh, bounded Run cost review when their exact
+route and model are not admitted; unattended invocations without that review
+refuse before dispatch. Unknown-price review supports HTTPS OpenAI-compatible
+text routes only. HTTP API overrides and overridden native Anthropic/Gemini
+gateways refuse, including in interactive runs. Priced native routes at their
+default endpoints and explicit local-provider lanes retain their own admission
+rules. See [Spending](docs/usage/conversational-session.md#spending).
+
 ### Added
 
 - **The resident binds a schedule's `inputs` on every fire (#1370 · the Serve
@@ -780,6 +791,23 @@ do not distribute the operator's private knowledge snapshot or provider keys.
   so), never orphaned. The plain session keeps its own run renderer.
 
 ### Fixed
+
+- Apply Run cost admission to the production Serve backend. Named jobs, snapshot
+  jobs and resident schedule fires refuse API routes that need a fresh monetary
+  review before any model or tool effect. Queued jobs settle as
+  `failed` / `admission_refused`; no HTTP review protocol is introduced.
+
+
+- Preserve the agent replay veto through provider cost observations. A connection
+  failure after a completed tool cannot replay the whole task; an observed
+  connection failure before any tool remains eligible for the authored retry.
+
+
+- **Resume judges an access change before monetary review.** A continuation
+  that silently switches lanes retains its `NIKA-1807` explanation. An explicit
+  access pin names the change, then still faces cost admission; it grants no
+  spending authority. Durable approval claims are attached only after the cost
+  and budget checks, so a refused continuation leaves that store untouched.
 
 - **An answered rule is the literal program the Check preview compiles.** The morning audit of
   2026-09-22 saw a jq expression asked to a human accepted without validation, `nika check`

@@ -260,13 +260,23 @@ fn prequestion_typeahead_paste_and_ctrl_c_never_approve_the_session_question() {
 }
 
 #[test]
-fn a_revision_cancels_and_only_a_fresh_yes_after_the_question_is_accepted_once() {
+fn a_revision_keeps_the_review_and_only_a_fresh_yes_after_it_is_accepted_once() {
     let root = new_root();
     let mut p = spawn(root.path());
     p.send("hello\r").unwrap();
     asked(&mut p);
-    // Other words answer the question as a cancellation, never as a yes.
+    // Other words never answer the question: the same review is asked again,
+    // naming the request it still covers, and nothing is sent (one grammar
+    // with the Run's cost decision: never a yes, never a silent cancel). Its
+    // reply prompt returns only after the shell discarded any typeahead.
     p.send("hello again\r").unwrap();
+    p.expect("unchanged:").unwrap();
+    p.expect("Continue").unwrap();
+    p.expect("once?").unwrap();
+    p.expect("reply ›").unwrap();
+    assert_eq!(calls(root.path()), 0);
+    // Cancelling is an explicit no; a later yes answers nothing.
+    p.send("no\r").unwrap();
     p.expect("cancelled").unwrap();
     p.expect("nothing").unwrap();
     p.expect("sent").unwrap();

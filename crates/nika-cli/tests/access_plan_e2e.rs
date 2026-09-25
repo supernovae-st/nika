@@ -26,6 +26,7 @@
 //! the connection.
 
 use std::io::Write as _;
+use std::net::TcpListener;
 use std::os::unix::fs::PermissionsExt;
 use std::process::Command;
 
@@ -92,6 +93,17 @@ impl Rig {
     /// scratch HOME, the project as cwd. `dead_key` plants a provider key
     /// that no server will ever accept, aimed at a closed loopback port.
     fn nika(&self, args: &[&str], dead_key: bool) -> std::process::Output {
+        self.nika_with(args, dead_key, &[])
+    }
+
+    /// `nika` with extra environment applied last (a canary base URL
+    /// replaces the closed port, so any dial would be observed).
+    fn nika_with(
+        &self,
+        args: &[&str],
+        dead_key: bool,
+        extra: &[(&str, &str)],
+    ) -> std::process::Output {
         let path = format!("{}:/usr/bin:/bin", self.root.join("bin").display());
         let mut cmd = Command::new(env!("CARGO_BIN_EXE_nika"));
         cmd.args(args)
@@ -105,6 +117,7 @@ impl Rig {
             cmd.env("OPENAI_API_KEY", "sk-dead-key-never-accepted")
                 .env("NIKA_OPENAI_BASE_URL", "http://127.0.0.1:9/v1");
         }
+        cmd.envs(extra.iter().copied());
         cmd.output().expect("binary runs")
     }
 }
@@ -215,28 +228,77 @@ fn the_announce_names_the_path_the_run_takes() {
 }
 
 /// `--access api` pins the API path: the seat is present and never
-/// borrowed, the dead key is dialed and refused, the run fails honestly.
+/// borrowed. The dry-run names the pinned, metered API plan. The dead
+/// key's override is an unpriced plain-HTTP route, so run cost admission
+/// refuses the real run before any dispatch: no seat, no trace.
 #[test]
-fn a_pinned_api_path_never_borrows_the_seat() {
+fn a_pinned_api_path_never_borrows_the_seat_even_when_cost_admission_refuses_it() {
     let rig = Rig::new("pin-api", true);
-    let out = rig.nika(
+    let preview = rig.nika(
+        &[
+            "run",
+            "lane.nika",
+            "--dry-run",
+            "--access",
+            "api",
+            "--max-cost-usd",
+            "1",
+        ],
+        true,
+    );
+    let plan = text(&preview.stdout);
+    assert_eq!(
+        preview.status.code(),
+        Some(0),
+        "{plan}\n{}",
+        text(&preview.stderr)
+    );
+    assert!(
+        plan.contains("access: pinned `api`"),
+        "the pin is announced: {plan}"
+    );
+    assert!(
+        plan.contains("→ openai (api · api_metered)"),
+        "the pinned plan is the metered API path: {plan}"
+    );
+    // The dead key's route becomes an owned canary: any dial is observed.
+    let canary = TcpListener::bind("127.0.0.1:0").expect("owned endpoint");
+    canary.set_nonblocking(true).expect("nonblocking canary");
+    let endpoint = format!("http://{}/v1", canary.local_addr().expect("address"));
+    let out = rig.nika_with(
         &["run", "lane.nika", "--access", "api", "--max-cost-usd", "1"],
         true,
+        &[("NIKA_OPENAI_BASE_URL", endpoint.as_str())],
     );
     let stdout = text(&out.stdout);
     let stderr = text(&out.stderr);
-    assert_ne!(
+    assert_eq!(
         out.status.code(),
-        Some(0),
-        "the API path cannot succeed against a closed port\nstdout: {stdout}\nstderr: {stderr}"
+        Some(3),
+        "cost admission refuses the unpriced route\nstdout: {stdout}\nstderr: {stderr}"
+    );
+    assert_eq!(
+        canary
+            .accept()
+            .expect_err("the refused API run dialed nothing")
+            .kind(),
+        std::io::ErrorKind::WouldBlock
     );
     assert!(
-        stderr.contains("access: pinned `api`"),
-        "the pin is announced: {stderr}"
+        stdout.contains("unknown-cost admission"),
+        "the refusal names cost admission\nstdout: {stdout}\nstderr: {stderr}"
     );
     assert!(
         !stdout.contains("seated-answer") && !stderr.contains("seated-answer"),
         "the seat never served a pinned API run\nstdout: {stdout}\nstderr: {stderr}"
+    );
+    assert!(
+        !rig.root.join("home/seat-invocations").exists(),
+        "the refused API run never substitutes the seat"
+    );
+    assert!(
+        !rig.root.join("work/.nika/traces").exists(),
+        "nothing executed before the refusal"
     );
 }
 
@@ -321,22 +383,47 @@ fn a_signed_in_unproven_seat_does_not_outrank_a_key() {
         !rig.root.join("home/seat-invocations").exists(),
         "check probes sign-in without executing a model turn"
     );
+    // The unpinned plan the run resolves: the key's API lane, not the seat.
+    let preview = rig.nika(
+        &[
+            "run",
+            "lane.nika",
+            "--dry-run",
+            "--json",
+            "--max-cost-usd",
+            "1",
+        ],
+        true,
+    );
+    let plan = json_object(&text(&preview.stdout));
+    let lane = &plan["access"]["plans"][0];
+    assert_eq!(lane["access"], "openai", "{plan}");
+    assert_eq!(lane["chosen"], "api", "{plan}");
+    assert_eq!(lane["pinned"], false, "{plan}");
+    // Its dead key's override is an unpriced plain-HTTP route: run cost
+    // admission refuses it before dispatch, and the seat is not substituted.
     let unpinned = rig.nika(&["run", "lane.nika", "--json", "--max-cost-usd", "1"], true);
     let stdout = text(&unpinned.stdout);
     assert_eq!(
         unpinned.status.code(),
-        Some(1),
+        Some(3),
         "{stdout}\n{}",
         text(&unpinned.stderr)
     );
-    let fields = frame_fields(&stdout, "task_failed");
-    assert_eq!(
-        field(&fields, "access_id").and_then(serde_json::Value::as_str),
-        Some("openai")
+    let refusal = json_object(&stdout);
+    assert!(
+        refusal["error"]["message"]
+            .as_str()
+            .is_some_and(|message| message.contains("unknown-cost admission")),
+        "the refusal names cost admission: {refusal}"
     );
     assert!(
         !rig.root.join("home/seat-invocations").exists(),
-        "the failed API run never substitutes the seat"
+        "the refused API run never substitutes the seat"
+    );
+    assert!(
+        !rig.root.join("work/.nika/traces").exists(),
+        "nothing executed before the refusal"
     );
 }
 
@@ -441,6 +528,50 @@ impl Rig {
         dir.join(last).to_string_lossy().into_owned()
     }
 
+    /// Every trace file the project wrote, sorted.
+    fn trace_names(&self) -> Vec<String> {
+        let dir = self.root.join("work").join(".nika").join("traces");
+        let mut names: Vec<String> = std::fs::read_dir(&dir)
+            .expect("traces dir")
+            .filter_map(Result::ok)
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .filter(|n| n.ends_with(".ndjson"))
+            .collect();
+        names.sort();
+        names
+    }
+
+    /// The durable approval claim store under HOME (`.nika/approval-claims`)
+    /// as sorted (relative path, bytes) pairs, or `None` when it is absent.
+    fn claim_store(&self) -> Option<Vec<(String, Vec<u8>)>> {
+        let root = self.root.join("home").join(".nika").join("approval-claims");
+        if !root.exists() {
+            return None;
+        }
+        let mut found = Vec::new();
+        let mut pending = vec![root.clone()];
+        while let Some(dir) = pending.pop() {
+            for entry in std::fs::read_dir(&dir)
+                .expect("claim store")
+                .filter_map(Result::ok)
+            {
+                let path = entry.path();
+                if path.is_dir() {
+                    pending.push(path);
+                } else {
+                    let relative = path
+                        .strip_prefix(&root)
+                        .expect("inside the store")
+                        .display()
+                        .to_string();
+                    found.push((relative, std::fs::read(&path).expect("claim bytes")));
+                }
+            }
+        }
+        found.sort();
+        Some(found)
+    }
+
     /// Run the gated workflow up to its pause on the seat; the trace path.
     fn pause_on_the_seat(&self) -> String {
         self.write("gate.nika", GATED);
@@ -499,16 +630,23 @@ fn resume_cannot_switch_access_silently() {
     );
 }
 
-/// The explicit `--access api` NAMES the change: the resume proceeds
-/// with a notice, the seated task's cached output is not served on the
-/// other path (its lane joined the identity), and the API path is what
-/// runs — and fails honestly on the dead key.
+/// The explicit `--access api` NAMES the change: the resume judgment
+/// declares it before run cost admission, never silently. The API lane
+/// it switches to is an unpriced plain-HTTP route, and a resume cannot
+/// obtain a fresh cost choice, so admission then refuses before dispatch:
+/// nothing is dialed (canary), the seated task's cached output is not
+/// served on the other path, and no new trace starts.
 #[test]
-fn an_explicit_pin_declares_the_access_change_on_resume() {
+fn an_explicit_pin_declares_the_access_change_on_resume_before_cost_admission_refuses_it() {
     let rig = Rig::new("resume-declare", true);
     let trace = rig.pause_on_the_seat();
     rig.drop_codex();
-    let out = rig.nika(
+    let traces_before = rig.trace_names();
+    let claims_before = rig.claim_store();
+    let canary = TcpListener::bind("127.0.0.1:0").expect("owned endpoint");
+    canary.set_nonblocking(true).expect("nonblocking canary");
+    let endpoint = format!("http://{}/v1", canary.local_addr().expect("address"));
+    let out = rig.nika_with(
         &[
             "run",
             "gate.nika",
@@ -522,6 +660,7 @@ fn an_explicit_pin_declares_the_access_change_on_resume() {
             "1",
         ],
         true,
+        &[("NIKA_OPENAI_BASE_URL", endpoint.as_str())],
     );
     let stdout = text(&out.stdout);
     let stderr = text(&out.stderr);
@@ -531,13 +670,35 @@ fn an_explicit_pin_declares_the_access_change_on_resume() {
             && stderr.contains("on `openai`"),
         "the change is noticed, never silent: {stderr}"
     );
+    assert_eq!(
+        out.status.code(),
+        Some(3),
+        "cost admission refuses the unpriced API lane\nstdout: {stdout}\nstderr: {stderr}"
+    );
     assert!(
-        out.status.code() != Some(3) && out.status.code() != Some(0),
-        "the API path is dialed and fails on the dead key\nstdout: {stdout}\nstderr: {stderr}"
+        stdout.contains("unknown-cost admission"),
+        "the refusal names cost admission\nstdout: {stdout}\nstderr: {stderr}"
+    );
+    assert_eq!(
+        canary
+            .accept()
+            .expect_err("the refused resume dialed nothing")
+            .kind(),
+        std::io::ErrorKind::WouldBlock
     );
     assert!(
         !stdout.contains("seated-answer") && !stderr.contains("seated-answer"),
         "the seat's cached answer is not served on the API lane\nstdout: {stdout}\nstderr: {stderr}"
+    );
+    assert_eq!(
+        rig.trace_names(),
+        traces_before,
+        "the refused resume starts no new trace"
+    );
+    assert_eq!(
+        rig.claim_store(),
+        claims_before,
+        "the refused resume leaves the durable approval claims untouched (or absent)"
     );
 }
 

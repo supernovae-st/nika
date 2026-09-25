@@ -4,6 +4,14 @@
 
 //! #1362: real HTTP disconnects through the CLI, provider and attempt loop.
 //! All calls terminate at an owned listener; no operator credentials are read.
+//! The seat is the explicit local OpenAI-compatible lane (`vllm/interruption-fixture`
+//! through `NIKA_VLLM_BASE_URL`): strict unknown-cost admission correctly refuses an
+//! overridden native Anthropic endpoint before any dispatch. This file therefore
+//! qualifies the local compatible transport, not the Anthropic wire or a paid CLI
+//! gateway; adapter-level transient classification for every wire, Anthropic
+//! included, lives in nika-providers `parity_tests.rs`
+//! (`every_wire_keeps_connection_failures_transient_and_streams_fused`) and
+//! `wire/error_tests.rs`.
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -52,7 +60,7 @@ impl Room {
             String::new()
         };
         std::fs::write(dir.path().join("workflow.nika"), format!(
-            "nika: interrupted-provider\nmodel: anthropic/claude-sonnet-5\npermits: {{}}\nrun: {{ clock: system }}\ntasks:\n  answer:\n    timeout: 3s\n{policy}    infer: {{ prompt: fixture, max_tokens: 256 }}\noutputs:\n  answer: \"${{{{ tasks.answer.output }}}}\"\n"
+            "nika: interrupted-provider\nmodel: vllm/interruption-fixture\npermits: {{}}\nrun: {{ clock: system }}\ntasks:\n  answer:\n    timeout: 3s\n{policy}    infer: {{ prompt: fixture, max_tokens: 256 }}\noutputs:\n  answer: \"${{{{ tasks.answer.output }}}}\"\n"
         )).expect("workflow");
         Self {
             dir,
@@ -71,12 +79,10 @@ impl Room {
             .env("HOME", self.dir.path().join("home"))
             .env("NIKA_KEYCHAIN", "off")
             .env("NO_COLOR", "1")
+            // A local base URL that names a path is taken verbatim, query included, so the
+            // private canary is really on the wire (asserted in `read_request`).
             .env(
-                "ANTHROPIC_API_KEY",
-                "sk-ant-api03-owned-fixture-not-a-real-key",
-            )
-            .env(
-                "NIKA_ANTHROPIC_BASE_URL",
+                "NIKA_VLLM_BASE_URL",
                 format!("{}/private-path?token=owned-canary", self.endpoint),
             )
             .current_dir(self.dir.path());
@@ -141,11 +147,15 @@ fn serve(listener: &TcpListener, done: &AtomicBool, fault: Fault) -> usize {
                 socket
                     .set_nonblocking(false)
                     .expect("blocking accepted socket");
-                read_request(&socket);
+                // The local lane's reachability probe is not a provider attempt: it is
+                // closed unanswered (as the lane tolerates) and never counted.
+                if !read_request(&socket) {
+                    continue;
+                }
                 count += 1;
                 let response = match fault {
                     Fault::AgentAfterTool if count == 1 => {
-                        let body = r#"{"id":"owned","model":"claude-sonnet-5","content":[{"type":"tool_use","id":"write_once","name":"nika_write","input":{"path":"evidence.txt","content":"written once"}}],"stop_reason":"tool_use","usage":{"input_tokens":2,"output_tokens":1}}"#;
+                        let body = r#"{"id":"owned","model":"interruption-fixture","choices":[{"index":0,"message":{"role":"assistant","content":null,"tool_calls":[{"id":"write_once","type":"function","function":{"name":"nika_write","arguments":"{\"path\":\"evidence.txt\",\"content\":\"written once\"}"}}]},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":2,"completion_tokens":1}}"#;
                         write!(socket, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).expect("tool response");
                         continue;
                     }
@@ -159,7 +169,7 @@ fn serve(listener: &TcpListener, done: &AtomicBool, fault: Fault) -> usize {
                     }
                     Fault::Recover if count == 1 => "",
                     Fault::Recover => {
-                        let body = r#"{"id":"owned","model":"claude-sonnet-5","content":[{"type":"text","text":"provider recovered"}],"stop_reason":"end_turn","usage":{"input_tokens":2,"output_tokens":1}}"#;
+                        let body = r#"{"id":"owned","model":"interruption-fixture","choices":[{"index":0,"message":{"role":"assistant","content":"provider recovered"},"finish_reason":"stop"}],"usage":{"prompt_tokens":2,"completion_tokens":1}}"#;
                         write!(socket, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).expect("response");
                         continue;
                     }
@@ -177,11 +187,15 @@ fn serve(listener: &TcpListener, done: &AtomicBool, fault: Fault) -> usize {
     count
 }
 
-fn read_request(socket: &TcpStream) {
+/// Reads one request; `false` for the local lane's `GET /` reachability probe, `true` for a
+/// provider attempt (whose request line must carry the private canary path and query).
+fn read_request(socket: &TcpStream) -> bool {
     socket
         .set_read_timeout(Some(Duration::from_secs(5)))
         .expect("read bound");
     let mut reader = BufReader::new(socket);
+    let mut request_line = String::new();
+    assert!(reader.read_line(&mut request_line).expect("request line") > 0);
     let mut length = 0;
     loop {
         let mut line = String::new();
@@ -195,6 +209,13 @@ fn read_request(socket: &TcpStream) {
             length = value.trim().parse::<usize>().expect("length");
         }
     }
+    if request_line.starts_with("GET ") {
+        return false;
+    }
+    assert!(
+        request_line.starts_with("POST /private-path?token=owned-canary "),
+        "the canary is on the wire: {request_line}"
+    );
     assert!(length < 1_048_576);
     let mut body = vec![0; length];
     reader.read_exact(&mut body).expect("body");
@@ -203,6 +224,7 @@ fn read_request(socket: &TcpStream) {
         request["stream"], false,
         "workflow inference uses the buffered provider door"
     );
+    true
 }
 
 fn frame<'a>(events: &'a [Value], kind: &str) -> &'a Value {
@@ -249,9 +271,11 @@ fn disconnects_retry_only_to_the_authored_attempt_limit_and_keep_evidence() {
         for private in ["private-path", "owned-canary", "token="] {
             assert!(!message.contains(private), "{message}");
         }
+        // The local lane has no catalog tariff: its settled spend is `unpriced` (a priced
+        // cloud lane reports `unmetered` here); the message above still says unknown, not zero.
         assert_eq!(
             frame(&events, "run_settled")["spend"]["qualifier"],
-            "unmetered"
+            "unpriced"
         );
         room.verify(&events);
     }
@@ -304,7 +328,7 @@ fn an_agent_connection_failure_after_a_tool_never_replays_the_task() {
     for on_codes in ["", ", on_codes: [NIKA-INFER-001]"] {
         let mut room = Room::new(Fault::AgentAfterTool, true, 3);
         let workflow = format!(
-            "nika: agent-interrupted\nmodel: anthropic/claude-sonnet-5\npermits: {{ tools: [\"nika:write\"], fs: {{ write: [\"./evidence.txt\"] }} }}\ntasks:\n  answer:\n    timeout: 3s\n    retry: {{ max_attempts: 3, backoff_ms: 1, jitter: false{on_codes} }}\n    agent: {{ prompt: fixture, tools: [\"nika:write\"], max_turns: 3, max_tokens_total: 2048 }}\n"
+            "nika: agent-interrupted\nmodel: vllm/interruption-fixture\npermits: {{ tools: [\"nika:write\"], fs: {{ write: [\"./evidence.txt\"] }} }}\ntasks:\n  answer:\n    timeout: 3s\n    retry: {{ max_attempts: 3, backoff_ms: 1, jitter: false{on_codes} }}\n    agent: {{ prompt: fixture, tools: [\"nika:write\"], max_turns: 3, max_tokens_total: 2048 }}\n"
         );
         std::fs::write(room.dir.path().join("workflow.nika"), workflow).expect("agent workflow");
         let (output, events) = room.run();

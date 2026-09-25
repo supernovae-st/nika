@@ -78,6 +78,11 @@ impl Rig {
     /// The binary with a dead key aimed at a closed port and the stub
     /// seat on PATH. Without a pin, the key outranks this unproven seat.
     fn nika(&self, args: &[&str]) -> std::process::Output {
+        self.nika_with(args, &[])
+    }
+
+    /// The same binary with extra environment (a local server's base URL).
+    fn nika_with(&self, args: &[&str], extra: &[(&str, &str)]) -> std::process::Output {
         let path = format!("{}:/usr/bin:/bin", self.root.join("bin").display());
         Command::new(env!("CARGO_BIN_EXE_nika"))
             .args(args)
@@ -88,6 +93,7 @@ impl Rig {
             .env("NIKA_KEYCHAIN", "off")
             .env("OPENAI_API_KEY", "sk-dead-key-never-accepted")
             .env("NIKA_OPENAI_BASE_URL", "http://127.0.0.1:9/v1")
+            .envs(extra.iter().copied())
             .current_dir(self.root.join("work"))
             .output()
             .expect("binary runs")
@@ -317,41 +323,60 @@ fn last_frame(stdout: &str) -> serde_json::Value {
     serde_json::from_str(line).unwrap_or_else(|e| panic!("the last line is JSON ({e}): {line}"))
 }
 
-/// A FAILED task terminal carries the lane that failed: the API path
-/// pinned by `--access api` dials the dead key, and the `task_failed`
+/// A FAILED task terminal carries the lane that failed: the `task_failed`
 /// frame names `model` · `provider` · `access` · `access_id` · `billing`
 /// — a sealed trace says which path was allowed to bill (W1-F4).
+/// The dead key's plain-HTTP API route is unpriced, so run cost admission
+/// refuses it before any task; the pinned API lane's attribution is read
+/// from its dry-run plan, and the failing task rides a free local
+/// OpenAI-compatible lane aimed at a closed port.
 #[test]
-fn a_failed_task_terminal_carries_its_lane() {
+fn a_failed_task_terminal_carries_its_lane_on_a_free_local_lane() {
     let rig = Rig::new("failed-lane");
     rig.write("lane.nika", &workflow(256));
-    let run = rig.nika(&[
+    let preview = rig.nika(&[
         "run",
         "lane.nika",
+        "--dry-run",
         "--json",
         "--access",
         "api",
         "--max-cost-usd",
         "1",
     ]);
+    let plan: serde_json::Value =
+        serde_json::from_str(text(&preview.stdout).trim()).expect("dry-run plan");
+    let api = &plan["access"]["plans"][0];
+    assert_eq!(api["access"], "openai", "{plan}");
+    assert_eq!(api["chosen"], "api", "{plan}");
+    assert_eq!(api["provider"], "openai", "{plan}");
+    assert_eq!(api["billing"], "api_metered", "{plan}");
+    rig.write(
+        "local.nika",
+        "nika: layers-local\nmodel: vllm/fixture-model\ntasks:\n  answer:\n    infer:\n      prompt: classify this\n      max_tokens: 256\n",
+    );
+    let run = rig.nika_with(
+        &["run", "local.nika", "--json", "--max-cost-usd", "1"],
+        &[("NIKA_VLLM_BASE_URL", "http://127.0.0.1:9/v1")],
+    );
     let stdout = text(&run.stdout);
     assert_eq!(
         run.status.code(),
         Some(1),
-        "the API path fails on the dead key\n{stdout}"
+        "the local lane fails on the closed port\n{stdout}"
     );
     let fields = frame_fields(&stdout, "task_failed");
-    assert_eq!(field(&fields, "access_id"), Some("openai"), "{fields:?}");
-    assert_eq!(field(&fields, "access"), Some("api"), "{fields:?}");
+    assert_eq!(field(&fields, "access_id"), Some("vllm"), "{fields:?}");
+    assert_eq!(field(&fields, "access"), Some("local"), "{fields:?}");
     assert_eq!(
         field(&fields, "model"),
-        Some("openai/gpt-5.2"),
+        Some("vllm/fixture-model"),
         "{fields:?}"
     );
-    assert_eq!(field(&fields, "provider"), Some("openai"), "{fields:?}");
-    assert_eq!(field(&fields, "billing"), Some("api_metered"), "{fields:?}");
+    assert_eq!(field(&fields, "provider"), Some("vllm"), "{fields:?}");
+    assert_eq!(field(&fields, "billing"), Some("local"), "{fields:?}");
     assert!(
-        field(&fields, "note").is_some_and(|n| n.contains("openai/gpt-5.2")),
+        field(&fields, "note").is_some_and(|n| n.contains("vllm/fixture-model")),
         "the note names the model, never `?`: {fields:?}"
     );
     // The verdict frame carries the cause AND the lanes (W1-F7 · W1-F13).
@@ -359,8 +384,8 @@ fn a_failed_task_terminal_carries_its_lane() {
     assert_eq!(settled["kind"], "run_settled", "{settled}");
     assert_eq!(settled["status"], "failed", "{settled}");
     assert_eq!(settled["error"]["task"], "answer", "{settled}");
-    assert_eq!(settled["access_plan"][0]["access"], "openai", "{settled}");
-    assert_eq!(settled["access_plan"][0]["chosen"], "api", "{settled}");
+    assert_eq!(settled["access_plan"][0]["access"], "vllm", "{settled}");
+    assert_eq!(settled["access_plan"][0]["chosen"], "local", "{settled}");
 }
 
 /// A run REFUSED before any task settles with its code on the verdict

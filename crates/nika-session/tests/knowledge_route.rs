@@ -330,27 +330,27 @@ fn the_public_turn_presents_the_pinned_pack_and_the_receipt_names_the_bytes_the_
 #[test]
 fn the_default_strategy_escalates_and_only_the_native_door_reads_the_pack() {
     let world = world();
-    // The private plan's answer is not a plan: the cold round ends without a candidate and the
-    // native door opens (the CLI's default, escalate), with the pack beside the card.
-    let seat = LoopbackSeat::start(vec![
-        json!({"not": "a plan"}).to_string(),
-        native_answer(&candidate("mock/echo", false)),
-    ]);
+    // With a pinned pack attached, the default escalation (the CLI's) gives the first open
+    // generation the native card and the selected references at once: there is no preliminary
+    // private-plan call, which could not read the pack. The native door is the pack's only
+    // reader and the only call.
+    let seat = LoopbackSeat::start(vec![native_answer(&candidate("mock/echo", false))]);
     let snapshot = world.foundry.snapshot.display().to_string();
     let report = run_child(&world, "escalate", &seat, &[("NIKA_KNOWLEDGE", &snapshot)]);
     seat.shutdown();
     let bodies = seat.bodies();
     assert_eq!(
         bodies.len(),
-        2,
-        "one plan call, one native call: {bodies:#?}"
+        1,
+        "one native call, no private plan: {bodies:#?}"
     );
-    let plan = message(&bodies[0], "system");
     assert!(
-        !plan.contains("S03-BLOCK-MARKER"),
-        "the private plan never reads knowledge"
+        bodies[0]["response_format"]["json_schema"]["schema"]["properties"]["candidate"]
+            .is_object(),
+        "the one call is the native door's: {:#}",
+        bodies[0]["response_format"]
     );
-    let native = message(&bodies[1], "system");
+    let native = message(&bodies[0], "system");
     assert_presented(&native, &expected_pack(&world.foundry, INTENT));
     let details = report["details_first"].as_str().unwrap();
     assert!(

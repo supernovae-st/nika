@@ -905,3 +905,106 @@ fn serve_stops_a_pending_native_round_on_sigterm_without_a_repair() {
     drop(caller);
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// A resident job cannot obtain a fresh Run cost review, so an admitted API route whose price
+/// needs one (an OpenAI-compatible override on plain HTTP, which `nika run` refuses before
+/// dispatch) refuses before the worker starts: the job settles failed with `admission_refused`,
+/// the provider sees no request and the local task ordered before the inference leaves no marker.
+#[cfg(unix)]
+#[test]
+fn an_unreviewed_api_route_refuses_before_any_job_effect() {
+    const WORKFLOW: &str = concat!(
+        "nika: unreviewed\n",
+        "model: openai/gpt-4.1-mini\n",
+        "permits:\n",
+        "  fs: { write: [\"marker.txt\"] }\n",
+        "  tools: [\"nika:write\"]\n",
+        "tasks:\n",
+        "  mark:\n",
+        "    invoke:\n",
+        "      tool: \"nika:write\"\n",
+        "      args: { path: \"marker.txt\", content: \"effect\" }\n",
+        "  ask:\n",
+        "    after: { mark: success }\n",
+        "    infer: { prompt: \"Reply with one word.\", max_tokens: 32 }\n",
+    );
+    /// A caught regression panics before the clean stop: this test's own server is then
+    /// killed and reaped on unwind, and the temp project stays behind as evidence.
+    struct OwnedServe(Option<std::process::Child>);
+    impl Drop for OwnedServe {
+        fn drop(&mut self) {
+            if let Some(mut child) = self.0.take() {
+                let _ = child.kill();
+                let _ = child.wait();
+            }
+        }
+    }
+    let seat = seat("never requested".to_owned(), false);
+    let dir = project(
+        "unreviewed-api-route",
+        "nika: unreviewed-api-route\n",
+        &[("unreviewed.nika", WORKFLOW)],
+    );
+    secure_token(&dir);
+    let address = free_address();
+    let base = format!("http://127.0.0.1:{}/v1/chat/completions", seat.port);
+    let mut serve = OwnedServe(Some(native_serve(
+        &dir,
+        &address,
+        &[],
+        &[
+            ("NIKA_OPENAI_BASE_URL", base.as_str()),
+            ("NIKA_OPENAI_API_KEY", "synthetic-unreviewed-route-key"),
+        ],
+    )));
+    let _health = healthy(&address, serve.0.as_mut().expect("owned serve"));
+    let job = r#"{"workflow":"workflows/unreviewed.nika"}"#;
+    let (status, _, admitted) = http(
+        &address,
+        &format!(
+            "POST /v1/jobs HTTP/1.1\r\nHost: localhost\r\nAuthorization: Bearer {TOKEN_VALUE}\r\nIdempotency-Key: unreviewed-route-1\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{job}",
+            job.len()
+        ),
+    );
+    assert_eq!(status, 202, "{admitted}");
+    let admitted: serde_json::Value = serde_json::from_str(&admitted).expect("admission body");
+    let id = admitted["id"].as_str().expect("job id").to_owned();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+    let settled = loop {
+        let (status, _, body) = http(
+            &address,
+            &format!(
+                "GET /v1/jobs/{id} HTTP/1.1\r\nHost: localhost\r\nAuthorization: Bearer {TOKEN_VALUE}\r\nConnection: close\r\n\r\n"
+            ),
+        );
+        assert_eq!(status, 200, "{body}");
+        let record: serde_json::Value = serde_json::from_str(&body).expect("job body");
+        if record["status"] != "queued" && record["status"] != "running" {
+            break record;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the job never settled: {record}"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    };
+    assert_eq!(settled["status"], "failed", "{settled}");
+    assert_eq!(settled["error"]["code"], "admission_refused", "{settled}");
+    assert!(
+        settled["error"]["message"]
+            .as_str()
+            .is_some_and(|message| message.contains("price unknown")),
+        "{settled}"
+    );
+    assert!(
+        seat.bodies.lock().expect("bodies").is_empty(),
+        "the provider must receive no request"
+    );
+    assert!(
+        !dir.join("marker.txt").exists(),
+        "no task may run before the refusal"
+    );
+    let mut child = serve.0.take().expect("owned serve");
+    assert_eq!(terminate(&mut child), Some(0));
+    let _ = std::fs::remove_dir_all(dir);
+}

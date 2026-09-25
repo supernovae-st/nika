@@ -5,8 +5,13 @@
 //! The real CLI adapter: one core, explicit writes, honest incomplete, no ambient policy.
 use nika_onboard::compile::{CompileRequest, CompileStatus, compile};
 use serde_json::Value;
+use std::io::{Read, Write};
+use std::net::{TcpListener, TcpStream};
 use std::path::Path;
 use std::process::{Command, Output, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use std::thread::JoinHandle;
 
 fn command(room: &Path) -> Command {
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_nika"));
@@ -32,6 +37,131 @@ fn result(out: &Output) -> Value {
             String::from_utf8_lossy(&out.stderr)
         )
     })
+}
+
+/// A loopback seat on the OpenAI-compatible wire (the vLLM route's base URL override): each
+/// request is answered with the next scripted text, the last one repeating, and every body it
+/// received is kept. No key, no network beyond 127.0.0.1. Dropping the seat stops and joins its
+/// thread, so no listener outlives the case that started it.
+struct LoopbackSeat {
+    port: u16,
+    bodies: Arc<Mutex<Vec<Value>>>,
+    stop: Arc<AtomicBool>,
+    server: Option<JoinHandle<()>>,
+}
+
+impl LoopbackSeat {
+    // The synchronous CLI fixture owns this blocking socket thread and joins it on drop.
+    #[allow(clippy::disallowed_methods)]
+    fn start(script: Vec<String>) -> Self {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("loopback seat");
+        let port = listener.local_addr().expect("seat address").port();
+        let bodies = Arc::new(Mutex::new(Vec::new()));
+        let stop = Arc::new(AtomicBool::new(false));
+        let (seen, halt) = (Arc::clone(&bodies), Arc::clone(&stop));
+        let server = std::thread::spawn(move || {
+            let mut next = 0_usize;
+            for stream in listener.incoming() {
+                if halt.load(Ordering::SeqCst) {
+                    break;
+                }
+                let Ok(mut stream) = stream else { continue };
+                let Some(body) = read_request(&mut stream) else {
+                    continue;
+                };
+                seen.lock().expect("seat log").push(body);
+                let text = script
+                    .get(next)
+                    .or_else(|| script.last())
+                    .cloned()
+                    .unwrap_or_default();
+                next += 1;
+                respond(&mut stream, &text);
+            }
+        });
+        Self {
+            port,
+            bodies,
+            stop,
+            server: Some(server),
+        }
+    }
+
+    /// The base URL a local engine's override takes (`NIKA_VLLM_BASE_URL`).
+    fn base(&self) -> String {
+        let port = self.port;
+        format!("127.0.0.1:{port}")
+    }
+
+    fn bodies(&self) -> Vec<Value> {
+        self.bodies.lock().expect("seat log").clone()
+    }
+}
+
+impl Drop for LoopbackSeat {
+    fn drop(&mut self) {
+        // The flag ends the accept loop at its next connection; the wake connection is that one.
+        self.stop.store(true, Ordering::SeqCst);
+        let _ = TcpStream::connect(("127.0.0.1", self.port));
+        if let Some(server) = self.server.take() {
+            let _ = server.join();
+        }
+    }
+}
+
+/// The most bytes the seat buffers for one request, headers and body together.
+const MAX_REQUEST_BYTES: usize = 4 << 20;
+
+fn read_request(stream: &mut TcpStream) -> Option<Value> {
+    stream
+        .set_read_timeout(Some(std::time::Duration::from_secs(30)))
+        .ok()?;
+    let mut buffer = Vec::new();
+    let mut chunk = [0_u8; 8192];
+    let header_end = loop {
+        let n = stream.read(&mut chunk).ok()?;
+        if n == 0 || buffer.len() + n > MAX_REQUEST_BYTES {
+            return None;
+        }
+        buffer.extend_from_slice(&chunk[..n]);
+        if let Some(at) = buffer.windows(4).position(|w| w == b"\r\n\r\n") {
+            break at + 4;
+        }
+    };
+    let head = String::from_utf8_lossy(&buffer[..header_end]).to_lowercase();
+    let length: usize = head
+        .lines()
+        .find_map(|line| line.strip_prefix("content-length:"))
+        .and_then(|v| v.trim().parse().ok())
+        .unwrap_or(0);
+    if length > MAX_REQUEST_BYTES.saturating_sub(header_end) {
+        return None;
+    }
+    while buffer.len() < header_end + length {
+        let n = stream.read(&mut chunk).ok()?;
+        if n == 0 {
+            break;
+        }
+        buffer.extend_from_slice(&chunk[..n]);
+    }
+    serde_json::from_slice(buffer.get(header_end..header_end + length)?).ok()
+}
+
+fn respond(stream: &mut TcpStream, text: &str) {
+    let body = serde_json::json!({
+        "id": "chatcmpl-loopback",
+        "object": "chat.completion",
+        "choices": [{"index": 0, "message": {"role": "assistant", "content": text}, "finish_reason": "stop"}],
+        "usage": {"prompt_tokens": 1000, "completion_tokens": 200, "total_tokens": 1200},
+    })
+    .to_string();
+    let head = format!(
+        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+        body.len()
+    );
+    let _ = stream.write_all(head.as_bytes());
+    let _ = stream.write_all(body.as_bytes());
+    let _ = stream.flush();
 }
 
 #[test]
@@ -112,26 +242,42 @@ fn cold_authoring_is_bounded_and_ambient_credentials_do_not_opt_in() {
 }
 
 /// The CLI defaults to escalation after the cold plan fails. Its receipt must include
-/// both phases; a schema mock cannot become an accepted native candidate.
+/// both phases and exactly the calls the seat received; an invalid candidate is never
+/// accepted. The seat is a scripted loopback, not the schema mock: the mock fills every
+/// required field of the native answer (`candidate` AND `candidate_lines`), and the door
+/// refuses such an ambiguous answer before judging any candidate, so no repair could be
+/// observed. Here the first answer is not a plan and every later answer is ONE lossless
+/// candidate that is not a workflow, so each native round is judged and refused.
 #[test]
 fn default_native_escalation_preserves_calls_and_honors_the_repair_bound() {
     let room = tempfile::tempdir().expect("room");
     let intent = "Review this customer request and harmonise the tone of the support reply";
+    let not_a_plan = serde_json::json!({"not": "a plan"}).to_string();
+    let native_answer = serde_json::json!({
+        "candidate": "not a workflow",
+        "questions": [],
+        "gaps": [],
+        "notes": ""
+    })
+    .to_string();
     for repairs in [0_u64, 1, 3] {
-        let out = call(
-            room.path(),
-            &[
+        let seat = LoopbackSeat::start(vec![not_a_plan.clone(), native_answer.clone()]);
+        let repairs_arg = repairs.to_string();
+        let out = command(room.path())
+            .env("NIKA_VLLM_BASE_URL", seat.base())
+            .args([
                 "compile",
                 intent,
                 "--authoring-model",
-                "mock/echo",
+                "vllm/loopback-seat",
                 "--authoring-repairs",
-                &repairs.to_string(),
+                repairs_arg.as_str(),
                 "--authoring-timeout",
                 "2",
                 "--json",
-            ],
-        );
+            ])
+            .output()
+            .expect("CLI");
         let doc = result(&out);
         assert_eq!(out.status.code(), Some(2), "{doc}");
         assert_eq!(doc["compile_version"], 2);
@@ -145,22 +291,32 @@ fn default_native_escalation_preserves_calls_and_honors_the_repair_bound() {
             .iter()
             .map(|c| c["call"].as_str().expect("phase"))
             .collect();
+        // An answer that is not a plan ends the cold round at once (no anchoring repair).
         let expected: &[&str] = if repairs == 0 {
-            &["plan", "repair", "native"]
+            &["plan", "native"]
         } else {
-            &["plan", "repair", "native", "native-repair"]
+            &["plan", "native", "native-repair"]
         };
         assert_eq!(phases, expected, "{doc}");
         assert_eq!(
             provenance["authoring"]["calls"].as_u64(),
             Some(context.len() as u64)
         );
+        assert_eq!(
+            seat.bodies().len(),
+            context.len(),
+            "the receipt counts exactly the calls the seat received"
+        );
         let native = &provenance["decision"]["native"];
         let rounds = native["rounds"].as_array().expect("native rounds");
         assert!(rounds.len() as u64 <= 1 + repairs, "{doc}");
         assert_eq!(native["accepted"], false);
-        assert_eq!(rounds.len() + 2, context.len(), "cold calls remain counted");
-        // The repeated mock candidate stops on no progress, even with repairs left.
+        assert_eq!(
+            rounds.len() + 1,
+            context.len(),
+            "the cold call remains counted"
+        );
+        // The repeated candidate stops on no progress, even with repairs left.
         if repairs > 1 {
             assert_eq!(rounds.len(), 2, "{doc}");
         }

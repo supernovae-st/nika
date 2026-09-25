@@ -466,8 +466,8 @@ fn a_named_run_line_carries_its_own_ceiling() {
         .expect("produced · ./copy.md (6 B)")
         .expect("what was produced, from the permit frame, with its size");
     session
-        .expect("cost · nothing metered · no model was asked")
-        .expect("the cost is honest");
+        .expect("cost · no model usage recorded")
+        .expect("the cost is honest: scoped to what the trace records");
     session.expect("run observed · exit 0").expect("succeeded");
     session.expect("nika ›").expect("prompt");
     session.send_line("/proof").expect("the proof door");

@@ -69,6 +69,8 @@ fn whole_response_eof_duplicate_malformed_cross_child_and_no_are_distinct() {
                 "--exact",
                 "run_cost::exchange::tests::pipe_fixture_child",
                 "--nocapture",
+                // Serial libtest otherwise prefixes the JSON frame with the test name.
+                "--quiet",
             ])
             .current_dir(root.path())
             .stdin(Stdio::piped())

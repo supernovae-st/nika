@@ -102,6 +102,22 @@ struct CliExecutionRequest<'a> {
 }
 
 impl CliExecutionRequest<'_> {
+    fn validate_resume(
+        &self,
+        wf: &nika_schema::raw::RawWorkflow,
+        source: &str,
+        plan: &nika_providers::ExecutionAccessPlan,
+    ) -> Result<ResumeSetup, u8> {
+        resume_setup::validate_resume(
+            self.resume,
+            wf,
+            source,
+            self.model_override,
+            (plan, self.access_pin),
+            self.output_json || self.json,
+        )
+    }
+
     fn announce_model_scope(&self, report: &CheckReport) {
         if let Some(notice) = nika_display::model_scope::notice(
             report,
@@ -298,6 +314,12 @@ fn run_admitted_context(
             request.output_json,
         );
     }
+    // Judge the trace and access change before monetary review. This phase reads
+    // and folds only: durable approval claims stay untouched until cost admits.
+    let setup = match request.validate_resume(&wf, source, &plan) {
+        Ok(setup) => setup,
+        Err(code) => return RunVerdict::bare(code),
+    };
     let cost = match unknown_cost::review(
         &world.display_root,
         request.file,
@@ -320,14 +342,7 @@ fn run_admitted_context(
     {
         return RunVerdict::bare(code);
     }
-    let setup = match resume_setup(
-        request.resume,
-        &wf,
-        source,
-        request.model_override,
-        (&plan, request.access_pin),
-        machine,
-    ) {
+    let setup = match setup.bind_durable(machine) {
         Ok(setup) => setup,
         Err(code) => return RunVerdict::bare(code),
     };

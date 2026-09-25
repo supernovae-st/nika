@@ -39,6 +39,44 @@ These are finite synthetic examples on one installed candidate. They do not esta
 
 The candidate is installed reversibly for the qualifying operator. No universal installer or full V7 release is claimed by this note.
 
+## Release-profile follow-up: public authoring path
+
+On 25 September, a separate local release-profile candidate was exercised without
+Jev or a knowledge snapshot: source `1f7622ecd148a2516c9dd458d946f4d464da901c`,
+`nika 0.121.0 (1f7622ecd)`, SHA-256
+`7335f025d27b81b6cdc5a90e1353c72ccfc4355ae740e1306204334939ea8d2f`.
+It was built from a clean tree for `aarch64-apple-darwin` with
+`local-infer,access-harness`. This was a frozen local executable, not a downloaded
+release archive or the final installation.
+
+Three native terminal journeys passed in isolated HOME directories with
+DeepSeek. The CSV filter produced exactly Aster/Cedar and total 20. The summary
+produced three bullets containing only the synthetic source's facts, with one
+recorded `deepseek/deepseek-flash` inference. The revision changed only the two
+CSV destination occurrences, survived close/reopen and `/restore`, then produced
+C101/C103 and total 40, with the obsolete destination absent. Saving created no
+result files. The restored draft required a new Run ceiling; its explicit
+zero-ceiling run passed. Source files remained unchanged.
+
+| Run | Trace identifier | Verified chain head |
+| --- | --- | --- |
+| Filter | `2026-09-25T09-10-33Z-1e6b` | `c91dcc757fb1f3a0aa0ba609dc82d831e6ad548ba9c4282724cfa0ddc576c357` |
+| Summary | `2026-09-25T09-13-08Z-e5d8` | `c01c43451a3bb1a2e362591b808e6db4935ce6f2ef3bb9ad1c8dfb9f031e61a4` |
+| Revision | `2026-09-25T09-17-30Z-fb4a` | `9575479a7196095ed2575ec875f36e24eb58bd21219a597b657227082eb05b1f` |
+
+All three chains independently verified; the runs were **unsealed**, as expected
+in keyless isolated homes. Eight authoring calls had a catalog subtotal of
+approximately USD 0.024537; the summary inference recorded USD 0.009652536,
+below its USD 0.25 Run ceiling. These are estimates, not invoices or a global
+spending cap. There was one factual clarification for the runtime model.
+
+The same bytes passed `funnel-e2e.sh`, `trust-battery.sh`, all 244 native
+authoring-gauntlet cases, and the project-schema check's 37 workflow cases plus
+seven negative judge controls. These checks do not substitute for repository CI:
+23 integration tests still failed at that source revision and were assigned
+separate repairs. This follow-up establishes the three observed journeys only;
+it does not qualify changed source, all providers, or a future public archive.
+
 ## Operation and downgrade notes
 
 Review and save with `yes` before issuing a separate Run. A Run ceiling stated while a proposal still awaits consent is outside this qualified sequence. Direct Session API callers must answer a pending gate before requesting another Run.
