@@ -884,13 +884,10 @@ pub(crate) fn render_prompt_args(task: &RawTask, args: Option<&Value>, base: &Sc
     expr::render_json(&raw, &scope).unwrap_or(raw)
 }
 
-/// Canonical shown content over the secret-marker scope (NEP-0013 law 1).
-fn canonical_content(task: &RawTask, gated: &[GatedAction], scope: &Scope<'_>) -> (String, Value) {
-    let RawAction::Invoke(invoke) = &task.action else {
-        // The gate guarantees invoke; keep this helper total regardless.
-        return ("confirm".to_owned(), Value::Null);
-    };
-    let rendered = render_prompt_args(task, invoke.args.as_ref().map(|a| &a.value), scope);
+/// The prompt's shown fields in rendered `args:` — `mode` (default
+/// `confirm`) · `message` · the string `choices` — read ONE way for the
+/// approval's canonical content AND the pause payload.
+pub(crate) fn prompt_fields(rendered: &Value) -> (String, Option<String>, Vec<String>) {
     let mode = rendered
         .get("mode")
         .and_then(Value::as_str)
@@ -908,9 +905,20 @@ fn canonical_content(task: &RawTask, gated: &[GatedAction], scope: &Scope<'_>) -
                 .iter()
                 .filter_map(Value::as_str)
                 .map(str::to_owned)
-                .collect::<Vec<_>>()
+                .collect()
         })
         .unwrap_or_default();
+    (mode, message, choices)
+}
+
+/// Canonical shown content over the secret-marker scope (NEP-0013 law 1).
+fn canonical_content(task: &RawTask, gated: &[GatedAction], scope: &Scope<'_>) -> (String, Value) {
+    let RawAction::Invoke(invoke) = &task.action else {
+        // The gate guarantees invoke; keep this helper total regardless.
+        return ("confirm".to_owned(), Value::Null);
+    };
+    let rendered = render_prompt_args(task, invoke.args.as_ref().map(|a| &a.value), scope);
+    let (mode, message, choices) = prompt_fields(&rendered);
     let gated_json: Vec<Value> = gated
         .iter()
         .map(|g| json!({ "classes": g.classes, "task": g.task }))

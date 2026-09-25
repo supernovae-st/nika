@@ -1401,7 +1401,13 @@ fn apply_on_error(task: &RawTask, scope: &Scope<'_>, failed: FailedOutcome) -> R
         usage: _,
         access_refused,
     } = failed;
-    let Some(on_error) = task.on_error.as_ref() else {
+    let Some(on_error) = task
+        .on_error
+        .as_ref()
+        .filter(|on_error| on_error_applies(&on_error.value, &error))
+    else {
+        // No `on_error:`, or an unlisted code: falls through to the
+        // default fail (spec 05).
         return RunResult::Failed {
             error,
             cost_usd,
@@ -1410,16 +1416,6 @@ fn apply_on_error(task: &RawTask, scope: &Scope<'_>, failed: FailedOutcome) -> R
             access_refused,
         };
     };
-    if !on_error_applies(&on_error.value, &error) {
-        // Unlisted code falls through to the default fail (spec 05).
-        return RunResult::Failed {
-            error,
-            cost_usd,
-            cost_unpriced,
-            access,
-            access_refused,
-        };
-    }
     match &on_error.value.action {
         OnErrorAction::Recover(value) => match expr::render_json(&value.value, scope) {
             Ok(recovered) => RunResult::recovered(recovered, error, cost_usd, cost_unpriced),

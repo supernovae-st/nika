@@ -199,26 +199,7 @@ pub(crate) fn harness_gate_block(finish: &Finish, wf: &RawWorkflow) -> Option<Wo
 /// a payload never blocks the pause itself).
 fn payload_of(task: &RawTask, args: Option<&Value>, scope: &Scope<'_>) -> WorkflowPause {
     let rendered = crate::approval::render_prompt_args(task, args, scope);
-    let mode = rendered
-        .get("mode")
-        .and_then(Value::as_str)
-        .unwrap_or("confirm")
-        .to_owned();
-    let message = rendered
-        .get("message")
-        .and_then(Value::as_str)
-        .map(str::to_owned);
-    let choices = rendered
-        .get("choices")
-        .and_then(Value::as_array)
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(Value::as_str)
-                .map(str::to_owned)
-                .collect()
-        })
-        .unwrap_or_default();
+    let (mode, message, choices) = crate::approval::prompt_fields(&rendered);
     WorkflowPause::new(task.id.value.clone(), mode, message, choices)
 }
 

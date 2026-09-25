@@ -434,7 +434,7 @@ fn execution_project(
     } else {
         cwd.join(path)
     };
-    let absolute = lexical_path(&absolute);
+    let absolute = crate::verbs::check::lexical_snapshot_path(&absolute);
     let (display_root, root) = absolute.strip_prefix(&cwd).map_or_else(
         |_| {
             let parent = absolute
@@ -450,24 +450,6 @@ fn execution_project(
     let project = nika_fs::OwnedDir::open(&display_root)
         .map_err(|error| format!("cannot hold project `{}`: {error}", display_root.display()))?;
     Ok((project, root, display_root))
-}
-
-fn lexical_path(path: &std::path::Path) -> std::path::PathBuf {
-    let mut normalized = std::path::PathBuf::new();
-    for component in path.components() {
-        match component {
-            std::path::Component::Prefix(prefix) => normalized.push(prefix.as_os_str()),
-            std::path::Component::RootDir => {
-                normalized.push(std::path::Path::new(std::path::MAIN_SEPARATOR_STR));
-            }
-            std::path::Component::CurDir => {}
-            std::path::Component::ParentDir => {
-                normalized.pop();
-            }
-            std::path::Component::Normal(part) => normalized.push(part),
-        }
-    }
-    normalized
 }
 
 fn admission_refusal(error: &nika_execution::ExecutionError, output_json: bool) -> RunVerdict {
