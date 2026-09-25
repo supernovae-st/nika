@@ -169,8 +169,9 @@ fn constraint_duty(constraint: &str) -> Duty {
 
 /// The ledger of one request.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub(super) struct Ledger {
-    pub duties: Vec<Duty>,
+#[non_exhaustive]
+pub struct Ledger {
+    pub(crate) duties: Vec<Duty>,
 }
 
 impl Ledger {
@@ -179,7 +180,8 @@ impl Ledger {
     /// the constraints, safeguards from the obligations, a distributive trigger as a
     /// cardinality, and every unknown as untyped work. Nothing is invented and nothing
     /// recognized is left out.
-    pub(super) fn extract(plan: &Plan) -> Self {
+    #[must_use]
+    pub fn extract(plan: &Plan) -> Self {
         let mut duties = Vec::new();
         for step in &plan.steps {
             if !step.op.carries_constraints() {
@@ -254,7 +256,8 @@ impl Ledger {
 
     /// The deterministic door's ledger: the plan's duties plus every clause the reader
     /// could not settle (unresolved work, an ambiguous head, prose it cannot parse).
-    pub(super) fn extract_reading(reading: &Reading) -> Self {
+    #[must_use]
+    pub fn extract_reading(reading: &Reading) -> Self {
         let mut ledger = Self::extract(&reading.plan);
         for clause in &reading.unresolved {
             ledger.duties.push(Duty::new(DutyKind::Work, clause));

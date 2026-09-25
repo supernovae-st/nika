@@ -97,9 +97,27 @@ struct CliExecutionRequest<'a> {
     task_filter: Option<&'a str>,
     no_outputs: bool,
     max_cost_usd: Option<f64>,
+    review_channel: nika_cli_host::run_cost::ReviewChannel,
+    invocation_cost: Option<f64>,
 }
 
 impl CliExecutionRequest<'_> {
+    fn validate_resume(
+        &self,
+        wf: &nika_schema::raw::RawWorkflow,
+        source: &str,
+        plan: &nika_providers::ExecutionAccessPlan,
+    ) -> Result<ResumeSetup, u8> {
+        resume_setup::validate_resume(
+            self.resume,
+            wf,
+            source,
+            self.model_override,
+            (plan, self.access_pin),
+            self.output_json || self.json,
+        )
+    }
+
     fn announce_model_scope(&self, report: &CheckReport) {
         if let Some(notice) = nika_display::model_scope::notice(
             report,
@@ -136,6 +154,8 @@ pub(crate) fn run_arm_context(
         task_filter: None,
         no_outputs: false,
         max_cost_usd: Some(shot.ceiling()),
+        review_channel: nika_cli_host::run_cost::ReviewChannel::Unavailable,
+        invocation_cost: Some(shot.ceiling()),
     };
     run_admitted_context(context, &request, shot.root().to_path_buf())
 }
@@ -156,6 +176,8 @@ pub(super) fn run_admitted(
     task_filter: Option<&str>,
     no_outputs: bool,
     max_cost_usd: Option<f64>,
+    invocation_cost: Option<f64>,
+    cost_review_stdio: bool,
 ) -> RunVerdict {
     let machine = output_json || json;
     let (project, root, display_root) = match execution_project(file) {
@@ -193,6 +215,12 @@ pub(super) fn run_admitted(
         task_filter,
         no_outputs,
         max_cost_usd,
+        review_channel: if cost_review_stdio && json && resume.is_none() {
+            nika_cli_host::run_cost::ReviewChannel::Stdio
+        } else {
+            (!(json || output_json) && resume.is_none()).into()
+        },
+        invocation_cost,
     };
     let session = service.begin(admitted);
     let outcome = run_admitted_context(session.context(), &request, display_root);
@@ -217,6 +245,30 @@ pub(super) fn admit_source(
     } else {
         service.admit_with_model_override(project, root, model_override)
     }
+}
+
+/// The cost gate over the run's frozen plan: a run every admitted lane of which sits on a
+/// harness (`--access codex` and its kin) is bounded by the seat's subscription, so the cap
+/// gates the priced builtins only.
+fn budget_gate(
+    wf: &nika_schema::raw::RawWorkflow,
+    report: &nika_check::CheckReport,
+    request: &CliExecutionRequest<'_>,
+    machine: bool,
+    plan: &nika_providers::ExecutionAccessPlan,
+) -> Result<(), u8> {
+    let seated_on_harness = plan.admitted().next().is_some()
+        && plan
+            .admitted()
+            .all(|(_, lane)| matches!(lane.plan.chosen, nika_types::access::AccessClass::Harness));
+    budget::preflight(
+        wf,
+        report,
+        request.model_override,
+        request.max_cost_usd,
+        machine,
+        seated_on_harness,
+    )
 }
 
 fn run_admitted_context(
@@ -262,23 +314,35 @@ fn run_admitted_context(
             request.output_json,
         );
     }
-    if let Err(code) = budget::preflight(
+    // Judge the trace and access change before monetary review. This phase reads
+    // and folds only: durable approval claims stay untouched until cost admits.
+    let setup = match request.validate_resume(&wf, source, &plan) {
+        Ok(setup) => setup,
+        Err(code) => return RunVerdict::bare(code),
+    };
+    let cost = match unknown_cost::review(
+        &world.display_root,
+        request.file,
+        source,
+        format!("{:?}", world.execution_id),
         &wf,
-        &report,
-        request.model_override,
-        request.max_cost_usd,
-        machine,
+        &plan,
+        &inputs.values,
+        request.invocation_cost,
+        request.review_channel,
     ) {
+        Ok(cost) => cost,
+        Err(why) => {
+            epilogue::emit_diagnostic(&why, machine);
+            return RunVerdict::bare(exit::ENV);
+        }
+    };
+    if cost.is_none()
+        && let Err(code) = budget_gate(&wf, &report, request, machine, &plan)
+    {
         return RunVerdict::bare(code);
     }
-    let setup = match resume_setup(
-        request.resume,
-        &wf,
-        source,
-        request.model_override,
-        (&plan, request.access_pin),
-        machine,
-    ) {
+    let setup = match setup.bind_durable(machine) {
         Ok(setup) => setup,
         Err(code) => return RunVerdict::bare(code),
     };
@@ -288,7 +352,12 @@ fn run_admitted_context(
         &plan,
         inputs,
         setup,
-        request.max_cost_usd,
+        if cost.is_some() {
+            None
+        } else {
+            request.max_cost_usd
+        },
+        cost.as_ref().map(|c| c.config.clone()),
         (request.no_trace_file, machine),
         &world,
     ) {
@@ -297,10 +366,37 @@ fn run_admitted_context(
         Err(code) => return RunVerdict::bare(code),
     };
     announce_access(&plan, (request.json, request.output_json), request.mode);
+    let verdict = execute_request(&runtime, request, &cancel, &world);
+    finish_cost(cost.as_ref(), verdict, machine)
+}
+
+fn finish_cost(
+    cost: Option<&nika_cli_host::run_cost::RunCost>,
+    verdict: RunVerdict,
+    machine: bool,
+) -> RunVerdict {
+    if let Some(cost) = cost
+        && let Err(why) = cost.finish()
+    {
+        epilogue::emit_diagnostic(
+            &format!("Run may have been billed; cost observation failed: {why}"),
+            machine,
+        );
+        return RunVerdict::bare(exit::ENV);
+    }
+    verdict
+}
+
+fn execute_request(
+    runtime: &AuthorizedRuntime,
+    request: &CliExecutionRequest<'_>,
+    cancel: &nika_types::cancel::CancelCtx,
+    world: &AdmittedWorld,
+) -> RunVerdict {
     execute_and_ask(
-        &runtime,
+        runtime,
         request.file,
-        (&wf, &report),
+        (world.driver.workflow(), world.driver.report()),
         request.resume.is_some_and(|resume| resume.trace.is_some()),
         request.binding,
         request.model_override,
@@ -315,8 +411,8 @@ fn run_admitted_context(
             request.no_outputs,
             request.task_filter.is_some(),
         ),
-        &cancel,
-        &world,
+        cancel,
+        world,
     )
 }
 
@@ -338,7 +434,7 @@ fn execution_project(
     } else {
         cwd.join(path)
     };
-    let absolute = lexical_path(&absolute);
+    let absolute = crate::verbs::check::lexical_snapshot_path(&absolute);
     let (display_root, root) = absolute.strip_prefix(&cwd).map_or_else(
         |_| {
             let parent = absolute
@@ -354,24 +450,6 @@ fn execution_project(
     let project = nika_fs::OwnedDir::open(&display_root)
         .map_err(|error| format!("cannot hold project `{}`: {error}", display_root.display()))?;
     Ok((project, root, display_root))
-}
-
-fn lexical_path(path: &std::path::Path) -> std::path::PathBuf {
-    let mut normalized = std::path::PathBuf::new();
-    for component in path.components() {
-        match component {
-            std::path::Component::Prefix(prefix) => normalized.push(prefix.as_os_str()),
-            std::path::Component::RootDir => {
-                normalized.push(std::path::Path::new(std::path::MAIN_SEPARATOR_STR));
-            }
-            std::path::Component::CurDir => {}
-            std::path::Component::ParentDir => {
-                normalized.pop();
-            }
-            std::path::Component::Normal(part) => normalized.push(part),
-        }
-    }
-    normalized
 }
 
 fn admission_refusal(error: &nika_execution::ExecutionError, output_json: bool) -> RunVerdict {
@@ -516,6 +594,8 @@ mod tests {
             task_filter: None,
             no_outputs: false,
             max_cost_usd: None,
+            review_channel: nika_cli_host::run_cost::ReviewChannel::Unavailable,
+            invocation_cost: None,
         };
         let session = service.begin(admitted);
         let outcome =

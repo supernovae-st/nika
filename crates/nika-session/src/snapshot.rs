@@ -31,7 +31,10 @@ pub struct WorkflowSeen {
 pub struct ProjectSnapshot {
     /// The working directory the session was opened in.
     pub cwd: PathBuf,
-    /// The proven root: the git root when one holds `cwd`, else `cwd`.
+    /// The session's root: the working directory it was opened in. Never
+    /// the git root of a parent repository — a monorepo would lend every
+    /// session under it the same context, history and workflow walk (the
+    /// git root stays a fact beside it).
     pub root: PathBuf,
     /// The git root, when one holds `cwd`.
     pub git_root: Option<PathBuf>,
@@ -39,6 +42,9 @@ pub struct ProjectSnapshot {
     pub project_file: Option<PathBuf>,
     /// The project's spend ceiling, when the project file declares one.
     pub ceiling: Option<f64>,
+    /// Project discovery/parsing failed; absence must not silently replace
+    /// a malformed monetary default. Admission refuses until corrected.
+    pub project_error: Option<String>,
     /// The workflows the ONE walker listed under the root.
     pub workflows: Vec<WorkflowSeen>,
     /// The inventory's workflow row cap omitted entries from the emitted list.
@@ -56,10 +62,11 @@ impl ProjectSnapshot {
     pub fn observe(cwd: &Path) -> Self {
         let cwd = cwd.to_path_buf();
         let git_root = nika_cli_host::find_git_root(&cwd).map(|(root, _)| root);
-        let root = git_root.clone().unwrap_or_else(|| cwd.clone());
-        let (project_file, ceiling) = match nika_vocab::project::discover(&cwd) {
-            Ok(Some((path, project))) => (Some(path), project.ceiling),
-            _ => (None, None),
+        let root = cwd.clone();
+        let (project_file, ceiling, project_error) = match nika_vocab::project::discover(&cwd) {
+            Ok(Some((path, project))) => (Some(path), project.ceiling, None),
+            Ok(None) => (None, None, None),
+            Err(error) => (None, None, Some(error.to_string())),
         };
         let (facts, truncated, _, walk_truncated) = nika_dap::inventory::collect_workflows(&root);
         let workflows = facts
@@ -78,6 +85,7 @@ impl ProjectSnapshot {
             git_root,
             project_file,
             ceiling,
+            project_error,
             workflows,
             truncated,
             walk_truncated,
@@ -288,6 +296,37 @@ mod tests {
                 .iter()
                 .any(|l| l.contains("workflows: 2 observed in the bounded scan · 1 clean")),
             "{facts:?}"
+        );
+    }
+
+    /// The session's root is the working directory, never the git root of
+    /// a parent repository (a monorepo would lend every project under it
+    /// the same context and history); the git root stays a fact.
+    #[test]
+    fn the_root_is_the_working_directory_never_a_parent_git_root() {
+        let repo = tempfile::tempdir().expect("repo");
+        std::fs::create_dir_all(repo.path().join(".git")).expect("a git root");
+        let project = repo.path().join("ventures").join("one");
+        std::fs::create_dir_all(&project).expect("a project below it");
+        std::fs::write(project.join("alpha.nika"), "nika: alpha\ntasks: {}\n").expect("a workflow");
+        let snap = ProjectSnapshot::observe(&project);
+        assert_eq!(snap.root, project, "the working directory is the root");
+        assert_eq!(
+            snap.git_root.as_deref(),
+            Some(repo.path()),
+            "the git root is a fact"
+        );
+        assert!(
+            snap.facts_lines()
+                .iter()
+                .any(|l| l == &format!("git root: {}", repo.path().display())),
+            "{:?}",
+            snap.facts_lines()
+        );
+        assert_eq!(
+            snap.workflows.len(),
+            1,
+            "the walk starts at the root: {snap:?}"
         );
     }
 

@@ -169,7 +169,8 @@ pub(super) fn emit_preserving(
 /// Reuse THE parser's free-form literal decoding on the whole document. The
 /// workflow envelope cannot contain `type`/`value`, so this outer constant is
 /// necessarily untyped. No Check or execution is performed on this projection.
-pub(super) fn literal_projection(source: &str) -> Option<Value> {
+#[must_use]
+pub fn literal_projection(source: &str) -> Option<Value> {
     let indented = source
         .lines()
         .map(|line| format!("    {line}"))

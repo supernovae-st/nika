@@ -51,6 +51,39 @@ pub(crate) fn shape(req: &InferRequest, json_mode: Option<JsonMode>) -> Cow<'_, 
     Cow::Owned(shaped)
 }
 
+/// Keep a short structured answer's finite output budget useful on the exact
+/// `DeepSeek` routes whose catalog advertises effort control. Their API defaults
+/// to high thinking, which can consume the whole authoring cap before JSON.
+/// Explicit caller choices and other models retain their own settings. Low is
+/// an effort setting, not a guarantee on the number of reasoning tokens.
+/// Source: api-docs.deepseek.com/guides/thinking_mode/ (2026-09-24).
+pub(crate) fn bounded_reasoning(
+    body: &mut serde_json::Value,
+    req: &InferRequest,
+    provider: &str,
+    model: &str,
+) {
+    if provider != "deepseek"
+        || !matches!(
+            req.response_format,
+            ResponseFormat::Json | ResponseFormat::JsonSchema(_)
+        )
+        || !req.max_tokens.is_some_and(|cap| cap > 0 && cap <= 8192)
+        || req.thinking_budget.is_some()
+        || !nika_catalog::model_capabilities(provider, model)
+            .supported_parameters
+            .contains(&nika_catalog::ParamFlag::ReasoningEffort)
+    {
+        return;
+    }
+    if let Some(object) = body.as_object_mut()
+        && !object.contains_key("thinking")
+        && !object.contains_key("reasoning_effort")
+    {
+        object.insert("reasoning_effort".into(), serde_json::json!("low"));
+    }
+}
+
 /// The instruction a non-native seat needs: the schema, verbatim, on the
 /// last user turn (a new user turn when the conversation has none). The
 /// word JSON is load-bearing — `DeepSeek`'s `json_object` mode refuses a
@@ -293,6 +326,62 @@ mod tests {
             "{content}"
         );
         assert!(content.contains("\"required\":[\"choice\"]"), "{content}");
+    }
+
+    #[tokio::test]
+    async fn short_deepseek_json_uses_low_effort_without_increasing_its_cap() {
+        use crate::test_support::{FakeHttp, resolved_with};
+        let fake = FakeHttp::with_json(
+            200,
+            r#"{"choices":[{"message":{"content":"{}"},"finish_reason":"stop"}]}"#,
+        );
+        let provider = resolved_with(&fake, "deepseek/deepseek-flash", "fixture");
+        let mut req = structured(vec![Message::text(Role::User, "pick one")]);
+        req.max_tokens = Some(8192);
+        provider.infer(req).await.expect("answer");
+        let sent = fake.captured();
+        assert_eq!(sent.len(), 1);
+        let body: Value =
+            serde_json::from_slice(sent[0].body.as_ref().expect("body")).expect("json");
+        assert_eq!(body["reasoning_effort"], "low");
+        assert_eq!(body["max_tokens"], 8192);
+        assert_eq!(body["model"], "deepseek-flash");
+        assert_eq!(body["response_format"]["type"], "json_object");
+    }
+
+    #[test]
+    fn bounded_reasoning_preserves_explicit_settings_and_unqualified_routes() {
+        let mut req = structured(vec![]);
+        req.max_tokens = Some(8192);
+        for mut body in [
+            json!({"thinking":{"type":"disabled"}}),
+            json!({"reasoning_effort":"max"}),
+        ] {
+            let before = body.clone();
+            bounded_reasoning(&mut body, &req, "deepseek", "deepseek-flash");
+            assert_eq!(body, before);
+        }
+        for (provider, model) in [
+            ("openai", "deepseek-flash"),
+            ("deepseek", "deepseek-future"),
+            ("deepseek", "deepseek-reasoner"),
+            ("deepseek", "deepseek-chat"),
+        ] {
+            let mut body = json!({});
+            bounded_reasoning(&mut body, &req, provider, model);
+            assert_eq!(body, json!({}), "{provider}/{model}");
+        }
+        for cap in [None, Some(0), Some(8193)] {
+            req.max_tokens = cap;
+            let mut body = json!({});
+            bounded_reasoning(&mut body, &req, "deepseek", "deepseek-flash");
+            assert_eq!(body, json!({}));
+        }
+        req.max_tokens = Some(8192);
+        req.response_format = ResponseFormat::Text;
+        let mut body = json!({});
+        bounded_reasoning(&mut body, &req, "deepseek", "deepseek-flash");
+        assert_eq!(body, json!({}));
     }
 
     #[tokio::test]

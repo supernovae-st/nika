@@ -98,6 +98,7 @@ impl<T> tracing::instrument::WithSubscriber for nika_http::SsrfMode
 pub nika_http::HttpConfig::max_redirects: u8
 pub nika_http::HttpConfig::max_response_bytes: u64
 pub nika_http::HttpConfig::net: nika_http::NetBoundary
+pub nika_http::HttpConfig::retry_protocol_nacks: bool
 pub nika_http::HttpConfig::ssrf: nika_http::SsrfMode
 pub nika_http::HttpConfig::timeout: core::time::Duration
 impl nika_http::HttpConfig
@@ -151,6 +152,7 @@ pub async fn nika_http::ReqwestHttp::get(&self, request: nika_kernel_core::io::h
 impl nika_kernel_core::io::http::HttpPostDyn for nika_http::ReqwestHttp
 pub async fn nika_http::ReqwestHttp::post(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpResponse, nika_kernel_core::io::http::HttpError>
 pub async fn nika_http::ReqwestHttp::send_streaming(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpStreamResponse, nika_kernel_core::io::http::HttpError>
+pub fn nika_http::ReqwestHttp::supports_single_attempt(&self) -> bool
 impl<D> owo_colors::OwoColorize for nika_http::ReqwestHttp
 impl<T, U> core::convert::Into<U> for nika_http::ReqwestHttp where U: core::convert::From<T>
 pub fn nika_http::ReqwestHttp::into(self) -> U
@@ -187,3 +189,4 @@ pub async fn nika_http::ReqwestHttp::get(&self, request: nika_kernel_core::io::h
 impl<TraitVariantBlanketType> nika_kernel_core::io::http::HttpPost for nika_http::ReqwestHttp where TraitVariantBlanketType: nika_kernel_core::io::http::HttpPostDyn
 pub async fn nika_http::ReqwestHttp::post(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpResponse, nika_kernel_core::io::http::HttpError>
 pub async fn nika_http::ReqwestHttp::send_streaming(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpStreamResponse, nika_kernel_core::io::http::HttpError>
+pub fn nika_http::ReqwestHttp::supports_single_attempt(&self) -> bool

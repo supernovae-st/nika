@@ -51,13 +51,29 @@ fn data_stage(
     {
         // A grouped or projected computation writes the columns it produced.
         args["columns"] = json!(columns);
-    } else if format == Structured::Csv
-        && d.source_columns
-        && d.renames.is_empty()
-        && ROW_FACTS.contains(&name)
-    {
+    } else if format == Structured::Csv && d.source_columns && ROW_FACTS.contains(&name) {
         args["columns"] = json!("${{ with.columns }}");
-        with["columns"] = json!("${{ tasks.source_columns.output }}");
+        if d.renames.is_empty() {
+            with["columns"] = json!("${{ tasks.source_columns.output }}");
+        } else {
+            // A renamed column keeps its place: the source's header order, mapped through
+            // the renames the rule states, never the sorted keys of the rows.
+            let mapping = d
+                .renames
+                .iter()
+                .map(|(from, to)| format!("if . == {} then {} else . end", json!(from), json!(to)))
+                .collect::<Vec<_>>()
+                .join(" | ");
+            let columns_stage = format!("{stem}_columns");
+            d.tool(
+                &columns_stage,
+                "nika:jq",
+                json!({"input": "${{ with.columns }}", "expression": format!("map({mapping})")}),
+                Some(json!({"columns": "${{ tasks.source_columns.output }}"})),
+                false,
+            );
+            with["columns"] = json!(format!("${{{{ tasks.{columns_stage}.output }}}}"));
+        }
     }
     d.tool(&stage, "nika:convert", args, Some(with), true);
     format!("${{{{ tasks.{stage}.output }}}}")

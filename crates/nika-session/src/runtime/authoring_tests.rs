@@ -72,8 +72,12 @@ fn work_reaches_the_compiler_and_its_question_owns_the_next_line() {
     assert_eq!(key, "model");
     assert!(question.contains("provider/model"), "{question}");
     assert!(
-        question.contains("reply on the next line (`model`)"),
+        question.contains("reply on the next line · `cancel` drops this · `why?` explains"),
         "{question}"
+    );
+    assert!(
+        !question.contains("(`model`)"),
+        "the raw key stays out of the human's line: {question}"
     );
     assert_eq!(s.pending_question().map(|q| q.key.as_str()), Some("model"));
     assert!(s.pending_proposal().is_none());
@@ -97,9 +101,9 @@ fn work_reaches_the_compiler_and_its_question_owns_the_next_line() {
         preview.starts_with("Nika proposes `compiled-workflow.nika`:"),
         "{preview}"
     );
-    assert!(preview.contains("· nika:read"), "{preview}");
+    assert!(preview.contains("· reads a file"), "{preview}");
     assert!(preview.contains("infer · mock/echo"), "{preview}");
-    assert!(preview.contains("· nika:write"), "{preview}");
+    assert!(preview.contains("· writes a file"), "{preview}");
     assert!(
         preview.contains("human approval at run · none"),
         "{preview}"
@@ -271,7 +275,10 @@ fn an_intent_the_reader_cannot_settle_is_an_honest_incomplete_without_a_seat() {
         text.starts_with("I read this as work but cannot build it yet"),
         "{text}"
     );
-    assert!(text.contains("rephrase"), "{text}");
+    assert!(
+        text.contains("say what to read") && !text.contains("rephrase"),
+        "never « rephrase »: {text}"
+    );
     assert!(s.pending_question().is_none());
     assert!(s.pending_proposal().is_none());
     assert!(workflows(root.path()).is_empty());
@@ -543,4 +550,38 @@ fn an_honest_incomplete_keeps_only_the_reasons_a_human_can_act_on() {
             "format of the digest"
         ]
     );
+}
+
+/// A model the human named on the first screen (`2 deepseek/deepseek-flash`)
+/// is theirs: no escalation swaps it for the provider's stronger model; an
+/// unnamed default may still climb to it.
+#[test]
+fn a_model_the_human_named_is_never_swapped_for_a_stronger_one() {
+    let root = world();
+    let stronger = |named: Option<&str>| {
+        let api = ResolvedSessionIntelligence {
+            kind: IntelligenceKind::Api {
+                provider: "deepseek".to_owned(),
+            },
+            model: named.map(str::to_owned),
+            locus: DataLocus::Metered {
+                provider: "deepseek".to_owned(),
+            },
+            ready: true,
+            why: None,
+        };
+        let reasoner = crate::reasoner::ProviderReasoner {
+            model: named.unwrap_or("deepseek/deepseek-flash").to_owned(),
+            label: "deepseek API".to_owned(),
+        };
+        SessionRuntime::open(root.path(), api, Box::new(reasoner)).stronger_seat()
+    };
+    assert_eq!(
+        stronger(None),
+        Some(crate::authoring::AuthoringSeat::Provider {
+            model: "deepseek/deepseek-v4-pro".to_owned()
+        })
+    );
+    assert_eq!(stronger(Some("deepseek/deepseek-flash")), None);
+    assert_eq!(stronger(Some("deepseek/deepseek-v4-pro")), None);
 }

@@ -62,12 +62,7 @@
         "candidate": "absent",
         "skeleton": null,
         "preview": "absent",
-        "diagnostics": [
-          [
-            "unknown",
-            "intent"
-          ]
-        ]
+        "diagnostics": []
       }
     },
     {

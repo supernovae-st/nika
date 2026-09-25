@@ -5,10 +5,12 @@
 //! anchored in the intent or still carries unknowns is a finding, never a candidate.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 use nika_compile::{
-    AuthoringCognition, AuthoringPolicy, Cognition, CompileRequest, CompileStatus, DiagnosticKind,
-    Strategy, compile, compile_with_cognition, compile_with_provider,
+    AuthoringCognition, AuthoringPolicy, CompileRequest, CompileStatus, DiagnosticKind, Strategy,
+    compile, intent_sha256, outcome_document,
+};
+use nika_compile_cognition::{
+    Cognition, compile_with_cognition, compile_with_provider,
     decide::{ChoiceAnswer, ChoiceFuture, ChoiceQuestion, DecisionSeat},
-    intent_sha256, outcome_document,
 };
 use nika_kernel::ai::provider::{
     ContentBlock, InferRequest, InferResponse, ProviderError, ProviderInferDyn, StopReason,
@@ -337,8 +339,16 @@ fn a_replayed_document_keeps_the_generation_one_shape() {
         .filter(|k| !matches!(k.as_str(), "strategy" | "plan" | "decision"))
         .cloned()
         .collect();
+    // `suggested_file` joined the provenance additively (a file name for whoever saves the
+    // candidate); the generation stays one.
     assert_eq!(
         provenance,
-        ["cognition", "compiler_version", "skeleton", "spec_pin"]
+        [
+            "cognition",
+            "compiler_version",
+            "skeleton",
+            "spec_pin",
+            "suggested_file"
+        ]
     );
 }

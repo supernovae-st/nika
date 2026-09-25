@@ -37,6 +37,25 @@ fn chips(verbs: &[&str], theme: Theme) -> String {
     verbs.iter().map(|v| theme.verb_glyph(v)).collect()
 }
 
+/// One listing row: the file padded to `width`, its verb chips, its title clipped to `clip`.
+fn file_row(text: &mut String, slug: &str, body: &str, width: usize, clip: usize, theme: Theme) {
+    let m = meta(slug, body);
+    let pad = " ".repeat(width.saturating_sub(m.file.chars().count()));
+    let _ = writeln!(
+        text,
+        "{}",
+        chrome::rail_line(
+            theme,
+            &format!(
+                " {}{pad}  {}{}",
+                theme.paint(Role::Strong, &m.file),
+                chips(&m.verbs, theme),
+                theme.paint(Role::Dim, &clip_title(&m.title, clip)),
+            ),
+        )
+    );
+}
+
 /// The language CONSTRUCTS a corpus file can teach, in the order a reader
 /// meets them — the axis the corpus is indexed on.
 ///
@@ -271,21 +290,7 @@ pub fn list(theme: Theme) -> VerbOutput {
         let Some(body) = nika_pack::example(slug) else {
             continue;
         };
-        let m = meta(slug, body);
-        let pad = " ".repeat(width.saturating_sub(m.file.chars().count()));
-        let _ = writeln!(
-            text,
-            "{}",
-            chrome::rail_line(
-                theme,
-                &format!(
-                    " {}{pad}  {}{}",
-                    theme.paint(Role::Strong, &m.file),
-                    chips(&m.verbs, theme),
-                    theme.paint(Role::Dim, &clip_title(&m.title, 58)),
-                ),
-            )
-        );
+        file_row(&mut text, slug, body, width, 58, theme);
     }
 
     // The jobs — every example that is not a numbered lesson — listed once,
@@ -308,21 +313,7 @@ pub fn list(theme: Theme) -> VerbOutput {
             let Some(body) = nika_pack::example(slug) else {
                 continue;
             };
-            let m = meta(slug, body);
-            let pad = " ".repeat(job_width.saturating_sub(m.file.chars().count()));
-            let _ = writeln!(
-                text,
-                "{}",
-                chrome::rail_line(
-                    theme,
-                    &format!(
-                        " {}{pad}  {}{}",
-                        theme.paint(Role::Strong, &m.file),
-                        chips(&m.verbs, theme),
-                        theme.paint(Role::Dim, &clip_title(&m.title, 46)),
-                    ),
-                )
-            );
+            file_row(&mut text, slug, body, job_width, 46, theme);
         }
     }
 

@@ -1,4 +1,35 @@
 pub mod nika_harness
+pub mod nika_harness::authoring
+#[non_exhaustive] pub struct nika_harness::authoring::HarnessAuthoring
+impl nika_harness::authoring::HarnessAuthoring
+pub fn nika_harness::authoring::HarnessAuthoring::descriptor(&self) -> core::result::Result<serde_json::value::Value, alloc::string::String>
+pub fn nika_harness::authoring::HarnessAuthoring::meet(adapter: &str, model: core::option::Option<&str>) -> core::result::Result<Self, alloc::string::String>
+impl core::fmt::Debug for nika_harness::authoring::HarnessAuthoring
+pub fn nika_harness::authoring::HarnessAuthoring::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl nika_kernel_ai::provider::ProviderInferDyn for nika_harness::authoring::HarnessAuthoring
+pub async fn nika_harness::authoring::HarnessAuthoring::infer(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<nika_kernel_ai::provider::InferResponse, nika_kernel_ai::provider::ProviderError>
+impl<D> owo_colors::OwoColorize for nika_harness::authoring::HarnessAuthoring
+impl<T, U> core::convert::Into<U> for nika_harness::authoring::HarnessAuthoring where U: core::convert::From<T>
+pub fn nika_harness::authoring::HarnessAuthoring::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::authoring::HarnessAuthoring where U: core::convert::Into<T>
+pub type nika_harness::authoring::HarnessAuthoring::Error = core::convert::Infallible
+pub fn nika_harness::authoring::HarnessAuthoring::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::authoring::HarnessAuthoring where U: core::convert::TryFrom<T>
+pub type nika_harness::authoring::HarnessAuthoring::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::authoring::HarnessAuthoring::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_harness::authoring::HarnessAuthoring where T: 'static + ?core::marker::Sized
+pub fn nika_harness::authoring::HarnessAuthoring::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::authoring::HarnessAuthoring where T: ?core::marker::Sized
+pub fn nika_harness::authoring::HarnessAuthoring::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::authoring::HarnessAuthoring where T: ?core::marker::Sized
+pub fn nika_harness::authoring::HarnessAuthoring::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_harness::authoring::HarnessAuthoring
+pub fn nika_harness::authoring::HarnessAuthoring::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::authoring::HarnessAuthoring where T: 'static
+pub fn nika_harness::authoring::HarnessAuthoring::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<TraitVariantBlanketType> nika_kernel_ai::provider::ProviderInfer for nika_harness::authoring::HarnessAuthoring where TraitVariantBlanketType: nika_kernel_ai::provider::ProviderInferDyn
+pub async fn nika_harness::authoring::HarnessAuthoring::infer(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<nika_kernel_ai::provider::InferResponse, nika_kernel_ai::provider::ProviderError>
+pub fn nika_harness::authoring::model_argument(adapter: &str, model: core::option::Option<&str>) -> core::result::Result<alloc::string::String, alloc::string::String>
 pub mod nika_harness::client
 pub const nika_harness::client::IDLE_TIMEOUT_SECS: u64
 pub const nika_harness::client::MAX_LINE_BYTES: usize
@@ -94,6 +125,7 @@ impl<T> nika_error::traits::AsAny for nika_harness::infer::StructuredOutputGrade
 pub fn nika_harness::infer::StructuredOutputGrade::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_harness::infer::HarnessInferOutcome
 pub nika_harness::infer::HarnessInferOutcome::attested_version: (u32, u32)
+pub nika_harness::infer::HarnessInferOutcome::observed_model: core::option::Option<alloc::string::String>
 pub nika_harness::infer::HarnessInferOutcome::output: alloc::string::String
 pub nika_harness::infer::HarnessInferOutcome::requested_model: alloc::string::String
 pub nika_harness::infer::HarnessInferOutcome::usage_observed: bool
@@ -452,14 +484,17 @@ pub mod nika_harness::spawn
 pub nika_harness::spawn::HarnessAdapter::args: alloc::vec::Vec<alloc::string::String>
 pub nika_harness::spawn::HarnessAdapter::command: alloc::string::String
 pub nika_harness::spawn::HarnessAdapter::id: alloc::string::String
+pub nika_harness::spawn::HarnessAdapter::identities: alloc::vec::Vec<alloc::string::String>
 pub nika_harness::spawn::HarnessAdapter::passthrough_env: alloc::vec::Vec<alloc::string::String>
 pub nika_harness::spawn::HarnessAdapter::probe_via_handshake: bool
 pub nika_harness::spawn::HarnessAdapter::version_args: alloc::vec::Vec<alloc::string::String>
 pub nika_harness::spawn::HarnessAdapter::version_pin: core::option::Option<nika_harness::probe::VersionPin>
 impl nika_harness::spawn::HarnessAdapter
+pub fn nika_harness::spawn::HarnessAdapter::answers_as(&self, name: &str) -> bool
 pub fn nika_harness::spawn::HarnessAdapter::new(id: impl core::convert::Into<alloc::string::String>, command: impl core::convert::Into<alloc::string::String>) -> core::result::Result<Self, nika_kernel_ai::harness::HarnessError>
 pub fn nika_harness::spawn::HarnessAdapter::with_args(self, args: alloc::vec::Vec<alloc::string::String>) -> Self
 pub fn nika_harness::spawn::HarnessAdapter::with_handshake_probe(self) -> Self
+pub fn nika_harness::spawn::HarnessAdapter::with_identities(self, names: alloc::vec::Vec<alloc::string::String>) -> Self
 pub fn nika_harness::spawn::HarnessAdapter::with_passthrough_env(self, vars: alloc::vec::Vec<alloc::string::String>) -> Self
 pub fn nika_harness::spawn::HarnessAdapter::with_version_args(self, args: alloc::vec::Vec<alloc::string::String>) -> Self
 pub fn nika_harness::spawn::HarnessAdapter::with_version_pin(self, pin: nika_harness::probe::VersionPin) -> Self
@@ -721,6 +756,9 @@ pub fn nika_harness::wire::NewSessionParams::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::wire::NewSessionParams where T: 'static
 pub fn nika_harness::wire::NewSessionParams::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub struct nika_harness::wire::NewSessionResult
+pub nika_harness::wire::NewSessionResult::config_options: core::option::Option<serde_json::value::Value>
+pub nika_harness::wire::NewSessionResult::models: core::option::Option<serde_json::value::Value>
+pub nika_harness::wire::NewSessionResult::modes: core::option::Option<serde_json::value::Value>
 pub nika_harness::wire::NewSessionResult::session_id: alloc::string::String
 impl core::fmt::Debug for nika_harness::wire::NewSessionResult
 pub fn nika_harness::wire::NewSessionResult::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
@@ -948,6 +986,9 @@ pub const nika_harness::wire::METHOD_SESSION_CANCEL: &str
 pub const nika_harness::wire::METHOD_SESSION_NEW: &str
 pub const nika_harness::wire::METHOD_SESSION_PROMPT: &str
 pub const nika_harness::wire::METHOD_SESSION_UPDATE: &str
+pub const nika_harness::wire::METHOD_SET_CONFIG_OPTION: &str
+pub const nika_harness::wire::METHOD_SET_MODE: &str
+pub const nika_harness::wire::METHOD_SET_MODEL: &str
 pub const nika_harness::wire::PROTOCOL_V1: u16
 pub fn nika_harness::wire::agent_chunk_text(update: &serde_json::value::Value) -> core::option::Option<alloc::string::String>
 pub fn nika_harness::wire::ask_facts(tool_call: &serde_json::value::Value) -> (core::option::Option<alloc::string::String>, alloc::vec::Vec<alloc::string::String>, alloc::vec::Vec<alloc::string::String>, core::option::Option<alloc::string::String>)
@@ -1155,14 +1196,17 @@ pub fn nika_harness::registry::AdapterRow::as_any(&self) -> &(dyn core::any::Any
 pub nika_harness::HarnessAdapter::args: alloc::vec::Vec<alloc::string::String>
 pub nika_harness::HarnessAdapter::command: alloc::string::String
 pub nika_harness::HarnessAdapter::id: alloc::string::String
+pub nika_harness::HarnessAdapter::identities: alloc::vec::Vec<alloc::string::String>
 pub nika_harness::HarnessAdapter::passthrough_env: alloc::vec::Vec<alloc::string::String>
 pub nika_harness::HarnessAdapter::probe_via_handshake: bool
 pub nika_harness::HarnessAdapter::version_args: alloc::vec::Vec<alloc::string::String>
 pub nika_harness::HarnessAdapter::version_pin: core::option::Option<nika_harness::probe::VersionPin>
 impl nika_harness::spawn::HarnessAdapter
+pub fn nika_harness::spawn::HarnessAdapter::answers_as(&self, name: &str) -> bool
 pub fn nika_harness::spawn::HarnessAdapter::new(id: impl core::convert::Into<alloc::string::String>, command: impl core::convert::Into<alloc::string::String>) -> core::result::Result<Self, nika_kernel_ai::harness::HarnessError>
 pub fn nika_harness::spawn::HarnessAdapter::with_args(self, args: alloc::vec::Vec<alloc::string::String>) -> Self
 pub fn nika_harness::spawn::HarnessAdapter::with_handshake_probe(self) -> Self
+pub fn nika_harness::spawn::HarnessAdapter::with_identities(self, names: alloc::vec::Vec<alloc::string::String>) -> Self
 pub fn nika_harness::spawn::HarnessAdapter::with_passthrough_env(self, vars: alloc::vec::Vec<alloc::string::String>) -> Self
 pub fn nika_harness::spawn::HarnessAdapter::with_version_args(self, args: alloc::vec::Vec<alloc::string::String>) -> Self
 pub fn nika_harness::spawn::HarnessAdapter::with_version_pin(self, pin: nika_harness::probe::VersionPin) -> Self
@@ -1201,6 +1245,7 @@ impl<T> nika_error::traits::AsAny for nika_harness::spawn::HarnessAdapter where 
 pub fn nika_harness::spawn::HarnessAdapter::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_harness::HarnessInferOutcome
 pub nika_harness::HarnessInferOutcome::attested_version: (u32, u32)
+pub nika_harness::HarnessInferOutcome::observed_model: core::option::Option<alloc::string::String>
 pub nika_harness::HarnessInferOutcome::output: alloc::string::String
 pub nika_harness::HarnessInferOutcome::requested_model: alloc::string::String
 pub nika_harness::HarnessInferOutcome::usage_observed: bool

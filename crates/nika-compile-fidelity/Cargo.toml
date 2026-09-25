@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+[package]
+name        = "nika-compile-fidelity"
+version.workspace = true
+edition     = "2024"
+rust-version = "1.88"
+license     = "AGPL-3.0-or-later"
+description = "The laws a candidate .nika document is judged by, pure over the request, the reader's plan and the projected document, with the constrained sketch a seat proposes and the plan a candidate states by its structure. Layer L4 — a size-cap member of the nika-onboard unit (D-2026-07-09-N1 · ADR-141 · the ADR-137 and ADR-138 precedents), ascended from nika-compile-reader at the 15k prod-LOC wall; nika-compile depends on it and it depends on the reader, never the reverse."
+repository  = "https://github.com/supernovae-st/nika"
+publish     = false  # member of the nika-onboard unit — never on crates.io alone
+
+[dependencies]
+serde_json = { workspace = true } # the projected candidate document, the sketch and its fills
+nika-compile-reader = { path = "../nika-compile-reader", version = "0.121.0" } # the plan, the HOT vocabulary and the lexicon the laws read (ONE unit, several members · ADR-141)
+nika-schema = { path = "../nika-schema", version = "0.121.0" } # the approval laws read a gate on the AST the parser gives Check
+nika-check-analyzer = { path = "../nika-check-analyzer", version = "0.121.0" } # the refusal substitution (NEP-0020) those laws reuse
+
+[package.metadata.lore]
+daemon        = "forgeron"
+archetype     = "compiler-smith"
+spirit_role   = "juge le candidat contre la demande et le plan, ne réécrit jamais · une loi refuse, le siège répare"
+
+[lints]
+workspace = true

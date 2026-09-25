@@ -121,6 +121,8 @@ pub enum AgentValue {
 #[derive(Debug)]
 #[non_exhaustive]
 pub struct AgentOutput {
+    /// Every actual inference dispatch; never price aggregate usage by one route.
+    pub inference_calls: Vec<nika_types::cost::InferenceCall>,
     /// The shaped output value (`.output` in spec terms).
     pub output: AgentValue,
     /// Why the loop ended (success reasons only — failures are errors).
@@ -135,15 +137,14 @@ pub struct AgentOutput {
     /// output carries a top-level numeric `cost_usd` — the image builtin
     /// on tick-billed providers · future paid tools). `None` when no tool
     /// reported spend — never a fake zero. The LLM turns' own cost is
-    /// priced by the DISPATCH layer from [`Self::usage`].
+    /// folded by dispatch from [`Self::inference_calls`].
     pub tools_cost_usd: Option<f64>,
     /// The absorbed usage split across every provider round-trip of the
     /// loop (turns + schema re-asks) — the input/output/cache meters the
     /// cost layer prices with the same resolver `infer` uses. Zero-valued
     /// on harness-built outputs that never touched a provider.
     pub usage: TokenUsage,
-    /// The model the loop resolved and ran (`provider/name`) — the
-    /// pricing/attribution key. `None` on harness-built outputs.
+    /// The model the loop requested (`provider/name`), not a billing route. `None` on harness-built outputs.
     pub model_resolved: Option<String>,
 }
 
@@ -158,6 +159,7 @@ impl AgentOutput {
         total_tokens: u64,
     ) -> Self {
         Self {
+            inference_calls: Vec::new(),
             output,
             stop_reason,
             turns,
@@ -166,6 +168,13 @@ impl AgentOutput {
             usage: TokenUsage::default(),
             model_resolved: None,
         }
+    }
+
+    /// Attach per-dispatch observations without changing aggregate token meters.
+    #[must_use]
+    pub fn with_inference_calls(mut self, calls: Vec<nika_types::cost::InferenceCall>) -> Self {
+        self.inference_calls = calls;
+        self
     }
 
     /// Attach the loop's accumulated tool spend (builder — `new()` stays

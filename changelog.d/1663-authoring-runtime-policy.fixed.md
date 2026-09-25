@@ -1,1 +1,0 @@
-- **Admit bounded authoring runtime consumers.** Admit the two explicit L4 authoring Tokio consumers in the dependency wrapper policy: nika-onboard owns the bounded provider timeout and nika-cli-host owns the opt-in executor. Existing layer bans remain unchanged.

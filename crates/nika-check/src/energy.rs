@@ -172,10 +172,10 @@ mod tests {
     fn the_classification_matrix_and_the_scope_partition() {
         let e = energy_of(
             "nika: m\ntasks:\n  \
-             a:\n    infer: { prompt: hi, max_tokens: 1000, model: \"groq/qwen/qwen3-32b\" }\n  \
-             b:\n    infer: { prompt: hi, model: \"groq/qwen/qwen3-32b\" }\n  \
-             c:\n    for_each: { items: \"${{ tasks.a.output }}\" }\n    infer: { prompt: hi, max_tokens: 100, model: \"groq/qwen/qwen3-32b\" }\n  \
-             d:\n    for_each: { items: [] }\n    infer: { prompt: hi, max_tokens: 100, model: \"groq/qwen/qwen3-32b\" }\n  \
+             a:\n    infer: { prompt: hi, max_tokens: 1000, model: \"openrouter/qwen/qwen3-32b\" }\n  \
+             b:\n    infer: { prompt: hi, model: \"openrouter/qwen/qwen3-32b\" }\n  \
+             c:\n    for_each: { items: \"${{ tasks.a.output }}\" }\n    infer: { prompt: hi, max_tokens: 100, model: \"openrouter/qwen/qwen3-32b\" }\n  \
+             d:\n    for_each: { items: [] }\n    infer: { prompt: hi, max_tokens: 100, model: \"openrouter/qwen/qwen3-32b\" }\n  \
              e:\n    infer: { prompt: hi, max_tokens: 100, model: \"mock/echo\" }\n  \
              f:\n    infer: { prompt: hi, max_tokens: 100, model: \"ollama/qwen3\" }\n",
         );
@@ -240,8 +240,8 @@ mod tests {
     fn subtotals_sum_within_a_class_and_empty_stays_silent() {
         let e = energy_of(
             "nika: m\ntasks:\n  \
-             a:\n    infer: { prompt: hi, max_tokens: 1000, model: \"groq/qwen/qwen3-32b\" }\n  \
-             b:\n    infer: { prompt: hi, max_tokens: 2000, model: \"groq/qwen/qwen3-32b\" }\n",
+             a:\n    infer: { prompt: hi, max_tokens: 1000, model: \"openrouter/qwen/qwen3-32b\" }\n  \
+             b:\n    infer: { prompt: hi, max_tokens: 2000, model: \"openrouter/qwen/qwen3-32b\" }\n",
         );
         assert_eq!(e.tasks.len(), 2);
         assert_eq!(e.scope_subtotals.len(), 1, "one class");

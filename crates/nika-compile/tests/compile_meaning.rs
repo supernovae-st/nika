@@ -4,7 +4,8 @@
 //! stages: the product-convergence repros, their paraphrases and negatives, the typed
 //! grouping, totals and derived outputs.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-use nika_compile::{CompileRequest, CompileStatus, compile_with_provider};
+use nika_compile::{CompileRequest, CompileStatus};
+use nika_compile_cognition::compile_with_provider;
 use serde_json::json;
 
 mod common;

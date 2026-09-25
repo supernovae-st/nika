@@ -13,6 +13,14 @@ use serde_json::Value;
 const HELLO: &str = "nika: framing-hello\nmodel: mock/echo\npermits: {}\ntasks:\n  greet:\n    infer: { prompt: hello, max_tokens: 32 }\noutputs:\n  greeting: ${{ tasks.greet.output }}\n";
 
 fn execute(source: &str, extra: &[&str]) -> (tempfile::TempDir, Output) {
+    execute_on(source, extra, true)
+}
+
+/// `canary_route` confines provider traffic to an owned listener that must stay silent. That
+/// override is an unpriced route, which run cost admission refuses before the budget floor; the
+/// floor (NIKA-1709) judges only the provider's priced default route, which no canary can observe
+/// because the HTTP client ignores proxies.
+fn execute_on(source: &str, extra: &[&str], canary_route: bool) -> (tempfile::TempDir, Output) {
     let dir = tempfile::tempdir().expect("isolated room");
     let canary = TcpListener::bind("127.0.0.1:0").expect("owned endpoint");
     canary.set_nonblocking(true).expect("nonblocking canary");
@@ -21,7 +29,8 @@ fn execute(source: &str, extra: &[&str]) -> (tempfile::TempDir, Output) {
         canary.local_addr().expect("address")
     );
     std::fs::write(dir.path().join("case.nika"), source).expect("fixture");
-    let result = Command::new(env!("CARGO_BIN_EXE_nika"))
+    let mut command = Command::new(env!("CARGO_BIN_EXE_nika"));
+    command
         .args(["run", "case.nika", "--json", "--no-gc", "--color", "never"])
         .args(extra)
         .env_clear()
@@ -33,10 +42,11 @@ fn execute(source: &str, extra: &[&str]) -> (tempfile::TempDir, Output) {
             "ANTHROPIC_API_KEY",
             "sk-ant-api03-framing-fixture-not-a-real-key",
         )
-        .env("NIKA_ANTHROPIC_BASE_URL", endpoint)
-        .current_dir(dir.path())
-        .output()
-        .expect("binary runs");
+        .current_dir(dir.path());
+    if canary_route {
+        command.env("NIKA_ANTHROPIC_BASE_URL", endpoint);
+    }
+    let result = command.output().expect("binary runs");
     assert_eq!(
         canary
             .accept()
@@ -61,7 +71,11 @@ fn frames(output: &Output) -> Vec<Value> {
 }
 
 fn refused(source: &str, flags: &[&str], expected: &str) {
-    let (dir, output) = execute(source, flags);
+    refused_on(source, flags, expected, true);
+}
+
+fn refused_on(source: &str, flags: &[&str], expected: &str, canary_route: bool) {
+    let (dir, output) = execute_on(source, flags, canary_route);
     assert_eq!(output.status.code(), Some(2), "{output:?}");
     let values = frames(&output);
     assert_eq!(
@@ -108,12 +122,34 @@ fn check_refusals_keep_their_real_findings_on_one_line() {
 fn a_cost_refusal_is_json_before_any_provider_call() {
     // Synthetic access is configured; the positive floor must refuse
     // before provider I/O, independently of missing-access diagnostics.
-    refused(
-        &HELLO
-            .replace("mock/echo", "anthropic/claude-sonnet-5")
-            .replace("max_tokens: 32", "max_tokens: 1000"),
-        &["--max-cost-usd", "0"],
-        "NIKA-1709",
+    // The floor judges the priced default route.
+    let source = HELLO
+        .replace("mock/echo", "anthropic/claude-sonnet-5")
+        .replace("max_tokens: 32", "max_tokens: 1000");
+    refused_on(&source, &["--max-cost-usd", "0"], "NIKA-1709", false);
+    // The canary override is unpriced: run cost admission refuses it before
+    // the floor, still as one JSON object and before any provider I/O.
+    let (dir, output) = execute(&source, &["--max-cost-usd", "0"]);
+    assert!(!output.status.success(), "{output:?}");
+    let values = frames(&output);
+    assert_eq!(
+        values.len(),
+        1,
+        "pre-admission emits one object: {values:?}"
+    );
+    assert!(
+        values[0]["error"]["message"]
+            .as_str()
+            .is_some_and(|message| message.contains("unknown-cost admission")),
+        "the unpriced route is refused by cost admission: {values:?}"
+    );
+    assert!(
+        values[0].get("receipt").is_none(),
+        "no execution proof before admission"
+    );
+    assert!(
+        !dir.path().join(".nika/traces").exists(),
+        "refusal never starts a trace"
     );
 }
 

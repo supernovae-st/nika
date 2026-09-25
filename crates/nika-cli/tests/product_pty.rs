@@ -21,7 +21,7 @@
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use expectrl::process::unix::{PtyStream, UnixProcess, WaitStatus};
 use expectrl::session::{OsSession, Session};
@@ -56,21 +56,29 @@ fn rig(tag: &str) -> (tempfile::TempDir, tempfile::TempDir) {
 
 /// Bare `nika` on a PTY in `project`, with `home` as the home.
 fn open_session(project: &Path, home: &Path) -> LoggedSession {
+    open_session_with(project, home, &[])
+}
+
+/// [`open_session`] with extra environment (a seat's endpoint and key).
+fn open_session_with(project: &Path, home: &Path, env: &[(&str, &str)]) -> LoggedSession {
     let mut cmd = Command::new(bin());
+    for (key, value) in env {
+        cmd.env(key, value);
+    }
     cmd.current_dir(project)
         .env_remove("CLICOLOR")
         .env_remove("CLICOLOR_FORCE")
         .env("NO_COLOR", "1")
         .env("TERM", "xterm-256color")
+        .env("NIKA_TUI", "0")
         .env("HOME", home)
         .env("NIKA_KEYCHAIN", "off");
     let session = OsSession::spawn(cmd).expect("pty spawn");
     let mut session = expectrl::session::log(session, std::io::stderr()).expect("log tee");
     session.set_expect_timeout(Some(Duration::from_secs(120)));
-    session.expect("nika · session").expect("the session opens");
     session
-        .expect("authoring · deterministic")
-        .expect("the banner names the authoring seat");
+        .expect("What do you want to automate?")
+        .expect("the session opens on the human's question");
     session.expect("nika ›").expect("the prompt");
     session
 }
@@ -236,7 +244,7 @@ fn a_fan_out_over_a_folder_lands_one_combined_file() {
     let mut session = open_session(project.path(), home.path());
     session.send_line(intent).expect("the intent");
     session
-        .expect("· nika:read · for each item")
+        .expect("· reads a file · for each item")
         .expect("the review shows the fan-out from the parser");
     session.expect("apply? ›").expect("the consent prompt");
     session.send_line("yes").expect("consent");
@@ -296,6 +304,15 @@ fn a_gated_effect_waits_for_the_human_and_happens_once() {
         "nothing is written before the human answers"
     );
     session.send_line("y").expect("the human answers");
+    session
+        .expect("Done · `approve.nika`")
+        .expect("the result leads with the outcome");
+    session
+        .expect("produced · ./final.md")
+        .expect("the effect, from the permit frame");
+    session
+        .expect("approved · your answer let it go on · `approve`")
+        .expect("the approval is a fact of the trace, never an inference");
     session
         .expect("run observed · exit 0")
         .expect("the same run completes");
@@ -442,7 +459,28 @@ fn a_named_run_line_carries_its_own_ceiling() {
     session
         .expect("running `copy.nika` once · ceiling $0.05")
         .expect("the named file and the human's ceiling");
+    session
+        .expect("Done · `copy.nika`")
+        .expect("the result leads with the outcome");
+    session
+        .expect("produced · ./copy.md (6 B)")
+        .expect("what was produced, from the permit frame, with its size");
+    session
+        .expect("cost · no model usage recorded")
+        .expect("the cost is honest: scoped to what the trace records");
     session.expect("run observed · exit 0").expect("succeeded");
+    session.expect("nika ›").expect("prompt");
+    session.send_line("/proof").expect("the proof door");
+    session.expect("Proof · ").expect("the proof view opens");
+    session
+        .expect("chain · ")
+        .expect("the chain verdict comes from the verify door");
+    session
+        .expect("written · ./copy.md · 6 B · sha256 ")
+        .expect("the artefact re-read and digested");
+    session
+        .expect("does not prove · that the content is right")
+        .expect("the limit is said");
     session.expect("nika ›").expect("prompt");
     session.send_line("/quit").expect("quit");
     session.expect(Eof).expect("closes");
@@ -497,11 +535,23 @@ fn a_bare_yes_with_nothing_pending_applies_nothing() {
         .send_line("Read ./notes/brief.md, draft a 3-bullet summary of it and write the summary to ./out/summary.md")
         .expect("work that needs a model");
     session
-        .expect("reply on the next line (`model`)")
-        .expect("the compiler's question, in its words");
+        .expect("reply on the next line · `cancel` drops this · `why?` explains")
+        .expect("the compiler's question, in its words, without its raw key");
     session
         .expect("reply ›")
         .expect("the question's own prompt");
+    // A side question beside the question: answered from the machine's
+    // state, the question still waits under its own prompt.
+    session.send_line("why?").expect("a side question");
+    session
+        .expect("This answer fills `model`")
+        .expect("the aside names the hole the value fills");
+    session
+        .expect("the question still waits")
+        .expect("the aside consumed nothing");
+    session
+        .expect("reply ›")
+        .expect("the question's prompt is back");
     session.send_line("cancel").expect("abandon");
     session
         .expect("authoring discarded")
@@ -517,4 +567,286 @@ fn a_bare_yes_with_nothing_pending_applies_nothing() {
         .filter(|n| Path::new(n).extension().is_some_and(|e| e == "nika"))
         .collect();
     assert!(written.is_empty(), "nothing was written: {written:?}");
+}
+
+/// The review reads in the sections a human decides on, `/meaning` lists
+/// the request clause by clause and holds the proposal, and a `no` after
+/// it discards: nothing is written.
+#[test]
+fn the_review_reads_in_sections_and_meaning_holds_the_proposal() {
+    let (project, home) = rig("review");
+    std::fs::create_dir_all(project.path().join("notes")).expect("notes");
+    std::fs::write(project.path().join("notes/brief.md"), "# Brief\n").expect("brief");
+    let mut session = open_session(project.path(), home.path());
+    session
+        .send_line("Lis ./notes/brief.md et écris-le dans ./out/copie.md")
+        .expect("the intent");
+    session
+        .expect("Nika proposes `compiled-workflow.nika`:")
+        .expect("the review opens");
+    for section in [
+        "Does",
+        "Runs",
+        "when you ask",
+        "Can touch",
+        "human approval at run · none",
+        "Changes",
+        "+ `compiled-workflow.nika`",
+        "Needs",
+        "nothing more from you",
+        "Nothing has run yet",
+    ] {
+        session
+            .expect(section)
+            .unwrap_or_else(|e| panic!("the review names « {section} »: {e}"));
+    }
+    session.expect("apply? ›").expect("the consent prompt");
+    session.send_line("/meaning").expect("meaning");
+    session
+        .expect("Meaning · your request, clause by clause")
+        .expect("the meaning view");
+    session
+        .expect("écris-le dans ./out/copie.md")
+        .expect("the clause, in the request's own words");
+    session
+        .expect("the proposal still waits")
+        .expect("meaning holds the proposal");
+    session
+        .expect("apply? ›")
+        .expect("still the consent prompt");
+    session.send_line("no").expect("discard");
+    session.expect("discarded").expect("nothing written");
+    session.expect("nika ›").expect("prompt");
+    session.send_line("/quit").expect("quit");
+    session.expect(Eof).expect("closes");
+    assert_eq!(exit_code(&mut session), 0);
+    assert!(
+        !project.path().join("compiled-workflow.nika").exists(),
+        "a no writes nothing"
+    );
+}
+
+/// A schedule stated in the request is saved beside the program and
+/// activates nothing; « activate » asks the time zone, the missed policy
+/// and the ceiling, proposes the `nika.yaml` declaration, a yes writes
+/// it, and the machine's own `nika arm` reads one declared beat.
+#[test]
+fn a_stated_schedule_is_declared_only_when_activated() {
+    let (project, home) = rig("activate");
+    std::fs::create_dir_all(project.path().join("notes")).expect("notes");
+    std::fs::write(project.path().join("notes/brief.md"), "# Brief\n").expect("brief");
+    let mut session = open_session(project.path(), home.path());
+    session
+        .send_line("Chaque matin à 8h, lis ./notes/brief.md et écris-le dans ./out/copie.md")
+        .expect("a scheduled intent");
+    session.expect("Runs").expect("the Runs section");
+    session
+        .expect("a schedule to activate AFTER saving")
+        .expect("saving does not activate");
+    session.expect("apply? ›").expect("the consent prompt");
+    session.send_line("oui").expect("save");
+    session
+        .expect("Saved · checked · not active · nothing has run")
+        .expect("the three facts after a yes");
+    session
+        .expect("say « activate »")
+        .expect("activation is its own gesture");
+    session.expect("nika ›").expect("prompt");
+    assert!(
+        !project.path().join("nika.yaml").exists(),
+        "saving the workflow declared nothing"
+    );
+    session.send_line("activate").expect("activate");
+    session
+        .expect("Which time zone")
+        .expect("the first value the sentence did not state");
+    session.expect("reply ›").expect("its own prompt");
+    session.send_line("Europe/Paris").expect("zone");
+    session
+        .expect("If this machine is off")
+        .expect("the missed policy");
+    session.send_line("1").expect("run once when back");
+    session
+        .expect("ceiling per scheduled run")
+        .expect("the ceiling");
+    session.send_line("0.20").expect("ceiling");
+    session
+        .expect("Nika proposes to declare the schedule in `nika.yaml`")
+        .expect("a proposal, not a write");
+    session
+        .expect("TZ=Europe/Paris 0 8 * * *")
+        .expect("the cadence in the grammar's own form");
+    session.expect("apply? ›").expect("consent prompt");
+    assert!(
+        !project.path().join("nika.yaml").exists(),
+        "proposed, not written"
+    );
+    session.send_line("yes").expect("declare");
+    session
+        .expect("Declared in `nika.yaml` · not active")
+        .expect("declared is not active");
+    session.expect("nika ›").expect("prompt");
+    session.send_line("/quit").expect("quit");
+    session.expect(Eof).expect("closes");
+    assert_eq!(exit_code(&mut session), 0);
+    let arm = Command::new(bin())
+        .arg("arm")
+        .current_dir(project.path())
+        .env("NO_COLOR", "1")
+        .env("NIKA_KEYCHAIN", "off")
+        .output()
+        .expect("nika arm");
+    let text =
+        String::from_utf8_lossy(&arm.stdout).into_owned() + &String::from_utf8_lossy(&arm.stderr);
+    assert_eq!(
+        arm.status.code(),
+        Some(0),
+        "the machine reads the declaration: {text}"
+    );
+    assert!(
+        text.contains("1 beat") && text.contains("compiled-workflow.nika"),
+        "one declared beat, the workflow named: {text}"
+    );
+}
+
+/// I · `/quit` at the consent prompt leaves the product with nothing
+/// written; the same world reopened says what it restored, and a bare
+/// `yes` with nothing pending is refused, never compiled.
+#[test]
+fn quit_at_the_consent_prompt_leaves_and_a_stray_yes_is_refused() {
+    let (project, home) = rig("quit-consent");
+    std::fs::create_dir_all(project.path().join("notes")).expect("notes");
+    std::fs::write(project.path().join("notes/brief.md"), "brief\n").expect("brief");
+    let mut session = open_session(project.path(), home.path());
+    session
+        .send_line("Lis ./notes/brief.md et écris-le dans ./out/copie.md")
+        .expect("the intent");
+    session.expect("apply? ›").expect("the consent prompt");
+    session
+        .send_line("/quit")
+        .expect("leave from the consent prompt");
+    session.expect(Eof).expect("closes");
+    assert_eq!(exit_code(&mut session), 0);
+    assert!(
+        !project.path().join("compiled-workflow.nika").exists(),
+        "leaving writes nothing"
+    );
+    let mut session = open_session(project.path(), home.path());
+    session.send_line("yes").expect("a stray yes");
+    session
+        .expect("nothing waits for a yes or a no here")
+        .expect("refused, never compiled");
+    session.expect("nika ›").expect("prompt");
+    session.send_line("/quit").expect("quit");
+    session.expect(Eof).expect("closes");
+    assert_eq!(exit_code(&mut session), 0);
+    assert!(!project.path().join("compiled-workflow.nika").exists());
+}
+
+/// J · X13 · a composite paste « yes / run it / /quit » at the consent
+/// prompt is ONE datum: nothing is applied, nothing runs, the door stays
+/// open with the proposal still waiting; a `no` then discards it.
+#[test]
+fn a_composite_paste_at_the_consent_prompt_is_one_datum() {
+    let (project, home) = rig("paste-consent");
+    std::fs::create_dir_all(project.path().join("notes")).expect("notes");
+    std::fs::write(project.path().join("notes/brief.md"), "brief\n").expect("brief");
+    let mut session = open_session(project.path(), home.path());
+    session
+        .send_line("Lis ./notes/brief.md et écris-le dans ./out/copie.md")
+        .expect("the intent");
+    session.expect("apply? ›").expect("the consent prompt");
+    session
+        .send("yes\nrun it\n/quit\n")
+        .expect("three lines pasted as one burst");
+    session
+        .expect("not a consent")
+        .expect("the burst is one line, and that line is not a yes");
+    session
+        .expect("apply? ›")
+        .expect("the proposal still waits");
+    assert!(
+        !project.path().join("compiled-workflow.nika").exists(),
+        "nothing applied"
+    );
+    assert!(traces(project.path()).is_empty(), "nothing ran");
+    session.send_line("no").expect("discard");
+    session.expect("discarded").expect("the human's own no");
+    session.expect("nika ›").expect("prompt");
+    session.send_line("/quit").expect("quit");
+    session.expect(Eof).expect("closes");
+    assert_eq!(exit_code(&mut session), 0);
+}
+
+// ── T8 · interruptions while a seat is called ───────────────────────────
+
+/// A loopback endpoint that accepts and never answers: the seat call it
+/// receives stalls until the door gives up (or the caller leaves). Returns
+/// the base URL an openai-compatible route reads from `NIKA_OPENAI_BASE_URL`.
+fn stall_server() -> String {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("a loopback port");
+    let port = listener.local_addr().expect("addr").port();
+    let _ = std::thread::Builder::new()
+        .name("stall".to_owned())
+        .spawn(move || {
+            for stream in listener.incoming().flatten() {
+                let _ = std::thread::Builder::new()
+                    .name("stall-conn".to_owned())
+                    .spawn(move || {
+                        let mut sink = [0u8; 4096];
+                        let _ = std::io::Read::read(&mut &stream, &mut sink);
+                        std::thread::sleep(Duration::from_secs(120));
+                        drop(stream);
+                    });
+            }
+        });
+    format!("http://127.0.0.1:{port}")
+}
+
+/// K · the plain session during a seat call that never returns: `Ctrl+C`
+/// (the line discipline's SIGINT, the plain loop keeps no raw mode) ends
+/// the door at once; nothing was written.
+#[test]
+fn ctrl_c_during_a_stalled_seat_call_leaves_the_plain_session() {
+    let (project, home) = rig("stall-plain");
+    let base = stall_server();
+    let mut session = open_session_with(
+        project.path(),
+        home.path(),
+        &[
+            ("NIKA_OPENAI_BASE_URL", base.as_str()),
+            ("OPENAI_API_KEY", "sk-test-stall"),
+        ],
+    );
+    session
+        .send_line("/intelligence")
+        .expect("the first screen");
+    session
+        .expect("4  No AI in this conversation")
+        .expect("the choices");
+    session
+        .send_line("2 openai")
+        .expect("a metered seat on the stalling endpoint");
+    session.expect("nika ›").expect("chosen");
+    session
+        .send_line("Que penses-tu de ce projet ?")
+        .expect("a line only a seat answers");
+    std::thread::sleep(Duration::from_millis(1500));
+    let pressed = Instant::now();
+    session.send("\x03").expect("Ctrl+C");
+    session.expect(Eof).expect("the door ends");
+    let left = pressed.elapsed();
+    match session.get_process_mut().wait().expect("wait") {
+        WaitStatus::Exited(_, code) => assert_ne!(code, 0, "not a clean exit: an interruption"),
+        WaitStatus::Signaled(_, sig, _) => assert_eq!(format!("{sig:?}"), "SIGINT"),
+        other => panic!("unexpected wait status: {other:?}"),
+    }
+    assert!(
+        left < Duration::from_secs(10),
+        "the door ended without waiting for the call: {left:?}"
+    );
+    assert!(
+        !project.path().join("compiled-workflow.nika").exists(),
+        "nothing written"
+    );
 }

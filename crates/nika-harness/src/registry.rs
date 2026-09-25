@@ -121,23 +121,34 @@ pub fn registry_with(
     Ok(rows)
 }
 
-/// The static table (G-3 order). Every npm-spawned row pins its package
-/// spec exactly (`@<version>` in the argv) AND pins the printed version
-/// range — the spawn pin and the probe pin are the same fact.
+/// The static table (G-3 order · native ACP first · Anthropic last). Every
+/// row pins the version range its probe reads; every identity is a measured
+/// `agentInfo.name`, never a guess (acp_measured_2026-09-22 in the campaign
+/// notes). Eight rows: gemini-cli · qwen-code · kimi-code · opencode · codex ·
+/// copilot · grok-build · claude-code.
 fn rows() -> Result<Vec<AdapterRow>, HarnessError> {
     Ok(vec![
         AdapterRow {
+            // Measured 2026-09-22 (gemini-cli 0.37.2): `--acp` and `--experimental-acp` both
+            // start the agent; `agentInfo.name` is `gemini-cli`. The consumer OAuth tier was
+            // retired on 2026-06-18 (Code Assist for individuals): a paid API key still serves,
+            // read by the CLI from ITS OWN home (`GEMINI_CLI_HOME/.gemini/.env`, settings
+            // `security.auth.selectedType = gemini-api-key`) — the operator points the seat at
+            // that home; no key ever crosses the engine's environment boundary.
             adapter: HarnessAdapter::new("gemini-cli", "gemini")?
-                .with_args(vec!["--experimental-acp".to_owned()])
-                .with_version_pin(VersionPin::new((0, 37), 0)),
+                .with_args(vec!["--acp".to_owned()])
+                .with_identities(vec!["Gemini CLI".to_owned()])
+                .with_version_pin(VersionPin::new((0, 37), 0))
+                .with_passthrough_env(vec!["GEMINI_CLI_HOME".to_owned()]),
             serves: &["gemini"],
             auth: AuthProbe::HomeFile(".gemini/google_accounts.json"),
             directory_auth: None,
-            package: "@google/gemini-cli (brew install gemini-cli)",
+            package: "@google/gemini-cli (brew install gemini-cli · a paid API key: settings selectedType gemini-api-key in a GEMINI_CLI_HOME of its own)",
         },
         AdapterRow {
             adapter: HarnessAdapter::new("qwen-code", "qwen")?
                 .with_args(vec!["--acp".to_owned(), "--experimental-skills".to_owned()])
+                .with_identities(vec!["Qwen Code".to_owned()])
                 .with_version_pin(VersionPin::new((0, 21), 0)),
             serves: &["qwen"],
             auth: AuthProbe::HomeFile(".qwen"),
@@ -145,17 +156,15 @@ fn rows() -> Result<Vec<AdapterRow>, HarnessError> {
             package: "@qwen-code/qwen-code (npm i -g @qwen-code/qwen-code)",
         },
         AdapterRow {
-            // Measured 2026-08-22 against the installed Kimi Code CLI
-            // (`kimi --version` → `0.37.2` · `kimi acp --help` → "Run
-            // kimi-code as an Agent Client Protocol (ACP) server over
-            // stdio."). Official Zed args are `["acp"]`. `--login` is
-            // a separate option (device-code then exit) and is NOT
-            // the session argv. Native CLI: `--version` works, so the
-            // identity probe is the flag plus the ACP help shape,
-            // never a session handshake.
+            // Measured 2026-09-22 against Kimi Code CLI 2.0.2 (the Node rewrite;
+            // `kimi --version` → `2.0.2` · `kimi acp --help` → "Run kimi-code as an Agent
+            // Client Protocol (ACP) server over stdio." · `agentInfo.name` → `Kimi Code CLI`).
+            // The Python `kimi-cli` (0.37, 2026-08-22) is archived upstream. Official Zed
+            // args are `["acp"]`; `--login` is device-code-then-exit, never the session argv.
             adapter: HarnessAdapter::new("kimi-code", "kimi")?
                 .with_args(vec!["acp".to_owned()])
-                .with_version_pin(VersionPin::new((0, 37), 0))
+                .with_identities(vec!["Kimi Code CLI".to_owned(), "kimi-cli".to_owned()])
+                .with_version_pin(VersionPin::new((2, 0), 2))
                 .with_command_shape_probe(
                     vec!["acp".to_owned(), "--help".to_owned()],
                     "Agent Client Protocol",
@@ -172,43 +181,102 @@ fn rows() -> Result<Vec<AdapterRow>, HarnessError> {
                 override_relative: "credentials",
                 credential_files: &["kimi-code.json"],
             }),
-            package: "kimi-code (kimi upgrade · https://moonshotai.github.io/kimi-code/)",
+            package: "@moonshot-ai/kimi-code (npm i -g @moonshot-ai/kimi-code · https://moonshotai.github.io/kimi-code/)",
         },
         AdapterRow {
-            adapter: HarnessAdapter::new("codex", "codex-acp")?
-                // The npm class, honestly: `npm i -g` puts the bin on
-                // PATH (the npx-on-the-spec form does NOT link these
-                // packages' bins — measured 2026-08-07). No working
-                // version flag — the probe is the initialize self-report.
-                // The curated model override: 0.16.0's built-in default
-                // (gpt-5.6-sol) predates the backend's support floor —
-                // the backend refuses it with "requires a newer version"
-                // (measured 2026-08-07); the override rides the row and
-                // moves with each re-pin.
-                .with_args(vec!["-c".to_owned(), "model=gpt-5.5".to_owned()])
+            // Measured 2026-09-22 (OpenCode 1.18.15): `opencode acp` speaks ACP over stdio,
+            // `agentInfo.name` → `OpenCode`, a `model` config option over every provider it
+            // holds. Its auth store is its own (`opencode auth login`); the engine's env floor
+            // passes it no key, so a seat runs on what the CLI itself holds.
+            adapter: HarnessAdapter::new("opencode", "opencode")?
+                .with_args(vec!["acp".to_owned()])
+                .with_identities(vec!["OpenCode".to_owned()])
                 .with_handshake_probe()
-                .with_version_pin(VersionPin::new((0, 16), 0)),
-            serves: &["openai"],
-            auth: AuthProbe::Command {
-                command: "codex",
-                args: &["login", "status"],
-            },
+                .with_version_pin(VersionPin::new((1, 18), 1)),
+            serves: &["opencode"],
+            auth: AuthProbe::HomeFile(".local/share/opencode/auth.json"),
             directory_auth: None,
-            package: "@zed-industries/codex-acp@0.16.0 (npm i -g · wraps the codex CLI's own auth)",
+            package: "opencode-ai (brew install opencode · npm i -g opencode-ai · https://opencode.ai/docs/acp)",
+        },
+        codex_row()?,
+        AdapterRow {
+            // Measured 2026-09-22 (GitHub Copilot CLI 1.0.77, ACP public preview): `copilot
+            // --acp` over stdio, `agentInfo.name` → `Copilot`, modes agent · plan · autopilot
+            // as URI ids, a `mode` config option. Auth is the CLI's own (`copilot login`).
+            adapter: HarnessAdapter::new("copilot", "copilot")?
+                .with_args(vec!["--acp".to_owned()])
+                .with_identities(vec!["GitHub Copilot".to_owned()])
+                .with_handshake_probe()
+                .with_version_pin(VersionPin::new((1, 0), 1)),
+            serves: &["github"],
+            auth: AuthProbe::HomeFile(".copilot/config.json"),
+            directory_auth: None,
+            package: "@github/copilot (npm i -g @github/copilot · https://docs.github.com/copilot/reference/copilot-cli-reference/acp-server)",
         },
         AdapterRow {
+            // Measured 2026-09-22 (Grok Build 1.0.40): `grok agent stdio` speaks ACP (auth
+            // methods xai.api_key · cached_token · grok.com; models grok-4.7 · 4.7-fast · 4.6 ·
+            // 4.5 with a reasoning-effort option) but its initialize answer carries NO
+            // `agentInfo` — so the identity rides `grok --version` (`grok 1.0.40 (…) [stable]`),
+            // never a handshake. Auth is the CLI's own store (`grok login` → `~/.grok/auth.json`).
+            adapter: HarnessAdapter::new("grok-build", "grok")?
+                .with_args(vec!["agent".to_owned(), "stdio".to_owned()])
+                .with_identities(vec!["Grok Build".to_owned(), "grok".to_owned()])
+                .with_version_pin(VersionPin::new((1, 0), 1)),
+            serves: &["xai"],
+            auth: AuthProbe::HomeFile(".grok/auth.json"),
+            directory_auth: None,
+            package: "@xai-official/grok (npm i -g @xai-official/grok · https://docs.x.ai/build)",
+        },
+        AdapterRow {
+            // The maintained adapter is `@agentclientprotocol/claude-agent-acp` (0.81.0
+            // measured 2026-09-22: `agentInfo.name` → `@agentclientprotocol/claude-agent-acp`,
+            // title `Claude Agent`; it opens a session under Claude Code's `auto` permission
+            // mode, which the deprecated `@zed-industries/claude-agent-acp` 0.23.1 — same bin
+            // name, answers its own scoped name — refuses with « Invalid
+            // permissions.defaultMode: auto. »; the pin accepts both, the refusal rides
+            // verbatim). Auth is Claude Code's own login: a credential-shaped variable never
+            // crosses, so a seat runs on the subscription, never on an ambient API key.
             adapter: HarnessAdapter::new("claude-code", "claude-agent-acp")?
+                .with_identities(vec!["Claude Agent".to_owned()])
                 .with_handshake_probe()
-                .with_version_pin(VersionPin::new((0, 23), 0)),
+                .with_version_pin(VersionPin::new((0, 23), 0))
+                .with_passthrough_env(vec!["CLAUDE_CONFIG_DIR".to_owned()]),
             serves: &["anthropic"],
             auth: AuthProbe::Command {
                 command: "claude",
                 args: &["auth", "status"],
             },
             directory_auth: None,
-            package: "@zed-industries/claude-agent-acp@0.23.1 (npm i -g · wraps the claude CLI's own auth)",
+            package: "@agentclientprotocol/claude-agent-acp (npm i -g · wraps the claude CLI's own auth · @zed-industries/claude-agent-acp is deprecated)",
         },
     ])
+}
+
+fn codex_row() -> Result<AdapterRow, HarnessError> {
+    Ok(AdapterRow {
+        // The maintained adapter is `@agentclientprotocol/codex-acp` (1.13.0 measured
+        // 2026-09-22: `agentInfo.name` → `@agentclientprotocol/codex-acp`, auth methods
+        // api-key · chat-gpt, models gpt-6-astra[…]); the `@zed-industries/codex-acp`
+        // package (0.16.0, same bin name, answers `codex-acp`) is deprecated on npm and
+        // still accepted by the pin. `npm i -g` puts the bin on PATH (the npx-on-the-spec
+        // form does NOT link these packages' bins — measured 2026-08-07). No working
+        // version flag — the probe is the initialize self-report. The 0.16.0 model
+        // override (`-c model=gpt-5.5`, 2026-08-07) is retired: the adapter's own default
+        // is the vendor's current model, and a run names its model through the session.
+        adapter: HarnessAdapter::new("codex", "codex-acp")?
+            .with_identities(vec!["Codex".to_owned()])
+            .with_handshake_probe()
+            .with_version_pin(VersionPin::new((0, 16), 1))
+            .with_passthrough_env(vec!["CODEX_HOME".to_owned()]),
+        serves: &["openai"],
+        auth: AuthProbe::Command {
+            command: "codex",
+            args: &["login", "status"],
+        },
+        directory_auth: None,
+        package: "@agentclientprotocol/codex-acp (npm i -g · wraps the codex CLI's own auth · @zed-industries/codex-acp is deprecated)",
+    })
 }
 
 #[cfg(test)]
@@ -222,7 +290,7 @@ mod tests {
     }
 
     #[test]
-    fn the_table_ships_the_five_rows_in_the_ratified_order() {
+    fn the_table_ships_the_eight_rows_in_the_ratified_order() {
         let rows = registry_with(&no_env).expect("the static table loads");
         let ids: Vec<&str> = rows.iter().map(|r| r.adapter.id.as_str()).collect();
         assert_eq!(
@@ -231,7 +299,10 @@ mod tests {
                 "gemini-cli",
                 "qwen-code",
                 "kimi-code",
+                "opencode",
                 "codex",
+                "copilot",
+                "grok-build",
                 "claude-code"
             ],
             "G-3 · native first · Anthropic is never the default example"
@@ -253,6 +324,18 @@ mod tests {
         assert_eq!(row.adapter.command, "kimi");
         assert_eq!(row.adapter.args, vec!["acp".to_owned()]);
         assert!(
+            row.adapter.answers_as("Kimi Code CLI"),
+            "the measured `agentInfo.name` (2.0.2) is a declared identity"
+        );
+        assert_eq!(
+            row.adapter
+                .version_pin
+                .as_ref()
+                .map(|p| (p.min, p.max_major)),
+            Some(((2, 0), 2)),
+            "the pin reads the Node rewrite (2.0.2 measured 2026-09-22), not the archived 0.37 CLI"
+        );
+        assert!(
             !row.adapter.probe_via_handshake,
             "kimi --version works; handshake is the wrapper class"
         );
@@ -270,12 +353,20 @@ mod tests {
             })
         );
         let pin = row.adapter.version_pin.as_ref().expect("pinned");
-        assert_eq!(pin.min, (0, 37), "floor is the measured ACP-native release");
-        assert_eq!(pin.max_major, 0);
-        assert!(pin.accepts(0, 37));
-        assert!(pin.accepts(0, 99));
-        assert!(!pin.accepts(0, 36), "below the measured floor");
-        assert!(!pin.accepts(1, 0), "a new major is a new dialect");
+        assert_eq!(
+            pin.min,
+            (2, 0),
+            "floor is the measured Node rewrite (2.0.2, 2026-09-22)"
+        );
+        assert_eq!(pin.max_major, 2);
+        assert!(pin.accepts(2, 0));
+        assert!(
+            !pin.accepts(0, 37),
+            "the archived Python CLI is below the floor"
+        );
+        assert!(pin.accepts(2, 99));
+        assert!(!pin.accepts(1, 99), "below the measured floor");
+        assert!(!pin.accepts(3, 0), "a new major is a new dialect");
         assert_eq!(row.serves, &["moonshot"]);
         assert_eq!(row.auth, AuthProbe::HomeFile(".kimi-code/credentials"));
         assert_eq!(
@@ -316,7 +407,12 @@ mod tests {
     #[test]
     fn the_wrapper_rows_probe_by_handshake_never_a_wrapper_flag() {
         let rows = registry_with(&no_env).expect("loads");
-        for (id, command) in [("codex", "codex-acp"), ("claude-code", "claude-agent-acp")] {
+        for (id, command) in [
+            ("codex", "codex-acp"),
+            ("claude-code", "claude-agent-acp"),
+            ("opencode", "opencode"),
+            ("copilot", "copilot"),
+        ] {
             let row = rows.iter().find(|r| r.adapter.id == id).expect("row");
             // The bin on PATH (npm i -g) — the npx-on-the-spec form does
             // NOT link these packages' bins (measured 2026-08-07).
@@ -332,7 +428,24 @@ mod tests {
                 row.package.contains(command),
                 "{id}: the install pointer names the pinned package"
             );
+            assert!(
+                row.adapter
+                    .answers_as(&format!("@agentclientprotocol/{command}")),
+                "{id}: the maintained scoped package name is the adapter"
+            );
         }
+        let grok = rows
+            .iter()
+            .find(|r| r.adapter.id == "grok-build")
+            .expect("grok-build ships");
+        assert!(
+            !grok.adapter.probe_via_handshake,
+            "grok answers initialize without agentInfo: its identity rides `grok --version`"
+        );
+        assert_eq!(
+            grok.adapter.args,
+            vec!["agent".to_owned(), "stdio".to_owned()]
+        );
     }
 
     #[test]
@@ -342,7 +455,14 @@ mod tests {
         let ids: Vec<&str> = rows.iter().map(|r| r.adapter.id.as_str()).collect();
         assert_eq!(
             ids,
-            ["gemini-cli", "kimi-code", "claude-code"],
+            [
+                "gemini-cli",
+                "kimi-code",
+                "opencode",
+                "copilot",
+                "grok-build",
+                "claude-code"
+            ],
             "whitespace-tolerant removal"
         );
     }
@@ -351,7 +471,7 @@ mod tests {
     fn an_unknown_kill_switch_entry_changes_nothing() {
         let env = |name: &str| (name == DISABLE_ENV).then(|| "not-an-adapter".to_owned());
         let rows = registry_with(&env).expect("loads");
-        assert_eq!(rows.len(), 5);
+        assert_eq!(rows.len(), 8);
     }
 
     #[test]

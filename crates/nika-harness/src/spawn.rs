@@ -95,8 +95,26 @@ fn retain_probe_chunk(
 }
 
 async fn stop_probe(child: &mut tokio::process::Child) {
+    let group = child.id();
     let _ = child.start_kill();
     let _ = child.wait().await;
+    kill_probe_group(group);
+}
+
+/// End a probe's whole process group (the child was spawned as its own
+/// group leader): an npm wrapper (`node …/bin/codex-acp`) forks the real
+/// adapter binary as a grandchild, and killing the wrapper alone left
+/// that grandchild alive — measured 2026-09-22: ~1.7 orphaned
+/// `codex-acp` per second under a doctor-polling editor extension, the
+/// process table full within the hour. `None` (no pid) or a group already
+/// gone is nothing to do.
+fn kill_probe_group(group: Option<u32>) {
+    let Some(pid) = group.and_then(|g| i32::try_from(g).ok()) else {
+        return;
+    };
+    if let Some(pid) = rustix::process::Pid::from_raw(pid) {
+        let _ = rustix::process::kill_process_group(pid, rustix::process::Signal::KILL);
+    }
 }
 
 fn take_probe_pipes(
@@ -215,6 +233,10 @@ pub struct HarnessAdapter {
     pub command: String,
     /// The session-mode argv (e.g. `["--experimental-acp"]`).
     pub args: Vec<String>,
+    /// The `agentInfo.name` values this adapter answers in its initialize self-report,
+    /// measured (an npm adapter answers its scoped package name, Kimi answers `Kimi Code
+    /// CLI`). The id itself is always accepted; the match ignores case. Empty = the id only.
+    pub identities: Vec<String>,
     /// Extra parent env vars the adapter may read (beyond the floor) —
     /// credential-shaped names are refused by composition.
     pub passthrough_env: Vec<String>,
@@ -268,6 +290,7 @@ impl HarnessAdapter {
             id,
             command: command.into(),
             args: Vec::new(),
+            identities: Vec::new(),
             passthrough_env: Vec::new(),
             version_pin: None,
             version_args: vec!["--version".to_owned()],
@@ -289,6 +312,34 @@ impl HarnessAdapter {
     pub fn with_passthrough_env(mut self, vars: Vec<String>) -> Self {
         self.passthrough_env = vars;
         self
+    }
+
+    /// Declare the `agentInfo.name` values this adapter answers (measured, never
+    /// guessed): the handshake judge accepts the id, any of these, the name with its
+    /// npm scope stripped, or the command's own basename — and refuses every other name.
+    #[must_use]
+    pub fn with_identities(mut self, names: Vec<String>) -> Self {
+        self.identities = names;
+        self
+    }
+
+    /// Whether an initialize `agentInfo.name` names this adapter.
+    #[must_use]
+    pub fn answers_as(&self, name: &str) -> bool {
+        let name = name.trim();
+        if name.is_empty() {
+            return false;
+        }
+        let same = |a: &str, b: &str| a.eq_ignore_ascii_case(b);
+        if same(name, &self.id) || self.identities.iter().any(|i| same(i, name)) {
+            return true;
+        }
+        let unscoped = name.rsplit('/').next().unwrap_or(name);
+        let basename = std::path::Path::new(&self.command)
+            .file_name()
+            .and_then(|c| c.to_str())
+            .unwrap_or(self.command.as_str());
+        same(unscoped, &self.id) || same(unscoped, basename)
     }
 
     /// Pin the accepted `--version` range — the probe then runs BEFORE
@@ -357,6 +408,7 @@ impl SpawnedHarness {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .kill_on_drop(true)
+            .process_group(0)
             .spawn()
             .map_err(|error| HarnessError::Unavailable {
                 reason: format!(
@@ -364,6 +416,7 @@ impl SpawnedHarness {
                     self.adapter.id
                 ),
             })?;
+        let group = child.id();
         let (stdout, stderr) = take_probe_pipes(&mut child, &self.adapter.id, purpose)?;
         let deadline = tokio::time::Instant::now() + PROBE_TIMEOUT;
         let captured = tokio::time::timeout_at(deadline, read_probe_streams(stdout, stderr)).await;
@@ -400,8 +453,13 @@ impl SpawnedHarness {
             Ok(Ok(captured)) => captured,
         };
         let status = match tokio::time::timeout_at(deadline, child.wait()).await {
-            Ok(Ok(status)) => status,
+            Ok(Ok(status)) => {
+                // The wrapper exited on its own: whatever it forked goes too.
+                kill_probe_group(group);
+                status
+            }
             Ok(Err(error)) => {
+                kill_probe_group(group);
                 return Err(HarnessError::Unavailable {
                     reason: format!(
                         "adapter `{}`: cannot wait for {purpose} `{command_line}`: {error}",
@@ -552,7 +610,8 @@ impl SpawnedHarness {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
-            .kill_on_drop(true);
+            .kill_on_drop(true)
+            .process_group(0);
         let handshake =
             tokio::time::timeout(std::time::Duration::from_secs(30), handshake_roundtrip(cmd));
         let answered = handshake.await.map_err(|_| HarnessError::Unavailable {
@@ -571,11 +630,15 @@ impl SpawnedHarness {
             .pointer("/result/agentInfo/name")
             .and_then(serde_json::Value::as_str)
             .unwrap_or("");
-        if name != self.adapter.id {
+        if !self.adapter.answers_as(name) {
+            let accepted = std::iter::once(self.adapter.id.as_str())
+                .chain(self.adapter.identities.iter().map(String::as_str))
+                .collect::<Vec<_>>()
+                .join("` · `");
             return Err(HarnessError::Unavailable {
                 reason: format!(
                     "adapter `{}`: the handshake answered as `{name}` — this binary is not \
-                     the adapter it claims to be",
+                     the adapter it claims to be (it answers as `{accepted}`)",
                     self.adapter.id
                 ),
             });
@@ -607,10 +670,21 @@ impl SpawnedHarness {
 async fn handshake_roundtrip(
     mut cmd: tokio::process::Command,
 ) -> Result<serde_json::Value, HarnessError> {
-    use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
     let mut child = cmd.spawn().map_err(|e| HarnessError::Unavailable {
         reason: format!("cannot spawn the adapter: {e}"),
     })?;
+    let answer = handshake_over(&mut child).await;
+    // One answer is all a probe needs: the child — and the grandchild an
+    // npm wrapper forked — end here, whatever the answer was.
+    stop_probe(&mut child).await;
+    answer
+}
+
+/// The initialize request written and one bounded line read.
+async fn handshake_over(
+    child: &mut tokio::process::Child,
+) -> Result<serde_json::Value, HarnessError> {
+    use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
     let mut stdin = child.stdin.take().ok_or_else(|| HarnessError::Session {
         reason: "the child's stdin was not piped".to_owned(),
     })?;
@@ -1006,7 +1080,12 @@ else:
         reports: &str,
         version: &str,
     ) -> HarnessAdapter {
-        let script = dir.join(format!("agent-{reports}.py"));
+        // The answered name may carry a scope or spaces; the script's file name never does.
+        let slug: String = reports
+            .chars()
+            .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
+            .collect();
+        let script = dir.join(format!("agent-{slug}.py"));
         std::fs::write(
             &script,
             format!(
@@ -1026,6 +1105,55 @@ sys.stdout.flush()
             .with_args(vec![path])
             .with_handshake_probe()
             .with_version_pin(crate::probe::VersionPin::new((0, 16), 0))
+    }
+
+    /// An npm-style wrapper forks the real adapter as a grandchild and
+    /// answers initialize itself: after the probe, the grandchild is gone
+    /// too (the whole process group ends with the probe) — measured
+    /// 2026-09-22 as ~1.7 orphaned `codex-acp` per second before this.
+    #[tokio::test]
+    async fn a_probe_takes_the_wrappers_grandchild_with_it() {
+        let dir = std::env::temp_dir().join(format!("nika-hs-group-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("dir");
+        let pid_file = dir.join("grandchild.pid");
+        let script = dir.join("wrapper.py");
+        std::fs::write(
+            &script,
+            format!(
+                r#"import json, subprocess, sys
+kid = subprocess.Popen(["sleep", "600"])
+open({pid_file:?}, "w").write(str(kid.pid))
+line = sys.stdin.readline()
+req = json.loads(line)
+print(json.dumps({{"jsonrpc":"2.0","id":req["id"],"result":{{"protocolVersion":1,"agentInfo":{{"name":"codex-acp","version":"0.16.2"}}}}}}))
+sys.stdout.flush()
+kid.wait()
+"#,
+                pid_file = pid_file.to_string_lossy()
+            ),
+        )
+        .expect("script");
+        let adapter = HarnessAdapter::new("codex-acp", "python3")
+            .expect("id is fine")
+            .with_args(vec![script.to_string_lossy().into_owned()])
+            .with_handshake_probe()
+            .with_version_pin(crate::probe::VersionPin::new((0, 16), 0));
+        let seen = SpawnedHarness::new(adapter)
+            .probe_version()
+            .await
+            .expect("the wrapper answers");
+        assert_eq!(seen, Some((0, 16)));
+        let pid: i32 = std::fs::read_to_string(&pid_file)
+            .expect("the wrapper wrote its grandchild's pid")
+            .trim()
+            .parse()
+            .expect("a pid");
+        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+        let grandchild = rustix::process::Pid::from_raw(pid).expect("a positive pid");
+        assert!(
+            rustix::process::test_kill_process(grandchild).is_err(),
+            "the grandchild `sleep 600` (pid {pid}) outlived the probe"
+        );
     }
 
     #[tokio::test]
@@ -1051,6 +1179,69 @@ sys.stdout.flush()
             .await
             .expect_err("the impostor refuses");
         assert!(err.to_string().contains("qwen-code"), "{err}");
+        // The npm adapter answers its SCOPED package name: that IS the adapter (measured
+        // 2026-09-22: `@zed-industries/claude-agent-acp@0.23.1` had refused every session).
+        let scoped = SpawnedHarness::new(handshake_agent(
+            &dir,
+            "claude-agent-acp",
+            "@agentclientprotocol/claude-agent-acp",
+            "0.81.0",
+        ));
+        assert_eq!(
+            scoped
+                .probe_version()
+                .await
+                .expect("the scoped name is the adapter"),
+            Some((0, 81))
+        );
+        // A declared identity that shares nothing with the id (Kimi answers `Kimi Code CLI`).
+        let declared = SpawnedHarness::new(
+            handshake_agent(&dir, "kimi-code", "Kimi Code CLI", "2.0.2")
+                .with_identities(vec!["Kimi Code CLI".to_owned()])
+                .with_version_pin(crate::probe::VersionPin::new((2, 0), 2)),
+        );
+        assert_eq!(
+            declared.probe_version().await.expect("a declared identity"),
+            Some((2, 0))
+        );
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_answered_name_is_judged_by_id_identity_scope_or_command_never_by_guess() {
+        let row = HarnessAdapter::new("claude-code", "claude-agent-acp")
+            .expect("row")
+            .with_identities(vec!["Claude Agent".to_owned()]);
+        assert!(row.answers_as("claude-code"));
+        assert!(row.answers_as("claude-agent-acp"));
+        assert!(row.answers_as("@agentclientprotocol/claude-agent-acp"));
+        assert!(row.answers_as("@zed-industries/claude-agent-acp"));
+        assert!(row.answers_as("claude agent"), "case never decides");
+        assert!(!row.answers_as("qwen-code"));
+        assert!(!row.answers_as("@agentclientprotocol/codex-acp"));
+        assert!(!row.answers_as(""));
+        let pathed = HarnessAdapter::new("codex", "/opt/bin/codex-acp").expect("row");
+        assert!(pathed.answers_as("@agentclientprotocol/codex-acp"));
+        assert!(pathed.answers_as("codex-acp"));
+        assert!(
+            pathed.answers_as("Codex"),
+            "a title equal to the id, whatever the case, is the adapter"
+        );
+        assert!(
+            !pathed.answers_as("Codex CLI"),
+            "a title beyond the id needs a declaration"
+        );
+        let kimi = HarnessAdapter::new("kimi-code", "kimi")
+            .expect("row")
+            .with_identities(vec!["Kimi Code CLI".to_owned()]);
+        assert!(kimi.answers_as("Kimi Code CLI"));
+        assert!(
+            kimi.answers_as("kimi"),
+            "the command's own basename is an identity (an npm bin answers its bin name)"
+        );
+        assert!(
+            !kimi.answers_as("kimi-legacy"),
+            "a name beyond the row needs a declaration"
+        );
     }
 }

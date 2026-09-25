@@ -1315,3 +1315,6 @@ fn a_paused_run_leaves_its_gate_in_the_record_and_a_fresh_runtime_waits_on_it() 
     assert!(notice.contains("no longer waits"), "{notice}");
     assert!(later.waiting_gate().is_none());
 }
+
+/// The kept-draft suite: evidence across a close, re-proposal, and the record's schema.
+mod draft_tests;

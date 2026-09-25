@@ -131,15 +131,51 @@ impl RunLedger {
         }
     }
 
+    /// Per-invocation accounting when evidence exists, with tools kept separate.
+    pub(crate) fn debit_observed(
+        &self,
+        source: Option<&str>,
+        cost: Option<f64>,
+        unpriced: bool,
+        usage: Option<&crate::usage::UsageSplit>,
+    ) {
+        let Some(split) = usage.filter(|u| !u.inference_calls.is_empty()) else {
+            self.debit(source, cost, unpriced);
+            return;
+        };
+        let mut known = 0.0;
+        for call in &split.inference_calls {
+            let estimate = call
+                .known_estimate()
+                .map(nika_types::cost::Cost::to_usd_f64);
+            known += estimate.unwrap_or(0.0);
+            let route = call
+                .route
+                .as_ref()
+                .map(|r| format!("{}/{} @ {}", r.provider, r.model, r.endpoint));
+            self.debit(route.as_deref(), estimate, estimate.is_none());
+        }
+        // Dispatch cost is the same known invocation subtotal plus known tools.
+        // No unknown invocation is replaced by this remainder.
+        if let Some(total) = cost {
+            let tools = total - known;
+            if tools > 0.0 {
+                let key = source.map(|s| format!("{s} (tools)"));
+                self.debit(key.as_deref(), Some(tools), false);
+            }
+        }
+    }
+
     /// Fold one successful dispatch — THE leaf debit site (plain tasks
     /// and fan-out iterations both flow through the attempt loop; the
     /// parent fan-out sum is presentation-only, so nothing double-counts
     /// — the Sentry hierarchy lesson).
     pub(crate) fn debit_ok(&self, ok: &crate::dispatch::DispatchOk) {
-        self.debit(
+        self.debit_observed(
             ok.cost_source.as_deref(),
             ok.cost_usd,
             ok.cost_unpriced.is_some(),
+            ok.usage.as_deref(),
         );
     }
 

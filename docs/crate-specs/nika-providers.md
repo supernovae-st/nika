@@ -260,3 +260,59 @@ Compile response schemas or serialized receipt fields. It does not add an
 OpenAI-compatible in-band error protocol, which is separate from HTTP rejection.
 Tests inject the kernel HTTP effect; no provider credentials or network calls
 are required.
+
+## Catalog-backed inference admission
+
+`InferenceAdmission` is a cloneable, mutex-protected account of nano-USD
+reservations and catalog estimates, separate from invoices and Run consent.
+`ProviderRegistry::with_inference_admission` preserves unbounded defaults and
+threads the same account into resolved providers. Exact endpoint/model binding,
+text-only serialized body ≤1 MiB, explicit positive output bounds and a kernel
+HTTP single-attempt capability are required before dispatch. Streaming refuses.
+The bounded path disables registry retry and redirects; the HTTP effect must
+disable protocol retries. Complete validated usage settles once, releasing only
+the unused reservation. Dropped sent futures, errors, missing/partial usage and
+contradictions retain exposure and freeze the account. Over-bound observations
+remain in receipts. `billed` is unknown; catalog math never becomes an invoice.
+Amending the total retains spend; defaults never infer an unpriced call is free.
+
+`InferenceAdmission::unbudgeted()` observes qualified calls that an operator
+started without any monetary ceiling. It has no allowance: each full-context
+reservation is recorded as exposure and never compared with a limit, so it
+neither admits against a cap nor invents one. Qualification, the bounded
+single-attempt transport, settlement and the contradiction and uncertainty
+rules above are unchanged; an unsettled or contradicted attempt freezes that
+account, and `amend` refuses, so an observation never becomes an allowance.
+Its receipt reads `unbudgeted`; its observation carries `"unbudgeted": true`
+and a null limit. Every other receipt and observation keeps its exact shape.
+
+Bounded nonstreaming response parsing refuses duplicate decoded object keys before
+usage validation or model binding, including equal duplicates and nested/escaped
+keys. Such ambiguity retains the sent reservation as unknown charge. Unbounded
+JSON parsing remains compatible with its existing last-value behavior.
+
+## Host cost review contract
+
+`admission::{CostRoute, CapEvidence, CostHostEvidence, CostReview,
+monetary_default, native_catalog_price_known}` owns the shared pending review
+beside `UnknownCostChoice` and its account. Hosts supply observed configuration
+evidence and obtain explicit confirmation; Providers does not read the host's
+files, environment or terminal. Missing evidence remains Unknown. The existing
+Runtime `cost_choice` path is a narrow compatibility export. Moving ownership
+does not change any finite bound, default override, hard-cap refusal, exact route
+or candidate binding, observation format, or the separate subscription plane.
+
+`CostChallenge::display` is the first screen of a fresh Run decision: the
+provider/model and the endpoint's origin, the review's own unknown-USD, request,
+output-token, time, default and hard-cap sentences, the native catalog line
+(never an invoice, never a converted price) and `yes / no / details`.
+`CostChallenge::details` projects the same challenge whole: nonce, full
+endpoint, source and input digests, candidate, invocation, native price and the
+host/cap evidence record. Both read `&self`; neither changes the challenge, its
+nonce or any authority.
+
+`CostReview::for_session` applies the Session preparation bounds: at most seven
+requests, 32768 output tokens and 180 seconds per request. The displayed review
+and consuming admission use these same values. `CostReview::new` and
+`with_run_requests` retain the Run per-request limits (8192 tokens, 120 seconds);
+unknown outcomes freeze their account and never grant a transport retry.

@@ -11,7 +11,7 @@
 | Crate version | tracks workspace |
 | License | `AGPL-3.0-or-later` |
 | Publish | `false` — engine-internal driver |
-| Dependencies | `nika-runtime` · `nika-execution` · `nika-check` · `nika-event` · `nika-schema` · `nika-types` · `nika-providers` · `serde_json`; dev: `nika-fs` · `tempfile` · `tokio`. |
+| Dependencies | `nika-runtime` · `nika-execution` · `nika-check` · `nika-event` · `nika-schema` · `nika-types` · `nika-providers` · `nika-harness` · `nika-verb-infer` · `serde_json`; dev: `nika-fs` · `tempfile` · `tokio`. |
 | NIKA codes | none allocated — child refusals reuse the spec-plane `NIKA-COMP-001` and the runtime's own typed codes; no new registry range. |
 
 ## 1. Purpose and boundary
@@ -139,3 +139,40 @@ also pins the adapter side of the same contract.
 
 Gates 1/3/4/8/12 hold at the descent commit; gates 2/6/11 are owed with the
 admission ceremony.
+
+## Finite unknown-cost Run shape
+
+The filesystem-blind `run_cost` module owns two observations, neither an
+execution nor a spending grant:
+
+- `request_bound(workflow, access_plan, unknown_routes)` returns the finite
+  physical-request upper bound for static sequential direct text inference.
+  Each schema task includes `1 + nika_verb_infer::DEFAULT_SCHEMA_RETRY_BUDGET`
+  requests. It rejects parallel inference, task retries, fan-out, recovery,
+  external secrets, exec, agent, vision and explicit thinking. Local read/write,
+  jq and the builtin pure boolean assertion remain subject to Check/permits.
+- `project_file_path(consts, action)` resolves only literals or bare immutable
+  string constants into a project-relative path. It performs no I/O; it cannot
+  attest filesystem containment or grant access.
+
+Both refuse with the typed `RunShapeError` (`#[non_exhaustive]`, thiserror):
+one variant per refusal condition, among them the route, overflow, unsupported
+tools and actions, and dynamic or unconfined project paths. `Display` is the
+unchanged refusal wording hosts render. It owns no NIKA registry range: it is a
+host-side static observation that never enters the workflow or verb plane (the
+`transport-surface` exemption of the error one-voice gate).
+
+The L4 host owns descriptor-rooted input observations, fresh source/route-bound
+consent and the live monetary account. The provider account meters every actual
+request, including schema re-asks, and refuses exhausted or uncertain authority.
+The new L3-to-L2 dependency on `nika-verb-infer` reads its existing production
+retry constant; it introduces no alternate counter or composition path.
+
+## Host-configured monetary admission
+
+`compose_with_config` selects service metadata-only versus local stderr
+projection at the same `production_runtime_with_emitter` seam. The host must
+have scope-bound the live account in `RuntimeConfig` before composition; this
+does not grant effects, replace the admitted workflow/report, or replay a
+persisted observation. The driver remains filesystem-blind. No configured
+composition wrapper or Runtime-to-driver dependency is introduced.

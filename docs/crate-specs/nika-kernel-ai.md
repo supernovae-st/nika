@@ -29,3 +29,12 @@ MUTATION inherited · BENCHMARKS/CANARY/PARITY N/A.
 
 - Depends ONLY on `nika-kernel-core` (+ external workspace deps).
 - New AI traits (L2 verb admission cohort) land HERE.
+
+## Admission and usage completeness
+
+`InferResponse.usage_completeness` defaults to `UsageCompleteness::Unknown`.
+`Complete` means all tariff-relevant token counts and subset relations were
+validated; `usage_reported` alone does not establish completeness or billing.
+The additive nontransient `ProviderError::AdmissionDenied` maps to NIKA-339 and
+means a subsequent paid request was locally refused. Transport cancellation
+cannot establish a no-charge outcome; provider billing can remain unknown.

@@ -118,12 +118,17 @@ impl Waiting {
         }
     }
 
-    /// The one-line hint under the composer for this state.
+    /// The one-line hint under the composer for this state. A spending
+    /// question (the session's `unknown_cost` and `run_cost` keys) names its
+    /// three choices in words, never by colour alone.
     #[must_use]
     pub fn hint(&self) -> &'static str {
         match self {
             Self::Free => "describe work · /help · Ctrl+T focus view · Ctrl+C twice to leave",
-            Self::Choosing => "type a number · Esc keeps the current choice",
+            Self::Choosing => "type a number · `cancel` continues without a choice",
+            Self::Question { key } if key == "unknown_cost" || key == "run_cost" => {
+                "yes approves once · no or Ctrl+C cancels · details shows the full evidence"
+            }
             Self::Question { .. } => "answer the question · an empty line takes the default",
             Self::Proposal => "yes applies these exact bytes · no keeps the file untouched · /show",
             Self::Gate => "approve or refuse · nothing else answers a gate",
@@ -142,6 +147,14 @@ pub enum Beat {
     /// Work is active under a seat; the label is the session's own line,
     /// never a percentage.
     Busy(String),
+    /// Where the automation stands, in the session's own words (« Ready for
+    /// review · … », « Saved · checked · not active · nothing has run »):
+    /// the status row, replaced at every turn, never a block.
+    Status(String),
+    /// Where the automation stands as separate facts (« Draft ✓ · Saved ✓
+    /// · Checked ✓ · Active ○ · Run ○ »): the lifecycle rail on the row
+    /// above the status, replaced at every turn — declared is never active.
+    Rail(String),
     /// The session closed the door.
     Quit,
 }
@@ -162,8 +175,18 @@ pub struct UiState {
     pub waiting: Waiting,
     /// The busy label, when work is active.
     pub busy: Option<String>,
+    /// The loader's frame beside the busy label (`None`: still — reduced
+    /// motion, or no turn under way).
+    pub spinner: Option<u8>,
+    /// Where the automation stands (the session's status line); empty when
+    /// nothing is under way.
+    pub status: String,
+    /// The lifecycle rail (empty until the session reports one).
+    pub rail: String,
     /// A first `Ctrl+C` was pressed: the next one leaves.
     pub interrupt_armed: bool,
+    /// Candidates a `Tab` left for the hint row, until the next key.
+    pub completion: Option<String>,
     /// Colour allowed (the theme's decision, never the renderer's).
     pub color: bool,
     /// Scroll offset of the focus transcript, in blocks from the end.
@@ -184,7 +207,11 @@ impl UiState {
             committed_inline: 0,
             waiting: Waiting::Free,
             busy: None,
+            spinner: None,
+            status: String::new(),
+            rail: String::new(),
             interrupt_armed: false,
+            completion: None,
             color,
             focus_scroll: 0,
             size,
@@ -204,6 +231,8 @@ impl UiState {
                 self.waiting = waiting;
             }
             Beat::Busy(label) => self.busy = Some(label),
+            Beat::Status(line) => self.status = line,
+            Beat::Rail(line) => self.rail = line,
             Beat::Quit => self.quit = true,
         }
     }
@@ -274,7 +303,7 @@ impl Script {
         let opening = vec![
             Beat::Say(Committed::new(
                 Kind::Banner,
-                "nika · session\nauthoring · deterministic · no model is contacted until you seat one\nproject ./ · history kept under ~/.nika · /help lists the doors",
+                "Nika · demo\n\nWhat do you want to automate?\n  describe the outcome · Nika asks only for what's missing · /help · /status",
             )),
             Beat::Wait(Waiting::Free),
         ];
@@ -354,19 +383,42 @@ pub struct Turn {
 }
 
 /// Whatever answers the composer: the live session runtime, or a fixture.
-pub trait Conversation {
+/// `Send`: the shell computes a turn on a worker thread so the terminal
+/// stays live (the busy state changes while a seat is called).
+pub trait Conversation: Send {
+    /// Discard typeahead when a fresh human decision first becomes visible.
+    fn fresh_input_required(&self) -> bool {
+        false
+    }
+    /// Invalidate an unsubmitted decision on interruption, without running it.
+    fn cancel_pending(&mut self) -> Vec<Beat> {
+        Vec::new()
+    }
     /// The beats of the opening (banner, restored state, first prompt).
     fn open(&mut self) -> Vec<Beat>;
     /// The beats of one submitted line, and the handoff it asks for.
     fn submit(&mut self, line: &str) -> Turn;
+    /// [`Conversation::submit`], with a sink for the truthful busy labels
+    /// the turn produces WHILE it runs (« Working through this workflow… »);
+    /// the shell draws each one as it arrives. The default sends none.
+    fn submit_with(&mut self, line: &str, busy: &std::sync::mpsc::Sender<String>) -> Turn {
+        let _ = busy;
+        self.submit(line)
+    }
     /// Perform the handed-off work with the terminal handed back; the beats
     /// that follow it (the observation, the next prompt).
     fn perform(&mut self, handoff: &Handoff) -> Vec<Beat>;
     /// The work a submitted line starts, named before it runs, so the shell
-    /// shows the busy state while the turn is computed (a turn is
-    /// synchronous; nothing draws until it returns). `None` draws nothing.
+    /// shows the busy state from the first instant; the labels the turn
+    /// itself emits ([`Conversation::submit_with`]) replace it as they
+    /// arrive. `None` draws nothing.
     fn busy_label(&self, _line: &str) -> Option<String> {
         None
+    }
+    /// The slash commands this conversation answers, in its own order:
+    /// `Tab` completes them. The default knows none.
+    fn commands(&self) -> Vec<String> {
+        Vec::new()
     }
 }
 
@@ -406,6 +458,28 @@ mod tests {
         assert_eq!(Waiting::Choosing.prompt(), "› ");
     }
 
+    /// A spending question names its choices in plain words (no colour is
+    /// needed to read them); any other question keeps its own hint.
+    #[test]
+    fn a_spending_question_names_its_three_choices_in_words() {
+        for key in ["unknown_cost", "run_cost"] {
+            let hint = Waiting::Question {
+                key: key.to_owned(),
+            }
+            .hint();
+            for choice in ["yes approves once", "no or Ctrl+C cancels", "details"] {
+                assert!(hint.contains(choice), "{key}: {hint}");
+            }
+        }
+        assert_eq!(
+            Waiting::Question {
+                key: "model".to_owned()
+            }
+            .hint(),
+            "answer the question · an empty line takes the default"
+        );
+    }
+
     #[test]
     fn beats_derive_the_state_and_busy_clears_on_the_next_word() {
         let mut state = UiState::new(Presentation::Inline, false, (80, 24));
@@ -421,6 +495,24 @@ mod tests {
         assert_eq!(state.waiting, Waiting::Gate);
         state.apply(Beat::Quit);
         assert!(state.quit);
+    }
+
+    /// The rail beat keeps the lifecycle beside the status: each replaced
+    /// at every turn, neither a block.
+    #[test]
+    fn the_rail_beat_keeps_the_lifecycle_beside_the_status() {
+        let mut state = UiState::new(Presentation::Inline, false, (80, 24));
+        assert!(state.rail.is_empty());
+        state.apply(Beat::Rail(
+            "Draft ○ · Saved ○ · Checked ○ · Active ○ · Run ○".to_owned(),
+        ));
+        state.apply(Beat::Status("Ready for review · `x.nika`".to_owned()));
+        assert_eq!(
+            state.rail,
+            "Draft ○ · Saved ○ · Checked ○ · Active ○ · Run ○"
+        );
+        assert_eq!(state.status, "Ready for review · `x.nika`");
+        assert!(state.transcript.is_empty());
     }
 
     #[test]

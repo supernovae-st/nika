@@ -98,6 +98,7 @@ pub struct ProviderRegistry<H = NoHttp> {
     /// The sleep seam of the transport backoff (`retry`) — the system
     /// clock unless the composition injects its own.
     backoff: Arc<dyn Backoff>,
+    pub(crate) admission: Option<crate::InferenceAdmission>,
 }
 
 impl ProviderRegistry<NoHttp> {
@@ -110,6 +111,7 @@ impl ProviderRegistry<NoHttp> {
             profiles: seed(),
             config,
             backoff: retry::system_backoff(),
+            admission: None,
         }
     }
 }
@@ -117,6 +119,14 @@ impl ProviderRegistry<NoHttp> {
 // Capability queries that need only the profiles (no http · no key) —
 // the keyless surface the composition's per-call bridge consults.
 impl<H> ProviderRegistry<H> {
+    /// Attach one shared catalog account. The injected HTTP effect must make
+    /// one physical attempt per post (`ReqwestHttp`: disable protocol retries).
+    #[must_use]
+    pub fn with_inference_admission(mut self, admission: crate::InferenceAdmission) -> Self {
+        self.admission = Some(admission);
+        self
+    }
+
     /// Inject the clock the transport backoff sleeps on (the composer's
     /// declared clock · a test's recorder). Every provider resolved after
     /// this call rides it; the default is the system clock.
@@ -181,6 +191,7 @@ where
             profiles: seed(),
             config,
             backoff: retry::system_backoff(),
+            admission: None,
         }
     }
 
@@ -278,6 +289,7 @@ where
             key,
             http,
             backoff: Arc::clone(&self.backoff),
+            admission: self.admission.clone(),
         })
     }
 }
@@ -294,6 +306,7 @@ pub struct ResolvedProvider<H = NoHttp> {
     pub(crate) key: Option<Secret>,
     pub(crate) http: Option<Arc<H>>,
     pub(crate) backoff: Arc<dyn Backoff>,
+    pub(crate) admission: Option<crate::InferenceAdmission>,
 }
 
 impl<H> ResolvedProvider<H> {
@@ -301,6 +314,15 @@ impl<H> ResolvedProvider<H> {
     #[must_use]
     pub fn wire_model(&self) -> &str {
         &self.wire_model
+    }
+
+    /// The credential this provider sends — the key the operator injected for its canonical
+    /// id, resolved by [`ProviderRegistry::resolve`] — for a composition root that must
+    /// withhold it from what it returns. `None` when the provider is keyless. The [`Secret`]
+    /// stays redacted in `Debug`; nothing here prints or logs it.
+    #[must_use]
+    pub fn key(&self) -> Option<&Secret> {
+        self.key.as_ref()
     }
 
     /// Does this provider's STRICT structured mode reject UNDERSPECIFIED
@@ -341,14 +363,42 @@ where
         request: InferRequest,
     ) -> Result<(InferResponse, TransportReport), (ProviderError, Box<TransportReport>)> {
         let mut report = TransportReport::new();
+        if let Some(a) = &self.admission {
+            if let Err(error) = a.check_route(self.profile.id, &self.wire_model, &self.base_url) {
+                return Err((a.refuse(&error.to_string()), Box::new(report)));
+            }
+            let mut sent = false;
+            let mut call = None;
+            let mut route = None;
+            // Keep this alternate wire future boxed as well: even a mock call
+            // carries the largest branch in the async state machine.
+            let result = Box::pin(wire::openai_compat::infer_tracked(
+                self, request, &mut sent, &mut route, &mut call,
+            ))
+            .await;
+            report.record(call);
+            report.attempts = u32::from(sent);
+            return result
+                .map(|mut r| {
+                    r.inference_calls.clone_from(&report.inference_calls);
+                    (r, report.clone())
+                })
+                .map_err(|e| (e, Box::new(report)));
+        }
         loop {
-            report.attempts = report.attempts.saturating_add(1);
+            let mut call = None;
+            let mut route = None;
             // The attempt is boxed: the loop's state machine would otherwise
             // carry the largest wire future inline, and a nested run (a
             // workflow invoking a workflow) polls it from a deeper stack than
             // a 2 MiB thread affords (the pre-push gate's child-run test).
-            let err = match Box::pin(self.infer_once(request.clone())).await {
-                Ok(response) => return Ok((response, report)),
+            let result = Box::pin(self.infer_once(request.clone(), &mut route, &mut call)).await;
+            report.record(call);
+            let err = match result {
+                Ok(mut response) => {
+                    response.inference_calls.clone_from(&report.inference_calls);
+                    return Ok((response, report));
+                }
                 Err(err) => err,
             };
             let retries = u32::try_from(report.statuses.len()).unwrap_or(u32::MAX);
@@ -364,11 +414,20 @@ where
     }
 
     /// One round-trip on the profile's wire — no backoff.
-    async fn infer_once(&self, request: InferRequest) -> Result<InferResponse, ProviderError> {
+    async fn infer_once(
+        &self,
+        request: InferRequest,
+        route: &mut Option<crate::retry::BillingRoute>,
+        call: &mut Option<nika_types::cost::InferenceCall>,
+    ) -> Result<InferResponse, ProviderError> {
         match self.profile.wire {
-            WireFormat::Anthropic => wire::anthropic::infer(self, request).await,
-            WireFormat::OpenAiCompat => wire::openai_compat::infer(self, request).await,
-            WireFormat::Gemini => wire::gemini::infer(self, request).await,
+            WireFormat::Anthropic => {
+                wire::anthropic::infer_routed(self, request, route, call).await
+            }
+            WireFormat::OpenAiCompat => {
+                wire::openai_compat::infer_routed(self, request, route, call).await
+            }
+            WireFormat::Gemini => wire::gemini::infer_routed(self, request, route, call).await,
             WireFormat::Mock => Ok(wire::mock::infer(self, &request)),
         }
     }
@@ -392,12 +451,11 @@ where
     H: HttpPostDyn + Send + Sync + 'static,
 {
     /// The kernel contract over [`Self::infer_reported`]: the same
-    /// bounded backoff, the report dropped (a caller that wants it asks
-    /// the inherent form).
+    /// bounded backoff. Per-dispatch monetary observations survive both results.
     async fn infer(&self, request: InferRequest) -> Result<InferResponse, ProviderError> {
         match self.infer_reported(request).await {
             Ok((response, _)) => Ok(response),
-            Err((err, _)) => Err(err),
+            Err((err, report)) => Err(err.with_inference_calls(report.inference_calls)),
         }
     }
 }
@@ -410,6 +468,9 @@ where
     /// under the same bounded backoff — nothing was consumed yet, so the
     /// re-send is the identical request.
     async fn infer_stream(&self, request: InferRequest) -> Result<InferEventStream, ProviderError> {
+        if let Some(a) = &self.admission {
+            return Err(a.refuse("streaming has no qualified aggregate admission settlement"));
+        }
         let mut retries = 0u32;
         loop {
             let err = match self.infer_stream_once(request.clone()).await {

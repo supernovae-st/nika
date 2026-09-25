@@ -89,8 +89,8 @@ Returns `true` on pass. Throws · `NIKA-BUILTIN-ASSERT-001` (assertion failed ·
 
 ### `nika:prompt`
 ```yaml
-# confirm (default) — a yes/no gate
-invoke: { tool: "nika:prompt", args: { message: "Approve deploy to production?", default: false } }
+# confirm (default mode) — require an answer before deployment
+invoke: { tool: "nika:prompt", args: { message: "Approve deploy to production?" } }
 # input — collect a free-text value
 invoke: { tool: "nika:prompt", args: { mode: input, message: "Paste the OTP:", default: "" } }
 # choice — pick one of N
@@ -111,6 +111,14 @@ Non-interactive contract (normative · all modes) · when no human can answer
 `default:`) when absent: never hang forever · never silently pick an answer.
 A `choice` whose `default:` is not an element of `choices:` is a parse error
 (`NIKA-BUILTIN-PROMPT-002` · `validation_error`).
+
+For a workflow that requires fresh human approval, omit `default:` from the
+confirmation prompt and gate the effect on its answer. `default: false` is an
+automatic refusal in a non-interactive run; it does not request an answer or
+pause for a human. Keep an unattended refusal in the invocation instead of
+changing the workflow's human gate; for example, the reference engine accepts
+`nika run workflow.nika --answer approval=false` when the prompt task is named
+`approval`. See the [human-gated shipping template](../templates/human-gated-ship.nika).
 
 ### `nika:done`
 ```yaml
@@ -264,9 +272,12 @@ invoke:
     from: csv                          # REQUIRED · enum · json | yaml | toml | csv
     to: json                           # REQUIRED · enum · json | yaml | toml | csv
     has_header: true                   # OPTIONAL · CSV only · default true
+    columns: [id, status, amount]      # OPTIONAL · CSV emit only · explicit header order
     formula_guard: false               # OPTIONAL · CSV emit only · default false (see below)
 ```
 Universal format converter · 4 formats v0.1 (`json` · `yaml` · `toml` · `csv`) · 12 directions in scope (4×3 minus identity) · `from == to` is rejected (`NIKA-BUILTIN-CONVERT-001` · `validation_error` · an identity conversion is an authoring bug). Throws · `-002` (the input does not parse as `from:` · `tool_error`).
+
+**`columns`** (CSV emit only) · an array of column names in the required order. JSON objects carry no key order: without `columns`, output keys are sorted alphabetically. Named columns come first (even for empty rows); any other keys follow sorted. To preserve a CSV header through filtering, pass its observed columns in their original order to the JSON→CSV conversion. Duplicate names retain their first position; a named column absent from every row is emitted with empty cells. A non-array or non-string member is a `NIKA-BUILTIN-CONVERT-001` error, never a silent fallback to the default order. `formula_guard` still applies to the emitted headers and cells.
 
 **`formula_guard`** (CSV emit only · default `false`) · opt-in **CSV formula-injection guard** (CWE-1236). A spreadsheet (Excel · Sheets · LibreOffice) interprets a cell whose FIRST non-whitespace character is `=` `+` `-` `@` (or a leading `\t`/`\r` control char) as a **formula** — so `=HYPERLINK(…)` or `=cmd|…` in untrusted data executes when the file is opened. With `formula_guard: true`, such a cell (data OR header key) is prefixed with a single quote `'` — the OWASP mitigation those apps render as literal text. **Opt-in because it ALTERS data**: a legitimate negative number `-5` becomes the text `'-5`. Enable it when the CSV carries untrusted data AND is destined for a spreadsheet; leave it off (the default) for clean machine round-trips — matching the Rust/Python `csv` ecosystem, where the spreadsheet is the consumer's trust boundary. A non-boolean value is a loud `-001` arg error (never silently read as `false`).
 

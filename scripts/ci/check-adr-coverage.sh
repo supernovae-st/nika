@@ -58,17 +58,19 @@ fi
 # diff, so it belongs where the diff is, and running it first means it can
 # be the whole job in --staged-only mode.
 check_staged_new_crates() {
-  local new_crate_manifests new_adrs manifest new_crate adr has_adr
+  local new_crate_manifests staged_adrs manifest new_crate adr has_adr
   new_crate_manifests="$(git diff --cached --name-only --diff-filter=A 2>/dev/null \
     | grep -E '^(tools|crates)/[^/]+/Cargo\.toml$' || true)"
   [ -n "$new_crate_manifests" ] || return 0
-  new_adrs="$(git diff --cached --name-only --diff-filter=A 2>/dev/null \
+  # An existing proposal completed in this commit is an ADR too. Judge the
+  # index bytes: an unstaged mention must not stand in for committed rationale.
+  staged_adrs="$(git diff --cached --name-only --diff-filter=AMR 2>/dev/null \
     | grep -E '^docs/adr/adr-[0-9]+-.*\.md$' || true)"
   for manifest in $new_crate_manifests; do
     new_crate="$(basename "$(dirname "$manifest")")"
     has_adr=0
-    for adr in $new_adrs; do
-      if grep -lqE "\\b${new_crate}\\b" "$REPO_ROOT/$adr" 2>/dev/null; then
+    for adr in $staged_adrs; do
+      if git show ":$adr" 2>/dev/null | grep -E "\\b${new_crate}\\b" >/dev/null; then
         has_adr=1
         break
       fi

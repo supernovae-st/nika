@@ -663,3 +663,7 @@ mod tests {
         assert_eq!(map.to_wire("mcp:db/query"), "mcp_db_query");
     }
 }
+
+mod admission;
+
+mod bounded_json;

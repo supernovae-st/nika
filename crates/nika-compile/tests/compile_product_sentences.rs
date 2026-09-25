@@ -36,6 +36,36 @@ fn expression(doc: &Value, task: &str) -> String {
 }
 
 #[test]
+fn a_destination_stated_beside_the_draft_is_written_without_a_write_verb() {
+    // The Atlas probe's p1-resume-fr and c-emoji-arrow-summary (2026-09-22): the destination
+    // rode inside the draft's detail and no task wrote it.
+    for intent in [
+        "Résume ./notes/brief.md en 3 puces dans ./out/resume.md",
+        "summarize ./notes/brief.md in 3 bullets → ./out/summary.md 🙏",
+    ] {
+        let doc = ready_with_model(intent);
+        let write = &doc["tasks"]["write_output"];
+        let content = write["with"]["content"].as_str().unwrap_or_default();
+        assert!(
+            content.starts_with("${{ tasks.draft.output"),
+            "{intent}: {doc}"
+        );
+        let path = write["invoke"]["args"]["path"].as_str().unwrap_or_default();
+        let destination = if intent.contains("resume") {
+            "./out/resume.md"
+        } else {
+            "./out/summary.md"
+        };
+        assert!(
+            path == destination || path.contains("const."),
+            "{intent}: the write reaches {path}, not {destination}"
+        );
+        let permits = doc["permits"]["fs"]["write"].to_string();
+        assert!(permits.contains(destination), "{intent}: {permits}");
+    }
+}
+
+#[test]
 fn a_brief_combined_from_a_draft_of_each_file_refers_back_to_the_draft() {
     let intent = "Read every file in ./rfc/*.md, draft the 3 most important changes of each one, and write the combined brief to ./brief.md";
     let out = hot(intent);

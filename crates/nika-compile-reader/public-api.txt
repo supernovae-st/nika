@@ -1,0 +1,1617 @@
+pub mod nika_compile_reader
+pub mod nika_compile_reader::aggregate
+#[non_exhaustive] pub enum nika_compile_reader::aggregate::AggOp
+pub nika_compile_reader::aggregate::AggOp::Avg
+pub nika_compile_reader::aggregate::AggOp::Count
+pub nika_compile_reader::aggregate::AggOp::Max
+pub nika_compile_reader::aggregate::AggOp::Min
+pub nika_compile_reader::aggregate::AggOp::Sum
+impl nika_compile_reader::aggregate::AggOp
+pub fn nika_compile_reader::aggregate::AggOp::from_word(word: &str) -> core::option::Option<Self>
+impl core::clone::Clone for nika_compile_reader::aggregate::AggOp
+pub fn nika_compile_reader::aggregate::AggOp::clone(&self) -> nika_compile_reader::aggregate::AggOp
+impl core::cmp::Eq for nika_compile_reader::aggregate::AggOp
+impl core::cmp::PartialEq for nika_compile_reader::aggregate::AggOp
+pub fn nika_compile_reader::aggregate::AggOp::eq(&self, other: &nika_compile_reader::aggregate::AggOp) -> bool
+impl core::fmt::Debug for nika_compile_reader::aggregate::AggOp
+pub fn nika_compile_reader::aggregate::AggOp::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_reader::aggregate::AggOp
+impl core::marker::StructuralPartialEq for nika_compile_reader::aggregate::AggOp
+impl<T, U> core::convert::Into<U> for nika_compile_reader::aggregate::AggOp where U: core::convert::From<T>
+pub fn nika_compile_reader::aggregate::AggOp::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_reader::aggregate::AggOp where U: core::convert::Into<T>
+pub type nika_compile_reader::aggregate::AggOp::Error = core::convert::Infallible
+pub fn nika_compile_reader::aggregate::AggOp::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_reader::aggregate::AggOp where U: core::convert::TryFrom<T>
+pub type nika_compile_reader::aggregate::AggOp::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_reader::aggregate::AggOp::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_reader::aggregate::AggOp where T: core::clone::Clone
+pub type nika_compile_reader::aggregate::AggOp::Owned = T
+pub fn nika_compile_reader::aggregate::AggOp::clone_into(&self, target: &mut T)
+pub fn nika_compile_reader::aggregate::AggOp::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_reader::aggregate::AggOp where T: 'static + ?core::marker::Sized
+pub fn nika_compile_reader::aggregate::AggOp::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_reader::aggregate::AggOp where T: ?core::marker::Sized
+pub fn nika_compile_reader::aggregate::AggOp::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_reader::aggregate::AggOp where T: ?core::marker::Sized
+pub fn nika_compile_reader::aggregate::AggOp::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_reader::aggregate::AggOp where T: core::clone::Clone
+pub unsafe fn nika_compile_reader::aggregate::AggOp::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_reader::aggregate::AggOp
+pub fn nika_compile_reader::aggregate::AggOp::from(t: T) -> T
+#[non_exhaustive] pub enum nika_compile_reader::aggregate::ArithOp
+pub nika_compile_reader::aggregate::ArithOp::Add
+pub nika_compile_reader::aggregate::ArithOp::Div
+pub nika_compile_reader::aggregate::ArithOp::Mul
+pub nika_compile_reader::aggregate::ArithOp::Sub
+impl nika_compile_reader::aggregate::ArithOp
+pub fn nika_compile_reader::aggregate::ArithOp::from_word(word: &str) -> core::option::Option<Self>
+impl core::clone::Clone for nika_compile_reader::aggregate::ArithOp
+pub fn nika_compile_reader::aggregate::ArithOp::clone(&self) -> nika_compile_reader::aggregate::ArithOp
+impl core::cmp::Eq for nika_compile_reader::aggregate::ArithOp
+impl core::cmp::PartialEq for nika_compile_reader::aggregate::ArithOp
+pub fn nika_compile_reader::aggregate::ArithOp::eq(&self, other: &nika_compile_reader::aggregate::ArithOp) -> bool
+impl core::fmt::Debug for nika_compile_reader::aggregate::ArithOp
+pub fn nika_compile_reader::aggregate::ArithOp::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_reader::aggregate::ArithOp
+impl core::marker::StructuralPartialEq for nika_compile_reader::aggregate::ArithOp
+impl<T, U> core::convert::Into<U> for nika_compile_reader::aggregate::ArithOp where U: core::convert::From<T>
+pub fn nika_compile_reader::aggregate::ArithOp::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_reader::aggregate::ArithOp where U: core::convert::Into<T>
+pub type nika_compile_reader::aggregate::ArithOp::Error = core::convert::Infallible
+pub fn nika_compile_reader::aggregate::ArithOp::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_reader::aggregate::ArithOp where U: core::convert::TryFrom<T>
+pub type nika_compile_reader::aggregate::ArithOp::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_reader::aggregate::ArithOp::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_reader::aggregate::ArithOp where T: core::clone::Clone
+pub type nika_compile_reader::aggregate::ArithOp::Owned = T
+pub fn nika_compile_reader::aggregate::ArithOp::clone_into(&self, target: &mut T)
+pub fn nika_compile_reader::aggregate::ArithOp::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_reader::aggregate::ArithOp where T: 'static + ?core::marker::Sized
+pub fn nika_compile_reader::aggregate::ArithOp::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_reader::aggregate::ArithOp where T: ?core::marker::Sized
+pub fn nika_compile_reader::aggregate::ArithOp::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_reader::aggregate::ArithOp where T: ?core::marker::Sized
+pub fn nika_compile_reader::aggregate::ArithOp::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_reader::aggregate::ArithOp where T: core::clone::Clone
+pub unsafe fn nika_compile_reader::aggregate::ArithOp::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_reader::aggregate::ArithOp
+pub fn nika_compile_reader::aggregate::ArithOp::from(t: T) -> T
+#[non_exhaustive] pub enum nika_compile_reader::aggregate::Term
+pub nika_compile_reader::aggregate::Term::Name(alloc::string::String)
+pub nika_compile_reader::aggregate::Term::Number(alloc::string::String)
+impl core::clone::Clone for nika_compile_reader::aggregate::Term
+pub fn nika_compile_reader::aggregate::Term::clone(&self) -> nika_compile_reader::aggregate::Term
+impl core::cmp::Eq for nika_compile_reader::aggregate::Term
+impl core::cmp::PartialEq for nika_compile_reader::aggregate::Term
+pub fn nika_compile_reader::aggregate::Term::eq(&self, other: &nika_compile_reader::aggregate::Term) -> bool
+impl core::fmt::Debug for nika_compile_reader::aggregate::Term
+pub fn nika_compile_reader::aggregate::Term::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_reader::aggregate::Term
+impl<T, U> core::convert::Into<U> for nika_compile_reader::aggregate::Term where U: core::convert::From<T>
+pub fn nika_compile_reader::aggregate::Term::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_reader::aggregate::Term where U: core::convert::Into<T>
+pub type nika_compile_reader::aggregate::Term::Error = core::convert::Infallible
+pub fn nika_compile_reader::aggregate::Term::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_reader::aggregate::Term where U: core::convert::TryFrom<T>
+pub type nika_compile_reader::aggregate::Term::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_reader::aggregate::Term::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_reader::aggregate::Term where T: core::clone::Clone
+pub type nika_compile_reader::aggregate::Term::Owned = T
+pub fn nika_compile_reader::aggregate::Term::clone_into(&self, target: &mut T)
+pub fn nika_compile_reader::aggregate::Term::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_reader::aggregate::Term where T: 'static + ?core::marker::Sized
+pub fn nika_compile_reader::aggregate::Term::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_reader::aggregate::Term where T: ?core::marker::Sized
+pub fn nika_compile_reader::aggregate::Term::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_reader::aggregate::Term where T: ?core::marker::Sized
+pub fn nika_compile_reader::aggregate::Term::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_reader::aggregate::Term where T: core::clone::Clone
+pub unsafe fn nika_compile_reader::aggregate::Term::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_reader::aggregate::Term
+pub fn nika_compile_reader::aggregate::Term::from(t: T) -> T
+#[non_exhaustive] pub struct nika_compile_reader::aggregate::Aggregation
+pub nika_compile_reader::aggregate::Aggregation::field: core::option::Option<alloc::string::String>
+pub nika_compile_reader::aggregate::Aggregation::name: alloc::string::String
+pub nika_compile_reader::aggregate::Aggregation::op: nika_compile_reader::aggregate::AggOp
+pub nika_compile_reader::aggregate::Aggregation::round: core::option::Option<u32>
+impl nika_compile_reader::aggregate::Aggregation
+pub fn nika_compile_reader::aggregate::Aggregation::new(field: core::option::Option<alloc::string::String>, op: nika_compile_reader::aggregate::AggOp, name: impl core::convert::Into<alloc::string::String>, round: core::option::Option<u32>) -> Self
+impl core::clone::Clone for nika_compile_reader::aggregate::Aggregation
+pub fn nika_compile_reader::aggregate::Aggregation::clone(&self) -> nika_compile_reader::aggregate::Aggregation
+impl core::cmp::Eq for nika_compile_reader::aggregate::Aggregation
+impl core::cmp::PartialEq for nika_compile_reader::aggregate::Aggregation
+pub fn nika_compile_reader::aggregate::Aggregation::eq(&self, other: &nika_compile_reader::aggregate::Aggregation) -> bool
+impl core::fmt::Debug for nika_compile_reader::aggregate::Aggregation
+pub fn nika_compile_reader::aggregate::Aggregation::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_reader::aggregate::Aggregation
+impl<T, U> core::convert::Into<U> for nika_compile_reader::aggregate::Aggregation where U: core::convert::From<T>
+pub fn nika_compile_reader::aggregate::Aggregation::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_reader::aggregate::Aggregation where U: core::convert::Into<T>
+pub type nika_compile_reader::aggregate::Aggregation::Error = core::convert::Infallible
+pub fn nika_compile_reader::aggregate::Aggregation::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_reader::aggregate::Aggregation where U: core::convert::TryFrom<T>
+pub type nika_compile_reader::aggregate::Aggregation::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_reader::aggregate::Aggregation::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_reader::aggregate::Aggregation where T: core::clone::Clone
+pub type nika_compile_reader::aggregate::Aggregation::Owned = T
+pub fn nika_compile_reader::aggregate::Aggregation::clone_into(&self, target: &mut T)
+pub fn nika_compile_reader::aggregate::Aggregation::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_reader::aggregate::Aggregation where T: 'static + ?core::marker::Sized
+pub fn nika_compile_reader::aggregate::Aggregation::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_reader::aggregate::Aggregation where T: ?core::marker::Sized
+pub fn nika_compile_reader::aggregate::Aggregation::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_reader::aggregate::Aggregation where T: ?core::marker::Sized
+pub fn nika_compile_reader::aggregate::Aggregation::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_reader::aggregate::Aggregation where T: core::clone::Clone
+pub unsafe fn nika_compile_reader::aggregate::Aggregation::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_reader::aggregate::Aggregation
+pub fn nika_compile_reader::aggregate::Aggregation::from(t: T) -> T
+#[non_exhaustive] pub struct nika_compile_reader::aggregate::Derived
+pub nika_compile_reader::aggregate::Derived::left: nika_compile_reader::aggregate::Term
+pub nika_compile_reader::aggregate::Derived::name: alloc::string::String
+pub nika_compile_reader::aggregate::Derived::op: nika_compile_reader::aggregate::ArithOp
+pub nika_compile_reader::aggregate::Derived::right: nika_compile_reader::aggregate::Term
+impl nika_compile_reader::aggregate::Derived
+pub fn nika_compile_reader::aggregate::Derived::new(name: impl core::convert::Into<alloc::string::String>, op: nika_compile_reader::aggregate::ArithOp, left: nika_compile_reader::aggregate::Term, right: nika_compile_reader::aggregate::Term) -> Self
+impl core::clone::Clone for nika_compile_reader::aggregate::Derived
+pub fn nika_compile_reader::aggregate::Derived::clone(&self) -> nika_compile_reader::aggregate::Derived
+impl core::cmp::Eq for nika_compile_reader::aggregate::Derived
+impl core::cmp::PartialEq for nika_compile_reader::aggregate::Derived
+pub fn nika_compile_reader::aggregate::Derived::eq(&self, other: &nika_compile_reader::aggregate::Derived) -> bool
+impl core::fmt::Debug for nika_compile_reader::aggregate::Derived
+pub fn nika_compile_reader::aggregate::Derived::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_reader::aggregate::Derived
+impl<T, U> core::convert::Into<U> for nika_compile_reader::aggregate::Derived where U: core::convert::From<T>
+pub fn nika_compile_reader::aggregate::Derived::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_reader::aggregate::Derived where U: core::convert::Into<T>
+pub type nika_compile_reader::aggregate::Derived::Error = core::convert::Infallible
+pub fn nika_compile_reader::aggregate::Derived::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_reader::aggregate::Derived where U: core::convert::TryFrom<T>
+pub type nika_compile_reader::aggregate::Derived::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_reader::aggregate::Derived::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_reader::aggregate::Derived where T: core::clone::Clone
+pub type nika_compile_reader::aggregate::Derived::Owned = T
+pub fn nika_compile_reader::aggregate::Derived::clone_into(&self, target: &mut T)
+pub fn nika_compile_reader::aggregate::Derived::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_reader::aggregate::Derived where T: 'static + ?core::marker::Sized
+pub fn nika_compile_reader::aggregate::Derived::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_reader::aggregate::Derived where T: ?core::marker::Sized
+pub fn nika_compile_reader::aggregate::Derived::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_reader::aggregate::Derived where T: ?core::marker::Sized
+pub fn nika_compile_reader::aggregate::Derived::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_reader::aggregate::Derived where T: core::clone::Clone
+pub unsafe fn nika_compile_reader::aggregate::Derived::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_reader::aggregate::Derived
+pub fn nika_compile_reader::aggregate::Derived::from(t: T) -> T
+#[non_exhaustive] pub struct nika_compile_reader::aggregate::Shape
+pub nika_compile_reader::aggregate::Shape::aggregations: alloc::vec::Vec<nika_compile_reader::aggregate::Aggregation>
+pub nika_compile_reader::aggregate::Shape::columns: alloc::vec::Vec<alloc::string::String>
+pub nika_compile_reader::aggregate::Shape::derived: alloc::vec::Vec<nika_compile_reader::aggregate::Derived>
+pub nika_compile_reader::aggregate::Shape::distinct: bool
+pub nika_compile_reader::aggregate::Shape::distinct_by: alloc::vec::Vec<alloc::string::String>
+pub nika_compile_reader::aggregate::Shape::group_by: core::option::Option<alloc::string::String>
+pub nika_compile_reader::aggregate::Shape::join_on: core::option::Option<alloc::string::String>
+pub nika_compile_reader::aggregate::Shape::limit: core::option::Option<u32>
+pub nika_compile_reader::aggregate::Shape::renames: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
+pub nika_compile_reader::aggregate::Shape::sort_by: core::option::Option<(alloc::string::String, bool)>
+impl core::clone::Clone for nika_compile_reader::aggregate::Shape
+pub fn nika_compile_reader::aggregate::Shape::clone(&self) -> nika_compile_reader::aggregate::Shape
+impl core::cmp::Eq for nika_compile_reader::aggregate::Shape
+impl core::cmp::PartialEq for nika_compile_reader::aggregate::Shape
+pub fn nika_compile_reader::aggregate::Shape::eq(&self, other: &nika_compile_reader::aggregate::Shape) -> bool
+impl core::default::Default for nika_compile_reader::aggregate::Shape
+pub fn nika_compile_reader::aggregate::Shape::default() -> nika_compile_reader::aggregate::Shape
+impl core::fmt::Debug for nika_compile_reader::aggregate::Shape
+pub fn nika_compile_reader::aggregate::Shape::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_reader::aggregate::Shape
+impl<T, U> core::convert::Into<U> for nika_compile_reader::aggregate::Shape where U: core::convert::From<T>
+pub fn nika_compile_reader::aggregate::Shape::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_reader::aggregate::Shape where U: core::convert::Into<T>
+pub type nika_compile_reader::aggregate::Shape::Error = core::convert::Infallible
+pub fn nika_compile_reader::aggregate::Shape::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_reader::aggregate::Shape where U: core::convert::TryFrom<T>
+pub type nika_compile_reader::aggregate::Shape::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_reader::aggregate::Shape::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_reader::aggregate::Shape where T: core::clone::Clone
+pub type nika_compile_reader::aggregate::Shape::Owned = T
+pub fn nika_compile_reader::aggregate::Shape::clone_into(&self, target: &mut T)
+pub fn nika_compile_reader::aggregate::Shape::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_reader::aggregate::Shape where T: 'static + ?core::marker::Sized
+pub fn nika_compile_reader::aggregate::Shape::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_reader::aggregate::Shape where T: ?core::marker::Sized
+pub fn nika_compile_reader::aggregate::Shape::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_reader::aggregate::Shape where T: ?core::marker::Sized
+pub fn nika_compile_reader::aggregate::Shape::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_reader::aggregate::Shape where T: core::clone::Clone
+pub unsafe fn nika_compile_reader::aggregate::Shape::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_reader::aggregate::Shape
+pub fn nika_compile_reader::aggregate::Shape::from(t: T) -> T
+pub fn nika_compile_reader::aggregate::ranking_cue(text: &str) -> bool
+pub mod nika_compile_reader::cardinality
+pub enum nika_compile_reader::cardinality::Measure
+pub nika_compile_reader::cardinality::Measure::Bullets
+pub nika_compile_reader::cardinality::Measure::Characters
+pub nika_compile_reader::cardinality::Measure::Lines
+pub nika_compile_reader::cardinality::Measure::Paragraphs
+pub nika_compile_reader::cardinality::Measure::Sentences
+pub nika_compile_reader::cardinality::Measure::Words
+impl nika_compile_reader::cardinality::Measure
+pub const fn nika_compile_reader::cardinality::Measure::jq(self) -> &'static str
+pub fn nika_compile_reader::cardinality::Measure::of(unit: &str) -> core::option::Option<Self>
+impl core::clone::Clone for nika_compile_reader::cardinality::Measure
+pub fn nika_compile_reader::cardinality::Measure::clone(&self) -> nika_compile_reader::cardinality::Measure
+impl core::cmp::Eq for nika_compile_reader::cardinality::Measure
+impl core::cmp::PartialEq for nika_compile_reader::cardinality::Measure
+pub fn nika_compile_reader::cardinality::Measure::eq(&self, other: &nika_compile_reader::cardinality::Measure) -> bool
+impl core::fmt::Debug for nika_compile_reader::cardinality::Measure
+pub fn nika_compile_reader::cardinality::Measure::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_reader::cardinality::Measure
+impl core::marker::StructuralPartialEq for nika_compile_reader::cardinality::Measure
+impl<T, U> core::convert::Into<U> for nika_compile_reader::cardinality::Measure where U: core::convert::From<T>
+pub fn nika_compile_reader::cardinality::Measure::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_reader::cardinality::Measure where U: core::convert::Into<T>
+pub type nika_compile_reader::cardinality::Measure::Error = core::convert::Infallible
+pub fn nika_compile_reader::cardinality::Measure::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_reader::cardinality::Measure where U: core::convert::TryFrom<T>
+pub type nika_compile_reader::cardinality::Measure::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_reader::cardinality::Measure::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_reader::cardinality::Measure where T: core::clone::Clone
+pub type nika_compile_reader::cardinality::Measure::Owned = T
+pub fn nika_compile_reader::cardinality::Measure::clone_into(&self, target: &mut T)
+pub fn nika_compile_reader::cardinality::Measure::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_reader::cardinality::Measure where T: 'static + ?core::marker::Sized
+pub fn nika_compile_reader::cardinality::Measure::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_reader::cardinality::Measure where T: ?core::marker::Sized
+pub fn nika_compile_reader::cardinality::Measure::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_reader::cardinality::Measure where T: ?core::marker::Sized
+pub fn nika_compile_reader::cardinality::Measure::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_reader::cardinality::Measure where T: core::clone::Clone
+pub unsafe fn nika_compile_reader::cardinality::Measure::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_reader::cardinality::Measure
+pub fn nika_compile_reader::cardinality::Measure::from(t: T) -> T
+pub struct nika_compile_reader::cardinality::Bound
+pub nika_compile_reader::cardinality::Bound::comparator: nika_compile_reader::rules::Comparator
+pub nika_compile_reader::cardinality::Bound::unit: alloc::string::String
+pub nika_compile_reader::cardinality::Bound::value: u64
+impl nika_compile_reader::cardinality::Bound
+pub fn nika_compile_reader::cardinality::Bound::compatible(&self, other: &Self) -> bool
+impl nika_compile_reader::cardinality::Bound
+pub fn nika_compile_reader::cardinality::Bound::law(&self) -> core::option::Option<alloc::string::String>
+impl core::clone::Clone for nika_compile_reader::cardinality::Bound
+pub fn nika_compile_reader::cardinality::Bound::clone(&self) -> nika_compile_reader::cardinality::Bound
+impl core::cmp::Eq for nika_compile_reader::cardinality::Bound
+impl core::cmp::PartialEq for nika_compile_reader::cardinality::Bound
+pub fn nika_compile_reader::cardinality::Bound::eq(&self, other: &nika_compile_reader::cardinality::Bound) -> bool
+impl core::fmt::Debug for nika_compile_reader::cardinality::Bound
+pub fn nika_compile_reader::cardinality::Bound::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_reader::cardinality::Bound
+impl<T, U> core::convert::Into<U> for nika_compile_reader::cardinality::Bound where U: core::convert::From<T>
+pub fn nika_compile_reader::cardinality::Bound::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_reader::cardinality::Bound where U: core::convert::Into<T>
+pub type nika_compile_reader::cardinality::Bound::Error = core::convert::Infallible
+pub fn nika_compile_reader::cardinality::Bound::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_reader::cardinality::Bound where U: core::convert::TryFrom<T>
+pub type nika_compile_reader::cardinality::Bound::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_reader::cardinality::Bound::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_reader::cardinality::Bound where T: core::clone::Clone
+pub type nika_compile_reader::cardinality::Bound::Owned = T
+pub fn nika_compile_reader::cardinality::Bound::clone_into(&self, target: &mut T)
+pub fn nika_compile_reader::cardinality::Bound::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_reader::cardinality::Bound where T: 'static + ?core::marker::Sized
+pub fn nika_compile_reader::cardinality::Bound::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_reader::cardinality::Bound where T: ?core::marker::Sized
+pub fn nika_compile_reader::cardinality::Bound::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_reader::cardinality::Bound where T: ?core::marker::Sized
+pub fn nika_compile_reader::cardinality::Bound::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_reader::cardinality::Bound where T: core::clone::Clone
+pub unsafe fn nika_compile_reader::cardinality::Bound::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_reader::cardinality::Bound
+pub fn nika_compile_reader::cardinality::Bound::from(t: T) -> T
+pub const nika_compile_reader::cardinality::NUMBER_WORDS: &[(&str, u32)]
+pub fn nika_compile_reader::cardinality::body_law(constraints: &[alloc::string::String]) -> core::option::Option<(alloc::string::String, alloc::vec::Vec<alloc::string::String>)>
+pub fn nika_compile_reader::cardinality::bound(constraint: &str) -> core::option::Option<nika_compile_reader::cardinality::Bound>
+pub fn nika_compile_reader::cardinality::contradiction(constraints: &[alloc::string::String]) -> core::option::Option<(usize, usize)>
+pub fn nika_compile_reader::cardinality::digit_runs(text: &str) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_compile_reader::cardinality::parallel_bound(constraint: &str) -> core::option::Option<u32>
+pub fn nika_compile_reader::cardinality::stated_range_covers(intent: &str, number: &str) -> bool
+pub fn nika_compile_reader::cardinality::superlative_covers(intent: &str) -> bool
+pub mod nika_compile_reader::columns
+pub fn nika_compile_reader::columns::columns_hint(text: &str) -> alloc::vec::Vec<alloc::string::String>
+pub mod nika_compile_reader::gates
+pub fn nika_compile_reader::gates::backstop(intent: &str, plan: &mut nika_compile_reader::plan::Plan)
+pub fn nika_compile_reader::gates::bypass_stated(lower: &str) -> bool
+pub fn nika_compile_reader::gates::final_gate(lower: &str) -> core::option::Option<(usize, usize)>
+pub fn nika_compile_reader::gates::gate_phrases(lower: &str) -> usize
+pub fn nika_compile_reader::gates::named_gate(lower: &str) -> core::option::Option<(usize, usize)>
+pub fn nika_compile_reader::gates::starts_with_prohibition(text: &str) -> bool
+pub fn nika_compile_reader::gates::waiver(lower: &str) -> bool
+pub fn nika_compile_reader::gates::waiver_polarity(lower: &str) -> core::option::Option<bool>
+pub mod nika_compile_reader::hot
+pub const nika_compile_reader::hot::WRITE_HEADS: &[&str]
+pub fn nika_compile_reader::hot::destination_floor(intent: &str, plan: &mut nika_compile_reader::plan::Plan)
+pub fn nika_compile_reader::hot::fold(text: &str) -> alloc::string::String
+pub fn nika_compile_reader::hot::rejections(intent: &str, reading: &nika_compile_reader::lexicon::Reading) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_compile_reader::hot::stated_destinations(intent: &str) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_compile_reader::hot::stated_sources(intent: &str) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_compile_reader::hot::unnamed_destination_floor(plan: &mut nika_compile_reader::plan::Plan)
+pub fn nika_compile_reader::hot::unopened_sources(intent: &str, plan: &nika_compile_reader::plan::Plan) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_compile_reader::hot::unproduced_content(plan: &nika_compile_reader::plan::Plan, why: &mut alloc::vec::Vec<alloc::string::String>)
+pub fn nika_compile_reader::hot::unrecheckable_revision(plan: &nika_compile_reader::plan::Plan, why: &mut alloc::vec::Vec<alloc::string::String>)
+pub mod nika_compile_reader::lexicon
+#[non_exhaustive] pub struct nika_compile_reader::lexicon::Ambiguity
+pub nika_compile_reader::lexicon::Ambiguity::clause: alloc::string::String
+pub nika_compile_reader::lexicon::Ambiguity::detail: alloc::string::String
+pub nika_compile_reader::lexicon::Ambiguity::options: alloc::vec::Vec<nika_compile_reader::plan::Op>
+impl core::clone::Clone for nika_compile_reader::lexicon::Ambiguity
+pub fn nika_compile_reader::lexicon::Ambiguity::clone(&self) -> nika_compile_reader::lexicon::Ambiguity
+impl core::cmp::Eq for nika_compile_reader::lexicon::Ambiguity
+impl core::cmp::PartialEq for nika_compile_reader::lexicon::Ambiguity
+pub fn nika_compile_reader::lexicon::Ambiguity::eq(&self, other: &nika_compile_reader::lexicon::Ambiguity) -> bool
+impl core::fmt::Debug for nika_compile_reader::lexicon::Ambiguity
+pub fn nika_compile_reader::lexicon::Ambiguity::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_reader::lexicon::Ambiguity
+impl<T, U> core::convert::Into<U> for nika_compile_reader::lexicon::Ambiguity where U: core::convert::From<T>
+pub fn nika_compile_reader::lexicon::Ambiguity::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_reader::lexicon::Ambiguity where U: core::convert::Into<T>
+pub type nika_compile_reader::lexicon::Ambiguity::Error = core::convert::Infallible
+pub fn nika_compile_reader::lexicon::Ambiguity::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_reader::lexicon::Ambiguity where U: core::convert::TryFrom<T>
+pub type nika_compile_reader::lexicon::Ambiguity::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_reader::lexicon::Ambiguity::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_reader::lexicon::Ambiguity where T: core::clone::Clone
+pub type nika_compile_reader::lexicon::Ambiguity::Owned = T
+pub fn nika_compile_reader::lexicon::Ambiguity::clone_into(&self, target: &mut T)
+pub fn nika_compile_reader::lexicon::Ambiguity::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_reader::lexicon::Ambiguity where T: 'static + ?core::marker::Sized
+pub fn nika_compile_reader::lexicon::Ambiguity::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_reader::lexicon::Ambiguity where T: ?core::marker::Sized
+pub fn nika_compile_reader::lexicon::Ambiguity::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_reader::lexicon::Ambiguity where T: ?core::marker::Sized
+pub fn nika_compile_reader::lexicon::Ambiguity::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_reader::lexicon::Ambiguity where T: core::clone::Clone
+pub unsafe fn nika_compile_reader::lexicon::Ambiguity::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_reader::lexicon::Ambiguity
+pub fn nika_compile_reader::lexicon::Ambiguity::from(t: T) -> T
+#[non_exhaustive] pub struct nika_compile_reader::lexicon::Reading
+pub nika_compile_reader::lexicon::Reading::ambiguous: alloc::vec::Vec<nika_compile_reader::lexicon::Ambiguity>
+pub nika_compile_reader::lexicon::Reading::clauses: usize
+pub nika_compile_reader::lexicon::Reading::columns: alloc::vec::Vec<alloc::string::String>
+pub nika_compile_reader::lexicon::Reading::pending: alloc::vec::Vec<alloc::string::String>
+pub nika_compile_reader::lexicon::Reading::plan: nika_compile_reader::plan::Plan
+pub nika_compile_reader::lexicon::Reading::policy_clauses: alloc::vec::Vec<alloc::string::String>
+pub nika_compile_reader::lexicon::Reading::seen: alloc::vec::Vec<alloc::string::String>
+pub nika_compile_reader::lexicon::Reading::soft_constraints: alloc::vec::Vec<alloc::string::String>
+pub nika_compile_reader::lexicon::Reading::unresolved: alloc::vec::Vec<alloc::string::String>
+impl nika_compile_reader::lexicon::Reading
+pub fn nika_compile_reader::lexicon::Reading::complete(&self) -> bool
+pub fn nika_compile_reader::lexicon::Reading::hot_rejections(&self) -> alloc::vec::Vec<alloc::string::String>
+impl core::clone::Clone for nika_compile_reader::lexicon::Reading
+pub fn nika_compile_reader::lexicon::Reading::clone(&self) -> nika_compile_reader::lexicon::Reading
+impl core::default::Default for nika_compile_reader::lexicon::Reading
+pub fn nika_compile_reader::lexicon::Reading::default() -> nika_compile_reader::lexicon::Reading
+impl core::fmt::Debug for nika_compile_reader::lexicon::Reading
+pub fn nika_compile_reader::lexicon::Reading::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<T, U> core::convert::Into<U> for nika_compile_reader::lexicon::Reading where U: core::convert::From<T>
+pub fn nika_compile_reader::lexicon::Reading::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_reader::lexicon::Reading where U: core::convert::Into<T>
+pub type nika_compile_reader::lexicon::Reading::Error = core::convert::Infallible
+pub fn nika_compile_reader::lexicon::Reading::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_reader::lexicon::Reading where U: core::convert::TryFrom<T>
+pub type nika_compile_reader::lexicon::Reading::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_reader::lexicon::Reading::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_reader::lexicon::Reading where T: core::clone::Clone
+pub type nika_compile_reader::lexicon::Reading::Owned = T
+pub fn nika_compile_reader::lexicon::Reading::clone_into(&self, target: &mut T)
+pub fn nika_compile_reader::lexicon::Reading::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_reader::lexicon::Reading where T: 'static + ?core::marker::Sized
+pub fn nika_compile_reader::lexicon::Reading::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_reader::lexicon::Reading where T: ?core::marker::Sized
+pub fn nika_compile_reader::lexicon::Reading::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_reader::lexicon::Reading where T: ?core::marker::Sized
+pub fn nika_compile_reader::lexicon::Reading::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_reader::lexicon::Reading where T: core::clone::Clone
+pub unsafe fn nika_compile_reader::lexicon::Reading::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_reader::lexicon::Reading
+pub fn nika_compile_reader::lexicon::Reading::from(t: T) -> T
+pub const nika_compile_reader::lexicon::GATE_WITHOUT_EFFECT: &str
+pub const nika_compile_reader::lexicon::TWO_TRIGGERS: &str
+pub fn nika_compile_reader::lexicon::effect_words(lower: &str, columns: &[alloc::string::String]) -> alloc::vec::Vec<nika_compile_reader::plan::EffectVerb>
+pub fn nika_compile_reader::lexicon::fold_apostrophes(intent: &str) -> alloc::string::String
+pub fn nika_compile_reader::lexicon::read(intent: &str) -> nika_compile_reader::lexicon::Reading
+pub fn nika_compile_reader::lexicon::settle_retrieval(detail_lower: &str, options: &[nika_compile_reader::plan::Op]) -> core::option::Option<nika_compile_reader::plan::Op>
+pub fn nika_compile_reader::lexicon::slug(phrase: &str) -> alloc::string::String
+pub fn nika_compile_reader::lexicon::split_sentences(intent: &str) -> alloc::vec::Vec<&str>
+pub mod nika_compile_reader::objects
+#[non_exhaustive] pub struct nika_compile_reader::objects::Facet
+pub nika_compile_reader::objects::Facet::field: core::option::Option<&'static str>
+pub nika_compile_reader::objects::Facet::mode: &'static str
+impl nika_compile_reader::objects::Facet
+pub const fn nika_compile_reader::objects::Facet::field(field: &'static str) -> Self
+pub const fn nika_compile_reader::objects::Facet::mode(mode: &'static str) -> Self
+impl core::clone::Clone for nika_compile_reader::objects::Facet
+pub fn nika_compile_reader::objects::Facet::clone(&self) -> nika_compile_reader::objects::Facet
+impl core::cmp::Eq for nika_compile_reader::objects::Facet
+impl core::cmp::PartialEq for nika_compile_reader::objects::Facet
+pub fn nika_compile_reader::objects::Facet::eq(&self, other: &nika_compile_reader::objects::Facet) -> bool
+impl core::fmt::Debug for nika_compile_reader::objects::Facet
+pub fn nika_compile_reader::objects::Facet::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_reader::objects::Facet
+impl core::marker::StructuralPartialEq for nika_compile_reader::objects::Facet
+impl<T, U> core::convert::Into<U> for nika_compile_reader::objects::Facet where U: core::convert::From<T>
+pub fn nika_compile_reader::objects::Facet::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_reader::objects::Facet where U: core::convert::Into<T>
+pub type nika_compile_reader::objects::Facet::Error = core::convert::Infallible
+pub fn nika_compile_reader::objects::Facet::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_reader::objects::Facet where U: core::convert::TryFrom<T>
+pub type nika_compile_reader::objects::Facet::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_reader::objects::Facet::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_reader::objects::Facet where T: core::clone::Clone
+pub type nika_compile_reader::objects::Facet::Owned = T
+pub fn nika_compile_reader::objects::Facet::clone_into(&self, target: &mut T)
+pub fn nika_compile_reader::objects::Facet::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_reader::objects::Facet where T: 'static + ?core::marker::Sized
+pub fn nika_compile_reader::objects::Facet::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_reader::objects::Facet where T: ?core::marker::Sized
+pub fn nika_compile_reader::objects::Facet::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_reader::objects::Facet where T: ?core::marker::Sized
+pub fn nika_compile_reader::objects::Facet::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_reader::objects::Facet where T: core::clone::Clone
+pub unsafe fn nika_compile_reader::objects::Facet::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_reader::objects::Facet
+pub fn nika_compile_reader::objects::Facet::from(t: T) -> T
+pub fn nika_compile_reader::objects::as_clause(residue: &str) -> &str
+pub fn nika_compile_reader::objects::carried(target: &str, plan: &nika_compile_reader::plan::Plan) -> bool
+pub fn nika_compile_reader::objects::destination_at(detail_lower: &str, path_at: usize) -> core::option::Option<usize>
+pub fn nika_compile_reader::objects::has_literal(target: &str) -> bool
+pub fn nika_compile_reader::objects::page_facet(object: &str) -> core::option::Option<nika_compile_reader::objects::Facet>
+pub fn nika_compile_reader::objects::possessive_object(object_lower: &str) -> bool
+pub fn nika_compile_reader::objects::without_distributive_tail(text: &str) -> &str
+pub mod nika_compile_reader::paths
+#[non_exhaustive] pub enum nika_compile_reader::paths::PathShape
+pub nika_compile_reader::paths::PathShape::Directory(alloc::string::String)
+pub nika_compile_reader::paths::PathShape::File(alloc::string::String)
+pub nika_compile_reader::paths::PathShape::Glob(alloc::string::String)
+pub nika_compile_reader::paths::PathShape::Placeholder(alloc::string::String)
+impl core::clone::Clone for nika_compile_reader::paths::PathShape
+pub fn nika_compile_reader::paths::PathShape::clone(&self) -> nika_compile_reader::paths::PathShape
+impl core::cmp::Eq for nika_compile_reader::paths::PathShape
+impl core::cmp::PartialEq for nika_compile_reader::paths::PathShape
+pub fn nika_compile_reader::paths::PathShape::eq(&self, other: &nika_compile_reader::paths::PathShape) -> bool
+impl core::fmt::Debug for nika_compile_reader::paths::PathShape
+pub fn nika_compile_reader::paths::PathShape::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_reader::paths::PathShape
+impl<T, U> core::convert::Into<U> for nika_compile_reader::paths::PathShape where U: core::convert::From<T>
+pub fn nika_compile_reader::paths::PathShape::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_reader::paths::PathShape where U: core::convert::Into<T>
+pub type nika_compile_reader::paths::PathShape::Error = core::convert::Infallible
+pub fn nika_compile_reader::paths::PathShape::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_reader::paths::PathShape where U: core::convert::TryFrom<T>
+pub type nika_compile_reader::paths::PathShape::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_reader::paths::PathShape::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_reader::paths::PathShape where T: core::clone::Clone
+pub type nika_compile_reader::paths::PathShape::Owned = T
+pub fn nika_compile_reader::paths::PathShape::clone_into(&self, target: &mut T)
+pub fn nika_compile_reader::paths::PathShape::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_reader::paths::PathShape where T: 'static + ?core::marker::Sized
+pub fn nika_compile_reader::paths::PathShape::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_reader::paths::PathShape where T: ?core::marker::Sized
+pub fn nika_compile_reader::paths::PathShape::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_reader::paths::PathShape where T: ?core::marker::Sized
+pub fn nika_compile_reader::paths::PathShape::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_reader::paths::PathShape where T: core::clone::Clone
+pub unsafe fn nika_compile_reader::paths::PathShape::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_reader::paths::PathShape
+pub fn nika_compile_reader::paths::PathShape::from(t: T) -> T
+#[non_exhaustive] pub enum nika_compile_reader::paths::Structured
+pub nika_compile_reader::paths::Structured::Csv
+pub nika_compile_reader::paths::Structured::Json
+pub nika_compile_reader::paths::Structured::Toml
+pub nika_compile_reader::paths::Structured::Yaml
+impl nika_compile_reader::paths::Structured
+pub fn nika_compile_reader::paths::Structured::of(path: &str) -> core::option::Option<Self>
+pub const fn nika_compile_reader::paths::Structured::word(self) -> &'static str
+impl core::clone::Clone for nika_compile_reader::paths::Structured
+pub fn nika_compile_reader::paths::Structured::clone(&self) -> nika_compile_reader::paths::Structured
+impl core::cmp::Eq for nika_compile_reader::paths::Structured
+impl core::cmp::PartialEq for nika_compile_reader::paths::Structured
+pub fn nika_compile_reader::paths::Structured::eq(&self, other: &nika_compile_reader::paths::Structured) -> bool
+impl core::fmt::Debug for nika_compile_reader::paths::Structured
+pub fn nika_compile_reader::paths::Structured::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_reader::paths::Structured
+impl core::marker::StructuralPartialEq for nika_compile_reader::paths::Structured
+impl<T, U> core::convert::Into<U> for nika_compile_reader::paths::Structured where U: core::convert::From<T>
+pub fn nika_compile_reader::paths::Structured::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_reader::paths::Structured where U: core::convert::Into<T>
+pub type nika_compile_reader::paths::Structured::Error = core::convert::Infallible
+pub fn nika_compile_reader::paths::Structured::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_reader::paths::Structured where U: core::convert::TryFrom<T>
+pub type nika_compile_reader::paths::Structured::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_reader::paths::Structured::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_reader::paths::Structured where T: core::clone::Clone
+pub type nika_compile_reader::paths::Structured::Owned = T
+pub fn nika_compile_reader::paths::Structured::clone_into(&self, target: &mut T)
+pub fn nika_compile_reader::paths::Structured::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_reader::paths::Structured where T: 'static + ?core::marker::Sized
+pub fn nika_compile_reader::paths::Structured::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_reader::paths::Structured where T: ?core::marker::Sized
+pub fn nika_compile_reader::paths::Structured::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_reader::paths::Structured where T: ?core::marker::Sized
+pub fn nika_compile_reader::paths::Structured::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_reader::paths::Structured where T: core::clone::Clone
+pub unsafe fn nika_compile_reader::paths::Structured::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_reader::paths::Structured
+pub fn nika_compile_reader::paths::Structured::from(t: T) -> T
+pub fn nika_compile_reader::paths::directory_of(path: &str) -> alloc::string::String
+pub fn nika_compile_reader::paths::extension(path: &str) -> core::option::Option<alloc::string::String>
+pub fn nika_compile_reader::paths::literals(text: &str) -> alloc::vec::Vec<nika_compile_reader::paths::PathShape>
+pub fn nika_compile_reader::paths::single_file(text: &str) -> core::option::Option<alloc::string::String>
+pub fn nika_compile_reader::paths::stem(path: &str) -> alloc::string::String
+pub fn nika_compile_reader::paths::token(word: &str) -> core::option::Option<nika_compile_reader::paths::PathShape>
+pub mod nika_compile_reader::plan
+#[non_exhaustive] pub enum nika_compile_reader::plan::EffectPolicy
+pub nika_compile_reader::plan::EffectPolicy::Automatic
+pub nika_compile_reader::plan::EffectPolicy::Conflict
+pub nika_compile_reader::plan::EffectPolicy::Forbidden
+pub nika_compile_reader::plan::EffectPolicy::HumanFirst
+pub nika_compile_reader::plan::EffectPolicy::Undecided
+impl nika_compile_reader::plan::EffectPolicy
+pub fn nika_compile_reader::plan::EffectPolicy::parse(word: &str) -> core::option::Option<Self>
+pub const fn nika_compile_reader::plan::EffectPolicy::word(self) -> &'static str
+impl core::clone::Clone for nika_compile_reader::plan::EffectPolicy
+pub fn nika_compile_reader::plan::EffectPolicy::clone(&self) -> nika_compile_reader::plan::EffectPolicy
+impl core::cmp::Eq for nika_compile_reader::plan::EffectPolicy
+impl core::cmp::PartialEq for nika_compile_reader::plan::EffectPolicy
+pub fn nika_compile_reader::plan::EffectPolicy::eq(&self, other: &nika_compile_reader::plan::EffectPolicy) -> bool
+impl core::fmt::Debug for nika_compile_reader::plan::EffectPolicy
+pub fn nika_compile_reader::plan::EffectPolicy::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_reader::plan::EffectPolicy
+impl core::marker::StructuralPartialEq for nika_compile_reader::plan::EffectPolicy
+impl<T, U> core::convert::Into<U> for nika_compile_reader::plan::EffectPolicy where U: core::convert::From<T>
+pub fn nika_compile_reader::plan::EffectPolicy::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_reader::plan::EffectPolicy where U: core::convert::Into<T>
+pub type nika_compile_reader::plan::EffectPolicy::Error = core::convert::Infallible
+pub fn nika_compile_reader::plan::EffectPolicy::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_reader::plan::EffectPolicy where U: core::convert::TryFrom<T>
+pub type nika_compile_reader::plan::EffectPolicy::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_reader::plan::EffectPolicy::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_reader::plan::EffectPolicy where T: core::clone::Clone
+pub type nika_compile_reader::plan::EffectPolicy::Owned = T
+pub fn nika_compile_reader::plan::EffectPolicy::clone_into(&self, target: &mut T)
+pub fn nika_compile_reader::plan::EffectPolicy::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_reader::plan::EffectPolicy where T: 'static + ?core::marker::Sized
+pub fn nika_compile_reader::plan::EffectPolicy::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_reader::plan::EffectPolicy where T: ?core::marker::Sized
+pub fn nika_compile_reader::plan::EffectPolicy::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_reader::plan::EffectPolicy where T: ?core::marker::Sized
+pub fn nika_compile_reader::plan::EffectPolicy::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_reader::plan::EffectPolicy where T: core::clone::Clone
+pub unsafe fn nika_compile_reader::plan::EffectPolicy::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_reader::plan::EffectPolicy
+pub fn nika_compile_reader::plan::EffectPolicy::from(t: T) -> T
+#[non_exhaustive] pub enum nika_compile_reader::plan::EffectVerb
+pub nika_compile_reader::plan::EffectVerb::Create
+pub nika_compile_reader::plan::EffectVerb::Delete
+pub nika_compile_reader::plan::EffectVerb::Merge
+pub nika_compile_reader::plan::EffectVerb::Notify
+pub nika_compile_reader::plan::EffectVerb::Order
+pub nika_compile_reader::plan::EffectVerb::Other
+pub nika_compile_reader::plan::EffectVerb::Pay
+pub nika_compile_reader::plan::EffectVerb::Publish
+pub nika_compile_reader::plan::EffectVerb::Refund
+pub nika_compile_reader::plan::EffectVerb::Send
+pub nika_compile_reader::plan::EffectVerb::Update
+pub nika_compile_reader::plan::EffectVerb::Write
+impl nika_compile_reader::plan::EffectVerb
+pub const fn nika_compile_reader::plan::EffectVerb::moves_money(self) -> bool
+pub fn nika_compile_reader::plan::EffectVerb::parse(word: &str) -> core::option::Option<Self>
+pub const fn nika_compile_reader::plan::EffectVerb::word(self) -> &'static str
+impl core::clone::Clone for nika_compile_reader::plan::EffectVerb
+pub fn nika_compile_reader::plan::EffectVerb::clone(&self) -> nika_compile_reader::plan::EffectVerb
+impl core::cmp::Eq for nika_compile_reader::plan::EffectVerb
+impl core::cmp::PartialEq for nika_compile_reader::plan::EffectVerb
+pub fn nika_compile_reader::plan::EffectVerb::eq(&self, other: &nika_compile_reader::plan::EffectVerb) -> bool
+impl core::fmt::Debug for nika_compile_reader::plan::EffectVerb
+pub fn nika_compile_reader::plan::EffectVerb::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_reader::plan::EffectVerb
+impl core::marker::StructuralPartialEq for nika_compile_reader::plan::EffectVerb
+impl<T, U> core::convert::Into<U> for nika_compile_reader::plan::EffectVerb where U: core::convert::From<T>
+pub fn nika_compile_reader::plan::EffectVerb::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_reader::plan::EffectVerb where U: core::convert::Into<T>
+pub type nika_compile_reader::plan::EffectVerb::Error = core::convert::Infallible
+pub fn nika_compile_reader::plan::EffectVerb::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_reader::plan::EffectVerb where U: core::convert::TryFrom<T>
+pub type nika_compile_reader::plan::EffectVerb::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_reader::plan::EffectVerb::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_reader::plan::EffectVerb where T: core::clone::Clone
+pub type nika_compile_reader::plan::EffectVerb::Owned = T
+pub fn nika_compile_reader::plan::EffectVerb::clone_into(&self, target: &mut T)
+pub fn nika_compile_reader::plan::EffectVerb::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_reader::plan::EffectVerb where T: 'static + ?core::marker::Sized
+pub fn nika_compile_reader::plan::EffectVerb::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_reader::plan::EffectVerb where T: ?core::marker::Sized
+pub fn nika_compile_reader::plan::EffectVerb::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_reader::plan::EffectVerb where T: ?core::marker::Sized
+pub fn nika_compile_reader::plan::EffectVerb::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_reader::plan::EffectVerb where T: core::clone::Clone
+pub unsafe fn nika_compile_reader::plan::EffectVerb::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_reader::plan::EffectVerb
+pub fn nika_compile_reader::plan::EffectVerb::from(t: T) -> T
+#[non_exhaustive] pub enum nika_compile_reader::plan::ObligationKind
+pub nika_compile_reader::plan::ObligationKind::Dedup
+pub nika_compile_reader::plan::ObligationKind::RetryBound(u32)
+pub nika_compile_reader::plan::ObligationKind::RevisionCheck
+impl nika_compile_reader::plan::ObligationKind
+pub const fn nika_compile_reader::plan::ObligationKind::word(&self) -> &'static str
+impl core::clone::Clone for nika_compile_reader::plan::ObligationKind
+pub fn nika_compile_reader::plan::ObligationKind::clone(&self) -> nika_compile_reader::plan::ObligationKind
+impl core::cmp::Eq for nika_compile_reader::plan::ObligationKind
+impl core::cmp::PartialEq for nika_compile_reader::plan::ObligationKind
+pub fn nika_compile_reader::plan::ObligationKind::eq(&self, other: &nika_compile_reader::plan::ObligationKind) -> bool
+impl core::fmt::Debug for nika_compile_reader::plan::ObligationKind
+pub fn nika_compile_reader::plan::ObligationKind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_reader::plan::ObligationKind
+impl<T, U> core::convert::Into<U> for nika_compile_reader::plan::ObligationKind where U: core::convert::From<T>
+pub fn nika_compile_reader::plan::ObligationKind::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_reader::plan::ObligationKind where U: core::convert::Into<T>
+pub type nika_compile_reader::plan::ObligationKind::Error = core::convert::Infallible
+pub fn nika_compile_reader::plan::ObligationKind::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_reader::plan::ObligationKind where U: core::convert::TryFrom<T>
+pub type nika_compile_reader::plan::ObligationKind::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_reader::plan::ObligationKind::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_reader::plan::ObligationKind where T: core::clone::Clone
+pub type nika_compile_reader::plan::ObligationKind::Owned = T
+pub fn nika_compile_reader::plan::ObligationKind::clone_into(&self, target: &mut T)
+pub fn nika_compile_reader::plan::ObligationKind::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_reader::plan::ObligationKind where T: 'static + ?core::marker::Sized
+pub fn nika_compile_reader::plan::ObligationKind::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_reader::plan::ObligationKind where T: ?core::marker::Sized
+pub fn nika_compile_reader::plan::ObligationKind::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_reader::plan::ObligationKind where T: ?core::marker::Sized
+pub fn nika_compile_reader::plan::ObligationKind::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_reader::plan::ObligationKind where T: core::clone::Clone
+pub unsafe fn nika_compile_reader::plan::ObligationKind::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_reader::plan::ObligationKind
+pub fn nika_compile_reader::plan::ObligationKind::from(t: T) -> T
+#[non_exhaustive] pub enum nika_compile_reader::plan::Op
+pub nika_compile_reader::plan::Op::Classify
+pub nika_compile_reader::plan::Op::Compute
+pub nika_compile_reader::plan::Op::Draft
+pub nika_compile_reader::plan::Op::Explore
+pub nika_compile_reader::plan::Op::Extract
+pub nika_compile_reader::plan::Op::Fetch
+pub nika_compile_reader::plan::Op::Lookup
+pub nika_compile_reader::plan::Op::Read
+pub nika_compile_reader::plan::Op::Search
+pub nika_compile_reader::plan::Op::Validate
+impl nika_compile_reader::plan::Op
+pub const nika_compile_reader::plan::Op::ALL: [Self; 10]
+pub const fn nika_compile_reader::plan::Op::carries_constraints(self) -> bool
+pub const fn nika_compile_reader::plan::Op::definition(self) -> &'static str
+pub fn nika_compile_reader::plan::Op::parse(word: &str) -> core::option::Option<Self>
+pub const fn nika_compile_reader::plan::Op::word(self) -> &'static str
+impl core::clone::Clone for nika_compile_reader::plan::Op
+pub fn nika_compile_reader::plan::Op::clone(&self) -> nika_compile_reader::plan::Op
+impl core::cmp::Eq for nika_compile_reader::plan::Op
+impl core::cmp::Ord for nika_compile_reader::plan::Op
+pub fn nika_compile_reader::plan::Op::cmp(&self, other: &nika_compile_reader::plan::Op) -> core::cmp::Ordering
+impl core::cmp::PartialEq for nika_compile_reader::plan::Op
+pub fn nika_compile_reader::plan::Op::eq(&self, other: &nika_compile_reader::plan::Op) -> bool
+impl core::cmp::PartialOrd for nika_compile_reader::plan::Op
+pub fn nika_compile_reader::plan::Op::partial_cmp(&self, other: &nika_compile_reader::plan::Op) -> core::option::Option<core::cmp::Ordering>
+impl core::fmt::Debug for nika_compile_reader::plan::Op
+pub fn nika_compile_reader::plan::Op::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_reader::plan::Op
+impl core::marker::StructuralPartialEq for nika_compile_reader::plan::Op
+impl<T, U> core::convert::Into<U> for nika_compile_reader::plan::Op where U: core::convert::From<T>
+pub fn nika_compile_reader::plan::Op::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_reader::plan::Op where U: core::convert::Into<T>
+pub type nika_compile_reader::plan::Op::Error = core::convert::Infallible
+pub fn nika_compile_reader::plan::Op::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_reader::plan::Op where U: core::convert::TryFrom<T>
+pub type nika_compile_reader::plan::Op::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_reader::plan::Op::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_reader::plan::Op where T: core::clone::Clone
+pub type nika_compile_reader::plan::Op::Owned = T
+pub fn nika_compile_reader::plan::Op::clone_into(&self, target: &mut T)
+pub fn nika_compile_reader::plan::Op::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_reader::plan::Op where T: 'static + ?core::marker::Sized
+pub fn nika_compile_reader::plan::Op::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_reader::plan::Op where T: ?core::marker::Sized
+pub fn nika_compile_reader::plan::Op::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_reader::plan::Op where T: ?core::marker::Sized
+pub fn nika_compile_reader::plan::Op::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_reader::plan::Op where T: core::clone::Clone
+pub unsafe fn nika_compile_reader::plan::Op::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_reader::plan::Op
+pub fn nika_compile_reader::plan::Op::from(t: T) -> T
+#[non_exhaustive] pub struct nika_compile_reader::plan::Binding
+pub nika_compile_reader::plan::Binding::literal: alloc::string::String
+pub nika_compile_reader::plan::Binding::role: &'static str
+impl nika_compile_reader::plan::Binding
+pub fn nika_compile_reader::plan::Binding::new(role: &'static str, literal: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_compile_reader::plan::Binding
+pub fn nika_compile_reader::plan::Binding::clone(&self) -> nika_compile_reader::plan::Binding
+impl core::cmp::Eq for nika_compile_reader::plan::Binding
+impl core::cmp::PartialEq for nika_compile_reader::plan::Binding
+pub fn nika_compile_reader::plan::Binding::eq(&self, other: &nika_compile_reader::plan::Binding) -> bool
+impl core::fmt::Debug for nika_compile_reader::plan::Binding
+pub fn nika_compile_reader::plan::Binding::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_reader::plan::Binding
+impl<T, U> core::convert::Into<U> for nika_compile_reader::plan::Binding where U: core::convert::From<T>
+pub fn nika_compile_reader::plan::Binding::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_reader::plan::Binding where U: core::convert::Into<T>
+pub type nika_compile_reader::plan::Binding::Error = core::convert::Infallible
+pub fn nika_compile_reader::plan::Binding::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_reader::plan::Binding where U: core::convert::TryFrom<T>
+pub type nika_compile_reader::plan::Binding::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_reader::plan::Binding::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_reader::plan::Binding where T: core::clone::Clone
+pub type nika_compile_reader::plan::Binding::Owned = T
+pub fn nika_compile_reader::plan::Binding::clone_into(&self, target: &mut T)
+pub fn nika_compile_reader::plan::Binding::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_reader::plan::Binding where T: 'static + ?core::marker::Sized
+pub fn nika_compile_reader::plan::Binding::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_reader::plan::Binding where T: ?core::marker::Sized
+pub fn nika_compile_reader::plan::Binding::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_reader::plan::Binding where T: ?core::marker::Sized
+pub fn nika_compile_reader::plan::Binding::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_reader::plan::Binding where T: core::clone::Clone
+pub unsafe fn nika_compile_reader::plan::Binding::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_reader::plan::Binding
+pub fn nika_compile_reader::plan::Binding::from(t: T) -> T
+#[non_exhaustive] pub struct nika_compile_reader::plan::Effect
+pub nika_compile_reader::plan::Effect::evidence: alloc::string::String
+pub nika_compile_reader::plan::Effect::policy: nika_compile_reader::plan::EffectPolicy
+pub nika_compile_reader::plan::Effect::policy_literal: core::option::Option<alloc::string::String>
+pub nika_compile_reader::plan::Effect::target: alloc::string::String
+pub nika_compile_reader::plan::Effect::verb: nika_compile_reader::plan::EffectVerb
+impl nika_compile_reader::plan::Effect
+pub fn nika_compile_reader::plan::Effect::new(verb: nika_compile_reader::plan::EffectVerb, target: impl core::convert::Into<alloc::string::String>, evidence: impl core::convert::Into<alloc::string::String>, policy: nika_compile_reader::plan::EffectPolicy) -> Self
+impl core::clone::Clone for nika_compile_reader::plan::Effect
+pub fn nika_compile_reader::plan::Effect::clone(&self) -> nika_compile_reader::plan::Effect
+impl core::cmp::Eq for nika_compile_reader::plan::Effect
+impl core::cmp::PartialEq for nika_compile_reader::plan::Effect
+pub fn nika_compile_reader::plan::Effect::eq(&self, other: &nika_compile_reader::plan::Effect) -> bool
+impl core::fmt::Debug for nika_compile_reader::plan::Effect
+pub fn nika_compile_reader::plan::Effect::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_reader::plan::Effect
+impl<T, U> core::convert::Into<U> for nika_compile_reader::plan::Effect where U: core::convert::From<T>
+pub fn nika_compile_reader::plan::Effect::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_reader::plan::Effect where U: core::convert::Into<T>
+pub type nika_compile_reader::plan::Effect::Error = core::convert::Infallible
+pub fn nika_compile_reader::plan::Effect::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_reader::plan::Effect where U: core::convert::TryFrom<T>
+pub type nika_compile_reader::plan::Effect::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_reader::plan::Effect::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_reader::plan::Effect where T: core::clone::Clone
+pub type nika_compile_reader::plan::Effect::Owned = T
+pub fn nika_compile_reader::plan::Effect::clone_into(&self, target: &mut T)
+pub fn nika_compile_reader::plan::Effect::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_reader::plan::Effect where T: 'static + ?core::marker::Sized
+pub fn nika_compile_reader::plan::Effect::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_reader::plan::Effect where T: ?core::marker::Sized
+pub fn nika_compile_reader::plan::Effect::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_reader::plan::Effect where T: ?core::marker::Sized
+pub fn nika_compile_reader::plan::Effect::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_reader::plan::Effect where T: core::clone::Clone
+pub unsafe fn nika_compile_reader::plan::Effect::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_reader::plan::Effect
+pub fn nika_compile_reader::plan::Effect::from(t: T) -> T
+#[non_exhaustive] pub struct nika_compile_reader::plan::Obligation
+pub nika_compile_reader::plan::Obligation::evidence: alloc::string::String
+pub nika_compile_reader::plan::Obligation::kind: nika_compile_reader::plan::ObligationKind
+impl nika_compile_reader::plan::Obligation
+pub fn nika_compile_reader::plan::Obligation::new(kind: nika_compile_reader::plan::ObligationKind, evidence: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_compile_reader::plan::Obligation
+pub fn nika_compile_reader::plan::Obligation::clone(&self) -> nika_compile_reader::plan::Obligation
+impl core::cmp::Eq for nika_compile_reader::plan::Obligation
+impl core::cmp::PartialEq for nika_compile_reader::plan::Obligation
+pub fn nika_compile_reader::plan::Obligation::eq(&self, other: &nika_compile_reader::plan::Obligation) -> bool
+impl core::fmt::Debug for nika_compile_reader::plan::Obligation
+pub fn nika_compile_reader::plan::Obligation::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_reader::plan::Obligation
+impl<T, U> core::convert::Into<U> for nika_compile_reader::plan::Obligation where U: core::convert::From<T>
+pub fn nika_compile_reader::plan::Obligation::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_reader::plan::Obligation where U: core::convert::Into<T>
+pub type nika_compile_reader::plan::Obligation::Error = core::convert::Infallible
+pub fn nika_compile_reader::plan::Obligation::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_reader::plan::Obligation where U: core::convert::TryFrom<T>
+pub type nika_compile_reader::plan::Obligation::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_reader::plan::Obligation::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_reader::plan::Obligation where T: core::clone::Clone
+pub type nika_compile_reader::plan::Obligation::Owned = T
+pub fn nika_compile_reader::plan::Obligation::clone_into(&self, target: &mut T)
+pub fn nika_compile_reader::plan::Obligation::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_reader::plan::Obligation where T: 'static + ?core::marker::Sized
+pub fn nika_compile_reader::plan::Obligation::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_reader::plan::Obligation where T: ?core::marker::Sized
+pub fn nika_compile_reader::plan::Obligation::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_reader::plan::Obligation where T: ?core::marker::Sized
+pub fn nika_compile_reader::plan::Obligation::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_reader::plan::Obligation where T: core::clone::Clone
+pub unsafe fn nika_compile_reader::plan::Obligation::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_reader::plan::Obligation
+pub fn nika_compile_reader::plan::Obligation::from(t: T) -> T
+#[non_exhaustive] pub struct nika_compile_reader::plan::Plan
+pub nika_compile_reader::plan::Plan::bindings: alloc::vec::Vec<nika_compile_reader::plan::Binding>
+pub nika_compile_reader::plan::Plan::constraints: alloc::vec::Vec<alloc::string::String>
+pub nika_compile_reader::plan::Plan::effects: alloc::vec::Vec<nika_compile_reader::plan::Effect>
+pub nika_compile_reader::plan::Plan::obligations: alloc::vec::Vec<nika_compile_reader::plan::Obligation>
+pub nika_compile_reader::plan::Plan::rules: alloc::vec::Vec<nika_compile_reader::rules::Rule>
+pub nika_compile_reader::plan::Plan::slots: alloc::vec::Vec<nika_compile_reader::plan::Slot>
+pub nika_compile_reader::plan::Plan::steps: alloc::vec::Vec<nika_compile_reader::plan::Step>
+pub nika_compile_reader::plan::Plan::trigger: core::option::Option<alloc::string::String>
+pub nika_compile_reader::plan::Plan::unknowns: alloc::vec::Vec<alloc::string::String>
+impl nika_compile_reader::plan::Plan
+pub fn nika_compile_reader::plan::Plan::anchored(&self, intent: &str) -> bool
+pub fn nika_compile_reader::plan::Plan::from_json(record: &serde_json::value::Value) -> core::result::Result<Self, alloc::string::String>
+pub fn nika_compile_reader::plan::Plan::has(&self, op: nika_compile_reader::plan::Op) -> bool
+pub fn nika_compile_reader::plan::Plan::obligation(&self, word: &str) -> bool
+pub fn nika_compile_reader::plan::Plan::push_step(&mut self, step: nika_compile_reader::plan::Step)
+pub fn nika_compile_reader::plan::Plan::retry_bound(&self) -> core::option::Option<u32>
+pub fn nika_compile_reader::plan::Plan::step(&self, op: nika_compile_reader::plan::Op) -> core::option::Option<&nika_compile_reader::plan::Step>
+pub fn nika_compile_reader::plan::Plan::to_json(&self) -> serde_json::value::Value
+impl core::clone::Clone for nika_compile_reader::plan::Plan
+pub fn nika_compile_reader::plan::Plan::clone(&self) -> nika_compile_reader::plan::Plan
+impl core::cmp::Eq for nika_compile_reader::plan::Plan
+impl core::cmp::PartialEq for nika_compile_reader::plan::Plan
+pub fn nika_compile_reader::plan::Plan::eq(&self, other: &nika_compile_reader::plan::Plan) -> bool
+impl core::default::Default for nika_compile_reader::plan::Plan
+pub fn nika_compile_reader::plan::Plan::default() -> nika_compile_reader::plan::Plan
+impl core::fmt::Debug for nika_compile_reader::plan::Plan
+pub fn nika_compile_reader::plan::Plan::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_reader::plan::Plan
+impl<T, U> core::convert::Into<U> for nika_compile_reader::plan::Plan where U: core::convert::From<T>
+pub fn nika_compile_reader::plan::Plan::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_reader::plan::Plan where U: core::convert::Into<T>
+pub type nika_compile_reader::plan::Plan::Error = core::convert::Infallible
+pub fn nika_compile_reader::plan::Plan::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_reader::plan::Plan where U: core::convert::TryFrom<T>
+pub type nika_compile_reader::plan::Plan::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_reader::plan::Plan::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_reader::plan::Plan where T: core::clone::Clone
+pub type nika_compile_reader::plan::Plan::Owned = T
+pub fn nika_compile_reader::plan::Plan::clone_into(&self, target: &mut T)
+pub fn nika_compile_reader::plan::Plan::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_reader::plan::Plan where T: 'static + ?core::marker::Sized
+pub fn nika_compile_reader::plan::Plan::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_reader::plan::Plan where T: ?core::marker::Sized
+pub fn nika_compile_reader::plan::Plan::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_reader::plan::Plan where T: ?core::marker::Sized
+pub fn nika_compile_reader::plan::Plan::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_reader::plan::Plan where T: core::clone::Clone
+pub unsafe fn nika_compile_reader::plan::Plan::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_reader::plan::Plan
+pub fn nika_compile_reader::plan::Plan::from(t: T) -> T
+#[non_exhaustive] pub struct nika_compile_reader::plan::Slot
+pub nika_compile_reader::plan::Slot::key: alloc::string::String
+pub nika_compile_reader::plan::Slot::label: alloc::string::String
+pub nika_compile_reader::plan::Slot::numeric: bool
+impl nika_compile_reader::plan::Slot
+pub fn nika_compile_reader::plan::Slot::new(key: impl core::convert::Into<alloc::string::String>, label: impl core::convert::Into<alloc::string::String>, numeric: bool) -> Self
+pub fn nika_compile_reader::plan::Slot::slug(&self) -> &str
+impl core::clone::Clone for nika_compile_reader::plan::Slot
+pub fn nika_compile_reader::plan::Slot::clone(&self) -> nika_compile_reader::plan::Slot
+impl core::cmp::Eq for nika_compile_reader::plan::Slot
+impl core::cmp::PartialEq for nika_compile_reader::plan::Slot
+pub fn nika_compile_reader::plan::Slot::eq(&self, other: &nika_compile_reader::plan::Slot) -> bool
+impl core::fmt::Debug for nika_compile_reader::plan::Slot
+pub fn nika_compile_reader::plan::Slot::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_reader::plan::Slot
+impl<T, U> core::convert::Into<U> for nika_compile_reader::plan::Slot where U: core::convert::From<T>
+pub fn nika_compile_reader::plan::Slot::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_reader::plan::Slot where U: core::convert::Into<T>
+pub type nika_compile_reader::plan::Slot::Error = core::convert::Infallible
+pub fn nika_compile_reader::plan::Slot::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_reader::plan::Slot where U: core::convert::TryFrom<T>
+pub type nika_compile_reader::plan::Slot::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_reader::plan::Slot::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_reader::plan::Slot where T: core::clone::Clone
+pub type nika_compile_reader::plan::Slot::Owned = T
+pub fn nika_compile_reader::plan::Slot::clone_into(&self, target: &mut T)
+pub fn nika_compile_reader::plan::Slot::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_reader::plan::Slot where T: 'static + ?core::marker::Sized
+pub fn nika_compile_reader::plan::Slot::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_reader::plan::Slot where T: ?core::marker::Sized
+pub fn nika_compile_reader::plan::Slot::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_reader::plan::Slot where T: ?core::marker::Sized
+pub fn nika_compile_reader::plan::Slot::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_reader::plan::Slot where T: core::clone::Clone
+pub unsafe fn nika_compile_reader::plan::Slot::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_reader::plan::Slot
+pub fn nika_compile_reader::plan::Slot::from(t: T) -> T
+#[non_exhaustive] pub struct nika_compile_reader::plan::Step
+pub nika_compile_reader::plan::Step::categories: alloc::vec::Vec<alloc::string::String>
+pub nika_compile_reader::plan::Step::detail: alloc::string::String
+pub nika_compile_reader::plan::Step::evidence: alloc::string::String
+pub nika_compile_reader::plan::Step::op: nika_compile_reader::plan::Op
+impl nika_compile_reader::plan::Step
+pub fn nika_compile_reader::plan::Step::new(op: nika_compile_reader::plan::Op, evidence: impl core::convert::Into<alloc::string::String>, detail: impl core::convert::Into<alloc::string::String>, categories: alloc::vec::Vec<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_compile_reader::plan::Step
+pub fn nika_compile_reader::plan::Step::clone(&self) -> nika_compile_reader::plan::Step
+impl core::cmp::Eq for nika_compile_reader::plan::Step
+impl core::cmp::PartialEq for nika_compile_reader::plan::Step
+pub fn nika_compile_reader::plan::Step::eq(&self, other: &nika_compile_reader::plan::Step) -> bool
+impl core::fmt::Debug for nika_compile_reader::plan::Step
+pub fn nika_compile_reader::plan::Step::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_reader::plan::Step
+impl<T, U> core::convert::Into<U> for nika_compile_reader::plan::Step where U: core::convert::From<T>
+pub fn nika_compile_reader::plan::Step::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_reader::plan::Step where U: core::convert::Into<T>
+pub type nika_compile_reader::plan::Step::Error = core::convert::Infallible
+pub fn nika_compile_reader::plan::Step::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_reader::plan::Step where U: core::convert::TryFrom<T>
+pub type nika_compile_reader::plan::Step::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_reader::plan::Step::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_reader::plan::Step where T: core::clone::Clone
+pub type nika_compile_reader::plan::Step::Owned = T
+pub fn nika_compile_reader::plan::Step::clone_into(&self, target: &mut T)
+pub fn nika_compile_reader::plan::Step::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_reader::plan::Step where T: 'static + ?core::marker::Sized
+pub fn nika_compile_reader::plan::Step::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_reader::plan::Step where T: ?core::marker::Sized
+pub fn nika_compile_reader::plan::Step::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_reader::plan::Step where T: ?core::marker::Sized
+pub fn nika_compile_reader::plan::Step::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_reader::plan::Step where T: core::clone::Clone
+pub unsafe fn nika_compile_reader::plan::Step::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_reader::plan::Step
+pub fn nika_compile_reader::plan::Step::from(t: T) -> T
+pub mod nika_compile_reader::rule_cues
+pub mod nika_compile_reader::rule_tokens
+pub const nika_compile_reader::rule_tokens::ATTEMPT_UNITS: &[&str]
+pub const nika_compile_reader::rule_tokens::SIZE_UNITS: &[&str]
+pub fn nika_compile_reader::rule_tokens::fold(text: &str) -> alloc::string::String
+pub mod nika_compile_reader::rules
+#[non_exhaustive] pub enum nika_compile_reader::rules::AggOp
+pub nika_compile_reader::rules::AggOp::Avg
+pub nika_compile_reader::rules::AggOp::Count
+pub nika_compile_reader::rules::AggOp::Max
+pub nika_compile_reader::rules::AggOp::Min
+pub nika_compile_reader::rules::AggOp::Sum
+impl nika_compile_reader::aggregate::AggOp
+pub fn nika_compile_reader::aggregate::AggOp::from_word(word: &str) -> core::option::Option<Self>
+impl core::clone::Clone for nika_compile_reader::aggregate::AggOp
+pub fn nika_compile_reader::aggregate::AggOp::clone(&self) -> nika_compile_reader::aggregate::AggOp
+impl core::cmp::Eq for nika_compile_reader::aggregate::AggOp
+impl core::cmp::PartialEq for nika_compile_reader::aggregate::AggOp
+pub fn nika_compile_reader::aggregate::AggOp::eq(&self, other: &nika_compile_reader::aggregate::AggOp) -> bool
+impl core::fmt::Debug for nika_compile_reader::aggregate::AggOp
+pub fn nika_compile_reader::aggregate::AggOp::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_reader::aggregate::AggOp
+impl core::marker::StructuralPartialEq for nika_compile_reader::aggregate::AggOp
+impl<T, U> core::convert::Into<U> for nika_compile_reader::aggregate::AggOp where U: core::convert::From<T>
+pub fn nika_compile_reader::aggregate::AggOp::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_reader::aggregate::AggOp where U: core::convert::Into<T>
+pub type nika_compile_reader::aggregate::AggOp::Error = core::convert::Infallible
+pub fn nika_compile_reader::aggregate::AggOp::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_reader::aggregate::AggOp where U: core::convert::TryFrom<T>
+pub type nika_compile_reader::aggregate::AggOp::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_reader::aggregate::AggOp::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_reader::aggregate::AggOp where T: core::clone::Clone
+pub type nika_compile_reader::aggregate::AggOp::Owned = T
+pub fn nika_compile_reader::aggregate::AggOp::clone_into(&self, target: &mut T)
+pub fn nika_compile_reader::aggregate::AggOp::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_reader::aggregate::AggOp where T: 'static + ?core::marker::Sized
+pub fn nika_compile_reader::aggregate::AggOp::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_reader::aggregate::AggOp where T: ?core::marker::Sized
+pub fn nika_compile_reader::aggregate::AggOp::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_reader::aggregate::AggOp where T: ?core::marker::Sized
+pub fn nika_compile_reader::aggregate::AggOp::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_reader::aggregate::AggOp where T: core::clone::Clone
+pub unsafe fn nika_compile_reader::aggregate::AggOp::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_reader::aggregate::AggOp
+pub fn nika_compile_reader::aggregate::AggOp::from(t: T) -> T
+#[non_exhaustive] pub enum nika_compile_reader::rules::ArithOp
+pub nika_compile_reader::rules::ArithOp::Add
+pub nika_compile_reader::rules::ArithOp::Div
+pub nika_compile_reader::rules::ArithOp::Mul
+pub nika_compile_reader::rules::ArithOp::Sub
+impl nika_compile_reader::aggregate::ArithOp
+pub fn nika_compile_reader::aggregate::ArithOp::from_word(word: &str) -> core::option::Option<Self>
+impl core::clone::Clone for nika_compile_reader::aggregate::ArithOp
+pub fn nika_compile_reader::aggregate::ArithOp::clone(&self) -> nika_compile_reader::aggregate::ArithOp
+impl core::cmp::Eq for nika_compile_reader::aggregate::ArithOp
+impl core::cmp::PartialEq for nika_compile_reader::aggregate::ArithOp
+pub fn nika_compile_reader::aggregate::ArithOp::eq(&self, other: &nika_compile_reader::aggregate::ArithOp) -> bool
+impl core::fmt::Debug for nika_compile_reader::aggregate::ArithOp
+pub fn nika_compile_reader::aggregate::ArithOp::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_reader::aggregate::ArithOp
+impl core::marker::StructuralPartialEq for nika_compile_reader::aggregate::ArithOp
+impl<T, U> core::convert::Into<U> for nika_compile_reader::aggregate::ArithOp where U: core::convert::From<T>
+pub fn nika_compile_reader::aggregate::ArithOp::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_reader::aggregate::ArithOp where U: core::convert::Into<T>
+pub type nika_compile_reader::aggregate::ArithOp::Error = core::convert::Infallible
+pub fn nika_compile_reader::aggregate::ArithOp::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_reader::aggregate::ArithOp where U: core::convert::TryFrom<T>
+pub type nika_compile_reader::aggregate::ArithOp::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_reader::aggregate::ArithOp::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_reader::aggregate::ArithOp where T: core::clone::Clone
+pub type nika_compile_reader::aggregate::ArithOp::Owned = T
+pub fn nika_compile_reader::aggregate::ArithOp::clone_into(&self, target: &mut T)
+pub fn nika_compile_reader::aggregate::ArithOp::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_reader::aggregate::ArithOp where T: 'static + ?core::marker::Sized
+pub fn nika_compile_reader::aggregate::ArithOp::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_reader::aggregate::ArithOp where T: ?core::marker::Sized
+pub fn nika_compile_reader::aggregate::ArithOp::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_reader::aggregate::ArithOp where T: ?core::marker::Sized
+pub fn nika_compile_reader::aggregate::ArithOp::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_reader::aggregate::ArithOp where T: core::clone::Clone
+pub unsafe fn nika_compile_reader::aggregate::ArithOp::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_reader::aggregate::ArithOp
+pub fn nika_compile_reader::aggregate::ArithOp::from(t: T) -> T
+#[non_exhaustive] pub enum nika_compile_reader::rules::Comparator
+pub nika_compile_reader::rules::Comparator::Contains
+pub nika_compile_reader::rules::Comparator::EndsWith
+pub nika_compile_reader::rules::Comparator::Eq
+pub nika_compile_reader::rules::Comparator::Ge
+pub nika_compile_reader::rules::Comparator::Gt
+pub nika_compile_reader::rules::Comparator::Le
+pub nika_compile_reader::rules::Comparator::Lt
+pub nika_compile_reader::rules::Comparator::Ne
+pub nika_compile_reader::rules::Comparator::NotContains
+pub nika_compile_reader::rules::Comparator::NotEndsWith
+pub nika_compile_reader::rules::Comparator::NotStartsWith
+pub nika_compile_reader::rules::Comparator::StartsWith
+impl nika_compile_reader::rules::Comparator
+pub fn nika_compile_reader::rules::Comparator::from_word(word: &str) -> core::option::Option<Self>
+pub fn nika_compile_reader::rules::Comparator::negated(self) -> Self
+pub const fn nika_compile_reader::rules::Comparator::symbol(self) -> &'static str
+impl core::clone::Clone for nika_compile_reader::rules::Comparator
+pub fn nika_compile_reader::rules::Comparator::clone(&self) -> nika_compile_reader::rules::Comparator
+impl core::cmp::Eq for nika_compile_reader::rules::Comparator
+impl core::cmp::PartialEq for nika_compile_reader::rules::Comparator
+pub fn nika_compile_reader::rules::Comparator::eq(&self, other: &nika_compile_reader::rules::Comparator) -> bool
+impl core::fmt::Debug for nika_compile_reader::rules::Comparator
+pub fn nika_compile_reader::rules::Comparator::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_reader::rules::Comparator
+impl core::marker::StructuralPartialEq for nika_compile_reader::rules::Comparator
+impl<T, U> core::convert::Into<U> for nika_compile_reader::rules::Comparator where U: core::convert::From<T>
+pub fn nika_compile_reader::rules::Comparator::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_reader::rules::Comparator where U: core::convert::Into<T>
+pub type nika_compile_reader::rules::Comparator::Error = core::convert::Infallible
+pub fn nika_compile_reader::rules::Comparator::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_reader::rules::Comparator where U: core::convert::TryFrom<T>
+pub type nika_compile_reader::rules::Comparator::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_reader::rules::Comparator::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_reader::rules::Comparator where T: core::clone::Clone
+pub type nika_compile_reader::rules::Comparator::Owned = T
+pub fn nika_compile_reader::rules::Comparator::clone_into(&self, target: &mut T)
+pub fn nika_compile_reader::rules::Comparator::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_reader::rules::Comparator where T: 'static + ?core::marker::Sized
+pub fn nika_compile_reader::rules::Comparator::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_reader::rules::Comparator where T: ?core::marker::Sized
+pub fn nika_compile_reader::rules::Comparator::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_reader::rules::Comparator where T: ?core::marker::Sized
+pub fn nika_compile_reader::rules::Comparator::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_reader::rules::Comparator where T: core::clone::Clone
+pub unsafe fn nika_compile_reader::rules::Comparator::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_reader::rules::Comparator
+pub fn nika_compile_reader::rules::Comparator::from(t: T) -> T
+#[non_exhaustive] pub enum nika_compile_reader::rules::Junction
+pub nika_compile_reader::rules::Junction::And
+pub nika_compile_reader::rules::Junction::Or
+impl core::clone::Clone for nika_compile_reader::rules::Junction
+pub fn nika_compile_reader::rules::Junction::clone(&self) -> nika_compile_reader::rules::Junction
+impl core::cmp::Eq for nika_compile_reader::rules::Junction
+impl core::cmp::PartialEq for nika_compile_reader::rules::Junction
+pub fn nika_compile_reader::rules::Junction::eq(&self, other: &nika_compile_reader::rules::Junction) -> bool
+impl core::fmt::Debug for nika_compile_reader::rules::Junction
+pub fn nika_compile_reader::rules::Junction::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_reader::rules::Junction
+impl core::marker::StructuralPartialEq for nika_compile_reader::rules::Junction
+impl<T, U> core::convert::Into<U> for nika_compile_reader::rules::Junction where U: core::convert::From<T>
+pub fn nika_compile_reader::rules::Junction::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_reader::rules::Junction where U: core::convert::Into<T>
+pub type nika_compile_reader::rules::Junction::Error = core::convert::Infallible
+pub fn nika_compile_reader::rules::Junction::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_reader::rules::Junction where U: core::convert::TryFrom<T>
+pub type nika_compile_reader::rules::Junction::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_reader::rules::Junction::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_reader::rules::Junction where T: core::clone::Clone
+pub type nika_compile_reader::rules::Junction::Owned = T
+pub fn nika_compile_reader::rules::Junction::clone_into(&self, target: &mut T)
+pub fn nika_compile_reader::rules::Junction::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_reader::rules::Junction where T: 'static + ?core::marker::Sized
+pub fn nika_compile_reader::rules::Junction::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_reader::rules::Junction where T: ?core::marker::Sized
+pub fn nika_compile_reader::rules::Junction::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_reader::rules::Junction where T: ?core::marker::Sized
+pub fn nika_compile_reader::rules::Junction::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_reader::rules::Junction where T: core::clone::Clone
+pub unsafe fn nika_compile_reader::rules::Junction::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_reader::rules::Junction
+pub fn nika_compile_reader::rules::Junction::from(t: T) -> T
+#[non_exhaustive] pub enum nika_compile_reader::rules::Operand
+pub nika_compile_reader::rules::Operand::Bool(bool)
+pub nika_compile_reader::rules::Operand::Column(alloc::string::String)
+pub nika_compile_reader::rules::Operand::Number(alloc::string::String)
+pub nika_compile_reader::rules::Operand::Slot(alloc::string::String)
+pub nika_compile_reader::rules::Operand::Text(alloc::string::String)
+impl core::clone::Clone for nika_compile_reader::rules::Operand
+pub fn nika_compile_reader::rules::Operand::clone(&self) -> nika_compile_reader::rules::Operand
+impl core::cmp::Eq for nika_compile_reader::rules::Operand
+impl core::cmp::PartialEq for nika_compile_reader::rules::Operand
+pub fn nika_compile_reader::rules::Operand::eq(&self, other: &nika_compile_reader::rules::Operand) -> bool
+impl core::fmt::Debug for nika_compile_reader::rules::Operand
+pub fn nika_compile_reader::rules::Operand::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_reader::rules::Operand
+impl<T, U> core::convert::Into<U> for nika_compile_reader::rules::Operand where U: core::convert::From<T>
+pub fn nika_compile_reader::rules::Operand::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_reader::rules::Operand where U: core::convert::Into<T>
+pub type nika_compile_reader::rules::Operand::Error = core::convert::Infallible
+pub fn nika_compile_reader::rules::Operand::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_reader::rules::Operand where U: core::convert::TryFrom<T>
+pub type nika_compile_reader::rules::Operand::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_reader::rules::Operand::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_reader::rules::Operand where T: core::clone::Clone
+pub type nika_compile_reader::rules::Operand::Owned = T
+pub fn nika_compile_reader::rules::Operand::clone_into(&self, target: &mut T)
+pub fn nika_compile_reader::rules::Operand::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_reader::rules::Operand where T: 'static + ?core::marker::Sized
+pub fn nika_compile_reader::rules::Operand::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_reader::rules::Operand where T: ?core::marker::Sized
+pub fn nika_compile_reader::rules::Operand::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_reader::rules::Operand where T: ?core::marker::Sized
+pub fn nika_compile_reader::rules::Operand::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_reader::rules::Operand where T: core::clone::Clone
+pub unsafe fn nika_compile_reader::rules::Operand::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_reader::rules::Operand
+pub fn nika_compile_reader::rules::Operand::from(t: T) -> T
+#[non_exhaustive] pub enum nika_compile_reader::rules::Term
+pub nika_compile_reader::rules::Term::Name(alloc::string::String)
+pub nika_compile_reader::rules::Term::Number(alloc::string::String)
+impl core::clone::Clone for nika_compile_reader::aggregate::Term
+pub fn nika_compile_reader::aggregate::Term::clone(&self) -> nika_compile_reader::aggregate::Term
+impl core::cmp::Eq for nika_compile_reader::aggregate::Term
+impl core::cmp::PartialEq for nika_compile_reader::aggregate::Term
+pub fn nika_compile_reader::aggregate::Term::eq(&self, other: &nika_compile_reader::aggregate::Term) -> bool
+impl core::fmt::Debug for nika_compile_reader::aggregate::Term
+pub fn nika_compile_reader::aggregate::Term::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_reader::aggregate::Term
+impl<T, U> core::convert::Into<U> for nika_compile_reader::aggregate::Term where U: core::convert::From<T>
+pub fn nika_compile_reader::aggregate::Term::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_reader::aggregate::Term where U: core::convert::Into<T>
+pub type nika_compile_reader::aggregate::Term::Error = core::convert::Infallible
+pub fn nika_compile_reader::aggregate::Term::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_reader::aggregate::Term where U: core::convert::TryFrom<T>
+pub type nika_compile_reader::aggregate::Term::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_reader::aggregate::Term::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_reader::aggregate::Term where T: core::clone::Clone
+pub type nika_compile_reader::aggregate::Term::Owned = T
+pub fn nika_compile_reader::aggregate::Term::clone_into(&self, target: &mut T)
+pub fn nika_compile_reader::aggregate::Term::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_reader::aggregate::Term where T: 'static + ?core::marker::Sized
+pub fn nika_compile_reader::aggregate::Term::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_reader::aggregate::Term where T: ?core::marker::Sized
+pub fn nika_compile_reader::aggregate::Term::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_reader::aggregate::Term where T: ?core::marker::Sized
+pub fn nika_compile_reader::aggregate::Term::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_reader::aggregate::Term where T: core::clone::Clone
+pub unsafe fn nika_compile_reader::aggregate::Term::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_reader::aggregate::Term
+pub fn nika_compile_reader::aggregate::Term::from(t: T) -> T
+#[non_exhaustive] pub struct nika_compile_reader::rules::Aggregation
+pub nika_compile_reader::rules::Aggregation::field: core::option::Option<alloc::string::String>
+pub nika_compile_reader::rules::Aggregation::name: alloc::string::String
+pub nika_compile_reader::rules::Aggregation::op: nika_compile_reader::aggregate::AggOp
+pub nika_compile_reader::rules::Aggregation::round: core::option::Option<u32>
+impl nika_compile_reader::aggregate::Aggregation
+pub fn nika_compile_reader::aggregate::Aggregation::new(field: core::option::Option<alloc::string::String>, op: nika_compile_reader::aggregate::AggOp, name: impl core::convert::Into<alloc::string::String>, round: core::option::Option<u32>) -> Self
+impl core::clone::Clone for nika_compile_reader::aggregate::Aggregation
+pub fn nika_compile_reader::aggregate::Aggregation::clone(&self) -> nika_compile_reader::aggregate::Aggregation
+impl core::cmp::Eq for nika_compile_reader::aggregate::Aggregation
+impl core::cmp::PartialEq for nika_compile_reader::aggregate::Aggregation
+pub fn nika_compile_reader::aggregate::Aggregation::eq(&self, other: &nika_compile_reader::aggregate::Aggregation) -> bool
+impl core::fmt::Debug for nika_compile_reader::aggregate::Aggregation
+pub fn nika_compile_reader::aggregate::Aggregation::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_reader::aggregate::Aggregation
+impl<T, U> core::convert::Into<U> for nika_compile_reader::aggregate::Aggregation where U: core::convert::From<T>
+pub fn nika_compile_reader::aggregate::Aggregation::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_reader::aggregate::Aggregation where U: core::convert::Into<T>
+pub type nika_compile_reader::aggregate::Aggregation::Error = core::convert::Infallible
+pub fn nika_compile_reader::aggregate::Aggregation::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_reader::aggregate::Aggregation where U: core::convert::TryFrom<T>
+pub type nika_compile_reader::aggregate::Aggregation::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_reader::aggregate::Aggregation::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_reader::aggregate::Aggregation where T: core::clone::Clone
+pub type nika_compile_reader::aggregate::Aggregation::Owned = T
+pub fn nika_compile_reader::aggregate::Aggregation::clone_into(&self, target: &mut T)
+pub fn nika_compile_reader::aggregate::Aggregation::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_reader::aggregate::Aggregation where T: 'static + ?core::marker::Sized
+pub fn nika_compile_reader::aggregate::Aggregation::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_reader::aggregate::Aggregation where T: ?core::marker::Sized
+pub fn nika_compile_reader::aggregate::Aggregation::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_reader::aggregate::Aggregation where T: ?core::marker::Sized
+pub fn nika_compile_reader::aggregate::Aggregation::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_reader::aggregate::Aggregation where T: core::clone::Clone
+pub unsafe fn nika_compile_reader::aggregate::Aggregation::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_reader::aggregate::Aggregation
+pub fn nika_compile_reader::aggregate::Aggregation::from(t: T) -> T
+#[non_exhaustive] pub struct nika_compile_reader::rules::Clause
+pub nika_compile_reader::rules::Clause::comparator: nika_compile_reader::rules::Comparator
+pub nika_compile_reader::rules::Clause::field: alloc::string::String
+pub nika_compile_reader::rules::Clause::value: nika_compile_reader::rules::Operand
+impl nika_compile_reader::rules::Clause
+pub fn nika_compile_reader::rules::Clause::new(field: impl core::convert::Into<alloc::string::String>, comparator: nika_compile_reader::rules::Comparator, value: nika_compile_reader::rules::Operand) -> Self
+impl core::clone::Clone for nika_compile_reader::rules::Clause
+pub fn nika_compile_reader::rules::Clause::clone(&self) -> nika_compile_reader::rules::Clause
+impl core::cmp::Eq for nika_compile_reader::rules::Clause
+impl core::cmp::PartialEq for nika_compile_reader::rules::Clause
+pub fn nika_compile_reader::rules::Clause::eq(&self, other: &nika_compile_reader::rules::Clause) -> bool
+impl core::fmt::Debug for nika_compile_reader::rules::Clause
+pub fn nika_compile_reader::rules::Clause::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_reader::rules::Clause
+impl<T, U> core::convert::Into<U> for nika_compile_reader::rules::Clause where U: core::convert::From<T>
+pub fn nika_compile_reader::rules::Clause::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_reader::rules::Clause where U: core::convert::Into<T>
+pub type nika_compile_reader::rules::Clause::Error = core::convert::Infallible
+pub fn nika_compile_reader::rules::Clause::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_reader::rules::Clause where U: core::convert::TryFrom<T>
+pub type nika_compile_reader::rules::Clause::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_reader::rules::Clause::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_reader::rules::Clause where T: core::clone::Clone
+pub type nika_compile_reader::rules::Clause::Owned = T
+pub fn nika_compile_reader::rules::Clause::clone_into(&self, target: &mut T)
+pub fn nika_compile_reader::rules::Clause::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_reader::rules::Clause where T: 'static + ?core::marker::Sized
+pub fn nika_compile_reader::rules::Clause::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_reader::rules::Clause where T: ?core::marker::Sized
+pub fn nika_compile_reader::rules::Clause::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_reader::rules::Clause where T: ?core::marker::Sized
+pub fn nika_compile_reader::rules::Clause::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_reader::rules::Clause where T: core::clone::Clone
+pub unsafe fn nika_compile_reader::rules::Clause::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_reader::rules::Clause
+pub fn nika_compile_reader::rules::Clause::from(t: T) -> T
+#[non_exhaustive] pub struct nika_compile_reader::rules::Derived
+pub nika_compile_reader::rules::Derived::left: nika_compile_reader::aggregate::Term
+pub nika_compile_reader::rules::Derived::name: alloc::string::String
+pub nika_compile_reader::rules::Derived::op: nika_compile_reader::aggregate::ArithOp
+pub nika_compile_reader::rules::Derived::right: nika_compile_reader::aggregate::Term
+impl nika_compile_reader::aggregate::Derived
+pub fn nika_compile_reader::aggregate::Derived::new(name: impl core::convert::Into<alloc::string::String>, op: nika_compile_reader::aggregate::ArithOp, left: nika_compile_reader::aggregate::Term, right: nika_compile_reader::aggregate::Term) -> Self
+impl core::clone::Clone for nika_compile_reader::aggregate::Derived
+pub fn nika_compile_reader::aggregate::Derived::clone(&self) -> nika_compile_reader::aggregate::Derived
+impl core::cmp::Eq for nika_compile_reader::aggregate::Derived
+impl core::cmp::PartialEq for nika_compile_reader::aggregate::Derived
+pub fn nika_compile_reader::aggregate::Derived::eq(&self, other: &nika_compile_reader::aggregate::Derived) -> bool
+impl core::fmt::Debug for nika_compile_reader::aggregate::Derived
+pub fn nika_compile_reader::aggregate::Derived::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_reader::aggregate::Derived
+impl<T, U> core::convert::Into<U> for nika_compile_reader::aggregate::Derived where U: core::convert::From<T>
+pub fn nika_compile_reader::aggregate::Derived::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_reader::aggregate::Derived where U: core::convert::Into<T>
+pub type nika_compile_reader::aggregate::Derived::Error = core::convert::Infallible
+pub fn nika_compile_reader::aggregate::Derived::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_reader::aggregate::Derived where U: core::convert::TryFrom<T>
+pub type nika_compile_reader::aggregate::Derived::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_reader::aggregate::Derived::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_reader::aggregate::Derived where T: core::clone::Clone
+pub type nika_compile_reader::aggregate::Derived::Owned = T
+pub fn nika_compile_reader::aggregate::Derived::clone_into(&self, target: &mut T)
+pub fn nika_compile_reader::aggregate::Derived::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_reader::aggregate::Derived where T: 'static + ?core::marker::Sized
+pub fn nika_compile_reader::aggregate::Derived::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_reader::aggregate::Derived where T: ?core::marker::Sized
+pub fn nika_compile_reader::aggregate::Derived::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_reader::aggregate::Derived where T: ?core::marker::Sized
+pub fn nika_compile_reader::aggregate::Derived::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_reader::aggregate::Derived where T: core::clone::Clone
+pub unsafe fn nika_compile_reader::aggregate::Derived::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_reader::aggregate::Derived
+pub fn nika_compile_reader::aggregate::Derived::from(t: T) -> T
+#[non_exhaustive] pub struct nika_compile_reader::rules::Program
+pub nika_compile_reader::rules::Program::columns: alloc::vec::Vec<alloc::string::String>
+pub nika_compile_reader::rules::Program::jq: alloc::string::String
+impl core::clone::Clone for nika_compile_reader::rules::Program
+pub fn nika_compile_reader::rules::Program::clone(&self) -> nika_compile_reader::rules::Program
+impl core::cmp::Eq for nika_compile_reader::rules::Program
+impl core::cmp::PartialEq for nika_compile_reader::rules::Program
+pub fn nika_compile_reader::rules::Program::eq(&self, other: &nika_compile_reader::rules::Program) -> bool
+impl core::fmt::Debug for nika_compile_reader::rules::Program
+pub fn nika_compile_reader::rules::Program::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_reader::rules::Program
+impl<T, U> core::convert::Into<U> for nika_compile_reader::rules::Program where U: core::convert::From<T>
+pub fn nika_compile_reader::rules::Program::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_reader::rules::Program where U: core::convert::Into<T>
+pub type nika_compile_reader::rules::Program::Error = core::convert::Infallible
+pub fn nika_compile_reader::rules::Program::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_reader::rules::Program where U: core::convert::TryFrom<T>
+pub type nika_compile_reader::rules::Program::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_reader::rules::Program::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_reader::rules::Program where T: core::clone::Clone
+pub type nika_compile_reader::rules::Program::Owned = T
+pub fn nika_compile_reader::rules::Program::clone_into(&self, target: &mut T)
+pub fn nika_compile_reader::rules::Program::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_reader::rules::Program where T: 'static + ?core::marker::Sized
+pub fn nika_compile_reader::rules::Program::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_reader::rules::Program where T: ?core::marker::Sized
+pub fn nika_compile_reader::rules::Program::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_reader::rules::Program where T: ?core::marker::Sized
+pub fn nika_compile_reader::rules::Program::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_reader::rules::Program where T: core::clone::Clone
+pub unsafe fn nika_compile_reader::rules::Program::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_reader::rules::Program
+pub fn nika_compile_reader::rules::Program::from(t: T) -> T
+#[non_exhaustive] pub struct nika_compile_reader::rules::Rule
+impl nika_compile_reader::rules::Rule
+pub const fn nika_compile_reader::rules::Rule::compares_numbers(comparator: nika_compile_reader::rules::Comparator) -> bool
+pub fn nika_compile_reader::rules::Rule::filters(&self) -> bool
+pub fn nika_compile_reader::rules::Rule::guard(&self) -> alloc::string::String
+pub fn nika_compile_reader::rules::Rule::guard_message(&self) -> alloc::string::String
+pub fn nika_compile_reader::rules::Rule::joins(&self) -> bool
+pub fn nika_compile_reader::rules::Rule::jq(&self) -> alloc::string::String
+pub const fn nika_compile_reader::rules::Rule::lines(&self) -> bool
+pub fn nika_compile_reader::rules::Rule::output_columns(&self) -> core::option::Option<alloc::vec::Vec<alloc::string::String>>
+pub fn nika_compile_reader::rules::Rule::over_lines(&self) -> core::option::Option<Self>
+pub fn nika_compile_reader::rules::Rule::program(text: &str, jq: &str, columns: alloc::vec::Vec<alloc::string::String>) -> Self
+pub fn nika_compile_reader::rules::Rule::ranking_without_count(&self) -> bool
+pub fn nika_compile_reader::rules::Rule::renames(&self) -> &[(alloc::string::String, alloc::string::String)]
+pub fn nika_compile_reader::rules::Rule::shaped(&self) -> bool
+pub fn nika_compile_reader::rules::Rule::slots(&self) -> alloc::vec::Vec<alloc::string::String>
+pub const fn nika_compile_reader::rules::Rule::summary(&self) -> bool
+pub fn nika_compile_reader::rules::Rule::text(&self) -> &str
+pub fn nika_compile_reader::rules::Rule::to_json(&self) -> serde_json::value::Value
+pub fn nika_compile_reader::rules::Rule::totals_names(&self) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_compile_reader::rules::Rule::typed(text: &str, clauses: alloc::vec::Vec<nika_compile_reader::rules::Clause>, junction: nika_compile_reader::rules::Junction, shape: nika_compile_reader::aggregate::Shape) -> Self
+pub fn nika_compile_reader::rules::Rule::verified_program(&self) -> core::option::Option<&nika_compile_reader::rules::Program>
+pub fn nika_compile_reader::rules::Rule::with_limit(self, n: u32) -> Self
+impl nika_compile_reader::rules::Rule
+pub fn nika_compile_reader::rules::Rule::source_fields(&self) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_compile_reader::rules::Rule::with_source_field(&self, from: &str, to: &str) -> core::option::Option<Self>
+impl core::clone::Clone for nika_compile_reader::rules::Rule
+pub fn nika_compile_reader::rules::Rule::clone(&self) -> nika_compile_reader::rules::Rule
+impl core::cmp::Eq for nika_compile_reader::rules::Rule
+impl core::cmp::PartialEq for nika_compile_reader::rules::Rule
+pub fn nika_compile_reader::rules::Rule::eq(&self, other: &nika_compile_reader::rules::Rule) -> bool
+impl core::fmt::Debug for nika_compile_reader::rules::Rule
+pub fn nika_compile_reader::rules::Rule::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_reader::rules::Rule
+impl<T, U> core::convert::Into<U> for nika_compile_reader::rules::Rule where U: core::convert::From<T>
+pub fn nika_compile_reader::rules::Rule::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_reader::rules::Rule where U: core::convert::Into<T>
+pub type nika_compile_reader::rules::Rule::Error = core::convert::Infallible
+pub fn nika_compile_reader::rules::Rule::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_reader::rules::Rule where U: core::convert::TryFrom<T>
+pub type nika_compile_reader::rules::Rule::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_reader::rules::Rule::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_reader::rules::Rule where T: core::clone::Clone
+pub type nika_compile_reader::rules::Rule::Owned = T
+pub fn nika_compile_reader::rules::Rule::clone_into(&self, target: &mut T)
+pub fn nika_compile_reader::rules::Rule::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_reader::rules::Rule where T: 'static + ?core::marker::Sized
+pub fn nika_compile_reader::rules::Rule::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_reader::rules::Rule where T: ?core::marker::Sized
+pub fn nika_compile_reader::rules::Rule::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_reader::rules::Rule where T: ?core::marker::Sized
+pub fn nika_compile_reader::rules::Rule::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_reader::rules::Rule where T: core::clone::Clone
+pub unsafe fn nika_compile_reader::rules::Rule::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_reader::rules::Rule
+pub fn nika_compile_reader::rules::Rule::from(t: T) -> T
+#[non_exhaustive] pub struct nika_compile_reader::rules::Shape
+pub nika_compile_reader::rules::Shape::aggregations: alloc::vec::Vec<nika_compile_reader::aggregate::Aggregation>
+pub nika_compile_reader::rules::Shape::columns: alloc::vec::Vec<alloc::string::String>
+pub nika_compile_reader::rules::Shape::derived: alloc::vec::Vec<nika_compile_reader::aggregate::Derived>
+pub nika_compile_reader::rules::Shape::distinct: bool
+pub nika_compile_reader::rules::Shape::distinct_by: alloc::vec::Vec<alloc::string::String>
+pub nika_compile_reader::rules::Shape::group_by: core::option::Option<alloc::string::String>
+pub nika_compile_reader::rules::Shape::join_on: core::option::Option<alloc::string::String>
+pub nika_compile_reader::rules::Shape::limit: core::option::Option<u32>
+pub nika_compile_reader::rules::Shape::renames: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
+pub nika_compile_reader::rules::Shape::sort_by: core::option::Option<(alloc::string::String, bool)>
+impl core::clone::Clone for nika_compile_reader::aggregate::Shape
+pub fn nika_compile_reader::aggregate::Shape::clone(&self) -> nika_compile_reader::aggregate::Shape
+impl core::cmp::Eq for nika_compile_reader::aggregate::Shape
+impl core::cmp::PartialEq for nika_compile_reader::aggregate::Shape
+pub fn nika_compile_reader::aggregate::Shape::eq(&self, other: &nika_compile_reader::aggregate::Shape) -> bool
+impl core::default::Default for nika_compile_reader::aggregate::Shape
+pub fn nika_compile_reader::aggregate::Shape::default() -> nika_compile_reader::aggregate::Shape
+impl core::fmt::Debug for nika_compile_reader::aggregate::Shape
+pub fn nika_compile_reader::aggregate::Shape::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_reader::aggregate::Shape
+impl<T, U> core::convert::Into<U> for nika_compile_reader::aggregate::Shape where U: core::convert::From<T>
+pub fn nika_compile_reader::aggregate::Shape::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_reader::aggregate::Shape where U: core::convert::Into<T>
+pub type nika_compile_reader::aggregate::Shape::Error = core::convert::Infallible
+pub fn nika_compile_reader::aggregate::Shape::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_reader::aggregate::Shape where U: core::convert::TryFrom<T>
+pub type nika_compile_reader::aggregate::Shape::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_reader::aggregate::Shape::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_reader::aggregate::Shape where T: core::clone::Clone
+pub type nika_compile_reader::aggregate::Shape::Owned = T
+pub fn nika_compile_reader::aggregate::Shape::clone_into(&self, target: &mut T)
+pub fn nika_compile_reader::aggregate::Shape::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_reader::aggregate::Shape where T: 'static + ?core::marker::Sized
+pub fn nika_compile_reader::aggregate::Shape::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_reader::aggregate::Shape where T: ?core::marker::Sized
+pub fn nika_compile_reader::aggregate::Shape::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_reader::aggregate::Shape where T: ?core::marker::Sized
+pub fn nika_compile_reader::aggregate::Shape::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_reader::aggregate::Shape where T: core::clone::Clone
+pub unsafe fn nika_compile_reader::aggregate::Shape::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_reader::aggregate::Shape
+pub fn nika_compile_reader::aggregate::Shape::from(t: T) -> T
+pub fn nika_compile_reader::rules::by_construction_tail(text: &str) -> bool
+pub fn nika_compile_reader::rules::keeps_order(text: &str) -> bool
+pub fn nika_compile_reader::rules::line_filter(text: &str) -> core::option::Option<nika_compile_reader::rules::Rule>
+pub fn nika_compile_reader::rules::numeric_cue(phrase: &str) -> core::option::Option<nika_compile_reader::rules::Comparator>
+pub fn nika_compile_reader::rules::synthesize(text: &str, columns: &[alloc::string::String]) -> core::option::Option<nika_compile_reader::rules::Rule>
+pub mod nika_compile_reader::shape
+pub struct nika_compile_reader::shape::LiteralLookup
+pub nika_compile_reader::shape::LiteralLookup::file: alloc::string::String
+pub nika_compile_reader::shape::LiteralLookup::id: alloc::string::String
+pub nika_compile_reader::shape::LiteralLookup::slug: alloc::string::String
+impl core::clone::Clone for nika_compile_reader::shape::LiteralLookup
+pub fn nika_compile_reader::shape::LiteralLookup::clone(&self) -> nika_compile_reader::shape::LiteralLookup
+impl core::cmp::Eq for nika_compile_reader::shape::LiteralLookup
+impl core::cmp::PartialEq for nika_compile_reader::shape::LiteralLookup
+pub fn nika_compile_reader::shape::LiteralLookup::eq(&self, other: &nika_compile_reader::shape::LiteralLookup) -> bool
+impl core::fmt::Debug for nika_compile_reader::shape::LiteralLookup
+pub fn nika_compile_reader::shape::LiteralLookup::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_reader::shape::LiteralLookup
+impl<T, U> core::convert::Into<U> for nika_compile_reader::shape::LiteralLookup where U: core::convert::From<T>
+pub fn nika_compile_reader::shape::LiteralLookup::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_reader::shape::LiteralLookup where U: core::convert::Into<T>
+pub type nika_compile_reader::shape::LiteralLookup::Error = core::convert::Infallible
+pub fn nika_compile_reader::shape::LiteralLookup::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_reader::shape::LiteralLookup where U: core::convert::TryFrom<T>
+pub type nika_compile_reader::shape::LiteralLookup::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_reader::shape::LiteralLookup::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_reader::shape::LiteralLookup where T: core::clone::Clone
+pub type nika_compile_reader::shape::LiteralLookup::Owned = T
+pub fn nika_compile_reader::shape::LiteralLookup::clone_into(&self, target: &mut T)
+pub fn nika_compile_reader::shape::LiteralLookup::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_reader::shape::LiteralLookup where T: 'static + ?core::marker::Sized
+pub fn nika_compile_reader::shape::LiteralLookup::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_reader::shape::LiteralLookup where T: ?core::marker::Sized
+pub fn nika_compile_reader::shape::LiteralLookup::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_reader::shape::LiteralLookup where T: ?core::marker::Sized
+pub fn nika_compile_reader::shape::LiteralLookup::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_reader::shape::LiteralLookup where T: core::clone::Clone
+pub unsafe fn nika_compile_reader::shape::LiteralLookup::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_reader::shape::LiteralLookup
+pub fn nika_compile_reader::shape::LiteralLookup::from(t: T) -> T
+pub struct nika_compile_reader::shape::Shape
+pub nika_compile_reader::shape::Shape::fan_out: bool
+pub nika_compile_reader::shape::Shape::gated: bool
+pub nika_compile_reader::shape::Shape::outputs: usize
+pub nika_compile_reader::shape::Shape::per_item: bool
+impl nika_compile_reader::shape::Shape
+pub fn nika_compile_reader::shape::Shape::to_json(self) -> serde_json::value::Value
+pub const fn nika_compile_reader::shape::Shape::word(self) -> &'static str
+impl core::clone::Clone for nika_compile_reader::shape::Shape
+pub fn nika_compile_reader::shape::Shape::clone(&self) -> nika_compile_reader::shape::Shape
+impl core::cmp::Eq for nika_compile_reader::shape::Shape
+impl core::cmp::PartialEq for nika_compile_reader::shape::Shape
+pub fn nika_compile_reader::shape::Shape::eq(&self, other: &nika_compile_reader::shape::Shape) -> bool
+impl core::fmt::Debug for nika_compile_reader::shape::Shape
+pub fn nika_compile_reader::shape::Shape::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_reader::shape::Shape
+impl core::marker::StructuralPartialEq for nika_compile_reader::shape::Shape
+impl<T, U> core::convert::Into<U> for nika_compile_reader::shape::Shape where U: core::convert::From<T>
+pub fn nika_compile_reader::shape::Shape::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_reader::shape::Shape where U: core::convert::Into<T>
+pub type nika_compile_reader::shape::Shape::Error = core::convert::Infallible
+pub fn nika_compile_reader::shape::Shape::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_reader::shape::Shape where U: core::convert::TryFrom<T>
+pub type nika_compile_reader::shape::Shape::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_reader::shape::Shape::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_reader::shape::Shape where T: core::clone::Clone
+pub type nika_compile_reader::shape::Shape::Owned = T
+pub fn nika_compile_reader::shape::Shape::clone_into(&self, target: &mut T)
+pub fn nika_compile_reader::shape::Shape::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_reader::shape::Shape where T: 'static + ?core::marker::Sized
+pub fn nika_compile_reader::shape::Shape::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_reader::shape::Shape where T: ?core::marker::Sized
+pub fn nika_compile_reader::shape::Shape::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_reader::shape::Shape where T: ?core::marker::Sized
+pub fn nika_compile_reader::shape::Shape::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_reader::shape::Shape where T: core::clone::Clone
+pub unsafe fn nika_compile_reader::shape::Shape::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_reader::shape::Shape
+pub fn nika_compile_reader::shape::Shape::from(t: T) -> T
+pub const nika_compile_reader::shape::ATTEMPT_UNITS: &[&str]
+pub const nika_compile_reader::shape::SIZE_UNITS: &[&str]
+pub fn nika_compile_reader::shape::distributive(text: &str) -> bool
+pub fn nika_compile_reader::shape::fold(text: &str) -> alloc::string::String
+pub fn nika_compile_reader::shape::identifier(text: &str) -> core::option::Option<alloc::string::String>
+pub fn nika_compile_reader::shape::led_by_quantifier(text: &str) -> bool
+pub fn nika_compile_reader::shape::lookup_by_identifier(detail: &str) -> core::option::Option<nika_compile_reader::shape::LiteralLookup>
+pub fn nika_compile_reader::shape::lookup_by_identifier_over(detail: &str, located: &str) -> core::option::Option<nika_compile_reader::shape::LiteralLookup>
+pub fn nika_compile_reader::shape::names_supplied_material(intent: &str) -> bool
+pub fn nika_compile_reader::shape::numeric_rule(text: &str) -> bool
+pub fn nika_compile_reader::shape::per_item(intent: &str, plan: &nika_compile_reader::plan::Plan) -> bool
+pub fn nika_compile_reader::shape::per_item_extract(plan: &nika_compile_reader::plan::Plan) -> bool
+pub fn nika_compile_reader::shape::per_record_classify(plan: &nika_compile_reader::plan::Plan) -> bool
+pub fn nika_compile_reader::shape::prohibits(text: &str) -> bool
+pub fn nika_compile_reader::shape::promote_stated_rules(plan: &mut nika_compile_reader::plan::Plan, intent: &str)
+pub fn nika_compile_reader::shape::structural(constraint: &str) -> bool
+pub fn nika_compile_reader::shape::triggered_span(intent: &str, trigger: &str) -> core::option::Option<(usize, usize)>
+pub fn nika_compile_reader::shape::without_distributive_tail(text: &str) -> &str
+pub mod nika_compile_reader::stages
+pub mod nika_compile_reader::structure
+pub enum nika_compile_reader::structure::Law
+pub nika_compile_reader::structure::Law::NoModel
+pub nika_compile_reader::structure::Law::NoOtherFile
+pub nika_compile_reader::structure::Law::NothingElse
+pub nika_compile_reader::structure::Law::SingleRequest
+impl core::clone::Clone for nika_compile_reader::structure::Law
+pub fn nika_compile_reader::structure::Law::clone(&self) -> nika_compile_reader::structure::Law
+impl core::cmp::Eq for nika_compile_reader::structure::Law
+impl core::cmp::PartialEq for nika_compile_reader::structure::Law
+pub fn nika_compile_reader::structure::Law::eq(&self, other: &nika_compile_reader::structure::Law) -> bool
+impl core::fmt::Debug for nika_compile_reader::structure::Law
+pub fn nika_compile_reader::structure::Law::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_reader::structure::Law
+impl core::marker::StructuralPartialEq for nika_compile_reader::structure::Law
+impl<T, U> core::convert::Into<U> for nika_compile_reader::structure::Law where U: core::convert::From<T>
+pub fn nika_compile_reader::structure::Law::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_reader::structure::Law where U: core::convert::Into<T>
+pub type nika_compile_reader::structure::Law::Error = core::convert::Infallible
+pub fn nika_compile_reader::structure::Law::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_reader::structure::Law where U: core::convert::TryFrom<T>
+pub type nika_compile_reader::structure::Law::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_reader::structure::Law::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_reader::structure::Law where T: core::clone::Clone
+pub type nika_compile_reader::structure::Law::Owned = T
+pub fn nika_compile_reader::structure::Law::clone_into(&self, target: &mut T)
+pub fn nika_compile_reader::structure::Law::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_reader::structure::Law where T: 'static + ?core::marker::Sized
+pub fn nika_compile_reader::structure::Law::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_reader::structure::Law where T: ?core::marker::Sized
+pub fn nika_compile_reader::structure::Law::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_reader::structure::Law where T: ?core::marker::Sized
+pub fn nika_compile_reader::structure::Law::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_reader::structure::Law where T: core::clone::Clone
+pub unsafe fn nika_compile_reader::structure::Law::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_reader::structure::Law
+pub fn nika_compile_reader::structure::Law::from(t: T) -> T
+pub fn nika_compile_reader::structure::binds_no_operation(text: &str) -> bool
+pub fn nika_compile_reader::structure::context_statement(text: &str) -> bool
+pub fn nika_compile_reader::structure::laws(text: &str) -> alloc::vec::Vec<nika_compile_reader::structure::Law>
+pub mod nika_compile_reader::text
+pub const nika_compile_reader::text::STOPWORDS: &[&str]
+pub fn nika_compile_reader::text::banner_lines(body: &str) -> alloc::vec::Vec<&str>
+pub fn nika_compile_reader::text::banner_sentence(body: &str) -> core::option::Option<alloc::string::String>
+pub fn nika_compile_reader::text::exact_excerpt(intent: &str, evidence: &str) -> core::option::Option<alloc::string::String>
+pub fn nika_compile_reader::text::fold_quote(ch: char) -> char
+pub fn nika_compile_reader::text::is_label(seg: &str) -> bool
+pub mod nika_compile_reader::trigger_words
+pub const nika_compile_reader::trigger_words::ARRIVAL_WORDS: &[&str]
+pub const nika_compile_reader::trigger_words::AT: &[&str]
+pub const nika_compile_reader::trigger_words::BETWEEN: &[&str]
+pub const nika_compile_reader::trigger_words::COMPLETION_WORDS: &[&str]
+pub const nika_compile_reader::trigger_words::DAILY: &[&str]
+pub const nika_compile_reader::trigger_words::EVENT_HEADS: &[&str]
+pub const nika_compile_reader::trigger_words::HOURLY: &[&str]
+pub const nika_compile_reader::trigger_words::MANUAL: &[&str]
+pub const nika_compile_reader::trigger_words::MINUTELY: &[&str]
+pub const nika_compile_reader::trigger_words::MONTHLY: &[&str]
+pub const nika_compile_reader::trigger_words::NAMED_TIMES: &[(&str, &str)]
+pub const nika_compile_reader::trigger_words::RECURRENT: &[&str]
+pub const nika_compile_reader::trigger_words::SEQUENCE_HEADS: &[&str]
+pub const nika_compile_reader::trigger_words::TIME_UNITS: &[&str]
+pub const nika_compile_reader::trigger_words::TIME_WORDS: &[&str]
+pub const nika_compile_reader::trigger_words::WEBHOOK: &[&str]
+pub const nika_compile_reader::trigger_words::WEEKDAYS: &[&str]
+pub const nika_compile_reader::trigger_words::WEEKLY: &[&str]
+pub mod nika_compile_reader::unknowns
+pub fn nika_compile_reader::unknowns::bound_by_the_compiler(unknown: &str, plan: &nika_compile_reader::plan::Plan) -> core::option::Option<&'static str>
+pub mod nika_compile_reader::words
+pub const nika_compile_reader::words::CONVERSION_WORDS: &[&str]
+pub const nika_compile_reader::words::DATA_WORDS: &[&str]
+pub const nika_compile_reader::words::LANGUAGE_WORDS: &[&str]
+pub const nika_compile_reader::words::NUMBER_WORDS: &[&str]
+pub const nika_compile_reader::words::ONLY_WORDS: &[&str]
+pub const nika_compile_reader::words::SAME_COLUMNS: &[&str]
+pub const nika_compile_reader::words::SERIALIZE_VERBS: &[&str]
+pub fn nika_compile_reader::words::clause_key(text: &str) -> alloc::string::String
+pub fn nika_compile_reader::words::content_words(text: &str) -> impl core::iter::traits::iterator::Iterator<Item = alloc::string::String> + '_
+pub fn nika_compile_reader::words::day_part_compound(folded: &str) -> core::option::Option<(&'static str, &'static str)>
+pub fn nika_compile_reader::words::fold_words(text: &str) -> alloc::string::String
+pub fn nika_compile_reader::words::only_format_words(detail: &str) -> bool
+pub fn nika_compile_reader::words::recurrence(text: &str) -> core::option::Option<(usize, usize)>
+pub fn nika_compile_reader::words::serialization_draft(detail: &str) -> bool

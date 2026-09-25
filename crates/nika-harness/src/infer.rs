@@ -219,6 +219,9 @@ pub struct HarnessInferOutcome {
     /// The `MAJOR.MINOR` the seat's own `--version` answered at spawn — the
     /// runtime attestation the receipt can carry, never the static row.
     pub attested_version: (u32, u32),
+    /// The responding model the CLI itself named (`modelUsage` · `assistant.message.model`),
+    /// when it named exactly one; absent stays absent (never copied from the request).
+    pub observed_model: Option<String>,
 }
 
 /// The only admitted P4 adapter.
@@ -384,14 +387,44 @@ impl CodexExec {
             requested_model: request.requested_model,
             usage_observed: true,
             attested_version,
+            observed_model: None,
         })
+    }
+}
+
+/// The admitted one-shot adapters: `codex exec --json` (the P4 original) and the CLIs
+/// `oneshot.rs` measured (Claude Code · Grok Build · GitHub Copilot CLI).
+#[derive(Debug, Clone)]
+enum Adapter {
+    Codex(CodexExec),
+    OneShot(crate::oneshot::OneShotExec),
+}
+
+impl Adapter {
+    fn attestation(&self) -> InferGradeAttestation {
+        match self {
+            Self::Codex(codex) => codex.attestation(),
+            Self::OneShot(seat) => seat.cli().attestation(),
+        }
+    }
+
+    /// The adapter a seat id names, or nothing (an ACP-only seat is never infer-grade).
+    fn for_seat(seat: &str) -> Option<Self> {
+        use crate::oneshot::{Cli, OneShotExec};
+        match seat {
+            "codex" => Some(Self::Codex(CodexExec::new())),
+            "claude-code" => Some(Self::OneShot(OneShotExec::new(Cli::Claude))),
+            "grok-build" => Some(Self::OneShot(OneShotExec::new(Cli::Grok))),
+            "copilot" => Some(Self::OneShot(OneShotExec::new(Cli::Copilot))),
+            _ => None,
+        }
     }
 }
 
 /// A seat returned only after all four infer-grade conjuncts pass.
 #[derive(Debug, Clone)]
 pub struct InferGradeSeat {
-    adapter: CodexExec,
+    adapter: Adapter,
     attestation: InferGradeAttestation,
 }
 
@@ -412,7 +445,10 @@ impl InferGradeSeat {
         &self,
         request: HarnessInferRequest,
     ) -> Result<HarnessInferOutcome, InferGradeError> {
-        self.adapter.run(request).await
+        match &self.adapter {
+            Adapter::Codex(codex) => codex.run(request).await,
+            Adapter::OneShot(seat) => seat.run(request).await,
+        }
     }
 }
 
@@ -425,17 +461,17 @@ pub fn meet_infer_grade(
     seat: &str,
     need: StructuredOutputGrade,
 ) -> Result<InferGradeSeat, InferGradeError> {
-    meet_with_adapter(seat, need, CodexExec::new())
+    let Some(adapter) = Adapter::for_seat(seat) else {
+        return Err(unattested(seat, need));
+    };
+    meet_with_adapter(seat, need, adapter)
 }
-
 fn meet_with_adapter(
     seat: &str,
     need: StructuredOutputGrade,
-    adapter: CodexExec,
+    adapter: Adapter,
 ) -> Result<InferGradeSeat, InferGradeError> {
-    let Some(attestation) = (seat == "codex").then(|| adapter.attestation()) else {
-        return Err(unattested(seat, need));
-    };
+    let attestation = adapter.attestation();
     let failed = attestation.failed(need);
     if !failed.is_empty() {
         return Err(InferGradeError::Refused {
@@ -732,12 +768,12 @@ mod tests {
     }
 
     #[test]
-    fn claude_agent_class_refuses_infer_with_every_unproven_conjunct() {
-        let err = meet_infer_grade("claude-code", StructuredOutputGrade::JsonSchema)
-            .expect_err("ACP is not infer-grade");
+    fn an_acp_only_seat_refuses_infer_with_every_unproven_conjunct() {
+        let err = meet_infer_grade("kimi-code", StructuredOutputGrade::JsonSchema)
+            .expect_err("ACP alone is not infer-grade");
         let witness = err.to_string();
         for term in [
-            "claude-code",
+            "kimi-code",
             "single_turn",
             "no_implicit_tools",
             "structured_output",
@@ -745,6 +781,26 @@ mod tests {
         ] {
             assert!(witness.contains(term), "missing {term}: {witness}");
         }
+    }
+    #[test]
+    fn the_widened_seats_are_attested_by_their_own_measured_cli() {
+        for seat in ["claude-code", "grok-build"] {
+            let admitted = meet_infer_grade(seat, StructuredOutputGrade::JsonSchema)
+                .unwrap_or_else(|e| panic!("{seat} proves json_schema: {e}"));
+            assert!(
+                admitted.attestation().proof.contains("scripted fake"),
+                "{seat}"
+            );
+        }
+        let copilot =
+            meet_infer_grade("copilot", StructuredOutputGrade::Text).expect("copilot proves text");
+        assert_eq!(
+            copilot.attestation().structured_output,
+            StructuredOutputGrade::Text
+        );
+        let err = meet_infer_grade("copilot", StructuredOutputGrade::JsonSchema)
+            .expect_err("copilot has no schema flag");
+        assert!(err.to_string().contains("structured_output"), "{err}");
     }
 
     #[test]
@@ -787,7 +843,7 @@ printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":91,"cached_input
         let seat = meet_with_adapter(
             "codex",
             StructuredOutputGrade::JsonSchema,
-            CodexExec::with_command(bin),
+            Adapter::Codex(CodexExec::with_command(bin)),
         )
         .expect("meet");
         let out = seat.run(request()).await.expect("scripted run");
@@ -816,7 +872,7 @@ printf '%s' '{"type":"done","result":"arbitrary"}'
         let seat = meet_with_adapter(
             "codex",
             StructuredOutputGrade::JsonSchema,
-            CodexExec::with_command(bin),
+            Adapter::Codex(CodexExec::with_command(bin)),
         )
         .expect("the static row admits the name");
         let err = seat.run(request()).await.expect_err("the shim is refused");
@@ -846,7 +902,7 @@ printf '%s' '{"type":"done","result":"arbitrary"}'
         let seat = meet_with_adapter(
             "codex",
             StructuredOutputGrade::Text,
-            CodexExec::with_command(bin),
+            Adapter::Codex(CodexExec::with_command(bin)),
         )
         .expect("meet");
         let err = seat
@@ -867,7 +923,7 @@ printf '%s' '{"type":"done","result":"arbitrary"}'
         let seat = meet_with_adapter(
             "codex",
             StructuredOutputGrade::Text,
-            CodexExec::with_command(bin),
+            Adapter::Codex(CodexExec::with_command(bin)),
         )
         .expect("meet");
         let err = seat
@@ -927,7 +983,7 @@ printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":1,"output_tokens
         let seat = meet_with_adapter(
             "codex",
             StructuredOutputGrade::JsonSchema,
-            CodexExec::with_command(bin),
+            Adapter::Codex(CodexExec::with_command(bin)),
         )
         .expect("meet");
         let out = seat.run(request()).await.expect("scripted run");
@@ -947,7 +1003,7 @@ printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":1,"output_tokens
         let seat = meet_with_adapter(
             "codex",
             StructuredOutputGrade::Text,
-            CodexExec::with_command(bin),
+            Adapter::Codex(CodexExec::with_command(bin)),
         )
         .expect("meet");
         let err = seat
@@ -955,6 +1011,177 @@ printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":1,"output_tokens
             .await
             .expect_err("tool use refuses");
         assert!(err.to_string().contains("implicit tool"), "{err}");
+    }
+
+    #[tokio::test]
+    async fn authoring_bridge_refuses_implicit_tools_and_preserves_whole_answer() {
+        use nika_kernel::ai::provider::{InferRequest, Message, ProviderInferDyn, Role};
+        for (answer, tool) in [("{\"ok\":true} trailing", false), ("{\"ok\":true}", true)] {
+            let item = serde_json::json!({"type":"item.completed", "item":{
+                "id":"m", "type":"agent_message", "text":answer}})
+            .to_string();
+            let tool_line = if tool {
+                "printf '%s\n' '{\"type\":\"item.completed\",\"item\":{\"id\":\"t\",\"type\":\"command_execution\",\"command\":\"pwd\"}}'"
+            } else {
+                "true"
+            };
+            let body = format!(
+                "cat >/dev/null\nprintf '%s\n' '{{\"type\":\"turn.started\"}}'\n{tool_line}\nprintf '%s\n' '{item}'\nprintf '%s\n' '{{\"type\":\"turn.completed\",\"usage\":{{\"input_tokens\":1,\"output_tokens\":1}}}}'\n"
+            );
+            let (_dir, bin) = scripted_codex(&body);
+            let seat = meet_with_adapter(
+                "codex",
+                StructuredOutputGrade::JsonSchema,
+                Adapter::Codex(CodexExec::with_command(bin)),
+            )
+            .expect("scripted seat");
+            let backend = crate::authoring::HarnessAuthoring::with_test_seat("codex", seat);
+            let response = backend
+                .infer(InferRequest::new(
+                    "codex/default",
+                    vec![Message::text(Role::User, "MECHANICS ONLY")],
+                ))
+                .await;
+            if tool {
+                assert!(response.is_err(), "no tool-bearing answer accepted");
+            } else {
+                let response = response.expect("text transport");
+                assert!(!response.usage_reported, "numeric usage is not exposed");
+                assert!(
+                    format!("{:?}", response.content).contains("trailing"),
+                    "whole answer reaches Compiler"
+                );
+                let receipt = backend.descriptor().expect("observed");
+                assert_eq!(receipt["kind"], "harness_infer");
+                assert!(receipt["billed_cost_usd"].is_null());
+                assert!(receipt["observed"][1]["observed_model"].is_null());
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn authoring_bridge_refuses_a_claude_permission_denial() {
+        use nika_kernel::ai::provider::{InferRequest, Message, ProviderInferDyn, Role};
+        let body = r#"cat >/dev/null; printf '%s\n' '{"type":"result","subtype":"success","is_error":false,"result":"x","permission_denials":[{"tool_name":"Bash"}],"usage":{"input_tokens":1,"output_tokens":1},"modelUsage":{"observed-fixture-model":{}}}'"#;
+        let (_dir, bin) = scripted_codex_with(
+            r#"if [ "${1:-}" = --version ]; then printf '%s\n' '2.1.280 (Claude Code)'; exit 0; fi"#,
+            body,
+        );
+        let seat = meet_with_adapter(
+            "claude-code",
+            StructuredOutputGrade::JsonSchema,
+            Adapter::OneShot(crate::oneshot::OneShotExec::with_command(
+                crate::oneshot::Cli::Claude,
+                bin,
+            )),
+        )
+        .expect("scripted seat");
+        let backend = crate::authoring::HarnessAuthoring::with_test_seat("claude-code", seat);
+        assert!(
+            backend
+                .infer(InferRequest::new(
+                    "claude-code/default",
+                    vec![Message::text(Role::User, "MECHANICS ONLY")]
+                ))
+                .await
+                .is_err()
+        );
+        assert_eq!(
+            backend.descriptor().unwrap()["observed"][1]["status"],
+            "failed"
+        );
+    }
+
+    #[tokio::test]
+    async fn authoring_bridge_records_the_returned_claude_identity_without_a_bill() {
+        use nika_kernel::ai::provider::{InferRequest, Message, ProviderInferDyn, Role};
+        let body = r#"cat >/dev/null; printf '%s\n' '{"type":"result","is_error":false,"result":"complete answer","permission_denials":[],"usage":{"input_tokens":7,"output_tokens":9},"modelUsage":{"actually-responded":{}},"total_cost_usd":0.84}'"#;
+        let (_dir, bin) = scripted_codex_with(
+            r#"if [ "${1:-}" = --version ]; then printf '%s\n' '2.1.280 (Claude Code)'; exit 0; fi"#,
+            body,
+        );
+        let seat = meet_with_adapter(
+            "claude-code",
+            StructuredOutputGrade::JsonSchema,
+            Adapter::OneShot(crate::oneshot::OneShotExec::with_command(
+                crate::oneshot::Cli::Claude,
+                bin,
+            )),
+        )
+        .unwrap();
+        let backend = crate::authoring::HarnessAuthoring::with_test_seat("claude-code", seat);
+        let response = backend
+            .infer(InferRequest::new(
+                "claude-code/requested",
+                vec![Message::text(Role::User, "MECHANICS ONLY")],
+            ))
+            .await
+            .unwrap();
+        assert!(!response.usage_reported);
+        let evidence = backend.descriptor().unwrap();
+        assert_eq!(
+            evidence["observed"][1]["observed_model"],
+            "actually-responded"
+        );
+        assert_eq!(evidence["observed"][1]["usage_observed"], true);
+        assert!(
+            evidence["billed_cost_usd"].is_null(),
+            "CLI dollar marker is not an invoice"
+        );
+    }
+
+    #[tokio::test]
+    async fn authoring_bridge_has_a_finite_timeout_and_accepts_no_answer() {
+        use nika_kernel::ai::provider::{InferRequest, Message, ProviderInferDyn, Role};
+        let (_dir, bin) = scripted_codex("cat >/dev/null\nexec /bin/sleep 10");
+        let seat = meet_with_adapter(
+            "codex",
+            StructuredOutputGrade::JsonSchema,
+            Adapter::Codex(CodexExec::with_command(bin)),
+        )
+        .unwrap();
+        let backend = crate::authoring::HarnessAuthoring::with_test_seat("codex", seat);
+        let mut request = InferRequest::new(
+            "codex/default",
+            vec![Message::text(Role::User, "MECHANICS ONLY")],
+        );
+        request.timeout = Some(Duration::from_millis(50));
+        let error = backend.infer(request).await.unwrap_err();
+        assert!(error.to_string().contains("timed out"), "{error}");
+        let evidence = backend.descriptor().unwrap();
+        assert!(
+            !evidence["observed"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|o| o["status"] == "returned")
+        );
+    }
+
+    #[tokio::test]
+    async fn cancelled_authoring_never_spawns_even_the_identity_probe() {
+        use nika_kernel::ai::provider::{InferRequest, Message, ProviderInferDyn, Role};
+        let (_dir, bin) = scripted_codex_with("exit 99", "exit 99");
+        let seat = meet_with_adapter(
+            "codex",
+            StructuredOutputGrade::JsonSchema,
+            Adapter::Codex(CodexExec::with_command(bin)),
+        )
+        .unwrap();
+        let backend = crate::authoring::HarnessAuthoring::with_test_seat("codex", seat);
+        let cancel = nika_kernel::cancel::CancelCtx::new();
+        cancel.cancel();
+        let mut request = InferRequest::new(
+            "codex/default",
+            vec![Message::text(Role::User, "MECHANICS ONLY")],
+        );
+        request.cancel = Some(cancel);
+        let error = backend.infer(request).await.unwrap_err();
+        assert!(error.to_string().contains("cancelled"), "{error}");
+        assert_eq!(
+            backend.descriptor().unwrap()["observed"][1]["status"],
+            "cancelled"
+        );
     }
 
     /// The seat's own refusal is the witness (measured on 0.118.7): codex
@@ -978,7 +1205,7 @@ exit 1
         let seat = meet_with_adapter(
             "codex",
             StructuredOutputGrade::Text,
-            CodexExec::with_command(bin),
+            Adapter::Codex(CodexExec::with_command(bin)),
         )
         .expect("meet");
         let err = seat
@@ -999,7 +1226,7 @@ exit 1
         let seat = meet_with_adapter(
             "codex",
             StructuredOutputGrade::Text,
-            CodexExec::with_command(loud),
+            Adapter::Codex(CodexExec::with_command(loud)),
         )
         .expect("meet");
         let err = seat
@@ -1026,7 +1253,7 @@ printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":999,"output_toke
         let seat = meet_with_adapter(
             "codex",
             StructuredOutputGrade::Text,
-            CodexExec::with_command(bin),
+            Adapter::Codex(CodexExec::with_command(bin)),
         )
         .expect("meet");
         let err = seat
@@ -1048,7 +1275,7 @@ printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":999,"output_toke
         let seat = meet_with_adapter(
             "codex",
             StructuredOutputGrade::Text,
-            CodexExec::with_command(bin),
+            Adapter::Codex(CodexExec::with_command(bin)),
         )
         .expect("meet");
         let out = seat

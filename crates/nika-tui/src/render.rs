@@ -68,18 +68,11 @@ pub fn block_lines(block: &Committed, color: bool) -> Vec<Line<'static>> {
 /// The rows `lines` take at `width` once wrapped, at least one.
 #[must_use]
 pub fn wrapped_rows(lines: &[Line<'_>], width: u16) -> u16 {
-    let width = usize::from(width.max(1));
-    let rows: usize = lines
-        .iter()
-        .map(|line| {
-            let cells: usize = line
-                .spans
-                .iter()
-                .map(|s| unicode_width::UnicodeWidthStr::width(s.content.as_ref()))
-                .sum();
-            cells.div_ceil(width).max(1)
-        })
-        .sum();
+    // Use the same word wrapper as rendering. Cell-count division can
+    // underestimate rows and hide the last line of a consent question.
+    let rows = Paragraph::new(lines.to_vec())
+        .wrap(Wrap { trim: false })
+        .line_count(width.max(1));
     u16::try_from(rows.max(1)).unwrap_or(u16::MAX)
 }
 
@@ -90,14 +83,27 @@ pub fn render_block(block: &Committed, color: bool, buf: &mut Buffer) {
         .render(buf.area, buf);
 }
 
-/// The rows of the live area at `width`: status, the prompt and composer,
-/// the hint. Clamped so the live area never eats the whole terminal.
+/// The rows of the live area at `width`: the lifecycle rail when the
+/// session reports one, the status, the prompt and composer, the hint.
+/// Clamped so the live area never eats the whole terminal.
 #[must_use]
 pub fn live_rows(state: &UiState, composer: &Composer, width: u16, height: u16) -> u16 {
     let prompt = u16::try_from(state.waiting.prompt().chars().count()).unwrap_or(8);
     let composer_rows = composer.rows(width.saturating_sub(prompt).max(8));
-    let rows = 1 + composer_rows + 1;
+    let rail = u16::from(!state.rail.is_empty());
+    let rows = rail + 1 + composer_rows + 1;
     rows.clamp(3, height.saturating_div(2).max(3))
+}
+
+/// The loader's frames (braille dots, the usual terminal spinner).
+pub const SPINNER: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+
+/// The lifecycle rail, dim like the chrome: five facts, never one badge.
+fn rail_line(state: &UiState) -> Line<'static> {
+    Line::from(Span::styled(
+        state.rail.clone(),
+        Style::default().add_modifier(Modifier::DIM),
+    ))
 }
 
 fn status_line(state: &UiState) -> Line<'static> {
@@ -114,34 +120,57 @@ fn status_line(state: &UiState) -> Line<'static> {
         ));
     }
     if let Some(label) = &state.busy {
+        // The marker turns while a turn runs; still (●) under reduced motion.
+        let marker = state.spinner.map_or_else(
+            || "● ".to_owned(),
+            |f| format!("{} ", SPINNER[usize::from(f) % SPINNER.len()]),
+        );
         Line::from(vec![
-            Span::styled("● ", accent),
+            Span::styled(marker, accent),
             Span::styled(label.clone(), dim),
         ])
     } else {
+        // Where the automation stands, then the presentation's own note.
         let mode = match state.presentation {
             Presentation::Inline => "",
             Presentation::Focus => "focus · Esc returns inline · PgUp/PgDn scroll",
         };
-        Line::from(Span::styled(mode.to_owned(), dim))
+        let text = match (state.status.is_empty(), mode.is_empty()) {
+            (true, _) => mode.to_owned(),
+            (false, true) => state.status.clone(),
+            (false, false) => format!("{} · {mode}", state.status),
+        };
+        Line::from(Span::styled(text, dim))
     }
 }
 
 fn hint_line(state: &UiState) -> Line<'static> {
+    let text = state
+        .completion
+        .clone()
+        .unwrap_or_else(|| state.waiting.hint().to_owned());
     Line::from(Span::styled(
-        state.waiting.hint().to_owned(),
+        text,
         Style::default().add_modifier(Modifier::DIM),
     ))
 }
 
 /// Draw the live area (status · prompt + composer · hint) into `area`.
 fn render_live(frame: &mut Frame<'_>, state: &UiState, composer: &Composer, area: Rect) {
-    let [status, input, hint] = Layout::vertical([
+    // The rail takes a row of its own above the status (both are full
+    // sentences; one 80-column row cannot hold them side by side) and
+    // yields it on a terminal too short for four rows.
+    let rail_rows = u16::from(!state.rail.is_empty() && area.height >= 4);
+    let [rail, status, input, hint] = Layout::vertical([
+        Constraint::Length(rail_rows),
         Constraint::Length(1),
         Constraint::Min(1),
         Constraint::Length(1),
     ])
     .areas(area);
+    if rail_rows > 0 {
+        frame.render_widget(Paragraph::new(rail_line(state)), rail);
+    }
     frame.render_widget(Paragraph::new(status_line(state)), status);
     let prompt = state.waiting.prompt();
     let prompt_width = u16::try_from(prompt.chars().count()).unwrap_or(8);
@@ -238,7 +267,53 @@ mod tests {
         assert_eq!(lines[0].spans[0].content.as_ref(), "⏸ ");
         assert_eq!(lines[1].spans[0].content.as_ref(), "  ");
         assert_eq!(wrapped_rows(&lines, 80), 2);
-        assert_eq!(wrapped_rows(&lines, 10), 4);
+        // Word wrapping needs five rows; cell division used to clip the last one.
+        assert_eq!(wrapped_rows(&lines, 10), 5);
+    }
+
+    #[test]
+    fn word_wrapping_preserves_the_final_confirmation_line() {
+        let block = Committed::new(
+            Kind::Question,
+            "alpha bravo charlie delta echo foxtrot échéance alpha bravo charlie delta echo foxtrot\nContinue once? yes / no",
+        );
+        for width in [12, 20, 40, 80] {
+            let rows = wrapped_rows(&block_lines(&block, false), width);
+            let mut buffer = Buffer::empty(Rect::new(0, 0, width, rows));
+            render_block(&block, false, &mut buffer);
+            let shown = (0..rows)
+                .map(|y| row(&buffer, y))
+                .collect::<Vec<_>>()
+                .join(" ");
+            let words = shown.split_whitespace().collect::<Vec<_>>().join(" ");
+            assert!(
+                words.ends_with("Continue once? yes / no"),
+                "width {width}: {shown:?}"
+            );
+        }
+    }
+
+    /// The busy row's marker turns with the loader's frame and stays the
+    /// still dot when no frame is set (reduced motion).
+    #[test]
+    fn the_busy_row_turns_the_loader_and_stays_still_without_a_frame() {
+        let mut state = UiState::new(Presentation::Inline, false, (60, 5));
+        state.busy = Some("working through your words · 3s".to_owned());
+        state.spinner = Some(3);
+        let composer = Composer::new();
+        let backend = TestBackend::new(60, 5);
+        let mut terminal = Terminal::new(backend).expect("test terminal");
+        terminal
+            .draw(|frame| draw_inline(frame, &state, &composer))
+            .expect("draw");
+        let turning = row(terminal.backend().buffer(), 0);
+        assert!(turning.starts_with("⠸ working"), "{turning:?}");
+        state.spinner = None;
+        terminal
+            .draw(|frame| draw_inline(frame, &state, &composer))
+            .expect("draw");
+        let still = row(terminal.backend().buffer(), 0);
+        assert!(still.starts_with("● working"), "{still:?}");
     }
 
     #[test]
@@ -260,6 +335,37 @@ mod tests {
             row(buffer, 4).contains("answer the question"),
             "{:?}",
             row(buffer, 4)
+        );
+    }
+
+    /// The lifecycle rail sits on a row of its own above the status, the
+    /// prompt keeps its place below, and the live area grows by that row.
+    #[test]
+    fn the_rail_sits_above_the_status_row() {
+        let composer = Composer::new();
+        let mut fresh = UiState::new(Presentation::Inline, false, (80, 40));
+        let before = live_rows(&fresh, &composer, 80, 40);
+        fresh.apply(Beat::Rail("Draft ○ · Saved ○".to_owned()));
+        assert_eq!(live_rows(&fresh, &composer, 80, 40), before + 1);
+        let mut state = state_after_demo(Presentation::Inline);
+        state.apply(Beat::Rail(
+            "Draft ✓ · Saved ○ · Checked ○ · Active ○ · Run ○".to_owned(),
+        ));
+        let backend = TestBackend::new(60, 6);
+        let mut terminal = Terminal::new(backend).expect("test terminal");
+        terminal
+            .draw(|frame| draw_inline(frame, &state, &composer))
+            .expect("draw");
+        let buffer = terminal.backend().buffer();
+        assert!(
+            row(buffer, 0).starts_with("Draft ✓ · Saved ○ · Checked ○"),
+            "{:?}",
+            row(buffer, 0)
+        );
+        assert!(
+            row(buffer, 2).starts_with("reply ›"),
+            "{:?}",
+            row(buffer, 2)
         );
     }
 

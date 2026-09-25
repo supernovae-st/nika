@@ -55,9 +55,9 @@ pub(super) fn draft_law() -> String {
 /// The record keyed by the invocation's `record_id` in an object directory.
 pub(super) const SELECT_BY_KEY: &str = ". as $lookup | ($lookup.directory | fromjson)[$lookup.id]";
 
-/// The one record whose field equals the literal identifier: the first match in an array
-/// directory, the keyed entry in an object directory.
-pub(super) const SELECT_BY_FIELD: &str = ". as $l | ($l.directory | fromjson) | if type == \"array\" then (map(select(type == \"object\" and .[$l.field] == $l.id)) | .[0]) else .[$l.id] end";
+/// The first record whose field equals the literal identifier or its canonical numeric
+/// spelling in an array directory; the keyed entry in an object directory.
+pub const SELECT_BY_FIELD: &str = ". as $l | ($l.directory | fromjson) | if type == \"array\" then (map(select(type == \"object\" and (.[$l.field] == $l.id or ((.[$l.field] | type) == \"number\" and (.[$l.field] | tostring) == $l.id)))) | .[0]) else .[$l.id] end";
 
 /// The header order of a CSV source: its first line, `\r` trimmed, split on commas,
 /// the surrounding double quotes stripped from each cell. A quoted header holding a
@@ -71,7 +71,7 @@ pub(super) const SOURCE_COLUMNS_UNION: &str = r#"[.[] | split("\n") | .[0] | rtr
 
 /// The lines of a text source: split on newlines, `\r` trimmed, the empty segment after
 /// the file's final newline dropped (it is the terminator, not a line).
-pub(super) const LINES: &str =
+pub const LINES: &str =
     r#"split("\n") | map(rtrimstr("\r")) | if .[-1] == "" then .[:-1] else . end"#;
 
 /// The zip of a fan-out: one `{path, text}` per read file, in item order.
@@ -121,21 +121,7 @@ pub(super) const ROUTE: &str = ". as $r | [range(0; $r.records | length) as $i |
 pub(super) const ANNOTATE: &str = ". as $r | [range(0; $r.records | length) as $i | $r.records[$i] + {category: $r.categories[$i].category}]";
 
 /// Heads that make a draft a translation (EN · FR · ES · IT · PT · DE, folded).
-pub(super) const TRANSLATE_HEADS: &[&str] = &[
-    "translate",
-    "translates",
-    "traduis",
-    "traduisez",
-    "traduire",
-    "traduce",
-    "traducir",
-    "traduci",
-    "traducir",
-    "traduza",
-    "traduzir",
-    "ubersetze",
-    "ubersetzen",
-];
+pub(super) const TRANSLATE_HEADS: &str = include_str!("../assets/translate_heads.txt");
 
 /// A draft whose clause is led by a translation head restates the source in another
 /// language: none of its sentences is a substring of the source, so an anchor law cannot
@@ -144,7 +130,7 @@ pub(super) fn translation(step: &Step) -> bool {
     let head = shape::fold(&step.evidence);
     head.split(|c: char| !c.is_alphanumeric())
         .find(|w| !w.is_empty())
-        .is_some_and(|w| TRANSLATE_HEADS.contains(&w))
+        .is_some_and(|w| TRANSLATE_HEADS.lines().any(|h| h == w))
 }
 
 /// The translation law: a nonempty body. Anchors are not required (see [`translation`]).
@@ -153,24 +139,7 @@ pub(super) fn translation_law() -> String {
 }
 
 /// Words that ask for bullets or points (EN · FR · ES · IT · PT · DE, folded).
-pub(super) const BULLET_WORDS: &[&str] = &[
-    "bullet",
-    "bullets",
-    "point",
-    "points",
-    "puce",
-    "puces",
-    "punto",
-    "punti",
-    "vineta",
-    "vinetas",
-    "topico",
-    "topicos",
-    "stichpunkt",
-    "stichpunkte",
-    "aufzahlungspunkt",
-    "aufzahlungspunkte",
-];
+pub(super) const BULLET_WORDS: &str = include_str!("../assets/bullet_words.txt");
 
 /// A draft asked as bullets or points ("in 3 punti", "en 3 puces", "as 5 bullets") is laid
 /// out one per line: a model that runs three points into one line answers the count with
@@ -179,7 +148,7 @@ pub(super) fn bullet_layout(text: &str) -> &'static str {
     let folded = shape::fold(text);
     let asks = folded
         .split(|c: char| !c.is_alphanumeric())
-        .any(|w| BULLET_WORDS.contains(&w));
+        .any(|w| BULLET_WORDS.lines().any(|b| b == w));
     if asks {
         " Put each bullet or point on its own line, each line starting with `- `."
     } else {

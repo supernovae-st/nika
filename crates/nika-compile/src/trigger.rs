@@ -6,181 +6,18 @@
 //! trigger-agnostic and the outcome states the requirement beside them (nika#1720). The
 //! reader keeps the cadence phrase verbatim on the plan; this module reads what the words
 //! state, a cadence word and a time of day, and nothing they do not: a phrase with neither
-//! is an event the operator binds, never a guessed cron.
+//! is an event the operator binds, never a guessed cron. A recurrence stated without its
+//! cadence (« régulièrement », « from time to time ») is a schedule whose cadence is asked.
+
+mod schedule;
 
 use super::plan::Plan;
 use super::{TriggerKind, TriggerRequirement, TriggerStatus, hot};
-
-/// Words that state a daily cadence (EN · FR · IT · ES · DE, folded).
-const DAILY: &[&str] = &[
-    "morning",
-    "mornings",
-    "evening",
-    "evenings",
-    "night",
-    "nights",
-    "noon",
-    "midday",
-    "midnight",
-    "day",
-    "days",
-    "daily",
-    "matin",
-    "matins",
-    "soir",
-    "soirs",
-    "jour",
-    "jours",
-    "quotidien",
-    "quotidienne",
-    "quotidiennement",
-    "midi",
-    "minuit",
-    "mattina",
-    "sera",
-    "giorno",
-    "giorni",
-    "quotidiano",
-    "manana",
-    "mananas",
-    "tarde",
-    "noche",
-    "dia",
-    "dias",
-    "diario",
-    "diaria",
-    "diariamente",
-    "morgen",
-    "abend",
-    "tag",
-    "taglich",
-];
-/// Words that state a weekday cadence: every working day.
-const WEEKDAYS: &[&str] = &[
-    "weekday",
-    "weekdays",
-    "workday",
-    "workdays",
-    "ouvre",
-    "ouvres",
-    "ouvrable",
-    "ouvrables",
-    "lavorativo",
-    "lavorativi",
-    "laborable",
-    "laborables",
-    "werktag",
-    "werktags",
-];
-/// Words that state a weekly cadence: a week or a named day of the week.
-const WEEKLY: &[&str] = &[
-    "week",
-    "weeks",
-    "weekly",
-    "monday",
-    "tuesday",
-    "wednesday",
-    "thursday",
-    "friday",
-    "saturday",
-    "sunday",
-    "semaine",
-    "semaines",
-    "hebdomadaire",
-    "hebdo",
-    "lundi",
-    "mardi",
-    "mercredi",
-    "jeudi",
-    "vendredi",
-    "samedi",
-    "dimanche",
-    "settimana",
-    "settimanale",
-    "lunedi",
-    "martedi",
-    "mercoledi",
-    "giovedi",
-    "venerdi",
-    "sabato",
-    "domenica",
-    "semana",
-    "semanal",
-    "lunes",
-    "martes",
-    "miercoles",
-    "jueves",
-    "viernes",
-    "sabado",
-    "domingo",
-    "woche",
-    "wochentlich",
-    "montag",
-    "dienstag",
-    "mittwoch",
-    "donnerstag",
-    "freitag",
-    "samstag",
-    "sonntag",
-];
-const MONTHLY: &[&str] = &[
-    "month",
-    "months",
-    "monthly",
-    "mois",
-    "mensuel",
-    "mensuelle",
-    "mese",
-    "mesi",
-    "mensile",
-    "mes",
-    "meses",
-    "mensual",
-    "monat",
-    "monate",
-    "monatlich",
-];
-const HOURLY: &[&str] = &[
-    "hour",
-    "hours",
-    "hourly",
-    "heure",
-    "heures",
-    "horaire",
-    "ora",
-    "ore",
-    "hora",
-    "horas",
-    "stunde",
-    "stunden",
-    "stundlich",
-];
-const MINUTELY: &[&str] = &["minute", "minutes", "minuto", "minuti", "minutos"];
-
-/// Words that introduce a time of day ("at 9", "à 9h", "alle 7", "a las 8", "um 9 uhr").
-const AT: &[&str] = &["at", "a", "alle", "um", "vers", "around", "towards"];
-/// Determiners that may sit between the introducer and the number ("a las 8").
-const BETWEEN: &[&str] = &["las", "les", "le", "la", "the", "l"];
-/// Units that follow a time number and belong to it, never to a cadence.
-const TIME_UNITS: &[&str] = &[
-    "h", "hours", "hour", "heures", "heure", "uhr", "horas", "ore",
-];
-/// Words that name a time of day outright.
-const NAMED_TIMES: &[(&str, &str)] = &[
-    ("noon", "12:00"),
-    ("midday", "12:00"),
-    ("midi", "12:00"),
-    ("mezzogiorno", "12:00"),
-    ("mediodia", "12:00"),
-    ("mittag", "12:00"),
-    ("midnight", "00:00"),
-    ("minuit", "00:00"),
-    ("mezzanotte", "00:00"),
-    ("medianoche", "00:00"),
-    ("mitternacht", "00:00"),
-];
-/// Words that name an inbound HTTP call.
-const WEBHOOK: &[&str] = &["webhook", "webhooks", "hook", "hooks"];
+use nika_compile_reader::trigger_words::{
+    ARRIVAL_WORDS, AT, BETWEEN, COMPLETION_WORDS, DAILY, EVENT_HEADS, HOURLY, MANUAL, MINUTELY,
+    MONTHLY, NAMED_TIMES, SEQUENCE_HEADS, TIME_UNITS, TIME_WORDS, WEBHOOK, WEEKDAYS, WEEKLY,
+};
+use nika_compile_reader::words::{day_part_compound, recurrence};
 
 /// The requirement the plan's trigger phrase states, when the plan carries one.
 pub(super) fn requirement(plan: &Plan, item: bool) -> Option<TriggerRequirement> {
@@ -189,13 +26,12 @@ pub(super) fn requirement(plan: &Plan, item: bool) -> Option<TriggerRequirement>
         return None;
     }
     let folded = hot::fold(phrase);
-    let words: Vec<&str> = folded
-        .split(|c: char| !c.is_alphanumeric() && c != ':')
-        .filter(|w| !w.is_empty())
-        .collect();
-    let (at, consumed) = time_of_day(&words);
-    let cadence = cadence(&words, &consumed);
-    let kind = if cadence.is_some() || at.is_some() {
+    let words = phrase_words(&folded);
+    let (cadence, at) = stated_cadence(&words);
+    // A recurrence without its cadence (« régulièrement ») is a schedule; its cadence is asked
+    // (`bind_cadence`). Under an event head (« quand … régulièrement ») it stays the event.
+    let recurrent = recurrence(phrase).is_some() && classify(phrase) == TriggerForm::Schedule;
+    let kind = if cadence.is_some() || at.is_some() || recurrent {
         TriggerKind::Schedule
     } else if words.iter().any(|w| WEBHOOK.contains(w)) {
         TriggerKind::Webhook
@@ -207,14 +43,305 @@ pub(super) fn requirement(plan: &Plan, item: bool) -> Option<TriggerRequirement>
         source_hint: Some(phrase.to_owned()),
         event_hint: None,
         cadence: cadence.map(str::to_owned),
+        cron: schedule::fields(phrase),
         at,
         payload_input: item.then(|| "item".to_owned()),
         status: TriggerStatus::RequiresBinding,
+        timezone: None,
+        missed: None,
+        overlap: None,
+        ceiling: None,
     })
+}
+
+/// The overlap policies of the cadence grammar (`chevauchement:`), spelled as that grammar
+/// spells them; mirrored here with its drift test (`nika-cadence` owns the enum).
+pub(super) const OVERLAP_OPTIONS: &[(&str, &str)] = &[
+    ("sauter", "skip the new run while one still runs"),
+    ("file", "queue the new run behind the running one"),
+    ("remplacer", "replace the running run with the new one"),
+];
+
+/// The missed-run policies of the project grammar (`manqué:`), from the grammar itself.
+pub(super) fn missed_options() -> Vec<super::types::ChoiceOffer> {
+    use nika_vocab::project::MissPolicy;
+    [
+        (
+            MissPolicy::Rattraper,
+            "fire every missed slot, oldest first",
+        ),
+        (
+            MissPolicy::RattraperUneFois,
+            "fire one catch-up for the whole silence",
+        ),
+        (
+            MissPolicy::Sauter,
+            "never catch up: a skip is an event, not a run",
+        ),
+    ]
+    .into_iter()
+    .map(|(policy, label)| super::types::ChoiceOffer::new(policy.as_str(), label))
+    .collect()
+}
+
+const BINDING_WHY: &str = "A cadence is bound outside the program (the project's arm entry, `PUT /v1/schedules`); this value belongs to that binding, never to the workflow bytes. Optional here: the binding asks it if still missing.";
+
+/// The values a schedule binding needs, asked beside the candidate without blocking it:
+/// the timezone, the missed-run policy, the overlap policy and the per-run ceiling. An
+/// answer is admitted against the owning grammar's own spellings and echoed on the
+/// requirement; a wrong answer is a finding and the question stays. A schedule the request
+/// states without its cadence first waits for it (`bind_cadence`, mandatory).
+pub(super) fn bind_schedule(
+    trigger: &mut TriggerRequirement,
+    request: &super::CompileRequest,
+    out: &mut super::CompileOutcome,
+    recognized: &mut std::collections::BTreeSet<String>,
+) {
+    if trigger.kind != TriggerKind::Schedule {
+        return;
+    }
+    bind_cadence(trigger, request, out, recognized);
+    if trigger.kind != TriggerKind::Schedule {
+        return;
+    }
+    for key in [
+        "trigger.timezone",
+        "trigger.missed",
+        "trigger.overlap",
+        "trigger.ceiling",
+    ] {
+        recognized.insert(key.to_owned());
+    }
+    bind_timezone(trigger, request, out);
+    bind_choices(trigger, request, out);
+    bind_ceiling(trigger, request, out);
+}
+
+/// `trigger.cadence`: the request wants its work repeated and never says when
+/// (« régulièrement », « from time to time »). A guessed cadence would invent the deployment,
+/// so the cadence is a mandatory question: the answer is read with the words a request states
+/// a cadence with (« chaque lundi à 9h », « every day at 18:00 »), or `manual` says each run
+/// starts by hand and nothing is bound. An answer that states neither is a finding and the
+/// question stays.
+fn bind_cadence(
+    trigger: &mut TriggerRequirement,
+    request: &super::CompileRequest,
+    out: &mut super::CompileOutcome,
+    recognized: &mut std::collections::BTreeSet<String>,
+) {
+    use super::types::{DiagnosticKind, QuestionType};
+    const KEY: &str = "trigger.cadence";
+    if trigger.cadence.is_some() || trigger.at.is_some() {
+        return;
+    }
+    recognized.insert(KEY.to_owned());
+    match answered(request, out, KEY) {
+        Some(serde_json::Value::String(answer)) => {
+            let folded = hot::fold(&answer);
+            let words = phrase_words(&folded);
+            if MANUAL.contains(&words.join(" ").as_str()) {
+                trigger.kind = TriggerKind::Manual;
+                trigger.status = TriggerStatus::Satisfied;
+                super::finding(
+                    out,
+                    DiagnosticKind::Applied,
+                    KEY,
+                    format!(
+                        "« {} »: each run starts by hand, no cadence is bound.",
+                        answer.trim()
+                    ),
+                );
+                return;
+            }
+            let (cadence, at) = stated_cadence(&words);
+            if cadence.is_some() || at.is_some() {
+                trigger.cadence = cadence.map(str::to_owned);
+                trigger.at = at;
+                trigger.cron = schedule::fields(&answer);
+                super::finding(
+                    out,
+                    DiagnosticKind::Applied,
+                    KEY,
+                    format!(
+                        "« {} » is the cadence: recorded on requested_trigger, never in the workflow bytes.",
+                        answer.trim()
+                    ),
+                );
+                return;
+            }
+            super::finding(
+                out,
+                DiagnosticKind::Missed,
+                KEY,
+                format!(
+                    "« {} » states no cadence: answer a period and, if wanted, a time (« chaque lundi à 9h », « every day at 18:00 »), or \"manual\".",
+                    answer.trim()
+                ),
+            );
+        }
+        Some(_) => super::finding(
+            out,
+            DiagnosticKind::Missed,
+            KEY,
+            "Answer the cadence as a JSON string (« chaque lundi à 9h », « every day at 18:00 », or \"manual\").",
+        ),
+        None => {}
+    }
+    let hint = trigger.source_hint.clone().unwrap_or_default();
+    super::question(
+        out,
+        KEY,
+        &format!(
+            "The request says `{hint}` without saying when: how often should it run? A period and, if wanted, a time (« chaque lundi à 9h », « every day at 18:00 »), or \"manual\" to start each run by hand."
+        ),
+        QuestionType::Text,
+    );
+}
+
+/// The answer a request carries for one key, decoded as a JSON literal (or nothing).
+fn answered(
+    request: &super::CompileRequest,
+    out: &mut super::CompileOutcome,
+    key: &str,
+) -> Option<serde_json::Value> {
+    let raw = request.answers.get(key).map(String::as_str)?;
+    super::literal_answer(Some(raw), key, out)
+}
+
+/// `trigger.timezone`: a nonempty IANA name.
+fn bind_timezone(
+    trigger: &mut TriggerRequirement,
+    request: &super::CompileRequest,
+    out: &mut super::CompileOutcome,
+) {
+    use super::types::{DiagnosticKind, QuestionType};
+    match answered(request, out, "trigger.timezone") {
+        Some(serde_json::Value::String(zone)) if !zone.trim().is_empty() => {
+            trigger.timezone = Some(zone.trim().to_owned());
+        }
+        Some(_) => super::finding(
+            out,
+            DiagnosticKind::Missed,
+            "trigger.timezone",
+            "Answer the timezone as a nonempty JSON string (an IANA name such as Europe/Paris).",
+        ),
+        None => {}
+    }
+    if trigger.timezone.is_none() {
+        let hint = trigger.source_hint.clone().unwrap_or_default();
+        super::optional_question(
+            out,
+            "trigger.timezone",
+            &format!("Which timezone runs `{hint}`? An IANA name such as Europe/Paris."),
+            QuestionType::Text,
+            BINDING_WHY,
+            Vec::new(),
+        );
+    }
+}
+
+/// `trigger.missed` · `trigger.overlap`: one of the owning grammar's spellings.
+fn bind_choices(
+    trigger: &mut TriggerRequirement,
+    request: &super::CompileRequest,
+    out: &mut super::CompileOutcome,
+) {
+    use super::types::{ChoiceOffer, DiagnosticKind, QuestionType};
+    let choices: [(&str, Vec<ChoiceOffer>, &str); 2] = [
+        (
+            "trigger.missed",
+            missed_options(),
+            "If the machine was off when a run was due, what happens?",
+        ),
+        (
+            "trigger.overlap",
+            OVERLAP_OPTIONS
+                .iter()
+                .map(|(key, label)| ChoiceOffer::new(*key, *label))
+                .collect(),
+            "If a run is still running when the next one is due, what happens?",
+        ),
+    ];
+    for (key, options, label) in choices {
+        let chosen = match answered(request, out, key) {
+            Some(serde_json::Value::String(word))
+                if options.iter().any(|o| o.key == word.trim()) =>
+            {
+                Some(word.trim().to_owned())
+            }
+            Some(_) => {
+                super::finding(
+                    out,
+                    DiagnosticKind::Missed,
+                    key,
+                    format!(
+                        "Answer one of the offered keys as a JSON string: {}.",
+                        options
+                            .iter()
+                            .map(|o| o.key.as_str())
+                            .collect::<Vec<_>>()
+                            .join(" · ")
+                    ),
+                );
+                None
+            }
+            None => None,
+        };
+        match (key, chosen) {
+            ("trigger.missed", Some(word)) => trigger.missed = Some(word),
+            ("trigger.overlap", Some(word)) => trigger.overlap = Some(word),
+            _ => super::optional_question(
+                out,
+                key,
+                label,
+                QuestionType::Choice,
+                BINDING_WHY,
+                options,
+            ),
+        }
+    }
+}
+
+/// `trigger.ceiling`: a positive number, kept as its canonical text.
+fn bind_ceiling(
+    trigger: &mut TriggerRequirement,
+    request: &super::CompileRequest,
+    out: &mut super::CompileOutcome,
+) {
+    use super::types::{DiagnosticKind, QuestionType};
+    match answered(request, out, "trigger.ceiling") {
+        Some(serde_json::Value::Number(n)) if n.as_f64().is_some_and(|v| v > 0.0) => {
+            trigger.ceiling = Some(n.to_string());
+        }
+        Some(_) => super::finding(
+            out,
+            DiagnosticKind::Missed,
+            "trigger.ceiling",
+            "Answer the per-run spend ceiling as a positive JSON number (USD).",
+        ),
+        None => {}
+    }
+    if trigger.ceiling.is_none() {
+        super::optional_question(
+            out,
+            "trigger.ceiling",
+            "What is the maximum spend per scheduled run, in USD?",
+            QuestionType::Literal,
+            BINDING_WHY,
+            Vec::new(),
+        );
+    }
 }
 
 /// The note the compile records beside the candidate: what was read, where it went.
 pub(super) fn note(trigger: &TriggerRequirement) -> String {
+    if trigger.status == TriggerStatus::Satisfied {
+        return format!(
+            "`{}` is answered {}: each run starts when invoked and nothing is bound; the candidate's bytes carry no cadence, host or event.",
+            trigger.source_hint.as_deref().unwrap_or_default(),
+            trigger.kind.word()
+        );
+    }
     let mut read = vec![trigger.kind.word().to_owned()];
     read.extend(trigger.cadence.iter().cloned());
     read.extend(trigger.at.iter().cloned());
@@ -228,6 +355,20 @@ pub(super) fn note(trigger: &TriggerRequirement) -> String {
     )
 }
 
+/// The words of a folded trigger phrase or cadence answer (a clock keeps its `:`).
+fn phrase_words(folded: &str) -> Vec<&str> {
+    folded
+        .split(|c: char| !c.is_alphanumeric() && c != ':')
+        .filter(|w| !w.is_empty())
+        .collect()
+}
+
+/// The cadence and the time of day the words state, each when they state one.
+fn stated_cadence(words: &[&str]) -> (Option<&'static str>, Option<String>) {
+    let (at, consumed) = time_of_day(words);
+    (cadence(words, &consumed), at)
+}
+
 /// The coarsest cadence the words state, the named day or working day winning over the
 /// day it also names ("every monday morning" is weekly).
 fn cadence(words: &[&str], consumed: &[usize]) -> Option<&'static str> {
@@ -237,7 +378,11 @@ fn cadence(words: &[&str], consumed: &[usize]) -> Option<&'static str> {
         .filter(|(i, _)| !consumed.contains(i))
         .map(|(_, w)| *w)
         .collect();
-    let has = |table: &[&str]| free.iter().any(|w| table.contains(w));
+    let has = |table: &[&str]| {
+        free.iter().any(|w| {
+            table.contains(w) || day_part_compound(w).is_some_and(|(day, _)| table.contains(&day))
+        })
+    };
     if has(WEEKDAYS) {
         Some("weekdays")
     } else if has(WEEKLY) {
@@ -347,6 +492,14 @@ mod tests {
             ("ogni mattina alle 7", Some("daily"), Some("07:00")),
             ("cada lunes a las 8", Some("weekly"), Some("08:00")),
             ("jeden morgen um 9 uhr", Some("daily"), Some("09:00")),
+            ("todas as manhãs às 7h", Some("daily"), Some("07:00")),
+            ("jeden montagmorgen", Some("weekly"), None),
+            (
+                "jeden freitagabend um 18 uhr",
+                Some("weekly"),
+                Some("18:00"),
+            ),
+            ("toda segunda-feira de manhã", Some("weekly"), None),
             ("every day at 25", Some("daily"), None),
         ] {
             let trigger = read(phrase, false);
@@ -375,6 +528,37 @@ mod tests {
             "{note}"
         );
     }
+
+    #[test]
+    fn a_recurrence_without_its_cadence_is_a_schedule_that_states_none() {
+        for phrase in [
+            "régulièrement",
+            "de temps en temps",
+            "regularly",
+            "every so often",
+            "on a regular basis",
+        ] {
+            assert_eq!(classify(phrase), TriggerForm::Schedule, "{phrase}");
+            let trigger = read(phrase, false);
+            assert_eq!(trigger.kind, TriggerKind::Schedule, "{phrase}");
+            assert_eq!(trigger.cadence, None, "{phrase}");
+            assert_eq!(trigger.at, None, "{phrase}");
+            assert_eq!(trigger.status, TriggerStatus::RequiresBinding);
+        }
+        // Under an event head the recurrence describes the event, which stays the trigger.
+        let event = read("quand un ticket arrive régulièrement", true);
+        assert_eq!(event.kind, TriggerKind::Event);
+        assert_eq!(
+            classify("for each incoming ticket"),
+            TriggerForm::Distributive
+        );
+        let words = phrase_words("chaque lundi a 9h");
+        assert_eq!(
+            stated_cadence(&words),
+            (Some("weekly"), Some("09:00".to_owned()))
+        );
+        assert_eq!(stated_cadence(&phrase_words("bientot")), (None, None));
+    }
 }
 
 // ── the form of a trigger clause (season 2) ──────────────────────────────────────
@@ -391,207 +575,6 @@ pub(super) enum TriggerForm {
     /// An outside event the program runs on ("when Stripe sends …", "dès qu'un ticket arrive").
     Event,
 }
-
-/// Heads that order the program's own work (EN · FR · ES · IT · DE · PT, folded).
-const SEQUENCE_HEADS: &[&str] = &[
-    "once ",
-    "after ",
-    "then ",
-    "apres ",
-    "puis ",
-    "ensuite ",
-    "une fois ",
-    "despues ",
-    "luego ",
-    "una vez ",
-    "dopo ",
-    "poi ",
-    "nach ",
-    "danach ",
-    "sobald alle ",
-    "depois ",
-];
-
-/// Heads that open an outside event (folded).
-const EVENT_HEADS: &[&str] = &[
-    "when ",
-    "whenever ",
-    "each time ",
-    "every time ",
-    "quand ",
-    "lorsque ",
-    "des que ",
-    "des qu'",
-    "chaque fois ",
-    "a chaque fois ",
-    "cuando ",
-    "cada vez ",
-    "quando ",
-    "ogni volta ",
-    "wenn ",
-    "sobald ",
-    "jedes mal ",
-    "sempre que ",
-    "toda vez ",
-];
-
-/// Words that say the program's own work is finished: a `when` over them is a sequence.
-const COMPLETION_WORDS: &[&str] = &[
-    "done",
-    "finished",
-    "complete",
-    "completed",
-    "termine",
-    "terminee",
-    "fini",
-    "finie",
-    "acheve",
-    "terminado",
-    "terminada",
-    "finalizado",
-    "completato",
-    "completata",
-    "finito",
-    "fertig",
-    "abgeschlossen",
-    "concluido",
-    "pronto",
-];
-
-/// Words that name a moment or a period of the calendar (folded): a quantifier over them
-/// is a cadence, not a distribution over items.
-const TIME_WORDS: &[&str] = &[
-    "morning",
-    "mornings",
-    "noon",
-    "afternoon",
-    "evening",
-    "evenings",
-    "night",
-    "nights",
-    "midnight",
-    "day",
-    "days",
-    "daily",
-    "weekday",
-    "weekdays",
-    "week",
-    "weeks",
-    "weekly",
-    "month",
-    "months",
-    "monthly",
-    "quarter",
-    "hour",
-    "hours",
-    "hourly",
-    "minute",
-    "minutes",
-    "monday",
-    "tuesday",
-    "wednesday",
-    "thursday",
-    "friday",
-    "saturday",
-    "sunday",
-    "matin",
-    "matins",
-    "midi",
-    "soir",
-    "soirs",
-    "nuit",
-    "jour",
-    "jours",
-    "quotidien",
-    "semaine",
-    "semaines",
-    "hebdomadaire",
-    "mois",
-    "mensuel",
-    "heure",
-    "heures",
-    "lundi",
-    "mardi",
-    "mercredi",
-    "jeudi",
-    "vendredi",
-    "samedi",
-    "dimanche",
-    "manana",
-    "mananas",
-    "tarde",
-    "noche",
-    "dia",
-    "dias",
-    "diario",
-    "semana",
-    "semanas",
-    "semanal",
-    "mes",
-    "meses",
-    "mensual",
-    "hora",
-    "horas",
-    "lunes",
-    "martes",
-    "miercoles",
-    "jueves",
-    "viernes",
-    "sabado",
-    "domingo",
-    "mattina",
-    "mattino",
-    "sera",
-    "notte",
-    "giorno",
-    "giorni",
-    "giornaliero",
-    "settimana",
-    "settimane",
-    "settimanale",
-    "mese",
-    "mesi",
-    "mensile",
-    "ora",
-    "ore",
-    "lunedi",
-    "martedi",
-    "mercoledi",
-    "giovedi",
-    "venerdi",
-    "sabato",
-    "domenica",
-    "morgen",
-    "morgens",
-    "mittag",
-    "abend",
-    "abends",
-    "nacht",
-    "tag",
-    "tage",
-    "taglich",
-    "woche",
-    "wochen",
-    "wochentlich",
-    "monat",
-    "monate",
-    "monatlich",
-    "stunde",
-    "stunden",
-    "stundlich",
-    "montag",
-    "dienstag",
-    "mittwoch",
-    "donnerstag",
-    "freitag",
-    "samstag",
-    "sonntag",
-    "manha",
-    "manhas",
-    "noite",
-    "noites",
-    "diariamente",
-];
 
 /// The folded phrase, one space between words, a leading space for whole-word heads.
 fn padded(phrase: &str) -> String {
@@ -631,67 +614,6 @@ fn clock_time(word: &str) -> bool {
         && (rest.is_empty() || (rest.len() == 2 && rest.chars().all(|c| c.is_ascii_digit())))
 }
 
-/// Words that mark an item as arriving with the invocation (an event stream, not a set that
-/// exists somewhere): « each incoming brief », « chaque nouveau ticket », « cada correo
-/// recibido », « ogni nuova richiesta », « jede eingehende Mail », « cada novo pedido ».
-const ARRIVAL_WORDS: &[&str] = &[
-    "incoming",
-    "new",
-    "arriving",
-    "received",
-    "submitted",
-    "entrant",
-    "entrante",
-    "entrants",
-    "entrantes",
-    "nouveau",
-    "nouvel",
-    "nouvelle",
-    "nouveaux",
-    "nouvelles",
-    "recu",
-    "recue",
-    "recus",
-    "recues",
-    "qui arrive",
-    "nuevo",
-    "nueva",
-    "nuevos",
-    "nuevas",
-    "recibido",
-    "recibida",
-    "recibidos",
-    "recibidas",
-    "nuovo",
-    "nuova",
-    "nuovi",
-    "nuove",
-    "in arrivo",
-    "ricevuto",
-    "ricevuta",
-    "ricevuti",
-    "ricevute",
-    "neu",
-    "neue",
-    "neuen",
-    "neues",
-    "neuer",
-    "eingehend",
-    "eingehende",
-    "eingehenden",
-    "eingegangen",
-    "eingegangene",
-    "novo",
-    "nova",
-    "novos",
-    "novas",
-    "recebido",
-    "recebida",
-    "recebidos",
-    "recebidas",
-    "a chegar",
-];
-
 /// Whether a distributive phrase quantifies over arriving items rather than a located set.
 pub(super) fn arriving(phrase: &str) -> bool {
     let padded: String = format!(" {} ", super::hot::fold(phrase))
@@ -729,6 +651,11 @@ pub(super) fn classify(phrase: &str) -> TriggerForm {
         } else {
             TriggerForm::Event
         };
+    }
+    // A recurrence without its cadence is a schedule; « every » in « every so often »
+    // quantifies no item.
+    if recurrence(phrase).is_some() {
+        return TriggerForm::Schedule;
     }
     if super::shape::led_by_quantifier(phrase) && !mentions_time {
         return TriggerForm::Distributive;

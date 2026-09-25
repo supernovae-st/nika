@@ -165,12 +165,34 @@
                   "type": "string"
                 },
                 "mandatory": {
+                  "description": "false: the value belongs to a binding outside the program (a schedule's timezone, missed-run and overlap policies, per-run ceiling) and never blocks a ready candidate",
                   "type": "boolean"
                 },
+                "options": {
+                  "description": "Present on a choice question only: the admissible answers, keys spelled by the owning grammar",
+                  "items": {
+                    "properties": {
+                      "key": {
+                        "type": "string"
+                      },
+                      "label": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "key",
+                      "label"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
                 "type": {
+                  "description": "text: a JSON string · literal: one JSON value · choice: a JSON string that is the `key` of one of `options`",
                   "enum": [
                     "text",
-                    "literal"
+                    "literal",
+                    "choice"
                   ],
                   "type": "string"
                 },
@@ -199,7 +221,7 @@
           },
           "requested_trigger": {
             "additionalProperties": true,
-            "description": "The trigger the request names (kind · source_hint · event_hint · cadence · at · payload_input · status), stated beside the candidate whose bytes carry no cadence, host or event. A requirement the operator binds through the schedule contract, never a grant or a schedule row",
+            "description": "The trigger the request names (kind · source_hint · event_hint · cadence · at · payload_input · status · timezone · missed · overlap · ceiling · cron), stated beside the candidate whose bytes carry no cadence, host or event. A requirement the operator binds through the schedule contract, never a grant or a schedule row. timezone, missed, overlap and ceiling are the answered binding values (null until answered). cron is the exact five-field schedule projection when supported and fully specified, otherwise null; older engines omit it. It never supplies a missing time or timezone.",
             "type": [
               "object",
               "null"
@@ -1280,7 +1302,7 @@
   "info": {
     "description": "Authenticated loopback remote execution, declarative schedules and stateless source-only authoring (POST /v1/compile never runs, admits or writes). Artifacts, schedule list/delete/trigger/backfill, /v1/arm, and POST /v1/run are absent.",
     "title": "nika serve",
-    "version": "0.120.3"
+    "version": "0.121.0"
   },
   "openapi": "3.1.0",
   "paths": {

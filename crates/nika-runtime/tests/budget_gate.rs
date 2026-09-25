@@ -344,17 +344,48 @@ mod billed_then_failed {
             matches!(&cost.value, FieldValue::Float(c) if (*c - 0.06).abs() < 1e-12),
             "the $0.06 the dying loop spent is on the frame"
         );
-        // …and the WHY for the unpriced LLM leg rides next to it (the
-        // mock model's turns cannot price — partial + named).
+        // The per-call observation has incomplete meters and no billing route;
+        // the requested mock name cannot replace that evidence with a price.
         let reason = failed
             .fields
             .iter()
             .find(|f| f.key == "cost_unpriced")
             .expect("the unpriced LLM leg is named");
-        assert!(matches!(&reason.value, FieldValue::String(s) if s == "mock_provider"));
+        assert_eq!(
+            &reason.value,
+            &FieldValue::String("provider_did_not_report_usage".into())
+        );
+        let calls = failed
+            .fields
+            .iter()
+            .find(|f| f.key == "inference_calls")
+            .expect("the failed task preserves its observed calls");
+        let FieldValue::String(encoded) = &calls.value else {
+            panic!("inference_calls is a JSON string");
+        };
+        let calls: Vec<nika_types::cost::InferenceCall> =
+            serde_json::from_str(encoded).expect("typed call observations");
+        // The legacy API error reports no new call: do not invent its evidence.
+        assert_eq!(calls.len(), 1);
+        assert_eq!(
+            calls[0]
+                .usage
+                .as_ref()
+                .expect("reported meters")
+                .input_tokens,
+            40
+        );
+        assert!(!calls[0].usage_complete);
+        assert!(calls[0].route.is_none());
+        assert!(calls[0].pricing.is_none());
+        assert!(calls[0].known_estimate().is_none());
         // The run totals see the failed task's spend too.
         assert_eq!(outcome.total_cost_usd, Some(0.06));
         assert_eq!(outcome.priced_calls, 1, "the failed attempt debited");
+        assert_eq!(
+            outcome.unpriced_calls, 1,
+            "the observed LLM cost stays unknown"
+        );
     }
 
     #[tokio::test]

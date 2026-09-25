@@ -179,7 +179,9 @@ pub(super) const TRIGGER_PREFIXES: &[&str] = &[
     "for every ",
     "quand ",
     "lorsque ",
+    "lorsqu'",
     "dès que ",
+    "dès qu'",
     "tous les ",
     "toutes les ",
     "chaque fois ",
@@ -204,9 +206,44 @@ pub(super) const TRIGGER_PREFIXES: &[&str] = &[
     "cada ",
     "cuando ",
     "a partir de ",
+    "todas as ",
+    "todos os ",
+    "sempre que ",
+    "assim que ",
+    "toda ",
+    "todo ",
+    "jeden ",
+    "jede ",
+    "jedes ",
+    "immer wenn ",
+    "sobald ",
+    "wenn ",
+    "nach ",
 ];
 
-pub(super) const NUMBER_WORDS: &[(&str, u32)] = &[
+/// The words a cadence head is made of, folded: a named day, a part of the day, a period, in
+/// the six languages. A head no comma closes (« Jeden Montagmorgen schick mir … », « Every
+/// Monday morning send me … ») ends after its last cadence word or clock token; a German
+/// day-part compound (« Montagmorgen ») counts through `words::day_part_compound`.
+pub(super) const CADENCE_WORDS: &str = include_str!("../../assets/cadence_words.txt");
+
+/// The small words a cadence head carries between its cadence words (articles, the time
+/// introducers, the quantifiers of a second cadence, a conjunction), folded. A filler never
+/// ends a head.
+pub(super) const HEAD_FILLERS: &[&str] = &[
+    "a", "at", "au", "aux", "as", "alle", "am", "um", "the", "le", "la", "les", "l", "el", "los",
+    "las", "il", "lo", "gli", "i", "o", "os", "de", "des", "du", "da", "do", "di", "del", "della",
+    "dei", "delle", "der", "die", "das", "dem", "den", "in", "im", "en", "and", "et", "y", "e",
+    "und", "or", "ou", "oder", "each", "every", "chaque", "tous", "toutes", "cada", "ogni", "todo",
+    "toda", "todos", "todas", "jeden", "jede", "jedes", "of", "vers", "around", "towards", "entre",
+    "between", "from", "to", "bis", "von", "ab", "por", "per", "pela", "pelo", "nas", "nos", "na",
+    "no",
+];
+
+/// The units that follow a clock token and belong to it: « 9 pm », « 18 h », « 9 uhr ».
+pub(super) const CLOCK_SUFFIXES: &[&str] = &["am", "pm", "h", "hs", "uhr"];
+
+pub(crate) const NUMBER_WORDS: &[(&str, u32)] = &[
     ("un", 1),
     ("une", 1),
     ("one", 1),
@@ -516,4 +553,54 @@ pub(super) const CONSTRAINT_OPENERS: &[&str] = &[
     "deja ",
     "mantén ",
     "manten ",
+];
+/// Which retrieval a choice head settles on from its object alone: a supplied document is a
+/// read, a store, a calendar or a possessive object (« mes disponibilités ») is a lookup, a
+/// corpus is a search. `None` when the object carries no cue: the clause stays ambiguous and
+/// a bounded decision seat settles it. The merge applies the same law to a seat's `read`
+/// that names no path and no supplied material.
+#[must_use]
+pub fn settle_retrieval(
+    detail_lower: &str,
+    options: &[super::super::plan::Op],
+) -> Option<super::super::plan::Op> {
+    use super::super::plan::Op;
+    let cued = |cues: &[&str]| cues.iter().any(|c| detail_lower.contains(c));
+    if options.contains(&Op::Read) && cued(READ_CUES) {
+        Some(Op::Read)
+    } else if options.contains(&Op::Lookup) && cued(LOOKUP_CUES) && !cued(SEARCH_CUES) {
+        Some(Op::Lookup)
+    } else if options.contains(&Op::Search) && cued(SEARCH_CUES) {
+        Some(Op::Search)
+    } else if options.contains(&Op::Lookup)
+        && (cued(LOOKUP_CUES) || super::super::objects::possessive_object(detail_lower))
+    {
+        Some(Op::Lookup)
+    } else {
+        None
+    }
+}
+
+/// Words that ask for a removal of duplicates or forbid a second action for the same item,
+/// folded: an obligation of kind dedup.
+pub(super) const DEDUP_MARKERS: &[&str] = &[
+    "no second action for the same",
+    "pas de seconde action",
+    "évite les doublons",
+    "évitez les doublons",
+    "avoid duplicates",
+    "déduplique",
+    "dédoublonne",
+    "deduplicate",
+    "de-duplicate",
+    "dedupe",
+    "remove duplicates",
+    "prevent duplicates",
+    "deduplica",
+    "elimina i duplicati",
+    "rimuovi i duplicati",
+    "evita i duplicati",
+    "elimina los duplicados",
+    "quita los duplicados",
+    "evita los duplicados",
 ];

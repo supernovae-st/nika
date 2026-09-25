@@ -15,12 +15,14 @@ pub(super) enum Operation {
     RefundReview,
 }
 
+/// A resolved bounded support plan, constructed by `surface::support::resolve`.
 #[derive(Clone, Debug)]
-pub(super) struct Plan {
-    pub operations: BTreeSet<Operation>,
+#[non_exhaustive]
+pub struct Plan {
+    pub(crate) operations: BTreeSet<Operation>,
 }
 
-pub(super) fn resolve(intent: &str) -> Result<Option<Plan>, String> {
+pub(crate) fn resolve(intent: &str) -> Result<Option<Plan>, String> {
     let text = intent.trim().trim_end_matches('.').to_lowercase();
     let text = text
         .replace(", and ", ",")
@@ -136,7 +138,10 @@ pub(super) fn reject(out: &mut CompileOutcome, key: &str, label: &str, text: boo
     );
 }
 
-pub(super) fn assemble(
+///
+/// # Errors
+/// Returns a missing or invalid embedded skeleton, or a representation failure.
+pub fn assemble(
     plan: &Plan,
     request: &CompileRequest,
     out: &mut CompileOutcome,

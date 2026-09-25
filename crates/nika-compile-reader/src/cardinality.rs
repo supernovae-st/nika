@@ -1,0 +1,733 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
+//! Bounds a request states on the produced content ("exactly 5 lines", "at least 12
+//! lines", "3 bullets", "12 lignes max", "under 150 words"), read as typed intervals over
+//! one unit. Two bounds on the same unit whose intervals do not meet contradict each other:
+//! the request cannot be honoured as stated and is refused, never run on a prompt that
+//! silently obeys one of them.
+
+use super::rule_tokens::{self, SIZE_UNITS};
+use super::rules::{self, Comparator};
+
+/// One bound on the produced content.
+/// Number words in six languages, folded (« três » → « tres », « fünf » → « funf »).
+pub const NUMBER_WORDS: &[(&str, u32)] = &[
+    ("un", 1),
+    ("une", 1),
+    ("one", 1),
+    ("deux", 2),
+    ("two", 2),
+    ("trois", 3),
+    ("three", 3),
+    ("quatre", 4),
+    ("four", 4),
+    ("cinq", 5),
+    ("five", 5),
+    ("six", 6),
+    ("sept", 7),
+    ("seven", 7),
+    ("huit", 8),
+    ("eight", 8),
+    ("neuf", 9),
+    ("nine", 9),
+    ("dix", 10),
+    ("ten", 10),
+    ("uno", 1),
+    ("una", 1),
+    ("dos", 2),
+    ("tres", 3),
+    ("cuatro", 4),
+    ("cinco", 5),
+    ("seis", 6),
+    ("siete", 7),
+    ("ocho", 8),
+    ("nueve", 9),
+    ("diez", 10),
+    ("due", 2),
+    ("tre", 3),
+    ("quattro", 4),
+    ("cinque", 5),
+    ("sei", 6),
+    ("sette", 7),
+    ("otto", 8),
+    ("nove", 9),
+    ("dieci", 10),
+    ("ein", 1),
+    ("eine", 1),
+    ("eins", 1),
+    ("zwei", 2),
+    ("drei", 3),
+    ("vier", 4),
+    ("funf", 5),
+    ("sechs", 6),
+    ("sieben", 7),
+    ("acht", 8),
+    ("neun", 9),
+    ("zehn", 10),
+    ("um", 1),
+    ("uma", 1),
+    ("dois", 2),
+    ("duas", 2),
+    ("quatro", 4),
+    ("sete", 7),
+    ("oito", 8),
+    ("dez", 10),
+    // Beyond ten, the single words a request states a threshold or a limit with.
+    ("onze", 11),
+    ("douze", 12),
+    ("treize", 13),
+    ("quatorze", 14),
+    ("quinze", 15),
+    ("seize", 16),
+    ("vingt", 20),
+    ("trente", 30),
+    ("quarante", 40),
+    ("cinquante", 50),
+    ("soixante", 60),
+    ("cent", 100),
+    ("mille", 1000),
+    ("eleven", 11),
+    ("twelve", 12),
+    ("thirteen", 13),
+    ("fourteen", 14),
+    ("fifteen", 15),
+    ("sixteen", 16),
+    ("seventeen", 17),
+    ("eighteen", 18),
+    ("nineteen", 19),
+    ("twenty", 20),
+    ("thirty", 30),
+    ("forty", 40),
+    ("fifty", 50),
+    ("sixty", 60),
+    ("seventy", 70),
+    ("eighty", 80),
+    ("ninety", 90),
+    ("hundred", 100),
+    ("thousand", 1000),
+    ("once", 11),
+    ("doce", 12),
+    ("trece", 13),
+    ("catorce", 14),
+    ("veinte", 20),
+    ("treinta", 30),
+    ("cuarenta", 40),
+    ("cincuenta", 50),
+    ("sesenta", 60),
+    ("setenta", 70),
+    ("ochenta", 80),
+    ("noventa", 90),
+    ("cien", 100),
+    ("ciento", 100),
+    ("doscientos", 200),
+    ("trescientos", 300),
+    ("quinientos", 500),
+    ("mil", 1000),
+    ("undici", 11),
+    ("dodici", 12),
+    ("tredici", 13),
+    ("quattordici", 14),
+    ("quindici", 15),
+    ("sedici", 16),
+    ("venti", 20),
+    ("trenta", 30),
+    ("quaranta", 40),
+    ("cinquanta", 50),
+    ("sessanta", 60),
+    ("settanta", 70),
+    ("ottanta", 80),
+    ("novanta", 90),
+    ("cento", 100),
+    ("duecento", 200),
+    ("trecento", 300),
+    ("cinquecento", 500),
+    ("elf", 11),
+    ("zwolf", 12),
+    ("dreizehn", 13),
+    ("vierzehn", 14),
+    ("funfzehn", 15),
+    ("sechzehn", 16),
+    ("zwanzig", 20),
+    ("dreissig", 30),
+    ("vierzig", 40),
+    ("funfzig", 50),
+    ("sechzig", 60),
+    ("siebzig", 70),
+    ("achtzig", 80),
+    ("neunzig", 90),
+    ("hundert", 100),
+    ("zweihundert", 200),
+    ("dreihundert", 300),
+    ("funfhundert", 500),
+    ("tausend", 1000),
+    ("treze", 13),
+    ("catorze", 14),
+    ("vinte", 20),
+    ("trinta", 30),
+    ("quarenta", 40),
+    ("cinquenta", 50),
+    ("sessenta", 60),
+    ("oitenta", 80),
+    ("cem", 100),
+    ("duzentos", 200),
+    ("trezentos", 300),
+    ("quinhentos", 500),
+];
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Bound {
+    /// The unit, folded and singular (`line`, `ligne`, `zeile`, `bullet`, `word`).
+    pub unit: String,
+    pub comparator: Comparator,
+    pub value: u64,
+}
+
+impl Bound {
+    /// The closed interval of values that honour the bound.
+    fn interval(&self) -> Option<(u64, u64)> {
+        match self.comparator {
+            Comparator::Eq => Some((self.value, self.value)),
+            Comparator::Ge => Some((self.value, u64::MAX)),
+            Comparator::Gt => Some((self.value.saturating_add(1), u64::MAX)),
+            Comparator::Le => Some((0, self.value)),
+            Comparator::Lt => Some((0, self.value.saturating_sub(1))),
+            _ => None,
+        }
+    }
+    /// Whether both bounds can hold at once.
+    #[must_use]
+    pub fn compatible(&self, other: &Self) -> bool {
+        if self.unit != other.unit {
+            return true;
+        }
+        match (self.interval(), other.interval()) {
+            (Some((lo_a, hi_a)), Some((lo_b, hi_b))) => lo_a.max(lo_b) <= hi_a.min(hi_b),
+            _ => true,
+        }
+    }
+}
+
+/// Words that make the bound an exact count, an upper bound or a lower bound, when they
+/// stand beside the number or after the unit (EN · FR · ES · IT · DE · PT, folded).
+const EXACT_WORDS: &[&str] = &[
+    "exactly",
+    "precisely",
+    "exactement",
+    "precisement",
+    "exactamente",
+    "esattamente",
+    "genau",
+    "exatamente",
+];
+const UPPER_WORDS: &[&str] = &[
+    "max",
+    "maxi",
+    "maximum",
+    "at most",
+    "no more than",
+    "not more than",
+    "up to",
+    "au plus",
+    "au maximum",
+    "pas plus de",
+    "como maximo",
+    "al massimo",
+    "hochstens",
+    "maximal",
+    "no maximo",
+];
+const LOWER_WORDS: &[&str] = &[
+    "min",
+    "mini",
+    "minimum",
+    "at least",
+    "no less than",
+    "au moins",
+    "au minimum",
+    "al menos",
+    "como minimo",
+    "almeno",
+    "mindestens",
+    "minimal",
+    "pelo menos",
+    "no minimo",
+];
+/// Strict bounds: fewer than the number, or more than it.
+const BELOW_WORDS: &[&str] = &[
+    "under",
+    "below",
+    "less than",
+    "fewer than",
+    "moins de",
+    "menos de",
+    "meno di",
+    "weniger als",
+    "unter",
+];
+const ABOVE_WORDS: &[&str] = &[
+    "over",
+    "above",
+    "more than",
+    "plus de",
+    "mas de",
+    "piu di",
+    "mehr als",
+    "uber",
+];
+
+/// Irregular plurals of the size units; every other unit drops a trailing `s`.
+const SINGULARS: &[(&str, &str)] = &[
+    ("zeilen", "zeile"),
+    ("worter", "wort"),
+    ("satze", "satz"),
+    ("righe", "riga"),
+    ("parole", "parola"),
+    ("frasi", "frase"),
+    ("oraciones", "oracion"),
+    ("caracteres", "caractere"),
+    ("caratteri", "carattere"),
+    ("paragraphes", "paragraphe"),
+    ("paragraphs", "paragraph"),
+];
+
+fn singular(unit: &str) -> String {
+    if let Some((_, one)) = SINGULARS.iter().find(|(many, _)| *many == unit) {
+        return (*one).to_owned();
+    }
+    if unit.len() > 3 && unit.ends_with('s') && !unit.ends_with("ss") {
+        return unit[..unit.len() - 1].to_owned();
+    }
+    unit.to_owned()
+}
+
+fn number(word: &str) -> Option<u64> {
+    if word.chars().all(|c| c.is_ascii_digit()) && !word.is_empty() {
+        return word.parse().ok();
+    }
+    NUMBER_WORDS
+        .iter()
+        .find(|(name, _)| *name == word)
+        .map(|(_, n)| u64::from(*n))
+}
+
+fn phrase_in(table: &[&str], padded: &str) -> bool {
+    table.iter().any(|w| padded.contains(&format!(" {w} ")))
+}
+
+/// The bound a constraint states, when it states one: a number (a digit run or a number
+/// word) followed within two words by a size unit, with the comparator read from the words
+/// around it (exact by default: "3 bullets" means three). A concurrency bound ("2 at a
+/// time") is structure, not content, and states none.
+#[must_use]
+pub fn bound(constraint: &str) -> Option<Bound> {
+    if parallel_bound(constraint).is_some() {
+        return None;
+    }
+    let folded = rule_tokens::fold(constraint);
+    let words: Vec<&str> = folded
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|w| !w.is_empty())
+        .collect();
+    let unit_at = |i: usize| words.get(i).filter(|w| SIZE_UNITS.contains(w));
+    for (index, word) in words.iter().enumerate() {
+        let Some(value) = number(word) else {
+            continue;
+        };
+        let unit = unit_at(index + 1).or_else(|| {
+            words
+                .get(index + 1)
+                .filter(|w| matches!(**w, "a" | "de" | "di" | "of"))
+                .and_then(|_| unit_at(index + 2))
+        });
+        let Some(unit) = unit else {
+            continue;
+        };
+        let before = format!(" {} ", words[index.saturating_sub(5)..index].join(" "));
+        let after = format!(
+            " {} ",
+            words[(index + 1)..words.len().min(index + 5)].join(" ")
+        );
+        let comparator = if phrase_in(EXACT_WORDS, &before) || phrase_in(EXACT_WORDS, &after) {
+            Comparator::Eq
+        } else if phrase_in(UPPER_WORDS, &before) || phrase_in(UPPER_WORDS, &after) {
+            Comparator::Le
+        } else if phrase_in(LOWER_WORDS, &before) || phrase_in(LOWER_WORDS, &after) {
+            Comparator::Ge
+        } else if phrase_in(BELOW_WORDS, &before) {
+            Comparator::Lt
+        } else if phrase_in(ABOVE_WORDS, &before) {
+            Comparator::Gt
+        } else {
+            rules::numeric_cue(before.trim()).unwrap_or(Comparator::Eq)
+        };
+        return Some(Bound {
+            unit: singular(unit),
+            comparator,
+            value,
+        });
+    }
+    None
+}
+
+/// The measure of a text a unit counts, for a run-time law over the drafted body.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Measure {
+    Lines,
+    Bullets,
+    Words,
+    Sentences,
+    Characters,
+    Paragraphs,
+}
+
+impl Measure {
+    /// The measure a folded singular unit names; a page or a token measures nothing at run.
+    #[must_use]
+    pub fn of(unit: &str) -> Option<Self> {
+        match unit {
+            "line" | "ligne" | "zeile" | "riga" | "linea" | "linha" => Some(Self::Lines),
+            "bullet" | "puce" | "stichpunkt" | "aufzahlungspunkt" | "vineta" | "marcador" => {
+                Some(Self::Bullets)
+            }
+            "word" | "mot" | "wort" | "parola" | "palabra" | "palavra" => Some(Self::Words),
+            "sentence" | "phrase" | "satz" | "frase" | "oracion" => Some(Self::Sentences),
+            "character" | "char" | "caractere" | "zeichen" | "carattere" | "caracter" => {
+                Some(Self::Characters)
+            }
+            "paragraph" | "paragraphe" | "absatz" | "paragrafo" | "parrafo" => {
+                Some(Self::Paragraphs)
+            }
+            _ => None,
+        }
+    }
+    /// jq over the body string (`.`) counting the measure: nonblank lines, bullet lines
+    /// (`-`, `*`, `•` or a numbered marker), whitespace-separated words, sentences ended by
+    /// `.`, `!` or `?`, characters, blank-line-separated paragraphs.
+    #[must_use]
+    pub const fn jq(self) -> &'static str {
+        match self {
+            Self::Lines => r#"([split("\n")[] | select(test("\\S"))] | length)"#,
+            Self::Bullets => {
+                r#"([split("\n")[] | select(test("^\\s*([-*•]|[0-9]+[.)])\\s+"))] | length)"#
+            }
+            Self::Words => r#"([scan("\\S+")] | length)"#,
+            Self::Sentences => r#"([scan("[^.!?]+[.!?]+")] | length)"#,
+            Self::Characters => "length",
+            Self::Paragraphs => r#"([split("\n\n")[] | select(test("\\S"))] | length)"#,
+        }
+    }
+}
+
+impl Bound {
+    /// The jq predicate over the body string that holds exactly when the bound does; none
+    /// when the unit measures nothing at run.
+    #[must_use]
+    pub fn law(&self) -> Option<String> {
+        let measure = Measure::of(&self.unit)?;
+        Some(format!(
+            "({} {} {})",
+            measure.jq(),
+            self.comparator.symbol(),
+            self.value
+        ))
+    }
+}
+
+/// The conjunction of every measurable bound the constraints state, with the constraints it
+/// covers, so the drafted text is judged at run and not only asked for in the prompt.
+#[must_use]
+pub fn body_law(constraints: &[String]) -> Option<(String, Vec<String>)> {
+    let mut laws = Vec::new();
+    let mut covered = Vec::new();
+    for constraint in constraints {
+        if let Some(law) = bound(constraint).and_then(|b| b.law()) {
+            laws.push(law);
+            covered.push(constraint.clone());
+        }
+    }
+    if laws.is_empty() {
+        return None;
+    }
+    Some((laws.join(" and "), covered))
+}
+
+/// The first pair of constraints whose bounds cannot both hold, as indexes into the slice.
+#[must_use]
+pub fn contradiction(constraints: &[String]) -> Option<(usize, usize)> {
+    let bounds: Vec<(usize, Bound)> = constraints
+        .iter()
+        .enumerate()
+        .filter_map(|(i, c)| bound(c).map(|b| (i, b)))
+        .collect();
+    for (a, (i, first)) in bounds.iter().enumerate() {
+        for (j, second) in &bounds[a + 1..] {
+            if !first.compatible(second) {
+                return Some((*i, *j));
+            }
+        }
+    }
+    None
+}
+
+/// A numeric concurrency bound stated as a constraint ("at most 2 at a time").
+#[must_use]
+pub fn parallel_bound(constraint: &str) -> Option<u32> {
+    let lower = constraint.to_lowercase();
+    let concurrent = [
+        "at a time",
+        "at once",
+        "in parallel",
+        "concurrently",
+        "simultaneously",
+        "à la fois",
+        "en parallèle",
+        "en même temps",
+        "a la vez",
+        "al mismo tiempo",
+    ]
+    .iter()
+    .any(|phrase| lower.contains(phrase));
+    if !concurrent {
+        return None;
+    }
+    let numbers: Vec<u32> = lower
+        .split(|c: char| !c.is_ascii_digit())
+        .filter(|w| !w.is_empty())
+        .filter_map(|w| w.parse().ok())
+        .collect();
+    match numbers.as_slice() {
+        [n] if *n > 0 => Some(*n),
+        _ => None,
+    }
+}
+
+/// Superlatives that name one row of a corpus (EN · FR · IT · ES · DE · PT, accented and
+/// folded): the `1` a seat writes as a limit beside « the most », « le plus », « el mayor »
+/// is stated by them.
+const SUPERLATIVES: &[&str] = &[
+    "most",
+    "worst",
+    "best",
+    "highest",
+    "lowest",
+    "largest",
+    "smallest",
+    "biggest",
+    "longest",
+    "shortest",
+    "latest",
+    "earliest",
+    "oldest",
+    "newest",
+    "least",
+    "le plus",
+    "la plus",
+    "les plus",
+    "le moins",
+    "la moins",
+    "il più",
+    "la più",
+    "il piu",
+    "la piu",
+    "il meno",
+    "la meno",
+    "el más",
+    "la más",
+    "el mas",
+    "la mas",
+    "el menos",
+    "la menos",
+    "mayor",
+    "menor",
+    "höchste",
+    "hochste",
+    "niedrigste",
+    "größte",
+    "grosste",
+    "kleinste",
+    "längste",
+    "langste",
+    "kürzeste",
+    "kurzeste",
+    "meisten",
+    "wenigsten",
+    "o mais",
+    "a mais",
+    "o maior",
+    "a maior",
+    "o menor",
+    "a menor",
+];
+
+/// Whether the request states a superlative: one row of its corpus, the `1` of a limit.
+#[must_use]
+pub fn superlative_covers(intent: &str) -> bool {
+    let folded = crate::shape::fold(intent);
+    let padded = format!(" {folded} ");
+    SUPERLATIVES
+        .iter()
+        .any(|w| padded.contains(&format!(" {w} ")))
+}
+
+/// Words and dashes that join the two ends of a stated numeric range.
+const RANGE_LINKS: &[&str] = &[
+    "to", "through", "thru", "à", "a", "au", "jusqu'à", "hasta", "bis", "fino a", "-", "–", "—",
+    "…", "...", "..",
+];
+
+/// Whether the request states a numeric range that covers `number` ("01 to 04", "1 à 4",
+/// "chapters 1-4", "fiche-01 … fiche-04"): two digit runs joined by a range word or dash.
+/// A number inside a stated range is derived from the request, not invented.
+#[must_use]
+pub fn stated_range_covers(intent: &str, number: &str) -> bool {
+    let Ok(n) = number.parse::<u64>() else {
+        return false;
+    };
+    let lower = intent.to_lowercase();
+    let runs: Vec<(usize, usize)> = {
+        let mut out = Vec::new();
+        let mut start: Option<usize> = None;
+        for (i, ch) in lower.char_indices() {
+            match (ch.is_ascii_digit(), start) {
+                (true, None) => start = Some(i),
+                (false, Some(s)) => {
+                    out.push((s, i));
+                    start = None;
+                }
+                _ => {}
+            }
+        }
+        if let Some(s) = start {
+            out.push((s, lower.len()));
+        }
+        out
+    };
+    runs.windows(2).any(|pair| {
+        let (a_start, a_end) = pair[0];
+        let (b_start, b_end) = pair[1];
+        let Some(between) = lower.get(a_end..b_start) else {
+            return false;
+        };
+        let between = between.trim();
+        let link = between
+            .split_whitespace()
+            .map(|w| w.trim_matches(|c: char| c == '`' || c == '"' || c == '\''))
+            .collect::<Vec<_>>();
+        let linked = between.len() <= 12
+            && (RANGE_LINKS.contains(&between) || link.iter().any(|w| RANGE_LINKS.contains(w)));
+        if !linked {
+            return false;
+        }
+        match (
+            lower
+                .get(a_start..a_end)
+                .and_then(|s| s.parse::<u64>().ok()),
+            lower
+                .get(b_start..b_end)
+                .and_then(|s| s.parse::<u64>().ok()),
+        ) {
+            (Some(lo), Some(hi)) => lo <= n && n <= hi && hi.saturating_sub(lo) <= 64,
+            _ => false,
+        }
+    })
+}
+
+#[must_use]
+pub fn digit_runs(text: &str) -> Vec<String> {
+    text.split(|c: char| !c.is_ascii_digit())
+        .filter(|run| !run.is_empty())
+        .map(str::to_owned)
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn read(text: &str) -> (String, Comparator, u64) {
+        let b = bound(text).unwrap_or_else(|| panic!("no bound in {text}"));
+        (b.unit, b.comparator, b.value)
+    }
+
+    #[test]
+    fn a_bound_is_a_number_a_unit_and_the_comparator_around_them() {
+        assert_eq!(read("genau 5 Zeilen"), ("zeile".into(), Comparator::Eq, 5));
+        assert_eq!(
+            read("mindestens 12 Zeilen lang"),
+            ("zeile".into(), Comparator::Ge, 12)
+        );
+        assert_eq!(read("3 bullets"), ("bullet".into(), Comparator::Eq, 3));
+        assert_eq!(
+            read("as five bullets"),
+            ("bullet".into(), Comparator::Eq, 5)
+        );
+        assert_eq!(read("12 lignes max"), ("ligne".into(), Comparator::Le, 12));
+        assert_eq!(
+            read("a brief of under 150 words"),
+            ("word".into(), Comparator::Lt, 150)
+        );
+        assert_eq!(read("at least 3 lines"), ("line".into(), Comparator::Ge, 3));
+        assert_eq!(
+            read("no more than 2 pages"),
+            ("page".into(), Comparator::Le, 2)
+        );
+        assert_eq!(
+            read("résumé de chaque en 3 lignes max"),
+            ("ligne".into(), Comparator::Le, 3)
+        );
+        for none in [
+            "in a warm tone",
+            "Process at most 2 products at a time",
+            "the top 3 countries",
+            "never infer amounts",
+        ] {
+            assert!(bound(none).is_none(), "{none}");
+        }
+    }
+
+    #[test]
+    fn a_measurable_bound_lowers_to_a_law_over_the_body() {
+        let (law, covered) = body_law(&[
+            "3 bullets".into(),
+            "under 150 words".into(),
+            "in a warm tone".into(),
+        ])
+        .expect("two measurable bounds");
+        assert_eq!(
+            law,
+            r#"(([split("\n")[] | select(test("^\\s*([-*•]|[0-9]+[.)])\\s+"))] | length) == 3) and (([scan("\\S+")] | length) < 150)"#
+        );
+        assert_eq!(covered, ["3 bullets", "under 150 words"]);
+        assert_eq!(
+            bound("12 lignes max").and_then(|b| b.law()).as_deref(),
+            Some(r#"(([split("\n")[] | select(test("\\S"))] | length) <= 12)"#)
+        );
+        // A page or a token measures nothing at run; the prompt keeps the instruction.
+        assert!(bound("at most 2 pages").and_then(|b| b.law()).is_none());
+        assert!(body_law(&["in a warm tone".into()]).is_none());
+    }
+
+    #[test]
+    fn two_bounds_on_one_unit_that_cannot_both_hold_contradict() {
+        let c = |a: &str, b: &str| contradiction(&[a.to_owned(), b.to_owned()]);
+        assert_eq!(
+            c("genau 5 Zeilen", "mindestens 12 Zeilen lang"),
+            Some((0, 1))
+        );
+        assert_eq!(c("exactly 3 bullets", "at most 2 bullets"), Some((0, 1)));
+        assert_eq!(c("under 10 lines", "at least 12 lines"), Some((0, 1)));
+        assert_eq!(c("at least 3 bullets", "5 bullets"), None);
+        assert_eq!(c("3 bullets", "under 150 words"), None);
+        assert_eq!(c("12 lignes max", "in a warm tone"), None);
+        // Three constraints: the contradicting pair is named, not the innocent one.
+        assert_eq!(
+            contradiction(&[
+                "in a warm tone".into(),
+                "exactly 5 lines".into(),
+                "at least 12 lines".into()
+            ]),
+            Some((1, 2))
+        );
+    }
+}

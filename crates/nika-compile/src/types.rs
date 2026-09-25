@@ -7,13 +7,44 @@ use std::collections::BTreeMap;
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct CompileRequest {
-    pub(super) input: Input,
-    pub(super) answers: BTreeMap<String, String>,
-    pub(super) workflow_id: Option<String>,
-    pub(super) authoring: Option<AuthoringPolicy>,
-    pub(super) hot: HotPolicy,
+    pub input: Input,
+    pub answers: BTreeMap<String, String>,
+    pub workflow_id: Option<String>,
+    pub authoring: Option<AuthoringPolicy>,
+    pub hot: HotPolicy,
     /// A previously produced private plan to replay for the same intent (see [`Self::with_plan`]).
-    pub(super) plan: Option<serde_json::Value>,
+    pub plan: Option<serde_json::Value>,
+    /// What the caller observed about the world the request names (the shape of its stated
+    /// files: columns, keys, small value sets), stated to an authoring seat as data — see
+    /// [`Self::with_knowledge`].
+    pub knowledge: Option<serde_json::Value>,
+    /// The authoring pack a knowledge door composed for this intent — see
+    /// [`Self::with_authoring_knowledge`].
+    pub authoring_knowledge: Option<AuthoringKnowledge>,
+    /// The request the base candidate answered, when the caller has it — see
+    /// [`Self::with_original_intent`]; an edit's laws read it beside the change.
+    pub original_intent: Option<String>,
+}
+
+/// One reference a knowledge snapshot recalled for the seat: its kind (`pattern` · `block` ·
+/// `example` · `skill`), its id in the snapshot and the text the seat reads.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct KnowledgeReference {
+    pub kind: String,
+    pub id: String,
+    pub text: String,
+}
+
+/// The authoring pack a knowledge door composed for one intent from a versioned snapshot:
+/// the references the seat reads beside the card, the repair principles by diagnostic code
+/// for the repair rounds, the snapshot's identity (version · digest · builder) and the
+/// selection record (every recalled row and why) for the provenance.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct AuthoringKnowledge {
+    pub identity: serde_json::Value,
+    pub selection: serde_json::Value,
+    pub references: Vec<KnowledgeReference>,
+    pub repairs: std::collections::BTreeMap<String, Vec<String>>,
 }
 
 /// How much the deterministic reader may decide on its own. False HOT is the P0 defect:
@@ -45,13 +76,15 @@ impl HotPolicy {
 }
 
 #[derive(Clone, Debug)]
-pub(super) enum Input {
+#[non_exhaustive]
+pub enum Input {
     Create(String),
     Edit { source: String, change: EditChange },
 }
 
 #[derive(Clone, Debug)]
-pub(super) enum EditChange {
+#[non_exhaustive]
+pub enum EditChange {
     Text(String),
     Constant { name: String, literal_json: String },
 }
@@ -83,6 +116,32 @@ impl CompileRequest {
         self.plan = Some(plan);
         self
     }
+    /// Facts the caller observed about the world the request names (`{"observed": [{path,
+    /// kind, columns, delimiter?, values?}]}`): an authoring seat reads them as data, names the
+    /// columns a file spells, asks for none of them and invents none. Never a row's value: the
+    /// host observes a header, a key set, the small value set of a categorical column.
+    #[must_use]
+    pub fn with_knowledge(mut self, snapshot: serde_json::Value) -> Self {
+        self.knowledge = Some(snapshot);
+        self
+    }
+
+    /// The authoring pack a knowledge door composed for this intent: its references reach
+    /// the seat beside the card, its repair principles reach the repair rounds, its identity
+    /// and selection reach the provenance (`decision.native.knowledge`).
+    #[must_use]
+    pub fn with_authoring_knowledge(mut self, pack: AuthoringKnowledge) -> Self {
+        self.authoring_knowledge = Some(pack);
+        self
+    }
+
+    /// The request the base candidate answered: an edit under a seat reads it beside the
+    /// change, so the laws hold the revised candidate to the whole meaning.
+    #[must_use]
+    pub fn with_original_intent(mut self, intent: impl Into<String>) -> Self {
+        self.original_intent = Some(intent.into());
+        self
+    }
     /// Create from an exact skeleton or bounded support clauses. Other intents
     /// remain incomplete unless an explicit provider authoring call resolves them.
     #[must_use]
@@ -94,6 +153,9 @@ impl CompileRequest {
             authoring: None,
             hot: HotPolicy::default(),
             plan: None,
+            knowledge: None,
+            authoring_knowledge: None,
+            original_intent: None,
         }
     }
 
@@ -114,6 +176,9 @@ impl CompileRequest {
             authoring: None,
             hot: HotPolicy::default(),
             plan: None,
+            knowledge: None,
+            authoring_knowledge: None,
+            original_intent: None,
         }
     }
 
@@ -145,6 +210,9 @@ impl CompileRequest {
             authoring: None,
             hot: HotPolicy::default(),
             plan: None,
+            knowledge: None,
+            authoring_knowledge: None,
+            original_intent: None,
         }
     }
 
@@ -188,6 +256,30 @@ pub enum QuestionType {
     Text,
     /// A literal JSON value. Its Nika type is also checked after emission.
     Literal,
+    /// A JSON string that is the `key` of one of the question's own [`CompileQuestion::options`].
+    Choice,
+}
+
+/// One admissible answer of a [`QuestionType::Choice`] question: its key, as the answer is
+/// written, and its human label. The keys are the owning grammar's own spellings.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ChoiceOffer {
+    /// The answer, verbatim (`rattraper-une-fois`).
+    pub key: String,
+    /// What choosing it means.
+    pub label: String,
+}
+
+impl ChoiceOffer {
+    /// One admissible answer.
+    #[must_use]
+    pub fn new(key: impl Into<String>, label: impl Into<String>) -> Self {
+        Self {
+            key: key.into(),
+            label: label.into(),
+        }
+    }
 }
 
 /// A stable question shared by future TTY, SDK and Serve adapters.
@@ -204,6 +296,8 @@ pub struct CompileQuestion {
     pub why: String,
     /// Whether this question blocks Ready.
     pub mandatory: bool,
+    /// The admissible answers of a [`QuestionType::Choice`] question; empty for any other.
+    pub options: Vec<ChoiceOffer>,
 }
 
 /// What happened to a requested part of authoring.
@@ -279,6 +373,9 @@ pub enum Strategy {
     Warm,
     /// One generative proposal, constrained by the deterministic facts.
     Cold,
+    /// A native candidate the seat wrote from the authoring workspace's knowledge, judged by
+    /// the parser, the Check and the fidelity laws, repaired from their diagnostics.
+    Native,
 }
 
 impl Strategy {
@@ -291,19 +388,55 @@ impl Strategy {
             Self::Hot => "hot",
             Self::Warm => "warm",
             Self::Cold => "cold",
+            Self::Native => "native",
         }
     }
     /// The strategy a recorded plan names, if the word is one of ours.
-    pub(super) fn parse(word: &str) -> Option<Self> {
+    pub(crate) fn parse(word: &str) -> Option<Self> {
         [
             Self::Skeleton,
             Self::Support,
             Self::Hot,
             Self::Warm,
             Self::Cold,
+            Self::Native,
         ]
         .into_iter()
         .find(|strategy| strategy.word() == word)
+    }
+}
+
+/// When the native strategy (a seat-written candidate judged by the parser, the Check and the
+/// fidelity laws) is engaged for a free intent.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum NativeMode {
+    /// Never: the private plan is the only generative path (the library's default, so that
+    /// a caller's calls stay exactly what it asked for; the CLI opts into `Escalate`).
+    #[default]
+    Off,
+    /// After the private plan ends without a candidate, fails the fidelity laws or hands
+    /// the human a machine's problem (a rewrite, a jq expression, a glob).
+    Escalate,
+    /// Straight to the native candidate, before the deterministic door and without the
+    /// private plan (the ablation, and the arena's treatment D).
+    Only,
+    /// Straight to the sketch door: the seat proposes structure (tasks, edges, gates, the
+    /// stated paths and hosts), judged before a word is written; then fills the typed holes;
+    /// the compiler emits the document and derives every permit (the plan's W2 pilot).
+    Sketch,
+}
+
+impl NativeMode {
+    /// The stable machine word.
+    #[must_use]
+    pub const fn word(self) -> &'static str {
+        match self {
+            Self::Off => "off",
+            Self::Escalate => "escalate",
+            Self::Only => "only",
+            Self::Sketch => "sketch",
+        }
     }
 }
 
@@ -311,12 +444,36 @@ impl Strategy {
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct AuthoringPolicy {
-    pub(super) model: String,
-    pub(super) max_tokens: u32,
-    pub(super) timeout: std::time::Duration,
-    pub(super) samples: u32,
+    pub model: String,
+    pub max_tokens: u32,
+    /// Optional first native output limit, within `max_tokens`. A reported truncation
+    /// can raise it using the existing repair count, never beyond the hard ceiling.
+    pub initial_max_tokens: Option<u32>,
+    pub timeout: std::time::Duration,
+    pub samples: u32,
+    pub native: NativeMode,
+    pub repairs: u32,
 }
 impl AuthoringPolicy {
+    /// When the native candidate is written (default: after the private plan fails a human).
+    #[must_use]
+    pub fn with_native(mut self, native: NativeMode) -> Self {
+        self.native = native;
+        self
+    }
+    /// Start native generation below the hard output limit; a completed truncation may
+    /// use a repair to increase it. Zero or a value above `max_tokens` is refused.
+    #[must_use]
+    pub fn with_initial_max_tokens(mut self, initial: u32) -> Self {
+        self.initial_max_tokens = Some(initial);
+        self
+    }
+    /// How many repair rounds a native candidate may buy (0..=5, default 3): one call each.
+    #[must_use]
+    pub fn with_repairs(mut self, repairs: u32) -> Self {
+        self.repairs = repairs.min(5);
+        self
+    }
     /// Ask for `samples` independent proposals (1..=5) and keep the one the others agree
     /// with most; disagreement is recorded, never voted away. Each sample is one call.
     #[must_use]
@@ -331,8 +488,11 @@ impl AuthoringPolicy {
         Self {
             model: model.into(),
             max_tokens,
+            initial_max_tokens: None,
             timeout,
             samples: 1,
+            native: NativeMode::default(),
+            repairs: 3,
         }
     }
 }
@@ -343,7 +503,8 @@ impl AuthoringPolicy {
 pub struct AuthoringReceipt {
     /// Explicit model requested for this authoring attempt.
     pub model: String,
-    /// Provider calls attempted; this slice permits exactly one per request.
+    /// Provider calls attempted: one per proposal sample, plus at most one bounded repair
+    /// call per sample when the proposal cited an evidence the request never wrote.
     pub calls: u32,
     /// Reported input tokens, or unknown when the provider omitted usage.
     pub input_tokens: Option<u64>,
@@ -351,6 +512,33 @@ pub struct AuthoringReceipt {
     pub output_tokens: Option<u64>,
     /// Wall time spent awaiting the provider, including timeout/failure.
     pub elapsed_ms: u64,
+    /// What each call received, in call order: its role (`plan` · `repair` · `transform`),
+    /// the sha256 of the instruction and of the answer schema it was given, the bytes of its
+    /// messages, and the references sent with it (none today: recall is recorded, never
+    /// sent). A journal of what the seat actually read, never of what the repository holds.
+    pub context: Vec<serde_json::Value>,
+    /// The backend that answered, named by the transport that seated it: `direct_api` (a
+    /// provider of the registry, tokens metered) or `acp_harness` (the operator's own agent
+    /// harness through ACP: adapter, observed model, cost basis, no fabricated token meter).
+    /// None when the transport did not say.
+    pub backend: Option<serde_json::Value>,
+}
+
+impl AuthoringReceipt {
+    /// A receipt for the model named, nothing spent yet (INV-019: the type is
+    /// `#[non_exhaustive]`; the member fills the fields it measures).
+    #[must_use]
+    pub fn new(model: impl Into<String>) -> Self {
+        Self {
+            model: model.into(),
+            calls: 0,
+            input_tokens: None,
+            output_tokens: None,
+            elapsed_ms: 0,
+            context: Vec::new(),
+            backend: None,
+        }
+    }
 }
 
 /// Authoring provenance is not program identity or execution Proof.
@@ -373,6 +561,9 @@ pub struct CompileProvenance {
     pub plan: Option<serde_json::Value>,
     /// Bounded decision records (seat, questions, choices, reported usage), when a seat was asked.
     pub decision: Option<serde_json::Value>,
+    /// A file name for the candidate, derived from what it writes or does (`open-sorted.nika`):
+    /// a suggestion for whoever saves it, never a path the compiler touched.
+    pub suggested_file: Option<String>,
 }
 
 /// What starts a run of the candidate, when the request names it ("Every morning at 9,
@@ -394,12 +585,28 @@ pub struct TriggerRequirement {
     /// The cadence the words state, when they state one: `daily` · `weekdays` · `weekly`
     /// · `monthly` · `hourly` · `minutely`.
     pub cadence: Option<String>,
+    /// Exact five cron fields read from a supported complete phrase, without a timezone.
+    /// `None` means the coarse cadence/words cannot safely become a schedule: incomplete,
+    /// conflicting or unsupported. This is a proposal, never authority; the binding must
+    /// add the operator's zone, validate with `nika-cadence` and obtain fresh consent.
+    pub cron: Option<String>,
     /// The time of day the words state, as `HH:MM`, when they state one.
     pub at: Option<String>,
     /// The declared input each firing supplies (`item`), when the candidate declares one.
     pub payload_input: Option<String>,
     /// Whether the requirement is met by the candidate alone or needs a binding.
     pub status: TriggerStatus,
+    /// The IANA timezone answered for the cadence (`trigger.timezone`), when answered.
+    pub timezone: Option<String>,
+    /// The missed-run policy answered (`trigger.missed`): one of the project grammar's own
+    /// spellings (`manqué:`), when answered.
+    pub missed: Option<String>,
+    /// The overlap policy answered (`trigger.overlap`): one of the cadence grammar's own
+    /// spellings (`chevauchement:`), when answered.
+    pub overlap: Option<String>,
+    /// The per-run spend ceiling answered (`trigger.ceiling`): the positive JSON number, as
+    /// its canonical text (`0.1`, `2`).
+    pub ceiling: Option<String>,
 }
 
 /// How a request expects runs of its candidate to start.
@@ -467,7 +674,9 @@ pub enum CompileError {
 }
 
 impl CompileError {
-    pub(super) fn representation(error: serde_yaml_bw::Error) -> Self {
+    /// Preserve the representation backend error as the source of a compile error.
+    #[must_use]
+    pub fn representation(error: serde_yaml_bw::Error) -> Self {
         Self::Representation(RepresentationError { source: error })
     }
 }

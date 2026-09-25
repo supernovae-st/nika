@@ -39,12 +39,19 @@ pub(super) struct Saved {
     pub decisions: Vec<String>,
     pub unresolved: Vec<String>,
     pub recent: Vec<(String, String)>,
+    /// The proposal pending when the record was written, as a versioned draft value
+    /// (`draft.rs`): read only by the draft schema, kept unchanged otherwise. Absent from
+    /// records that had none, whose bytes stay exactly as before.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pending: Option<serde_json::Value>,
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub(super) enum Operation {
     Turn,
+    /// A closed Run request; its ceiling does not amend Session inference.
+    Run,
     Choice,
     Consent,
     Gate,
@@ -131,6 +138,7 @@ pub(super) struct History {
     pub authority: AuthorityState,
     pub uncertain: bool,
     pub restored: bool,
+    pub monetary_seen: bool,
 }
 
 impl History {
@@ -166,6 +174,7 @@ impl History {
             authority: AuthorityState::None,
             uncertain: false,
             restored: false,
+            monetary_seen: false,
         };
         match history.dir.open_relative(Path::new(LOG)) {
             Ok(file) => history.replay(file)?,
@@ -255,6 +264,13 @@ impl History {
         match record.event {
             Event::Opened if self.sequence == 0 => {}
             Event::Started { operation, input } if self.sequence > 0 && self.started.is_none() => {
+                if matches!(
+                    operation,
+                    Operation::Turn | Operation::Consent | Operation::Gate
+                ) {
+                    self.monetary_seen |=
+                        super::money_parse::parse(&input).map_or(true, |p| p.amount.is_some());
+                }
                 if input.len() > MAX_INPUT_BYTES {
                     return Err(invalid("conversation input exceeds 64 KiB"));
                 }
@@ -292,7 +308,7 @@ impl History {
 
     fn recover(&mut self) {
         self.uncertain |= self.started.is_some() || self.run == RunState::AwaitingObservation;
-        if let Some((Operation::Turn, input)) = self.started.take() {
+        if let Some((Operation::Turn | Operation::Run, input)) = self.started.take() {
             self.recovery_line(
                 input,
                 "[Interrupted turn: no completed reply was recorded.]",

@@ -476,6 +476,56 @@ impl<T> typenum::type_operators::Same for nika_trace::receipt::ReceiptAction
 pub type nika_trace::receipt::ReceiptAction::Output = T
 pub fn nika_trace::receipt::explain(file: &std::path::Path) -> nika_cli_host::output::VerbOutput
 pub fn nika_trace::receipt::run(action: nika_trace::receipt::ReceiptAction) -> nika_cli_host::output::VerbOutput
+pub mod nika_trace::run_view
+#[non_exhaustive] pub struct nika_trace::run_view::RunFacts
+impl nika_trace::run_view::RunFacts
+pub fn nika_trace::run_view::RunFacts::gate(&self, workflow: &std::path::Path, message: &str, mode: &str, gated: &[alloc::string::String]) -> alloc::string::String
+pub fn nika_trace::run_view::RunFacts::proof(&self, root: &std::path::Path) -> alloc::string::String
+pub fn nika_trace::run_view::RunFacts::read(trace: &std::path::Path) -> core::option::Option<Self>
+pub fn nika_trace::run_view::RunFacts::result(&self, root: &std::path::Path, workflow: &std::path::Path) -> alloc::string::String
+impl core::clone::Clone for nika_trace::run_view::RunFacts
+pub fn nika_trace::run_view::RunFacts::clone(&self) -> nika_trace::run_view::RunFacts
+impl core::default::Default for nika_trace::run_view::RunFacts
+pub fn nika_trace::run_view::RunFacts::default() -> nika_trace::run_view::RunFacts
+impl core::fmt::Debug for nika_trace::run_view::RunFacts
+pub fn nika_trace::run_view::RunFacts::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_trace::run_view::RunFacts
+impl<T, U> core::convert::Into<U> for nika_trace::run_view::RunFacts where U: core::convert::From<T>
+pub fn nika_trace::run_view::RunFacts::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_trace::run_view::RunFacts where U: core::convert::Into<T>
+pub type nika_trace::run_view::RunFacts::Error = core::convert::Infallible
+pub fn nika_trace::run_view::RunFacts::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_trace::run_view::RunFacts where U: core::convert::TryFrom<T>
+pub type nika_trace::run_view::RunFacts::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_trace::run_view::RunFacts::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_trace::run_view::RunFacts where T: core::clone::Clone
+pub type nika_trace::run_view::RunFacts::Owned = T
+pub fn nika_trace::run_view::RunFacts::clone_into(&self, target: &mut T)
+pub fn nika_trace::run_view::RunFacts::to_owned(&self) -> T
+impl<T> core::any::Any for nika_trace::run_view::RunFacts where T: 'static + ?core::marker::Sized
+pub fn nika_trace::run_view::RunFacts::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_trace::run_view::RunFacts where T: ?core::marker::Sized
+pub fn nika_trace::run_view::RunFacts::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_trace::run_view::RunFacts where T: ?core::marker::Sized
+pub fn nika_trace::run_view::RunFacts::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_trace::run_view::RunFacts where T: core::clone::Clone
+pub unsafe fn nika_trace::run_view::RunFacts::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_trace::run_view::RunFacts
+pub fn nika_trace::run_view::RunFacts::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_trace::run_view::RunFacts where T: core::clone::Clone
+pub fn nika_trace::run_view::RunFacts::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_trace::run_view::RunFacts where T: 'static
+pub fn nika_trace::run_view::RunFacts::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_trace::run_view::RunFacts where T: ?core::marker::Sized
+pub fn nika_trace::run_view::RunFacts::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_trace::run_view::RunFacts::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_trace::run_view::RunFacts
+impl<T> tracing::instrument::WithSubscriber for nika_trace::run_view::RunFacts
+impl<T> typenum::type_operators::Same for nika_trace::run_view::RunFacts
+pub type nika_trace::run_view::RunFacts::Output = T
+impl<T> zvariant::optional::NoneValue for nika_trace::run_view::RunFacts where T: core::default::Default
+pub type nika_trace::run_view::RunFacts::NoneType = T
+pub fn nika_trace::run_view::RunFacts::null_value() -> T
 pub mod nika_trace::trace
 pub mod nika_trace::trace::action
 pub enum nika_trace::trace::action::TraceAction

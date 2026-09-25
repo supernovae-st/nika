@@ -95,6 +95,13 @@ A direct check of an invalid project document remains a FILE refusal.
 Valid project budgets retain their existing provenance, and a valid project
 without a ceiling stops the ancestor walk without adding a budget.
 
+A manual resume validates its trace, workflow, version and access lane before
+monetary review. An undeclared lane change reports `NIKA-1807`; an explicit pin
+names the change but grants no spending authority. Durable approval-claim
+attachment and retention remain after cost admission and the budget floor, so
+a refused unknown-price continuation does not open or prune that store. The
+in-process answered continuation retains its existing durable replay protection.
+
 ### v0.82 wave-2 (proposed 2026-06-11 · additive)
 
 | Verb | Does |

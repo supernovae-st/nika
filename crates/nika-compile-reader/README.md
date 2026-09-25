@@ -11,3 +11,7 @@ here invents an element, calls a model, touches the file system or grants author
 composes, assembles and previews what is read here and depends on this crate, never the
 reverse. The reader is FROZEN (a safety floor): every public type is `#[non_exhaustive]`,
 elements are built through their constructors, and every new law lives in the typed plan.
+Five public types added after the split (`cardinality::{Bound, Measure}`,
+`shape::{LiteralLookup, Shape}`, `structure::Law`) are not yet `#[non_exhaustive]`: that
+ratchet is owed, not claimed. The laws a candidate document is judged by, the seat's sketch
+and the plan a candidate states live one member above, in `nika-compile-fidelity` (ADR-141).

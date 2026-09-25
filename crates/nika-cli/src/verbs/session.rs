@@ -2,11 +2,15 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! Bare `nika` on a terminal — the native session (ADR-125 · One Door ·
-//! wave 4): the first run asks the human how Nika should think with them
-//! (an AI app they already have · an API · a local engine · none), keeps
-//! the answer beside the other user files, and opens one grounded
-//! conversation over the installed engine ([`nika_session`]). No
-//! temporary workflow, no trace for a chat turn, no hidden shell.
+//! wave 4): the session opens at once on the human's question (« What do
+//! you want to automate? »); the facts and the deterministic compiler
+//! answer without any setup, and the first time a turn needs an
+//! intelligence the session asks how Nika should think with them (an AI
+//! app they already have · an API · a local engine · none), keeps the
+//! answer beside the other user files, and resumes the very line that
+//! waited. One grounded conversation over the installed engine
+//! ([`nika_session`]): no temporary workflow, no trace for a chat turn, no
+//! hidden shell.
 // The session owns a live terminal, like `run`: the prompt and the
 // replies go to that terminal directly.
 #![allow(clippy::disallowed_macros, clippy::print_stderr)]
@@ -25,48 +29,17 @@ use nika_dap::resume::ResumeRequest;
 
 use crate::Theme;
 use crate::verbs::exit;
-
-/// The first run: the census, the first screen, one answer (three tries),
-/// persisted under the home when one exists.
-fn first_run<R: BufRead, W: Write>(
-    input: &mut R,
-    output: &mut W,
-    census: &IntelligenceCensus,
-    home: Option<&std::path::Path>,
-) -> std::io::Result<Option<UserIntelligencePreference>> {
-    write!(output, "{}", census.first_screen())?;
-    for _ in 0..3 {
-        write!(output, "\n› ")?;
-        output.flush()?;
-        let mut line = String::new();
-        if input.read_line(&mut line)? == 0 {
-            return Ok(None);
-        }
-        match census.choose(line.trim()) {
-            Ok(pref) => {
-                if let Some(home) = home
-                    && let Err(e) = pref.save(home)
-                {
-                    writeln!(
-                        output,
-                        "  (the choice could not be saved under ~/.nika: {e} · it holds for this session)"
-                    )?;
-                }
-                return Ok(Some(pref));
-            }
-            Err(why) => writeln!(output, "  {why}")?,
-        }
-    }
-    Ok(None)
-}
+use nika_cli_host::lane::{ChildSlot, drive_child};
+use nika_cli_host::lines::{PerCallLines, read_burst};
 
 /// The reasoner for a resolved choice — the seat, the provider, or none.
 fn reasoner_for(resolved: &ResolvedSessionIntelligence) -> Box<dyn SessionReasoner> {
     match &resolved.kind {
         #[cfg(feature = "access-harness")]
-        IntelligenceKind::Harness { seat } => {
-            Box::new(nika_session::reasoner::HarnessReasoner { seat: seat.clone() })
-        }
+        IntelligenceKind::Harness { seat } => Box::new(
+            nika_session::reasoner::HarnessReasoner { seat: seat.clone() }
+                .with_model(resolved.model.clone()),
+        ),
         #[cfg(not(feature = "access-harness"))]
         IntelligenceKind::Harness { .. } => Box::new(NoReasoner),
         IntelligenceKind::Api { provider } => Box::new(ProviderReasoner {
@@ -107,21 +80,23 @@ fn drive<R: BufRead, W: Write>(
     home: Option<&std::path::Path>,
     cwd: &std::path::Path,
     theme: Theme,
+    factory: nika_session::runtime::ReasonerFactory,
 ) -> std::io::Result<u8> {
-    let kept = home.and_then(UserIntelligencePreference::load);
-    let pref = if let Some(pref) = kept {
-        pref
-    } else if let Some(pref) = first_run(input, output, census, home)? {
-        pref
-    } else {
-        writeln!(
-            output,
-            "no choice made · `nika` asks again next time; the verbs stay: nika try · nika compile · nika check · nika run"
-        )?;
-        return Ok(exit::OK);
+    // The kept choice opens the session as chosen; without one the session
+    // opens all the same and asks the first screen in context, the first
+    // time a turn needs an intelligence.
+    let mut session = match home.and_then(UserIntelligencePreference::load) {
+        Some(pref) => SessionRuntime::open_with(cwd, census.clone(), &pref, home, factory),
+        None => SessionRuntime::open_unchosen(cwd, census.clone(), home, factory),
     };
-    let mut session =
-        SessionRuntime::open_with(cwd, census.clone(), &pref, home, Box::new(reasoner_for));
+    // This unmanaged interactive host has no configured hard-cap source.
+    // Project discovery is re-read by Session on review and confirmation.
+    if std::io::IsTerminal::is_terminal(&std::io::stdin())
+        && std::io::IsTerminal::is_terminal(&std::io::stdout())
+    {
+        session
+            .set_cost_host_evidence(nika_session::CostHostEvidence::unmanaged_interactive_local());
+    }
     // A truthful line while the compiler works under a seat — to the
     // terminal the human watches, never a percentage, never an ETA.
     session.on_progress(Box::new(|line| {
@@ -148,19 +123,23 @@ fn drive<R: BufRead, W: Write>(
         writeln!(output, "{notice}")?;
     }
     // The line goes where the MACHINE's state says (ADR-133 · #1464): the
-    // runtime owns what waits — a proposal, a gate, an authoring question
-    // (each its own prompt: a `yes` never crosses from one to another) —
-    // and the door keeps only the one bit that is its own, the first
-    // screen it asked again.
-    let mut choosing = false;
+    // runtime owns what waits — the first screen, a proposal, a gate, an
+    // authoring question (each its own prompt: a `yes` never crosses from
+    // one to another). The door keeps no bit of its own.
     loop {
-        let prompt = if choosing {
+        let prompt = if session.waiting_cost_choice() {
+            nika_cli_host::lines::fresh_terminal(output)?;
+            "continue once? › "
+        } else if session.pending_choice() {
             "› "
         } else if session.pending_proposal().is_some() {
             "apply? › "
         } else if session.waiting_gate().is_some() {
             "answer › "
-        } else if session.pending_question().is_some() || session.pending_input().is_some() {
+        } else if session.pending_question().is_some()
+            || session.pending_input().is_some()
+            || session.pending_activation().is_some()
+        {
             "reply › "
         } else {
             "nika › "
@@ -171,7 +150,9 @@ fn drive<R: BufRead, W: Write>(
         if input.read_line(&mut line)? == 0 {
             return Ok(exit::OK);
         }
-        let outcome = if std::mem::take(&mut choosing) {
+        let outcome = if session.waiting_cost_choice() {
+            session.turn(&line)
+        } else if session.pending_choice() {
             session.choose(line.trim())
         } else if session.pending_proposal().is_some() {
             session.consent(line.trim())
@@ -180,7 +161,7 @@ fn drive<R: BufRead, W: Write>(
         } else {
             session.turn(&line)
         };
-        if handle_outcome(output, &mut session, outcome, &mut choosing, theme)? {
+        if handle_outcome(output, &mut session, outcome, theme)? {
             return Ok(exit::OK);
         }
     }
@@ -193,19 +174,24 @@ fn handle_outcome<W: Write>(
     output: &mut W,
     session: &mut SessionRuntime,
     outcome: TurnOutcome,
-    choosing: &mut bool,
     theme: Theme,
 ) -> std::io::Result<bool> {
     match outcome {
         TurnOutcome::Quit => return Ok(true),
-        TurnOutcome::Reply(text) | TurnOutcome::Facts(text) | TurnOutcome::Help(text) => {
+        TurnOutcome::Reply(text)
+        | TurnOutcome::Facts(text)
+        | TurnOutcome::Help(text)
+        | TurnOutcome::Aside(text) => {
             if !text.is_empty() {
                 writeln!(output, "{text}")?;
             }
         }
-        TurnOutcome::Ask(screen) => {
-            *choosing = true;
-            writeln!(output, "{screen}")?;
+        TurnOutcome::Ask(screen) => writeln!(output, "{screen}")?,
+        // The choice landed and the line that waited for it resumed: the
+        // choice's fact first, then whatever that line became.
+        TurnOutcome::Resumed { notice, outcome } => {
+            writeln!(output, "{notice}")?;
+            return handle_outcome(output, session, *outcome, theme);
         }
         TurnOutcome::Proposal { preview, .. } | TurnOutcome::Held { preview, .. } => {
             writeln!(output, "{preview}")?;
@@ -242,60 +228,6 @@ fn handle_outcome<W: Write>(
         _ => {}
     }
     Ok(false)
-}
-
-/// A line source that takes its lock INSIDE each read and releases it
-/// before returning: the door never holds stdin across a turn, so a run it
-/// starts can ask its own gate on the same terminal (`ask_on_tty` locks
-/// stdin too — held across the loop, that lock never came back).
-struct PerCallLines<F> {
-    fill: F,
-    buf: Vec<u8>,
-    pos: usize,
-}
-
-impl<F> PerCallLines<F>
-where
-    F: FnMut(&mut Vec<u8>) -> std::io::Result<usize>,
-{
-    fn new(fill: F) -> Self {
-        Self {
-            fill,
-            buf: Vec::new(),
-            pos: 0,
-        }
-    }
-}
-
-impl<F> std::io::Read for PerCallLines<F>
-where
-    F: FnMut(&mut Vec<u8>) -> std::io::Result<usize>,
-{
-    fn read(&mut self, out: &mut [u8]) -> std::io::Result<usize> {
-        let available = self.fill_buf()?;
-        let n = available.len().min(out.len());
-        out[..n].copy_from_slice(&available[..n]);
-        self.consume(n);
-        Ok(n)
-    }
-}
-
-impl<F> BufRead for PerCallLines<F>
-where
-    F: FnMut(&mut Vec<u8>) -> std::io::Result<usize>,
-{
-    fn fill_buf(&mut self) -> std::io::Result<&[u8]> {
-        if self.pos >= self.buf.len() {
-            self.buf.clear();
-            self.pos = 0;
-            (self.fill)(&mut self.buf)?;
-        }
-        Ok(&self.buf[self.pos..])
-    }
-
-    fn consume(&mut self, amt: usize) {
-        self.pos = (self.pos + amt).min(self.buf.len());
-    }
 }
 
 /// Print what the session observed of a run; a gate's question is printed
@@ -379,6 +311,14 @@ fn run_once(
     (verdict.code, verdict.trace)
 }
 
+/// `NIKA_REDUCED_MOTION` (any non-empty value): the busy row changes only
+/// when the turn says something new, no seconds tick, no bell. A display
+/// choice, not a secret (the same allow `term_name` carries).
+#[allow(clippy::disallowed_methods)]
+fn reduced_motion() -> bool {
+    std::env::var("NIKA_REDUCED_MOTION").is_ok_and(|v| !v.trim().is_empty())
+}
+
 /// `TERM` as the renderer's probe reads it. The `disallowed_methods` ban on
 /// `std::env::var` routes SECRET lookups through the vault; a display
 /// capability variable is not a secret (the same allow `main.rs` carries).
@@ -387,28 +327,123 @@ fn term_name() -> Option<String> {
     std::env::var("TERM").ok()
 }
 
-/// Open the native session behind the terminal renderer (`nika --tui` ·
+/// The run inside the renderer's turn: this binary's own machine lane
+/// (`nika run --json`) as a child whose pipes never touch the terminal
+/// the viewport owns. Each frame the lane prints becomes one line of the
+/// run's story, handed to the busy sink as it happens and kept for the
+/// block the transcript commits; the exit code is the child's, the trace
+/// the settle frame names. A human gate pauses headless (exit 4): the
+/// session asks it in the viewport and the answer resumes through here.
+fn run_tapped(
+    root: &std::path::Path,
+    work: &nika_tui::session::Work,
+    busy: &std::sync::mpsc::Sender<String>,
+    slot: &ChildSlot,
+) -> (u8, Option<std::path::PathBuf>, Vec<String>) {
+    use nika_tui::session::Work;
+    let args = match work {
+        Work::Run(run) => {
+            nika_cli_host::lane::run_args(root, &run.workflow, run.max_cost_usd, &run.vars)
+        }
+        Work::Resume {
+            workflow,
+            trace,
+            answer,
+        } => nika_cli_host::lane::resume_args(root, workflow, trace, answer),
+        _ => {
+            return (
+                exit::ENV,
+                None,
+                vec!["a kind of work this door cannot run".into()],
+            );
+        }
+    };
+    let Ok(exe) = std::env::current_exe() else {
+        return (
+            exit::ENV,
+            None,
+            vec!["this binary cannot name itself".to_owned()],
+        );
+    };
+    drive_child(&exe, &args, root, busy, slot)
+}
+
+/// Open the native session behind the terminal renderer (bare `nika` on a terminal ·
 /// ADR-139 · UX-2): the same runtime, the same census and kept choice, the
-/// same two run paths lent as runners; the renderer owns the terminal and
-/// hands it back around each run.
+/// same two run paths lent as runners, and the tapped runner that keeps
+/// the terminal: a run shows inside the viewport, its gate asks there.
+///
+/// A terminal the renderer cannot take (`TERM=dumb` · one that never
+/// answers the cursor-position report the inline viewport anchors on)
+/// gets the plain session instead — the same session, said once on
+/// stderr, never a dead door (UX-2 · the terminal matrix).
 #[must_use]
 pub fn run_tui(theme: Theme) -> u8 {
     use nika_tui::session::{Live, Runners};
+    let mut options = nika_tui::app::Options::new(nika_tui::model::Presentation::Inline);
+    options.color = theme.color;
+    options.term = term_name();
+    options.reduced_motion = reduced_motion();
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    options.title = Some(format!(
+        "nika · {}",
+        cwd.file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("session")
+    ));
+    let taken = match nika_tui::app::enter(&options) {
+        Ok(taken) => taken,
+        Err(error) => {
+            let _ = writeln!(
+                std::io::stderr(),
+                "nika: the renderer cannot take this terminal ({error}) · the plain session opens instead"
+            );
+            return run(theme);
+        }
+    };
     let census = IntelligenceCensus::take();
     let home = nika_cli_host::probe::home_dir();
-    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     let kept = home.as_deref().and_then(UserIntelligencePreference::load);
+    let child: ChildSlot = std::sync::Arc::new(std::sync::Mutex::new(None));
+    let slot = std::sync::Arc::clone(&child);
     let runners = Runners {
         run_once: Box::new(move |root, run| run_once(root, run, theme)),
         run_resume: Box::new(move |root, workflow, trace, answer| {
             run_resume(root, workflow, trace, answer, theme)
         }),
+        run_tapped: Some(Box::new(move |root, work, busy| {
+            run_tapped(root, work, busy, &slot)
+        })),
     };
-    let live = Live::new(cwd, census, kept, home, Box::new(reasoner_for), runners);
-    let mut options = nika_tui::app::Options::new(nika_tui::model::Presentation::Inline);
-    options.color = theme.color;
-    options.term = term_name();
-    match nika_tui::app::run(live, options) {
+    let slot = std::sync::Arc::clone(&child);
+    let live = Live::new(cwd, census, kept, home, Box::new(reasoner_for), runners)
+        .with_cost_host_evidence(nika_session::CostHostEvidence::unmanaged_interactive_local())
+        .with_run_review(Box::new(move |root, run, busy| {
+            let args =
+                nika_cli_host::lane::run_args(root, &run.workflow, run.max_cost_usd, &run.vars);
+            match std::env::current_exe() {
+                Ok(exe) => {
+                    nika_cli_host::lane::drive_reviewed_child(&exe, &args, root, busy, &slot)
+                }
+                Err(e) => nika_cli_host::lane::RunProgress::Complete((
+                    exit::ENV,
+                    None,
+                    vec![e.to_string()],
+                )),
+            }
+        }));
+    let left = nika_tui::app::run_on(taken, live, options);
+    // A run still in flight when the door leaves is ended, never orphaned:
+    // the engine cancels on SIGTERM and its trace says so.
+    if let Some(pid) = child.lock().ok().and_then(|guard| *guard)
+        && let Ok(pid) = i32::try_from(pid)
+    {
+        let _ = nix::sys::signal::kill(
+            nix::unistd::Pid::from_raw(pid),
+            nix::sys::signal::Signal::SIGTERM,
+        );
+    }
+    match left {
         Ok(left) => left.code(),
         Err(error) => {
             let _ = writeln!(std::io::stderr(), "nika: {error}");
@@ -420,8 +455,7 @@ pub fn run_tui(theme: Theme) -> u8 {
 /// Open the native session on this terminal.
 #[must_use]
 pub fn run(theme: Theme) -> u8 {
-    let mut input =
-        PerCallLines::new(|buf: &mut Vec<u8>| std::io::stdin().lock().read_until(b'\n', buf));
+    let mut input = PerCallLines::new(read_burst);
     let mut output = std::io::stdout();
     let census = IntelligenceCensus::take();
     let home = nika_cli_host::probe::home_dir();
@@ -433,6 +467,7 @@ pub fn run(theme: Theme) -> u8 {
         home.as_deref(),
         &cwd,
         theme,
+        Box::new(reasoner_for),
     ) {
         Ok(code) => code,
         Err(error) => {
@@ -464,6 +499,7 @@ mod tests {
                 Some(home.path()),
                 project.path(),
                 Theme::new(false, false, false),
+                Box::new(reasoner_for),
             )
             .expect("drive");
             (code, String::from_utf8(output).expect("text"))
@@ -490,11 +526,13 @@ mod tests {
         );
     }
 
-    /// The first run asks, keeps the answer under the home, opens the
-    /// session, answers a fact without any model, and closes on `/quit`.
-    /// Nothing is written into the project.
+    /// The first run opens at once on the human's question, answers a fact
+    /// without any model or setup, asks the first screen only when a turn
+    /// needs an intelligence (a typo keeps the request waiting), keeps the
+    /// answer under the home and resumes that very line. Nothing is
+    /// written into the project.
     #[test]
-    fn the_first_run_asks_once_then_the_facts_answer() {
+    fn the_first_run_opens_at_once_and_asks_only_when_a_turn_needs_it() {
         let home = tempfile::tempdir().expect("home");
         let project = tempfile::tempdir().expect("project");
         std::fs::write(
@@ -503,7 +541,9 @@ mod tests {
         )
         .expect("workflow");
         let census = IntelligenceCensus::empty();
-        let mut input = Cursor::new(b"9\n4\nwhat workflows are here?\n/quit\n".to_vec());
+        let mut input = Cursor::new(
+            b"what workflows are here?\nhello there, how are you today?\n9\n4\n/quit\n".to_vec(),
+        );
         let mut output = Vec::new();
         let code = drive(
             &mut input,
@@ -512,18 +552,31 @@ mod tests {
             Some(home.path()),
             project.path(),
             Theme::new(false, false, false),
+            Box::new(reasoner_for),
         )
         .expect("io");
         assert_eq!(code, exit::OK);
         let text = String::from_utf8(output).expect("utf8");
         assert!(
-            text.contains("Choose which AI answers your questions here"),
-            "{text}"
+            text.contains("What do you want to automate?"),
+            "the session opens on the question: {text}"
+        );
+        assert!(!text.contains("nika · session"), "no engine banner: {text}");
+        let fact = text.find("hello.nika").expect("the fact answers");
+        let ask = text
+            .find("Nika needs an intelligence for this part")
+            .expect("the first screen is asked in context");
+        assert!(fact < ask, "the fact answered before any choice: {text}");
+        assert!(
+            !text[..ask].contains("Choose which AI"),
+            "nothing was asked before a turn needed it: {text}"
         );
         assert!(text.contains("`9` is not a choice"), "{text}");
-        assert!(text.contains("nika · session"), "{text}");
         assert!(text.contains("no conversational AI"), "{text}");
-        assert!(text.contains("hello.nika"), "the fact answers: {text}");
+        assert!(
+            text.contains("the facts still answer"),
+            "the waiting line resumed under the choice: {text}"
+        );
         assert!(
             UserIntelligencePreference::load(home.path()).is_some(),
             "the choice holds"
@@ -552,11 +605,13 @@ mod tests {
             Some(home.path()),
             project.path(),
             Theme::new(false, false, false),
+            Box::new(reasoner_for),
         )
         .expect("io");
         assert_eq!(code, exit::OK, "EOF closes the session cleanly");
         let text = String::from_utf8(output).expect("utf8");
         assert!(!text.contains("Choose which AI"), "{text}");
+        assert!(!text.contains("Nika needs an intelligence"), "{text}");
         assert!(text.contains("/intelligence"), "the help card: {text}");
     }
 
@@ -599,6 +654,7 @@ mod tests {
             Some(home.path()),
             project.path(),
             Theme::new(false, false, false),
+            Box::new(reasoner_for),
         )
         .expect("io");
         assert_eq!(code, exit::OK);
@@ -611,5 +667,8 @@ mod tests {
     }
 }
 
+#[cfg(test)]
+#[cfg(unix)]
+mod fresh_tests;
 #[cfg(test)]
 mod run_tests;

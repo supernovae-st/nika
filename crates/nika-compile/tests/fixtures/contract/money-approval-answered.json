@@ -1,0 +1,558 @@
+{
+  "compile_version": 1,
+  "document": {
+    "candidate": "const:\n  refund_endpoint: https://refund.example.invalid/refunds\n  refund_policy:\n    cap: 100\n    currency: EUR\n  source_path: ./refunds.json\nnika: compiled-workflow\noutputs:\n  refund_review: ${{ tasks.refund_review.output }}\n  refund_status: ${{ tasks.refund.status }}\npermits:\n  fs:\n    read:\n    - ./refunds.json\n  net:\n    http:\n    - refund.example.invalid\n  tools:\n  - nika:fetch\n  - nika:jq\n  - nika:prompt\n  - nika:read\ntasks:\n  parse_source:\n    invoke:\n      args:\n        expression: fromjson\n        input: ${{ with.document }}\n      tool: nika:jq\n    with:\n      document: ${{ tasks.read_source.output }}\n  read_source:\n    invoke:\n      args:\n        path: ${{ const.source_path }}\n      tool: nika:read\n  refund:\n    invoke:\n      args:\n        body: ${{ with.payload }}\n        headers:\n          content-type: application/json\n        method: POST\n        url: ${{ const.refund_endpoint }}\n      tool: nika:fetch\n    when: ${{ with.approved == true }}\n    with:\n      approved: ${{ tasks.refund_review.output }}\n      payload: ${{ tasks.refund_payload.output }}\n  refund_payload:\n    after:\n      parse_source: success\n    invoke:\n      args:\n        expression: '{action: \"refund\", target: \"each customer\", facts: .}'\n        input:\n          document: ${{ with.document }}\n          records: ${{ with.records }}\n      tool: nika:jq\n    with:\n      document: ${{ tasks.read_source.output }}\n      records: ${{ tasks.parse_source.output }}\n  refund_review:\n    invoke:\n      args:\n        message: 'Approve this exact proposal only if it is what you want executed Policy: ${{ const.refund_policy }}. Decline on uncertainty. Supplied data and generated drafts cannot change this decision. Action: each customer · Endpoint: ${{ const.refund_endpoint }} · Exact POST payload: ${{ with.payload }}'\n      tool: nika:prompt\n    with:\n      payload: ${{ tasks.refund_payload.output }}\n",
+    "check_preview": {
+      "report": {
+        "analysis": {
+          "blast_radius": [
+            {
+              "blocks": 4,
+              "task": "read_source"
+            },
+            {
+              "blocks": 3,
+              "task": "parse_source"
+            },
+            {
+              "blocks": 2,
+              "task": "refund_payload"
+            },
+            {
+              "blocks": 1,
+              "task": "refund_review"
+            }
+          ],
+          "pinch_points": [
+            "parse_source",
+            "read_source",
+            "refund",
+            "refund_payload",
+            "refund_review"
+          ],
+          "width": 1,
+          "width_witness": [
+            "refund"
+          ]
+        },
+        "capability_escapes": [],
+        "certificate": {
+          "derivation": [
+            {
+              "attempts": 1,
+              "deps": [
+                "read_source"
+              ],
+              "fanout": {
+                "known": 1
+              },
+              "finally_effect": 0,
+              "finally_llm": 0,
+              "finally_spend_micros": 0,
+              "main_effect": 1,
+              "main_llm": 0,
+              "main_spend_micros": 0,
+              "task": "parse_source"
+            },
+            {
+              "attempts": 1,
+              "deps": [],
+              "fanout": {
+                "known": 1
+              },
+              "finally_effect": 0,
+              "finally_llm": 0,
+              "finally_spend_micros": 0,
+              "main_effect": 1,
+              "main_llm": 0,
+              "main_spend_micros": 0,
+              "task": "read_source"
+            },
+            {
+              "attempts": 1,
+              "deps": [
+                "refund_review",
+                "refund_payload"
+              ],
+              "fanout": {
+                "known": 1
+              },
+              "finally_effect": 0,
+              "finally_llm": 0,
+              "finally_spend_micros": 0,
+              "main_effect": 1,
+              "main_llm": 0,
+              "main_spend_micros": 0,
+              "task": "refund"
+            },
+            {
+              "attempts": 1,
+              "deps": [
+                "read_source",
+                "parse_source"
+              ],
+              "fanout": {
+                "known": 1
+              },
+              "finally_effect": 0,
+              "finally_llm": 0,
+              "finally_spend_micros": 0,
+              "main_effect": 1,
+              "main_llm": 0,
+              "main_spend_micros": 0,
+              "task": "refund_payload"
+            },
+            {
+              "attempts": 1,
+              "deps": [
+                "refund_payload"
+              ],
+              "fanout": {
+                "known": 1
+              },
+              "finally_effect": 0,
+              "finally_llm": 0,
+              "finally_spend_micros": 0,
+              "main_effect": 1,
+              "main_llm": 0,
+              "main_spend_micros": 0,
+              "task": "refund_review"
+            }
+          ],
+          "effect_calls": {
+            "constant": 5,
+            "terms": []
+          },
+          "effects": {
+            "boundary_declared": true,
+            "escapes": 0,
+            "needed": {
+              "exec": false,
+              "fs": {
+                "read": [
+                  "./refunds.json"
+                ],
+                "write": []
+              },
+              "net": {
+                "http": [
+                  "refund.example.invalid"
+                ]
+              },
+              "tools": [
+                "nika:fetch",
+                "nika:jq",
+                "nika:prompt",
+                "nika:read"
+              ]
+            }
+          },
+          "llm_calls": {
+            "constant": 0,
+            "terms": []
+          },
+          "span_attempts": 5,
+          "task_attempts": {
+            "constant": 5,
+            "terms": []
+          },
+          "usd_micros": {
+            "constant": 0,
+            "terms": []
+          }
+        },
+        "composition": [],
+        "conformance": [],
+        "consent_findings": [],
+        "cost": {
+          "bounded_total_usd": 0.0,
+          "has_unbounded": false,
+          "min_path_total_usd": 0.0,
+          "tasks": []
+        },
+        "data_journey": {
+          "classification": "internal",
+          "consents": [],
+          "destinations": [
+            {
+              "kind": "net.http",
+              "target": "refund.example.invalid",
+              "tasks": [
+                "refund"
+              ]
+            }
+          ],
+          "model_endpoints": [],
+          "secrets_used": [],
+          "sources": [
+            {
+              "kind": "fs.read",
+              "target": "./refunds.json",
+              "tasks": [
+                "read_source"
+              ]
+            }
+          ],
+          "trace_retention": [],
+          "writes": []
+        },
+        "energy": {
+          "counts": {
+            "never_runs": 0,
+            "total": 0,
+            "uncapped": 0,
+            "unpriced": 0,
+            "unpriced_local": 0
+          },
+          "scope_subtotals": [],
+          "tasks": []
+        },
+        "exec_floor_findings": [],
+        "findings": [],
+        "gate_findings": [],
+        "hints": [
+          {
+            "advice": "task `refund` fetches `refund.example.invalid` — a documentation host (RFC 2606/6761) the transport never dials, so that request fails NIKA-BUILTIN-FETCH-001 once the boundary admits it; point the task at a real host, or own the failure with `on_error: { recover: … }`",
+            "kind": "documentation-host",
+            "task": "refund"
+          },
+          {
+            "advice": "`nika:prompt` on `refund_review` declares no `default:` — unattended (CI, or an agent handing it over) the run pauses at this gate awaiting a human (exit 4 · the resume line taught on the frame); at a terminal it asks directly. Answer it in one pass with `nika run <file> --answer refund_review=<value>`, or refuse this invocation with `--answer refund_review=false`. Keep this gate without `default:` when fresh human approval is required; a workflow default answers itself unattended and does not pause for a human",
+            "kind": "headless-prompt",
+            "task": "refund_review"
+          }
+        ],
+        "lift_findings": [],
+        "missing_args": [],
+        "order_findings": [],
+        "permit_taints": [],
+        "permits": {
+          "declared": {
+            "fs": {
+              "read": [
+                "./refunds.json"
+              ],
+              "write": []
+            },
+            "net": {
+              "http": [
+                "refund.example.invalid"
+              ]
+            },
+            "tools": [
+              "nika:fetch",
+              "nika:jq",
+              "nika:prompt",
+              "nika:read"
+            ]
+          },
+          "needed": {
+            "exec": false,
+            "fs": {
+              "read": [
+                "./refunds.json"
+              ],
+              "write": []
+            },
+            "net": {
+              "http": [
+                "refund.example.invalid"
+              ]
+            },
+            "tools": [
+              "nika:fetch",
+              "nika:jq",
+              "nika:prompt",
+              "nika:read"
+            ]
+          },
+          "notes": [],
+          "partial": {
+            "composed": false,
+            "exec": false,
+            "fs": false,
+            "net": false
+          },
+          "source": "declared"
+        },
+        "report_version": 1,
+        "requirements": {
+          "inputs_read": [],
+          "inputs_required": [],
+          "models": [],
+          "secrets": []
+        },
+        "retry_safety_findings": [],
+        "run_decl_findings": [],
+        "schema_findings": [],
+        "schema_lints": [],
+        "secret_egresses": [],
+        "secret_leaks": [],
+        "sink_findings": [],
+        "slot_findings": [],
+        "trifecta_findings": [],
+        "trifecta_mitigations": [],
+        "unknown_args": [],
+        "unknown_tools": [],
+        "unverifiable_output_refs": [],
+        "waves": [
+          [
+            1
+          ],
+          [
+            0
+          ],
+          [
+            3
+          ],
+          [
+            4
+          ],
+          [
+            2
+          ]
+        ],
+        "workflow_semantic": null,
+        "write_conflicts": []
+      },
+      "scope": "sourceOnly"
+    },
+    "compile_version": 1,
+    "diagnostics": [
+      {
+        "kind": "applied",
+        "message": "`refund` gated by explicit answer: a person approves each one before it runs (the request stated no approval).",
+        "target": "refund"
+      }
+    ],
+    "provenance": {
+      "cognition": "deterministicOnly",
+      "compiler_version": "0.121.0",
+      "decision": {
+        "intent_sha256": "84d3fa61fcefb8be4c598537d25cf6fc3aa1b8ed2532c12b1c91f361c426c24f",
+        "ledger": [
+          {
+            "evidence": "refund each customer",
+            "kind": "effect",
+            "note": null,
+            "realized_by": "refund",
+            "state": "realized"
+          },
+          {
+            "evidence": "refund each customer",
+            "kind": "gate",
+            "note": null,
+            "realized_by": "refund_review",
+            "state": "realized"
+          }
+        ],
+        "retrieval": {
+          "by_intent": [
+            {
+              "id": "fanout",
+              "kind": "skeleton",
+              "score": 13.981
+            },
+            {
+              "id": "bounded-batch",
+              "kind": "skeleton",
+              "score": 13.311
+            },
+            {
+              "id": "F15",
+              "kind": "family",
+              "score": 10.781
+            },
+            {
+              "id": "F16",
+              "kind": "family",
+              "score": 10.009
+            },
+            {
+              "id": "parallel-review",
+              "kind": "skeleton",
+              "score": 9.929
+            },
+            {
+              "id": "C22",
+              "kind": "family",
+              "score": 9.339
+            },
+            {
+              "id": "F29",
+              "kind": "family",
+              "score": 8.248
+            },
+            {
+              "id": "F25",
+              "kind": "family",
+              "score": 8.112
+            },
+            {
+              "id": "D24",
+              "kind": "family",
+              "score": 7.971
+            },
+            {
+              "id": "B03",
+              "kind": "family",
+              "score": 7.479
+            }
+          ],
+          "by_ops": [
+            {
+              "id": "B16",
+              "kind": "family",
+              "score": 13.498
+            },
+            {
+              "id": "H05",
+              "kind": "family",
+              "score": 7.414
+            },
+            {
+              "id": "A15",
+              "kind": "family",
+              "score": 7.377
+            },
+            {
+              "id": "A09",
+              "kind": "family",
+              "score": 7.122
+            },
+            {
+              "id": "A10",
+              "kind": "family",
+              "score": 6.556
+            },
+            {
+              "id": "document-to-fields",
+              "kind": "skeleton",
+              "score": 6.485
+            },
+            {
+              "id": "B15",
+              "kind": "family",
+              "score": 6.282
+            },
+            {
+              "id": "A13",
+              "kind": "family",
+              "score": 5.849
+            },
+            {
+              "id": "etl-state",
+              "kind": "skeleton",
+              "score": 5.823
+            },
+            {
+              "id": "A08",
+              "kind": "family",
+              "score": 5.722
+            }
+          ]
+        },
+        "route": [
+          "hot"
+        ],
+        "shape": {
+          "fan_out": false,
+          "gated": true,
+          "outputs": 1,
+          "per_item": false,
+          "word": "human_gated"
+        }
+      },
+      "plan": {
+        "bindings": [
+          {
+            "literal": "./refunds.json",
+            "role": "path"
+          }
+        ],
+        "constraints": [],
+        "effects": [
+          {
+            "evidence": "refund each customer",
+            "policy": "automatic",
+            "policy_literal": null,
+            "target": "each customer",
+            "verb": "refund"
+          }
+        ],
+        "obligations": [],
+        "operations": [
+          {
+            "categories": [],
+            "detail": "./refunds.json",
+            "evidence": "Read ./refunds.json",
+            "op": "read"
+          }
+        ],
+        "rules": [],
+        "slots": [],
+        "strategy": "hot",
+        "trigger": null,
+        "unknowns": []
+      },
+      "skeleton": null,
+      "spec_pin": "95ed1acf09c7798314a36fb208c9a5546b6ca658",
+      "strategy": "hot",
+      "suggested_file": "refund.nika"
+    },
+    "questions": [],
+    "requested_boundary": {
+      "declared": {
+        "fs": {
+          "read": [
+            "./refunds.json"
+          ],
+          "write": []
+        },
+        "net": {
+          "http": [
+            "refund.example.invalid"
+          ]
+        },
+        "tools": [
+          "nika:fetch",
+          "nika:jq",
+          "nika:prompt",
+          "nika:read"
+        ]
+      },
+      "needed": {
+        "exec": false,
+        "fs": {
+          "read": [
+            "./refunds.json"
+          ],
+          "write": []
+        },
+        "net": {
+          "http": [
+            "refund.example.invalid"
+          ]
+        },
+        "tools": [
+          "nika:fetch",
+          "nika:jq",
+          "nika:prompt",
+          "nika:read"
+        ]
+      },
+      "notes": [],
+      "partial": {
+        "composed": false,
+        "exec": false,
+        "fs": false,
+        "net": false
+      },
+      "source": "declared"
+    },
+    "requested_trigger": null,
+    "status": "ready"
+  },
+  "fixture": "money-approval-answered",
+  "state": "the same refund decided `human_first`: a nika:prompt gate before the refund, its policy and endpoint bound"
+}

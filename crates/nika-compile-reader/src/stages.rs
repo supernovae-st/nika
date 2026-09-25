@@ -219,7 +219,28 @@ const ONLY_WORDS: &[&str] = &[
 /// Words a top-N clause may carry between its number and its measure.
 const TOPN_FILLERS: &[&str] = &[
     "with", "having", "by", "avec", "au", "a", "aux", "con", "por", "per", "dal", "dalla", "del",
-    "della", "mit", "plus", "most", "the", "value", "values", "valeur", "valeurs",
+    "della", "mit", "plus", "most", "the", "value", "values", "valeur", "valeurs", "first",
+    "d'abord", "en", "premier", "primero", "prima", "zuerst", "primeiro",
+];
+/// The words an identity tail opens with (« same columns », « mêmes colonnes », « mismas
+/// columnas »): the stage is complete, the rest states what it keeps by construction.
+const IDENTITY_LEADS: &[&str] = &[
+    "same",
+    "memes",
+    "meme",
+    "mismas",
+    "mismo",
+    "misma",
+    "stesse",
+    "stesso",
+    "denselben",
+    "dieselben",
+    "gleichen",
+    "gleiche",
+    "mesmas",
+    "mesma",
+    "identiques",
+    "unchanged",
 ];
 /// A rank word: the measure's highest values first (`true`) or lowest first (`false`).
 const RANK_HIGH: &[&str] = &[
@@ -334,6 +355,34 @@ const UNIQUE_WORDS: &[&str] = &[
     "eindeutige",
     "eindeutigen",
 ];
+
+/// The verbs of a rename, six languages ("rename", "renomme", "renombra", "rinomina",
+/// "benenne", "renomeia"), unaccented as the folded word.
+const RENAME_VERBS: &[&str] = &[
+    "rename",
+    "renames",
+    "renomme",
+    "renommez",
+    "renommer",
+    "renombra",
+    "renombre",
+    "renombrar",
+    "rinomina",
+    "rinominare",
+    "benenne",
+    "umbenennen",
+    "renomeia",
+    "renomeie",
+    "renomear",
+];
+/// The word between the old name and the new one ("rename country to region", "renomme
+/// country en region", "renombra country a region", "rinomina country in region",
+/// "benenne country in region um", "renomeia country para region").
+const RENAME_TO: &[&str] = &[
+    "to", "as", "en", "a", "in", "para", "als", "zu", "nach", "como",
+];
+/// A particle a rename may end with ("benenne … um").
+const RENAME_TAILS: &[&str] = &["um"];
 
 const JOIN_VERBS: &[&str] = &[
     "merge",
@@ -588,6 +637,18 @@ fn rank(folded: &str) -> Option<bool> {
     }
 }
 
+/// A count stated as digits or as a number word (« five », « cinq », « fünf »).
+fn count(folded: &str) -> Option<u32> {
+    folded
+        .parse::<u32>()
+        .ok()
+        .or_else(|| super::lexicon::number_word(folded))
+}
+
+/// The words that lead a measure after an entity noun (« issues by rating », « corredores
+/// por tiempo », « Kunden nach Umsatz »).
+const MEASURE_LEADS: &[&str] = &["by", "par", "por", "per", "nach", "selon", "según", "segun"];
+
 /// The first N rows by a measure ("keep the 2 rows with the highest amount", "the top 3 rows
 /// by amount", "garde les 2 lignes au montant le plus élevé"): a number, a row noun, one
 /// column and a rank word saying which end comes first. "keep the best rows" has no number
@@ -597,7 +658,7 @@ fn top_n(words: &[Word], columns: &[String]) -> Option<Shape> {
     let mut descending = None;
     while let Some(word) = words.get(at) {
         let folded = word.folded.as_str();
-        if folded.parse::<u32>().is_ok() {
+        if count(folded).is_some() {
             break;
         }
         if folded == "top" {
@@ -610,7 +671,7 @@ fn top_n(words: &[Word], columns: &[String]) -> Option<Shape> {
         }
         at += 1;
     }
-    let n: u32 = folded(words, at)?.parse().ok()?;
+    let n: u32 = count(folded(words, at)?)?;
     if n == 0 {
         return None;
     }
@@ -622,13 +683,21 @@ fn top_n(words: &[Word], columns: &[String]) -> Option<Shape> {
         descending = Some(d);
         at += 1;
     }
-    if !is(words, at, ROW_WORDS) {
+    // A row noun (« rows », « lignes »), or the entity the rows are (« issues », « clients »)
+    // when a measure follows it (« by rating », « par montant »).
+    let entity = !is(words, at, ROW_WORDS)
+        && folded(words, at).is_some_and(|w| w.chars().all(char::is_alphabetic))
+        && folded(words, at + 1).is_some_and(|w| MEASURE_LEADS.contains(&w));
+    if !(is(words, at, ROW_WORDS) || entity) {
         return None;
     }
     at += 1;
     let mut field = None;
     for word in words.get(at..)? {
         let folded = word.folded.as_str();
+        if IDENTITY_LEADS.contains(&folded) && field.is_some() {
+            break;
+        }
         if let Some(d) = rank(folded) {
             if descending.is_some_and(|x| x != d) {
                 return None;
@@ -794,6 +863,37 @@ pub(crate) fn join_without_key(text: &str) -> bool {
         })
 }
 
+/// A rename of one column ("rename the country column to region", "renomme la colonne
+/// country en region", "benenne die Spalte country in region um"): the old name is a column
+/// of the hint or a name-shaped word, the new name a name-shaped word the request states;
+/// nothing else may follow. Without both names, `None`: the human is asked.
+fn rename(words: &[Word], columns: &[String]) -> Option<Shape> {
+    if !is(words, 0, RENAME_VERBS) {
+        return None;
+    }
+    let mut at = 1;
+    skip(words, &mut at, DETERMINERS);
+    skip(words, &mut at, COLUMN_WORDS);
+    let from = column(words.get(at)?, columns)?;
+    at += 1;
+    skip(words, &mut at, COLUMN_WORDS);
+    if !is(words, at, RENAME_TO) {
+        return None;
+    }
+    at += 1;
+    skip(words, &mut at, DETERMINERS);
+    skip(words, &mut at, COLUMN_WORDS);
+    // The new name is what the request writes: never hinted, name-shaped.
+    let to = column(words.get(at)?, &[])?;
+    at += 1;
+    skip(words, &mut at, COLUMN_WORDS);
+    skip(words, &mut at, RENAME_TAILS);
+    (at == words.len() && from != to).then(|| Shape {
+        renames: vec![(from, to)],
+        ..Shape::default()
+    })
+}
+
 /// The stage one whole segment states, or `None` when no closed form reads it whole.
 pub(crate) fn stated(text: &str, columns: &[String]) -> Option<Shape> {
     let words = words(text);
@@ -806,6 +906,7 @@ pub(crate) fn stated(text: &str, columns: &[String]) -> Option<Shape> {
         .or_else(|| projection(&words, columns))
         .or_else(|| dedup(&words))
         .or_else(|| join(&words, columns))
+        .or_else(|| rename(&words, columns))
 }
 
 #[cfg(test)]
@@ -869,6 +970,41 @@ mod tests {
     }
 
     #[test]
+    fn a_rename_names_the_old_column_and_the_new_name_in_six_languages() {
+        let renamed = Some(
+            ".records | map(with_entries(if .key == \"country\" then .key = \"region\" else . end))"
+                .to_owned(),
+        );
+        for text in [
+            "rename the country column to region",
+            "rename country to region",
+            "renomme la colonne country en region",
+            "renombra la columna country a region",
+            "rinomina la colonna country in region",
+            "benenne die Spalte country in region um",
+            "renomeia a coluna country para region",
+        ] {
+            assert_eq!(lowered(text), renamed, "{text}");
+        }
+        // A columns hint fixes the spelling of the old name; the new name is the request's.
+        let hint = cols(&["date", "Country", "Amount"]);
+        assert_eq!(
+            stated("rename the country column to region", &hint).map(|s| s.renames),
+            Some(vec![("Country".to_owned(), "region".to_owned())])
+        );
+        assert_eq!(stated("rename the city column to region", &hint), None);
+        for none in [
+            "rename the country column",
+            "rename to region",
+            "rename the country column to region and the city column to town",
+            "rename the country column to the same country",
+            "rename the country column to region please",
+        ] {
+            assert_eq!(stated(none, &[]), None, "{none}");
+        }
+    }
+
+    #[test]
     fn a_sort_names_its_key_and_its_direction() {
         let desc = Some(".records | sort_by(.amount | tonumber? // .) | reverse".to_owned());
         assert_eq!(lowered("sort the rows by amount descending"), desc);
@@ -906,6 +1042,20 @@ mod tests {
         let top2 =
             Some(".records | sort_by(.amount | tonumber? // .) | reverse | .[:2]".to_owned());
         assert_eq!(lowered("keep the 2 rows with the highest amount"), top2);
+        // A number word, an entity noun before the measure, « first » after the rank word,
+        // and an identity tail the stage keeps by construction.
+        assert_eq!(
+            stated(
+                "top five issues by rating, highest first, same columns",
+                &[]
+            )
+            .map(|s| s.lower(".records".to_owned())),
+            Some(".records | sort_by(.rating | tonumber? // .) | reverse | .[:5]".to_owned())
+        );
+        assert_eq!(
+            lowered("keep the top three rows by amount"),
+            Some(".records | sort_by(.amount | tonumber? // .) | reverse | .[:3]".to_owned())
+        );
         assert_eq!(
             lowered("keep only the 2 rows with the largest amount"),
             top2

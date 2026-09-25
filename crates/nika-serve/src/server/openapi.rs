@@ -21,6 +21,17 @@ pub(crate) fn document() -> Value {
     })
 }
 
+/// The document this server serves: a server that seats native authoring also publishes the
+/// generation-2 compile contract; every other server serves [`document`], the committed one.
+pub(crate) fn live(native: bool) -> Value {
+    let document = document();
+    if native {
+        super::compile::schema::native(document)
+    } else {
+        document
+    }
+}
+
 fn components() -> Value {
     json!({
         "securitySchemes": {

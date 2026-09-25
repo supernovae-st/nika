@@ -413,6 +413,9 @@ struct RunArgs {
     /// Machine NDJSON: compact events or one pre-run refusal object, never pretty JSON.
     #[arg(long)]
     json: bool,
+    /// Negotiate a fresh one-use local cost review over stdio; never approves a charge.
+    #[arg(long, requires = "json", conflicts_with_all = ["inputs_json", "resume", "dry_run"])]
+    cost_review_stdio: bool,
     /// Print the typed `outputs:` as ONE JSON object on stdout
     /// (progress → stderr) · the export contract · powers
     /// `exec: nika run sub.yaml --output json` + `capture: stdout`.
@@ -444,8 +447,8 @@ struct RunArgs {
     model: Option<String>,
     /// Pin the ACCESS path (`model:` picks the intelligence; access
     /// picks the path) — either a class (`local` · `mock` · `harness` ·
-    /// `oauth` · `api`) or a harness seat (`claude-code` · `codex` ·
-    /// `gemini-cli` · `kimi-code` · `qwen-code`). Retired ACP wrapper
+    /// `oauth` · `api`) or a harness seat (`claude-code` · `codex` · `copilot` ·
+    /// `gemini-cli` · `grok-build` · `kimi-code` · `opencode` · `qwen-code`). Retired ACP wrapper
     /// ids (`claude-agent-acp` · `codex-acp`) refuse with NIKA-1802. A
     /// pin is a pin: unsatisfied refuses before the prologue with a
     /// witness, never substitutes another path or model (D-2026-08-04-N1).
@@ -644,13 +647,25 @@ fn sdk_identity() -> std::process::ExitCode {
     std::process::ExitCode::SUCCESS
 }
 
+/// `NIKA_TUI=0` (or `off` · `false` · `plain`) keeps bare `nika` on the plain
+/// line loop: flat text for a screen reader, a recorder, a harness. A
+/// display choice, not a secret (the same allow the theme probes carry).
+#[allow(clippy::disallowed_methods)]
+fn plain_session_requested() -> bool {
+    std::env::var("NIKA_TUI").is_ok_and(|v| {
+        matches!(
+            v.trim().to_ascii_lowercase().as_str(),
+            "0" | "off" | "false" | "no" | "plain"
+        )
+    })
+}
+
 /// Bare `nika` (the session on a terminal · the concierge on a pipe), `nika --json`, `nika version` — decided
 /// before clap so a missing subcommand never clap-fails the front door.
 fn front_door(argv: &[std::ffi::OsString]) -> Option<std::process::ExitCode> {
     let mut json = false;
     let mut ascii = false;
     let mut saw_fix = false;
-    let mut tui = false;
     let mut positional: Vec<&std::ffi::OsStr> = Vec::new();
     let mut skip_value = false;
     for arg in argv {
@@ -662,7 +677,6 @@ fn front_door(argv: &[std::ffi::OsString]) -> Option<std::process::ExitCode> {
             Some("--json") => json = true,
             Some("--plain" | "--ascii") => ascii = true,
             Some("--fix") => saw_fix = true,
-            Some("--tui") => tui = true,
             Some("--color" | "--hyperlink") => skip_value = true,
             Some(s) if s.starts_with("--color=") || s.starts_with("--hyperlink=") => {}
             _ => positional.push(arg),
@@ -685,12 +699,17 @@ fn front_door(argv: &[std::ffi::OsString]) -> Option<std::process::ExitCode> {
             // session; a pipe keeps the deterministic concierge (exit 0).
             let interactive =
                 !json && std::io::stdin().is_terminal() && std::io::stdout().is_terminal();
-            // `--tui` (ADR-139 · UX-2): the same session behind the renderer,
-            // an explicit door while the plain loop's goldens stay the law.
-            Some(if interactive && tui {
-                std::process::ExitCode::from(verbs::session::run_tui(interactive_theme(theme)))
-            } else if interactive {
+            // ADR-139 · UX-2 · one gesture: on a real terminal the session
+            // opens behind the renderer (as the agent CLIs a human already
+            // knows do). The plain loop is one gesture away for flat text
+            // (`--plain`, or `NIKA_TUI=0`), and it is the automatic fallback
+            // when the renderer cannot take the terminal (`TERM=dumb`, a
+            // mute cursor report), said once on stderr by the renderer's door.
+            let plain = ascii || plain_session_requested();
+            Some(if interactive && plain {
                 std::process::ExitCode::from(verbs::session::run(interactive_theme(theme)))
+            } else if interactive {
+                std::process::ExitCode::from(verbs::session::run_tui(interactive_theme(theme)))
             } else {
                 concierge(json, theme)
             })
@@ -965,7 +984,8 @@ fn run_verb(
         args.max_cost_usd,
         args.no_gc,
         args.require_signature,
-        repair_target,
+        nika_cli_host::lane::RunHostOptions::from(repair_target)
+            .with_cost_review_stdio(args.cost_review_stdio),
     )
 }
 

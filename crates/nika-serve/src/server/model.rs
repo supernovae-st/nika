@@ -166,6 +166,10 @@ const HTTP_ADAPTER_SCHEDULE_CAPABILITIES: &[&str] = &[
     "compile",
     "schedule",
 ];
+// Only on a server the operator built with a native authoring seat: `POST /v1/compile` also
+// speaks generation 2 (explicitProvider · kept-round replay). It names no model, bound,
+// snapshot or endpoint — those are the operator's, never public.
+const NATIVE_COMPILE_CAPABILITY: &str = "compileNativeV2";
 
 #[derive(Debug, Serialize)]
 struct HttpAdapterIdentity {
@@ -190,11 +194,11 @@ struct HttpAdapterIdentity {
     #[serde(rename = "traceFormatVersion")]
     trace_format_version: u32,
     #[serde(rename = "supportedCapabilities")]
-    supported_capabilities: &'static [&'static str],
+    supported_capabilities: Vec<&'static str>,
 }
 
 impl HttpAdapterIdentity {
-    fn current(schedule_live: bool) -> Self {
+    fn current(schedule_live: bool, native: bool) -> Self {
         let identity = nika_runtime::engine_identity();
         Self {
             engine_version: identity.engine_version(),
@@ -213,13 +217,17 @@ impl HttpAdapterIdentity {
                 HTTP_ADAPTER_SCHEDULE_CAPABILITIES
             } else {
                 HTTP_ADAPTER_CAPABILITIES
-            },
+            }
+            .iter()
+            .copied()
+            .chain(native.then_some(NATIVE_COMPILE_CAPABILITY))
+            .collect(),
         }
     }
 }
 
 impl HealthResponse {
-    pub(crate) fn current(schedule_live: bool) -> Self {
+    pub(crate) fn current(schedule_live: bool, native: bool) -> Self {
         Self {
             status: "ok",
             service: "nika-serve",
@@ -227,7 +235,7 @@ impl HealthResponse {
                 jobs: crate::job::STATE_VERSION,
                 schedules: crate::schedule::STATE_VERSION,
             },
-            identity: HttpAdapterIdentity::current(schedule_live),
+            identity: HttpAdapterIdentity::current(schedule_live, native),
         }
     }
 }

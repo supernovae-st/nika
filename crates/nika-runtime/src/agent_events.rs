@@ -48,10 +48,13 @@ impl BufferingObserver {
         &self,
         error: &mut nika_verb_agent::VerbAgentError,
     ) -> bool {
-        let nika_verb_agent::VerbAgentError::Inference {
-            source: nika_kernel::provider::ProviderError::Connection { reason },
-            ..
-        } = error
+        let nika_verb_agent::VerbAgentError::Inference { source, .. } = error else {
+            return false;
+        };
+        // A dispatched call's failure arrives wrapped with its cost observations
+        // (`ProviderError::Observed`, the provider registry's seam): the transport cause
+        // is the wrapped one, exactly as retry classification reads it.
+        let nika_kernel::provider::ProviderError::Connection { reason } = unobserved_mut(source)
         else {
             return false;
         };
@@ -72,6 +75,17 @@ impl BufferingObserver {
         self.events
             .into_inner()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+}
+
+/// The original error behind any observation wrappers, mutably: the twin of
+/// `ProviderError::unobserved`, so the veto can explain itself in the typed cause.
+fn unobserved_mut(
+    error: &mut nika_kernel::provider::ProviderError,
+) -> &mut nika_kernel::provider::ProviderError {
+    match error {
+        nika_kernel::provider::ProviderError::Observed { source, .. } => unobserved_mut(source),
+        other => other,
     }
 }
 
@@ -318,5 +332,72 @@ mod tests {
             panic!("the gate rides as a string");
         };
         assert_eq!(gate, "execute · git");
+    }
+
+    /// A connection failure as the provider registry returns a dispatched call's error:
+    /// wrapped with its cost observation (`ProviderError::Observed`).
+    fn observed_connection() -> nika_verb_agent::VerbAgentError {
+        nika_verb_agent::VerbAgentError::Inference {
+            source: nika_kernel::provider::ProviderError::Connection {
+                reason: "http://127.0.0.1:1: connection closed before the response completed"
+                    .to_owned(),
+            }
+            .with_inference_calls(vec![nika_types::cost::InferenceCall::new()]),
+            spend: Box::default(),
+        }
+    }
+
+    /// A completed tool vetoes the task replay of an observed connection failure, and the
+    /// typed cause says so (the wrapper once hid the cause and the task was replayed).
+    #[test]
+    fn an_observed_connection_failure_after_a_tool_vetoes_task_replay() {
+        let buffer = BufferingObserver::new();
+        buffer.on_event(&AgentEvent::ToolCompleted {
+            turn: 1,
+            name: "nika:write".to_owned(),
+            is_error: false,
+        });
+        let mut error = observed_connection();
+        assert!(
+            matches!(
+                &error,
+                nika_verb_agent::VerbAgentError::Inference {
+                    source: nika_kernel::provider::ProviderError::Observed { .. },
+                    ..
+                }
+            ),
+            "the case exercises the observation wrapper"
+        );
+        assert!(buffer.block_connection_replay(&mut error));
+        assert!(
+            matches!(
+                &error,
+                nika_verb_agent::VerbAgentError::Inference {
+                    source: nika_kernel::provider::ProviderError::Observed { calls, .. },
+                    ..
+                } if calls.len() == 1
+            ),
+            "the veto preserves the dispatched call's cost observation"
+        );
+        assert!(
+            error
+                .to_string()
+                .contains("automatic task replay is suppressed"),
+            "{error}"
+        );
+    }
+
+    /// Without a completed tool the same observed failure stays retryable, unchanged.
+    #[test]
+    fn an_observed_connection_failure_without_tools_stays_retryable() {
+        let buffer = BufferingObserver::new();
+        let mut error = observed_connection();
+        assert!(!buffer.block_connection_replay(&mut error));
+        assert!(
+            !error
+                .to_string()
+                .contains("automatic task replay is suppressed"),
+            "{error}"
+        );
     }
 }

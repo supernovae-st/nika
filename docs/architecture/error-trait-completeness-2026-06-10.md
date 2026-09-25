@@ -78,6 +78,10 @@ timeout boundary (spec 03 · catchable · never retryable).
 | `JobStoreError` (nika-serve) | **transport-surface** · L4 durable job-state refusal that never crosses into the workflow/verb plane. The W06 HTTP adapter MUST map variants to bounded stable response classes and MUST NOT expose `Display`; zero NIKA registry range is owed (nika-serve crate spec §header). |
 | `ApprovalHistoryError` (nika-serve) | **transport-surface** · L4 monotonic approval-history authority refusal converted immediately into `JobStoreError` at the durable server boundary. It never crosses into the workflow/verb plane; zero NIKA registry range is owed. |
 | `ServerError` (nika-serve) | **transport-surface** · L4 HTTP listener lifecycle refusal mapped to bounded status/code JSON at the socket. It never crosses into the workflow/verb plane; zero NIKA registry range is owed (W06). |
+| `RunShapeError` (nika-service-execution) | **transport-surface** · host-side static unknown-cost Run shape refusal (`request_bound` · `project_file_path`), typed per refusal condition instead of a `String`. It never crosses into the workflow/verb plane: every consumer (the host Run cost review, Check readiness, the read/write witness) renders `Display`, the unchanged refusal wording, at its own boundary; zero NIKA registry range is owed (crate spec §Finite unknown-cost Run shape). |
+
+| `AuthoringContextError` (nika-session) | **wrapped-intermediate** · configuration, missing knowledge and changed-snapshot refusals become `AuthoringError::Context` before the seated authoring boundary. The Session renders this wrapper as a refusal with no write or substituted context. Its existing `AuthoringError` admission trigger still owns eventual registry classification; this intermediate enum does not mint a second range. |
+| `PendingTransformError` (nika-compile) | **wrapped-intermediate** · stale or malformed continuations are rendered as the existing authoring outcome diagnostic, not machinery errors; no execution authority or new error-code range is created. |
 
 ## Open follow-ups (deferred-with-trigger)
 

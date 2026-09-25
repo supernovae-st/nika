@@ -24,10 +24,25 @@
 //!   clause names, where a human gate sits, what a literal token is, which words are
 //!   columns, and the strict HOT admission over the reader's own vocabulary.
 //! - [`text`] · the text helpers the compiler and the onboarding surface share.
+//!
+//! The laws a candidate document is judged by, the seat's sketch and the plan a candidate
+//! states live above this crate, in `nika-compile-fidelity` (ADR-141).
 
-#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        // The plan is `#[non_exhaustive]`: its tests build it field by field from `Default`,
+        // as every crate outside this one must.
+        clippy::field_reassign_with_default
+    )
+)]
 
 pub mod aggregate;
+mod anchor;
+pub mod cardinality;
 pub mod columns;
 pub mod gates;
 pub mod hot;
@@ -38,5 +53,10 @@ pub mod plan;
 pub mod rule_cues;
 pub mod rule_tokens;
 pub mod rules;
+pub mod shape;
 pub mod stages;
+pub mod structure;
 pub mod text;
+pub mod trigger_words;
+pub mod unknowns;
+pub mod words;

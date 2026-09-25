@@ -1,0 +1,308 @@
+pub mod nika_compile_cognition
+pub mod nika_compile_cognition::decide
+#[non_exhaustive] pub struct nika_compile_cognition::decide::ChoiceAnswer
+pub nika_compile_cognition::decide::ChoiceAnswer::choice: alloc::string::String
+pub nika_compile_cognition::decide::ChoiceAnswer::confidence: core::option::Option<f64>
+pub nika_compile_cognition::decide::ChoiceAnswer::input_tokens: core::option::Option<u64>
+pub nika_compile_cognition::decide::ChoiceAnswer::model: alloc::string::String
+pub nika_compile_cognition::decide::ChoiceAnswer::output_tokens: core::option::Option<u64>
+pub nika_compile_cognition::decide::ChoiceAnswer::probabilities: alloc::collections::btree::map::BTreeMap<alloc::string::String, f64>
+impl nika_compile_cognition::decide::ChoiceAnswer
+pub fn nika_compile_cognition::decide::ChoiceAnswer::new(choice: impl core::convert::Into<alloc::string::String>, model: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_compile_cognition::decide::ChoiceAnswer
+pub fn nika_compile_cognition::decide::ChoiceAnswer::clone(&self) -> nika_compile_cognition::decide::ChoiceAnswer
+impl core::cmp::PartialEq for nika_compile_cognition::decide::ChoiceAnswer
+pub fn nika_compile_cognition::decide::ChoiceAnswer::eq(&self, other: &nika_compile_cognition::decide::ChoiceAnswer) -> bool
+impl core::fmt::Debug for nika_compile_cognition::decide::ChoiceAnswer
+pub fn nika_compile_cognition::decide::ChoiceAnswer::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_cognition::decide::ChoiceAnswer
+impl<D> owo_colors::OwoColorize for nika_compile_cognition::decide::ChoiceAnswer
+impl<T, U> core::convert::Into<U> for nika_compile_cognition::decide::ChoiceAnswer where U: core::convert::From<T>
+pub fn nika_compile_cognition::decide::ChoiceAnswer::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_cognition::decide::ChoiceAnswer where U: core::convert::Into<T>
+pub type nika_compile_cognition::decide::ChoiceAnswer::Error = core::convert::Infallible
+pub fn nika_compile_cognition::decide::ChoiceAnswer::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_cognition::decide::ChoiceAnswer where U: core::convert::TryFrom<T>
+pub type nika_compile_cognition::decide::ChoiceAnswer::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_cognition::decide::ChoiceAnswer::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_cognition::decide::ChoiceAnswer where T: core::clone::Clone
+pub type nika_compile_cognition::decide::ChoiceAnswer::Owned = T
+pub fn nika_compile_cognition::decide::ChoiceAnswer::clone_into(&self, target: &mut T)
+pub fn nika_compile_cognition::decide::ChoiceAnswer::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_cognition::decide::ChoiceAnswer where T: 'static + ?core::marker::Sized
+pub fn nika_compile_cognition::decide::ChoiceAnswer::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_cognition::decide::ChoiceAnswer where T: ?core::marker::Sized
+pub fn nika_compile_cognition::decide::ChoiceAnswer::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_cognition::decide::ChoiceAnswer where T: ?core::marker::Sized
+pub fn nika_compile_cognition::decide::ChoiceAnswer::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_cognition::decide::ChoiceAnswer where T: core::clone::Clone
+pub unsafe fn nika_compile_cognition::decide::ChoiceAnswer::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_cognition::decide::ChoiceAnswer
+pub fn nika_compile_cognition::decide::ChoiceAnswer::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_cognition::decide::ChoiceAnswer where T: core::clone::Clone
+pub fn nika_compile_cognition::decide::ChoiceAnswer::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_cognition::decide::ChoiceAnswer where T: 'static
+pub fn nika_compile_cognition::decide::ChoiceAnswer::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_cognition::decide::ChoiceAnswer
+pub type nika_compile_cognition::decide::ChoiceAnswer::Output = T
+#[non_exhaustive] pub struct nika_compile_cognition::decide::ChoiceOption
+pub nika_compile_cognition::decide::ChoiceOption::description: alloc::string::String
+pub nika_compile_cognition::decide::ChoiceOption::key: alloc::string::String
+impl nika_compile_cognition::decide::ChoiceOption
+pub fn nika_compile_cognition::decide::ChoiceOption::new(key: impl core::convert::Into<alloc::string::String>, description: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_compile_cognition::decide::ChoiceOption
+pub fn nika_compile_cognition::decide::ChoiceOption::clone(&self) -> nika_compile_cognition::decide::ChoiceOption
+impl core::cmp::Eq for nika_compile_cognition::decide::ChoiceOption
+impl core::cmp::PartialEq for nika_compile_cognition::decide::ChoiceOption
+pub fn nika_compile_cognition::decide::ChoiceOption::eq(&self, other: &nika_compile_cognition::decide::ChoiceOption) -> bool
+impl core::fmt::Debug for nika_compile_cognition::decide::ChoiceOption
+pub fn nika_compile_cognition::decide::ChoiceOption::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_cognition::decide::ChoiceOption
+impl<D> owo_colors::OwoColorize for nika_compile_cognition::decide::ChoiceOption
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_cognition::decide::ChoiceOption where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_cognition::decide::ChoiceOption::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_cognition::decide::ChoiceOption where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_cognition::decide::ChoiceOption::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_cognition::decide::ChoiceOption where U: core::convert::From<T>
+pub fn nika_compile_cognition::decide::ChoiceOption::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_cognition::decide::ChoiceOption where U: core::convert::Into<T>
+pub type nika_compile_cognition::decide::ChoiceOption::Error = core::convert::Infallible
+pub fn nika_compile_cognition::decide::ChoiceOption::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_cognition::decide::ChoiceOption where U: core::convert::TryFrom<T>
+pub type nika_compile_cognition::decide::ChoiceOption::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_cognition::decide::ChoiceOption::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_cognition::decide::ChoiceOption where T: core::clone::Clone
+pub type nika_compile_cognition::decide::ChoiceOption::Owned = T
+pub fn nika_compile_cognition::decide::ChoiceOption::clone_into(&self, target: &mut T)
+pub fn nika_compile_cognition::decide::ChoiceOption::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_cognition::decide::ChoiceOption where T: 'static + ?core::marker::Sized
+pub fn nika_compile_cognition::decide::ChoiceOption::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_cognition::decide::ChoiceOption where T: ?core::marker::Sized
+pub fn nika_compile_cognition::decide::ChoiceOption::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_cognition::decide::ChoiceOption where T: ?core::marker::Sized
+pub fn nika_compile_cognition::decide::ChoiceOption::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_cognition::decide::ChoiceOption where T: core::clone::Clone
+pub unsafe fn nika_compile_cognition::decide::ChoiceOption::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_cognition::decide::ChoiceOption
+pub fn nika_compile_cognition::decide::ChoiceOption::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_cognition::decide::ChoiceOption where T: core::clone::Clone
+pub fn nika_compile_cognition::decide::ChoiceOption::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_cognition::decide::ChoiceOption where T: 'static
+pub fn nika_compile_cognition::decide::ChoiceOption::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_cognition::decide::ChoiceOption
+pub type nika_compile_cognition::decide::ChoiceOption::Output = T
+#[non_exhaustive] pub struct nika_compile_cognition::decide::ChoiceQuestion
+pub nika_compile_cognition::decide::ChoiceQuestion::id: alloc::string::String
+pub nika_compile_cognition::decide::ChoiceQuestion::instructions: alloc::string::String
+pub nika_compile_cognition::decide::ChoiceQuestion::options: alloc::vec::Vec<nika_compile_cognition::decide::ChoiceOption>
+pub nika_compile_cognition::decide::ChoiceQuestion::state: serde_json::value::Value
+impl nika_compile_cognition::decide::ChoiceQuestion
+pub fn nika_compile_cognition::decide::ChoiceQuestion::keys(&self) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_compile_cognition::decide::ChoiceQuestion::new(id: impl core::convert::Into<alloc::string::String>, instructions: impl core::convert::Into<alloc::string::String>, state: serde_json::value::Value, options: alloc::vec::Vec<nika_compile_cognition::decide::ChoiceOption>) -> Self
+impl core::clone::Clone for nika_compile_cognition::decide::ChoiceQuestion
+pub fn nika_compile_cognition::decide::ChoiceQuestion::clone(&self) -> nika_compile_cognition::decide::ChoiceQuestion
+impl core::cmp::Eq for nika_compile_cognition::decide::ChoiceQuestion
+impl core::cmp::PartialEq for nika_compile_cognition::decide::ChoiceQuestion
+pub fn nika_compile_cognition::decide::ChoiceQuestion::eq(&self, other: &nika_compile_cognition::decide::ChoiceQuestion) -> bool
+impl core::fmt::Debug for nika_compile_cognition::decide::ChoiceQuestion
+pub fn nika_compile_cognition::decide::ChoiceQuestion::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_cognition::decide::ChoiceQuestion
+impl<D> owo_colors::OwoColorize for nika_compile_cognition::decide::ChoiceQuestion
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_cognition::decide::ChoiceQuestion where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_cognition::decide::ChoiceQuestion::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_cognition::decide::ChoiceQuestion where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_cognition::decide::ChoiceQuestion::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_cognition::decide::ChoiceQuestion where U: core::convert::From<T>
+pub fn nika_compile_cognition::decide::ChoiceQuestion::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_cognition::decide::ChoiceQuestion where U: core::convert::Into<T>
+pub type nika_compile_cognition::decide::ChoiceQuestion::Error = core::convert::Infallible
+pub fn nika_compile_cognition::decide::ChoiceQuestion::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_cognition::decide::ChoiceQuestion where U: core::convert::TryFrom<T>
+pub type nika_compile_cognition::decide::ChoiceQuestion::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_cognition::decide::ChoiceQuestion::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_cognition::decide::ChoiceQuestion where T: core::clone::Clone
+pub type nika_compile_cognition::decide::ChoiceQuestion::Owned = T
+pub fn nika_compile_cognition::decide::ChoiceQuestion::clone_into(&self, target: &mut T)
+pub fn nika_compile_cognition::decide::ChoiceQuestion::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_cognition::decide::ChoiceQuestion where T: 'static + ?core::marker::Sized
+pub fn nika_compile_cognition::decide::ChoiceQuestion::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_cognition::decide::ChoiceQuestion where T: ?core::marker::Sized
+pub fn nika_compile_cognition::decide::ChoiceQuestion::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_cognition::decide::ChoiceQuestion where T: ?core::marker::Sized
+pub fn nika_compile_cognition::decide::ChoiceQuestion::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_cognition::decide::ChoiceQuestion where T: core::clone::Clone
+pub unsafe fn nika_compile_cognition::decide::ChoiceQuestion::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_cognition::decide::ChoiceQuestion
+pub fn nika_compile_cognition::decide::ChoiceQuestion::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_cognition::decide::ChoiceQuestion where T: core::clone::Clone
+pub fn nika_compile_cognition::decide::ChoiceQuestion::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_cognition::decide::ChoiceQuestion where T: 'static
+pub fn nika_compile_cognition::decide::ChoiceQuestion::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_cognition::decide::ChoiceQuestion
+pub type nika_compile_cognition::decide::ChoiceQuestion::Output = T
+pub struct nika_compile_cognition::decide::DecisionError(pub alloc::string::String)
+impl core::clone::Clone for nika_compile_cognition::decide::DecisionError
+pub fn nika_compile_cognition::decide::DecisionError::clone(&self) -> nika_compile_cognition::decide::DecisionError
+impl core::cmp::Eq for nika_compile_cognition::decide::DecisionError
+impl core::cmp::PartialEq for nika_compile_cognition::decide::DecisionError
+pub fn nika_compile_cognition::decide::DecisionError::eq(&self, other: &nika_compile_cognition::decide::DecisionError) -> bool
+impl core::error::Error for nika_compile_cognition::decide::DecisionError
+impl core::fmt::Debug for nika_compile_cognition::decide::DecisionError
+pub fn nika_compile_cognition::decide::DecisionError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_compile_cognition::decide::DecisionError
+pub fn nika_compile_cognition::decide::DecisionError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_cognition::decide::DecisionError
+impl<D> owo_colors::OwoColorize for nika_compile_cognition::decide::DecisionError
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_cognition::decide::DecisionError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_cognition::decide::DecisionError::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_cognition::decide::DecisionError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_cognition::decide::DecisionError::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_cognition::decide::DecisionError where U: core::convert::From<T>
+pub fn nika_compile_cognition::decide::DecisionError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_cognition::decide::DecisionError where U: core::convert::Into<T>
+pub type nika_compile_cognition::decide::DecisionError::Error = core::convert::Infallible
+pub fn nika_compile_cognition::decide::DecisionError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_cognition::decide::DecisionError where U: core::convert::TryFrom<T>
+pub type nika_compile_cognition::decide::DecisionError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_cognition::decide::DecisionError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_cognition::decide::DecisionError where T: core::clone::Clone
+pub type nika_compile_cognition::decide::DecisionError::Owned = T
+pub fn nika_compile_cognition::decide::DecisionError::clone_into(&self, target: &mut T)
+pub fn nika_compile_cognition::decide::DecisionError::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_compile_cognition::decide::DecisionError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_compile_cognition::decide::DecisionError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_compile_cognition::decide::DecisionError where T: 'static + ?core::marker::Sized
+pub fn nika_compile_cognition::decide::DecisionError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_cognition::decide::DecisionError where T: ?core::marker::Sized
+pub fn nika_compile_cognition::decide::DecisionError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_cognition::decide::DecisionError where T: ?core::marker::Sized
+pub fn nika_compile_cognition::decide::DecisionError::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_cognition::decide::DecisionError where T: core::clone::Clone
+pub unsafe fn nika_compile_cognition::decide::DecisionError::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_cognition::decide::DecisionError
+pub fn nika_compile_cognition::decide::DecisionError::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_cognition::decide::DecisionError where T: core::clone::Clone
+pub fn nika_compile_cognition::decide::DecisionError::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_cognition::decide::DecisionError where T: 'static
+pub fn nika_compile_cognition::decide::DecisionError::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_cognition::decide::DecisionError
+pub type nika_compile_cognition::decide::DecisionError::Output = T
+pub struct nika_compile_cognition::decide::ProviderChoice<'p, P: nika_kernel_ai::provider::ProviderInferDyn>
+impl<'p, P: nika_kernel_ai::provider::ProviderInferDyn> nika_compile_cognition::decide::ProviderChoice<'p, P>
+pub fn nika_compile_cognition::decide::ProviderChoice<'p, P>::new(provider: &'p P, model: impl core::convert::Into<alloc::string::String>, timeout: core::time::Duration) -> Self
+impl<P: nika_kernel_ai::provider::ProviderInferDyn> nika_compile_cognition::decide::DecisionSeat for nika_compile_cognition::decide::ProviderChoice<'_, P>
+pub fn nika_compile_cognition::decide::ProviderChoice<'_, P>::choose<'a>(&'a self, question: &'a nika_compile_cognition::decide::ChoiceQuestion) -> nika_compile_cognition::decide::ChoiceFuture<'a>
+pub fn nika_compile_cognition::decide::ProviderChoice<'_, P>::name(&self) -> &str
+impl<D> owo_colors::OwoColorize for nika_compile_cognition::decide::ProviderChoice<'p, P>
+impl<T, U> core::convert::Into<U> for nika_compile_cognition::decide::ProviderChoice<'p, P> where U: core::convert::From<T>
+pub fn nika_compile_cognition::decide::ProviderChoice<'p, P>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_cognition::decide::ProviderChoice<'p, P> where U: core::convert::Into<T>
+pub type nika_compile_cognition::decide::ProviderChoice<'p, P>::Error = core::convert::Infallible
+pub fn nika_compile_cognition::decide::ProviderChoice<'p, P>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_cognition::decide::ProviderChoice<'p, P> where U: core::convert::TryFrom<T>
+pub type nika_compile_cognition::decide::ProviderChoice<'p, P>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_cognition::decide::ProviderChoice<'p, P>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_compile_cognition::decide::ProviderChoice<'p, P> where T: 'static + ?core::marker::Sized
+pub fn nika_compile_cognition::decide::ProviderChoice<'p, P>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_cognition::decide::ProviderChoice<'p, P> where T: ?core::marker::Sized
+pub fn nika_compile_cognition::decide::ProviderChoice<'p, P>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_cognition::decide::ProviderChoice<'p, P> where T: ?core::marker::Sized
+pub fn nika_compile_cognition::decide::ProviderChoice<'p, P>::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_compile_cognition::decide::ProviderChoice<'p, P>
+pub fn nika_compile_cognition::decide::ProviderChoice<'p, P>::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_compile_cognition::decide::ProviderChoice<'p, P> where T: 'static
+pub fn nika_compile_cognition::decide::ProviderChoice<'p, P>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_cognition::decide::ProviderChoice<'p, P>
+pub type nika_compile_cognition::decide::ProviderChoice<'p, P>::Output = T
+pub const nika_compile_cognition::decide::NONE_OPTION: &str
+pub trait nika_compile_cognition::decide::DecisionSeat: core::marker::Send + core::marker::Sync
+pub fn nika_compile_cognition::decide::DecisionSeat::choose<'a>(&'a self, question: &'a nika_compile_cognition::decide::ChoiceQuestion) -> nika_compile_cognition::decide::ChoiceFuture<'a>
+pub fn nika_compile_cognition::decide::DecisionSeat::name(&self) -> &str
+impl<P: nika_kernel_ai::provider::ProviderInferDyn> nika_compile_cognition::decide::DecisionSeat for nika_compile_cognition::decide::ProviderChoice<'_, P>
+pub fn nika_compile_cognition::decide::ProviderChoice<'_, P>::choose<'a>(&'a self, question: &'a nika_compile_cognition::decide::ChoiceQuestion) -> nika_compile_cognition::decide::ChoiceFuture<'a>
+pub fn nika_compile_cognition::decide::ProviderChoice<'_, P>::name(&self) -> &str
+pub type nika_compile_cognition::decide::ChoiceFuture<'a> = core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = core::result::Result<nika_compile_cognition::decide::ChoiceAnswer, nika_compile_cognition::decide::DecisionError>> + core::marker::Send + 'a)>>
+pub struct nika_compile_cognition::Cognition<'a, P: nika_kernel_ai::provider::ProviderInferDyn>
+pub nika_compile_cognition::Cognition::provider: core::option::Option<&'a P>
+pub nika_compile_cognition::Cognition::seat: core::option::Option<&'a dyn nika_compile_cognition::decide::DecisionSeat>
+impl<'a, P: core::clone::Clone + nika_kernel_ai::provider::ProviderInferDyn> core::clone::Clone for nika_compile_cognition::Cognition<'a, P>
+pub fn nika_compile_cognition::Cognition<'a, P>::clone(&self) -> nika_compile_cognition::Cognition<'a, P>
+impl<'a, P: core::marker::Copy + nika_kernel_ai::provider::ProviderInferDyn> core::marker::Copy for nika_compile_cognition::Cognition<'a, P>
+impl<P: nika_kernel_ai::provider::ProviderInferDyn> core::default::Default for nika_compile_cognition::Cognition<'_, P>
+pub fn nika_compile_cognition::Cognition<'_, P>::default() -> Self
+impl<D> owo_colors::OwoColorize for nika_compile_cognition::Cognition<'a, P>
+impl<T, U> core::convert::Into<U> for nika_compile_cognition::Cognition<'a, P> where U: core::convert::From<T>
+pub fn nika_compile_cognition::Cognition<'a, P>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_cognition::Cognition<'a, P> where U: core::convert::Into<T>
+pub type nika_compile_cognition::Cognition<'a, P>::Error = core::convert::Infallible
+pub fn nika_compile_cognition::Cognition<'a, P>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_cognition::Cognition<'a, P> where U: core::convert::TryFrom<T>
+pub type nika_compile_cognition::Cognition<'a, P>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_cognition::Cognition<'a, P>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_cognition::Cognition<'a, P> where T: core::clone::Clone
+pub type nika_compile_cognition::Cognition<'a, P>::Owned = T
+pub fn nika_compile_cognition::Cognition<'a, P>::clone_into(&self, target: &mut T)
+pub fn nika_compile_cognition::Cognition<'a, P>::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_cognition::Cognition<'a, P> where T: 'static + ?core::marker::Sized
+pub fn nika_compile_cognition::Cognition<'a, P>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_cognition::Cognition<'a, P> where T: ?core::marker::Sized
+pub fn nika_compile_cognition::Cognition<'a, P>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_cognition::Cognition<'a, P> where T: ?core::marker::Sized
+pub fn nika_compile_cognition::Cognition<'a, P>::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_cognition::Cognition<'a, P> where T: core::clone::Clone
+pub unsafe fn nika_compile_cognition::Cognition<'a, P>::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_cognition::Cognition<'a, P>
+pub fn nika_compile_cognition::Cognition<'a, P>::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_cognition::Cognition<'a, P> where T: core::clone::Clone
+pub fn nika_compile_cognition::Cognition<'a, P>::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_cognition::Cognition<'a, P> where T: 'static
+pub fn nika_compile_cognition::Cognition<'a, P>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_compile_cognition::Cognition<'a, P> where T: core::marker::Copy
+pub fn nika_compile_cognition::Cognition<'a, P>::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_compile_cognition::Cognition<'a, P>
+pub type nika_compile_cognition::Cognition<'a, P>::Output = T
+pub struct nika_compile_cognition::NoProvider
+impl core::clone::Clone for nika_compile_cognition::NoProvider
+pub fn nika_compile_cognition::NoProvider::clone(&self) -> nika_compile_cognition::NoProvider
+impl core::default::Default for nika_compile_cognition::NoProvider
+pub fn nika_compile_cognition::NoProvider::default() -> nika_compile_cognition::NoProvider
+impl core::fmt::Debug for nika_compile_cognition::NoProvider
+pub fn nika_compile_cognition::NoProvider::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_cognition::NoProvider
+impl nika_kernel_ai::provider::ProviderInferDyn for nika_compile_cognition::NoProvider
+pub async fn nika_compile_cognition::NoProvider::infer(&self, _: nika_kernel_ai::provider::InferRequest) -> core::result::Result<nika_kernel_ai::provider::InferResponse, nika_kernel_ai::provider::ProviderError>
+impl<D> owo_colors::OwoColorize for nika_compile_cognition::NoProvider
+impl<T, U> core::convert::Into<U> for nika_compile_cognition::NoProvider where U: core::convert::From<T>
+pub fn nika_compile_cognition::NoProvider::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_cognition::NoProvider where U: core::convert::Into<T>
+pub type nika_compile_cognition::NoProvider::Error = core::convert::Infallible
+pub fn nika_compile_cognition::NoProvider::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_cognition::NoProvider where U: core::convert::TryFrom<T>
+pub type nika_compile_cognition::NoProvider::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_cognition::NoProvider::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_cognition::NoProvider where T: core::clone::Clone
+pub type nika_compile_cognition::NoProvider::Owned = T
+pub fn nika_compile_cognition::NoProvider::clone_into(&self, target: &mut T)
+pub fn nika_compile_cognition::NoProvider::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_cognition::NoProvider where T: 'static + ?core::marker::Sized
+pub fn nika_compile_cognition::NoProvider::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_cognition::NoProvider where T: ?core::marker::Sized
+pub fn nika_compile_cognition::NoProvider::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_cognition::NoProvider where T: ?core::marker::Sized
+pub fn nika_compile_cognition::NoProvider::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_cognition::NoProvider where T: core::clone::Clone
+pub unsafe fn nika_compile_cognition::NoProvider::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_cognition::NoProvider
+pub fn nika_compile_cognition::NoProvider::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_cognition::NoProvider where T: core::clone::Clone
+pub fn nika_compile_cognition::NoProvider::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_cognition::NoProvider where T: 'static
+pub fn nika_compile_cognition::NoProvider::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_compile_cognition::NoProvider where T: core::marker::Copy
+pub fn nika_compile_cognition::NoProvider::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_compile_cognition::NoProvider
+pub type nika_compile_cognition::NoProvider::Output = T
+impl<TraitVariantBlanketType> nika_kernel_ai::provider::ProviderInfer for nika_compile_cognition::NoProvider where TraitVariantBlanketType: nika_kernel_ai::provider::ProviderInferDyn
+pub async fn nika_compile_cognition::NoProvider::infer(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<nika_kernel_ai::provider::InferResponse, nika_kernel_ai::provider::ProviderError>
+pub async fn nika_compile_cognition::compile_with_cognition<P: nika_kernel_ai::provider::ProviderInferDyn>(request: &nika_compile::types::CompileRequest, cognition: nika_compile_cognition::Cognition<'_, P>) -> core::result::Result<nika_compile::types::CompileOutcome, nika_compile::types::CompileError>
+pub async fn nika_compile_cognition::compile_with_provider<P: nika_kernel_ai::provider::ProviderInferDyn>(request: &nika_compile::types::CompileRequest, provider: &P) -> core::result::Result<nika_compile::types::CompileOutcome, nika_compile::types::CompileError>

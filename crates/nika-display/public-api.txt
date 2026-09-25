@@ -552,6 +552,43 @@ pub fn nika_display::render::stream_header(view: &nika_display::state::RunView, 
 pub fn nika_display::render::stream_settled_line(view: &nika_display::state::RunView, task: &str, theme: &nika_display::theme::Theme, outputs: bool) -> core::option::Option<alloc::string::String>
 pub fn nika_display::render::stream_summary(view: &nika_display::state::RunView, theme: &nika_display::theme::Theme, notes: &[alloc::string::String]) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_display::render::verdict_frame(view: &nika_display::state::RunView, theme: &nika_display::theme::Theme) -> alloc::vec::Vec<alloc::string::String>
+pub mod nika_display::run_story
+pub struct nika_display::run_story::RunStory
+pub nika_display::run_story::RunStory::lines: alloc::vec::Vec<alloc::string::String>
+pub nika_display::run_story::RunStory::trace: core::option::Option<std::path::PathBuf>
+impl nika_display::run_story::RunStory
+pub fn nika_display::run_story::RunStory::frame(&mut self, line: &str) -> core::option::Option<alloc::string::String>
+impl core::default::Default for nika_display::run_story::RunStory
+pub fn nika_display::run_story::RunStory::default() -> nika_display::run_story::RunStory
+impl<D> owo_colors::OwoColorize for nika_display::run_story::RunStory
+impl<T, U> core::convert::Into<U> for nika_display::run_story::RunStory where U: core::convert::From<T>
+pub fn nika_display::run_story::RunStory::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_display::run_story::RunStory where U: core::convert::Into<T>
+pub type nika_display::run_story::RunStory::Error = core::convert::Infallible
+pub fn nika_display::run_story::RunStory::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_display::run_story::RunStory where U: core::convert::TryFrom<T>
+pub type nika_display::run_story::RunStory::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_display::run_story::RunStory::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_display::run_story::RunStory where T: 'static + ?core::marker::Sized
+pub fn nika_display::run_story::RunStory::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_display::run_story::RunStory where T: ?core::marker::Sized
+pub fn nika_display::run_story::RunStory::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_display::run_story::RunStory where T: ?core::marker::Sized
+pub fn nika_display::run_story::RunStory::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_display::run_story::RunStory
+pub fn nika_display::run_story::RunStory::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_display::run_story::RunStory where T: 'static
+pub fn nika_display::run_story::RunStory::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_display::run_story::RunStory where T: ?core::marker::Sized
+pub fn nika_display::run_story::RunStory::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_display::run_story::RunStory::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_display::run_story::RunStory
+impl<T> tracing::instrument::WithSubscriber for nika_display::run_story::RunStory
+impl<T> typenum::type_operators::Same for nika_display::run_story::RunStory
+pub type nika_display::run_story::RunStory::Output = T
+impl<T> zvariant::optional::NoneValue for nika_display::run_story::RunStory where T: core::default::Default
+pub type nika_display::run_story::RunStory::NoneType = T
+pub fn nika_display::run_story::RunStory::null_value() -> T
 pub mod nika_display::shape
 pub const nika_display::shape::SHAPE_CELLS: usize
 pub fn nika_display::shape::fmt_bytes(n: usize) -> alloc::string::String

@@ -1,0 +1,367 @@
+{
+  "compile_version": 1,
+  "document": {
+    "candidate": "# SPDX-License-Identifier: Apache-2.0\n# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json\n#\n# TEMPLATE · classify-and-route · typed facts → evidence → decision → queue.\n#\n# The model extracts facts. The deterministic nika:decide kernel owns the\n# routing law and emits a receipt. A known fixture proves the law separately.\n#\n# Needs · nothing. Runs offline in an empty directory with mock/echo.\n# Run · nika run <file> --model mock/echo\nnika: classify-and-route       # SLOT: kebab-case workflow id\n\n# This skeleton keeps its authored offline model. Creating a workflow does\n# not select a paid provider from ambient credentials. Choose a different\n# model explicitly for a real run; `--model mock/echo` remains offline.\nmodel: mock/echo\n\nconst:\n  request: \"<SLOT: the request to classify and route>\"\n  bundle:\n    decision_bundle_format: 1\n    manifest:\n      id: incident-route\n      version: \"1.0.0\"\n      owner: example-org\n      license: Apache-2.0\n      valid_until: \"2028-01-01T00:00:00Z\"\n    evidence_schema:\n      urgency:\n        type: integer\n        required: true\n        sources: [classifier]\n        integrity: observed\n    transforms:\n      urgency_step:\n        kind: bucket\n        min: 0\n        max: 1\n        edges: [1]\n        values: [0, 10000]\n    rules:\n      dimensions:\n        incident_priority:\n          terms:\n            - { evidence: urgency, transform: urgency_step, weight_bp: 10000, monotonicity: increases }\n      thresholds:\n        - { dimension: incident_priority, recommend_gte_bp: 5000 }\n    governance:\n      never_automatic: [recommend]\n      override: { append_only: true, reason_required: true }\n      appeal: \"ask the incident commander\"\n      human_required_triggers: [conflict_on_required]\n    fixtures:\n      - { name: urgent, class: positive, evidence: { urgency: 1 } }\n      - { name: routine, class: negative, evidence: { urgency: 0 } }\n      - { name: edge, class: ambiguous, evidence: { urgency: 0 } }\n      - { name: conflict, class: contradictory, evidence: { urgency: 1 } }\n      - { name: probe, class: adversarial, evidence: { urgency: 1 } }\n  urgent_snapshot:\n    t: \"2027-01-01T00:00:00Z\"\n    evidence:\n      - key: urgency\n        value: 1\n        source: classifier\n        observed_at: \"2027-01-01T00:00:00Z\"\n        digest: fixture-urgency\n        confidentiality: internal\n        integrity: observed\n        quality: { freshness: fresh, completeness: complete, independence_group: classifier }\n\npermits:\n  tools: [\"nika:jq\", \"nika:decide\", \"nika:assert\"]\n\ntasks:\n  extract_facts:\n    infer:\n      max_tokens: 300                # SLOT: classification spend ceiling\n      prompt: |\n        Extract the urgency fact from this request. Use 1 only for an active\n        widespread outage, otherwise use 0.\n\n        ${{ const.request }}\n      schema:\n        type: object\n        additionalProperties: false\n        required: [urgency]\n        properties:\n          urgency: { type: integer, enum: [0, 1] }\n\n  snapshot:\n    with:\n      facts: ${{ tasks.extract_facts.output }}\n    invoke:\n      tool: nika:jq\n      args:\n        input: ${{ with.facts }}\n        expression: '{t: \"2027-01-01T00:00:00Z\", evidence: [{key: \"urgency\", value: .urgency, source: \"classifier\", observed_at: \"2027-01-01T00:00:00Z\", digest: \"runtime-urgency\", confidentiality: \"internal\", integrity: \"observed\", quality: {freshness: \"fresh\", completeness: \"complete\", independence_group: \"classifier\"}}]}'\n\n  decide:\n    with:\n      evidence: ${{ tasks.snapshot.output }}\n    invoke:\n      tool: nika:decide\n      args:\n        bundle: ${{ const.bundle }}\n        evidence: ${{ with.evidence }}\n\n  queue:\n    with:\n      receipt: ${{ tasks.decide.output }}\n    invoke:\n      tool: nika:jq\n      args:\n        input: ${{ with.receipt }}\n        expression: 'if .outcome == \"human_required\" then \"manual-review\" elif .outcome == \"recommend\" then \"priority\" else \"standard\" end'\n\n  fixture_decide:\n    invoke:\n      tool: nika:decide\n      args:\n        bundle: ${{ const.bundle }}\n        evidence: ${{ const.urgent_snapshot }}\n\n  compiled:\n    with:\n      receipt: ${{ tasks.fixture_decide.output }}\n    invoke:\n      tool: nika:assert\n      args:\n        condition: ${{ with.receipt.outcome == \"human_required\" }}\n        message: \"Urgent fixture must abstain to manual review\"\n\noutputs:\n  queue: ${{ tasks.queue.output }}\n  receipt: ${{ tasks.decide.output }}\n",
+    "check_preview": {
+      "report": {
+        "analysis": {
+          "blast_radius": [
+            {
+              "blocks": 3,
+              "task": "extract_facts"
+            },
+            {
+              "blocks": 2,
+              "task": "snapshot"
+            },
+            {
+              "blocks": 1,
+              "task": "decide"
+            },
+            {
+              "blocks": 1,
+              "task": "fixture_decide"
+            }
+          ],
+          "pinch_points": [],
+          "width": 2,
+          "width_witness": [
+            "queue",
+            "compiled"
+          ]
+        },
+        "capability_escapes": [],
+        "certificate": {
+          "derivation": [
+            {
+              "attempts": 1,
+              "deps": [],
+              "fanout": {
+                "known": 1
+              },
+              "finally_effect": 0,
+              "finally_llm": 0,
+              "finally_spend_micros": 0,
+              "main_effect": 0,
+              "main_llm": 1,
+              "main_spend_micros": 0,
+              "task": "extract_facts"
+            },
+            {
+              "attempts": 1,
+              "deps": [
+                "extract_facts"
+              ],
+              "fanout": {
+                "known": 1
+              },
+              "finally_effect": 0,
+              "finally_llm": 0,
+              "finally_spend_micros": 0,
+              "main_effect": 1,
+              "main_llm": 0,
+              "main_spend_micros": 0,
+              "task": "snapshot"
+            },
+            {
+              "attempts": 1,
+              "deps": [
+                "snapshot"
+              ],
+              "fanout": {
+                "known": 1
+              },
+              "finally_effect": 0,
+              "finally_llm": 0,
+              "finally_spend_micros": 0,
+              "main_effect": 1,
+              "main_llm": 0,
+              "main_spend_micros": 0,
+              "task": "decide"
+            },
+            {
+              "attempts": 1,
+              "deps": [
+                "decide"
+              ],
+              "fanout": {
+                "known": 1
+              },
+              "finally_effect": 0,
+              "finally_llm": 0,
+              "finally_spend_micros": 0,
+              "main_effect": 1,
+              "main_llm": 0,
+              "main_spend_micros": 0,
+              "task": "queue"
+            },
+            {
+              "attempts": 1,
+              "deps": [],
+              "fanout": {
+                "known": 1
+              },
+              "finally_effect": 0,
+              "finally_llm": 0,
+              "finally_spend_micros": 0,
+              "main_effect": 1,
+              "main_llm": 0,
+              "main_spend_micros": 0,
+              "task": "fixture_decide"
+            },
+            {
+              "attempts": 1,
+              "deps": [
+                "fixture_decide"
+              ],
+              "fanout": {
+                "known": 1
+              },
+              "finally_effect": 0,
+              "finally_llm": 0,
+              "finally_spend_micros": 0,
+              "main_effect": 1,
+              "main_llm": 0,
+              "main_spend_micros": 0,
+              "task": "compiled"
+            }
+          ],
+          "effect_calls": {
+            "constant": 5,
+            "terms": []
+          },
+          "effects": {
+            "boundary_declared": true,
+            "escapes": 0,
+            "needed": {
+              "exec": false,
+              "tools": [
+                "nika:assert",
+                "nika:decide",
+                "nika:jq"
+              ]
+            }
+          },
+          "llm_calls": {
+            "constant": 1,
+            "terms": []
+          },
+          "span_attempts": 4,
+          "task_attempts": {
+            "constant": 6,
+            "terms": []
+          },
+          "usd_micros": {
+            "constant": 0,
+            "terms": []
+          }
+        },
+        "composition": [],
+        "conformance": [],
+        "consent_findings": [],
+        "cost": {
+          "bounded_total_usd": 0.0,
+          "has_unbounded": false,
+          "min_path_total_usd": 0.0,
+          "tasks": [
+            {
+              "attempts": 1,
+              "gated": false,
+              "iterations": 1,
+              "max_tokens": 300,
+              "min_path_usd": 0.0,
+              "model": "mock/echo",
+              "task": "extract_facts",
+              "unbounded_reason": null,
+              "usd": 0.0
+            }
+          ]
+        },
+        "data_journey": {
+          "classification": "internal",
+          "consents": [],
+          "destinations": [],
+          "model_endpoints": [
+            {
+              "locus": "local",
+              "model": "mock/echo",
+              "priced": false,
+              "provider": "mock",
+              "recognized": true,
+              "retention": "none",
+              "task": "extract_facts",
+              "trains": "no"
+            }
+          ],
+          "secrets_used": [],
+          "sources": [],
+          "trace_retention": [],
+          "writes": []
+        },
+        "energy": {
+          "counts": {
+            "never_runs": 0,
+            "total": 1,
+            "uncapped": 0,
+            "unpriced": 1,
+            "unpriced_local": 0
+          },
+          "scope_subtotals": [],
+          "tasks": []
+        },
+        "exec_floor_findings": [],
+        "findings": [
+          {
+            "gate": "SLOTS",
+            "kind": "slot",
+            "message": "`const.request` is still the scaffold's — the request to classify and route",
+            "severity": "error",
+            "span": {
+              "end": 783,
+              "start": 783
+            }
+          }
+        ],
+        "gate_findings": [],
+        "hints": [],
+        "lift_findings": [],
+        "missing_args": [],
+        "order_findings": [],
+        "permit_taints": [],
+        "permits": {
+          "declared": {
+            "tools": [
+              "nika:jq",
+              "nika:decide",
+              "nika:assert"
+            ]
+          },
+          "needed": {
+            "exec": false,
+            "tools": [
+              "nika:assert",
+              "nika:decide",
+              "nika:jq"
+            ]
+          },
+          "notes": [],
+          "partial": {
+            "composed": false,
+            "exec": false,
+            "fs": false,
+            "net": false
+          },
+          "source": "declared"
+        },
+        "report_version": 1,
+        "requirements": {
+          "inputs_read": [],
+          "inputs_required": [],
+          "models": [
+            {
+              "model": "mock/echo",
+              "tasks": [
+                "extract_facts"
+              ]
+            }
+          ],
+          "secrets": []
+        },
+        "retry_safety_findings": [],
+        "run_decl_findings": [],
+        "schema_findings": [],
+        "schema_lints": [],
+        "secret_egresses": [],
+        "secret_leaks": [],
+        "sink_findings": [],
+        "slot_findings": [
+          {
+            "hint": "the request to classify and route",
+            "path": "const.request",
+            "span": {
+              "end": 783,
+              "start": 783
+            }
+          }
+        ],
+        "trifecta_findings": [],
+        "trifecta_mitigations": [],
+        "unknown_args": [],
+        "unknown_tools": [],
+        "unverifiable_output_refs": [
+          {
+            "reference": "tasks.fixture_decide.output.outcome (via with.receipt)",
+            "site": "compiled"
+          }
+        ],
+        "waves": [
+          [
+            0,
+            4
+          ],
+          [
+            1,
+            5
+          ],
+          [
+            2
+          ],
+          [
+            3
+          ]
+        ],
+        "workflow_semantic": null,
+        "write_conflicts": []
+      },
+      "scope": "sourceOnly"
+    },
+    "compile_version": 1,
+    "diagnostics": [],
+    "provenance": {
+      "cognition": "deterministicOnly",
+      "compiler_version": "0.121.0",
+      "skeleton": "classify-and-route",
+      "spec_pin": "95ed1acf09c7798314a36fb208c9a5546b6ca658",
+      "strategy": "skeleton",
+      "suggested_file": null
+    },
+    "questions": [
+      {
+        "key": "const.request",
+        "label": "the request to classify and route",
+        "mandatory": true,
+        "type": "literal",
+        "why": "The compiler cannot invent this authoring value."
+      }
+    ],
+    "requested_boundary": {
+      "declared": {
+        "tools": [
+          "nika:jq",
+          "nika:decide",
+          "nika:assert"
+        ]
+      },
+      "needed": {
+        "exec": false,
+        "tools": [
+          "nika:assert",
+          "nika:decide",
+          "nika:jq"
+        ]
+      },
+      "notes": [],
+      "partial": {
+        "composed": false,
+        "exec": false,
+        "fs": false,
+        "net": false
+      },
+      "source": "declared"
+    },
+    "requested_trigger": null,
+    "status": "incomplete"
+  },
+  "fixture": "skeleton-question",
+  "state": "incomplete · an exact skeleton with its literal hole (`const.request`)"
+}

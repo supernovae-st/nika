@@ -16,7 +16,9 @@ use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 use nika_check::EffectivePermits;
-use nika_onboard::compile::CompileOutcome;
+use nika_onboard::compile::{
+    CompileOutcome, DiagnosticKind, TriggerKind, TriggerRequirement, TriggerStatus,
+};
 use nika_schema::raw::{RawAction, RawInvokeTarget, RawWorkflow};
 use nika_schema::{FileId, ParseMode};
 
@@ -29,8 +31,77 @@ const FALLBACK_ID: &str = "workflow";
 /// How many numbered twins a taken name may get before the door refuses.
 const MAX_TWINS: u32 = 99;
 
-fn parse(candidate: &str) -> Option<RawWorkflow> {
+pub(crate) fn parse(candidate: &str) -> Option<RawWorkflow> {
     nika_schema::parse(candidate, FileId::new(0), ParseMode::Strict).ok()
+}
+
+/// What one task does, in the review's words: the verb and the tool or
+/// model it names (`default_model` stands in for an `infer` without its
+/// own). From the parser, never from prose.
+pub(crate) fn task_face(task: &nika_schema::raw::RawTask, default_model: Option<&str>) -> String {
+    let what = match &task.action {
+        RawAction::Infer(infer) => match infer
+            .model
+            .as_ref()
+            .map(|m| m.value.as_str())
+            .or(default_model)
+        {
+            Some(model) => format!("infer · {model}"),
+            None => "infer · (no model named)".to_owned(),
+        },
+        RawAction::Exec(_) => "exec · runs a program".to_owned(),
+        RawAction::Agent(_) => "agent · a bounded multi-turn loop".to_owned(),
+        RawAction::Invoke(invoke) => match &invoke.target {
+            RawInvokeTarget::Tool(tool) => builtin_face(&tool.value),
+            RawInvokeTarget::Workflow(_) => "invoke · another workflow".to_owned(),
+        },
+        _ => "(a verb this review does not name)".to_owned(),
+    };
+    let each = if task.for_each.is_some() {
+        " · for each item"
+    } else {
+        ""
+    };
+    format!("{what}{each}")
+}
+
+/// A builtin's face in the review's words: what it does, never its id —
+/// `jq`, `glob` or `assert` are machine words to the human who asked for
+/// a brief, and `/show` keeps the bytes. A tool this review does not
+/// know (an MCP tool, a builtin newer than this list) keeps its id.
+fn builtin_face(tool: &str) -> String {
+    match tool {
+        "nika:read" => "reads a file",
+        "nika:write" => "writes a file",
+        "nika:edit" => "edits a file",
+        "nika:glob" => "lists files",
+        "nika:grep" => "searches text",
+        "nika:jq" => "shapes the data",
+        "nika:json_diff" => "compares data",
+        "nika:json_merge_patch" => "merges data",
+        "nika:validate" => "validates data",
+        "nika:assert" => "checks a condition",
+        "nika:decide" => "decides a branch",
+        "nika:done" => "marks the work done",
+        "nika:prompt" => "asks a human",
+        "nika:fetch" => "fetches from the web",
+        "nika:notify" => "sends a notification",
+        "nika:emit" => "emits an event",
+        "nika:log" => "logs a line",
+        "nika:wait" => "waits",
+        "nika:date" => "reads the clock",
+        "nika:uuid" => "makes an id",
+        "nika:hash" => "hashes data",
+        "nika:convert" => "converts a document",
+        "nika:compose" => "composes a document",
+        "nika:inspect" => "inspects a workflow",
+        "nika:chart" => "draws a chart",
+        "nika:image_generate" => "generates an image",
+        "nika:image_fx" => "transforms an image",
+        "nika:tts_generate" => "speaks text aloud",
+        _ => tool,
+    }
+    .to_owned()
 }
 
 /// The candidate's own id (`nika:`), kebab-case as the parser accepted it.
@@ -156,30 +227,12 @@ pub fn plan_lines_in_order(candidate: &str, waves: &[Vec<usize>]) -> Vec<String>
         .filter_map(|(n, i)| wf.tasks.get(*i).map(|t| (n, t)))
         .map(|(i, task)| {
             let task = &task.value;
-            let what = match &task.action {
-                RawAction::Infer(infer) => match infer
-                    .model
-                    .as_ref()
-                    .map(|m| &m.value)
-                    .or(default_model.as_ref())
-                {
-                    Some(model) => format!("infer · {model}"),
-                    None => "infer · (no model named)".to_owned(),
-                },
-                RawAction::Exec(_) => "exec · runs a program".to_owned(),
-                RawAction::Agent(_) => "agent · a bounded multi-turn loop".to_owned(),
-                RawAction::Invoke(invoke) => match &invoke.target {
-                    RawInvokeTarget::Tool(tool) => tool.value.clone(),
-                    RawInvokeTarget::Workflow(_) => "invoke · another workflow".to_owned(),
-                },
-                _ => "(a verb this review does not name)".to_owned(),
-            };
-            let each = if task.for_each.is_some() {
-                " · for each item"
-            } else {
-                ""
-            };
-            format!("  {}. {} · {what}{each}", i + 1, task.value_id())
+            format!(
+                "  {}. {} · {}",
+                i + 1,
+                task.value_id(),
+                task_face(task, default_model.as_deref())
+            )
         })
         .collect()
 }
@@ -244,11 +297,16 @@ pub fn propose(
     )
 }
 
-/// The review: what Nika proposes (the tasks · what it reaches · whether a
-/// human answers at run), then the set's own preview — the exact bytes,
-/// the check of these bytes, the effect rows — and the consent question.
-/// `bytes` is the set's preview, computed once by the caller (the
-/// proposal's identity is its witness).
+/// The review: what Nika proposes, in the order a human decides — what it
+/// DOES (the tasks, first what runs first), when it RUNS (by hand, or the
+/// schedule the request asked for, which saving never activates), what it
+/// CAN TOUCH (what the bytes reach, the human gates), what CHANGES on disk,
+/// what it still NEEDS — then the fact that nothing has run, the set's own
+/// condensed preview (the boundary, the check of these exact bytes, `/show`
+/// for every byte) and the consent question. Every line has an owner: the
+/// parser, the check, the change set, the compiler's requirements; none is
+/// prose a model wrote. `bytes` is the set's preview, computed once by the
+/// caller (the proposal's identity is its witness).
 #[must_use]
 pub fn render(set: &ProjectChangeSet, out: &CompileOutcome, bytes: &str) -> String {
     let Some(change) = set.changes.first() else {
@@ -256,6 +314,7 @@ pub fn render(set: &ProjectChangeSet, out: &CompileOutcome, bytes: &str) -> Stri
     };
     let candidate = change.content();
     let mut text = format!("Nika proposes `{}`:\n", change.path().display());
+    text.push_str("Does\n");
     let waves: &[Vec<usize>] = out
         .check_preview
         .as_ref()
@@ -264,6 +323,10 @@ pub fn render(set: &ProjectChangeSet, out: &CompileOutcome, bytes: &str) -> Stri
         text.push_str(&line);
         text.push('\n');
     }
+    text.push_str("Runs\n");
+    text.push_str(&runs_line(out.requested_trigger.as_ref()));
+    text.push('\n');
+    text.push_str("Can touch\n");
     let _ = writeln!(
         text,
         "  external effects · {}",
@@ -283,15 +346,107 @@ pub fn render(set: &ProjectChangeSet, out: &CompileOutcome, bytes: &str) -> Stri
                 .join(" · ")
         }
     );
+    text.push_str("Changes\n");
+    for c in &set.changes {
+        let lines = c.content().lines().count();
+        match c.witness() {
+            None => {
+                let _ = writeln!(text, "  + `{}` · {lines} lines · new", c.path().display());
+            }
+            Some(w) => {
+                let _ = writeln!(
+                    text,
+                    "  ~ `{}` · {lines} lines · replaces the file as it is now (witnessed {})",
+                    c.path().display(),
+                    w.short()
+                );
+            }
+        }
+    }
+    text.push_str("Needs\n");
+    text.push_str(&needs_lines(out));
+    text.push_str(
+        "Nothing has run yet · `yes` saves these exact bytes and checks them · running is its own line (« run it »)\n",
+    );
     // The boundary and the audits, not every byte: `/show` prints those.
     // The identity beside the question is what a `yes` answers.
     text.push_str(&set.preview_condensed());
     let _ = writeln!(
         text,
-        "  identity {} · `/show` for the exact bytes · `yes` applies · `no` discards",
+        "  identity {} · `/show` the exact bytes · `/meaning` your request clause by clause · `yes` applies · `no` discards",
         crate::ProposalId::of(bytes)
     );
     text
+}
+
+/// The Runs line: by hand, or the schedule the request stated — kept
+/// beside the program (saving never activates it) — or a trigger the
+/// compiler read but cannot express.
+fn runs_line(trigger: Option<&TriggerRequirement>) -> String {
+    let Some(t) = trigger else {
+        return "  when you ask (« run it ») · no schedule was asked".to_owned();
+    };
+    let quoted = t
+        .source_hint
+        .as_deref()
+        .filter(|w| !w.is_empty())
+        .map_or(String::new(), |w| format!(" (« {w} »)"));
+    if t.status == TriggerStatus::Unsupported {
+        return format!(
+            "  ! the request asks for a trigger{quoted} the compiler cannot express yet · the workflow runs when you ask"
+        );
+    }
+    match t.kind {
+        TriggerKind::Schedule => {
+            let when = match (t.cadence.as_deref(), t.at.as_deref()) {
+                (Some(c), Some(at)) => format!("{c} at {at}"),
+                (Some(c), None) => c.to_owned(),
+                (None, Some(at)) => format!("at {at}"),
+                (None, None) => "on a schedule".to_owned(),
+            };
+            let exact = t.cron.as_deref().map_or_else(
+                || "incomplete, conflicting or unsupported cadence · activation refuses until restated with an explicit supported period/time".to_owned(),
+                |fields| format!("proposed cron `{fields}` · timezone still belongs to activation"),
+            );
+            format!(
+                "  ↗ {when}{quoted} · a schedule to activate AFTER saving · saving alone activates nothing\n    {exact}"
+            )
+        }
+        TriggerKind::Webhook => format!(
+            "  ↗ on an incoming call{quoted} · a binding to set up AFTER saving · saving alone arms nothing"
+        ),
+        TriggerKind::Event => format!(
+            "  ↗ on each incoming item{quoted} · a binding to set up AFTER saving · saving alone arms nothing"
+        ),
+        // Manual, and any kind a later compiler adds: by hand.
+        _ => "  when you ask (« run it »)".to_owned(),
+    }
+}
+
+/// The Needs lines: the requirements outside the bytes and the parts of
+/// the request the compiler named as missed, unknown or refused.
+fn needs_lines(out: &CompileOutcome) -> String {
+    let mut lines = Vec::new();
+    if let Some(t) = &out.requested_trigger
+        && t.status == TriggerStatus::RequiresBinding
+    {
+        lines.push(
+            "  ↗ the schedule or trigger above · bound when you activate, not by saving".to_owned(),
+        );
+    }
+    for d in &out.diagnostics {
+        let glyph = match d.kind {
+            DiagnosticKind::Missed | DiagnosticKind::Unknown => "!",
+            DiagnosticKind::Refused => "×",
+            _ => continue,
+        };
+        lines.push(format!("  {glyph} {} · {}", d.target, d.message));
+    }
+    if lines.is_empty() {
+        "  nothing more from you\n".to_owned()
+    } else {
+        lines.join("\n") + "\n"
+    }
 }
 
 #[cfg(test)]
@@ -328,13 +483,33 @@ mod tests {
         );
     }
 
+    /// A builtin's face is what it does; an unknown tool keeps its id.
+    #[test]
+    fn a_builtin_face_is_what_it_does_never_its_id() {
+        assert_eq!(builtin_face("nika:jq"), "shapes the data");
+        assert_eq!(builtin_face("nika:read"), "reads a file");
+        assert_eq!(builtin_face("mcp:slack/post"), "mcp:slack/post");
+        for tool in [
+            "nika:jq",
+            "nika:glob",
+            "nika:grep",
+            "nika:assert",
+            "nika:prompt",
+        ] {
+            assert!(!builtin_face(tool).contains(':'), "{tool}");
+        }
+    }
+
     #[test]
     fn the_plan_lines_come_from_the_parser() {
         let out = ready("Read ./notes/brief.md and write it to ./out/copy.md");
         let lines = plan_lines(out.candidate.as_deref().expect("candidate"));
         assert_eq!(lines.len(), 2, "{lines:?}");
-        assert!(lines[0].contains("read_source · nika:read"), "{lines:?}");
-        assert!(lines[1].contains("write_output · nika:write"), "{lines:?}");
+        assert!(lines[0].contains("read_source · reads a file"), "{lines:?}");
+        assert!(
+            lines[1].contains("write_output · writes a file"),
+            "{lines:?}"
+        );
         assert!(gate_tasks(out.candidate.as_deref().expect("candidate")).is_empty());
         assert_eq!(
             plan_lines("not: a workflow"),
@@ -364,7 +539,7 @@ mod tests {
             "{review}"
         );
         assert!(
-            review.contains("read_source · nika:read · for each item"),
+            review.contains("read_source · reads a file · for each item"),
             "{review}"
         );
         assert!(review.contains("external effects · none"), "{review}");
@@ -423,6 +598,6 @@ mod tests {
             review.contains("external effects · network · hooks.slack.com · runs · echo"),
             "{review}"
         );
-        assert!(review.contains("4. human · nika:prompt"), "{review}");
+        assert!(review.contains("4. human · asks a human"), "{review}");
     }
 }

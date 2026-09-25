@@ -1,0 +1,49 @@
+nika: commandes-confirmees-total
+const:
+  source_path: "commandes.csv"
+  confirmed_path: "commandes-confirmees.csv"
+  total_path: "total.txt"
+permits:
+  tools: ["nika:read", "nika:convert", "nika:jq", "nika:write"]
+  fs:
+    read: ["commandes.csv"]
+    write: ["commandes-confirmees.csv", "total.txt"]
+tasks:
+  read_source:
+    invoke: { tool: "nika:read", args: { path: "${{ const.source_path }}" } }
+  parse_source:
+    with: { document: "${{ tasks.read_source.output }}" }
+    invoke: { tool: "nika:convert", args: { input: "${{ with.document }}", from: csv, to: json } }
+  select_confirmed:
+    with: { records: "${{ tasks.parse_source.output }}" }
+    invoke:
+      tool: "nika:jq"
+      args:
+        input: { records: "${{ with.records }}" }
+        expression: '[.records[] | select(.statut == "confirmee")]'
+  confirmed_csv:
+    with: { records: "${{ tasks.select_confirmed.output }}" }
+    invoke: { tool: "nika:convert", args: { input: "${{ with.records }}", from: json, to: csv } }
+  total:
+    with: { records: "${{ tasks.select_confirmed.output }}" }
+    invoke:
+      tool: "nika:jq"
+      args:
+        input: { records: "${{ with.records }}" }
+        expression: '[.records[] | (.montant | tonumber)] | add // 0'
+  total_text:
+    with: { total: "${{ tasks.total.output }}" }
+    invoke:
+      tool: "nika:jq"
+      args:
+        input: { total: "${{ with.total }}" }
+        expression: '.total | tostring'
+  write_confirmed:
+    with: { content: "${{ tasks.confirmed_csv.output }}" }
+    invoke: { tool: "nika:write", args: { path: "${{ const.confirmed_path }}", content: "${{ with.content }}", overwrite: true } }
+  write_total:
+    with: { content: "${{ tasks.total_text.output }}" }
+    invoke: { tool: "nika:write", args: { path: "${{ const.total_path }}", content: "${{ with.content }}", overwrite: true } }
+outputs:
+  confirmed: ${{ tasks.select_confirmed.output }}
+  total: ${{ tasks.total.output }}

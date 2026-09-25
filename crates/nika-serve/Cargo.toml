@@ -12,25 +12,30 @@ publish                = false
 
 [dependencies]
 bytes      = { workspace = true }
+clap       = { workspace = true }  # NativeAuthoringArgs — `nika serve`'s explicit native authoring flags, flattened by nika-cli
+getrandom  = { workspace = true }  # 256-bit tokens of the kept native answer rounds (compile generation 2)
 http-body-util = { workspace = true }
 hyper      = { workspace = true }
 hyper-util = { workspace = true }
 jiff       = { workspace = true }
 miette     = { workspace = true, features = ["fancy-no-backtrace"] }
-nika-cadence = { path = "../nika-cadence", version = "0.120.3" }
-nika-dap     = { path = "../nika-dap", version = "0.120.3" }      # TraceFileSink — the journal a resident job leaves on disk (#1381)
-nika-arm     = { path = "../nika-arm", version = "0.120.3" }      # the ONE ledger both firers write (ADR-116 · wave 6 · one slot, one firer)
-nika-error  = { path = "../nika-error", version = "0.120.3" }
-nika-execution = { path = "../nika-execution", version = "0.120.3" }
-nika-service-execution = { path = "../nika-service-execution", version = "0.120.3" }
-nika-event             = { path = "../nika-event", version = "0.120.3" }   # the settlement's RunState — JobStatus is its projection (ADR-130)
-nika-fs    = { path = "../nika-fs", version = "0.120.3" }
-nika-onboard = { path = "../nika-onboard", version = "0.120.3" }  # shared stateless Compile core and wire projection (lateral L4→L4 · #1670)
-nika-runtime = { path = "../nika-runtime", version = "0.120.3" }
-nika-trace   = { path = "../nika-trace", version = "0.120.3" }    # the ONE verifier `nika trace verify` runs — the verify route projects its machine document (lateral L4→L4 · the nika-mcp → nika-cli-host precedent)
-nika-types = { path = "../nika-types", version = "0.120.3" }
-nika-vocab = { path = "../nika-vocab", version = "0.120.3" }
-nika-source = { path = "../nika-source", version = "0.120.3" } # lexical program-source naming (#1684)
+nika-cadence = { path = "../nika-cadence", version = "0.121.0" }
+nika-dap     = { path = "../nika-dap", version = "0.121.0" }      # TraceFileSink — the journal a resident job leaves on disk (#1381)
+nika-arm     = { path = "../nika-arm", version = "0.121.0" }      # the ONE ledger both firers write (ADR-116 · wave 6 · one slot, one firer)
+nika-error  = { path = "../nika-error", version = "0.121.0" }
+nika-execution = { path = "../nika-execution", version = "0.121.0" }
+nika-service-execution = { path = "../nika-service-execution", version = "0.121.0" }
+nika-event             = { path = "../nika-event", version = "0.121.0" }   # the settlement's RunState — JobStatus is its projection (ADR-130)
+nika-fs    = { path = "../nika-fs", version = "0.121.0" }
+nika-onboard = { path = "../nika-onboard", version = "0.121.0" }  # shared stateless Compile core and wire projection (lateral L4→L4 · #1670)
+nika-cli-host = { path = "../nika-cli-host", version = "0.121.0", default-features = false }  # the ONE authoring config parser + Foundry knowledge reader every door shares (lateral L4→L4 · acyclic: cli-host never reaches serve · S06)
+nika-kernel  = { path = "../nika-kernel", version = "0.121.0" }   # the provider seam the native authoring gate implements (ProviderInferDyn · Secret)
+nika-providers = { path = "../nika-providers", version = "0.121.0" }  # ProviderRegistry + ProvidersConfig — the operator's pinned authoring seat over the runtime's provider transport
+nika-runtime = { path = "../nika-runtime", version = "0.121.0" }
+nika-trace   = { path = "../nika-trace", version = "0.121.0" }    # the ONE verifier `nika trace verify` runs — the verify route projects its machine document (lateral L4→L4 · the nika-mcp → nika-cli-host precedent)
+nika-types = { path = "../nika-types", version = "0.121.0" }
+nika-vocab = { path = "../nika-vocab", version = "0.121.0" }
+nika-source = { path = "../nika-source", version = "0.121.0" } # lexical program-source naming (#1684)
 nix        = { workspace = true, features = ["fs"] }
 serde      = { workspace = true }
 serde_json = { workspace = true, features = ["raw_value"] }  # RawValue — a compile answer reaches the core as the literal text the caller sent, parsed once (CLI parity · additive type, no behaviour change)
@@ -42,8 +47,9 @@ uuid       = { workspace = true }
 zeroize    = { workspace = true }
 
 [dev-dependencies]
+jsonschema = { workspace = true }  # the published OpenAPI schemas validate the live compile payloads they describe (draft 2020-12 · internal refs only)
 minisign = { workspace = true }  # the in-memory run key the seal-point test signs with (custody stays out of the test)
-nika-arm = { path = "../nika-arm", version = "0.120.3", features = ["test-support"] }  # the ledger fixtures the one-firer tests write
+nika-arm = { path = "../nika-arm", version = "0.121.0", features = ["test-support"] }  # the ledger fixtures the one-firer tests write
 tempfile = { workspace = true }
 
 [lints]

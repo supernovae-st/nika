@@ -341,6 +341,7 @@ pub struct ServerConfig {
     workflow_root: PathBuf,
     token_file: PathBuf,
     allow_remote: bool,
+    native: Option<super::NativeAuthoring>,
 }
 
 impl ServerConfig {
@@ -357,6 +358,7 @@ impl ServerConfig {
             workflow_root: workflow_root.into(),
             token_file: token_file.into(),
             allow_remote: false,
+            native: None,
         }
     }
 
@@ -365,6 +367,18 @@ impl ServerConfig {
     pub const fn with_allow_remote(mut self, allow: bool) -> Self {
         self.allow_remote = allow;
         self
+    }
+
+    /// Seat native authoring on `POST /v1/compile` (generation 2): off unless called. The
+    /// seat is validated when the listener attaches, before it binds.
+    #[must_use]
+    pub fn with_native_authoring(mut self, native: super::NativeAuthoring) -> Self {
+        self.native = Some(native);
+        self
+    }
+
+    pub(crate) const fn native_authoring(&self) -> Option<&super::NativeAuthoring> {
+        self.native.as_ref()
     }
 
     pub(crate) const fn bind(&self) -> SocketAddr {
@@ -390,6 +404,7 @@ impl fmt::Debug for ServerConfig {
             .debug_struct("ServerConfig")
             .field("bind", &self.bind)
             .field("allow_remote", &self.allow_remote)
+            .field("native_authoring", &self.native)
             .finish_non_exhaustive()
     }
 }

@@ -1181,19 +1181,21 @@ tasks:
         );
     }
 
-    /// The headless advice was unconditional · « declare the `default:`
-    /// the unattended path should take ». Over a real effect, following
-    /// it with `true` builds the row above. Name the safe one.
+    /// A defaulted refusal skips the effect but also removes the human
+    /// pause. The invocation can refuse once without changing that gate.
     #[test]
-    fn the_headless_advice_names_the_fail_closed_default_over_an_effect() {
+    fn the_headless_advice_preserves_fresh_human_approval_over_an_effect() {
         let hints = hints_of(&gate_over_an_effect(""));
         let h = hints
             .iter()
             .find(|h| h.kind == "headless-prompt")
             .unwrap_or_else(|| panic!("no headless hint: {hints:?}"));
         assert!(
-            h.advice.contains("default: false"),
-            "over an effect the advice must name the fail-closed default: {}",
+            h.advice.contains("gate without `default:`")
+                && h.advice.contains("=false")
+                && h.advice.contains("does not pause for a human")
+                && !h.advice.contains("declare `default: false`"),
+            "over an effect the advice must preserve the human pause: {}",
             h.advice
         );
     }

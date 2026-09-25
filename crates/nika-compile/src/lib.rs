@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! The stateless Compile core: one intent in, one [`CompileOutcome`] out. The deterministic
-//! reader, the typed semantic plan, the finite composer, the deterministic assembler and
-//! the Check preview live here; `nika-onboard` re-exports this crate at its historical
-//! `compile` path, so every caller keeps writing `nika_compile::…`.
+//! assembler, exact skeletons, edit door, record replay and Check preview live here.
+//! The frozen reader is `nika-compile-reader`; seat orchestration and the COLD composer
+//! live above this core in `nika-compile-cognition`. `nika-onboard` exposes the complete
+//! unit at its historical `nika_onboard::compile` path.
 //!
 //! Descended from `nika-onboard` at the 15k prod-LOC wall (2026-09-21 · ADR-137): per
-//! D-2026-07-09-N1 this is ONE architectural unit in TWO workspace members. The member
+//! D-2026-07-09-N1 this is one architectural unit in several workspace members. The core
 //! never depends back on the surface.
 //!
 //! Stateless authoring foundation: explicit request → ordinary source → pure Check preview.
@@ -27,9 +28,9 @@
 //! `.nika` write adapter: no silent overwrite, run, or grant. Source-only
 //! preview is not full host Check or admission: Run must judge the candidate
 //! again under its actual environment.
-//! [`compile_with_provider`] accepts explicit bounded authoring policy and an injected
-//! kernel provider. Its closed private semantic plan rejoins deterministic motif
-//! assembly before Check. Model output is never final YAML or runtime authority.
+//! `nika_compile_cognition::compile_with_provider` accepts explicit bounded authoring
+//! policy and an injected kernel provider. Its proposals and native candidates are judged
+//! before they rejoin this core; model output never grants runtime authority.
 //! General natural-language qualification and Graph integration remain separate work.
 //! Transports (the CLI, Serve) consume these typed outcomes and
 //! print the one machine document of [`outcome_document`]; none re-projects an outcome.
@@ -67,34 +68,35 @@
 
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
+mod approval;
 mod assemble;
 mod bindings;
-mod cardinality;
-mod cognition;
-mod compose;
-pub mod decide;
+mod doors;
 mod edit;
 mod edit_source;
 mod laws;
 mod ledger;
 mod materialize;
 mod network;
+mod observed;
 pub(crate) mod pattern;
-mod predicate;
+mod pending_transform;
 mod realize;
 mod retrieve;
-mod shape;
-mod structure;
+mod seat_cap;
 mod support;
 mod trigger;
 mod types;
 mod wire;
 mod writes;
 
-// The frozen reader and the typed plan live in the second member of this unit (the
-// ADR-137 precedent); the composer, the assembler and the preview read them at their
-// historical module paths.
-use nika_compile_reader::{columns, gates, hot, lexicon, objects, paths, plan, rule_tokens, rules};
+// The frozen reader and the typed plan live in one member of this unit (ADR-138), the laws a
+// candidate is judged by in another (ADR-141); the composer, the assembler and the preview
+// read both at their historical module paths.
+use nika_compile_fidelity::fidelity;
+use nika_compile_reader::{
+    cardinality, columns, gates, hot, lexicon, objects, paths, plan, rules, shape, structure,
+};
 
 use std::collections::BTreeSet;
 
@@ -102,19 +104,21 @@ use nika_schema::{FileId, ParseMode, raw::RawWorkflow};
 use serde_json::Value;
 use types::{EditChange, Input};
 
-pub use cognition::{
-    Cognition, NoProvider, compile_with_cognition, compile_with_provider, intent_sha256,
-};
+pub use doors::intent_sha256;
 pub use materialize::{MaterializeError, materialize_ready};
+pub use nika_compile_reader::hot::{fold, stated_destinations, stated_sources};
 pub use nika_compile_reader::text;
 pub use retrieve::{Hit, HitKind, retrieve, retrieve_by_ops};
 pub use types::{
-    AuthoringCognition, AuthoringPolicy, AuthoringReceipt, CompileDiagnostic, CompileError,
-    CompileOutcome, CompilePreview, CompileProvenance, CompileQuestion, CompileRequest,
-    CompileStatus, DiagnosticKind, HotPolicy, PreviewScope, QuestionType, RepresentationError,
-    Strategy, TriggerKind, TriggerRequirement, TriggerStatus,
+    AuthoringCognition, AuthoringKnowledge, AuthoringPolicy, AuthoringReceipt, ChoiceOffer,
+    CompileDiagnostic, CompileError, CompileOutcome, CompilePreview, CompileProvenance,
+    CompileQuestion, CompileRequest, CompileStatus, DiagnosticKind, HotPolicy, KnowledgeReference,
+    NativeMode, PreviewScope, QuestionType, RepresentationError, Strategy, TriggerKind,
+    TriggerRequirement, TriggerStatus,
 };
 pub use wire::{COMPILE_WIRE_VERSION, outcome_document};
+
+pub mod surface;
 
 /// Compile without effects or hidden state. Repeating a request produces the same candidate.
 ///
@@ -124,6 +128,22 @@ pub use wire::{COMPILE_WIRE_VERSION, outcome_document};
 #[must_use = "the candidate and its authoring questions must be reviewed"]
 pub fn compile(request: &CompileRequest) -> Result<CompileOutcome, CompileError> {
     let mut outcome = initial();
+    if let Some(record) = request
+        .plan
+        .as_ref()
+        .filter(|record| pending_transform::present(record))
+    {
+        if let Input::Create(intent) = &request.input {
+            doors::replay(intent, record, request, &mut outcome)?;
+            observed::record(request, &mut outcome);
+        } else {
+            pending_transform::invalid(
+                &mut outcome,
+                "A revision invalidates pending transform field choices; compile the revised request afresh.",
+            );
+        }
+        return Ok(outcome);
+    }
     if request.workflow_id.is_some() && matches!(request.input, Input::Edit { .. }) {
         outcome.status = CompileStatus::Refused;
         finding(
@@ -137,14 +157,45 @@ pub fn compile(request: &CompileRequest) -> Result<CompileOutcome, CompileError>
         }
         return Ok(outcome);
     }
+    // An answer round of a revision replays the record its seat round produced (zero calls),
+    // as a creation's does: the revised source with the answers baked in.
+    if let (Input::Edit { .. }, Some(record)) = (&request.input, &request.plan)
+        && record.get("strategy").and_then(Value::as_str) == Some(types::Strategy::Native.word())
+        && let Some(intent) = revise_intent(request)
+    {
+        doors::replay(&intent, record, request, &mut outcome)?;
+        return Ok(outcome);
+    }
     match &request.input {
         Input::Create(intent) => create(intent, request, &mut outcome)?,
         Input::Edit { source, change } => edit(source, change, request, &mut outcome)?,
     }
+    observed::record(request, &mut outcome);
     Ok(outcome)
 }
 
-fn initial() -> CompileOutcome {
+/// The intent a revision in words reads under a seat: the original request when the caller
+/// states it, then the change — folded as every intent is. `None` for a creation or a
+/// structured edit. The host keys the revision's record by it; the door authors from it.
+#[must_use]
+pub fn revise_intent(request: &CompileRequest) -> Option<String> {
+    let Input::Edit {
+        change: types::EditChange::Text(words),
+        ..
+    } = &request.input
+    else {
+        return None;
+    };
+    let intent = match &request.original_intent {
+        Some(original) => format!("{original}\nChange: {words}"),
+        None => words.clone(),
+    };
+    Some(lexicon::fold_apostrophes(&intent))
+}
+
+/// An outcome with nothing decided yet: incomplete, no candidate, the compiler's own identity.
+#[must_use]
+pub fn initial() -> CompileOutcome {
     CompileOutcome {
         status: CompileStatus::Incomplete,
         candidate: None,
@@ -156,22 +207,19 @@ fn initial() -> CompileOutcome {
         provenance: CompileProvenance {
             authoring: None,
             compiler_version: env!("CARGO_PKG_VERSION").to_owned(),
-            spec_pin: include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../SPEC_PIN"))
-                .lines()
-                .map(str::trim)
-                .find(|line| !line.is_empty() && !line.starts_with('#'))
-                .unwrap_or("")
-                .to_owned(),
+            spec_pin: surface::spec_pin().to_owned(),
             skeleton: None,
             cognition: AuthoringCognition::DeterministicOnly,
             strategy: None,
             plan: None,
             decision: None,
+            suggested_file: None,
         },
     }
 }
 
-fn finding(
+/// One diagnostic on the outcome, of a kind, on a target, with its message.
+pub fn finding(
     out: &mut CompileOutcome,
     kind: DiagnosticKind,
     target: &str,
@@ -184,17 +232,69 @@ fn finding(
     });
 }
 
-fn question(out: &mut CompileOutcome, key: &str, label: &str, answer_type: QuestionType) {
+/// One mandatory question the compiler cannot answer by itself.
+pub fn question(out: &mut CompileOutcome, key: &str, label: &str, answer_type: QuestionType) {
     out.questions.push(CompileQuestion {
         key: key.to_owned(),
         label: label.to_owned(),
         answer_type,
         why: "The compiler cannot invent this authoring value.".to_owned(),
         mandatory: true,
+        options: Vec::new(),
     });
 }
 
-fn parse(source: &str) -> Result<RawWorkflow, nika_schema::SchemaError> {
+/// A mandatory closed choice: the answer is one of the offered keys, and the candidate
+/// waits for it.
+fn choice_question(
+    out: &mut CompileOutcome,
+    key: &str,
+    label: &str,
+    why: &str,
+    options: Vec<types::ChoiceOffer>,
+) {
+    if out.questions.iter().any(|q| q.key == key) {
+        return;
+    }
+    out.questions.push(CompileQuestion {
+        key: key.to_owned(),
+        label: label.to_owned(),
+        answer_type: QuestionType::Choice,
+        why: why.to_owned(),
+        mandatory: true,
+        options,
+    });
+}
+
+/// A question that does not block Ready: the value belongs to a binding outside the
+/// program bytes (a schedule's timezone, its missed-run policy), asked beside the candidate
+/// so the answer rides the same round when the operator has it.
+fn optional_question(
+    out: &mut CompileOutcome,
+    key: &str,
+    label: &str,
+    answer_type: QuestionType,
+    why: &str,
+    options: Vec<types::ChoiceOffer>,
+) {
+    if out.questions.iter().any(|q| q.key == key) {
+        return;
+    }
+    out.questions.push(CompileQuestion {
+        key: key.to_owned(),
+        label: label.to_owned(),
+        answer_type,
+        why: why.to_owned(),
+        mandatory: false,
+        options,
+    });
+}
+
+/// The strict parse of an in-memory candidate.
+///
+/// # Errors
+/// The candidate is not a workflow document.
+pub fn parse(source: &str) -> Result<RawWorkflow, nika_schema::SchemaError> {
     nika_schema::parse(source, FileId::new(0), ParseMode::Strict)
 }
 
@@ -213,7 +313,7 @@ fn create(
     } else {
         // An answer round replays the plan its previous round produced (zero reading).
         if let Some(record) = &request.plan {
-            return cognition::replay(intent, record, request, out);
+            return doors::replay(intent, record, request, out);
         }
         // A partial support match is not a verdict: the general reader is a superset.
         if let Ok(Some(plan)) = support::resolve(intent) {
@@ -221,7 +321,7 @@ fn create(
             out.provenance.strategy = Some(types::Strategy::Support);
             return Ok(());
         }
-        if cognition::hot(intent, request, out)? {
+        if doors::hot(intent, request, out)? {
             return Ok(());
         }
         finding(
@@ -429,7 +529,8 @@ fn finish_changed(
     Ok(())
 }
 
-fn literal_answer(raw: Option<&str>, key: &str, out: &mut CompileOutcome) -> Option<Value> {
+/// An answer as the JSON literal it must be; a malformed one is a diagnostic, never a guess.
+pub fn literal_answer(raw: Option<&str>, key: &str, out: &mut CompileOutcome) -> Option<Value> {
     let raw = raw?;
     let value = match serde_json::from_str::<Value>(raw) {
         Ok(value) => value,
@@ -501,7 +602,8 @@ fn unknown_answers(
     }
 }
 
-fn finish(source: String, out: &mut CompileOutcome) {
+/// Finish an outcome on a candidate source: parsed, checked, previewed, its status settled.
+pub fn finish(source: String, out: &mut CompileOutcome) {
     out.candidate = Some(source);
     let wf = match parse(out.candidate.as_deref().unwrap_or_default()) {
         Ok(wf) => wf,
@@ -559,17 +661,11 @@ fn finish(source: String, out: &mut CompileOutcome) {
         .diagnostics
         .iter()
         .any(|d| d.kind != DiagnosticKind::Applied);
-    if out.status != CompileStatus::Refused
-        && out.questions.is_empty()
-        && !unresolved
-        && report.is_clean()
-    {
+    // A question that does not block Ready (a schedule's binding values) may stay open.
+    let asked = out.questions.iter().any(|q| q.mandatory);
+    if out.status != CompileStatus::Refused && !asked && !unresolved && report.is_clean() {
         out.status = CompileStatus::Ready;
-    } else if out.status != CompileStatus::Refused
-        && out.questions.is_empty()
-        && !unresolved
-        && !report.is_clean()
-    {
+    } else if out.status != CompileStatus::Refused && !asked && !unresolved && !report.is_clean() {
         // Nothing to ask and nothing else to report: the preview's own refusals are the
         // reason the candidate is not ready, and they must be visible without opening it.
         let refusals: Vec<String> = report

@@ -7,8 +7,8 @@
 //! hold are refused. The ledger rides in provenance either way, observational, never
 //! authority.
 
-use super::assemble::{Doc, emit};
-use super::bindings::{self, Bindings, RuleBinding};
+use super::assemble::{Doc, Laws, emit};
+use super::bindings::{Bindings, RuleBinding};
 use super::ledger::{Duty, DutyKind, DutyState, Ledger};
 use super::plan::{EffectPolicy, EffectVerb, Op, Plan};
 use super::shape::Shape;
@@ -22,6 +22,7 @@ pub(super) fn settle_candidate(
     plan: &Plan,
     b: &Bindings,
     d: Doc,
+    laws: &Laws<'_>,
     out: &mut CompileOutcome,
 ) -> Result<(), CompileError> {
     // The realized topology, recorded beside the route: observational, never authority.
@@ -68,7 +69,44 @@ pub(super) fn settle_candidate(
         );
         return Ok(());
     }
-    emit(d, out)
+    out.provenance.suggested_file = Some(suggested_file(plan, b));
+    emit(d, laws, out)
+}
+
+/// A kebab-case file name for the candidate: the first written file's stem (`open-sorted`),
+/// else the first outbound effect's verb, else the first operation and its object (`draft-
+/// summary`), else `compiled-workflow`; at most 40 characters, always `.nika`.
+fn suggested_file(plan: &Plan, b: &Bindings) -> String {
+    let stem = b
+        .writes
+        .first()
+        .map(|w| w.stem.clone())
+        .or_else(|| b.wired.first().map(|w| w.slug.clone()))
+        .or_else(|| {
+            plan.steps.first().map(|step| {
+                let object = super::lexicon::slug(&step.detail);
+                if object.is_empty() {
+                    step.op.word().to_owned()
+                } else {
+                    format!("{}-{object}", step.op.word())
+                }
+            })
+        })
+        .unwrap_or_else(|| "compiled-workflow".to_owned());
+    let mut kebab = String::new();
+    for c in stem.to_lowercase().chars() {
+        if c.is_ascii_alphanumeric() {
+            kebab.push(c);
+        } else if !kebab.ends_with('-') {
+            kebab.push('-');
+        }
+    }
+    let mut kebab = kebab.trim_matches('-').chars().take(40).collect::<String>();
+    kebab = kebab.trim_matches('-').to_owned();
+    if kebab.is_empty() {
+        "compiled-workflow".clone_into(&mut kebab);
+    }
+    format!("{kebab}.nika")
 }
 
 /// The effect family a gate covers: writing a file, moving money, or reaching out.
@@ -192,31 +230,7 @@ fn realize(ledger: &mut Ledger, plan: &Plan, b: &Bindings, d: &Doc, trigger_stat
         }
         match duty.kind {
             DutyKind::Format | DutyKind::Cardinality | DutyKind::Identity => {
-                if let Some((_, task)) = d
-                    .verified_bounds
-                    .iter()
-                    .find(|(constraint, _)| *constraint == duty.evidence)
-                {
-                    duty.realize(task, Some("verified at run"));
-                } else if plan.trigger.as_deref().map(str::trim) == Some(duty.evidence.as_str()) {
-                    if let Some(carrier) = trigger_carrier {
-                        duty.realize(carrier, Some("once per item of the material"));
-                    }
-                } else if b.consumed.contains(&duty.evidence) {
-                    // A concurrency bound lives on the fan-out; order and headings on the fold.
-                    let carrier = if bindings::parallel_bound(&duty.evidence).is_some() {
-                        "for_each"
-                    } else {
-                        "draft_fold"
-                    };
-                    duty.realize(carrier, Some("realized by the structure"));
-                } else if let Some(task) = d.infer_tasks.first() {
-                    let note = match duty.kind {
-                        DutyKind::Cardinality => "prompt guidance; not verified at run",
-                        _ => "prompt guidance",
-                    };
-                    duty.realize(task, Some(note));
-                }
+                realize_format(duty, plan, b, d, trigger_carrier);
             }
             DutyKind::Safeguard => {
                 let obligation = plan
@@ -252,6 +266,160 @@ fn realize(ledger: &mut Ledger, plan: &Plan, b: &Bindings, d: &Doc, trigger_stat
             | DutyKind::Context => {}
         }
     }
+}
+
+/// A format, a cardinality or an identity is realized by what verifies it at run, by the
+/// trigger's carrier, by the structure that consumed it, by the compute task that keeps the
+/// source columns, or as prompt guidance of the first language step.
+fn realize_format(
+    duty: &mut Duty,
+    plan: &Plan,
+    b: &Bindings,
+    d: &Doc,
+    trigger_carrier: Option<&str>,
+) {
+    let has_task = |id: &str| d.root["tasks"].get(id).is_some();
+    if let Some((_, task)) = d
+        .verified_bounds
+        .iter()
+        .find(|(constraint, _)| *constraint == duty.evidence)
+    {
+        duty.realize(task, Some("verified at run"));
+    } else if plan.trigger.as_deref().map(str::trim) == Some(duty.evidence.as_str()) {
+        if let Some(carrier) = trigger_carrier {
+            duty.realize(carrier, Some("once per item of the material"));
+        }
+    } else if b.consumed.contains(&duty.evidence) {
+        // A concurrency bound lives on the fan-out; order and headings on the fold.
+        let carrier = if super::cardinality::parallel_bound(&duty.evidence).is_some() {
+            "for_each"
+        } else {
+            "draft_fold"
+        };
+        duty.realize(carrier, Some("realized by the structure"));
+    } else if matches!(duty.kind, DutyKind::Format | DutyKind::Identity)
+        && has_task("compute")
+        && (keeps_columns(&duty.evidence)
+            || super::rules::keeps_order(&duty.evidence)
+            || names_computed_column(&duty.evidence, d)
+            || stated_by_rule(&duty.evidence, plan))
+    {
+        duty.realize(
+            "compute",
+            Some("the computed rows carry the columns the request names"),
+        );
+    } else if let Some(task) = d.infer_tasks.first() {
+        let note = match duty.kind {
+            DutyKind::Cardinality => "prompt guidance; not verified at run",
+            _ => "prompt guidance",
+        };
+        duty.realize(task, Some(note));
+    }
+}
+
+/// A format that names a column the computation outputs (« exactly two columns,
+/// `roast_level` and `total_kg` », « one row per roast level ») is carried by the compute
+/// task: the projection, the grouping or the aggregation produced that very column.
+fn names_computed_column(constraint: &str, d: &Doc) -> bool {
+    let folded = super::shape::fold(constraint);
+    d.computed_columns.iter().flatten().any(|column| {
+        let column = super::shape::fold(column);
+        let spaced = column.replace('_', " ");
+        !column.is_empty() && (folded.contains(&column) || folded.contains(&spaced))
+    })
+}
+
+/// A format the rule itself states: the rule's own words (« los tres corredores más
+/// rápidos (menor `tiempo_seg`) » promoted from the clause the rule was read from), or an
+/// ordering phrase (« del más rápido al más lento », « highest first », « croissant ») when
+/// the rule sorts. The compute task carries both.
+fn stated_by_rule(constraint: &str, plan: &Plan) -> bool {
+    let fold = |text: &str| {
+        text.split(|c: char| !c.is_alphanumeric())
+            .filter(|w| !w.is_empty())
+            .collect::<Vec<_>>()
+            .join(" ")
+            .to_lowercase()
+    };
+    let wanted = fold(constraint);
+    if wanted.is_empty() {
+        return false;
+    }
+    let inside_a_rule = plan.rules.iter().any(|rule| {
+        let text = fold(rule.text());
+        !text.is_empty() && (text.contains(&wanted) || wanted.contains(&text))
+    });
+    if inside_a_rule {
+        return true;
+    }
+    let sorted = plan
+        .rules
+        .iter()
+        .any(|rule| !rule.to_json()["shape"]["sort_by"].is_null());
+    sorted && ordering_phrase(&super::shape::fold(constraint))
+}
+
+/// An ordering phrase in six languages, folded.
+fn ordering_phrase(folded: &str) -> bool {
+    [
+        "ascending",
+        "descending",
+        "highest first",
+        "lowest first",
+        "largest first",
+        "smallest first",
+        "croissant",
+        "decroissant",
+        "du plus",
+        "de la plus",
+        "del mas",
+        "de mayor a menor",
+        "de menor a mayor",
+        "dal piu",
+        "dalla piu",
+        "aufsteigend",
+        "absteigend",
+        "vom hochsten",
+        "vom niedrigsten",
+        "do maior",
+        "do menor",
+        "crescente",
+        "decrescente",
+    ]
+    .iter()
+    .any(|cue| folded.contains(cue))
+}
+
+/// A format the computed rows honour by construction: « avec les mêmes colonnes et dans le
+/// même ordre », « mismas columnas », « stesse colonne », « denselben Spalten », « same
+/// columns », « mesma ordem ». A filter keeps every column of every row it keeps, in the
+/// order they came; a projection keeps the columns it names, in the order it names them.
+fn keeps_columns(constraint: &str) -> bool {
+    let folded = super::shape::fold(constraint);
+    [
+        "same column",
+        "same order",
+        "same row order",
+        "columns unchanged",
+        "memes colonnes",
+        "meme ordre",
+        "colonnes identiques",
+        "mismas columnas",
+        "mismo orden",
+        "stesse colonne",
+        "stesso ordine",
+        "denselben spalten",
+        "dieselben spalten",
+        "gleichen spalten",
+        "gleiche spalten",
+        "selben reihenfolge",
+        "gleicher reihenfolge",
+        "gleiche reihenfolge",
+        "mesmas colunas",
+        "mesma ordem",
+    ]
+    .iter()
+    .any(|phrase| folded.contains(phrase))
 }
 
 /// A structure law is realized by the emitted shape or left unresolved with the reason: a

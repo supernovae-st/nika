@@ -11,6 +11,7 @@
 //! to that file, never a POST. A file the request names that nothing reads or
 //! writes is a question, never a silent drop.
 
+use super::cardinality::parallel_bound;
 use super::paths::{self, PathShape, Structured};
 use super::plan::{Effect, EffectPolicy, EffectVerb, Op, Plan, Step};
 use super::rules;
@@ -20,11 +21,19 @@ use super::{CompileOutcome, CompileRequest, DiagnosticKind, QuestionType};
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
 
+mod computation;
+use computation::synthesized_rule;
+mod write_path;
+
 const MODEL_LABEL: &str = "Which explicit runtime provider/model should run the language steps (extract, classify, draft)?";
 const STATE_LABEL: &str = "Which JSON file keeps the identifiers already processed, so the same event never triggers a second action?";
 const SEARCH_LABEL: &str = "Which local directory holds the documents to search?";
 const URL_LABEL: &str = "Which exact URL should be fetched?";
 const SOURCE_PATHS_LABEL: &str = "Which exact local files should be read? Answer a JSON array of file paths, one per file, without prose.";
+/// Punctuation that may follow a file name without being part of it.
+const TAIL: [char; 6] = ['.', ',', ';', ':', '!', '?'];
+/// What ends a phrase: a name read backwards from its file never runs over it.
+const PHRASE_ENDS: [char; 12] = [',', ';', ':', '.', '!', '?', ')', ']', '»', '"', '`', '”'];
 
 /// One value a plan may need: not needed, asked and pending, or bound.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -129,6 +138,10 @@ pub(super) struct Bindings {
     /// The directory file of a lookup and how its record is selected.
     pub lookup: Need<Lookup>,
     pub search: Need<Value>,
+    /// The text a search over the request's own material looks for: answered as
+    /// `const.search_term`, or asked. Absent when the invocation's item is the query (the
+    /// request supplies no material of its own, or an event delivers the item).
+    pub search_query: Need<Value>,
     pub fetch: Need<Value>,
     pub read: Need<Source>,
     pub rule: Need<RuleBinding>,
@@ -149,6 +162,10 @@ pub(super) struct Bindings {
     /// The classify runs once per parsed record of one structured source: the request
     /// classifies each record, and a write naming a category carries its records.
     pub classify_per_record: bool,
+    /// The answered slots (slug, value): consts the rule's jq reads under `slots`.
+    pub slots: Vec<(String, Value)>,
+    /// The slots still asked, by key.
+    pub pending_slots: Vec<String>,
 }
 
 impl Bindings {
@@ -229,11 +246,13 @@ impl Bindings {
         (!uses_model(plan) || self.model.is_some())
             && self.lookup.settled()
             && self.search.settled()
+            && self.search_query.settled()
             && self.fetch.settled()
             && self.read.settled()
             && self.rule.settled()
             && self.dedup.settled()
             && !self.effects_pending
+            && self.pending_slots.is_empty()
     }
 }
 
@@ -296,37 +315,6 @@ fn file_write(effect: &Effect) -> Option<String> {
     }
 }
 
-/// A numeric concurrency bound stated as a constraint ("at most 2 at a time").
-pub(super) fn parallel_bound(constraint: &str) -> Option<u32> {
-    let lower = constraint.to_lowercase();
-    let concurrent = [
-        "at a time",
-        "at once",
-        "in parallel",
-        "concurrently",
-        "simultaneously",
-        "à la fois",
-        "en parallèle",
-        "en même temps",
-        "a la vez",
-        "al mismo tiempo",
-    ]
-    .iter()
-    .any(|phrase| lower.contains(phrase));
-    if !concurrent {
-        return None;
-    }
-    let numbers: Vec<u32> = lower
-        .split(|c: char| !c.is_ascii_digit())
-        .filter(|w| !w.is_empty())
-        .filter_map(|w| w.parse().ok())
-        .collect();
-    match numbers.as_slice() {
-        [n] if *n > 0 => Some(*n),
-        _ => None,
-    }
-}
-
 /// The paths the plan writes: a destination, never a source, even when a proposal names
 /// one in the read step (`Read ./caisse.csv ; write the object to ./out/caisse.json`).
 fn written_targets(plan: &Plan) -> Vec<String> {
@@ -365,6 +353,35 @@ fn bind_url(
     answer(request, out, "const.source_url", URL_LABEL, true)
 }
 
+/// The text a search looks for. When the request supplies no material of its own, the
+/// invocation's item is its material and its query; when an event or a webhook delivers
+/// the item, the payload is the query. Otherwise nothing supplies an item at run time, so
+/// the text comes from the request's side: answered as `const.search_term`, or asked
+/// before the candidate claims it can run. Never a default, never an empty string.
+fn bind_search_query(
+    plan: &Plan,
+    has_corpus: bool,
+    request: &CompileRequest,
+    out: &mut CompileOutcome,
+    recognized: &mut BTreeSet<String>,
+) -> Need<Value> {
+    let delivered = super::trigger::requirement(plan, true).is_some_and(|trigger| {
+        matches!(
+            trigger.kind,
+            super::TriggerKind::Event | super::TriggerKind::Webhook
+        )
+    });
+    let step = plan.step(Op::Search).filter(|_| has_corpus && !delivered);
+    Need::from_step(step, |step| {
+        recognized.insert("const.search_term".to_owned());
+        let label = format!(
+            "Which text should the search look for? The request asks « {} » but states no search text; answer the exact text as a JSON string.",
+            step.evidence.trim()
+        );
+        answer(request, out, "const.search_term", &label, true)
+    })
+}
+
 /// Every binding the plan needs, answered or asked. Sources first, because the
 /// item and the rule's input shape depend on them.
 pub(super) fn bind(
@@ -375,9 +392,11 @@ pub(super) fn bind(
     recognized: &mut BTreeSet<String>,
 ) -> Bindings {
     let model = bind_model(plan, request, out, recognized);
+    let located = located_json(plan);
     let lookup = Need::from_step(plan.step(Op::Lookup), |step| {
-        resolve_lookup(step, request, out, recognized)
+        resolve_lookup(step, located.as_deref(), request, out, recognized)
     });
+    let read_consumed = lookup_consumes(&lookup, located.as_deref());
     let search = Need::from_step(plan.step(Op::Search), |_| {
         recognized.insert("const.search_root".to_owned());
         answer(request, out, "const.search_root", SEARCH_LABEL, true)
@@ -386,8 +405,8 @@ pub(super) fn bind(
         bind_url(plan, request, out, recognized)
     });
     let written = written_targets(plan);
-    let read = Need::from_step(plan.step(Op::Read), |step| {
-        resolve_read(step, &written, request, out, recognized)
+    let read = Need::from_step(plan.step(Op::Read).filter(|_| !read_consumed), |step| {
+        resolve_read(step, &written, intent, request, out, recognized)
     });
     let absent = matches!(lookup, Need::Absent) && matches!(fetch, Need::Absent);
     let read = locate_items(
@@ -415,8 +434,10 @@ pub(super) fn bind(
     // The item is the material of an invocation only when the request supplies none of its
     // own. A trigger over a read, fetched or looked-up corpus ("for each critical row",
     // "once all three are done") distributes or sequences work over THAT corpus; it never
-    // declares an input the run could not supply.
-    let item = !has_corpus || plan.has(Op::Search);
+    // declares an input the run could not supply. A search's query is that item only when
+    // the request supplies no material or an event delivers it (`bind_search_query`).
+    let search_query = bind_search_query(plan, has_corpus, request, out, recognized);
+    let item = !has_corpus || (plan.has(Op::Search) && matches!(search_query, Need::Absent));
     let mut consumed = Vec::new();
     let mut max_parallel = None;
     if fan_out {
@@ -441,16 +462,13 @@ pub(super) fn bind(
     let classify_per_record = matches!(&read, Need::Bound(Source::File(path)) if Structured::of(path).is_some())
         && shape::per_record_classify(plan);
     if per_item.contains(&Op::Draft) {
-        for constraint in &plan.constraints {
-            if shape::structural(constraint) && !consumed.contains(constraint) {
-                consumed.push(constraint.clone());
-            }
-        }
+        consume_structural(plan, &mut consumed);
     }
     let mut b = Bindings {
         model,
         lookup,
         search,
+        search_query,
         fetch,
         read,
         rule: Need::Absent,
@@ -463,22 +481,43 @@ pub(super) fn bind(
         item,
         per_item,
         classify_per_record,
+        slots: Vec::new(),
+        pending_slots: Vec::new(),
     };
-    b.rule = Need::from_step(plan.step(Op::Compute), |step| {
-        // A rule the request states over a parsed source is code the compiler writes;
-        // an explicit answer still wins, and anything outside the grammar is asked.
-        if !request.answers.contains_key("const.rule_expression")
-            && let Some(rule) = synthesized_rule(plan, step, intent, &b)
-        {
-            return ranked(rule, request, out, recognized).map(RuleBinding::Synthesized);
-        }
-        recognized.insert("const.rule_expression".to_owned());
-        let label = rule_label(plan, &b, &step.detail);
-        answer(request, out, "const.rule_expression", &label, true).map(RuleBinding::Answered)
-    });
+    bind_slots(plan, request, out, recognized, &mut b);
+    b.rule = bind_computation(plan, intent, &b, request, out, recognized);
     bind_effects(plan, distributed, request, out, recognized, &mut b);
     bind_named_outputs(plan, request, out, recognized, &mut b);
     b
+}
+
+/// Bind the explicit or synthesized computation after its source and slots are known.
+fn bind_computation(
+    plan: &Plan,
+    intent: &str,
+    bindings: &Bindings,
+    request: &CompileRequest,
+    out: &mut CompileOutcome,
+    recognized: &mut BTreeSet<String>,
+) -> Need<RuleBinding> {
+    Need::from_step(plan.step(Op::Compute), |step| {
+        // A rule the request states over a parsed source is code the compiler writes;
+        // an explicit answer still wins, and anything outside the grammar is asked.
+        if !request.answers.contains_key("const.rule_expression")
+            && let Some(rule) = synthesized_rule(plan, step, intent, bindings, request)
+        {
+            let rule = match &bindings.read {
+                Need::Bound(Source::File(path)) => {
+                    super::observed::ground_rule(rule, path, request, out, recognized)?
+                }
+                _ => rule,
+            };
+            return ranked(rule, request, out, recognized).map(RuleBinding::Synthesized);
+        }
+        recognized.insert("const.rule_expression".to_owned());
+        let label = rule_label(plan, bindings, &step.detail);
+        answer(request, out, "const.rule_expression", &label, true).map(RuleBinding::Answered)
+    })
 }
 
 /// A carry of held material (« post it to `<url>` »); a body whose keys the request states
@@ -519,24 +558,82 @@ fn refuse_per_item_placeholder(effect: &Effect, out: &mut CompileOutcome) -> boo
     true
 }
 
+/// A structure law among the constraints is consumed by the structure, kept out of prompts.
+fn consume_structural(plan: &Plan, consumed: &mut Vec<String>) {
+    for constraint in &plan.constraints {
+        if shape::structural(constraint) && !consumed.contains(constraint) {
+            consumed.push(constraint.clone());
+        }
+    }
+}
+
+/// A value the request alludes to without stating it: asked as its const, a literal for a
+/// numeric comparison, text otherwise; never guessed.
+fn bind_slots(
+    plan: &Plan,
+    request: &CompileRequest,
+    out: &mut CompileOutcome,
+    recognized: &mut BTreeSet<String>,
+    b: &mut Bindings,
+) {
+    for slot in &plan.slots {
+        recognized.insert(slot.key.clone());
+        let label = format!(
+            "Which value is « {} »? The request alludes to it without stating it; supply the literal value.",
+            slot.label
+        );
+        match answer(request, out, &slot.key, &label, !slot.numeric) {
+            Some(value) => b.slots.push((slot.slug().to_owned(), value)),
+            None => b.pending_slots.push(slot.key.clone()),
+        }
+    }
+}
+
+/// The one JSON file the plan's read step locates: a lookup by identifier selects its
+/// record there.
+fn located_json(plan: &Plan) -> Option<String> {
+    plan.step(Op::Read)
+        .and_then(|step| paths::single_file(&step.detail))
+        .filter(|file| paths::extension(file).as_deref() == Some("json"))
+}
+
+/// Whether the lookup consumed the located file: it is then read once, by the lookup, and
+/// the record it selects is the material; a second read of the whole file would be the
+/// wrong content for « write it ».
+fn lookup_consumes(lookup: &Need<Lookup>, located: Option<&str>) -> bool {
+    matches!(
+        (lookup, located),
+        (Need::Bound(l), Some(file)) if l.by_id.is_some() && l.directory == json!(file)
+    )
+}
+
 /// The lookup step settles its directory: a detail naming one JSON file and an
 /// identifier binds the file itself and asks only which field holds the identifier (the
-/// record is selected at run time); any other detail asks for the JSON directory file and
-/// reads the record keyed by each invocation's `record_id`.
+/// record is selected at run time); a detail naming an identifier and no path selects the
+/// record in the JSON file the request's read step locates; any other detail asks for the
+/// JSON directory file and reads the record keyed by each invocation's `record_id`.
 fn resolve_lookup(
     step: &Step,
+    located: Option<&str>,
     request: &CompileRequest,
     out: &mut CompileOutcome,
     recognized: &mut BTreeSet<String>,
 ) -> Option<Lookup> {
-    if let Some(literal) = shape::lookup_by_identifier(&step.detail) {
+    let literal = shape::lookup_by_identifier(&step.detail)
+        .or_else(|| located.and_then(|file| shape::lookup_by_identifier_over(&step.detail, file)));
+    if let Some(literal) = literal {
         let field_key = format!("const.{}_id_field", literal.slug);
         recognized.insert(field_key.clone());
         let label = format!(
             "Which field of each record in `{}` holds the identifier `{}` (for example `id`)? Answer the field name as a JSON string.",
             literal.file, literal.id
         );
-        let field = answer(request, out, &field_key, &label, true)?;
+        let field = match super::observed::columns(super::observed::world(request), &literal.file) {
+            Some(columns) => {
+                super::observed::field_answer(request, out, &field_key, &label, &columns)?
+            }
+            None => answer(request, out, &field_key, &label, true)?,
+        };
         return Some(Lookup {
             key: format!("const.{}_directory", literal.slug),
             directory: json!(literal.file),
@@ -565,10 +662,13 @@ fn resolve_lookup(
 
 /// The read step settles where the document comes from: the supplied item when it
 /// names no path, one file, several files, a glob; a directory or a placeholder is a
-/// stable question, never a path literal.
+/// stable question, never a path literal. A file keeps the name the request states: a
+/// detail that is one of the request's files is that file whole, and a bare file a
+/// longer name may end in is never cut to its last word ([`stated_name`]).
 fn resolve_read(
     step: &Step,
     written: &[String],
+    intent: &str,
     request: &CompileRequest,
     out: &mut CompileOutcome,
     recognized: &mut BTreeSet<String>,
@@ -577,10 +677,22 @@ fn resolve_read(
     let mut globs = Vec::new();
     let mut directories = Vec::new();
     let mut placeholders = Vec::new();
-    for shape in paths::literals(&step.detail) {
+    let stated = paths::literals(intent);
+    let whole = step.detail.trim().trim_end_matches(TAIL);
+    let shapes = if states_file(&stated, whole) {
+        vec![PathShape::File(whole.to_owned())]
+    } else {
+        paths::literals(&step.detail)
+    };
+    for shape in shapes {
         match shape {
-            PathShape::File(p) if written.iter().any(|w| w == &p) => {}
-            PathShape::File(p) => files.push(p),
+            PathShape::File(p) => match stated_name(&step.detail, &p, intent, &stated) {
+                Some(file) if written.contains(&file) => {}
+                Some(file) => files.push(file),
+                None => placeholders.push(p),
+            },
+            PathShape::Placeholder(p) if states_file(&stated, &p) && written.contains(&p) => {}
+            PathShape::Placeholder(p) if states_file(&stated, &p) => files.push(p),
             PathShape::Glob(p) => globs.push(p),
             PathShape::Directory(p) => directories.push(p),
             PathShape::Placeholder(p) => placeholders.push(p),
@@ -605,7 +717,7 @@ fn resolve_read(
     {
         return resolve_directory(directory, request, out, recognized);
     }
-    let key = "const.source_paths";
+    let key = crate::fidelity::SOURCE_PATHS;
     recognized.insert(key.to_owned());
     let value = answer(request, out, key, SOURCE_PATHS_LABEL, false)?;
     let files: Option<Vec<String>> = value.as_array().and_then(|items| {
@@ -634,6 +746,90 @@ fn resolve_read(
             None
         }
     }
+}
+
+/// Whether the request's own reading states `name` as one file: a literal of its own (a
+/// token, a quoted or rooted name) or a capitalized run it glues to a file (`lis Notes
+/// équipe.txt`, `dans Copie équipe.txt`), never a template to fill (`<slug>`, `{name}`).
+fn states_file(stated: &[PathShape], name: &str) -> bool {
+    stated.iter().any(|shape| match shape {
+        PathShape::File(file) => file == name,
+        PathShape::Placeholder(run) => {
+            run == name
+                && run.starts_with(char::is_uppercase)
+                && run.contains(char::is_whitespace)
+                && !run.contains(['<', '>', '{', '}', '$'])
+        }
+        _ => false,
+    })
+}
+
+/// The file a bare name in a read detail stands for. A capitalized word a name admits may
+/// open a longer name before it (`Notes équipe.txt` at the head of a detail), and a
+/// longer name is never cut to its last word: the request states the longer name, or
+/// states this file alone without the plan's longer phrase in any case, or the question
+/// asks (`None`). A file the request names only inside a longer one is asked too.
+fn stated_name(detail: &str, file: &str, intent: &str, stated: &[PathShape]) -> Option<String> {
+    if file.contains(char::is_whitespace) || file.starts_with(['.', '/', '~']) {
+        return Some(file.to_owned());
+    }
+    let words: Vec<&str> = detail.split_whitespace().collect();
+    let at = words
+        .iter()
+        .position(|word| word.trim_end_matches(TAIL) == file)
+        .unwrap_or(0);
+    let mut from = at;
+    while from > 0 && phrase_word(words[from - 1]) {
+        from -= 1;
+    }
+    let longer: Vec<String> = (from..at)
+        .filter(|&start| opens_name(words[start]))
+        .map(|start| format!("{} {file}", words[start..at].join(" ")))
+        .collect();
+    if let Some(name) = longer
+        .iter()
+        .find(|name| states_file(stated, name.as_str()))
+    {
+        return Some(name.clone());
+    }
+    let alone = states_file(stated, file);
+    let spoken = intent.to_lowercase();
+    if !longer.is_empty()
+        && (!alone
+            || longer
+                .iter()
+                .any(|name| spoken.contains(&name.to_lowercase())))
+    {
+        return None;
+    }
+    let suffix = format!(" {file}");
+    let inside = stated.iter().any(|shape| {
+        matches!(shape, PathShape::File(name) | PathShape::Placeholder(name)
+            if name.ends_with(suffix.as_str()))
+    });
+    (alone || !inside).then(|| file.to_owned())
+}
+
+/// A word a name may run over, read backwards from its file: no phrase end, no path, some
+/// letter or digit, and no file noun, after which a name opens (`le fichier entree.txt`).
+/// The reader's own law is the oracle, never a second word list: after a file noun, and
+/// only there, it reads a lowercase run and its file as one name (`fichier name a.txt`).
+fn phrase_word(word: &str) -> bool {
+    !word.ends_with(PHRASE_ENDS)
+        && paths::token(word).is_none()
+        && word.chars().any(char::is_alphanumeric)
+        && !matches!(paths::literals(&format!("{word} name a.txt")).as_slice(),
+            [PathShape::Placeholder(run)] if run == "name a.txt")
+}
+
+/// A capitalized word the reader admits inside an unquoted name: followed by a file, it
+/// reads as one name only when it is no function word, file noun or path.
+fn opens_name(word: &str) -> bool {
+    word.starts_with(char::is_uppercase)
+        && matches!(
+            paths::token(&format!("{word} a.txt")),
+            Some(PathShape::File(_))
+        )
 }
 
 /// A request that quantifies over a set it never locates (« for each invoice », with no file,
@@ -768,44 +964,6 @@ fn ranked(
     None
 }
 
-/// The rule a compute step states in words, when the corpus is what the rule can run over
-/// and every part of the detail is in the grammar: one structured file for a filter, an
-/// aggregate, a grouping, a sort, a top-N or a projection over its parsed records; one text
-/// file for a removal of duplicate lines; several structured files of one format for a join.
-fn synthesized_rule(plan: &Plan, step: &Step, intent: &str, b: &Bindings) -> Option<rules::Rule> {
-    // A validated rule stated for this very step first (the semantic frontend's typed
-    // predicate, or a promoted constraint: meaning before syntax), then the closed grammar
-    // over the whole detail. A detail the plan joined from several clauses (` ; `) must
-    // parse whole: one recorded rule for one of its parts would silently drop the others.
-    let detail = step.detail.trim();
-    let whole = !detail.contains(" ; ");
-    // A rule recorded for this very step stands for it when it is the only rule (the seat's
-    // paraphrase beside the promoted constraint of the same rule); two recorded rules on a
-    // joined detail are synthesized whole, so neither stands for the other.
-    let stated = plan
-        .rules
-        .iter()
-        .find(|rule| rule.text() == step.evidence || rule.text() == detail)
-        .filter(|_| whole || plan.rules.len() == 1)
-        .cloned()
-        .or_else(|| rules::synthesize(detail, &super::columns::columns_hint(intent)))
-        .or_else(|| {
-            (whole && plan.rules.len() == 1)
-                .then(|| plan.rules.first().cloned())
-                .flatten()
-        })?;
-    match &b.read {
-        Need::Bound(Source::File(path)) if Structured::of(path).is_some() => {
-            (!stated.joins()).then_some(stated)
-        }
-        Need::Bound(Source::File(_)) => stated.over_lines(),
-        Need::Bound(Source::Files(files)) if joined_format(files).is_some() => {
-            stated.joins().then_some(stated)
-        }
-        _ => None,
-    }
-}
-
 /// The one structured format several read files share, when they do: what a join parses,
 /// one array of records per file.
 pub(super) fn joined_format(files: &[String]) -> Option<Structured> {
@@ -906,6 +1064,8 @@ fn wanted(
             Some(false)
         }
         EffectPolicy::Conflict => Some(false),
+        // The approval question over an automatic money movement is open: never bound.
+        EffectPolicy::Automatic if effect.verb.moves_money() => None,
         EffectPolicy::Automatic | EffectPolicy::HumanFirst => Some(true),
         EffectPolicy::Undecided => {
             let key = format!("effect.{slug}.include");
@@ -953,7 +1113,11 @@ fn bind_effects(
     recognized: &mut BTreeSet<String>,
     b: &mut Bindings,
 ) {
-    for effect in &plan.effects {
+    // Each write that names no file keeps its own question across rounds, and a file another
+    // output already receives is never bound again by an answer (`write_path`).
+    let path_keys = write_path::keys(plan);
+    let mut taken: BTreeSet<String> = plan.effects.iter().filter_map(file_write).collect();
+    for (index, effect) in plan.effects.iter().enumerate() {
         let slug = effect_slug(effect);
         match wanted(effect, &slug, request, out, recognized) {
             Some(true) => {}
@@ -972,12 +1136,15 @@ fn bind_effects(
                 b.effects_pending = true;
                 continue;
             }
-            let path = file_write(effect)
-                .or_else(|| ask_write_path(effect, &slug, request, out, recognized, b));
+            let path = file_write(effect).or_else(|| {
+                let key = path_keys.get(index)?.as_deref()?;
+                write_path::ask(effect, key, &taken, request, out, recognized)
+            });
             let Some(path) = path else {
                 b.effects_pending = true;
                 continue;
             };
+            taken.insert(path.clone());
             if let Some(existing) = b.writes.iter_mut().find(|w| w.path == path) {
                 existing.gated |= gated;
                 existing.evidences.push(effect.evidence.clone());
@@ -1051,41 +1218,6 @@ fn category_named(categories: &[String], text: &str) -> Option<String> {
     match named.as_slice() {
         [only] => Some((*only).clone()),
         _ => None,
-    }
-}
-
-/// A write whose target names no single file asks for its exact path.
-fn ask_write_path(
-    effect: &Effect,
-    slug: &str,
-    request: &CompileRequest,
-    out: &mut CompileOutcome,
-    recognized: &mut BTreeSet<String>,
-    b: &Bindings,
-) -> Option<String> {
-    let key = if b.writes.is_empty() {
-        "const.output_path".to_owned()
-    } else {
-        format!("const.{slug}_path")
-    };
-    recognized.insert(key.clone());
-    let label = format!(
-        "Which exact file path should receive `{}`? One path-shaped token (for example ./out/result.md), no prose; a directory is not a file.",
-        effect.target.trim()
-    );
-    match answer(request, out, &key, &label, true).and_then(|v| v.as_str().and_then(paths::token)) {
-        Some(PathShape::File(path)) => Some(path),
-        Some(_) => {
-            reject(
-                out,
-                &key,
-                &label,
-                true,
-                "Name one exact file, not a directory, a glob or a placeholder.",
-            );
-            None
-        }
-        None => None,
     }
 }
 

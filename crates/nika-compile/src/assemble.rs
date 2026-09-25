@@ -39,6 +39,9 @@ use super::{CompileError, CompileOutcome, CompileRequest, DiagnosticKind, Questi
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
 
+mod emit;
+pub(super) use emit::{Laws, emit};
+
 /// What a fact is for: prompts and anchor laws see the corpus and the derived
 /// results; code rules also see the parsed data.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -285,7 +288,14 @@ impl Doc {
 
 /// Facts that are data, not text: a CSV, YAML or TOML destination receives them through a
 /// conversion stage instead of their JSON text.
-pub(super) const DATA_FACTS: [&str; 5] = ["computed", "fields", "validation", "records", "record"];
+pub(super) const DATA_FACTS: [&str; 6] = [
+    "computed",
+    "fields",
+    "validation",
+    "records",
+    "record",
+    "summary",
+];
 
 /// Facts that are the rows of the source (or a code rule over them): the only data a
 /// CSV source's column order applies to.
@@ -295,32 +305,13 @@ pub(super) const ROW_FACTS: [&str; 2] = ["computed", "records"];
 /// body and its anchored claims.
 const DRAFT_MAX_TOKENS: u32 = 1200;
 
-/// The cap on a catalog-known reasoning seat (gpt-5 · o-series · gemini 2.5 · grok-3-mini ·
-/// claude): the reasoning trace shares `max_tokens` with the visible answer, and a structured
-/// draft with anchors needs room for both. 1200 was measured too small (openai/gpt-5-mini ·
-/// the trace ate the whole cap · `NIKA-INFER-002 · no JSON value found · cut off at the token
-/// limit` at run); 4096 leaves the answer its room. A cap is a ceiling the run never exceeds,
-/// never a spend.
-const REASONING_MAX_TOKENS: u32 = 4096;
-
-/// The `max_tokens` a language step declares: the step's own cap, raised to the reasoning
-/// floor when the doc's seat is a catalog-known reasoning model. The seat is the `model`
-/// answer already stamped on the doc; a seat the catalog does not know keeps the step's cap
-/// (no evidence it reasons), `mock` keeps it too (the catalog's fixture row claims every
-/// capability; an offline rehearsal synthesizes its answer and the cap is moot), and the
+/// The `max_tokens` a language step declares: the step's own generated cap, sized for the
+/// doc's seat by [`crate::seat_cap::sized`] (raised on a catalog-known reasoning model, never
+/// above the output limit its row records). The seat is the `model` answer already stamped on
+/// the doc; a seat the catalog does not know keeps the step's cap, `mock` keeps it too, and the
 /// run's own `--model` override is judged by `nika check`.
 fn infer_cap(d: &Doc, base: u32) -> u32 {
-    let reasoning = d.root["model"]
-        .as_str()
-        .and_then(|seat| seat.split_once('/'))
-        .is_some_and(|(provider, name)| {
-            provider != "mock" && nika_catalog::model_capabilities(provider, name).reasoning
-        });
-    if reasoning {
-        base.max(REASONING_MAX_TOKENS)
-    } else {
-        base
-    }
+    crate::seat_cap::sized(d.root["model"].as_str(), base)
 }
 
 fn guidance(plan: &Plan, consumed: &[String]) -> String {
@@ -339,12 +330,21 @@ fn guidance(plan: &Plan, consumed: &[String]) -> String {
 /// Assemble one plan. Missing bindings become stable questions; nothing is invented. The
 /// request text is read only for structural shape (a heading per file, a per-item
 /// draft); every element still comes from the plan.
-pub(super) fn assemble(
+///
+/// # Errors
+/// Returns representation failures while emitting the deterministic candidate.
+pub fn assemble(
     plan: &Plan,
     intent: &str,
     request: &CompileRequest,
     out: &mut CompileOutcome,
 ) -> Result<(), CompileError> {
+    // The requester's decisions over the plan come first (a money movement's approval):
+    // the assembler works on the decided plan; the recorded plan stays as it was read.
+    let mut recognized: BTreeSet<String> = BTreeSet::new();
+    let mut decided = plan.clone();
+    super::approval::decide(&mut decided, request, out, &mut recognized);
+    let plan = &decided;
     if refused(plan, out) {
         return Ok(());
     }
@@ -355,35 +355,20 @@ pub(super) fn assemble(
     if refused_contradiction(&stated, out) {
         return Ok(());
     }
-    let mut recognized: BTreeSet<String> = BTreeSet::new();
     let b = bindings::bind(plan, intent, request, out, &mut recognized);
+    state_trigger(plan, b.item, request, out, &mut recognized);
     super::unknown_answers(
         request,
         &recognized.iter().map(String::as_str).collect(),
         out,
     );
-    // A trigger the request names is deployment, not workflow: stated beside the candidate
-    // on every round, whether or not a question is still open. A sequencing head (« once the
-    // brief is read ») orders the work the program already contains and states nothing.
-    let sequencing = plan.trigger.as_deref().is_some_and(|t| {
-        matches!(
-            super::trigger::classify(t),
-            super::trigger::TriggerForm::Sequence
-        )
-    });
-    if !sequencing && let Some(trigger) = super::trigger::requirement(plan, b.item) {
-        super::finding(
-            out,
-            DiagnosticKind::Applied,
-            "trigger",
-            super::trigger::note(&trigger),
-        );
-        out.requested_trigger = Some(trigger);
-    }
     if repeated_effect_asked(plan, intent, &b, out) || !b.ready(plan) {
         return Ok(());
     }
-    if plan.obligation("revision_check") && matches!(b.lookup, Need::Absent) {
+    if plan.obligation("revision_check")
+        && matches!(b.lookup, Need::Absent)
+        && matches!(b.search, Need::Absent)
+    {
         super::finding(
             out,
             DiagnosticKind::Unknown,
@@ -399,6 +384,9 @@ pub(super) fn assemble(
     let mut d = Doc::new(id, b.item);
     if let Some(model) = &b.model {
         d.root["model"] = model.clone();
+    }
+    for (slug, value) in &b.slots {
+        d.root["const"][slug] = value.clone();
     }
     emit_lookup(&mut d, &b);
     emit_read(&mut d, plan, &b);
@@ -430,7 +418,47 @@ pub(super) fn assemble(
         d.tool("dedup_next", "nika:jq", json!({"input": {"state": "${{ with.state }}", "id": "${{ inputs.event_id }}"}, "expression": ". as $r | (($r.state | fromjson) + [$r.id]) | tojson"}), Some(json!({"state": "${{ tasks.dedup_read.output }}"})), true);
         d.tool("dedup_record", "nika:write", json!({"path": "${{ const.state_file }}", "content": "${{ with.next }}", "overwrite": true, "create_dirs": true}), Some(json!({"next": "${{ tasks.dedup_next.output }}"})), false);
     }
-    settle_candidate(plan, &b, d, out)
+    settle_candidate(
+        plan,
+        &b,
+        d,
+        &Laws {
+            intent,
+            plan,
+            answers: &request.answers,
+        },
+        out,
+    )
+}
+
+/// A trigger the request names is deployment, not workflow: stated beside the candidate
+/// on every round, whether or not a question is still open. A sequencing head (« once the
+/// brief is read ») orders the work the program already contains and states nothing. A
+/// schedule's binding values (timezone, missed-run and overlap policies, per-run ceiling)
+/// are asked beside it without blocking the candidate.
+fn state_trigger(
+    plan: &Plan,
+    item: bool,
+    request: &CompileRequest,
+    out: &mut CompileOutcome,
+    recognized: &mut BTreeSet<String>,
+) {
+    let sequencing = plan.trigger.as_deref().is_some_and(|t| {
+        matches!(
+            super::trigger::classify(t),
+            super::trigger::TriggerForm::Sequence
+        )
+    });
+    if !sequencing && let Some(mut trigger) = super::trigger::requirement(plan, item) {
+        super::trigger::bind_schedule(&mut trigger, request, out, recognized);
+        super::finding(
+            out,
+            DiagnosticKind::Applied,
+            "trigger",
+            super::trigger::note(&trigger),
+        );
+        out.requested_trigger = Some(trigger);
+    }
 }
 
 /// The one review task every gated effect waits for when the request states one approval.
@@ -483,7 +511,7 @@ fn refused(plan: &Plan, out: &mut CompileOutcome) -> bool {
 /// item. It is a question for the human, never a candidate. The deterministic door reads
 /// only an explicit object ("write a haiku") and already asks for a vague one, so this law
 /// judges the plans a seat proposed or a record replays, not the reader's own.
-pub(super) fn unfed(plan: &Plan, intent: &str, out: &mut CompileOutcome) -> bool {
+pub fn unfed(plan: &Plan, intent: &str, out: &mut CompileOutcome) -> bool {
     let sourced = plan
         .steps
         .iter()
@@ -808,6 +836,17 @@ fn emit_fan_out(d: &mut Doc, plan: &Plan, b: &Bindings, source: &Source) {
     d.fact("document", "${{ tasks.documents.output }}", Kind::Corpus);
 }
 
+/// The pattern a search runs: the answered search text (`const.search_term`) when the
+/// request's side supplies it, else the invocation's item, which `Bindings::item` declares.
+fn search_pattern(d: &mut Doc, b: &Bindings) -> &'static str {
+    if let Some(term) = b.search_query.bound() {
+        d.root["const"]["search_term"] = term.clone();
+        "${{ const.search_term }}"
+    } else {
+        "${{ inputs.item }}"
+    }
+}
+
 fn emit_search_fetch_dedup(d: &mut Doc, plan: &Plan, b: &Bindings) {
     if let Some(root) = b.search.bound() {
         d.root["const"]["search_root"] = root.clone();
@@ -815,7 +854,8 @@ fn emit_search_fetch_dedup(d: &mut Doc, plan: &Plan, b: &Bindings) {
             d.reads
                 .push(json!(format!("{}/**", root.trim_end_matches('/'))));
         }
-        d.tool("search_hits", "nika:grep", json!({"pattern": "${{ inputs.item }}", "path": "${{ const.search_root }}", "case_insensitive": true}), None, false);
+        let pattern = search_pattern(d, b);
+        d.tool("search_hits", "nika:grep", json!({"pattern": pattern, "path": "${{ const.search_root }}", "case_insensitive": true}), None, false);
         d.fact("hits", "${{ tasks.search_hits.output }}", Kind::Corpus);
     }
     super::network::emit_fetch(d, plan, b);
@@ -856,11 +896,12 @@ fn emit_step(d: &mut Doc, plan: &Plan, b: &Bindings, guide: &str, step: &Step) {
         }
         Op::Compute => match b.rule.bound() {
             Some(RuleBinding::Answered(rule)) => {
-                d.root["const"]["rule_expression"] = rule.clone();
+                // The answer is the task's literal program: the Check preview compiles it
+                // (NIKA-VAR-005) instead of trusting a templated const the checker never reads.
                 d.tool(
                     "compute",
                     "nika:jq",
-                    json!({"input": d.jq_input(), "expression": "${{ const.rule_expression }}"}),
+                    json!({"input": d.jq_input(), "expression": rule.clone()}),
                     Some(d.with_all()),
                     true,
                 );
@@ -935,7 +976,18 @@ fn emit_synthesized_rule(d: &mut Doc, plan: &Plan, rule: &super::rules::Rule) {
         || "${{ tasks.parse_source.output }}".to_owned(),
         |f| f.template.clone(),
     );
-    let input = json!({"records": "${{ with.records }}"});
+    let mut input = json!({"records": "${{ with.records }}"});
+    if !plan.slots.is_empty() {
+        // The values the request alludes to ride beside the records, from their consts.
+        let mut slots = serde_json::Map::new();
+        for slot in &plan.slots {
+            slots.insert(
+                slot.slug().to_owned(),
+                json!(format!("${{{{ {} }}}}", slot.key)),
+            );
+        }
+        input["slots"] = Value::Object(slots);
+    }
     d.tool(
         "compute_guard",
         "nika:jq",
@@ -1316,57 +1368,14 @@ fn emit_revision_check(d: &mut Doc, plan: &Plan, b: &Bindings) {
         );
         d.tool("revision_stable", "nika:jq", json!({"input": {"before": "${{ with.before }}", "after": "${{ with.after }}"}, "expression": ".before == .after"}), Some(json!({"before": "${{ tasks.lookup_record.output }}", "after": "${{ tasks.revision_record.output }}"})), false);
         d.tool("revision_admit", "nika:assert", json!({"condition": "${{ with.stable }}", "message": "The record changed since it was read; the final action is not allowed on a stale version."}), Some(json!({"stable": "${{ tasks.revision_stable.output }}"})), false);
+    } else if plan.obligation("revision_check") && b.search.bound().is_some() {
+        // The hits are the version the answer was drafted from: the search is rerun just
+        // before the action, and changed hits are a changed version.
+        let pattern = search_pattern(d, b);
+        d.tool("revision_reread", "nika:grep", json!({"pattern": pattern, "path": "${{ const.search_root }}", "case_insensitive": true}), None, true);
+        d.tool("revision_stable", "nika:jq", json!({"input": {"before": "${{ with.before }}", "after": "${{ with.after }}"}, "expression": ".before == .after"}), Some(json!({"before": "${{ tasks.search_hits.output }}", "after": "${{ tasks.revision_reread.output }}"})), false);
+        d.tool("revision_admit", "nika:assert", json!({"condition": "${{ with.stable }}", "message": "The hits changed since they were searched; the final action is not allowed on a stale version."}), Some(json!({"stable": "${{ tasks.revision_stable.output }}"})), false);
     }
-}
-
-/// Permits and emission: exactly what the tasks reach, then the literal round trip.
-pub(super) fn emit(mut d: Doc, out: &mut CompileOutcome) -> Result<(), CompileError> {
-    d.root["permits"]["tools"] = json!(d.tools.iter().copied().collect::<Vec<_>>());
-    if !d.reads.is_empty() || !d.writes.is_empty() {
-        let mut fs = json!({});
-        if !d.reads.is_empty() {
-            fs["read"] = json!(d.reads);
-        }
-        if !d.writes.is_empty() {
-            fs["write"] = json!(d.writes);
-        }
-        d.root["permits"]["fs"] = fs;
-    }
-    if !d.hosts.is_empty() {
-        d.root["permits"]["net"] = json!({"http": d.hosts});
-    }
-    for key in ["const", "inputs"] {
-        if d.root[key]
-            .as_object()
-            .is_some_and(serde_json::Map::is_empty)
-            && let Some(map) = d.root.as_object_mut()
-        {
-            map.remove(key);
-        }
-    }
-    if d.root["outputs"]
-        .as_object()
-        .is_some_and(serde_json::Map::is_empty)
-    {
-        if let Some(fact) = d.facts.last() {
-            d.root["outputs"][fact.name] = json!(fact.template);
-        } else if d.item {
-            d.root["outputs"]["item"] = json!("${{ inputs.item }}");
-        }
-    }
-    let source = serde_yaml_bw::to_string(&d.root).map_err(CompileError::representation)?;
-    if super::edit::literal_projection(&source).as_ref() != Some(&d.root) {
-        super::finding(
-            out,
-            DiagnosticKind::Refused,
-            "candidate",
-            "The emitted candidate did not preserve literal data.",
-        );
-        out.status = super::CompileStatus::Refused;
-        return Ok(());
-    }
-    super::finish(source, out);
-    Ok(())
 }
 
 #[cfg(test)]

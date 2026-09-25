@@ -8,22 +8,41 @@ use marked_yaml::{LoaderOptions, Node, parse_yaml_with_options};
 use serde_json::Value;
 
 /// Called only after the canonical parser's resource guards and pure Check.
-/// A no-op preserves all bytes. Otherwise only a single-line scalar or a flow
-/// collection is replaced; ambiguous/block presentation keeps the original.
+/// A no-op preserves all bytes. Otherwise only a single-line scalar, a flow
+/// collection or a block sequence ending in a one-line scalar item (rewritten as
+/// its flow form) is replaced; any other presentation keeps the original.
 pub(super) fn emit(source: &str, before: &Value, after: &Value, name: &str) -> Option<String> {
+    let declaration = before.get("const")?.get(name)?;
+    let typed = declaration.get("type").is_some() && declaration.get("value").is_some();
+    if typed {
+        emit_at(source, before, after, &["const", name, "value"])
+    } else {
+        emit_at(source, before, after, &["const", name])
+    }
+}
+
+/// The same bounded edit at any key path of the document (`permits` · `net` · `http`): the
+/// literal at that path in `after` replaces the one the source presents there, when that
+/// presentation is a single-line scalar, a flow collection or a block sequence ending in a
+/// one-line scalar item — whose flow form then takes its place, from its first `-` to its
+/// last item.
+pub(super) fn emit_at(
+    source: &str,
+    before: &Value,
+    after: &Value,
+    path: &[&str],
+) -> Option<String> {
     if super::edit::literal_projection(source).as_ref() != Some(before) {
         return None;
     }
     if before == after {
         return Some(source.to_owned());
     }
-    let declaration = before.get("const")?.get(name)?;
-    let mut replacement = after.get("const")?.get(name)?;
-    let typed = declaration.get("type").is_some() && declaration.get("value").is_some();
-    if typed {
-        replacement = replacement.get("value")?;
+    let mut replacement = after;
+    for key in path {
+        replacement = replacement.get(key)?;
     }
-    let (start, end) = literal_range(source, name, typed)?;
+    let (start, end) = literal_range(source, path)?;
     let prefix = source.get(..start)?;
     let suffix = source.get(end..)?;
     let replacement = yaml_safe_json(&replacement.to_string());
@@ -50,19 +69,19 @@ fn yaml_safe_json(token: &str) -> String {
         .collect()
 }
 
-/// Byte range of the constant's literal (the `value` of a typed declaration),
-/// or `None` when its presentation is outside this bounded slice.
-fn literal_range(source: &str, name: &str, typed: bool) -> Option<(usize, usize)> {
+/// Byte range of the literal at a key path (`const` · name, or `const` · name · `value` for a
+/// typed declaration), or `None` when its presentation is outside this bounded slice.
+fn literal_range(source: &str, path: &[&str]) -> Option<(usize, usize)> {
     let options = LoaderOptions::default()
         .error_on_duplicate_keys(true)
         .prevent_coercion(true);
     let tree = parse_yaml_with_options(0, source, options).ok()?;
-    let mut parent = tree.as_mapping()?.get_node("const")?;
-    let mut node = parent.as_mapping()?.get_node(name)?;
-    if typed {
-        parent = node;
-        node = node.as_mapping()?.get_node("value")?;
+    let (last, ancestors) = path.split_last()?;
+    let mut parent: &Node = &tree;
+    for key in ancestors {
+        parent = parent.as_mapping()?.get_node(key)?;
     }
+    let node = parent.as_mapping()?.get_node(last)?;
     let start = byte_offset(source, node.span().start()?.character())?;
     let parent_start = byte_offset(source, parent.span().start()?.character())?;
     let flow = source.as_bytes().get(parent_start) == Some(&b'{');
@@ -72,6 +91,16 @@ fn literal_range(source: &str, name: &str, typed: bool) -> Option<(usize, usize)
         // plain scalar is empty, and `prevent_coercion` keeps `''`/`""` apart.
         Node::Scalar(scalar) if scalar.may_coerce() && scalar.as_str().is_empty() => return None,
         Node::Scalar(_) => scalar_end(source, start, flow)?,
+        // A block sequence (`- a` lines under the key) ends where its last scalar item ends;
+        // the flow form written in its place is valid YAML on the item's first line.
+        Node::Sequence(items) if source.as_bytes().get(start) == Some(&b'-') => {
+            let last = items.last()?;
+            let Node::Scalar(_) = last else {
+                return None;
+            };
+            let item_start = byte_offset(source, last.span().start()?.character())?;
+            scalar_end(source, item_start, false)?
+        }
         Node::Mapping(_) | Node::Sequence(_) => {
             let closing = match source.as_bytes().get(start)? {
                 b'{' => b'}',
@@ -144,9 +173,31 @@ fn scalar_end(source: &str, start: usize, flow: bool) -> Option<usize> {
 mod tests {
     use super::{literal_range, yaml_safe_json};
 
+    #[test]
+    fn a_block_sequence_permit_takes_the_flow_form_when_a_host_is_granted() {
+        let source = "nika: x\npermits:\n  net:\n    http:\n      - \"a.example\"\n      - \"b.example\"\ntasks: {}\n";
+        let before = crate::edit::literal_projection(source).expect("projects");
+        let mut after = before.clone();
+        after["permits"]["net"]["http"] =
+            serde_json::json!(["a.example", "b.example", "hooks.invalid"]);
+        let edited =
+            super::emit_at(source, &before, &after, &["permits", "net", "http"]).expect("edited");
+        assert!(
+            edited.contains(
+                "http:\n      [\"a.example\",\"b.example\",\"hooks.invalid\"]\ntasks: {}"
+            ),
+            "{edited}"
+        );
+        assert_eq!(crate::edit::literal_projection(&edited), Some(after));
+    }
+
     fn located(consts: &str, typed: bool) -> Option<String> {
         let source = format!("nika: x\nconst:\n{consts}\ntasks: {{}}\n");
-        let (start, end) = literal_range(&source, "payload", typed)?;
+        let (start, end) = if typed {
+            literal_range(&source, &["const", "payload", "value"])?
+        } else {
+            literal_range(&source, &["const", "payload"])?
+        };
         source.get(start..end).map(str::to_owned)
     }
 

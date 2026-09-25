@@ -26,7 +26,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use nika_schema::expression::{Expr, Literal, NamespaceRef, RelOp, expr_refs, scan_templates};
-use nika_schema::raw::RawTask;
+use nika_schema::raw::{RawAction, RawTask};
 use nika_schema::types::WhenGate;
 
 /// Kleene three-valued logic. `#[non_exhaustive]` per FCI-002: a consumer
@@ -110,7 +110,7 @@ pub enum Gate {
 /// what runs — that is [`gate_certain`].
 #[must_use]
 pub fn gate_verdict(task: &RawTask, prompt: &str) -> Gate {
-    gate_under(task, prompt, false)
+    gate_under(task, prompt, false, Some(false))
 }
 
 /// The same gate read for a WITNESS: `Closed` = once admitted the task
@@ -135,11 +135,60 @@ pub fn gate_certain(task: &RawTask, prompt: &str) -> Gate {
     if !task.with.iter().all(|(_, v)| total_binding(&v.value)) {
         return Gate::Unclear;
     }
-    match gate_under(task, prompt, true) {
+    match gate_under(task, prompt, true, Some(false)) {
         Gate::Closed => Gate::Closed,
         _ if task.for_each.is_some() => Gate::Unclear,
         verdict => verdict,
     }
+}
+
+/// A confirm gate only a human can pass: an `invoke:` of the human-gate tool in confirm mode
+/// (`mode:` absent or `confirm` — a choice or an input answer is a string, never a typed yes)
+/// whose `default:`, the answer given when nobody is there, is absent or `false`, and whose
+/// answer nothing stands in for: no `on_error:` (a recovered value is nobody's yes) and no
+/// fan-out (a list of answers is not one yes).
+#[must_use]
+pub fn human_confirm(task: &RawTask) -> bool {
+    let RawAction::Invoke(inv) = &task.action else {
+        return false;
+    };
+    if task.on_error.is_some()
+        || task.for_each.is_some()
+        || inv
+            .tool()
+            .is_none_or(|tool| tool.value != nika_cap::HUMAN_GATE_TOOL)
+    {
+        return false;
+    }
+    let args = inv.args.as_ref().and_then(|a| a.value.as_object());
+    let arg = |name: &str| args.and_then(|o| o.get(name));
+    arg("mode").is_none_or(|mode| mode.as_str() == Some("confirm"))
+        && arg("default").is_none_or(|answer| answer.as_bool() == Some(false))
+}
+
+/// The positive half of the affirmative-consent law, for a caller that must show an approval
+/// EXISTS where the consent lane proves only that no route leaks a « no »: the task's own
+/// `when:` reads an exact `with:` carrier of `tasks.<prompt>.output`, is proven false once the
+/// gate answered « no » ([`gate_verdict`] `Closed`) and once it was skipped (its answer reads
+/// null: `with.go != false` holds then), and is NOT proven false once it answered « yes » (a
+/// guard dead on every answer — `with.go == 'yes'` against a typed confirm — approves
+/// nothing either). A gate that never reads the answer (`when: false` · a quoted text), a
+/// derived or nested carrier, a status read: not affirmed, never guessed.
+#[must_use]
+pub fn affirmed_by(task: &RawTask, prompt: &str) -> bool {
+    let Some(WhenGate::Expr(src)) = task.when.as_ref().map(|w| &w.value) else {
+        return false;
+    };
+    let Some(expr) = parse_gate(src) else {
+        return false;
+    };
+    let carriers = RefusalEnv::of(task, Some(false)).outputs;
+    expr_refs(&expr).iter().any(|r| {
+        matches!(r, NamespaceRef::With(key) if carriers.get(key).is_some_and(|id| id == prompt))
+    }) && [Some(false), None]
+        .into_iter()
+        .all(|answer| gate_under(task, prompt, false, answer) == Gate::Closed)
+        && gate_under(task, prompt, false, Some(true)) != Gate::Closed
 }
 
 /// A `with:` value whose evaluation cannot error: no island at all, or
@@ -181,8 +230,10 @@ fn named_step(e: &Expr) -> Option<&Expr> {
 }
 
 /// The ONE gate evaluation both readings share — `total` selects the
-/// reading (see [`gate_certain`]).
-fn gate_under(task: &RawTask, prompt: &str, total: bool) -> Gate {
+/// reading (see [`gate_certain`]), `answer` the substituted answer:
+/// `Some(false)` is the refusal substitution, `None` a skipped gate (its
+/// output reads null) and `Some(true)` the approval ([`affirmed_by`]).
+fn gate_under(task: &RawTask, prompt: &str, total: bool, answer: Option<bool>) -> Gate {
     let Some(when) = task.when.as_ref() else {
         return Gate::Open;
     };
@@ -193,7 +244,7 @@ fn gate_under(task: &RawTask, prompt: &str, total: bool) -> Gate {
     let Some(expr) = parse_gate(src) else {
         return Gate::Unclear;
     };
-    let env = RefusalEnv::of(task);
+    let env = RefusalEnv::of(task, answer);
     let carrying = carrying_keys(task, prompt, &env);
     if expr_refs(&expr)
         .iter()
@@ -212,16 +263,18 @@ fn gate_under(task: &RawTask, prompt: &str, total: bool) -> Gate {
 /// single-island `with:` carriers the substitution resolves: the
 /// `.output` carrier is `false`, the `.status` carrier is `"success"`
 /// (a refusal settles success — a status read is decidable, and it is
-/// NOT consent).
+/// NOT consent). The other substitutions [`affirmed_by`] reads put `true`
+/// (an approval) or null (a skipped gate) in the output's place.
 struct RefusalEnv {
     outputs: BTreeMap<String, String>,
     statuses: BTreeMap<String, String>,
+    answer: Option<bool>,
 }
 
 impl RefusalEnv {
     /// Collect the task's exact carriers — only THIS prompt's are facts;
     /// the reads (`is_output_ref` / `is_status_ref`) match on the id.
-    fn of(task: &RawTask) -> Self {
+    fn of(task: &RawTask, answer: Option<bool>) -> Self {
         let mut outputs = BTreeMap::new();
         let mut statuses = BTreeMap::new();
         for (key, value) in &task.with {
@@ -235,7 +288,11 @@ impl RefusalEnv {
                 statuses.insert(key.value.clone(), id);
             }
         }
-        Self { outputs, statuses }
+        Self {
+            outputs,
+            statuses,
+            answer,
+        }
     }
 }
 
@@ -341,7 +398,8 @@ fn with_ref_target<'a>(e: &Expr, b: &'a BTreeMap<String, String>) -> Option<&'a 
 }
 
 /// Kleene-3 evaluation of a `when:` gate with THIS prompt's settled
-/// facts substituted (output = `false` · status = `"success"`) — exact
+/// facts substituted (output = `false` under the refusal, `true` under its
+/// approval twin · status = `"success"`) — exact
 /// over the consent fragment (boolean literals · `==`/`!=`/`in` on
 /// resolved literals · `!`/`&&`/`||`/ternary), Unknown beyond it. Sound
 /// direction: only [`K3::False`] closes the route, only [`K3::True`]
@@ -370,7 +428,8 @@ fn eval_consent(e: &Expr, prompt: &str, env: &RefusalEnv, total: bool) -> K3 {
             K3::Unknown => K3::Unknown,
         },
         Expr::Relation { op, lhs, rhs } => eval_relation(*op, lhs, rhs, prompt, env, total),
-        _ if is_output_ref(e, prompt, env) => K3::False,
+        // A null answer where a boolean is due errors: never `success`.
+        _ if is_output_ref(e, prompt, env) => k3(env.answer == Some(true)),
         _ => K3::Unknown,
     }
 }
@@ -418,12 +477,12 @@ fn eval_relation(
 }
 
 /// A sub-expression resolved to a literal — the prompt's answer resolves
-/// to `false` and its status to `"success"` BY CONSTRUCTION of this
-/// evaluation.
+/// to the substituted answer (`false` under the refusal) and its status to
+/// `"success"` BY CONSTRUCTION of this evaluation.
 fn resolve_lit(e: &Expr, prompt: &str, env: &RefusalEnv) -> Option<Literal> {
     match e {
         Expr::Lit(l) => Some(l.clone()),
-        _ if is_output_ref(e, prompt, env) => Some(Literal::Bool(false)),
+        _ if is_output_ref(e, prompt, env) => Some(env.answer.map_or(Literal::Null, Literal::Bool)),
         _ if is_status_ref(e, prompt, env) => Some(Literal::Str("success".to_owned())),
         _ => None,
     }
@@ -541,5 +600,118 @@ mod tests {
         assert_eq!(readings(nested), (Gate::Open, Gate::Unclear));
         let fans_out = "    with: { v: \"${{ tasks.a.output }}\" }\n    for_each: { items: \"${{ with.v }}\" }\n";
         assert_eq!(readings(fans_out), (Gate::Open, Gate::Unclear));
+    }
+
+    /// Task `t` of a one-task fixture (`body` then the verb line).
+    fn only_task(body: &str, verb: &str) -> RawTask {
+        let yaml = format!("nika: t\ntasks:\n  t:\n{body}    {verb}\n");
+        parse(&yaml, FileId::new(0), ParseMode::Strict)
+            .expect("fixture parses")
+            .tasks
+            .remove(0)
+            .value
+    }
+
+    /// Whether the effect task `t` (its `with:` then `when:` lines) is affirmed by `ask`.
+    fn affirmed(with: &str, when: &str) -> bool {
+        affirmed_by(
+            &only_task(&format!("{with}{when}"), "exec: { command: [\"true\"] }"),
+            "ask",
+        )
+    }
+
+    /// The positive guards: the answer read whole, alone, in a conjunction (either order —
+    /// Kleene closes both on a « no » and on a skip), as a membership or a condition.
+    #[test]
+    fn a_guard_that_runs_only_on_the_yes_is_affirmed() {
+        let with = format!("    with: {{ {GO}, n: 3 }}\n");
+        for when in [
+            "with.go == true",
+            "with.go",
+            "with.go == true && with.n > 0",
+            "with.n > 0 && with.go == true",
+            "with.go in [true]",
+            "with.go ? true : false",
+        ] {
+            let gate = format!("    when: \"${{{{ {when} }}}}\"\n");
+            assert!(affirmed(&with, &gate), "{when}");
+        }
+    }
+
+    /// Every shape that lets the effect run without a yes, never reads the answer, or reads it
+    /// through a carrier the substitution does not resolve. `!= false` and `!(… == false)` hold
+    /// on a skipped gate, whose answer reads null.
+    #[test]
+    fn a_guard_that_can_run_without_the_yes_is_not_affirmed() {
+        let with = format!("    with: {{ {GO}, n: 3 }}\n");
+        for when in [
+            "with.go == false",
+            "!with.go",
+            "with.go || true",
+            "with.go == true || with.go == false",
+            "with.go != false",
+            "!(with.go == false)",
+            "with.n > 0",
+            "'with.go' != ''",
+            "'with.go' == 'x'",
+            "false && with.go",
+            "with.go == 'yes'",
+        ] {
+            let gate = format!("    when: \"${{{{ {when} }}}}\"\n");
+            assert!(!affirmed(&with, &gate), "{when}");
+        }
+        assert!(
+            !affirmed(&with, ""),
+            "no `when:` (an `after:` wait) approves nothing"
+        );
+        assert!(!affirmed(&with, "    when: false\n"), "never is not a yes");
+        for carrier in [
+            "go: \"${{ tasks.decide.output }}\"",
+            "go: \"answer=${{ tasks.ask.output }}\"",
+            "go: \"${{ tasks.ask.status }}\"",
+        ] {
+            let with = format!("    with: {{ {carrier} }}\n");
+            assert!(
+                !affirmed(&with, "    when: ${{ with.go == true }}\n"),
+                "{carrier}"
+            );
+        }
+    }
+
+    /// A human confirm: confirm mode (stated or by default), no defaulted yes, no recovered or
+    /// skipped error standing in for the answer, one answer (no fan-out).
+    #[test]
+    fn only_a_confirm_no_default_yes_can_answer_can_approve() {
+        let gate = |body: &str, args: &str| {
+            human_confirm(&only_task(
+                body,
+                &format!("invoke: {{ tool: \"nika:prompt\", args: {args} }}"),
+            ))
+        };
+        assert!(gate("", "{ message: \"ok?\" }"));
+        assert!(gate("", "{ message: \"ok?\", mode: confirm }"));
+        assert!(gate("", "{ message: \"ok?\", default: false }"));
+        assert!(!gate("", "{ message: \"ok?\", default: true }"));
+        assert!(!gate(
+            "",
+            "{ message: \"ok?\", mode: choice, choices: [\"yes\", \"no\"] }"
+        ));
+        assert!(!gate("", "{ message: \"ok?\", mode: input }"));
+        assert!(!gate(
+            "    on_error: { recover: true }\n",
+            "{ message: \"ok?\" }"
+        ));
+        assert!(!gate(
+            "    on_error: { skip: true }\n",
+            "{ message: \"ok?\" }"
+        ));
+        assert!(!gate(
+            "    for_each: { items: [\"a\", \"b\"] }\n",
+            "{ message: \"ok ${{ item }}?\" }"
+        ));
+        assert!(!human_confirm(&only_task(
+            "",
+            "invoke: { tool: \"nika:read\", args: { path: \"./a.txt\" } }"
+        )));
     }
 }

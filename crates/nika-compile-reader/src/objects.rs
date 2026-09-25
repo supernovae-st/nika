@@ -56,6 +56,16 @@ pub fn as_clause(residue: &str) -> &str {
     }
 }
 
+/// The connectors that introduce a write's destination wherever its object follows them.
+const DESTINATION_ANYWHERE: &[&str] = &[
+    " to ", " into ", " dans ", " sous ", " vers ", " → ", " -> ",
+];
+
+/// The locatives that introduce a destination only when its object follows them at once.
+const DESTINATION_ADJACENT: &[&str] = &[
+    " in ", " en ", " nel ", " nella ", " su ", " sul ", " sulla ",
+];
+
 /// The byte position of the destination connector of a write (`… to ./out/x.md`), when the
 /// path follows it. A path before the connector is a source, not a destination. A
 /// locative (`in ./x.md`, `en ./x.md`, `nel ./x.md`) is a destination only when the path
@@ -63,27 +73,299 @@ pub fn as_clause(residue: &str) -> &str {
 /// the object (`salvalo in ./x.md` reads as `in ./x.md`): the position is then 0.
 #[must_use]
 pub fn destination_at(detail_lower: &str, path_at: usize) -> Option<usize> {
-    const ANYWHERE: &[&str] = &[" to ", " into ", " dans ", " sous ", " vers "];
-    const ADJACENT: &[&str] = &[
-        " in ", " en ", " nel ", " nella ", " su ", " sul ", " sulla ",
-    ];
     let padded = format!(" {detail_lower}");
     let path_at = path_at + 1;
-    let anywhere = ANYWHERE
+    // A connector right before the path is the destination's own (« dans l'ordre, une par
+    // ligne → ./out/titres.txt »: the arrow, never the locative « dans » before it).
+    let right_before = DESTINATION_ANYWHERE
+        .iter()
+        .chain(DESTINATION_ADJACENT)
+        .filter(|c| c.len() <= path_at)
+        .find(|c| padded[..path_at].ends_with(**c))
+        .map(|c| path_at - c.len());
+    if let Some(pos) = right_before {
+        return Some(pos.saturating_sub(1));
+    }
+    DESTINATION_ANYWHERE
         .iter()
         .filter_map(|c| padded.find(c))
         .filter(|pos| *pos < path_at)
-        .min();
-    let adjacent = ADJACENT
-        .iter()
-        .filter_map(|c| padded.find(c).map(|pos| (pos, pos + c.len())))
-        .find(|(_, end)| *end == path_at)
-        .map(|(pos, _)| pos);
-    anywhere
-        .into_iter()
-        .chain(adjacent)
         .min()
         .map(|pos| pos.saturating_sub(1))
+}
+
+/// Indefinite singular determiners (EN · FR · ES · IT · PT · DE): what one opens is new, a thing
+/// the request names nowhere else (the law this module states: an indefinite object is new).
+const INDEFINITE: &[&str] = &[
+    "a", "an", "un", "une", "una", "uno", "um", "uma", "ein", "eine", "einen", "einem", "einer",
+];
+
+/// The file a clause writes into without naming it: a destination connector (the grammar of
+/// [`destination_at`]), an indefinite determiner, at most two modifiers and a file noun, with
+/// no file name after it in its clause (« dans un fichier », « into a new file », « in a text
+/// file »). Returns the excerpt from the connector to the noun and the noun phrase alone, both
+/// verbatim slices of `detail`. A definite or possessive file (« dans le fichier », « in my
+/// file ») is one the request already has, a locative, never a new destination; a named one
+/// (« dans un fichier resume.md ») is the path laws'; and the phrase inside quotes or after a
+/// colon that opens content is content (the guard of the sentence-final cadence), not a write.
+/// A connector whose own clause denies the write or says where material already is asks for
+/// no write, and one whose clause does not say which is [`unclear_destination`]'s.
+pub(crate) fn unnamed_destination(detail: &str) -> Option<(&str, &str)> {
+    match unnamed_place(detail)? {
+        (Placement::Destination, excerpt, phrase) => Some((excerpt, phrase)),
+        _ => None,
+    }
+}
+
+/// The excerpt of an unnamed file phrase whose own clause does not say whether the result is
+/// written there (« the text written in a file », « don't put them into a file »): the reader
+/// asks, never writes it nor drops it silently.
+pub(crate) fn unclear_destination(detail: &str) -> Option<&str> {
+    match unnamed_place(detail)? {
+        (Placement::Unclear, excerpt, _) => Some(excerpt),
+        _ => None,
+    }
+}
+
+/// How a connector's own clause places the unnamed file phrase after it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Placement {
+    /// The request asks for the result there: a write.
+    Destination,
+    /// Denied, or where material already is: no write.
+    Elsewhere,
+    /// The words do not say which: a question, never a guess.
+    Unclear,
+}
+
+/// The first unnamed file phrase a connector introduces outside a denial or a location, with
+/// its placement, the excerpt from the connector to the noun and the noun phrase alone.
+fn unnamed_place(detail: &str) -> Option<(Placement, &str, &str)> {
+    let lower = plain_spaces(&detail.to_lowercase());
+    if lower.len() != detail.len() {
+        return None;
+    }
+    let padded = format!(" {lower} ");
+    let mut starts: Vec<(usize, &str)> = DESTINATION_ANYWHERE
+        .iter()
+        .chain(DESTINATION_ADJACENT)
+        .flat_map(|connector| {
+            padded
+                .match_indices(*connector)
+                .map(move |(at, _)| (at, *connector))
+        })
+        .collect();
+    starts.sort_unstable();
+    starts.into_iter().find_map(|(at, connector)| {
+        // `at` is the connector's leading space in `padded`: its word starts at `at` in `lower`.
+        let before = lower.get(..at)?;
+        if super::lexicon::quoted(before) || before.contains(": ") {
+            return None;
+        }
+        // The connector's own clause decides whether it names a destination at all: one it
+        // denies (« not into a file », « ne l'écris pas dans un fichier ») or one that says
+        // where material already is (« les notes contenues dans un fichier ») asks for no write.
+        let placement = placement(own_clause(before));
+        if placement == Placement::Elsewhere {
+            return None;
+        }
+        let phrase_at = at + connector.len() - 1;
+        let (opens, closes) = file_phrase_span(lower.get(phrase_at..)?)?;
+        let noun_end = phrase_at + closes;
+        let rest = lower.get(noun_end..)?;
+        let clause_rest = rest
+            .split([',', ';', ':', '!', '?'])
+            .next()
+            .unwrap_or_default();
+        if !super::paths::literals(clause_rest).is_empty() {
+            return None;
+        }
+        Some((
+            placement,
+            detail.get(at..noun_end)?,
+            detail.get(phrase_at + opens..noun_end)?,
+        ))
+    })
+}
+
+/// Words that open another clause inside one detail (« …, but save it in a file »).
+const CLAUSE_OPENERS: &str = "and but then et mais puis ensuite y pero und aber";
+
+/// Words that deny a destination when they end the words before its connector
+/// (« not into a file », « pas dans un fichier », « jamais dans un fichier »).
+const DENIED_RIGHT_BEFORE: &str =
+    "not never no nor pas jamais ni nunca nicht nie niemals kein keine nem";
+
+/// Words that negate what follows them in their clause. Over a write verb they deny the
+/// destination (« don't save it into a file », « sans l'enregistrer dans un fichier »).
+const NEGATORS: &str = "don't don’t doesn't doesn’t won't won’t never without ne sans jamais \
+     sin senza ohne sem";
+
+/// The negators that open a modifier of the work (« without losing details », « sans inventer
+/// de faits »): over any other verb they leave the destination to the clause.
+const MODIFIER_NEGATORS: &str = "without sans sin senza ohne sem";
+
+/// Placing verbs that are not write heads: negated, they may or may not deny the output.
+const PLACING: &str = "put putting place placing mettre mets met mis mise placer ranger range \
+     stocker stocke garder garde conserver conserve sauvegarder sauvegarde keep keeping";
+
+/// A copula, a containment participle, or « already » right before a connector: the locative
+/// then says where material is (« contenues dans un fichier », « is already in a file »).
+const LOCATED: &str = "is are was were be been lives live sits resides stays contained located \
+     found already still est sont était étaient trouve trouvent contenu contenue contenus \
+     contenues situé située situés situées présent présente présents présentes déjà encore";
+
+/// A result-state participle right before a connector: a requested result (« I want it saved
+/// in a file ») or where material is (« the text written in a file »), only the clause says.
+const RESULT_STATE: &str = "saved written stored kept écrit écrite écrits écrites enregistré \
+     enregistrée enregistrés enregistrées sauvegardé sauvegardée sauvegardés sauvegardées \
+     stocké stockée stockés stockées rangé rangée rangés rangées conservé conservée conservés \
+     conservées";
+
+/// Words that request the result a clause states (« I want », « je veux », « il faut »).
+const REQUESTING: &str = "want wants need needs please veux voudrais voudrait aimerais faut \
+     besoin souhaite quiero necesito vorrei voglio möchte quero";
+
+/// Whether `word` is one of the space-separated words of `table`.
+fn listed(table: &str, word: &str) -> bool {
+    table.split(' ').any(|entry| entry == word)
+}
+
+/// The clause a connector belongs to: what `before` (lowercase) says since its last sentence
+/// mark or clause connector.
+fn own_clause(before: &str) -> &str {
+    // A period is not a mark here: the reader split sentences already, and paths carry dots.
+    let mark = before
+        .rfind([',', ';', '!', '?', '(', '\n'])
+        .map_or(0, |at| at + 1);
+    let opener = CLAUSE_OPENERS
+        .split(' ')
+        .filter_map(|word| {
+            let padded = format!(" {word} ");
+            before.rfind(&padded).map(|at| at + padded.len())
+        })
+        .max()
+        .unwrap_or(0);
+    before.get(mark.max(opener)..).unwrap_or_default()
+}
+
+/// A word without its elided article or pronoun (« l'écrire » → « écrire »).
+fn bare(word: &str) -> &str {
+    word.split_once(['\'', '’']).map_or(word, |(_, rest)| rest)
+}
+
+/// Whether a word is exactly one of the reader's own write heads, or the gerund of one
+/// (« without saving it »). Only a write denies a file destination: a negated send, payment
+/// or publication (« without sending emails ») modifies the work and leaves the file, and a
+/// longer word that merely contains a write verb (« rewriting ») is never one.
+fn writes(word: &str) -> bool {
+    let word = bare(word);
+    super::lexicon::writes_to_path(word)
+        || matches!(word, "writing" | "saving" | "storing" | "recording")
+}
+
+/// How a connector's own clause places the file phrase after it. A denial right before the
+/// connector, or a negation over a write verb, denies it; « without »/« sans » over any other
+/// verb modifies the work and leaves it; a negated placing or unknown verb is unclear. A
+/// containment word locates material; a result-state participle is a destination when the
+/// clause requests it, unclear otherwise. French « ne … que » restricts, never negates.
+fn placement(clause: &str) -> Placement {
+    let words: Vec<&str> = clause
+        .split(|c: char| !(c.is_alphanumeric() || c == '\'' || c == '’'))
+        .filter(|w| !w.is_empty())
+        .collect();
+    let last = words.last().copied().unwrap_or_default();
+    if listed(DENIED_RIGHT_BEFORE, last) {
+        return Placement::Elsewhere;
+    }
+    let negator = words.iter().enumerate().position(|(at, w)| {
+        listed(NEGATORS, w)
+            || w.starts_with("n'")
+            || w.starts_with("n’")
+            || (*w == "not" && at > 0 && matches!(words[at - 1], "do" | "does" | "did"))
+    });
+    if let Some(at) = negator {
+        let governed = &words[at + 1..];
+        let french =
+            words[at] == "ne" || words[at].starts_with("n'") || words[at].starts_with("n’");
+        let restricts = french && governed.iter().any(|w| *w == "que" || w.starts_with("qu'"));
+        if !restricts {
+            if governed.iter().any(|w| writes(w)) {
+                return Placement::Elsewhere;
+            }
+            if governed.iter().any(|w| listed(PLACING, bare(w)))
+                || !listed(MODIFIER_NEGATORS, words[at])
+            {
+                return Placement::Unclear;
+            }
+        }
+    }
+    if listed(LOCATED, last) {
+        return Placement::Elsewhere;
+    }
+    if listed(RESULT_STATE, last) {
+        return if words.iter().any(|w| listed(REQUESTING, w)) {
+            Placement::Destination
+        } else {
+            Placement::Unclear
+        };
+    }
+    Placement::Destination
+}
+
+/// The text with every typographic space (a no-break space before « : », U+202F) spelled as
+/// many plain spaces as it has bytes: it reads as the space it stands for, and every byte offset
+/// stays one of the original text.
+fn plain_spaces(text: &str) -> String {
+    text.chars()
+        .flat_map(|c| {
+            let width = if c.is_whitespace() { c.len_utf8() } else { 0 };
+            std::iter::repeat_n(' ', width).chain((width == 0).then_some(c))
+        })
+        .collect()
+}
+
+/// Where the indefinite file phrase opening `text` starts and ends (« un fichier », « a new
+/// file », « a plain text file », « a .md file »): the determiner, at most two modifiers (no
+/// function word, no path; a format may be named by its extension), then a file noun, which
+/// closing punctuation or an ellipsis may follow. Repeated spaces separate words as one does.
+/// `None` for anything else.
+fn file_phrase_span(text: &str) -> Option<(usize, usize)> {
+    let mut start = 0;
+    let mut opens = None;
+    let mut modifiers = 0;
+    for raw in text.split(' ') {
+        let at = start;
+        start += raw.len() + 1;
+        if raw.is_empty() {
+            continue;
+        }
+        let word =
+            raw.trim_end_matches(['.', ',', ';', ':', '!', '?', ')', '»', '"', '”', '\u{2026}']);
+        let Some(from) = opens else {
+            if word.len() != raw.len() || !INDEFINITE.contains(&word) {
+                return None;
+            }
+            opens = Some(at);
+            continue;
+        };
+        if super::paths::file_noun(word) {
+            return Some((from, at + word.len()));
+        }
+        modifiers += 1;
+        let format = word.strip_prefix('.').is_some_and(|ext| {
+            (1..=8).contains(&ext.len()) && ext.chars().all(|c| c.is_ascii_alphanumeric())
+        });
+        if modifiers > 2
+            || word.is_empty()
+            || word.len() != raw.len()
+            || !(format || word.chars().all(|c| c.is_alphabetic() || c == '-'))
+            || super::paths::function_word(word)
+        {
+            return None;
+        }
+    }
+    None
 }
 
 /// The target an effect phrase names: its destination path when a connector introduces one
@@ -387,7 +669,58 @@ const OF_WORDS: &[&str] = &[
 /// name new content the write demands? A pronoun or a generic result word refers back; so
 /// does a head noun that recurs in an earlier clause (`the count` after `count the tickets`).
 /// Anything else (`a 3-bullet summary`, `the summary` with nothing summarized before) is new.
+/// Object clitics the reader keeps attached to the verb it stripped (FR « -le », « -la »,
+/// « -les »; ES « -lo », « -la », « -los », « -las »; PT « -o », « -a », « -os », « -as »),
+/// and the identity cues an object opens with when the pronoun was glued to the verb
+/// itself (« escríbelo tal cual en … », « scrivilo così com'è in … »): what is written as it
+/// is is what was read. A bare article (« la réponse ») is a determiner, never a pronoun.
+const IDENTITY: &[&str] = &[
+    "as is",
+    "as-is",
+    "verbatim",
+    "byte for byte",
+    "tel quel",
+    "telle quelle",
+    "tels quels",
+    "octet pour octet",
+    "tal cual",
+    "tal como está",
+    "così com'è",
+    "cosi com'e",
+    "così come",
+    "unverändert",
+    "unverandert",
+    "wie es ist",
+    "tal e qual",
+    "à l'identique",
+];
+
+/// An entire span stating only identity, rather than merely opening with an identity
+/// cue. A copy cannot discard arbitrary work after `as is` or `tel quel`.
+pub(crate) fn identity_only(text: &str) -> bool {
+    text.split(',')
+        .map(str::trim)
+        .all(|part| part.is_empty() || IDENTITY.contains(&part))
+}
+
+fn object_clitic_or_identity(object_lower: &str) -> bool {
+    const CLITICS: &[&str] = &[
+        "-le", "-la", "-les", "-lo", "-los", "-las", "-o", "-a", "-os", "-as", "it",
+    ];
+    let object = object_lower.trim_start();
+    let first = object
+        .split(|c: char| c.is_whitespace() || c == ',')
+        .next()
+        .unwrap_or_default();
+    CLITICS.contains(&first) || IDENTITY.iter().any(|cue| object.starts_with(cue))
+}
+
 pub(crate) fn refers_back<'a>(object_lower: &str, earlier: impl Iterator<Item = &'a str>) -> bool {
+    // « écris-le tel quel dans … », « escríbelo en … », « escreve-o em … »: the object is the
+    // clitic pronoun glued to the verb, and it stands for the material read before.
+    if object_clitic_or_identity(object_lower) {
+        return true;
+    }
     let tokens: Vec<&str> = object_lower
         .split(|c: char| !c.is_alphanumeric() && c != '\'' && c != '-')
         .map(|t| t.trim_matches('-'))
@@ -670,6 +1003,53 @@ pub fn page_facet(object: &str) -> Option<Facet> {
     }
 }
 
+/// Possessive determiners in six languages, folded: an object led by one names the
+/// requester's or a party's own records (« mes disponibilités », « our tickets »).
+const POSSESSIVES: &[&str] = &[
+    "my", "our", "your", "his", "her", "their", "mon", "ma", "mes", "notre", "nos", "votre", "vos",
+    "leur", "leurs", "mi", "mis", "nuestro", "nuestra", "nuestros", "nuestras", "tu", "tus",
+    "vuestro", "vuestra", "vuestros", "vuestras", "mio", "mia", "miei", "mie", "nostro", "nostra",
+    "nostri", "nostre", "tuo", "tua", "tuoi", "tue", "loro", "mein", "meine", "meinen", "meiner",
+    "meines", "meinem", "unser", "unsere", "unseren", "unserer", "unseres", "unserem", "dein",
+    "deine", "deinen", "deiner", "meu", "meus", "minha", "minhas", "nosso", "nossa", "nossos",
+    "nossas", "teu", "teus", "teua", "teuas",
+];
+
+/// Whether an object (folded) is led by a possessive determiner, after an optional article
+/// (« le mie disponibilità »): the requester's or a party's own records, kept somewhere,
+/// never the material an invocation supplies.
+#[must_use]
+pub fn possessive_object(object_lower: &str) -> bool {
+    let mut words = object_lower
+        .split_whitespace()
+        .map(|w| w.trim_matches(|c: char| !c.is_alphanumeric()));
+    let Some(first) = words.next() else {
+        return false;
+    };
+    if POSSESSIVES.contains(&first) {
+        return true;
+    }
+    matches!(
+        first,
+        "the"
+            | "le"
+            | "la"
+            | "les"
+            | "el"
+            | "los"
+            | "las"
+            | "il"
+            | "lo"
+            | "i"
+            | "gli"
+            | "o"
+            | "os"
+            | "as"
+    ) && words
+        .next()
+        .is_some_and(|second| POSSESSIVES.contains(&second))
+}
+
 /// Connectors that join an effect's object to its destination ("it to `<url>`", "le
 /// rapport à ops@x"), folded.
 const DESTINATION_CONNECTORS: &[&str] = &[
@@ -713,9 +1093,35 @@ pub fn carried(target: &str, plan: &Plan) -> bool {
 }
 
 #[cfg(test)]
+mod placement_tests;
+
+#[cfg(test)]
 mod tests {
     use super::super::plan::{Op, Plan, Step};
     use super::*;
+
+    #[test]
+    fn a_possessive_object_names_owned_records() {
+        for object in [
+            "mes disponibilités et celles des participants",
+            "my calendar and the participants' availability",
+            "nuestros tickets abiertos",
+            "le mie disponibilità",
+            "meine termine",
+            "os meus horários",
+        ] {
+            assert!(possessive_object(object), "{object}");
+        }
+        for object in [
+            "la transcription fournie",
+            "the supplied text",
+            "./notes/brief.md",
+            "",
+            "sur le fil slack",
+        ] {
+            assert!(!possessive_object(object), "{object}");
+        }
+    }
 
     fn plan_with(details: &[(Op, &str)]) -> Plan {
         let mut plan = Plan::default();
@@ -931,5 +1337,107 @@ mod tests {
             ["Lis ./notes/brief.md"].iter().copied()
         ));
         assert!(!refers_back("a French translation", none.iter().copied()));
+    }
+
+    #[test]
+    fn an_indefinite_file_after_a_destination_connector_is_an_unnamed_destination() {
+        for (detail, excerpt, phrase) in [
+            ("mes notes dans un fichier", "dans un fichier", "un fichier"),
+            (
+                "./notes.md dans un fichier",
+                "dans un fichier",
+                "un fichier",
+            ),
+            (
+                "un résumé de mes notes dans un nouveau fichier",
+                "dans un nouveau fichier",
+                "un nouveau fichier",
+            ),
+            ("my notes into a file", "into a file", "a file"),
+            ("my notes in a file", "in a file", "a file"),
+            (
+                "a haiku to a plain text file, in three lines",
+                "to a plain text file",
+                "a plain text file",
+            ),
+            ("le mie note in un file", "in un file", "un file"),
+            ("mis notas en un archivo", "en un archivo", "un archivo"),
+            ("the totals → a CSV file", "→ a CSV file", "a CSV file"),
+        ] {
+            assert_eq!(
+                unnamed_destination(detail),
+                Some((excerpt, phrase)),
+                "{detail}"
+            );
+        }
+        for detail in [
+            // A definite, possessive or partitive file is one the request already has.
+            "les notes dans le fichier",
+            "les notes dans mon fichier",
+            "les notes du fichier",
+            "the notes in my file",
+            "the notes in the file",
+            // A named file is the path laws'.
+            "mes notes dans un fichier resume.md",
+            "my notes into a file called ./out/summary.md",
+            // Words inside quotes, or after a colon that opens content, are content.
+            "« mes notes dans un fichier »",
+            "\"my notes in a file\"",
+            "« dans un fichier » en anglais",
+            "en anglais : mets-le dans un fichier",
+            // No file, or no one file.
+            "mes notes dans un dossier",
+            "the rows into a list of files",
+            "mes notes dans des fichiers",
+            "",
+        ] {
+            assert_eq!(unnamed_destination(detail), None, "{detail}");
+        }
+    }
+
+    #[test]
+    fn a_typographic_space_an_ellipsis_or_a_named_format_keeps_the_unnamed_destination() {
+        // Typographic variations must preserve the requested file destination.
+        for (detail, excerpt, phrase) in [
+            (
+                "mes notes dans\u{a0}un fichier",
+                "dans\u{a0}un fichier",
+                "un fichier",
+            ),
+            (
+                "mes notes dans un fichier\u{2026}",
+                "dans un fichier",
+                "un fichier",
+            ),
+            ("my notes into a .md file", "into a .md file", "a .md file"),
+            (
+                "mes notes dans un fichier\u{a0}: celles de lundi",
+                "dans un fichier",
+                "un fichier",
+            ),
+            (
+                "mes notes dans un\u{202f}fichier",
+                "dans un\u{202f}fichier",
+                "un\u{202f}fichier",
+            ),
+            ("my notes into  a file", "into  a file", "a file"),
+        ] {
+            assert_eq!(
+                unnamed_destination(detail),
+                Some((excerpt, phrase)),
+                "{detail:?}"
+            );
+        }
+        // The spacing changes none of the guards: a definite file, quotes, a plural, a dotted
+        // word that names no format, a colon that opens content.
+        for detail in [
+            "les notes dans\u{a0}le fichier",
+            "« mes notes dans\u{a0}un fichier »",
+            "mes notes dans des\u{a0}fichiers",
+            "my notes into a ..md file",
+            "en anglais\u{a0}: mets-le dans un fichier",
+        ] {
+            assert_eq!(unnamed_destination(detail), None, "{detail:?}");
+        }
     }
 }

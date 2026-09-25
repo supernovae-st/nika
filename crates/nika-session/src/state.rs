@@ -64,6 +64,9 @@ pub struct SessionState {
     /// What waited for the human when the record was written.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pending: Option<Pending>,
+    /// Cost observations only; never restores an account, review or consent.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub inference_observations: Vec<serde_json::Value>,
 }
 
 impl SessionState {
@@ -80,6 +83,7 @@ impl SessionState {
             decisions: Vec::new(),
             unresolved: Vec::new(),
             pending: None,
+            inference_observations: Vec::new(),
         }
     }
 

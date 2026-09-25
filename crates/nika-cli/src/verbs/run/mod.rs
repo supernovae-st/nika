@@ -43,6 +43,7 @@ mod execution_adapter;
 #[cfg(test)]
 mod extinction_tests;
 mod provenance;
+mod unknown_cost;
 pub(crate) use provenance::run_verdict;
 pub use provenance::{run_with_inputs_json, run_with_repair_target};
 mod heartbeat;
@@ -423,6 +424,7 @@ fn answered_leg(
         inputs,
         setup,
         max_cost_usd,
+        None, // a resumed leg never inherits unknown-cost authority
         (no_trace_file, output_json),
         &world,
     ) {
@@ -554,6 +556,7 @@ fn composed_runtime(
     inputs: inputs::ValidatedInputs,
     setup: ResumeSetup,
     max_cost_usd: Option<f64>,
+    cost_config: Option<nika_runtime::RuntimeConfig>,
     (_no_trace_file, output_json): (bool, bool),
     world: &AdmittedWorld,
 ) -> Result<AuthorizedRuntime, u8> {
@@ -578,7 +581,11 @@ fn composed_runtime(
     // F-P3 · the run: declaration rides the SAME composition path (clock ·
     // jitter seed — the stamper half is picked at the drive site). The driver
     // already owns the exact workflow/report/skills admitted with its bytes.
-    match world.driver.compose(default_model) {
+    let composed = match cost_config {
+        Some(config) => world.driver.compose_with_config(default_model, config),
+        None => world.driver.compose(default_model),
+    };
+    match composed {
         Ok(rt) => {
             let rt = rt
                 .with_var_overrides(overrides)

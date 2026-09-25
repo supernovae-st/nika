@@ -4,8 +4,8 @@
 //! Bounded transport backoff on a rate-limited or overloaded seat.
 //!
 //! A 429 (rate limited), a 503 (unavailable) or a 529 (Anthropic
-//! `overloaded_error`) answers nothing and bills nothing: the seat asked
-//! the caller to wait. Failing the task on the first one turned a busy
+//! `overloaded_error`) can request a bounded wait. An absent usage report
+//! remains an unknown charge; status alone does not establish zero billing. Failing the task on the first one turned a busy
 //! minute into a red run (gemini/gemini-2.5-flash under the product
 //! matrix's parallel load · `NIKA-INFER-001 · rate limited (HTTP 429)` in
 //! 200 ms), while the author's `retry:` is opt-in and silent by default.
@@ -23,6 +23,11 @@
 //! sleep rides the kernel clock seam ([`Backoff`]) — a test injects a
 //! recorder, production the system clock.
 
+mod billing;
+#[cfg(test)]
+mod billing_tests;
+pub(crate) use billing::record;
+
 use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
@@ -31,6 +36,61 @@ use std::time::Duration;
 
 use nika_kernel::ai::provider::ProviderError;
 use nika_kernel::clock::ClockDyn;
+
+/// Observed physical billing route, separate from the model's publisher.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[non_exhaustive]
+pub struct BillingRoute {
+    /// Selected adapter namespace.
+    pub provider: String,
+    /// Exact selected wire model.
+    pub model: String,
+    /// Full final request endpoint, including its path.
+    pub endpoint: String,
+}
+impl BillingRoute {
+    /// Record an observed route, never a model-prefix inference. A URL carrying
+    /// userinfo/query/fragment is not safe to journal; absence stays unpriced
+    /// instead of stripping identity and applying a different route's tariff.
+    #[must_use]
+    pub fn new(provider: String, model: String, endpoint: String) -> Option<Self> {
+        if endpoint.contains(['?', '#', '@']) || endpoint.chars().any(char::is_control) {
+            return None;
+        }
+        Some(Self {
+            provider,
+            model,
+            endpoint,
+        })
+    }
+    /// Exact dated tariff if known. Non-USD is never converted here.
+    #[must_use]
+    pub fn tariff(&self) -> Option<nika_catalog::admission::InferenceTariff> {
+        nika_catalog::admission::InferenceTariff::new(&self.provider, &self.model, &self.endpoint)
+    }
+    /// Provenance for a new receipt. Empty document hashes become null.
+    #[must_use]
+    pub fn observation(&self) -> serde_json::Value {
+        let tariff = self.tariff();
+        serde_json::json!({
+            "route": self,
+            "billing_provider": tariff.map(|t| t.billing_provider),
+            "currency": tariff.map(|t| t.currency),
+            "source": tariff.map(|t| t.source),
+            "route_source": tariff.map(|t| t.route_source),
+            "limits_source": tariff.map(|t| t.limits_source),
+            "as_of": tariff.map(|t| t.as_of),
+            "source_sha256": tariff.and_then(|t| (!t.source_sha256.is_empty()).then_some(t.source_sha256)),
+            "unit": "nano_currency_per_token",
+            "input_rate": tariff.and_then(|t| t.price_native(1, 0, 0)),
+            "output_rate": tariff.and_then(|t| t.price_native(0, 1, 0)),
+            "cached_rate": tariff.and_then(|t| t.price_native(1, 0, 1)),
+            "table_schema": "nika/inference-admission@1.1",
+            "usd_conversion": null,
+            "kind": if tariff.is_some() { "catalog_estimate_not_invoice" } else { "unknown" },
+        })
+    }
+}
 
 /// Re-sends after the first answer, at most (four round-trips in all).
 pub const MAX_RETRIES: u32 = 3;
@@ -47,6 +107,10 @@ const BASE_BACKOFF: Duration = Duration::from_secs(1);
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct TransportReport {
+    /// Per-dispatch observations; mixed routes and failed calls remain separate.
+    pub inference_calls: Vec<nika_types::cost::InferenceCall>,
+    /// Present only when every absorbed round-trip reported the same full route.
+    pub billing_route: Option<BillingRoute>,
     /// Round-trips sent (1 = the call answered first time).
     pub attempts: u32,
     /// Total backoff slept between round-trips.
@@ -63,6 +127,22 @@ impl TransportReport {
         Self::default()
     }
 
+    pub(crate) fn record(&mut self, call: Option<nika_types::cost::InferenceCall>) {
+        let Some(call) = call else {
+            return;
+        };
+        let route = call.route.as_ref().and_then(|r| {
+            BillingRoute::new(r.provider.clone(), r.model.clone(), r.endpoint.clone())
+        });
+        if self.inference_calls.is_empty() {
+            self.billing_route = route;
+        } else if self.billing_route != route {
+            self.billing_route = None;
+        }
+        self.inference_calls.push(call);
+        self.attempts = u32::try_from(self.inference_calls.len()).unwrap_or(u32::MAX);
+    }
+
     /// Whether at least one round-trip was retried.
     #[must_use]
     pub fn retried(&self) -> bool {
@@ -72,6 +152,13 @@ impl TransportReport {
     /// Fold another logical call's report in (a verb that sends several
     /// round-trips per task sums them — the receipt reads the task total).
     pub fn absorb(&mut self, other: &Self) {
+        self.inference_calls
+            .extend_from_slice(&other.inference_calls);
+        if self.attempts == 0 {
+            self.billing_route.clone_from(&other.billing_route);
+        } else if self.billing_route != other.billing_route {
+            self.billing_route = None;
+        }
         self.attempts = self.attempts.saturating_add(other.attempts);
         self.waited = self.waited.saturating_add(other.waited);
         self.statuses.extend_from_slice(&other.statuses);
@@ -126,7 +213,7 @@ pub(crate) fn system_backoff() -> Arc<dyn Backoff> {
 
 /// The HTTP status a provider error carries, when it carries one.
 pub(crate) fn status_of(err: &ProviderError) -> Option<u16> {
-    match err {
+    match err.unobserved() {
         ProviderError::HttpResponse { details } => Some(details.status()),
         ProviderError::RateLimited { .. } => Some(429),
         ProviderError::Api { status, .. } => Some(*status),
@@ -140,7 +227,7 @@ pub(crate) fn retry_delay(err: &ProviderError, retries_so_far: u32) -> Option<Du
     if retries_so_far >= MAX_RETRIES {
         return None;
     }
-    let named_delay = match err {
+    let named_delay = match err.unobserved() {
         // The sanitized wire error: exhausted credit reads non-transient.
         ProviderError::HttpResponse { details } if details.is_transient() => {
             details.retry_after_ms()

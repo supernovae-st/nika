@@ -28,7 +28,7 @@ extend-ignore-identifiers-re = [
 # The frozen reader's multilingual cue literals in nika-compile (Spanish `columnas`,
 # French `limite` and `seconde`): quoted tokens only, so the English prose around
 # them stays checked.
-extend-ignore-re = ["« [^»]* »", "\"highlihgts\"", "\"chek\"", "view: recods", "classe le problème", "datos del cliente", "\"columnas\"", "\"limite\"", "\"limite \"", "pas de seconde action", "größer als", "o / oder", "\"falso\"", "`falso`"]
+extend-ignore-re = ["« [^»]* »", "\"highlihgts\"", "\"chek\"", "view: recods", "classe le problème", "datos del cliente", "\"columnas\"", "\"limite\"", "\"limite \"", "pas de seconde action", "größer als", "o / oder", "\"falso\"", "`falso`", "Copie entree", "la copie", "copie-2\\.md", "copie\\.csv", "pas maintenant", "\"quantite\"", "colonne quantite", "\"remplace\"", "remplace explicitement", "salaire_confidentiel", "aout\\.csv"]
 
 [default.extend-words]
 # Speaches is a real project (speaches.ai · OpenAI-compat speech server), not a typo of "Speeches".
@@ -159,9 +159,33 @@ extend-exclude = [
   # the public tree. Its English doc prose is judged by `cargo doc -D warnings`
   # and review.
   "crates/nika-compile/",
+  # ADR-140: the prior Compile multilingual exclusion follows only moved files.
+  "crates/nika-compile-cognition/src/cognition.rs",
+  "crates/nika-compile-cognition/src/compose.rs",
+  "crates/nika-compile-cognition/src/decide.rs",
+  "crates/nika-compile-cognition/src/predicate.rs",
+  "crates/nika-compile-cognition/src/cognition/backstops.rs",
+  "crates/nika-compile-cognition/src/cognition/instructions.rs",
+  "crates/nika-compile-cognition/src/cognition/knowledge.rs",
+  "crates/nika-compile-cognition/src/cognition/native.rs",
+  "crates/nika-compile-cognition/src/cognition/native/answer.rs",
+  "crates/nika-compile-cognition/src/cognition/proposal.rs",
+  "crates/nika-compile-cognition/src/cognition/sketch.rs",
+  "crates/nika-compile-cognition/src/cognition/transform.rs",
+  "crates/nika-compile-cognition/assets/computation_schema.json",
+  "crates/nika-compile-cognition/assets/fills_schema.json",
+  "crates/nika-compile-cognition/assets/machine_slugs.txt",
+  "crates/nika-compile-cognition/assets/native_answer_schema.json",
+  "crates/nika-compile-cognition/assets/native_output_conventions.md",
+  "crates/nika-compile-cognition/assets/plan_schema.json",
+  "crates/nika-compile-cognition/assets/sketch_schema.json",
+  "crates/nika-compile-cognition/assets/structure_slugs.txt",
   # The frozen reader and its six-language tables descended to their own member on
   # 2026-09-21 (ADR-138); the same exclusion follows them.
   "crates/nika-compile-reader/",
+  # The laws a candidate is judged by ascended from the reader with their multilingual
+  # fixtures on 2026-09-24 (ADR-141); the same exclusion follows them.
+  "crates/nika-compile-fidelity/",
   # cargo public-api baselines — generated symbol dumps, not prose. Real
   # source typos are still caught in the .rs files they derive from.
   "**/public-api.txt",

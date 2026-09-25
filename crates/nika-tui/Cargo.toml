@@ -21,12 +21,14 @@ publish                = false  # Interface crate — the `nika` binary is the o
 workspace = true
 
 [dependencies]
-ratatui          = { workspace = true }
+ratatui          = { workspace = true, features = ["unstable-rendered-line-info"] }
 crossterm        = { workspace = true }
 ratatui-textarea = { workspace = true }
 tokio            = { workspace = true, features = ["sync", "signal", "time", "rt", "macros"] }
 unicode-width    = "0.2"
-nika-session     = { path = "../nika-session", version = "0.120.3", default-features = false }   # the live conversation (UX-2): TurnOutcome → beats, L4 lateral like nika-cli
+nika-session     = { path = "../nika-session", version = "0.121.0", default-features = false }   # the live conversation (UX-2): TurnOutcome → beats, L4 lateral like nika-cli
+
+nika-cli-host    = { path = "../nika-cli-host", version = "0.121.0", default-features = false } # live one-use child review, no admission authority
 
 [dev-dependencies]
 expectrl = { workspace = true }   # PTY proof · the terminal is restored on every exit path (unix)

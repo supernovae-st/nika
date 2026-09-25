@@ -60,6 +60,27 @@ pub struct Hit {
     pub patterns: Vec<String>,
     /// Raw BM25 score (corpus-relative; never normalized).
     pub score: f64,
+    /// The canonical skeleton that covers a family, or a skeleton hit's own name.
+    pub skeleton: Option<String>,
+    /// A family's structure signature (`FETCH → EXTRACT → SUMMARIZE`); none for a skeleton.
+    pub signature: Option<String>,
+}
+
+impl Hit {
+    /// A hit of a kind, by id and title, with no patterns, no score, no skeleton, no
+    /// signature yet (INV-019: the type is `#[non_exhaustive]`).
+    #[must_use]
+    pub fn new(id: impl Into<String>, kind: HitKind, title: impl Into<String>) -> Self {
+        Self {
+            id: id.into(),
+            kind,
+            title: title.into(),
+            patterns: Vec::new(),
+            score: 0.0,
+            skeleton: None,
+            signature: None,
+        }
+    }
 }
 
 /// Recall at most `k` candidates for a free-form intent, best first.
@@ -92,6 +113,8 @@ pub fn retrieve(query: &str, k: usize) -> Vec<Hit> {
                 title: doc.title.clone(),
                 patterns: doc.patterns.clone(),
                 score,
+                skeleton: doc.skeleton.clone(),
+                signature: doc.signature.clone(),
             })
         })
         .collect()
@@ -160,6 +183,8 @@ struct Doc {
     kind: HitKind,
     title: String,
     patterns: Vec<String>,
+    skeleton: Option<String>,
+    signature: Option<String>,
 }
 
 struct Corpus {
@@ -197,6 +222,8 @@ fn build() -> Corpus {
             kind: HitKind::Family,
             title: row.title.clone(),
             patterns: row.patterns.clone(),
+            skeleton: row.skeleton.clone(),
+            signature: Some(row.signature.clone()),
         });
         texts.push(family_text(row));
     }
@@ -213,10 +240,12 @@ fn build() -> Corpus {
             text.push_str(covered);
         }
         docs.push(Doc {
-            id: name,
+            id: name.clone(),
             kind: HitKind::Skeleton,
             title: headline,
             patterns: words,
+            skeleton: Some(name),
+            signature: None,
         });
         texts.push(text);
     }
@@ -252,26 +281,7 @@ fn family_text(row: &FamilyRow) -> String {
 /// Structural vocabulary a skeleton body actually carries — derived from its
 /// meaningful lines (comments stripped, the surface the router indexes too),
 /// never from prose.
-const STRUCTURE_WORDS: &[(&str, &str)] = &[
-    ("nika:fetch", "fetch url website"),
-    ("nika:read", "read document"),
-    ("nika:write", "write persist"),
-    ("nika:prompt", "human approve gate"),
-    ("nika:glob", "discover files collection"),
-    ("nika:jq", "project transform"),
-    ("nika:validate", "validate"),
-    ("nika:json_diff", "diff compare snapshot"),
-    ("nika:image_generate", "generate image asset"),
-    ("nika:notify", "notify send"),
-    ("for_each:", "fanout batch each parallel"),
-    ("group:", "fanin merge"),
-    ("agent:", "agent explore"),
-    ("exec:", "exec command"),
-    ("infer:", "infer"),
-    ("schema:", "validate typed"),
-    ("returns:", "validate typed"),
-    ("docker", "docker container"),
-];
+const STRUCTURE_WORDS: &str = include_str!("../assets/structure_words.tsv");
 
 fn structure_words(body: &str) -> Vec<String> {
     let meaningful = body
@@ -282,7 +292,7 @@ fn structure_words(body: &str) -> Vec<String> {
         .join("\n")
         .to_ascii_lowercase();
     let mut words: Vec<String> = Vec::new();
-    for (needle, expansion) in STRUCTURE_WORDS {
+    for (needle, expansion) in STRUCTURE_WORDS.lines().filter_map(|l| l.split_once('\t')) {
         if meaningful.contains(needle) {
             for word in expansion.split(' ') {
                 if !words.iter().any(|w| w == word) {
@@ -300,95 +310,14 @@ fn structure_words(body: &str) -> Vec<String> {
 /// English list. French articles, pronouns and politeness; English request
 /// scaffolding (« please », « I want », « help me »). Signal words such as
 /// « each », « before » or « only » are deliberately absent.
-const EXTRA_STOPWORDS: &str = "\
-these those them our your their his her he she they what which who whom whose \
-how why where when so but not nor yet just also very more most much many some \
-please want would like need could can should let make get give help using use \
-via here there up out off over about after onto through per own \
-le la les un une des du de et ni au aux en pour par sur sous avec sans dans chez \
-ce cet cette ces se sa son ses mon ma mes ta tes moi toi je tu il elle nous vous \
-ils elles on qui que quoi dont est sont etre ete fait faire faites puis ensuite \
-depuis ne pas plus tres bien peux peut veux veut voudrais aimerais merci stp svp \
-plait qu ca ci la";
+const EXTRA_STOPWORDS: &str = include_str!("../assets/retrieve_stopwords.txt");
 
 /// Alias table · `keys => pattern words`, entries separated by `;`. Keys are
 /// folded lowercase tokens (diacritics removed), so a French user who types
 /// without accents lands on the same entry. Expansion ADDS the pattern words
 /// beside the original token; a key that is also an English pattern word
 /// (`resume`) keeps its own reading and gains the alias.
-const ALIASES: &str = "\
-summary summaries summarization digest tldr recap overview synthese synthetise synthetiser \
-  resume resumer resumes => summarize; \
-brief => summarize draft; \
-classification categorize categorise categorization category categories cluster clustering \
-  tag label classer classe classifier trier trie tri categoriser categorie => classify; \
-triage => classify route; \
-routing dispatch assign assignment escalate queue router aiguiller orienter attribuer assigner \
-  escalader => route; \
-extraction parse pull extraire extrais extrait extraits => extract; \
-validation valider valide => validate verify; \
-check verification verifier verifie controler controle review => verify; \
-comparison versus vs comparer comparaison => compare; \
-drift delta changes => diff; \
-deduplicate deduplication dedupe duplicate duplicates dupes dedoublonner dedoublonne doublon \
-  doublons => dedup; \
-aggregation total totals sum count group grouped rollup agreger agrege totaliser totaux somme \
-  regrouper regroupe compter => aggregate; \
-normalization normalise clean cleanup standardize normaliser nettoyer => normalize; \
-enrichment enrichir enrichis => enrich; \
-generation write compose rewrite proposal propose ecrire ecris rediger redige redaction \
-  brouillon proposer proposition => draft; \
-reply response respond reponse repondre reponds => draft answer; \
-generer genere => generate draft; \
-approval approve approved signoff sign confirm confirmation ask permission approuver \
-  approbation humaine humain demander confirmer signer accord => human approve; \
-gate => human gate; \
-notification slack ping notifier notifie alerter prevenir => notify; \
-publication publier publie => publish; \
-envoyer envoie envoi expedier => send; \
-projection select redact mask anonymize projeter selectionner => project; \
-filtering filtrer filtre => filter; \
-scoring prioritize priority => score; \
-recovery fallback recuperer => recover; \
-resumption checkpoint incremental continue reprendre reprise => resume state; \
-saved etat sauvegarde => state; \
-etl => etl resume state; \
-uploading televerser uploader => upload; \
-register registration creer cree => create; \
-maj actualiser => update; \
-fusionner fusion => merge; \
-supprimer => delete; \
-look database db directory registry catalog base => lookup; \
-find locate grep knowledge kb chercher cherche rechercher recherche trouver trouve => search; \
-scrape crawl download website site web webpage url urls link links http https com www page \
-  pages telecharger lien liens => fetch; \
-pdf document doc docs file transcript article paper contract thread notes text fichier \
-  fichiers => read; \
-each every bulk batches bounded lot lots chaque chacun tous toutes => batch fanout; \
-parallel concurrently parallele => fanout; \
-independent independently independants independantes => independent fanout fanin; \
-agree consensus combine collect => fanin; \
-loop autonomous investigate explorer enqueter => agent explore; \
-payment paiement payer => pay; \
-eligibility => eligible; \
-facture factures => invoice; client clients => customer; dossier => folder; \
-donnees => data records; enregistrement enregistrements => record; \
-reunion => meeting; transcription => transcript; contrat contrats => contract; \
-commande commandes => order; remboursement rembourser rembourse => refund; \
-relancer relance => remind; devis => quote; candidature candidatures => application; \
-produit produits => product; avis => review; commentaire commentaires retour retours => \
-  comment feedback; journal journaux => logs; erreur erreurs => error; alerte => alert; \
-depense depenses => expense; vulnerabilite vulnerabilites faille => finding security; \
-acces => access; conformite => compliance; politique => policy; exigences => requirements; \
-champ champs => fields; prospect prospects => lead; entreprise societe => company; \
-compte comptes => account; territoire => territory; anomalie anomalies => anomaly; \
-manquant manquants => missing; conflit conflits => conflict; depot => repository repo; \
-probleme => issue; dependances => dependency; sante => health; version livraison => release; \
-equipe => team; hebdomadaire hebdo => weekly; quotidien => daily; mensuel => monthly; \
-cles => keyword; billet => post; fil => thread; reseaux sociaux => social; \
-courriel mail mails => email; tableau => table; calendrier => calendar; planifier => schedule; \
-inconnu => unknown; sensible => sensitive; avant => before; exact exacts => exact; \
-mots => keyword";
+const ALIASES: &str = include_str!("../assets/retrieve_aliases.txt");
 
 struct Lexicon {
     stopwords: BTreeSet<&'static str>,

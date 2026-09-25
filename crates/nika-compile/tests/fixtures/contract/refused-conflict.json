@@ -1,0 +1,182 @@
+{
+  "compile_version": 1,
+  "document": {
+    "candidate": null,
+    "check_preview": null,
+    "compile_version": 1,
+    "diagnostics": [
+      {
+        "kind": "requiresHuman",
+        "message": "Contradictory instructions for `send`: it is both requested and prohibited (Envoie ensuite une invitation / Il est aussi absolument interdit d'envoyer une invitation). The contradiction stays visible; no workflow resolves it.",
+        "target": "intent"
+      }
+    ],
+    "provenance": {
+      "cognition": "deterministicOnly",
+      "compiler_version": "0.121.0",
+      "decision": {
+        "intent_sha256": "5867022fb30356e348ff06f6f31d9a5538c6bcd9cfe99d6ae36ba6ff779274d4",
+        "retrieval": {
+          "by_intent": [
+            {
+              "id": "F15",
+              "kind": "family",
+              "score": 10.781
+            },
+            {
+              "id": "I11",
+              "kind": "family",
+              "score": 10.601
+            },
+            {
+              "id": "bounded-batch",
+              "kind": "skeleton",
+              "score": 10.578
+            },
+            {
+              "id": "F16",
+              "kind": "family",
+              "score": 10.009
+            },
+            {
+              "id": "fanout",
+              "kind": "skeleton",
+              "score": 9.745
+            },
+            {
+              "id": "C22",
+              "kind": "family",
+              "score": 9.339
+            },
+            {
+              "id": "F29",
+              "kind": "family",
+              "score": 8.248
+            },
+            {
+              "id": "F25",
+              "kind": "family",
+              "score": 8.112
+            },
+            {
+              "id": "D24",
+              "kind": "family",
+              "score": 7.971
+            },
+            {
+              "id": "parallel-review",
+              "kind": "skeleton",
+              "score": 7.606
+            }
+          ],
+          "by_ops": [
+            {
+              "id": "C11",
+              "kind": "family",
+              "score": 11.284
+            },
+            {
+              "id": "B18",
+              "kind": "family",
+              "score": 10.693
+            },
+            {
+              "id": "H01",
+              "kind": "family",
+              "score": 8.537
+            },
+            {
+              "id": "D01",
+              "kind": "family",
+              "score": 8.203
+            },
+            {
+              "id": "A09",
+              "kind": "family",
+              "score": 7.873
+            },
+            {
+              "id": "human-gated-ship",
+              "kind": "skeleton",
+              "score": 7.23
+            },
+            {
+              "id": "D24",
+              "kind": "family",
+              "score": 7.161
+            },
+            {
+              "id": "I11",
+              "kind": "family",
+              "score": 7.077
+            },
+            {
+              "id": "media-asset-pack",
+              "kind": "skeleton",
+              "score": 6.931
+            },
+            {
+              "id": "document-to-fields",
+              "kind": "skeleton",
+              "score": 6.741
+            }
+          ]
+        },
+        "route": [
+          "hot"
+        ]
+      },
+      "plan": {
+        "bindings": [],
+        "constraints": [],
+        "effects": [
+          {
+            "evidence": "Envoie ensuite une invitation / Il est aussi absolument interdit d'envoyer une invitation",
+            "policy": "conflict",
+            "policy_literal": null,
+            "target": "une invitation",
+            "verb": "send"
+          }
+        ],
+        "obligations": [],
+        "operations": [
+          {
+            "categories": [],
+            "detail": "les coordonnées de chaque candidature",
+            "evidence": "Extrais les coordonnées de chaque candidature",
+            "op": "extract"
+          },
+          {
+            "categories": [],
+            "detail": "un accusé de réception",
+            "evidence": "prépare un accusé de réception",
+            "op": "draft"
+          }
+        ],
+        "rules": [],
+        "slots": [],
+        "strategy": "hot",
+        "trigger": null,
+        "unknowns": []
+      },
+      "skeleton": null,
+      "spec_pin": "95ed1acf09c7798314a36fb208c9a5546b6ca658",
+      "strategy": "hot",
+      "suggested_file": null
+    },
+    "questions": [
+      {
+        "key": "intent.clarification",
+        "label": "Supply a complete replacement request that resolves the contradiction, including every operation still wanted.",
+        "mandatory": true,
+        "type": "text",
+        "why": "The compiler cannot invent this authoring value."
+      }
+    ],
+    "requested_boundary": null,
+    "requested_trigger": null,
+    "status": "refused"
+  },
+  "fixture": "refused-conflict",
+  "state": "refused · one effect both requested and prohibited"
+}

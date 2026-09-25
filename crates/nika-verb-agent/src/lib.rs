@@ -393,6 +393,7 @@ where
         // whether or not the loop concludes — the dispatch layer prices
         // this, the run ledger debits it, `--max-cost-usd` sees it.
         let mut usage_total = TokenUsage::default();
+        let mut inference_calls = Vec::new();
         let mut tools_cost_usd = 0.0_f64;
         let out = self
             .run_loop(
@@ -401,21 +402,30 @@ where
                 (&whitelist, &defs, &model, budget),
                 run_start,
                 &mut usage_total,
+                &mut inference_calls,
                 &mut tools_cost_usd,
             )
             .await;
-        out.map_err(|e| {
-            e.with_spend(SpendOnFailure::new(
-                usage_total,
-                (tools_cost_usd > 0.0).then_some(tools_cost_usd),
-                Some(model),
-            ))
-        })
+        out.map(|out| out.with_inference_calls(inference_calls.clone()))
+            .map_err(|e| {
+                e.with_spend(
+                    SpendOnFailure::new(
+                        usage_total,
+                        (tools_cost_usd > 0.0).then_some(tools_cost_usd),
+                        Some(model),
+                    )
+                    .with_inference_calls(inference_calls),
+                )
+            })
     }
 
     /// The turn loop proper — armed context by reference, the spend
     /// accumulators borrowed from [`Self::run_observed`] (the failure-
     /// decoration seam). Same contract as `run_observed` otherwise.
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "threads the loop-owned monetary observations"
+    )]
     async fn run_loop(
         &self,
         input: AgentInput,
@@ -423,6 +433,7 @@ where
         armed: (&Whitelist, &[ToolDef], &str, TurnBudget),
         run_start: Option<ToolRunStart>,
         usage_total: &mut TokenUsage,
+        inference_calls: &mut Vec<nika_types::cost::InferenceCall>,
         tools_cost_usd: &mut f64,
     ) -> Result<AgentOutput, VerbAgentError> {
         let (whitelist, defs, model, budget) = armed;
@@ -447,6 +458,7 @@ where
                     request,
                     &mut st.total_tokens,
                     usage_total,
+                    inference_calls,
                     &input,
                 )
                 .await?;
@@ -456,14 +468,7 @@ where
             }
 
             // Decide this turn — the ONE exit-conditions site (spec §2).
-            let ctx = TurnCtx {
-                input: &input,
-                whitelist,
-                turns: st.turns,
-                total_tokens: st.total_tokens,
-                last_text: &st.last_text,
-                repairs: st.repair_budget(self.schema_retry_budget),
-            };
+            let ctx = turn_context(&input, whitelist, &st, self.schema_retry_budget);
             // Terminals return one output (FinalText shapes to `schema:` ·
             // BUG#11); the other verdicts feed back and iterate.
             let output = match classify_turn(&response, &text, &ctx)? {
@@ -478,6 +483,7 @@ where
                         &input,
                         &mut st,
                         usage_total,
+                        inference_calls,
                     )
                     .await?
                 }
@@ -618,6 +624,10 @@ where
 
     /// One provider call: infer, fold its usage into the running total,
     /// report its budget checkpoint, then stop on refusal (NIKA-463).
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "records each dispatch before a later refusal can return"
+    )]
     async fn infer_turn(
         &self,
         observer: &dyn AgentObserver,
@@ -625,17 +635,18 @@ where
         request: InferRequest,
         total_tokens: &mut u64,
         usage_acc: &mut TokenUsage,
+        inference_calls: &mut Vec<nika_types::cost::InferenceCall>,
         input: &AgentInput,
     ) -> Result<InferResponse, VerbAgentError> {
         let model = request.model.clone();
-        let response =
-            self.provider
-                .infer(request)
-                .await
-                .map_err(|source| VerbAgentError::Inference {
-                    source,
-                    spend: Box::default(), // decorated at the return seam
-                })?;
+        let response = self.provider.infer(request).await.map_err(|source| {
+            inference_calls.extend_from_slice(source.inference_calls());
+            VerbAgentError::Inference {
+                source,
+                spend: Box::default(),
+            }
+        })?;
+        inference_calls.extend(response.cost_observations());
         // The budget scalar follows what the run SPENDS (#1518): the
         // re-sent prefix a provider served from its cache weighs zero.
         *total_tokens = total_tokens.saturating_add(turn::budget_weight(&response.usage));
@@ -701,6 +712,7 @@ where
         input: &AgentInput,
         st: &mut turn::LoopState,
         usage_acc: &mut TokenUsage,
+        inference_calls: &mut Vec<nika_types::cost::InferenceCall>,
     ) -> Result<AgentOutput, VerbAgentError> {
         // `FinalText` is only produced under a TYPED task (`schema:` or a
         // `returns:` lowered onto the same lane · spec 09); if the schema
@@ -765,6 +777,7 @@ where
                     request,
                     &mut st.total_tokens,
                     usage_acc,
+                    inference_calls,
                     input,
                 )
                 .await?;
@@ -1100,6 +1113,23 @@ where
     }
 }
 
+/// Read the loop's current limits without advancing its state or spending a repair.
+fn turn_context<'a>(
+    input: &'a AgentInput,
+    whitelist: &'a Whitelist,
+    st: &'a turn::LoopState,
+    schema_retry_budget: u8,
+) -> TurnCtx<'a> {
+    TurnCtx {
+        input,
+        whitelist,
+        turns: st.turns,
+        total_tokens: st.total_tokens,
+        last_text: &st.last_text,
+        repairs: st.repair_budget(schema_retry_budget),
+    }
+}
+
 /// identity: tool spend absent (never zero) when nothing reported ·
 /// the absorbed usage split + resolved model ride so the dispatch
 /// layer prices the LLM turns with the same resolver `infer` uses.
@@ -1398,6 +1428,8 @@ fn is_clean_tool_name(name: &str) -> bool {
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_billing;
 #[cfg(test)]
 mod tests_budgets;
 #[cfg(test)]

@@ -110,8 +110,8 @@ No public job mutation accepts a filesystem path. Startup paths live only in
 | `GET` | `/v1/jobs/{id}/events` | exactly one Bearer | SSE `text/event-stream`; `id:` sequence; `data:` `{sequence,kind,status}` plus optional redacted `{code,message}` |
 | `POST` | `/v1/jobs/{id}/cancel` | exactly one Bearer | idempotent terminal job result; active runs receive the engine cancellation token before durable `cancelled` settlement |
 | `GET` | `/v1/jobs/{id}/trace/verify` | exactly one Bearer | typed `unavailable` verdict; no path or invented verification while the remote trace-journal authority is absent |
-| `POST` | `/v1/compile` | exactly one Bearer | the Compile core's machine document (`compile_version` 1) as authoring DATA: 200 for `ready`, `incomplete` and `refused` · 422 typed protocol refusals · also 408/413/415/500/503 |
-| `GET` | `/v1/openapi.json` | exactly one Bearer | OpenAPI 3.1 document of the live routes |
+| `POST` | `/v1/compile` | exactly one Bearer | the Compile core's machine document (`compile_version` 1; 2 when a native call happened) as authoring DATA: 200 for `ready`, `incomplete` and `refused` · 422 typed protocol refusals · also 408/413/415/500/503 · 409 on a native server (below) |
+| `GET` | `/v1/openapi.json` | exactly one Bearer | OpenAPI 3.1 document of the live routes (a native server's adds the compile generation-2 contract) |
 
 `/health` advertises `jobInputs` when the named job envelope accepts and
 validates literal JSON input bindings. Clients must require this capability
@@ -152,6 +152,59 @@ native door advertises its own `compile` token for `nika compile --json`; the
 two capability lists are separate projections, so neither door can advertise
 a route only the other serves. A resident without the token must be refused
 by the client, never replaced by a local compile with a different core.
+
+### Native authoring (`POST /v1/compile` generation 2 · S06)
+
+Off unless the operator seats it when building the server:
+`ServerConfig::with_native_authoring(NativeAuthoring::new(model, providers))`
+or `nika serve … --authoring-model provider/name` (requires `--bind`; the
+provider configuration is read from the environment only then, through
+`nika_runtime::compose::config_from_env`). A default server is byte-identical
+for every request: generation 2 there is `422 compile_version_unsupported`,
+and `/health` never lists `compileNativeV2`. On a native server generation 1
+keeps its parser, core call, slot and request deadline, byte for byte.
+
+| concern | contract |
+|---|---|
+| operator seat | ONE direct provider model (a harness seat, an unknown provider or a missing key refuses startup) · strategy fixed `only`, one sample, no decision seat · bounds: output tokens per call 1..=32768 (default 8192), call timeout ≤ 600 s (120), request deadline ≤ 3600 s (300), repairs 0..=5 (3) · optional Foundry snapshot opened, verified and pinned (manifest and rows sha256) at attach through the shared `nika_cli_host::compile::{config, knowledge}` · replay store 1..=1024 rounds (32) for ≤ 24 h (30 min) · all validated in `BoundServer::attach` before bind (`ServerError::NativeAuthoring`) |
+| fresh request | `{compile_version: 2, cognition: "explicitProvider", mode: "create", intent, workflow_id?, answers?, limits?}` or `mode: "edit"` with `source` and `change` (a `change.text` requires `original_intent`; `set_constant` refuses it; `workflow_id` is create-only) · `limits: {repairs?, max_tokens?, call_timeout_ms?, deadline_ms?}` may only narrow the operator's bounds (above → `422 compile_limit`, never clamped) · `answers["intent.clarification"]` → `422 compile_new_intent_required` |
+| replay request | the same input repeated byte for byte with `cognition: "deterministicOnly"` and `replay_token` (64 lowercase hex); no `limits` · zero provider calls |
+| shape policy | the generation-1 policy plus: a literal that repeats an object key at any depth (or nests 128 or more arrays/objects deep, the JSON parser's recursion ceiling) → `422 malformed_compile_request`; caller-named model, endpoint, credential, path, snapshot, strategy or plan fields are unknown fields |
+| answer | 200 with the core's unchanged `outcome_document` (`compile_version` 2 iff a call happened; a skeleton, a structured constant or a replay answers 1) · `Cache-Control: no-store` · a fresh round that leaves a native plan carries `Nika-Compile-Replay: <token>` |
+| knowledge | every generation-2 round reopens the pinned snapshot and compares its manifest and rows (`409 compile_context_changed` before any call); a fresh round composes the pack for its intent (a revision's `original_intent` + change) and records the identity with the snapshot directory and files root removed; `pack_sha256` and the instruction sha256 in the receipt name what the seat read |
+| provider | a per-request client over the runtime's provider transport (`provider_http` · `ProviderRegistry`) behind a gate: at most `1 + repairs` LOGICAL calls (one `infer` each, the receipt's `calls`), none once the round must stop, and every `ProviderError` reaches the core as a fixed reason (HTTP status, rate limit, credentials refused, model not served, connection cut) — never the provider's text · one logical call may be several HTTP attempts: the transport resends the same request after a 429, 503 or 529 (at most 3 more, inside the call's timeout), so the HTTP envelope is at most `4 × (1 + repairs)` requests · the receipt's backend is `{kind: direct_api, provider, cost_basis}` |
+| deadlines and slots | on a native server the route leaves `/v1/compile` to bound itself: intake, generation 1 and replays keep the request deadline (`408 request_timeout`); a fresh round runs under its seat deadline, ABSOLUTE from admission (`408 compile_deadline_exceeded`: the work stopped or never began, nothing kept, a call in flight may still be billed) — a round that starts after it (a busy blocking pool) never begins, the stop is raced against the work and checked before every call, and an outcome that arrives after it is never answered or kept · the compile slot, then a replay place, are taken before any call and live inside the blocking work, so a disconnected or timed-out caller never frees them early (`503 compile_busy` · `503 compile_replay_capacity`) |
+| shutdown | a stopping server first joins its connections, then halts every native round of its seat (no further call, `503 stopping` for a round still answering) and waits — within the shutdown grace, else `ServerError::ShutdownTimeout` — until every compile slot is free before the authority drains; a round's provider request is dropped, not awaited |
+| replay store | in memory, per bound server: a restart or another instance knows no token (`409 compile_replay_unavailable`) · the exact input tuple is compared (`409 compile_replay_input_changed`) · expiry on the monotonic clock, never renewed · ≤ 2 MiB per round (larger: no token, the answer unchanged) · 256-bit `getrandom` tokens, never reflected in a refusal |
+| disclosure | a document carrying a withheld value is refused whole: `500 compile_disclosure_refused` · withheld: the key the seat's provider RESOLVES (`ResolvedProvider::key` — a typed `ProvidersConfig` key or the environment's, by the configuration's own precedence), plus every `NativeAuthoring::with_withheld` value · every nonempty value counts, however short, raw or JSON-escaped |
+| effects | none beyond the seat's calls: no job, run, approval, trace, schedule, file, registry entry or permission; `POST /v1/jobs` judges any candidate again |
+
+Limits: the store is not a deduplication of paid work — a first answer lost in
+transit leaves no token and a new fresh round spends again; the compiler never
+repeats a logical call (the provider transport's own 429/503/529 resend is the
+one exception, counted as HTTP attempts, never as calls). Remote billing cannot
+be stopped by a local deadline or a shutdown. Harness seats,
+decision seats, other strategies, knowledge pack files and the observed-world
+reader are not served remotely.
+
+Published contract (S23). The compile door's generation-1 fragments live as
+data beside the handler (`src/server/compile/openapi.json`); the default
+server's document — the committed crate-root `openapi.json` — is unchanged and
+describes generation 1 only. A native server's live `GET /v1/openapi.json`
+merges the generation-2 contract into it (RFC 7386, from
+`src/server/compile/openapi-native.json`): the request is `oneOf`
+`CompileRequest` · `CompileRequestV2` (compile_version 2; cognition
+`explicitProvider` or `deterministicOnly` + `replay_token`; `limits` bounded
+by the absolute ceilings a seat is validated against; the create/edit and
+fresh/replay pairings as `if`/`then` rules; `additionalProperties: false`),
+the 200 answer is `oneOf` `CompileOutcome` · `CompileOutcomeV2` (its
+`provenance.authoring` receipt counts LOGICAL calls), with the
+`Nika-Compile-Replay` and `Cache-Control: no-store` headers and the
+408/409/422/500/503 codes the door answers. It names no model, endpoint,
+credential, snapshot or bound of the seat: those stay the operator's. Tests
+pin every published bound, word and ceiling to the enforced constant and
+validate the live controlled payloads against the served documents. The SDK
+update remains owed.
 
 Artifact routes return 404. No route returns the bytes of a served workflow,
 idempotency keys, request digests, event payloads, provider/tool data, paths,
@@ -412,3 +465,17 @@ The receipt continues to name job/execution/trace/snapshot identity; input origi
 claims belong to the journal and its evidence projection, not a fabricated
 receipt field. Hash checks detect inconsistent edits, not a coherent rewrite by
 an attacker controlling the entire local store and its unkeyed hashes.
+
+## Resident Run cost admission
+
+The production `ResidentExecutionBackend` checks the frozen access plan against
+Run route pricing before starting the effecting worker. Named jobs, snapshot jobs
+and resident schedule fires share that gate. An admitted API lane that needs a
+fresh unknown-cost choice is refused: this host has no monetary review protocol.
+The job can already have been accepted with HTTP 202; its terminal result is
+`failed` with code `admission_refused`, before any model or tool effect.
+
+Exact priced routes such as DeepSeek direct, catalog-priced native models at their
+default endpoint and explicit local lanes retain their existing rules. A numeric
+ceiling cannot substitute for the missing review. Custom execution backends own
+their implementation of this host policy.

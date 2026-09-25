@@ -7,21 +7,24 @@
 //! consent lands; a reply is words and never becomes a file; consent is
 //! never a run; an explicit run line runs only on a clean check on disk.
 
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
 use super::*;
 use crate::intelligence::{DataLocus, IntelligenceKind};
 use crate::reasoner::{NoReasoner, Reply, ScriptedReasoner};
 
 /// A Ready intent: no question, no model, no seat — the compiler's own
 /// deterministic reading (the authoring suite proves the round itself).
-const COPY: &str = "Read ./notes/brief.md and write it to ./out/copy.md";
+pub(super) const COPY: &str = "Read ./notes/brief.md and write it to ./out/copy.md";
 /// Where the session lands COPY's candidate in a root without `workflows/`.
-const COPY_DEST: &str = "compiled-workflow.nika";
+pub(super) const COPY_DEST: &str = "compiled-workflow.nika";
 /// An intent whose model the compiler must ask for.
 const DRAFT: &str = "Read ./notes/brief.md, draft a 3-bullet summary of it and write the summary to ./out/summary.md";
 /// Work the deterministic reader cannot settle alone.
-const UNSETTLED: &str = "Read ./a.md and do something clever with it, then write ./b.md";
+pub(super) const UNSETTLED: &str = "Read ./a.md and do something clever with it, then write ./b.md";
 /// A line that reads as no work at all: the conversation's.
-const SMALL_TALK: &str = "hello there, how are you today?";
+pub(super) const SMALL_TALK: &str = "hello there, how are you today?";
 /// A check-clean workflow that pauses at a human gate: the answer is
 /// bound and gates the write (an unbound gate is refused at check).
 const GATE: &str = "nika: gate\npermits: { fs: { read: [\"./draft.md\"], write: [\"./final.md\"] }, tools: [\"nika:read\", \"nika:prompt\", \"nika:write\"] }\ntasks:\n  read_draft:\n    invoke: { tool: \"nika:read\", args: { path: \"./draft.md\" } }\n  approve:\n    invoke: { tool: \"nika:prompt\", args: { mode: confirm, message: \"Write final.md?\" } }\n  write_final:\n    after: { approve: success }\n    with: { go: \"${{ tasks.approve.output }}\", text: \"${{ tasks.read_draft.output }}\" }\n    when: \"${{ with.go == true }}\"\n    invoke: { tool: \"nika:write\", args: { path: \"./final.md\", content: \"${{ with.text }}\" } }\n";
@@ -32,7 +35,7 @@ const DIRTY: &str =
     "nika: drifted\ntasks:\n  t:\n    exec: { command: [\"curl\", \"https://example.com\"] }\n";
 
 /// A seat reasoner whose name is the seat itself, as the harness one is.
-struct Seat(&'static str);
+pub(super) struct Seat(pub(super) &'static str);
 
 impl SessionReasoner for Seat {
     fn name(&self) -> String {
@@ -47,7 +50,23 @@ impl SessionReasoner for Seat {
     }
 }
 
-fn tree() -> tempfile::TempDir {
+/// A metered path that never answers (HTTP 429), counting its calls.
+pub(super) struct Failing(pub(super) Arc<AtomicUsize>);
+
+impl SessionReasoner for Failing {
+    fn name(&self) -> String {
+        "mistral API".to_owned()
+    }
+
+    fn reason(&mut self, _prompt: &str) -> Result<Reply, crate::reasoner::ReasonError> {
+        self.0.fetch_add(1, Ordering::SeqCst);
+        Err(crate::reasoner::ReasonError::Provider(
+            "rate limited (HTTP 429) after 4 round-trips".to_owned(),
+        ))
+    }
+}
+
+pub(super) fn tree() -> tempfile::TempDir {
     let dir = tempfile::tempdir().expect("tmp");
     std::fs::write(
         dir.path().join("alpha.nika"),
@@ -57,7 +76,7 @@ fn tree() -> tempfile::TempDir {
     dir
 }
 
-fn ready(kind: IntelligenceKind, locus: DataLocus) -> ResolvedSessionIntelligence {
+pub(super) fn ready(kind: IntelligenceKind, locus: DataLocus) -> ResolvedSessionIntelligence {
     ResolvedSessionIntelligence {
         kind,
         model: None,
@@ -135,12 +154,10 @@ fn the_reasoner_receives_only_the_bundle() {
     let mut s = SessionRuntime::open(
         dir.path(),
         ready(
-            IntelligenceKind::Api {
-                provider: "mistral".to_owned(),
+            IntelligenceKind::Local {
+                provider: "scripted".to_owned(),
             },
-            DataLocus::Metered {
-                provider: "mistral".to_owned(),
-            },
+            DataLocus::Local,
         ),
         Box::new(ScriptedReasoner::new(vec!["It reads a file.".to_owned()])),
     );
@@ -198,6 +215,11 @@ fn an_invented_grammar_is_corrected_before_the_human_sees_it() {
         ),
         Box::new(ScriptedReasoner::new(vec![invented.to_owned()])),
     );
+    // This fixture exercises a reply to classified work on a words-only
+    // seat; an UNKNOWN/chat route must no longer invent an automation goal.
+    s.with_classifier(Box::new(crate::turn::ReasonerClassifier::new(Box::new(
+        ScriptedReasoner::new(vec!["NEW_WORK".to_owned()]),
+    ))));
     let out = s.turn("make me a workflow that fetches a site and notifies telegram");
     let TurnOutcome::Reply(text) = out else {
         panic!("{out:?}");
@@ -280,17 +302,382 @@ fn without_intelligence_the_facts_stay_free_text_is_refused_and_work_compiles() 
         "two discarded proposals and an incomplete wrote nothing"
     );
     assert!(matches!(s.turn("/quit"), TurnOutcome::Quit));
-    assert!(s.banner().contains("no conversational AI"));
-    assert_eq!(
-        s.banner().matches("no conversational AI").count(),
-        1,
-        "the path is named once: {}",
+    assert!(
+        s.banner().contains("What do you want to automate?"),
+        "the banner is the human's question: {}",
         s.banner()
     );
     assert!(
-        s.banner().contains("authoring · deterministic"),
-        "the banner names the seat authoring reasons with: {}",
+        !s.banner().contains("conversational AI") && !s.banner().contains("authoring"),
+        "the engine's facts are not on the banner: {}",
         s.banner()
+    );
+    assert!(s.status().contains("no conversational AI"));
+    assert_eq!(
+        s.status().matches("no conversational AI").count(),
+        1,
+        "the path is named once: {}",
+        s.status()
+    );
+    assert!(
+        s.status().contains("authoring · deterministic"),
+        "the status names the seat authoring reasons with: {}",
+        s.status()
+    );
+}
+
+/// The review reads in sections a human decides on (Does · Runs · Can
+/// touch · Changes · Needs · nothing has run yet); `/meaning` beside the
+/// proposal lists the request clause by clause from the compiler's ledger
+/// and HOLDS the proposal; the status line names where the automation
+/// stands at every step, from the machine's own facts.
+#[test]
+fn the_review_reads_in_sections_and_meaning_holds_the_proposal() {
+    let dir = tree();
+    std::fs::create_dir_all(dir.path().join("notes")).expect("notes");
+    std::fs::write(dir.path().join("notes/brief.md"), "brief\n").expect("brief");
+    let mut s = SessionRuntime::open(
+        dir.path(),
+        ready(IntelligenceKind::None, DataLocus::None),
+        Box::new(NoReasoner),
+    );
+    assert_eq!(s.status_line(), "", "nothing under way at open");
+    let TurnOutcome::Proposal { id, preview } = s.turn(COPY) else {
+        panic!("a copy is Ready");
+    };
+    for section in [
+        "Does\n",
+        "Runs\n  when you ask (« run it »)",
+        "Can touch\n  external effects · none",
+        "human approval at run · none",
+        "Changes\n  + `compiled-workflow.nika` · ",
+        "Needs\n  nothing more from you",
+        "Nothing has run yet · `yes` saves these exact bytes",
+        "`/meaning` your request clause by clause",
+    ] {
+        assert!(
+            preview.contains(section),
+            "missing « {section} » in:\n{preview}"
+        );
+    }
+    assert!(
+        s.status_line()
+            .starts_with("Ready for review · `compiled-workflow.nika`"),
+        "{}",
+        s.status_line()
+    );
+    // Meaning beside the proposal: the ledger's clauses, the proposal held.
+    let TurnOutcome::Held {
+        id: held,
+        preview: meaning,
+    } = s.consent("/meaning")
+    else {
+        panic!("meaning holds the proposal");
+    };
+    assert_eq!(held, id);
+    assert!(
+        meaning.contains("Meaning · your request, clause by clause")
+            && meaning.contains("✓ « write it to ./out/copy.md »")
+            && meaning.contains("a task that runs (`write_output`)")
+            && meaning.contains("the proposal still waits"),
+        "{meaning}"
+    );
+    assert!(
+        !meaning.contains("1/1") && !meaning.contains('%'),
+        "no score: {meaning}"
+    );
+    assert_eq!(s.pending_proposal(), Some(id), "held, not decided");
+    assert!(matches!(
+        s.consent("what did you understand?"),
+        TurnOutcome::Held { .. }
+    ));
+    // A yes lands the bytes: the status says saved, checked, not run.
+    assert!(matches!(s.consent("yes"), TurnOutcome::Facts(ref t) if t.contains("applied")));
+    assert!(
+        s.status_line().starts_with(
+            "Saved · checked · not active · nothing has run · `compiled-workflow.nika`"
+        ),
+        "{}",
+        s.status_line()
+    );
+    // After the proposal, `/meaning` is an aside over the last reading.
+    assert!(
+        matches!(s.turn("/meaning"), TurnOutcome::Aside(ref t) if t.contains("clause by clause"))
+    );
+}
+
+/// A schedule stated in the request is kept beside the program: saving
+/// activates nothing; « activate » asks the three values the sentence did
+/// not state (time zone · missed policy · ceiling), proposes the
+/// declaration as a project change, and a yes writes `nika.yaml` — which
+/// the cadence grammar and the project vocabulary both read back; the
+/// status then says declared, not proven active.
+///
+/// The shared first act: a daily copy stated in words, proposed, saved by
+/// a yes; the save declares nothing.
+fn saved_daily_copy(dir: &Path) -> SessionRuntime {
+    std::fs::create_dir_all(dir.join("notes")).expect("notes");
+    std::fs::write(dir.join("notes/brief.md"), "brief\n").expect("brief");
+    let mut s = SessionRuntime::open(
+        dir,
+        ready(IntelligenceKind::None, DataLocus::None),
+        Box::new(NoReasoner),
+    );
+    assert!(
+        matches!(s.turn("activate"), TurnOutcome::Refusal(ref r) if r.class == RefusalClass::WrongState),
+        "nothing to activate before a workflow is saved"
+    );
+    let TurnOutcome::Proposal { preview, .. } =
+        s.turn("Chaque matin à 8h, lis ./notes/brief.md et écris-le dans ./out/copie.md")
+    else {
+        panic!("a stated cadence is Ready with a trigger requirement beside it");
+    };
+    assert!(
+        preview.contains(
+            "↗ daily at 08:00 (« chaque matin à 8h ») · a schedule to activate AFTER saving"
+        ),
+        "{preview}"
+    );
+    assert!(
+        preview.contains("Needs\n  ↗ the schedule or trigger above · bound when you activate"),
+        "{preview}"
+    );
+    let TurnOutcome::Facts(saved) = s.consent("oui") else {
+        panic!("the yes saves the program");
+    };
+    assert!(
+        saved.contains("Saved · checked · not active · nothing has run")
+            && saved.contains("say « activate » to declare « chaque matin à 8h »"),
+        "{saved}"
+    );
+    assert!(
+        !dir.join("nika.yaml").exists(),
+        "saving the workflow declared nothing"
+    );
+    s
+}
+
+#[test]
+fn a_schedule_is_declared_only_through_the_human_s_gestures() {
+    let dir = tree();
+    let mut s = saved_daily_copy(dir.path());
+    // The activation conversation: three typed values, each its own line.
+    let TurnOutcome::Question { key, question } = s.turn("activate") else {
+        panic!("activate asks first");
+    };
+    assert_eq!(key, "project.timezone");
+    assert_eq!(
+        s.pending_activation(),
+        Some("project.timezone"),
+        "the shells read the waiting value from the runtime: the prompt is `reply ›`"
+    );
+    assert_eq!(
+        s.status_line(),
+        "Needs one value to declare the schedule · `project.timezone`"
+    );
+    assert!(
+        question.contains("Which time zone") && question.contains("(2 more after this one)"),
+        "{question}"
+    );
+    assert!(
+        matches!(s.turn("why?"), TurnOutcome::Aside(ref t) if t.contains("Declared is not active"))
+    );
+    assert!(
+        matches!(s.turn("Paris"), TurnOutcome::Refusal(ref r) if r.text.contains("Area/City")),
+        "a bare city is not a zone"
+    );
+    let TurnOutcome::Question { key, .. } = s.turn("Europe/Paris") else {
+        panic!("the missed policy is asked next");
+    };
+    assert_eq!(key, "project.missed");
+    let TurnOutcome::Question { key, .. } = s.turn("1") else {
+        panic!("the ceiling is asked last");
+    };
+    assert_eq!(key, "project.ceiling");
+    assert!(
+        matches!(s.turn("free"), TurnOutcome::Refusal(_)),
+        "a ceiling is an amount"
+    );
+    let TurnOutcome::Proposal { id, preview } = s.turn("0.20") else {
+        panic!("the declaration is proposed, never written on the answer");
+    };
+    assert!(
+        preview.contains("Nika proposes to declare the schedule in `nika.yaml`")
+            && preview.contains("TZ=Europe/Paris 0 8 * * *")
+            && preview.contains("if missed · rattraper-une-fois")
+            && preview.contains("ceiling · $0.2 per scheduled run")
+            && preview.contains("Declared is not active"),
+        "{preview}"
+    );
+    assert_eq!(s.pending_proposal(), Some(id));
+    assert!(
+        !dir.path().join("nika.yaml").exists(),
+        "proposed, not written"
+    );
+    let TurnOutcome::Facts(declared) = s.consent("yes") else {
+        panic!("the yes writes the declaration");
+    };
+    assert!(
+        declared.contains("applied · wrote `nika.yaml`")
+            && declared.contains("Declared in `nika.yaml` · not active"),
+        "{declared}"
+    );
+    let file = std::fs::read_to_string(dir.path().join("nika.yaml")).expect("nika.yaml");
+    assert!(
+        file.contains("arm:")
+            && file.contains("workflow: compiled-workflow.nika")
+            && file.contains("cadence: \"TZ=Europe/Paris 0 8 * * *\"")
+            && file.contains("plafond: 0.2")
+            && file.contains("manqué: rattraper-une-fois"),
+        "{file}"
+    );
+}
+
+/// The declaration Nika wrote reads in both grammars (the cadence
+/// registry and the project file), the status line says declared and
+/// not proven active, and a second activation never rewrites a list.
+#[test]
+fn a_declared_schedule_reads_in_both_grammars_and_is_never_rewritten() {
+    let dir = tree();
+    let mut s = saved_daily_copy(dir.path());
+    let _ = s.turn("activate");
+    let _ = s.turn("Europe/Paris");
+    let _ = s.turn("1");
+    let TurnOutcome::Proposal { .. } = s.turn("0.20") else {
+        panic!("the declaration is proposed");
+    };
+    let TurnOutcome::Facts(_) = s.consent("yes") else {
+        panic!("the yes writes the declaration");
+    };
+    let file = std::fs::read_to_string(dir.path().join("nika.yaml")).expect("nika.yaml");
+    // Both grammars read the file Nika wrote.
+    let registry =
+        nika_cadence::parse::parse_registry(&file).expect("the cadence grammar reads it");
+    assert_eq!(registry.beat_count(), 1);
+    let (_, project) = nika_vocab::project::discover(dir.path())
+        .expect("discover")
+        .expect("a project");
+    assert_eq!(project.arm().len(), 1);
+    assert!(
+        s.status_line().starts_with("Declared · ") && s.status_line().contains("not proven active"),
+        "{}",
+        s.status_line()
+    );
+    // A second activation of the same workflow never rewrites the list.
+    assert!(matches!(s.turn("activate"), TurnOutcome::Question { .. }));
+    let _ = s.turn("Europe/Paris");
+    let _ = s.turn("2");
+    assert!(
+        matches!(s.turn("0.10"), TurnOutcome::Facts(ref t) if t.contains("already declares an `arm:` list")),
+        "an existing list is never rewritten by Nika"
+    );
+}
+
+/// The status line during a question names the answer the automation
+/// needs; before any work it is empty; a discussion line leaves it so.
+#[test]
+fn the_status_line_names_the_next_gesture() {
+    let dir = tree();
+    let mut s = SessionRuntime::open(
+        dir.path(),
+        ready(IntelligenceKind::None, DataLocus::None),
+        Box::new(NoReasoner),
+    );
+    assert!(matches!(s.turn(DRAFT), TurnOutcome::Question { .. }));
+    assert!(
+        s.status_line().starts_with("Needs one answer · "),
+        "{}",
+        s.status_line()
+    );
+    assert!(matches!(s.turn("cancel"), TurnOutcome::Facts(_)));
+    assert_eq!(s.status_line(), "");
+    assert!(
+        matches!(s.turn("/meaning"), TurnOutcome::Aside(ref t) if t.contains("clause by clause")),
+        "the last reading stays readable after a cancel"
+    );
+}
+
+/// « why? » beside an authoring question explains it from the compiler's
+/// own words and holds it: nothing is answered, the same question waits,
+/// and `cancel` still drops the round. The raw key stays out of the
+/// question's line and lives in the explanation.
+#[test]
+fn why_beside_a_question_explains_it_and_holds_it() {
+    let dir = tree();
+    std::fs::create_dir_all(dir.path().join("notes")).expect("notes");
+    std::fs::write(dir.path().join("notes/brief.md"), "brief\n").expect("brief");
+    let mut s = SessionRuntime::open(
+        dir.path(),
+        ready(IntelligenceKind::None, DataLocus::None),
+        Box::new(NoReasoner),
+    );
+    let TurnOutcome::Question { key, question } = s.turn(DRAFT) else {
+        panic!("a draft asks its model");
+    };
+    assert_eq!(key, "model");
+    assert!(
+        !question.contains("(`model`)") && question.contains("`why?` explains"),
+        "{question}"
+    );
+    let TurnOutcome::Aside(text) = s.turn("why?") else {
+        panic!("a side question is an aside");
+    };
+    assert!(
+        text.contains("fills `model`") && text.contains("the question still waits"),
+        "{text}"
+    );
+    assert!(text.contains("what you asked"), "the goal is named: {text}");
+    assert_eq!(
+        s.pending_question().map(|q| q.key.as_str()),
+        Some("model"),
+        "the aside consumed nothing"
+    );
+    assert!(matches!(s.turn("pourquoi ?"), TurnOutcome::Aside(_)));
+    assert!(matches!(s.turn("/why"), TurnOutcome::Aside(_)));
+    assert!(matches!(s.turn("cancel"), TurnOutcome::Facts(ref t) if t.contains("discarded")));
+    assert!(s.pending_question().is_none());
+    assert!(
+        matches!(s.turn("/why"), TurnOutcome::Facts(ref t) if t.contains("nothing waits")),
+        "nothing pending: a fact"
+    );
+}
+
+/// « why? » beside a run's gate says what the answer lets happen, from the
+/// workflow's own bytes, and the gate keeps waiting.
+#[test]
+fn why_beside_a_gate_explains_it_and_holds_it() {
+    let dir = tree();
+    std::fs::write(dir.path().join("draft.md"), "the draft\n").expect("draft");
+    std::fs::write(dir.path().join("gate.nika"), GATE).expect("gate");
+    let mut s = ready_with(dir.path(), vec![]);
+    assert!(matches!(
+        s.turn("run gate.nika"),
+        TurnOutcome::RunRequested { .. }
+    ));
+    let store = dir.path().join(".nika").join("traces");
+    std::fs::create_dir_all(&store).expect("store");
+    let trace = store.join("paused.ndjson");
+    std::fs::write(&trace, PAUSED).expect("trace");
+    assert!(matches!(
+        s.observe_run(4, Some(&trace)),
+        TurnOutcome::GateAsk { .. }
+    ));
+    let TurnOutcome::Aside(text) = s.answer_gate("why?") else {
+        panic!("a side question beside the gate is an aside");
+    };
+    assert!(
+        text.contains("paused at `approve`") && text.contains("write_final · writes a file"),
+        "the gated task is named from the bytes: {text}"
+    );
+    assert!(
+        text.contains("nothing after the gate has happened yet"),
+        "{text}"
+    );
+    assert!(s.waiting_gate().is_some(), "the gate still waits");
+    assert!(matches!(s.turn("/why"), TurnOutcome::Aside(_)));
+    assert!(
+        matches!(s.answer_gate("yes"), TurnOutcome::ResumeRequested { .. }),
+        "the answer after the aside resumes the run"
     );
 }
 
@@ -390,11 +777,15 @@ fn a_question_at_the_consent_prompt_holds_the_proposal() {
             && text.contains("./out/copy.md"),
         "the set's own effects: {text}"
     );
+    // An open line no intelligence can read: the proposal kept, the set's
+    // own effects said, the protocol forms named — never a guess.
     let TurnOutcome::Held { preview: text, .. } = s.consent("hmm") else {
         panic!("held");
     };
     assert!(
-        text.contains("not a consent") && text.contains("still waits"),
+        text.contains("nothing changed")
+            && text.contains("when it runs:")
+            && text.contains("still waits"),
         "{text}"
     );
     assert!(!dir.path().join(COPY_DEST).exists());
@@ -449,19 +840,6 @@ fn a_run_is_requested_only_on_a_clean_check() {
         (run.max_cost_usd - 0.05).abs() < f64::EPSILON,
         "the ceiling named in the run line"
     );
-    assert_eq!(
-        ceiling_in("create it and run it once with a ceiling of 0.05"),
-        Some(0.05)
-    );
-    assert_eq!(ceiling_in("run it, cap $0.10 please"), Some(0.10));
-    assert_eq!(ceiling_in("run it --max-cost-usd 1"), Some(1.0));
-    assert_eq!(ceiling_in("run it --max-cost-usd=0.5"), Some(0.5));
-    assert_eq!(ceiling_in("run it once"), None, "no number, the default");
-    assert_eq!(
-        ceiling_in("write 3 tasks and run it"),
-        None,
-        "a count is not a ceiling"
-    );
     let TurnOutcome::Facts(observed) = s.observe_run(0, Some(Path::new(".nika/traces/t.ndjson")))
     else {
         panic!("an observation");
@@ -481,6 +859,72 @@ fn a_run_is_requested_only_on_a_clean_check() {
         "{report}"
     );
     assert!(report.contains("NIKA-AUTH-006"), "{report}");
+}
+
+/// Budget parsing is exercised through the public turn door, on a
+/// checked workflow, so a parser error cannot silently use the default.
+#[test]
+fn run_money_requires_explicit_finite_unambiguous_intent() {
+    let dir = tree();
+    let mut s = ready_with(dir.path(), vec![]);
+    // Preparation now binds its default to the reviewed proposal.
+    s.snapshot.ceiling = Some(0.10);
+    assert!(matches!(s.turn(COPY), TurnOutcome::Proposal { .. }));
+    assert!(matches!(s.consent("yes"), TurnOutcome::Facts(_)));
+    s.snapshot.ceiling = Some(0.10);
+    for line in [
+        "run it $NaN",
+        "run it $inf",
+        "run it $-1",
+        "run it $1e999",
+        "run it with a ceiling of NaN",
+        "run it --max-cost-usd=-1",
+        "run it --max-cost-usd NaN",
+        "run it --max-cost-usd=oops",
+        "run it --max-cost-usd",
+        "run it --max-cost-usd-extra=1",
+        "run it with a budget",
+        "run it with a ceiling of $0.10 and cap $20",
+        "run it at 9",
+        "run it at 9:00",
+        "run it at 9am",
+        "lance ça à 9",
+        "run it 3 times",
+        "run it with a ceiling of $0.10 at 9",
+    ] {
+        let outcome = s.turn(line);
+        assert!(
+            matches!(outcome, TurnOutcome::Refusal(_)),
+            "{line}: {outcome:?}"
+        );
+        assert!(s.pending_input().is_none(), "no pending run: {line}");
+    }
+    for (line, expected) in [
+        ("run it", 0.10),
+        ("run it, cap $0.25 please", 0.25),
+        ("run it with a ceiling of 0.05", 0.05),
+        ("run it --max-cost-usd=0.5", 0.5),
+        ("run it --max-cost-usd 1", 1.0),
+        ("run it budget 0", 0.0),
+        ("lance ça avec un plafond de $0.05", 0.05),
+        ("run it with a ceiling of $0.50 usd", 0.5),
+    ] {
+        let TurnOutcome::RunRequested { run, .. } = s.turn(line) else {
+            panic!("explicit valid money should request a run: {line}");
+        };
+        assert!((run.max_cost_usd - expected).abs() < f64::EPSILON, "{line}");
+    }
+    // A project amount is a default, not an unspoken invocation cap.
+    s.snapshot.ceiling = Some(f64::NAN);
+    assert!(matches!(s.turn("run it"), TurnOutcome::Refusal(_)));
+    assert!(matches!(
+        s.turn("run it cap $0"),
+        TurnOutcome::RunRequested { .. }
+    ));
+    assert!(
+        !dir.path().join("out/copy.md").exists(),
+        "a request never executes here"
+    );
 }
 
 /// A paused run returns to the session as a question; the human's line
@@ -584,105 +1028,6 @@ fn the_session_chooses_the_destination_never_the_model() {
     assert!(!dir.path().join(COPY_DEST).exists());
 }
 
-/// `/intelligence` asks the first screen again in-session; the next
-/// line is the answer, kept under the home, the reasoner rebuilt and the
-/// authoring seat re-derived; an unserved pick is refused and the
-/// previous choice stands.
-#[test]
-fn the_intelligence_can_be_rechosen_in_session() {
-    let dir = tree();
-    let home = tempfile::tempdir().expect("home");
-    let census = IntelligenceCensus {
-        seats: vec![crate::intelligence::SeatSeen {
-            id: "codex".to_owned(),
-            product_present: true,
-            configured: true,
-        }],
-        api_keys: vec![],
-        locals: vec![],
-    };
-    let pref = UserIntelligencePreference::new(IntelligenceKind::None, None);
-    let factory: ReasonerFactory = Box::new(|resolved| match &resolved.kind {
-        IntelligenceKind::None => Box::new(NoReasoner),
-        _ => Box::new(ScriptedReasoner::new(vec!["seated".to_owned()])),
-    });
-    let mut s = SessionRuntime::open_with(dir.path(), census, &pref, Some(home.path()), factory);
-    assert!(matches!(s.turn(SMALL_TALK), TurnOutcome::Refusal(_)));
-    let TurnOutcome::Ask(screen) = s.turn("/intelligence") else {
-        panic!("asks");
-    };
-    assert!(screen.contains("Choose which AI"), "{screen}");
-    assert!(
-        matches!(s.choose("2"), TurnOutcome::Refusal(ref r) if r.text.contains("previous choice stands"))
-    );
-    assert!(
-        matches!(s.turn(SMALL_TALK), TurnOutcome::Refusal(_)),
-        "still none"
-    );
-    let TurnOutcome::Facts(chosen) = s.choose("1") else {
-        panic!("the choice is kept");
-    };
-    assert!(
-        chosen.contains("codex") && chosen.contains("kept"),
-        "{chosen}"
-    );
-    assert!(
-        chosen.contains("authoring · deterministic"),
-        "a harness seat reasons in words; authoring stays deterministic: {chosen}"
-    );
-    assert!(matches!(s.turn(SMALL_TALK), TurnOutcome::Reply(ref t) if t.contains("seated")));
-    let back = UserIntelligencePreference::load(home.path()).expect("kept under the home");
-    assert_eq!(
-        back.kind,
-        IntelligenceKind::Harness {
-            seat: "codex".to_owned()
-        }
-    );
-}
-
-/// An explicit choice this machine cannot serve refuses every
-/// conversational turn with its fix — the facts still answer, and work
-/// still compiles (the compiler needs no seat).
-#[test]
-fn an_unserved_choice_refuses_with_its_fix() {
-    let dir = tree();
-    let unserved = ResolvedSessionIntelligence {
-        kind: IntelligenceKind::Harness {
-            seat: "claude-code".to_owned(),
-        },
-        model: None,
-        locus: DataLocus::Remote {
-            product: "claude-code".to_owned(),
-        },
-        ready: false,
-        why: Some("`claude-code` is not installed on this machine — install it".to_owned()),
-    };
-    let mut s = SessionRuntime::open(dir.path(), unserved, Box::new(Seat("claude-code")));
-    assert!(s.banner().contains("⚠ `claude-code` is not installed"));
-    assert!(
-        s.banner().contains("intelligence: claude-code · uses")
-            && !s.banner().contains("claude-code · claude-code"),
-        "the seat is named once: {}",
-        s.banner()
-    );
-    assert!(
-        s.banner().contains("authoring · deterministic"),
-        "{}",
-        s.banner()
-    );
-    assert!(
-        matches!(s.turn(SMALL_TALK), TurnOutcome::Refusal(ref r) if r.text.contains("not installed"))
-    );
-    assert!(matches!(
-        s.turn("what workflows are here?"),
-        TurnOutcome::Facts(_)
-    ));
-    assert!(
-        matches!(s.turn(COPY), TurnOutcome::Proposal { .. }),
-        "work compiles without the seat"
-    );
-}
-
 /// The freeze audit · a stale apply (the file appeared on disk after the
 /// preview) leaves the proposal UNDECIDED: nothing was written, and a
 /// retry by identity reads `wrong_state`, never `already_consumed` —
@@ -766,4 +1111,315 @@ fn a_remote_host_drives_the_machine_by_identity() {
         panic!("no gate");
     };
     assert_eq!(no_gate.class, RefusalClass::WrongState, "{no_gate}");
+}
+
+/// The result and the proof read the trace's own frames: after the door
+/// observes a finished run whose trace this session can read, the facts
+/// lead (what was produced, read, the honest cost) and the door's line
+/// stays beneath as the remembered fact; `/proof` then judges the chain
+/// through the verify door and says what it does not prove. Before any
+/// run, `/proof` says where a proof will come from.
+#[test]
+fn a_finished_run_reads_as_a_result_and_proof_reads_its_trace() {
+    let dir = tree();
+    let mut s = ready_with(dir.path(), vec![]);
+    assert!(
+        matches!(s.turn("/proof"), TurnOutcome::Facts(ref t) if t.starts_with("No run observed in this session yet")),
+        "before any run, the door to a proof is named"
+    );
+    assert!(matches!(s.turn(COPY), TurnOutcome::Proposal { .. }));
+    assert!(matches!(s.consent("yes"), TurnOutcome::Facts(_)));
+    assert!(matches!(s.turn("run it"), TurnOutcome::RunRequested { .. }));
+    // The door ran it: a real trace of the deterministic copy (engine
+    // 0.120.3) and the file it wrote, as the door leaves them.
+    let store = dir.path().join(".nika").join("traces");
+    std::fs::create_dir_all(&store).expect("store");
+    std::fs::copy(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/traces/copy.ndjson"),
+        store.join("t.ndjson"),
+    )
+    .expect("trace");
+    std::fs::create_dir_all(dir.path().join("out")).expect("out");
+    std::fs::write(
+        dir.path().join("out/copie.md"),
+        "# Brief\n\nLe lancement passe en octobre.\n",
+    )
+    .expect("artefact");
+    let TurnOutcome::Facts(result) = s.observe_run(0, Some(Path::new(".nika/traces/t.ndjson")))
+    else {
+        panic!("an observation");
+    };
+    assert!(
+        result.starts_with(&format!("Done · `{COPY_DEST}` · 11 ms · 2 tasks ran")),
+        "{result}"
+    );
+    assert!(
+        result.contains("\n  produced · ./out/copie.md (40 B)"),
+        "{result}"
+    );
+    assert!(result.contains("\n  read · ./notes/brief.md"), "{result}");
+    assert!(
+        result.contains("cost · no model usage recorded"),
+        "{result}"
+    );
+    assert!(
+        result.contains("run observed · exit 0 · succeeded · trace `.nika/traces/t.ndjson`"),
+        "the door's line stays beneath: {result}"
+    );
+    assert_eq!(
+        result.matches("produced ·").count(),
+        1,
+        "the produced fact is said once, from the frames: {result}"
+    );
+    let TurnOutcome::Facts(proof) = s.turn("/proof") else {
+        panic!("a proof");
+    };
+    assert!(proof.starts_with("Proof · "), "{proof}");
+    assert!(
+        proof.contains("\n  workflow · compiled-workflow · bytes sha256 5d1bf591…0730"),
+        "{proof}"
+    );
+    assert!(
+        proof.contains("\n  chain · OK — 13 events · chain intact · head 1cf484e5…7f01"),
+        "{proof}"
+    );
+    assert!(
+        proof.contains("written · ./out/copie.md · 40 B · sha256 "),
+        "{proof}"
+    );
+    assert!(
+        proof.contains("does not prove · that the content is right"),
+        "{proof}"
+    );
+    assert!(
+        s.status_line().starts_with("Done · the run succeeded"),
+        "{}",
+        s.status_line()
+    );
+}
+
+/// Leaving is always one line away: `/quit` at the consent prompt drops
+/// the proposal and writes nothing; at the first screen it chooses
+/// nothing; at a gate it leaves the gate waiting in its trace.
+#[test]
+fn quit_leaves_from_the_consent_prompt_the_first_screen_and_a_gate() {
+    let dir = tree();
+    let mut s = ready_with(dir.path(), vec![]);
+    assert!(matches!(s.turn(COPY), TurnOutcome::Proposal { .. }));
+    assert!(matches!(s.consent("/quit"), TurnOutcome::Quit));
+    assert!(s.pending_proposal().is_none(), "the proposal is dropped");
+    assert!(!dir.path().join(COPY_DEST).exists(), "nothing written");
+    // The first screen, asked in context on a first launch: `/exit` chooses
+    // nothing and the waiting line is never sent anywhere.
+    let first = tree();
+    let factory: ReasonerFactory = Box::new(|_| Box::new(NoReasoner));
+    let mut u =
+        SessionRuntime::open_unchosen(first.path(), IntelligenceCensus::empty(), None, factory);
+    assert!(matches!(u.turn(SMALL_TALK), TurnOutcome::Ask(_)));
+    assert!(matches!(u.choose("/exit"), TurnOutcome::Quit));
+    assert!(!u.pending_choice(), "no choice made");
+    std::fs::write(dir.path().join("draft.md"), "the draft\n").expect("draft");
+    std::fs::write(dir.path().join("gate.nika"), GATE).expect("gate");
+    assert!(matches!(
+        s.turn("run gate.nika"),
+        TurnOutcome::RunRequested { .. }
+    ));
+    let store = dir.path().join(".nika").join("traces");
+    std::fs::create_dir_all(&store).expect("store");
+    let trace = store.join("paused.ndjson");
+    std::fs::write(&trace, PAUSED).expect("trace");
+    assert!(matches!(
+        s.observe_run(4, Some(&trace)),
+        TurnOutcome::GateAsk { .. }
+    ));
+    assert!(matches!(s.answer_gate("/quit"), TurnOutcome::Quit));
+    assert!(
+        s.waiting_gate().is_some(),
+        "the gate still waits in its trace"
+    );
+}
+
+/// A bare consent word with nothing pending is refused as a wrong state:
+/// it is neither work to build nor a question, and no model reads it.
+#[test]
+fn a_bare_yes_or_no_with_nothing_pending_is_refused_never_compiled() {
+    let dir = tree();
+    let mut s = ready_with(dir.path(), vec![]);
+    for word in ["yes", "oui", "ok", "no", "non"] {
+        let TurnOutcome::Refusal(why) = s.turn(word) else {
+            panic!("`{word}` with nothing pending is refused");
+        };
+        assert_eq!(why.class, RefusalClass::WrongState, "{why}");
+        assert!(
+            why.text.contains("nothing waits for a yes or a no"),
+            "{why}"
+        );
+    }
+    assert!(!dir.path().join(COPY_DEST).exists());
+}
+
+/// The lifecycle rail is compiled from the session's own facts: five
+/// pending fields on a fresh session, the draft done once a proposal
+/// waits, then Saved and Checked done for a clean consent while Active
+/// stays pending (declared is never active), and Run × after a failure.
+#[test]
+fn the_lifecycle_rail_follows_the_sessions_facts() {
+    let dir = tree();
+    let mut s = ready_with(dir.path(), vec![]);
+    assert_eq!(
+        s.lifecycle().rail(),
+        "Draft ○ · Saved ○ · Checked ○ · Active ○ · Run ○"
+    );
+    assert!(matches!(s.turn(COPY), TurnOutcome::Proposal { .. }));
+    assert_eq!(
+        s.lifecycle().rail(),
+        "Draft ✓ · Saved ○ · Checked ○ · Active ○ · Run ○"
+    );
+    s.pending = None;
+    s.last_workflow = Some(std::path::PathBuf::from("copy.nika"));
+    s.last_check_clean = Some(true);
+    assert_eq!(
+        s.lifecycle().rail(),
+        "Draft ✓ · Saved ✓ · Checked ✓ · Active ○ · Run ○"
+    );
+    s.last_run = Some((1, "the run failed".to_owned()));
+    assert_eq!(
+        s.lifecycle().rail(),
+        "Draft ✓ · Saved ✓ · Checked ✓ · Active ○ · Run ×"
+    );
+}
+
+/// The recovery card says its headline once: the caller's words are the
+/// headline (« I couldn't use the authoring model for this part »), the
+/// template adds the reason and the ways on, never a second « I couldn't
+/// use … for this part » around them.
+#[test]
+fn the_recovery_card_says_its_headline_once() {
+    let dir = tree();
+    let mut s = ready_with(dir.path(), vec![]);
+    let TurnOutcome::Refusal(card) = s.recovery(
+        Some(RefusalClass::IntelligenceRefused),
+        "I couldn't use the authoring model for this part",
+        "the provider could not answer",
+    ) else {
+        panic!("a classed recovery is a refusal");
+    };
+    assert!(
+        card.text.starts_with(
+            "I couldn't use the authoring model for this part — the provider could not answer"
+        ),
+        "{}",
+        card.text
+    );
+    assert_eq!(card.text.matches("I couldn't use").count(), 1);
+    assert_eq!(card.text.matches("for this part").count(), 1);
+    assert!(
+        card.text.contains("may have received this turn's context")
+            && !card.text.contains("nothing was sent"),
+        "{}",
+        card.text
+    );
+}
+
+/// The failure card names the seat the turn ran on (the authoring seat's
+/// model) so a 404 or a refusal says what it was about; a session with no
+/// seat names none.
+#[test]
+fn the_recovery_card_names_the_seat_it_failed_on() {
+    let dir = tree();
+    let mut s = ready_with(dir.path(), vec![]);
+    let TurnOutcome::Refusal(bare) = s.recovery(
+        Some(RefusalClass::IntelligenceRefused),
+        "I couldn't use the authoring model for this part",
+        "provider endpoint or model not found (HTTP 404)",
+    ) else {
+        panic!("a classed recovery is a refusal");
+    };
+    assert!(!bare.text.contains("seat:"), "{}", bare.text);
+    s.seat = crate::authoring::AuthoringSeat::Provider {
+        model: "openai/gpt-5.2".to_owned(),
+    };
+    let TurnOutcome::Refusal(named) = s.recovery(
+        Some(RefusalClass::IntelligenceRefused),
+        "I couldn't use the authoring model for this part",
+        "provider endpoint or model not found (HTTP 404)",
+    ) else {
+        panic!("a classed recovery is a refusal");
+    };
+    assert!(
+        named.text.contains("(HTTP 404)\n  seat: openai/gpt-5.2"),
+        "{}",
+        named.text
+    );
+}
+
+/// A failed call is no proof that nothing was sent: once a model reasons for the session,
+/// the card says the selected model may have received the turn's context and gives the
+/// Session's own cost accounting, never an inferred zero. The subscription seat keeps its
+/// disclosure, and only a session where no model reasons says nothing was sent.
+#[test]
+fn the_recovery_card_never_denies_what_a_model_may_have_received() {
+    fn card(s: &mut SessionRuntime) -> String {
+        let TurnOutcome::Refusal(card) = s.recovery(
+            Some(RefusalClass::IntelligenceRefused),
+            "I couldn't use the authoring model for this part",
+            "rate limited (HTTP 429)",
+        ) else {
+            panic!("a classed recovery is a refusal");
+        };
+        card.text
+    }
+    let dir = tree();
+    let mut s = ready_with(dir.path(), vec![]);
+    s.seat = crate::authoring::AuthoringSeat::Provider {
+        model: "mistral/mistral-small-latest".to_owned(),
+    };
+    let provider = card(&mut s);
+    assert!(
+        provider.contains("No workflow output was written or Run requested; the selected model (mistral/mistral-small-latest) may have received this turn's context")
+            && provider.contains("\n  Session inference (separate from proposal/Run): ")
+            && provider.contains("cost unknown")
+            && !provider.contains("nothing was sent"),
+        "{provider}"
+    );
+    s.seat = crate::authoring::AuthoringSeat::Harness {
+        seat: "codex".to_owned(),
+        model: None,
+    };
+    let harness = card(&mut s);
+    assert!(
+        harness.contains("No workflow was written or Run requested; the selected subscription may have received compiler context; billed cost remains unknown.")
+            && !harness.contains("nothing was sent"),
+        "{harness}"
+    );
+    s.seat = crate::authoring::AuthoringSeat::Deterministic { why: None };
+    s.intelligence.locus = DataLocus::None;
+    let none = card(&mut s);
+    assert!(
+        none.contains("Nothing was written and nothing was sent elsewhere.")
+            && !none.contains("may have received"),
+        "{none}"
+    );
+}
+
+/// Saving a second proposal, at the same path or another one, must not display
+/// the earlier run as evidence for the newly saved bytes.
+#[test]
+fn saving_a_new_proposal_clears_the_previous_run_status() {
+    for previous in ["compiled-workflow.nika", "previous.nika"] {
+        let dir = tree();
+        let mut s = ready_with(dir.path(), vec![]);
+        s.last_workflow = Some(std::path::PathBuf::from(previous));
+        s.last_check_clean = Some(true);
+        s.last_run = Some((0, "the previous run succeeded".to_owned()));
+        assert!(matches!(s.turn(COPY), TurnOutcome::Proposal { .. }));
+        assert!(matches!(s.consent("yes"), TurnOutcome::Facts(_)));
+        assert!(
+            s.status_line().contains("nothing has run"),
+            "{}",
+            s.status_line()
+        );
+        assert!(s.lifecycle().rail().ends_with("Run ○"));
+        assert!(!dir.path().join("out/copy.md").exists());
+    }
 }

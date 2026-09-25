@@ -32,7 +32,7 @@ pub(crate) fn gates(
     if let Some(err) = required_inputs_refusal(wf, overrides) {
         return Err(err);
     }
-    if let Some(err) = budget_floor_at(wf, report, budget, model_override, overrides) {
+    if let Some(err) = budget_floor_at(wf, report, budget, model_override, overrides, false) {
         return Err(err);
     }
     // One Door · wave 1: a frozen plan IS the access admission — the
@@ -170,7 +170,31 @@ pub fn budget_floor_refusal(
     budget: Option<f64>,
     model_override: Option<&str>,
 ) -> Option<RuntimeError> {
-    budget_floor_at(wf, report, budget, model_override, &BTreeMap::new())
+    budget_floor_at(wf, report, budget, model_override, &BTreeMap::new(), false)
+}
+
+/// The same gate for a run SEATED on a harness (`--access codex` and its kin, a subscription
+/// the seat owns): an unpriced cloud model is not unknown spend there — the subscription's
+/// own plan bounds it and the cap meters the priced builtins only — so the unpriced-cloud arm
+/// stands down while the floor of priced work and the unresolvable-id arm still judge.
+/// Measured 2026-09-23: `nika run --access codex` with `openai/gpt-6-astra` answered in 17 s
+/// and refused NIKA-1709 under any cap.
+#[must_use]
+pub fn budget_floor_refusal_seated(
+    wf: &RawWorkflow,
+    report: &CheckReport,
+    budget: Option<f64>,
+    model_override: Option<&str>,
+    seated_on_harness: bool,
+) -> Option<RuntimeError> {
+    budget_floor_at(
+        wf,
+        report,
+        budget,
+        model_override,
+        &BTreeMap::new(),
+        seated_on_harness,
+    )
 }
 
 fn budget_floor_at(
@@ -179,9 +203,12 @@ fn budget_floor_at(
     budget: Option<f64>,
     model_override: Option<&str>,
     overrides: &BTreeMap<String, Value>,
+    seated_on_harness: bool,
 ) -> Option<RuntimeError> {
     let budget = budget?;
-    if let Some(err) = unmeterable_seat_on_resolved_ids(wf, budget, model_override, overrides) {
+    if let Some(err) =
+        unmeterable_seat_on_resolved_ids(wf, budget, model_override, overrides, seated_on_harness)
+    {
         return Some(err);
     }
     let owned;
@@ -192,7 +219,7 @@ fn budget_floor_at(
         }
         None => report,
     };
-    if let Some(err) = unpriced_cloud_cap_refusal(effective, budget) {
+    if !seated_on_harness && let Some(err) = unpriced_cloud_cap_refusal(effective, budget) {
         return Some(err);
     }
     let floor = effective.cost.min_path_total_usd + priced_builtin_floor(wf);
@@ -234,6 +261,7 @@ fn unmeterable_seat_on_resolved_ids(
     budget: f64,
     model_override: Option<&str>,
     overrides: &BTreeMap<String, Value>,
+    seated_on_harness: bool,
 ) -> Option<RuntimeError> {
     let mut unresolvable: Vec<(String, String)> = Vec::new();
     let mut unpriced: Vec<String> = Vec::new();
@@ -247,8 +275,13 @@ fn unmeterable_seat_on_resolved_ids(
             unpriced.push(model);
         }
     }
-    unresolvable_seat_message(&unresolvable, budget)
-        .or_else(|| unpriced_cloud_message(&unpriced, budget))
+    // Seated on a harness, an unpriced cloud id is the subscription's to bound; an id this
+    // binary cannot resolve still refuses.
+    unresolvable_seat_message(&unresolvable, budget).or_else(|| {
+        (!seated_on_harness)
+            .then(|| unpriced_cloud_message(&unpriced, budget))
+            .flatten()
+    })
 }
 
 /// #1368 · the unresolvable arm's refusal: every seat with the resolver's

@@ -29,8 +29,22 @@ pub enum ComposerAction {
     Edited,
     /// The human sent the buffer; it is cleared and kept in history.
     Submit(String),
+    /// `Tab`: the human asks the loop to complete the buffer.
+    Complete,
     /// The key was not the composer's (the loop decides).
     Ignored,
+}
+
+/// What a completion came to.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Completion {
+    /// The buffer became this one candidate.
+    Done(String),
+    /// Several candidates share the prefix (the buffer took the common
+    /// part); the loop shows them.
+    Several(Vec<String>),
+    /// Nothing to complete here.
+    None,
 }
 
 /// The wrapper.
@@ -130,11 +144,10 @@ impl Composer {
             KeyCode::Char(c) if ctrl && matches!(c, 'c' | 't' | 'o' | 'l' | 'd' | 'z') => {
                 ComposerAction::Ignored
             }
-            KeyCode::Esc
-            | KeyCode::PageUp
-            | KeyCode::PageDown
-            | KeyCode::Tab
-            | KeyCode::BackTab => ComposerAction::Ignored,
+            KeyCode::Tab => ComposerAction::Complete,
+            KeyCode::Esc | KeyCode::PageUp | KeyCode::PageDown | KeyCode::BackTab => {
+                ComposerAction::Ignored
+            }
             KeyCode::Char(c) => {
                 self.recall = None;
                 self.area.input(Input {
@@ -224,6 +237,41 @@ impl Composer {
         ComposerAction::Edited
     }
 
+    /// Complete a one-line `/command` buffer from `candidates` (kept in
+    /// the caller's order): one match fills the buffer, several take their
+    /// common prefix and are returned for the hint row, none changes nothing.
+    pub fn complete(&mut self, candidates: &[String]) -> Completion {
+        let text = self.text();
+        let typed = text.trim_end();
+        // An empty composer: every command for the hint row, nothing
+        // inserted (discoverability, not a guess at what the human wants).
+        if typed.is_empty() {
+            return if candidates.is_empty() {
+                Completion::None
+            } else {
+                Completion::Several(candidates.to_vec())
+            };
+        }
+        if !typed.starts_with('/') || typed.contains('\n') || typed.contains(' ') {
+            return Completion::None;
+        }
+        let matches: Vec<&String> = candidates.iter().filter(|c| c.starts_with(typed)).collect();
+        match matches.as_slice() {
+            [] => Completion::None,
+            [one] => {
+                self.replace_with((*one).clone());
+                Completion::Done((*one).clone())
+            }
+            several => {
+                let prefix = common_prefix(several);
+                if prefix.len() > typed.len() {
+                    self.replace_with(prefix);
+                }
+                Completion::Several(several.iter().map(|s| (*s).clone()).collect())
+            }
+        }
+    }
+
     fn replace_with(&mut self, text: String) {
         let mut area = fresh_like(&self.area);
         area.insert_str(text);
@@ -235,6 +283,20 @@ impl Composer {
     pub fn render(&self, area: Rect, buf: &mut Buffer) {
         (&self.area).render(area, buf);
     }
+}
+
+/// The longest prefix every candidate shares (on char boundaries).
+fn common_prefix(candidates: &[&String]) -> String {
+    let Some(first) = candidates.first() else {
+        return String::new();
+    };
+    let mut prefix: String = (*first).clone();
+    for candidate in &candidates[1..] {
+        while !candidate.starts_with(prefix.as_str()) {
+            prefix.pop();
+        }
+    }
+    prefix
 }
 
 fn fresh_like(previous: &TextArea<'static>) -> TextArea<'static> {
@@ -334,5 +396,59 @@ mod tests {
         composer.paste("a".repeat(100).as_str());
         assert_eq!(composer.rows(40), 3);
         assert_eq!(composer.rows(200), 1);
+    }
+}
+
+#[cfg(test)]
+mod completion_tests {
+    use super::*;
+
+    fn commands() -> Vec<String> {
+        [
+            "/help",
+            "/status",
+            "/why",
+            "/meaning",
+            "/proof",
+            "/show",
+            "/intelligence",
+            "/quit",
+        ]
+        .iter()
+        .map(|c| (*c).to_owned())
+        .collect()
+    }
+
+    /// One match fills the buffer; a shared prefix is taken and the
+    /// candidates come back in the caller's order; a line that is not a
+    /// slash command is left alone.
+    #[test]
+    fn tab_completes_a_slash_command() {
+        let mut c = Composer::new();
+        c.paste("/pro");
+        assert_eq!(
+            c.complete(&commands()),
+            Completion::Done("/proof".to_owned())
+        );
+        assert_eq!(c.text(), "/proof");
+        let mut c = Composer::new();
+        c.paste("/s");
+        assert_eq!(
+            c.complete(&commands()),
+            Completion::Several(vec!["/status".to_owned(), "/show".to_owned()])
+        );
+        assert_eq!(c.text(), "/s", "no longer common prefix to take");
+        let mut c = Composer::new();
+        c.paste("read ./notes");
+        assert_eq!(c.complete(&commands()), Completion::None);
+        assert_eq!(c.text(), "read ./notes");
+        let mut c = Composer::new();
+        c.paste("/zzz");
+        assert_eq!(c.complete(&commands()), Completion::None);
+        // An empty composer lists every command and inserts nothing.
+        let mut c = Composer::new();
+        assert_eq!(c.complete(&commands()), Completion::Several(commands()));
+        assert_eq!(c.text(), "", "nothing inserted on an empty composer");
+        assert_eq!(c.complete(&[]), Completion::None);
     }
 }

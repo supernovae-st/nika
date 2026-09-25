@@ -12,7 +12,10 @@
 //! - Stripe uses i64 micro-units; `OpenAI` uses Decimal server-side.
 //! - Migration from f64 after 1M runs in `SQLite` = pain.
 
-use alloc::string::String;
+mod inference;
+pub use inference::{InferenceCall, InferenceRoute};
+
+use alloc::{string::String, vec::Vec};
 use core::fmt;
 use core::ops::{Add, Sub};
 
@@ -79,6 +82,9 @@ impl fmt::Display for UnpricedReason {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[non_exhaustive]
 pub struct SpendOnFailure {
+    /// Per-dispatch observations, retained even without token usage.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub inference_calls: Vec<InferenceCall>,
     /// The absorbed usage split across the round-trips that DID run
     /// (zero-valued when the failure preceded any billed call).
     pub usage: crate::token_usage::TokenUsage,
@@ -99,17 +105,26 @@ impl SpendOnFailure {
         model_resolved: Option<String>,
     ) -> Self {
         Self {
+            inference_calls: Vec::new(),
             usage,
             tools_cost_usd,
             model_resolved,
         }
     }
 
+    /// Attach every provider dispatch in order, including failed dispatches.
+    #[must_use]
+    pub fn with_inference_calls(mut self, calls: Vec<InferenceCall>) -> Self {
+        self.inference_calls = calls;
+        self
+    }
+
     /// Whether anything here could carry a price — a default (pre-call
     /// failure) spend prices to nothing and should decorate nothing.
     #[must_use]
     pub fn has_signal(&self) -> bool {
-        self.tools_cost_usd.is_some()
+        !self.inference_calls.is_empty()
+            || self.tools_cost_usd.is_some()
             || self.usage.input_tokens > 0
             || self.usage.output_tokens > 0
             || self.usage.cache_read_tokens.is_some_and(|n| n > 0)

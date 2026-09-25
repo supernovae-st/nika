@@ -388,6 +388,21 @@ impl ProjectChangeSet {
         })
     }
 
+    /// A set of one project-file change (`nika.yaml` created or replaced
+    /// whole, witnessed by the caller): no workflow bytes to audit; the
+    /// exact bytes previewed are the bytes written.
+    #[must_use]
+    pub fn project_change(root: &Path, goal: &str, change: ProjectChange) -> Self {
+        Self {
+            root: root.to_path_buf(),
+            goal: goal.to_owned(),
+            changes: vec![change],
+            run: None,
+            repairs: Vec::new(),
+            audits: Vec::new(),
+        }
+    }
+
     /// The preview: the exact bytes of every change, the repairs the
     /// ladder applied, the audit of every workflow, the run the consent
     /// would cover. Rendered from the set the apply consumes.
@@ -490,7 +505,7 @@ impl ProjectChangeSet {
             );
         }
         out.push_str(
-            "apply this? (yes · anything else discards it · nothing is written until you say yes)",
+            "apply this? (yes applies · no discards · questions keep it pending · nothing is written until you say yes)",
         );
         out
     }
@@ -713,21 +728,61 @@ fn effect_rows(report: &nika_check::CheckReport) -> Vec<String> {
             s.name, s.key
         ));
     }
-    if report.cost.has_unbounded {
+    rows.extend(spend_rows(&report.cost));
+    rows
+}
+
+/// The spend a run can reach, from the check's own cost envelope, never
+/// from a total read alone. A workflow with no model call spends nothing
+/// on inference. A mock model is a proven zero. A model with no catalog
+/// price is its own row: unknown, never counted as free. A missing token
+/// bound or an unknown fan-out stays unbounded.
+fn spend_rows(cost: &nika_check::CostCeiling) -> Vec<String> {
+    if cost.tasks.is_empty() && cost.composed.is_empty() {
+        return vec![
+            "model output estimate · $0 · no direct model task in these checked bytes".to_owned(),
+        ];
+    }
+    let no_price = cost
+        .tasks
+        .iter()
+        .filter(|t| t.unbounded_reason == Some(nika_check::UnboundedReason::NoPrice))
+        .count();
+    let unbounded = cost
+        .tasks
+        .iter()
+        .filter(|t| {
+            t.usd.is_none() && t.unbounded_reason != Some(nika_check::UnboundedReason::NoPrice)
+        })
+        .count()
+        + cost.composed.iter().filter(|c| c.has_unbounded).count();
+    let mut rows = Vec::new();
+    if no_price > 0 {
+        rows.push(format!(
+            "model output estimate · unknown · {no_price} model task(s) with no catalog price — never counted as free"
+        ));
+    }
+    if unbounded > 0 {
         rows.push(
-            "spend unbounded — no cap declared (the run's --max-cost-usd is the ceiling)"
+            "model output estimate · unbounded: a token or iteration bound is missing; Run admission is separate"
                 .to_owned(),
         );
-    } else {
-        rows.push(format!(
-            "spend ≤ ${:.4} worst case{}",
-            report.cost.bounded_total_usd,
-            if report.cost.bounded_total_usd > 0.0 {
-                ""
-            } else {
-                " (mock or unpriced)"
-            }
-        ));
+    }
+    if no_price == 0 && unbounded == 0 {
+        let all_mock = cost.composed.is_empty()
+            && cost.tasks.iter().all(|t| {
+                t.model
+                    .as_deref()
+                    .is_some_and(|m| m == "mock" || m.starts_with("mock/"))
+            });
+        rows.push(if all_mock {
+            "model output estimate · $0 · mock model tasks".to_owned()
+        } else {
+            format!(
+                "model output estimate ≤ ${:.4} at catalog prices · input tokens and other charges excluded",
+                cost.bounded_total_usd
+            )
+        });
     }
     rows
 }
@@ -860,6 +915,46 @@ mod tests {
 
     const WORKFLOW: &str = "nika: daily\nmodel: mock/echo\npermits: { fs: { read: [\"./notes/**\"] }, tools: [\"nika:read\"] }\ntasks:\n  read:\n    invoke: { tool: \"nika:read\", args: { path: \"./notes/today.md\" } }\n  sum:\n    with: { text: \"${{ tasks.read.output }}\" }\n    infer: { prompt: \"Summarize: ${{ with.text }}\", max_tokens: 40 }\noutputs:\n  digest: ${{ tasks.sum.output }}\n";
 
+    /// The spend row reads the check's cost envelope, never a zero alone:
+    /// no model at all, a local model with no catalog price (unknown, never
+    /// free), and an inference with no token bound are three different rows.
+    #[test]
+    fn the_spend_row_never_reads_unpriced_from_a_zero() {
+        let dir = tempfile::tempdir().expect("tmp");
+        let no_model = "nika: copy\npermits: { fs: { read: [\"./a.md\"], write: [\"./b.md\"] }, tools: [\"nika:read\", \"nika:write\"] }\ntasks:\n  read:\n    invoke: { tool: \"nika:read\", args: { path: \"./a.md\" } }\n  write:\n    with: { text: \"${{ tasks.read.output }}\" }\n    invoke: { tool: \"nika:write\", args: { path: \"./b.md\", content: \"${{ with.text }}\" } }\n";
+        let unpriced = "nika: local\nmodel: ollama/llama3.2\npermits: {}\ntasks:\n  draft:\n    infer: { prompt: \"Say hello\", max_tokens: 64 }\n";
+        let open = "nika: open\nmodel: mock/echo\npermits: {}\ntasks:\n  draft:\n    infer: { prompt: \"Say hello\" }\n";
+        for (name, workflow, row) in [
+            (
+                "copy.nika",
+                no_model,
+                "model output estimate · $0 · no direct model task in these checked bytes",
+            ),
+            (
+                "local.nika",
+                unpriced,
+                "model output estimate · unknown · 1 model task(s) with no catalog price — never counted as free",
+            ),
+            ("open.nika", open, "model output estimate · unbounded"),
+        ] {
+            let set = ProjectChangeSet::workflow_at(dir.path(), "spend", name, workflow.to_owned())
+                .expect("legal");
+            let preview = set.preview();
+            assert!(preview.contains(row), "{name}: {preview}");
+            assert!(!preview.contains("mock or unpriced"), "{name}: {preview}");
+            if name != "copy.nika" {
+                assert!(
+                    !preview.contains("model output estimate · $0"),
+                    "no zero claimed: {preview}"
+                );
+                assert!(
+                    !preview.contains("model output estimate ≤"),
+                    "no ceiling claimed: {preview}"
+                );
+            }
+        }
+    }
+
     /// The preview prints the exact bytes the apply lands; the audit of
     /// those bytes rides the preview; the effect rows come from the
     /// report's own permits and requirements.
@@ -895,7 +990,7 @@ mod tests {
         );
         assert!(preview.contains("model mock/echo"), "{preview}");
         assert!(
-            preview.contains("spend ≤ $0.0000 worst case (mock or unpriced)"),
+            preview.contains("model output estimate · $0 · mock model tasks"),
             "the spend row is always there: {preview}"
         );
         assert!(

@@ -296,8 +296,8 @@ fn the_copy_lands_on_a_named_consent_that_is_never_a_run() {
     );
     for row in [
         "Nika proposes `compiled-workflow.nika`:",
-        "read_source · nika:read",
-        "write_output · nika:write",
+        "read_source · reads a file",
+        "write_output · writes a file",
         "external effects · none",
         "human approval at run · none",
         "creates `compiled-workflow.nika`",

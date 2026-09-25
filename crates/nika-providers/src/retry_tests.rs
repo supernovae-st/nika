@@ -229,12 +229,14 @@ async fn a_streaming_open_stops_re_opening_at_the_bound() {
 }
 
 #[tokio::test]
-async fn the_mock_wire_never_retries_and_reports_one_attempt() {
+async fn the_mock_wire_never_retries_or_reports_a_physical_dispatch() {
     let rp =
         crate::registry::ProviderRegistry::without_http(crate::registry::ProvidersConfig::new())
             .resolve("mock/echo")
             .expect("mock");
-    let (_, report) = rp.infer_reported(ask()).await.expect("echo");
-    assert_eq!(report.attempts, 1);
+    let (response, report) = rp.infer_reported(ask()).await.expect("echo");
+    assert_eq!(report.attempts, 0, "mock has no physical request");
+    assert!(report.inference_calls.is_empty());
+    assert!(response.inference_calls.is_empty());
     assert!(!report.retried());
 }

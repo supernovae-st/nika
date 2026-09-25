@@ -394,6 +394,7 @@ pub async fn nika_kernel_mock::http::MockHttp::get(&self, request: nika_kernel_c
 impl<TraitVariantBlanketType> nika_kernel_core::io::http::HttpPost for nika_kernel_mock::http::MockHttp where TraitVariantBlanketType: nika_kernel_core::io::http::HttpPostDyn
 pub async fn nika_kernel_mock::http::MockHttp::post(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpResponse, nika_kernel_core::io::http::HttpError>
 pub async fn nika_kernel_mock::http::MockHttp::send_streaming(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpStreamResponse, nika_kernel_core::io::http::HttpError>
+pub fn nika_kernel_mock::http::MockHttp::supports_single_attempt(&self) -> bool
 pub mod nika_kernel_mock::id_gen
 #[non_exhaustive] pub struct nika_kernel_mock::id_gen::SequentialIdGenerator
 impl nika_kernel_mock::id_gen::SequentialIdGenerator
@@ -1234,6 +1235,7 @@ pub async fn nika_kernel_mock::http::MockHttp::get(&self, request: nika_kernel_c
 impl<TraitVariantBlanketType> nika_kernel_core::io::http::HttpPost for nika_kernel_mock::http::MockHttp where TraitVariantBlanketType: nika_kernel_core::io::http::HttpPostDyn
 pub async fn nika_kernel_mock::http::MockHttp::post(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpResponse, nika_kernel_core::io::http::HttpError>
 pub async fn nika_kernel_mock::http::MockHttp::send_streaming(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpStreamResponse, nika_kernel_core::io::http::HttpError>
+pub fn nika_kernel_mock::http::MockHttp::supports_single_attempt(&self) -> bool
 #[non_exhaustive] pub struct nika_kernel_mock::MockProvider
 impl nika_kernel_mock::provider::MockProvider
 pub fn nika_kernel_mock::provider::MockProvider::captured_requests(&self) -> alloc::vec::Vec<nika_kernel_ai::provider::InferRequest>

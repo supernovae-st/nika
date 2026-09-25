@@ -16,6 +16,1735 @@ section below at tag time (`bash scripts/release/changelog-assemble.sh --fold
 pull requests collided on 2026-08-24 with no source overlap between them, and
 `--check` refuses a hand-written bullet in this section.
 
+## [0.121.0](https://github.com/supernovae-st/nika/compare/v0.120.3..v0.121.0) - 2026-09-25
+
+**A conversation from the request to an inspectable result.** Open `nika`,
+describe the work, review and correct the proposed `.nika` workflow, save it,
+then choose Run explicitly. The Session keeps the request and earlier
+requirements through corrections and restores pending drafts for fresh review.
+DeepSeek is the priority API path for authoring and summaries.
+
+Check, admitted access, recorded execution and the actual output remain separate
+proofs. The [installed qualification](https://github.com/supernovae-st/nika/blob/v0.121.0/docs/qa/delivery-a-2026-09.md) records finite
+synthetic journeys on its identified macOS development candidate; it does not
+establish arbitrary-request correctness or Linux conversational qualification.
+
+**Compatibility:** use SDK `0.121.0` with engine/Serve `0.121.0` for the expanded
+Compile question protocol. Bare `nika` opens the terminal Session; use `--plain`
+for its line interface (the previous `--tui` flag is retired). Older executables
+refuse the newer Run history records: rolling back a binary does not migrate
+history backwards. Foundry snapshots and Jev remain optional; public installers
+do not distribute the operator's private knowledge snapshot or provider keys.
+
+**Run cost compatibility:** the informational price catalog does not by itself
+authorize an OpenAI-compatible API route. DeepSeek's admitted direct routes work
+without an unknown-price review. Other routes, including default OpenAI and
+Mistral endpoints, require a fresh, bounded Run cost review when their exact
+route and model are not admitted; unattended invocations without that review
+refuse before dispatch. Unknown-price review supports HTTPS OpenAI-compatible
+text routes only. HTTP API overrides and overridden native Anthropic/Gemini
+gateways refuse, including in interactive runs. Priced native routes at their
+default endpoints and explicit local-provider lanes retain their own admission
+rules. See [Spending](docs/usage/conversational-session.md#spending).
+
+### Added
+
+- **The resident binds a schedule's `inputs` on every fire (#1370 · the Serve
+  door · prerequisite of #1719).** `PUT /v1/schedules/{id}` accepts
+  `inputs: { key: <scalar> }` (string · number · boolean, one per declared
+  input key), stores them with the definition, and folds them into the
+  schedule revision only when bound, so every schedule written before the key
+  existed keeps its exact revision, integrity bytes and store row. At fire the
+  resident coerces each text by the workflow's declared type (`"7"` on an
+  `integer` becomes `7`, the same `--var` law `nika arm fire` applies) and
+  judges the result with the literal admission validator `POST /v1/jobs`
+  uses; the bound values reach the run as `ApiCaller` inputs. A project beat's
+  `inputs:` ride the same path: `nika serve` and `nika arm fire` now bind the
+  identical values for one `arm:` line. Judged twice, named once: an unknown
+  key (with the declared set), a value the declared type refuses, a missing
+  required input (`NIKA-1708`) and the `@env:` channel (the CLI edge's, never
+  a server's environment) refuse the `PUT` as `schedule.inputs`, and a file
+  that stops declaring the key between the arm and the slot refuses the fire
+  contained to that schedule (`schedule.admission`), the resident keeps
+  running. `GET /v1/schedules/{id}` projects `definition.inputs` as the
+  `--var` text it stores. OpenAPI `SchedulePut.inputs` documents the wire.
+- **A value the request alludes to without stating it is a slot the compiler asks for.**
+  « les capteurs dont la température dépasse le seuil d'alerte », « sorted by the column we
+  agreed on », « el recargo acordado »: the seat compares a column to the words and lists
+  them as unknown, and the candidate was refused as unresolved work (18 seeds of the sealed
+  lane, which the corpus expects as a typed `const.*`/`inputs.*` question). A typed clause
+  whose text value is one of the seat's unknowns now compares to a slot: the plan records
+  it (`slots`, replayed), the assembler asks it as a mandatory `const.<slug>` (a literal for
+  a numeric comparison, text otherwise), bakes the answer as a const and hands it to the
+  rule's jq beside the records (`$in.slots.<slug>`). Nothing is guessed; the words are never
+  compared. The recorded plan (`provenance.plan`) gains the additive `slots` list; the
+  contract fixtures carry it; compile_version is unchanged.
+- **The seat repairs an evidence it misspelled with one bounded call.** When a COLD
+  proposal cites an evidence the request never wrote (a model answers `extraits` for a
+  request that wrote `extrais`), the compiler sends the seat's own answer back with the
+  verifier's counterexample, once, under the same output cap and timeout; the repaired
+  proposal is judged by the same merge, a second miss is refused as before, and the receipt
+  counts both calls (`provenance.authoring.calls`, the route `cold: repair N`, the sample
+  record's `calls`). Measured on eco-60 with gpt-5-mini before the change: 4 of 52
+  proposals were refused on that defect alone.
+- **Compile gains a private candidate-retrieval layer with measured recall.**
+  `nika_onboard::compile::retrieve` ranks the 22 canonical skeletons and a
+  compact projection of the spec's 220 pattern families (Apache-2.0
+  development knowledge embedded under `assets/`) with BM25 over one
+  normalized token stream: French diacritics fold, function words drop, a
+  light stemmer and a closed English/French alias table map everyday
+  operation words onto the pattern vocabulary. `retrieve_by_ops` takes the
+  operation words of a semantic plan. A hit is a candidate to read, never a
+  selection verdict or authority; the hermetic recall test prints recall@1 and
+  recall@5 on 30 seen example intents and 10 unseen paraphrases.
+- **A conversion between two structured files is the identity over the parsed records.**
+  « convert ./fleet/mileage.csv (columns vehicle, driver, km) into ./out/mileage.json, a JSON
+  array with one object per row using the column names as keys, same row order » (sealed
+  sv3-14): the reader recognized nothing and the seat parsed the CSV with a model. The
+  reader now reads the conversion family (a conversion head, two structured files of two
+  formats): a read, the identity rule over the records, a write in the destination's format,
+  no language step; the merge turns a seat's extract or draft that names the conversion
+  between such a read and such a write into that computation.
+- **The copy family and a written object clitic at the deterministic door.** « Copy
+  ./a.txt as is, byte for byte, to ./out/b.txt », « copie ./a.txt tel quel, octet pour octet,
+  dans ./out/b.txt » (six languages) compile READY as a read of the source and a write of
+  what was read, no language step, no model; « Lis ./a.txt et écris-le tel quel dans … »,
+  « escríbelo tal cual en … » write the material read instead of drafting « -le tel quel ».
+  Measured on sealed-v3: a byte copy read as a draft, asking a model and the output path.
+- **Duplicates by stated key columns are a typed stage of the computation.** Sealed sv3-02
+  (« vire les entrées qui ont le meme titre ET le meme artiste qu'une entrée précédente (garde
+  la 1ere), garde l'ordre ») never compiled on any lane: the seat's typed computation could
+  not say the key (the shape knew whole-row duplicates only), the write had no producer and
+  the order constraint no carrier. The shape gains `distinct_by`, lowered right after the
+  filter as a reduce that keeps the first occurrence in place with every column, recorded and
+  replayed; the seat's instruction and schema name it, and a key is admitted only when the
+  request names the column. A constraint that keeps the row order (« garde l'ordre », « keep
+  the order », « mismo orden », six languages) is carried by the compute task, which keeps the
+  source order by construction.
+- **Opt into one bounded authoring call with `nika compile --authoring-model`.**
+  An injected kernel provider proposes a closed private semantic plan; the
+  deterministic motif assembler owns source, bindings, authority and Check.
+  Stable clarification answers resume the authoring loop without hidden state.
+  Default Compile and Serve stay deterministic, and exact skeletons and EDIT
+  never call a model. Provider attempts use an explicit generation-2 usage
+  receipt; generation-1 byte shape stays unchanged. Invalid plans, recognized
+  effect omissions and unsupported requests fail closed. The finite EN/FR
+  backstop does not prove arbitrary-language preservation or model completeness.
+- **One compiler, three internal resolutions.** `nika compile` now reads a free intent through a deterministic EN/FR clause reader (HOT: zero seat calls when every clause is consumed), settles a small finite ambiguity through an explicitly seated bounded-decision capability (WARM: `--decision-model typesafe/<jev>` through System One, or any `provider/name` constrained to a closed enum with `none`), and otherwise asks the one explicitly authorized generative call for a private semantic plan (COLD: `--authoring-model`). All three end in the same deterministic assembler and the same Check: lookups, searches, fetches, extraction, classification, drafting, code rules, dedup state, bounded retries, revision rechecks, local file reads and writes, and external effects reached only through an explicit endpoint answer, a blocking human gate when asked, never when prohibited, a question when undecided, a refusal when contradictory. The machine document gains additive `provenance.strategy`, `provenance.plan` and `provenance.decision`.
+- **A line filter over a text source is a computation the compiler writes.** « extrais
+  toutes les lignes de titre markdown (celles qui commencent par un ou plusieurs #), telles
+  quelles, dans l'ordre, une par ligne → ./out/titres.txt », « keep only the lines
+  containing ERROR », « las líneas que terminan en ; »: the lines kept are those whose text
+  starts with, contains or ends with a stated literal (six languages), a rule that runs over
+  the lines of the source and writes them back as they are, in order — no model reads the
+  file. The reader also reads a clause led by its source (« ./rando/guide.md : … »), an
+  arrow as a destination, and a line filter as the object of an extract or of a write; a
+  seat's `extract` over such a clause becomes the computation, and a draft over nothing but
+  the destination and a structure law is folded. Measured on the sealed lane: two model calls
+  where the corpus expects zero.
+- **An automatic money movement is one closed choice, never the catch-all clarification.**
+  A refund, a payment or an order the request states without a human approval before it
+  asks `effect.<verb>.approval` (`human_first`: a person approves each one in a blocking
+  gate; `forbidden`: the workflow never runs it and the work before it still runs), on the
+  deterministic path and under a seat alike; the answer sets the effect's policy at
+  assembly while the recorded plan stays as it was read. The composer no longer judges such
+  a candidate infeasible, and the backstop no longer files it as unknown work. Measured on
+  eco-60 with gpt-5-mini: 5 of 60 requests ended in `intent.clarification` on that law.
+- **The deterministic door reads the stages of a computation stated in a sentence.** A
+  rename (« rename the country column to region », « renomme la colonne country en
+  region », six languages) lowers to `with_entries`; a grouped total behind a computation
+  head (« compute the total of the amount column per client ») is read by the closed grammar
+  instead of failing the explicit-object law; a filter followed by a sort in one sentence
+  (« keep only the rows whose status is open, sort them by priority ») is cut at the stage
+  and read as one computation; a keep-family opener (« keep only … », « conserva solo … »)
+  is a computation when the grammar reads it whole and a constraint otherwise; a bare path
+  after « write » is the destination of what a computation produced; the Spanish plural
+  write heads (« escríbelas ») split their clause. Season 2's wave 32, ported onto main's
+  reader; what the grammar cannot read (« count the open tickets ») still asks.
+- **Compose bounded support workflows with explicit policy and bindings.**
+  EN/FR whole clauses build ordinary source from a private typed plan and reusable
+  motifs, then run existing Check. Optional refunds need explicit endpoint and
+  literal policy, a blocking human gate, and approval of the exact minimal POST
+  payload. Original facts remain separate from generated drafts. Missing lookup
+  records and invalid refund proposals fail without invented recovery. Exact
+  skeletons and source-preserving EDIT remain unchanged. This deterministic
+  development grammar does not qualify arbitrary natural-language understanding.
+- **The closed grammar reads « top five issues by rating, highest first, same columns ».** A
+  number word counts as a count (five, cinq, fünf), the entity the rows are (issues, clients,
+  corredores) stands where a row noun stood when a measure follows, « first » after a rank
+  word is a filler, and an identity tail (« same columns », « mêmes colonnes ») closes the
+  stage instead of refusing it. Measured on sealed-v3 (sv3-16): the deterministic door had
+  asked a jq expression for a five-row ranking the request states whole.
+- **A schedule's binding values are asked beside the candidate, as choices.** A request that
+  states a cadence (« every weekday at 8, … ») now carries four optional questions next to
+  `requested_trigger`: `trigger.timezone` (text), `trigger.missed` and `trigger.overlap`
+  (closed choices spelled by the project and cadence grammars: `rattraper` ·
+  `rattraper-une-fois` · `sauter`; `sauter` · `file` · `remplacer`) and `trigger.ceiling`
+  (a positive number, USD). They never block a ready candidate; an answer is admitted against
+  the grammar's spellings and echoed on `requested_trigger` (`timezone` · `missed` ·
+  `overlap` · `ceiling`), a wrong one is a finding and the question stays. The wire gains
+  `"type": "choice"` with `options: [{key, label}]` on such questions, and
+  `provenance.suggested_file` (a kebab file name for whoever saves the candidate). Ten
+  contract fixtures under `crates/nika-compile/tests/fixtures/contract/` record the
+  document of each supported state; a test refuses any drift from the live wire.
+- **A computation the typed stages cannot state is a program the seat writes and the compiler
+  verifies, never a jq question to a human.** Fifteen of sixty sealed seeds on the best lane
+  asked `const.rule_expression` for a set difference, a self-join or a string rewrite that jq
+  expresses. For each such compute step (at most two per request) one bounded call asks the
+  seat for the program, the columns it reads, an example input and the output it expects; the
+  compiler runs the program in-process with the runtime's own jq stack and capability policy
+  (the same withheld symbols as `nika:jq`), refuses a program that does not parse, reads an
+  undeclared column, carries a literal or a number the request never wrote, or does not return
+  the seat's own expected output on its own example, and binds the rest as a rule that runs as
+  the compute task behind the same guard and admit as a typed rule, visible at the task,
+  recorded and replayed with zero calls. A refused program is recorded with its counterexample
+  and leaves the assembler's own question. Experimental treatment B of the compiler's A/B/C
+  comparison; the compile wire is unchanged (the sample record gains `transforms`, the recorded
+  rule may carry `program`).
+- **Compile composes a finite candidate set and judges it before any seat.**
+  After COLD sampling, the private composer turns the distinct admissible
+  plans into at most eight candidates and runs a deterministic feasibility
+  filter against the reading's floor and the request text: every element
+  anchored, no unresolved work, every recognized operation, effect and
+  obligation kept, a human gate never removed, a prohibition, indecision or
+  contradiction never resolved by a model, money never moved automatically,
+  and every literal carried verbatim with none invented. Exactly one
+  feasible candidate is used with zero seat calls; several with a seat is one
+  closed choice over the feasible candidates (each described by its signature
+  and what differs) or `none`; several without a seat is the documented
+  support-weighted medoid with ties to the first; none is a human question
+  that names each reason. An infeasible candidate is recorded, never offered.
+  The machine document gains the additive `provenance.decision.candidates`
+  (index, source, signature, feasibility, reasons, plan), `feasible_count`,
+  `selected_candidate` and `compose.pattern_dimensions`: the fan-out and
+  fan-in dimensions the recalled candidates suggest are recorded as
+  inexpressible today, because the assembler emits one linear chain per
+  invocation and no variant nobody can assemble is composed.
+- **A compute step is stated as a typed computation, never as jq the model
+  writes.** The proposal states a row filter (clauses, keep/drop polarity,
+  junction), a group column with aggregates (sum, count, avg, min, max) under
+  the output names the request states and the decimals it rounds to, derived
+  outputs (arithmetic over other outputs), a sort and a projection. The compiler
+  validates every column, literal and output name against the request and lowers
+  the stages in one fixed order to jq; the guard still proves every source column
+  on the first record. A CSV written from a grouped or projected computation
+  carries the produced columns; totals are exposed one by one as the outputs the
+  request named. The closed rule grammar stays as a fallback only.
+- **The outcome states a trigger requirement beside the candidate (nika#1720).**
+  A request that opens with a cadence ("every morning", "tous les matins",
+  "at 9:00") or an outside event ("when Stripe sends payment_succeeded", "dès
+  qu'un ticket arrive") compiled to a program that ran once per invocation and
+  said nothing about the clause. `CompileOutcome.requested_trigger` (wire:
+  `requested_trigger`, nullable, `compile_version` unchanged) now carries
+  `{kind: schedule|webhook|event, source_hint, event_hint, payload_input,
+  status: requires_binding}`; the program bytes stay trigger-agnostic (no
+  cadence, hook id or secret), binding is the operator's or the product's
+  gesture through the schedule contract, and the obligation ledger records the
+  clause as a `trigger` duty realized by that requirement. A distributive
+  trigger ("for each row") and a sequencing head ("once all three are done")
+  state no requirement: the structure carries them.
+- **A stated cadence is a trigger requirement beside the candidate.**
+  « Every morning at 9, read ./inbox/*.md and write a digest to ./digest.md »
+  no longer drops its first clause into a Ready: the trigger is deployment,
+  not workflow, so the candidate's bytes stay trigger-agnostic and the
+  outcome carries `requested_trigger` next to `requested_boundary` (`kind`
+  manual · schedule · webhook · event, the phrase verbatim, the cadence and
+  time of day the words state in five languages, the payload input an event
+  supplies, `status: requires_binding`), projected on the wire and the Serve
+  schema and named in an `Applied` diagnostic for whoever binds it through a
+  schedule or an ingress. A phrase with neither a cadence word nor a time of
+  day is an event, never a guessed cron.
+- **`nika check` hints a tight `max_tokens` on a reasoning seat.** A legal
+  cap between 256 and 4096 on a catalog-known reasoning seat (the envelope's
+  model, a task's, a templated seat's default, or a `--model` override) is
+  named before a paid call as the `reasoning-cap` hint with its
+  `nika explain` row: a hint, never a refusal, silent when the author
+  declared a `thinking` budget or disabled it, when the floor already
+  refuses the cap, or when the seat does not reason.
+- **A stated bound on the drafted text is verified at run, not only prompted.**
+  "3 bullets", "12 lignes max", "under 150 words", "genau 5 Zeilen" reached the
+  language step as prompt guidance and nothing checked the result. The bounds a
+  request states on a measurable unit of the text (lines, bullets, words,
+  sentences, characters, paragraphs; six languages; exact, minimum, maximum,
+  strict) now lower to a jq law over the drafted body (`draft_bounds`) and an
+  assert (`draft_bounds_admit`) the write waits for, and the obligation ledger
+  records each such duty as realized by that law ("verified at run"). A bound
+  on a unit nothing measures at run (a page, a token) stays prompt guidance and
+  the ledger says so.
+- **A classification of each record routes the records.** « Read
+  ./tickets.json, classify each ticket as bug or feature, and write the bugs
+  to ./bugs.json and the features to ./features.json » runs the classify per
+  parsed record with one record in its prompt, and each write carries the
+  records routed to the category its clause names (a jq over records and
+  categories, never the bare category word); « write the results to
+  ./out.json » carries every record with its category. One write naming two
+  files (« write them to ./bugs.json and ./features.json ») is one write per
+  destination, the later path sharing the earlier object, the category read
+  from the clause's prose with the paths stripped, then from the file's own
+  stem. A draft asked as bullets or points is laid out one per line.
+- **A combined brief, a field list per file and a translation compile as
+  asked.** « write the combined brief » after a draft refers back to the
+  pieces the draft produced instead of demanding a second draft; « extract
+  the supplier, the date and the amount of each one » is an explicit field
+  list that runs per read item, is judged by a per-item anchor law and
+  folds into one object per item keyed by the field names; a draft led by a
+  translation head (translate, traduis, traduce, traduci, traduza,
+  übersetze) is admitted by a nonempty body since no translated sentence
+  can anchor verbatim in its source.
+- **A context sentence and a structure law bind no operation.** « Le fichier
+  ./x.csv contient les colonnes a,b,c », « which has the columns … », « both
+  requirements are checked on the produced file » describe the material; « nothing
+  else », « rien d'autre », « nada mais », « sonst nix », « nessun altro file »,
+  « no language model », « a single HTTP request, not one per fine » bound the
+  shape of the workflow. Both were read as format duties that needed an operation
+  to carry them, so a read→transform→write request ended INCOMPLETE or in the
+  catch-all question. The obligation ledger now records a `context` duty realized
+  by the material itself and a `structure` duty realized by the emitted shape: a
+  closure and « no other file » hold by construction, « no language model » holds
+  only when no step infers, « a single request » only when exactly one outbound
+  effect is sent once; a law the shape breaks stays unresolved and the candidate
+  is not READY, with the reason named. The closure and « no model » markers are
+  read in six languages by the deterministic door as well.
+- **A facet of a fetched page is the fetch's own mode, never a draft.**
+  « Fetch https://example.com/ and write the page title to ./title.txt »,
+  « save the article text to ./page.md » and « écris le titre de la page
+  dans ./titre.txt » compile with no model: after a fetch, an object made of
+  page words, facet words and links names a facet of the fetched page, and
+  each facet is one extract mode of `nika:fetch` (`metadata` for the title
+  and the description, `article`, `text`, `markdown`, `raw`, `links`); the
+  assembler fetches in the modes the writes need, `permits.net.http` is the
+  fetched host and nothing else, and a page with no title fails the write
+  loudly rather than writing a guess. `save` and `store` join the English
+  write heads.
+- **A gate naming the action gates the stated endpoint effect.** « Read
+  ./report.md and post it to https://hooks.example.com/notify, but ask me
+  before sending » is one gated post, not a post plus a phantom `send` that
+  asked for a URL the sentence already stated: send, publish and notify are
+  one family, and a gate phrase naming the action by its verb alone gates
+  the kindred effect that has a destination, in either order. An endpoint
+  effect whose object refers back to material the plan holds is a carry
+  (`nika:notify` on the `webhook` channel with the nearest text result as
+  its message), dominated when gated by a `nika:prompt` review that shows
+  the exact content and endpoint; a cleartext endpoint that is not loopback
+  is refused under the effect's own question.
+- **Italian and Spanish clauses are read without a seat.** « Leggi
+  ./notes/brief.md, scrivi un riassunto in 3 punti e salvalo in
+  ./out/riassunto.md » and its Spanish twin compile on the deterministic
+  door: closed Italian and Spanish head tables with their imperatives,
+  infinitives and clitic forms (`salvalo`, `guárdalo`, `léelo`) as words of
+  the table, ` e `/` ed `/` y ` as weak connectors and ` poi `/` luego ` as
+  strong ones, the IT/ES articles, fillers, retrieval cues, number words,
+  bound words, gate and prohibition markers. A save head with a path and a
+  destination is the write it names; a locative (`in`, `en`, `nel`, `su`)
+  is a destination only when the path follows it immediately. `resume` is
+  deliberately absent from the Spanish table.
+- **Native authoring reads the engine's output conventions.** The native and sketch system
+  messages now carry an engine-owned section after the spec's card
+  (`crates/nika-compile/assets/native_output_conventions.md`). A text file is lines that each
+  end with a newline, read with the assembler's own `LINES` law and written back with
+  `join("\n") + "\n"`. A shape the request names is the shape written: « la liste des
+  <champs> » or "only <field>" is an array of values, and « par <clé> » or "per <key>" is one
+  object keyed by each value, unless the request names another shape. An unnamed shape stays
+  the source's, and the seat states its choice in `notes`. Receipts name the digest
+  (`identity.conventions_sha256`).
+- **The text of a read is not records (fidelity Law 23).** A candidate whose `nika:jq`
+  receives the untouched text of a single text-mode `nika:read` and applies a record operation
+  first was admitted by Check and failed at Run with NIKA-BUILTIN-JQ-001. Examples are `.[]`,
+  `.[0]`, `.field`, `map(…)`, `select(.field …)`, `group_by(…)`, `keys`, `add` and `first`; each
+  listed form was measured to fail on a string. It is now refused before READY as RAW TEXT AS
+  RECORDS, with the repair: `fromjson` first, or `nika:convert` for a CSV. The law is narrow on
+  purpose: string operations, a parse first, `try`, `?`, `//`, fanned-out reads, binary reads
+  and any unknown form are left alone.
+- **A stated data shape is the code the workflow runs.** « count the rows
+  per client », « merge them on the id column », « remove the duplicate
+  lines and write the unique ones », « keep the 2 rows with the highest
+  amount », « sort the rows by amount descending », « trie les lignes par
+  montant décroissant » and « keep only the id and title of each ticket »
+  compile on the deterministic door with no model: a closed grammar of the
+  stated stages (a count or an aggregate per column, a sort with its key
+  and direction, a top-N with its measure, a projection of listed fields, a
+  removal of duplicates, a join of the read sources on one column) lowers
+  into one typed shape, a headless clause the grammar reads whole is a
+  compute step carrying its rule, a sort on a source column compares the
+  number a CSV cell holds, a removal of duplicates over a text file runs
+  over its lines, and an exclusion lead (« exclude », « drop », « supprime
+  … ») is read as nothing, never inverted. A form that lacks its key, its
+  measure or its column is asked, nothing is guessed.
+- **A stated filter or aggregate is the code the workflow runs.** « keep
+  only the tickets whose status is open », « compute the total of the
+  amount column », « la moyenne de la colonne montant » and the French
+  restriction « ne garde que les lignes dont amount dépasse 200 » compile on
+  the deterministic door with zero questions and zero seat calls: every
+  constraint the closed rule grammar reads whole becomes a compute step
+  carrying its parsed rule, one stated aggregate over a column lowers into
+  the shape after the filter, and the jq is visible on the task and recorded
+  in the provenance. A prohibition (« never keep closed tickets », « ne
+  garde pas … ») stays prose and is asked, never run as its complement; a
+  cue inside a parsed rule is a literal the predicate compares, never a
+  verb.
+- **A stated folder or file inside an object is the material it reads.**
+  « fais-moi un digest des notes dans ./notes et écris-le dans ./digest.md »
+  and « Traduis ./notes/brief.md en anglais et écris la traduction dans
+  ./out/brief-en.md » compile on the deterministic door: a make head
+  (`fais-moi`, `fammi`, `hazme`) drafts only when its object opens with a
+  produced-content noun; a local path inside the object of a draft, extract,
+  classify, validate or compute is the material the operation consumes when
+  it is not a destination, so a read step of that path is emitted and no
+  phantom `inputs.item` is declared; a folder is read as every file directly
+  under it (`./notes` → `./notes/*`), baked into the candidate where the
+  human sees and may edit it.
+- **A key rename and a row limit are typed stages of the computation, and a ranking without
+  its count asks for it.** « rename item to product », « the top 3 by units », « les 5 plus
+  vendus » had no typed form: the seat fell back to a language-model draft that kept the
+  old keys or invented rows (sealed v2 key-rename and ranking seeds), and « die
+  meistverkauften Artikel » with no count compiled to a full descending sort. The typed
+  computation now carries `renames` (a source column to a name the request states, lowered
+  as `with_entries`) and `limit` (a number the request states, as digits or as a word,
+  lowered as `.[:N]` after the sort); a descending sort under a ranking word with no count
+  asks `const.top_n` instead of assuming one, and the answer bounds the sort. A renamed
+  header is never overwritten by the source's column order.
+- **Document the qualified conversational delivery A scope.** Record installed CSV, DeepSeek summary, revision/recovery, Jev and variant journeys with output oracles and bounded cost evidence. New Run-scoped history is readable by this candidate but not older executables; downgrade and gate behavior are documented in `docs/qa/delivery-a-2026-09.md`.
+- **The transport's account of a call is stamped on the frame and read by
+  the peek.** A seat that answered only after the bounded backoff is
+  readable in the sealed trace: `task_completed` carries `attempts` whenever
+  a wire call happened, and `waited_ms` and `retried_on` only when the
+  transport re-sent (a first-time answer reads `attempts: 1` and nothing
+  else; a harness seat or an agent loop reports no transport and gets no
+  field). `nika trace peek` folds the three fields into the task row
+  (« 2 attempts (waited 2.0s on 429) »); one attempt says nothing, and a
+  frame from an older engine renders exactly as before.
+- **A revised proposal says what the words changed in meaning.** When a
+  change said at the consent prompt settles into a new proposal, the
+  compiler's ledger of the revised reading is read against the base
+  reading's, clause by clause (a clause is its kind and its evidence): the
+  clauses the words added (« + « Tuesday to Friday » · external
+  requirement »), the ones no longer asked (« − « every weekday » »), the
+  ones whose fate changed (« ~ « a short brief » · needs your answer →
+  represented »), and how many were kept as they were — in the Meaning
+  view's own words, never a score. « Nothing changed in what the compiler
+  read » is said when the words changed nothing the compiler reads.
+- **Consult an explicitly selected decision model from Session.** The compiler can
+  use the shared TypeSafe adapter for finite operation choices, including NONE.
+  Calls remain bounded and their unknown cost is recorded separately; a numeric
+  allowance never silently admits this unpriced service.
+- **`/details` — how the last workflow was built, on demand.** The third
+  level of disclosure, never in the ordinary conversation: the authoring
+  backend and model with its calls, tokens and time (or « none: the
+  deterministic reading »), the strategy, the decision route and seat, the
+  ledger's size, the engine and spec identity, the last run's trace — read
+  from the compiler's own provenance, and said to be no proof (`/proof`
+  judges a run, `/meaning` shows what was kept).
+- **A run asks the declared inputs it needs before it runs.** In the native
+  session, « run it » on a workflow that declares a required input with no
+  default no longer dies at launch (NIKA-1708): each such value is asked on
+  its own `reply ›` line (key `input.<name>`), a `name=value` written on the
+  run line is honoured, the values are bound as `--var` pairs, and only then
+  is the run requested. `cancel` drops the request, an empty line is not a
+  value, and the pending input is its own state, never an authoring answer
+  nor a consent.
+- **The lifecycle rail.** The terminal session keeps a rail on the row above
+  the status — « Draft ✓ · Saved ✓ · Checked ✓ · Active ○ · Run ○ » —
+  compiled from the session's own facts at every turn: the proposal that
+  waits, the workflow saved at consent and its check (clean, or findings),
+  the schedule declared in `nika.yaml` (declared ◐ is never active;
+  suspended ⏸), the gate that waits, the last run (done, failed, refused,
+  paused). Five facts, never one badge: saved is not run, declared is not
+  active. The plain door's words already carry them (« Saved · checked ·
+  not active · nothing has run »).
+- **The routing corpus under a real seat (the Arena seam).** An ignored
+  live test routes a JSONL corpus (`NIKA_ROUTING_CORPUS`: id · state ·
+  line · expected · optional automation and last prompt · milestone rows)
+  through the real `ReasonerClassifier` over `NIKA_ROUTING_MODEL`, prints
+  one receipt line per row and writes them to `NIKA_ROUTING_RECEIPT`; the
+  routing milestone rows must route exactly, the rest is measured. The
+  corpus is authored beside the lane (45 rows · EN/FR/ES · typos · mixed
+  lines · gate and question phases).
+- **The renderer shows work is active before a turn runs (`nika --tui`).**
+  A turn is synchronous, so the busy state is drawn before it starts, with
+  the conversation's own name for the work (« working through your words »,
+  « landing the exact bytes and checking them », « answering the gate »,
+  « seating the intelligence you chose »), and the turn's first word clears
+  it; a slash command draws none. `/help` is answered by the engine inside
+  the viewport, proven on the real binary through a PTY.
+- **`nika --tui`: the session behind the terminal renderer (ADR-139 · UX-2).**
+  On an interactive terminal, `nika --tui` opens the same native session as
+  bare `nika` (the same census and kept intelligence choice, the same
+  history, the same runtime) behind the inline viewport: every outcome of a
+  turn maps to the renderer's typed beats one to one, the composer's line
+  goes to the choice, the consent, the gate or the turn by the state the
+  plain loop reads, the first screen is asked through the composer with the
+  census's own law. A run keeps the plain path: the shell hands the terminal
+  back, `nika run` prints below the viewport as it always has, the
+  observation returns into the viewport with a fresh inline anchor. The loop
+  is synchronous by design (the run path builds its own executor; one cannot
+  start inside another). Proven on the real binary through a PTY: a French
+  sentence becomes a proposal, `oui` lands the exact bytes and the real check
+  runs, « run it » produces the file, the observation is committed above the
+  composer, `/quit` restores the terminal; `--tui` on a pipe keeps the
+  concierge and writes no escape sequence. Bare `nika` and its goldens are
+  untouched.
+- **The terminal renderer proof (ADR-139 · UX-1 · `nika-tui`).** The
+  session's future face joins the workspace as a WIP L4 crate: one owner of
+  the terminal (raw mode, bracketed paste, focus events, the probed keyboard
+  protocol and the alternate screen enabled in one fixed order and restored
+  in reverse from one place, the panic hook restoring BEFORE the message
+  prints), an inline-first presentation whose finished blocks go into the
+  terminal's own scrollback through `insert_before` with scrolling regions
+  (history stays copyable, tmux and SSH stay ordinary), a focus presentation
+  on the alternate screen entered with `Ctrl+T` and left with `Esc` and the
+  draft intact, one event broker paused around every cursor-position query,
+  and a composer (`ratatui-textarea` behind a wrapper) where `Enter` sends,
+  `Alt+Enter` breaks a line, a bracketed paste is data (a pasted `yes` or
+  `/quit` acts on nothing) and history recalls only at the buffer's edges.
+  The `nika-tui-proto` binary drives the shell over a canned conversation
+  in both presentations; the PTY suite proves the terminal is restored on
+  the normal close, two `Ctrl+C`, a panic inside the loop and `SIGTERM`,
+  and that a pipe is refused with exit 2 and no escape sequence. Bare
+  `nika` is untouched: the plain line loop and its goldens stay byte for
+  byte until the next wave wires the session through the same typed beats.
+
+### Changed
+
+- **The seat is told what a draft is not and what a confirmation is.** A draft is language
+  work: never a draft to prepare, format, serialize or write the rows a compute step
+  produces (they are written as they are); a confirmation the requester asks before an
+  effect is that effect's `human_first` policy, never a `revision_check` obligation.
+- **A seat's `unknowns` are unmapped meaning, never the values the compiler asks itself.**
+  The authoring instruction now says so: connection details, credentials, endpoints,
+  locations, field names, formats, thresholds, criteria and open policies are the
+  compiler's own typed questions or bindings outside the program, and an effect the
+  requester leaves undecided is an effect with policy `unspecified`. Measured on eco-60
+  with gpt-5-mini before the change: 29 of 52 proposals ended in the catch-all
+  `intent.clarification` because the seat listed such values as unresolved work.
+- **Resolve exact support clauses before any authoring call.** With
+  `--authoring-model`, an intent the bounded EN/FR grammar resolves is
+  assembled deterministically with zero provider calls and keeps wire
+  generation 1; the opted-in provider interprets only what the grammar
+  cannot.
+- **`nika-compile` (ADR-137).** The stateless Compile core descends from
+  `nika-onboard` at the 15k prod-LOC wall as the second member of the same unit
+  (D-2026-07-09-N1). `nika-onboard` re-exports it at its historical
+  `nika_onboard::compile` path; no caller, plan or provenance format changes.
+- **`nika-compile-reader` (ADR-138).** The frozen deterministic reader and the
+  typed plan it produces descend from `nika-compile` at the 15k prod-LOC wall as
+  the third member of the `nika-onboard` unit (D-2026-07-09-N1). `nika-compile`
+  reads them at their historical module paths and keeps its whole public
+  surface; no caller, plan or provenance format changes.
+- **`nika-compile-cognition` (ADR-140).** Seat authoring ascends to its own member;
+  deterministic compilation and native record replay stay in core. Existing explicit
+  imports through `nika_onboard::compile` remain available. Direct
+  `nika_compile::{Cognition, NoProvider, compile_with_cognition, compile_with_provider, decide}`
+  imports must move to `nika_compile_cognition` or the onboarding facade. Core adds the
+  public `surface` module, mutable request and authoring-policy fields, and receipt/retrieval
+  constructors. The extraction introduces no new Compile wire generation or SDK options.
+- **`nika-compile-fidelity` (ADR-141).** The laws a candidate document is judged by, the
+  seat's sketch and the plan a candidate states ascend from `nika-compile-reader` at the 15k
+  prod-LOC wall as a member of the `nika-onboard` unit (D-2026-07-09-N1). `nika-compile` reads
+  them through the shared compiler unit, and the reader depends on `serde_json` alone
+  again. Direct Rust users must move `nika_compile_reader::{candidate, fidelity, sketch}`
+  imports to `nika_compile_fidelity`. Existing `nika_onboard::compile` entry points and
+  the Compile machine wire remain available; the move introduces no new wire generation.
+- **One gesture: bare `nika` opens the renderer.** On a real terminal
+  `nika` now opens the session behind the inline viewport, as the agent
+  CLIs a human already knows do; the `--tui` flag is gone. The plain
+  line loop stays one gesture away for flat text (`nika --plain`, or
+  `NIKA_TUI=0` in the environment: a screen reader, a recorder, a
+  harness), and it remains the automatic fallback when the renderer
+  cannot take the terminal (`TERM=dumb`, a terminal that never answers
+  the cursor report), said once on stderr. A pipe still gets the
+  deterministic concierge.
+- **Save ≠ Check ≠ Run ≠ Activate, and « activate » declares a schedule
+  only through the human's gestures.** After a yes the session says
+  « Saved · checked · not active · nothing has run » and names the two
+  distinct next lines: « run it » (one run, a ceiling announced first) and,
+  when the request asked for a schedule, « activate ». Activating asks the
+  three values a sentence rarely states, one line each with the consequence
+  of the answer (the IANA time zone the cadence follows · what « missed »
+  means: run once when back, skip, replay every one · the ceiling per
+  scheduled run), then proposes the declaration as a project change —
+  the `arm:` entry `nika.yaml` gains (`cadence: "TZ=<zone> <cron>"`,
+  `plafond`, `manqué`), the file created when absent, appended when it has
+  no `arm:` list, printed for the human otherwise — validated by the
+  cadence grammar before it is shown, written by a yes and never by an
+  answer. Declared is not active: the report and the status line say a
+  firer must run on this machine (`nika serve`, or the OS unit `nika arm
+  --emit launchd --write`) and that only `nika arm` proves what fired.
+- **The session's authoring budget is the compiler's own ceiling.** One
+  seated authoring call may spend 8192 output tokens and 120 seconds, the
+  bounds the compiler itself accepts, so deep work has room; a budget that
+  ends early is told as such, apart from a provider failure, a semantic
+  incomplete and a policy refusal.
+- **A question explains itself and holds; a failure leaves the goal
+  intact.** Beside an authoring question or a run's gate, `why?` (or
+  `pourquoi ?`) answers from the machine's own state — what the value is
+  for, which hole it fills, what the gate would let happen — and the
+  question or gate keeps waiting (`TurnOutcome::Aside`); the raw key no
+  longer prints at the prompt (it is in the explanation). When the
+  authoring model or the conversational intelligence does not answer, the
+  session prints a recovery card — what happened, what it still has (the
+  request, the answers given, the last decisions), that nothing was
+  written or sent, the three ways on — and « what happened? » (« de quoi ? »)
+  repeats that card from memory, never through another call.
+- **Bare `nika` authors through the ONE compiler; a reply never becomes a
+  file.** In the native session, a line that describes work reaches the
+  canonical typed Compile CREATE: the deterministic ladder first (zero
+  calls), then one explicitly permitted call on the model the human chose
+  with `/intelligence` (an API or a local engine; a harness seat or no
+  intelligence keeps authoring deterministic — ambient keys are never
+  consent). A typed compiler question owns the next line (`reply ›`), the
+  answer is typed to the question's shape and bound to its key, and the
+  compiler's own continuation is replayed on every answer round (zero
+  provider calls). A Ready candidate is reviewed from the engine's facts
+  (the parser's task list, the requested boundary, the check facade) and
+  proposed as exact bytes at a fresh destination (`<id>.nika`, a numbered
+  twin when the name is taken, never over a link); `yes` lands those bytes,
+  the real check follows, and consent is never a run: an explicit `run …`
+  line runs the accepted workflow (or one named) through the same path as
+  `nika run`, only when its check on disk is clean; a paused run asks the
+  human and the same run resumes. Each pending state gives a `yes` exactly
+  one meaning (an authoring answer · a consent · a gate answer). A bare
+  greeting is the conversation's, not the `hello` lesson. The route where
+  a reasoner's fenced YAML became a proposal is retired, with
+  `ProjectChangeSet::from_reply` and the prose splitter; the typed set is
+  now built by `ProjectChangeSet::workflow_at`, which witnesses the
+  destination with the no-follow primitive the write uses. The door prints
+  one truthful line while the compiler works under a seat; an exhausted
+  authoring budget, a provider failure, a semantic incomplete and a policy
+  refusal are four distinct sentences. A product e2e on a real PTY proves
+  the organs are connected: French copy intent → review → consent → check →
+  explicit run → artefact (the landed bytes are the compiler's candidate);
+  a fan-out over a folder; a gated run answered on the terminal whose
+  effect happens exactly once.
+- **Bare `nika` opens on the human's question, and asks for an intelligence
+  only when a turn needs one.** The session no longer stops at a first
+  screen before any value: it opens on « What do you want to automate? »,
+  the engine's facts and the deterministic compiler answer with no choice
+  made, and the first line only an intelligence can answer (a conversation,
+  or work the reader cannot settle alone) asks the first screen in context,
+  names why, keeps that line and resumes it exactly as typed once the choice
+  is made (`TurnOutcome::Resumed`); a typo keeps the request waiting and
+  `cancel` continues without a choice. The banner's engine facts (root,
+  intelligence and where the context goes, authoring seat) move to
+  `/status`; an explicit choice this machine cannot serve stays the one
+  warning on the banner. Same law in the plain loop and behind `nika --tui`;
+  a pipe keeps the concierge.
+- **Open language is routed by one typed decision, never a word list.**
+  Whatever the human types that is not a closed protocol token (`yes`
+  `no` `cancel` `why` `/quit`…) is open language: the typed session state
+  (idle · a proposal waits · a question waits · a gate waits) and the RAW
+  line go to one bounded classifier (`turn::TurnClassifier` — a door's
+  decision seat, else the session's own intelligence answering one label,
+  else the conservative fallback) that says which act it is: DISCUSS ·
+  MODIFY · NEW_WORK · ANSWER · REQUEST_RUN · MIXED · UNKNOWN. The runtime
+  acts on the act with the human's own words: « does it write anything »
+  and « can you explain what it writes? » are answered with the proposal
+  held; « actually write it to ./out/copie-2.md instead », « what I
+  actually want is ./out/final.md » and « can you write it to
+  ./out/final.md instead? » revise it; « run it, but only on Fridays » is
+  a change before any run, never a run; « yes but change the file first »
+  is MIXED, never a consent; a change said at a gate is refused with the
+  way on (answer `no`, then say the change). A classification never
+  grants a consent: authority stays with the closed tokens and the typed
+  state. Without any intelligence the route is UNKNOWN and the automation
+  is kept unchanged, said in words with the protocol forms. Every route is
+  recorded (the phase, the act, the method, the line's hash) for
+  `/details`. The multilingual word lists that guessed « a change » or
+  « a question » are gone: a new phrasing needs no new dictionary entry.
+- **The result, the gate and `/proof` read the run's own trace.** After a
+  run the session leads with what the frames prove — « Done · `x.nika` ·
+  49 ms · 3 tasks ran (1 from cache) · nothing sent elsewhere », then one
+  line per fact: `produced ·` (the `fs write` permit decision, the file's
+  size as it is now), `read ·`, `sent ·` (a `net` decision or a notify
+  task), `asked ·` (the model an infer task named), `approved ·` (the
+  approval frame, never an inference) and an honest `cost ·` (« nothing
+  metered · no model was asked » · a measured total · UNKNOWN when a call
+  was unpriced) — the door's observation line stays beneath as the
+  remembered fact. A failed run names the task, its detail, what ran
+  before it and what never ran. A paused run (exit 4) shows what ran so
+  far, the gate's question, what a yes lets happen from the workflow's
+  bytes — the control edge `after:` or the data edge the compiler writes
+  (`with: { approved: tasks.<gate>.output }`) — and what a no does.
+  `/proof` judges the chain through the ONE verify door (`nika trace
+  verify`, never a second walker), names the workflow's two identities,
+  the boundary the seal covers (declared · exercised · escaped · permit
+  checks), the digest of each written file RE-READ as it is now, and says
+  what the proof does not cover: that the content is right, or that
+  anyone outside this machine trusts the key.
+- **The review reads in sections, and Meaning shows what the compiler kept
+  of the request.** A proposal now says what the workflow DOES (the tasks,
+  first what runs first), when it RUNS (by hand, or the schedule the request
+  asked for, which saving never activates), what it CAN TOUCH (what the
+  bytes reach, the human gates), what CHANGES on disk, what it still NEEDS,
+  and that nothing has run yet; every line has an owner (the parser, the
+  check, the change set, the compiler's requirements), none is prose a
+  model wrote. `/meaning` (or « what did you understand? ») lists the
+  request clause by clause from the compiler's own obligation ledger,
+  with each clause's disposition (represented · needs your answer ·
+  external requirement · not expressible · refused) and what holds it (a
+  task that runs · a human gate · a prompt line, a guideline, not a check ·
+  a binding outside the bytes); beside a proposal it holds it, and a missing
+  ledger renders « unavailable », never an invented coverage. The renderer
+  gains a status row with where the automation stands (« Ready for
+  review », « Saved · checked · not active · nothing has run », « Waiting
+  for your answer »), compiled from the session's own facts.
+- **The conversation speaks in the human's words.** Asked « Tu peux m'aider
+  à faire un workflow ? » under an API seat, the session's first answer was
+  a questionnaire of Nika fields (« Entrées (`inputs`) … Accès nécessaires
+  (`permits`) … jusqu'à ce que le checker soit clean », the morning
+  audit's case A1). The identity core the conversational model reasons
+  under gains the human-words law: say what Nika will read, produce, write
+  or send and the one or two things it still needs; name a Nika field only
+  when asked; a first answer is never a questionnaire of fields, and Nika
+  compiles the workflow itself once the outcome is clear.
+- **The product law: Nika keeps working, a change revises the proposal,
+  the root is the working directory.** Three defects the independent
+  audit and the mandate named. (1) A request the chosen seat could not
+  settle came back as the compiler's own clarification (« Supply a
+  complete replacement request… », « rephrase with what to read… »): a
+  machine-owned failure shown as the human's problem. The session now
+  tries once more with the provider's stronger model (`openai/gpt-5.2` ·
+  `xai/grok-4.7` · `deepseek/deepseek-v4-pro` · `mistral-large-latest`;
+  « Still working · a stronger model reads it… ») and, when that cannot
+  settle it either, says in its own words what stopped it and what helps
+  (« Nika cannot express this automation yet — nothing was written · what
+  stopped it: … · what helps: say the outcome in one sentence, or split the
+  work »). (2) At the consent prompt a sentence that is neither a consent
+  nor a question (« actually only Tuesday to Friday and put urgent tickets
+  first ») is a CHANGE: the compiler revises the pending candidate through
+  its edit door (the base bytes + the change in words), the new proposal
+  replaces the old one; when the revision cannot settle, the old proposal
+  still waits and the words say so. (3) The session's root was the git
+  root when one held the working directory: under a monorepo every
+  project shared one context, one history and one workflow walk (the
+  audit's leak). The root is the working directory; the git root stays a
+  fact beside it.
+- **What Nika is doing now, and what just finished, from typed truth.**
+  The session's activity is typed (`activity::Activity` · `Phase`:
+  understanding · knowledge · authoring · checking · repairing) and comes
+  from the machine's own facts — « ✓ understood 6 requirements » from the
+  compiler's ledger after the deterministic reading, « ● authoring ·
+  openai/gpt-5.2 » at the seat call, « ↻ still working · a stronger model
+  reads it » at the escalation, « ● revising with your change » at a
+  revision — never a percentage, never a phase read back from prose. The
+  plain loop prints the lines as they happen.
+- **The composer completes a slash command, the door stays quiet unless
+  it has something to say.** `Tab` completes a `/command` from the
+  session's own list in the help card's order (one match fills the line,
+  several show their candidates in the hint row until the next key);
+  `NIKA_REDUCED_MOTION=1` stops the seconds tick of the busy row and the
+  bell; a turn longer than five seconds ends with one bell so the human
+  who looked away is called back; the terminal's title reads
+  `nika · <project>` while the door is open. A line with an accent, an
+  emoji and CJK goes through the composer and comes back whole.
+- **An interruption is heard while the renderer runs a turn.** A seat
+  call that never returned held `nika --tui` until it did: Ctrl+C and
+  SIGTERM were queued behind the turn. The turn now runs on a detached
+  worker thread (the conversation travels with it and comes back with
+  the result) while the shell keeps reading the terminal: one Ctrl+C
+  warns in the busy row (« interrupted: the call cannot be recalled ·
+  Ctrl+C again leaves now »), a second one or SIGTERM leaves at once
+  with the terminal restored and the call left to die with the process;
+  keys typed ahead wait for the turn. The busy row counts the seconds
+  (« working through your words · 12s · Ctrl+C twice leaves »). The
+  plain session keeps the line discipline's own Ctrl+C.
+- **`nika --tui` never leaves a dead door: a terminal the renderer cannot
+  take gets the plain session.** The renderer's entry is now two steps
+  (`app::enter` takes the terminal · `app::run_on` drives it), and the CLI
+  decides what a refusal becomes: `TERM=dumb`, or a terminal that never
+  answers the cursor-position report the inline viewport anchors on
+  (bounded by crossterm's wait), is said once on stderr — « the renderer
+  cannot take this terminal (…) · the plain session opens instead » — and
+  the same session opens as the plain loop, with everything the renderer
+  had enabled restored first. The terminal matrix is proven on a PTY: the
+  renderer opens, helps and closes at 60×20, 80×24 and 120×40; a resize
+  while a proposal waits re-anchors the viewport and redraws the consent
+  prompt; `TERM=dumb` writes no cursor query and no CSI sequence; a mute
+  cursor report falls back within the bounded wait.
+- **The busy row keeps the finished phase; the title says action required.**
+  The renderer's busy row keeps the last completed phase beside the
+  current one (« ✓ understood 6 requirements · ● authoring »), the loader
+  turning beside the current one only. The terminal's title reads « nika ·
+  <project> · action required » while an answer, a consent, a choice or a
+  gate waits on the human, and returns to « nika · <project> » once
+  resolved (the title stack is pushed once, popped on exit).
+- **The busy row's loader turns; the armed row says what a second press
+  does first.** While a turn runs the marker beside the busy label turns
+  (ten braille frames, the next every 100 ms — the terminal's usual loader,
+  never a percentage); it stays the still dot under `NIKA_REDUCED_MOTION`.
+  After one `Ctrl+C` the row read « <label> · 12s · interrupted: the call
+  cannot be recalled · Ctrl+C again leaves now » and was cut at column 80
+  before the promise; it now reads « Ctrl+C again leaves now · the call
+  cannot be recalled · <label> · 12s ». The stalled-seat scenario waits a
+  few frames and asserts the loader turned.
+- **The run shows inside the renderer's viewport.** « run it » in
+  `nika --tui` used to hand the terminal back: the plain run path
+  printed below the viewport, then the viewport was re-taken (a cursor
+  report asked again). The door now runs its own machine lane
+  (`nika run --json`) as a child whose pipes never touch the terminal:
+  each frame becomes one line of the run's story in the busy row
+  (« → read_source · invoke · nika:read », « ✔ read_source · 3 ms ·
+  1/2 », « ◇ paused · `approve` asks you »), the story is committed as
+  one block when the run settles, then the result view. A human gate
+  pauses headless and returns as the gate view with its own prompt; the
+  answer resumes through the same lane. A run still in flight when the
+  door leaves is ended with SIGTERM (the engine cancels, the trace says
+  so), never orphaned. The plain session keeps its own run renderer.
+
+### Fixed
+
+- Apply Run cost admission to the production Serve backend. Named jobs, snapshot
+  jobs and resident schedule fires refuse API routes that need a fresh monetary
+  review before any model or tool effect. Queued jobs settle as
+  `failed` / `admission_refused`; no HTTP review protocol is introduced.
+
+
+- Preserve the agent replay veto through provider cost observations. A connection
+  failure after a completed tool cannot replay the whole task; an observed
+  connection failure before any tool remains eligible for the authored retry.
+
+
+- **Resume judges an access change before monetary review.** A continuation
+  that silently switches lanes retains its `NIKA-1807` explanation. An explicit
+  access pin names the change, then still faces cost admission; it grants no
+  spending authority. Durable approval claims are attached only after the cost
+  and budget checks, so a refused continuation leaves that store untouched.
+
+- **An answered rule is the literal program the Check preview compiles.** The morning audit of
+  2026-09-22 saw a jq expression asked to a human accepted without validation, `nika check`
+  clean, and the run failing: the assembler bound the answer as `${{ const.rule_expression }}`,
+  a templated program the static jq compile-check (NIKA-VAR-005) never reads. The answer is now
+  the compute task's own literal expression, so a program that does not parse refuses the
+  candidate at compile time with the analyzer's one-line reason; the const disappears.
+- **A workflow compiled from a fresh intent produces the artefact the intent
+  asked for.** A clean-shell gate on seven fresh intents produced zero requested
+  artefacts; the defects were the deterministic assembler's, not the model's.
+  The corpus is now what the steps consume: a read file, a fetched page or a
+  looked-up record is the material, and an incoming `item` input exists only
+  when the request is invoked per item or supplies no other material, so a
+  file → transform → write workflow no longer declares a phantom required
+  `item` nor pastes it into every prompt. Every anchor law (extract and draft)
+  checks against that whole corpus instead of `inputs.item` alone, so a
+  correct extraction no longer dies on `NIKA-BUILTIN-ASSERT-001`. A path
+  literal is one path-shaped token: prose never becomes a constant or a permit,
+  a directory asks for a glob (`const.source_glob`) and fans out through
+  `nika:glob`, a placeholder asks for the exact files (`const.source_paths`),
+  and several explicit files become a bounded `for_each` read (with
+  `max_parallel` taken from an "at most N at a time" constraint) folded into
+  one document with a heading per file, one permit entry per path, never a
+  `;`-joined literal. A verb whose target names a local file (merge … into
+  `./out/x.md`) is a write to that file, never an endpoint question. Every
+  write effect is its own task bound to the nearest upstream result of its
+  kind (a structured target takes data, a prose target takes text), two writes
+  to two files stay two effects, a file the request names that nothing writes
+  is a question (`effect.write_<stem>.include`), and a write with nothing
+  upstream is a finding instead of an invented input. A structured source
+  (JSON, CSV, YAML, TOML) is decoded once for code rules, and the
+  `const.rule_expression` question names the exact input object the rule
+  receives.
+- **`--authoring-model` and `--decision-model` ride the provider client.** The CLI seated
+  an authoring or decision call on the default fetch client: its 30 s idle-read guard cut
+  every buffered cloud call at 30 s whatever `--authoring-timeout` asked (a reasoning seat
+  answered 408 after 30 s), and its SSRF floor refused a local seat on `127.0.0.1`. The
+  seats now use the runtime's provider client (`nika_runtime::compose::provider_http`, now
+  public): the same fixed endpoint allowlist, the transport ceiling above the requested
+  timeout, no SSRF floor. A local seat reports its socket's own refusal.
+- **Admit bounded authoring runtime consumers.** Admit the two explicit L4 authoring Tokio consumers in the dependency wrapper policy: nika-onboard owns the bounded provider timeout and nika-cli-host owns the opt-in executor. Existing layer bans remain unchanged.
+- **A bypass phrase inside a prohibition is a gate, not an approval bypass.** « rien ne doit
+  partir sans mon accord », « never send without asking » forbid the effect until the
+  approval; a negation or a prohibition before the phrase in its own sentence, in six
+  languages, keeps the backstop from refusing the request (sealed-v3 treatment lane: one
+  gated seed was refused as reusing an approval it never mentioned).
+- **A computed summary carried to a webhook is posted as its JSON text.** The carry law
+  already serialized the computed rows, the extracted fields, a validation and the records
+  through a `<slug>_text` stage; the compute summary (a count, a total) is one of them.
+  Measured on the sealed-v3 lane: a request posting the number of affected tanks checked
+  clean and failed at run because `nika:notify` refused a message that was an object.
+- **An unknown carried by an element that asks its own question is not unresolved work.**
+  « in die übliche Datei schreiben », « sorted by the column we agreed on »: the seat listed the
+  words as unknown and the merge filed them as unresolved, handing the request back for a
+  rephrase where the corpus expects a typed `const.*` question (sealed sv3-48, sv3-19). A
+  write whose target names no file asks its output path; a computation with no rule stated
+  asks its jq — the element asks for what it needs. An unknown carried only by a read, or by
+  nothing, stays unresolved.
+- **Three composer and merge laws measured on eco-60 under gpt-5-mini.** A constraint that
+  restates a clause the plan carries elsewhere (the trigger, an obligation's words, an
+  effect's own clause) is not a free constraint that needs an operation; the reader's
+  `search` and a seat's `lookup` over the same source are one retrieval family; a `write`
+  a seat proposes as the twin of a `create` over the same words, naming no file, is that
+  create and never a second effect. Three requests had ended in `intent.clarification`
+  with their only candidate judged infeasible on those laws. The merge files no constraint that restates a clause the plan carries (the read
+  clause listed twice): the ledger had refused READY for it as a silent obligation.
+- **A draft of the computed number alone, or one that composes a CSV body, only serializes.**
+  « écrivez ce nombre seul dans ./out/fermees.txt » beside the count (sealed sv3-03) and
+  « Comporre il contenuto CSV con intestazione esatta … » beside the extracted rows (sv3-37)
+  were kept as drafts, and the candidates asked a model where the corpus expects zero calls.
+  The serialization-draft law gains the compose and build verbs (six languages) and the
+  computed number when the request wants it alone (« seul », « solo », « only »); a number
+  beside prose stays a draft.
+- **Two laws of the composer and the merge measured on the sealed-v3 treatment lane.** A
+  `draft` the reader guessed over a write clause (« write just the number, nothing else, to
+  ./out/x.txt ») is accounted for by a candidate that computes and writes in that sentence;
+  the written content must still be produced by a step. A `revision_check` a seat proposes
+  over a gate phrase (« pídeme confirmación antes de enviar ») is the human gate the effect's
+  policy already carries, recorded as applied, never an obligation with nothing to recheck.
+- **A proposed constraint that is the gate phrase itself is the gate the effect's policy
+  carries.** On sealed lane9 (gpt-5-mini), sv3-03 « Demandez-moi confirmation avant tout
+  envoi ; rien ne doit partir sans mon accord. », sv3-13 « Please ask me for confirmation before
+  writing the file, I want to approve it first. » and sv3-23 « pero pídeme confirmación antes de
+  enviar » each came back as a proposed constraint beside the send or write the reading had
+  already gated; the ledger filed it as a format duty, no element carried it, and READY was
+  refused for a silent obligation. A constraint that is a named gate, a final gate or a negated
+  waiver beside a human-first effect is now folded as that gate.
+- **A gate phrase that names sending gates the outbound effects; a waiver is no gate.**
+  « Demandez-moi confirmation avant tout envoi ; rien ne doit partir sans mon accord » gated
+  the send and then the write, each phrase taking the last automatic effect (sealed sv3-03);
+  « Non serve chiedermi conferma. » was read as a gate over the send the request waives
+  (sv3-33). A phrase naming sending (six languages) gates the last automatic outbound effect,
+  and a phrase restating a gate the send already carries takes nothing else; a waiver opener
+  followed by an asking verb or an approval noun is a policy clause that gates nothing — beside
+  a contrary prohibition the compiler's bypass judgement still refuses.
+- **A language step over the trigger clause, and any step inside a safeguard's words, are
+  folded whatever their details name.** On another seat sample of the eco-60 lane (E04A), an
+  `extract` of « the callback and record ids from the button's payload » anchored on « bouton
+  Slack de validation » was assembled and READY, and a lookup over the revision-check words
+  whose detail named the record kept a second element the request never asked (E05B, E09B).
+  An event is not material to extract from, and a clause inside a safeguard's words is that
+  safeguard; the region discriminator stays for a clause that spans more than the region.
+- **A lookup by identifier selects its record in the file the request already reads.**
+  « Read ./tickets.json, find ticket 42 and write it to ./ticket-42.json », settled as a
+  lookup by a decision seat, asked for a second « directory » (`const.ticket_42_directory`)
+  although the read clause locates the material. The lookup now binds the read file, asks
+  only which field holds the identifier (`const.ticket_id_field`), reads the file once and
+  writes the selected record. In a lookup detail a bare number after a word (« ticket 42 »,
+  « order 1002 ») is the identifier; everywhere else a bare number stays a count or a bound.
+- **Preserve explicit authoring intent and sampling uncertainty.** Explicit authoring no longer treats absent English/French approval vocabulary as a contradiction. The finite backstop vetoes recognized conflicts or omissions while leaving unfamiliar language to the opted-in model. Per-ticket program semantics are distinguished from durable scheduling, and generation-2 receipts identify omitted sampling parameters with unknown provider defaults. Clarification now explicitly requests a complete replacement intent, so corrected authority does not inherit a stale contradiction.
+- **A source the request names is opened, or the candidate is not READY; a destination the
+  compiler asks and an hour the trigger binds are not unresolved work.** The morning audit of
+  2026-09-22 found « Chaque lundi matin, envoie-moi un récapitulatif des tickets ouverts de
+  ./tickets.json » READY through the deterministic door on both lanes: read as one `send` over
+  the whole clause, the file was named by the send's own words and never opened, the recap had
+  no producer (the producer law exempted every effect whose target contained a file), and the
+  candidate posted `{action, target, facts}` to the endpoint. The reader now refuses HOT when a
+  path the request states as a source (an occurrence no destination connector introduces) is
+  named by no step, read by no rule, fired on by no trigger and refused by no prohibition, and
+  the producer law exempts only a target that IS one bare path; the cold merge files such a
+  source as unresolved work. A path stated only as a destination (« into a single ./out/x.md »,
+  « belongs in ./out/totals.json ») keeps its write laws and its named-output question. The
+  same wording under gpt-5-mini, in six languages, ended in a catch-all clarification because
+  the seat listed the destination (« Destino y canal para 'envíame' ») and the hour (« Genauer
+  Zeitpunkt von 'Montagmorgen' ») as unknowns: an unknown that only names where an outbound
+  effect goes is bound by that effect's own endpoint question, and one that names a schedule's
+  hour or zone by the trigger's binding questions. Six languages, tested on the seat's own
+  wordings.
+- **A near-miss citation names the request span.** The seat cited « pregúntame y espere mi
+  aprobación » where the request wrote « espera »; the repair call did not fix it and the
+  candidate was refused for an unanchored effect (sealed sv3-26). A citation of at least 24
+  characters at most two edits away from exactly one span of the request, one of whose ends
+  it reproduces, names that span: the request's own words are used, never the seat's. A short
+  citation, a farther one or one that could name two spans is still refused.
+- **A negated waiver is the gate it denies waiving.** « lis ./draft.md et écris-le dans
+  ./final.md, mais pas sans me demander » read « sans me demander » as a waiver and turned the
+  write automatic (the clause-drop probe on the fifth-wave binary, one false READY). A waiver
+  opener preceded by a negation (« pas sans », « not without », « no sin ») gates the last
+  automatic effect of the family the phrase names, as the gate it is.
+- **The serialization cue is read on the request's own words, not only on the seat's
+  detail.** On sealed lane9 (gpt-5-mini), sv3-11 « write just the number, nothing else, to
+  ./out/kingfisher.txt » came out READY with the count computed by jq and a `draft` whose
+  detail said « draft text containing only the numeric count, no other text or labels » — no
+  serializing verb, so the number-alone cue missed and a model was asked to write a number the
+  computation had produced (one call where the corpus expects zero). The cue now judges the
+  citation as well: a request that asks for the number alone folds the draft whatever the seat
+  called it, and a request that asks for prose keeps it.
+- **A number the request spells beyond ten is a literal of the request.** « duzentos »,
+  « cien », « twenty », « zweihundert » in six languages: a candidate that writes the
+  threshold as digits is no longer refused for inventing it (sealed-v3 treatment lane:
+  two seeds ended in `intent.clarification` on « the literal `200` is not in the request »).
+- **A constraint an obligation carries needs no operation, and a language step inside a gate
+  sentence is the gate.** Read on the eco-60 lane of the final binary against the tenth-law
+  binary: E04B lost its only carrier when the `validate` over the dedup constraint folded, and
+  the composer's rule 12 refused the candidate — « Déduplique les événements entrants par leur
+  identifiant » restates the dedup obligation the plan already carries through its admit task,
+  which the rule never counted; E20B assembled a `validate` cited as « validation humaine de ce
+  dossier précis, avant son exécution », the fragment of a gate sentence, and came out READY
+  with an operation the request never asked. Rule 12 now counts a constraint that restates an
+  obligation of the plan (a dedup, a revision check, a retry bound) as carried; the gate fold
+  judges the sentence the clause lies in, not the clause alone.
+- **One clause is one effect: a twin effect differing by a period and a pathless write over a
+  stated constraint are folded.** On the eco-60 lane of the tenth-law binary, E09B assembled a
+  `send` beside the `publish` over « Poste ensuite la réponse dans le fil Slack » — the two
+  citations differed by a trailing period — and a `write` with no path over « conserve un état
+  à reprendre manuellement », a constraint the reading carries as guidance; E17B the same write
+  over « puis conserve un état à reprendre manuellement. ». Effects now compare by their clause
+  key, a second effect over a clause a stated effect contains is that effect, and a write naming
+  no place over a stated constraint's words is that constraint.
+- **One clause is one step: the request's words decide what is supplied, and a second
+  language step, a validate over a constraint, a step over an effect's clause or a read over
+  the event are folded.** On new seat samples of the eco-60 lane, E16C came out READY once
+  more because the seat's read detail said « les disponibilités fournies » — a word the request
+  never wrote; E11A with an `extract` over the draft's own clause; E09B with an `extract` over
+  the search's clause, a `validate` over « Si les passages ne suffisent pas, la réponse doit le
+  dire », an `explore` over the send clause and a `read` over the event clause; E17B with a
+  `validate` over a constraint differing by a trailing period and an `extract` over the refund
+  clause. The supplied-material check now reads the citation, never the seat's detail; clauses
+  compare by their key (punctuation trimmed); a language step over a clause a producing step, a
+  search or a lookup already carries, a validate or an explore over a stated constraint, an
+  extract, an explore or a validate over an effect's clause, and a read the seat lists over the
+  event clause naming no place are folded.
+- **One clause is one element.** A step a seat proposes over the trigger clause is the
+  trigger, a step over an obligation's words (a lookup over « Vérifie de nouveau la version
+  courante ») is the safeguard, an effect over a language step's own words (« rédige un
+  compte rendu » as a create or a write, naming no file and no endpoint) is that step, and
+  two effects with kindred verbs over one clause (a publish and a send over « Poste ensuite la
+  réponse dans le fil Slack ») are one effect. Measured on eco-60 under gpt-5-mini: three
+  requests had been assembled with operations and effects the seat double-listed.
+- **One clause is one step.** A seat that lists the same clause under several operations
+  (« écrire ces lignes … dans ./out/retards.csv » as a validate, an explore, a fetch, a
+  lookup, a classify, an extract and a search at once, measured on the sealed-v3 lane under
+  gpt-5-mini) states one thing several times: the first stands, the twins are not assembled,
+  and a retrieval or a validation over a write clause is the write the proposal already
+  states. The request compiles READY as a read, a filter and the write, with no model, where
+  it had asked a directory, a search root, a URL and a rule.
+- **A proposed read of records named by their owner is a lookup.** « Lis mes disponibilités
+  et celles des participants » (eco-60 E16C) was read by the seat as a `read`; with no path
+  the assembler bound it to the material an invocation supplies and drafted three slots from
+  an input string, READY. The reader's retrieval cues now settle a proposed read that names
+  no path and no supplied material: a store, a calendar or a possessive object is a lookup
+  (a corpus a search), and the assembler asks where the records live.
+- **A Portuguese schedule is a trigger.** On sealed lane9 (gpt-5-mini), sv3-56 « todas as
+  manhãs às 7h, lê ./coworking/reservas.csv … » never became the trigger: the reader's trigger
+  prefixes, the daily cadence words and the time-of-day introducer knew no Portuguese, the seat
+  filed the schedule as a constraint, and the ledger refused READY for a format duty nobody
+  carried. « todas as », « todos os », « sempre que », « assim que » open a trigger clause,
+  « manhã(s) » and « noite(s) » state a daily cadence, and « às » introduces the hour: the
+  clause is recorded as the requested trigger, daily at 07:00.
+- **Select provider token budgets from model capabilities.** OpenAI-compatible requests now use the shared model capability catalog to choose the token-budget parameter. The observed OpenAI `gpt-6-astra` contract uses `max_completion_tokens`; compatible peers retain their existing parameter, without new reasoning or sampling capability claims.
+- **The quotes around a value are not the value; a body is data; a draft over the write
+  clause with no language word is a serialization.** On the sealed lane6, « no » reached the
+  jq with its guillemets and kept no row (sv3-26, a READY that wrote an empty file), a draft
+  « preparar cuerpo POST con las estaciones filtradas » stayed a model call (sv3-23), and a
+  draft over the very write clause « ./out/esiti.csv con le colonne esito,numero » beside the
+  computed rows asked a model to write what the rows already are (sv3-36). A typed value is
+  read without « », “ ” or ‘ ’; a body or payload is a data word; a draft whose clause is a
+  write clause and whose detail carries no language word, beside produced data, is folded.
+- **A renamed column keeps its place in the written CSV.** « benenne die Spalte kwh in
+  energie_kwh um (sonst nichts ändern) » wrote `anlage,datum,energie_kwh`, the sorted keys of
+  the rows, because the source's header order reached the CSV stage only when the rule renamed
+  nothing (sealed sv3-41). The header order is now mapped through the renames the rule states
+  under a `<stem>_columns` jq stage the CSV stage reads.
+- **A mandatory clause of the request survives compilation: realized,
+  questioned or refused, never dropped into READY.** Three product repros
+  returned READY after silently losing a transformation ("write a 3-bullet
+  summary to …" became a copy), a write and its human gate ("ask me to confirm
+  before writing it to …" vanished behind the read's path) and an explicit
+  approval ("only after my explicit approval" left the publication automatic).
+  Four general laws close them: what a clause still says after its settling
+  path re-enters the reader as a clause of its own; the object a write names
+  before its destination refers back to produced content or is new content (a
+  draft for prose, an unresolved clause for data); a human gate is read from
+  its shape (a binding connector, a requirement word or an asking verb, a
+  person, a word meaning approval), and a prohibition bounded by an approval is
+  that gate; a constraint needs an operation that carries it, in the reader and
+  in the composer. The composer also refuses an automatic effect on the clause
+  or endpoint of a human-first effect, and an effect whose readable excerpt
+  carries no word of its family; a listed column never spells a verb. The
+  anchor corpus of a drafted step holds each fact as the prompt renders it.
+- **A retrieval proposed over an outbound effect's clause is that effect.** « envíalas con un
+  POST a http://…/reposicion » was listed by the seat as a `fetch` beside the human-first `send`
+  over the same words, and the candidate performed a GET on the endpoint before the gate
+  (sealed sv3-23). A fetch, a lookup or a search over a send, publish or notify clause is folded
+  into the effect: one clause is one element.
+- **A revision check over a search reruns the search just before the action.** The
+  recheck only knew a lookup's record; a request that retrieves passages from a guide, drafts
+  an answer and asks to recheck the current version before posting was refused for want of a
+  retrievable source (eco-60 E09B). The reader admits a search as that source, and the
+  assembler reruns the grep under `revision_reread`, compares the hits with the first ones
+  and lets `revision_admit` gate the action; changed hits are a changed version.
+- **A stated rule stands for a seat's paraphrased detail.** The sentence-coverage law of
+  the previous slice held a seat's own paraphrase (« Group the rows by roast_level and sum
+  weight_kg … . Output exactly two columns … ») to the request's sentence law, so five
+  sealed-v3 seeds with the right typed rule recorded still asked `const.rule_expression`.
+  Coverage now applies to a verbatim detail only, and a plain twin of a shaped rule (the
+  promoted constraint beside the seat's typed rule over the same clause) is one rule.
+- **A format the rule states is carried by the compute task.** A duty whose words lie in a
+  rule's own text (the clause the rule was read from, promoted beside it) or an ordering
+  phrase (« del más rápido al más lento », « highest first », « croissant ») when the rule
+  sorts is realized by `compute` instead of blocking READY as a silent obligation; a single
+  digit in a language step's paraphrase (« cycle de correction 1 ») is an enumeration, not
+  an invented literal. Measured on the sealed-v3 lane: sv3-21 asked a rewrite beside the very
+  rule that computes it; sv3-15 and E19B were refused for the literal `1`.
+- **A draft that only serializes computed rows is not assembled.** A seat proposes « prepare
+  the filtered CSV content for writing », « serialize the resulting array as JSON », « schreib
+  das Ergebnis nach … » beside a computation: that is no language work, the write takes the
+  computed rows as they are, and no model is asked. A detail that names language work (a
+  summary, a note, a digest, headings, a reply, a translation) stays a draft. Measured on the
+  sealed-v3 treatment lane: three such drafts ran under gpt-5-mini with a 4096-token cap and
+  failed at runtime; three more waited on a `model` the request never needed. A format such a request states (« avec les mêmes colonnes et dans le
+  même ordre », « mismas columnas ») is realized by the compute task, which keeps the source
+  columns by construction, instead of waiting on a draft's prompt guidance.
+- **Stable answer rounds.** `nika compile` records the private plan a free intent produced under `.nika/compile/<intent sha256>.plan.json` (a self-ignoring directory: the plan, the engine and the intent hash, never the candidate or a key), and every later `--answer` round of the same intent replays that plan through the additive `CompileRequest::with_plan` (route `replayed plan`, cognition `deterministicOnly`, zero provider and zero seat calls, the same candidate) instead of sampling the model again, so an answer can no longer belong to no question; `--fresh` reads or samples the intent again, `provenance.plan` names its `strategy`, `provenance.decision.intent_sha256` names the key (`nika_onboard::compile::intent_sha256`), a record that does not parse or is not anchored is a `recorded_plan` finding, `-o` is the short `--output`, a destination whose parent directory is missing is created, and `nika compile --help` documents the exit ladder.
+- **A superlative states the `1` of a limit.** On sealed lane9 (gpt-5-mini), sv3-15 « name the
+  incident with the most minutes by its id and its line » had the seat sort by minutes with a
+  limit of 1, and the composer refused the candidate because the digit `1` is nowhere in the
+  request. « the most », « le plus », « el mayor », « die meisten », « o maior » name one row:
+  the literal rule now reads a superlative as the request's own statement of that `1`.
+- **A validate over nothing but format words the computation keeps is folded.** « mismas
+  columnas y mismo orden » listed by the seat as a `validate` beside the drop-filter made the
+  candidate ask a model to check what the jq guarantees (sealed sv3-24, where the corpus
+  expects zero calls). A validate or an explore whose detail is only same-columns or
+  same-order phrases (six languages) or a lines-mode tail is not a step: the computation
+  carries the format by construction.
+- **A lookup by identifier binds its JSON file and selects the one record.** A
+  lookup detail that names one JSON file and an identifier token (digits
+  beside letters, `-`, `_` or `#`, or an email; never a bare number, a date, a
+  path or a URL) binds the file without a directory question, keeps the
+  identifier as `const.<slug>_id` (`ticket T-4471 in ./data/tickets.json` →
+  `const.ticket_id`), asks only which field holds it (`const.<slug>_id_field`,
+  a stable question), and selects the record with a jq that reads an array
+  directory by field and an object directory by key. A literal lookup is the
+  corpus: no `inputs.item` and no `inputs.record_id` is declared, and the
+  classification, the draft and every endpoint payload see the record alone,
+  never the whole file. The revision recheck reuses the same selector.
+- **A numeric rule is an operation, and a structured destination receives its
+  format.** A digit beside a comparison cue (greater than, above, below, at
+  least, plus grand que, supérieur à, inférieur à, mayor que, minore di,
+  größer als, `>`, `≥`…) that a proposal demoted to prompt guidance is
+  promoted to a compute stage anchored in the request, inserted right after
+  the sources so the draft sees the computed rows, and withdrawn from the
+  prompt; a size unit (words, lignes, bullets…), an attempt or turn bound and
+  the concurrency bound stay guidance. A `.csv`, `.yaml` or `.toml` destination
+  whose content is data gets a `nika:convert` stage (`<stem>_csv`) feeding the
+  write instead of JSON text; a `.json` destination stays JSON; prose stays
+  prose. A structured source is decoded only when a code rule, an endpoint
+  payload or a structured write consumes it, and a `compute_summary` stage
+  (`{count, totals}` over the numeric columns, rounded) gives every count or
+  total a language step claims a deterministic anchor.
+- **Per-file drafts fan out and fold back with one heading per file.** A
+  request that distributes its draft over the read files (a heading word
+  beside a distributive or file-name cue, or a draft clause or trigger led by
+  "for each", "pour chaque", "para cada") is structure now: the fan-out is
+  zipped into `{path, text}` items (`draft_items`), the draft runs `for_each`
+  item under the concurrency bound with a prompt that sees only
+  `${{ item.text }}`, a per-item law judges every body and anchor against its
+  own item, and `draft_fold` joins the bodies under `## <file name>` headings
+  in item order; the order and heading instructions leave the prompts, and the
+  folded `documents` corpus is emitted only when another step reads it.
+  Distributive words inside one draft's object with a single file and a single
+  length cap stay one draft. A per-item request whose write target is a
+  placeholder path (`./out/<name>.md`) is refused with `intent.clarification`
+  instead of being lowered to one guessed file. The realized topology is
+  recorded as `provenance.decision.shape` (`linear`, `fan_out_fold`,
+  `fan_out_fan_in`, `multiple_outputs`, `human_gated`, with its flags).
+- **Every effect that names content has a producer, and a revision check has a
+  source.** The composer's rule 10 now reads every effect, not only a write: a
+  `send`, `publish`, `notify`, `create`, `update` or other effect whose target
+  or evidence names produced content (a reply, a report, a summary, a digest, a
+  brief, a note, a message, a blurb, a draft, a translation, a recap, a memo,
+  and their French, Spanish, Italian, Portuguese and German forms) needs a
+  draft, an extract or a compute step, or, under a copy cue (copy, forward,
+  verbatim, tel quel, as is, attach…), a source step whose material it carries
+  unchanged; the reason names the noun and the target. Rule 11 refuses a
+  `revision_check` obligation without a lookup to reread. The strict HOT
+  admission applies the same two laws, so a deterministic reading that would
+  send a reply nobody drafted escalates instead of inventing the reply.
+- **A compiled CSV keeps the requester's column order.** `nika:convert`
+  (`to: csv`) accepts an optional `columns:` list, the header order to emit:
+  the listed columns lead in that order (a listed column absent from every
+  row is still emitted, empty), every unlisted key follows in the sorted
+  order the default emits, and the formula guard still applies at write
+  time; without `columns:` the header stays sorted. The assembler derives
+  that order from a CSV source's first line (`source_columns`, a jq over the
+  read text: `\r` trimmed, surrounding double quotes stripped) and binds it
+  into the `<stem>_csv` stage of a `.csv` destination, so a filtered
+  `order_id,customer,amount` file is written back as
+  `order_id,customer,amount`; a source that is not a CSV leaves `columns:`
+  out.
+- **A numeric or equality rule the request states in words is the jq the
+  workflow runs; `const.rule_expression` is no longer asked for it.** The
+  compiler-arena tournament (40 sealed seeds) asked `const.rule_expression` for
+  13 rules the intent already stated ("keep only the rows whose amount is
+  strictly greater than 100", "cuya cantidad es menor que 10", "whose status is
+  refunded"). A compute step over one parsed source (CSV, JSON, YAML, TOML) is
+  now synthesized deterministically from a closed grammar: the FIELD is an
+  identifier token, a word of the columns hint the request states ("columns
+  order_id,customer,amount,status", "colonnes …", "(sku,nome,quantidade,minimo)"),
+  the noun phrase between a relative pronoun ("whose", "dont", "cuya", "la cui",
+  "cuja", "deren") and the comparison, or the word left of a symbol; the
+  COMPARATOR is a symbol or a multilingual cue (EN · FR · ES · IT · PT · DE,
+  including "at least / au moins / al menos / almeno / pelo menos / mindestens"
+  and their "at most" twins), with a copula alone reading as equality and a
+  negation as inequality; the VALUE is a number (compared after `tonumber`), a
+  quoted or bare word for equality (exact, case-sensitive), or a second column
+  (`.quantita < .soglia_minima`); clauses join through one conjunction ("and /
+  et / y / e / und", "or / ou / o / oder"). The compute stage becomes
+  `[.records[] | select(<predicate>)]`, preceded by a `compute_guard` jq and a
+  `compute_admit` assert that fail loudly, naming the column, when the first
+  parsed record lacks a referenced field, so a wrong column never filters
+  everything in silence; the summary stage keeps counting and totalling the
+  filtered rows, and `provenance.decision.rule` records the text, fields,
+  comparator, value, jq and `synthesized: true`. A count-or-total request folded
+  into the same rule ("and how many rows were kept and the total of their
+  amounts", as a live authoring seat wrote it) is what the summary stage
+  computes: the rule is still synthesized and `{count, totals}` becomes the
+  `summary` output. Anything outside the grammar
+  (a grouping in the same sentence, a number bounded by a size or attempt unit,
+  a field no column names, mixed conjunctions) still asks `const.rule_expression`,
+  and an explicit answer always wins over the synthesis: nothing is guessed.
+- **Veto recognized approval-bypass omissions in explicit authoring.**
+  The finite EN/FR backstop now matches approval-bypass phrases as whole
+  words and refuses a semantic plan that reports no effect while the
+  intent says `without asking`, `sans accord`, `do not ask` or names a
+  prior approval, so a dropped store-credit or payout effect never becomes
+  a lookup-and-draft candidate. `fichier` no longer reads as `hier`.
+  `automatic` wording alone still vetoes only an inserted human gate.
+- **Keep rejected support binding answers resumable and qualified.** A
+  glob directory or an invalid refund endpoint re-asks its stable question
+  beside the Missed diagnostic instead of leaving `questions` empty, and
+  the `model` answer must name `<provider>/<model>`: a bare id such as
+  `gpt-4o` no longer compiles to a Ready candidate that the host Check
+  refuses as NIKA-PROVIDER.
+- **Check the committed ADR rationale.** A new crate may arrive with a completed existing ADR in the same commit. The admission hook reads staged document contents, so an unstaged mention cannot satisfy the requirement.
+- **The DeepSeek aliases stay priced.** `deepseek-chat` and
+  `deepseek-reasoner` left DeepSeek's model list and pricing page, and the
+  2026-09-23 refresh followed; chat/completions still serves both and
+  answers `deepseek-flash`. A human naming the alias was accepted at the
+  seat question and refused at the run door as unpriced (NIKA-1709). Both
+  aliases are priced as deepseek-flash again, with the probe named in the
+  refresh script.
+- **Preserve the whole source name after clarification.** The compiler asks when a file name is ambiguous and binds the user's exact answer. Fidelity recognizes that whole name without forgetting a separately named file or broadening filesystem permissions.
+- **Keep source clarification separate from destination occurrences.** Check the candidate filesystem boundary without treating a source answer as a destination. A source answer cannot cover a missing destination permission; a suffix inside a longer stated path belongs to that path, while a separately named file remains required. Regression tests exercise native authoring, sketches and deterministic assembly.
+- **Unnamed output files require a destination.** A request that asks for a
+  file without naming it (« Résume mes notes dans un fichier », « summarize
+  my notes into a file ») no longer compiles READY as a draft that writes
+  nothing. The deterministic reader records the write, and the compiler asks
+  its exact path (`const.output_path`) before any candidate or grant exists.
+  A plan recorded by an earlier engine gains that question on its next
+  answer round. The native and sketch doors refuse a candidate that drops
+  such a write (`UNWRITTEN DESTINATION`). An answer that names no file
+  (prose) keeps the path question open instead of leaving the compile with
+  nothing to answer. A named destination, a file the request already has («
+  dans le fichier », « in my file ») and quoted words compile as before.
+- **Contradictory bounds on the produced content are refused, never run.** A
+  request asking for a report of "exactly 5 lines" that is also "at least 12
+  lines long" compiled READY and ran on a prompt that silently obeyed one of
+  the two. The bounds a request states on one unit of its content (exact,
+  minimum, maximum, in six languages) are now read as intervals; two that
+  cannot meet contradict each other, the outcome is refused with both bounds
+  named, and the obligation ledger records both duties as contradicted.
+- **A glob and a spelled number derived from the request are anchored, not refused as
+  invented.** `./recettes/*.md` from « les .md de ./recettes » and `3` from « trois
+  puces » failed the composer's literal law (« the literal is not in the request »).
+  A glob star is structure, never a literal, so the path is derived once its folder
+  and extension appear; a number word in six languages anchors its digit (never
+  one, an article far more often than a count), and the same words let a stated
+  bound (« tre punti », « drei Zeilen », « cinco viñetas ») be verified at run.
+- **Preserve distinct computations during authoring.** A filter and a separate
+  total can no longer collapse into the first rule while claiming both outputs
+  complete. The normal authoring route escalates to a full native task graph
+  when the single-binding assembler cannot represent the recorded calculations.
+- **A fan-out over an empty corpus fails loudly instead of running green on nothing.**
+  A `source_glob` that matched no file let the fan-out iterate zero times, the fold
+  write an empty document and the run finish with exit 0 and no model call. The
+  assembler now emits `glob_found` (`length > 0`) and `glob_admit` (`nika:assert`)
+  between the glob and the reads, so an empty match stops the run with its reason.
+- **A human gate is read from its form in six languages, and one approval is one
+  gate.** « demande-moi confirmation avant d'écrire », « pídeme confirmación
+  antes de escribir », « chiedimi conferma prima di scrivere », « frag mich
+  bevor du schreibst », « pergunte-me antes de enviar », « solo después de mi
+  aprobación » were not read as gates while their English forms were: the gate
+  matcher now knows the approval nouns, approval verbs, persons, connectors and
+  asking verbs of Spanish, Italian, German and Portuguese, and a clitic person
+  glued to the verb (`demande-moi`, `chiedimi`, `pergunte-me`) counts as the
+  verb and the person it addresses. A request stating one approval for several
+  effects ("only after I say yes: do the POST, then write the receipt")
+  compiled to one prompt per effect, so a single human answer could not finish
+  the run; the gated effects now share one `approval_review` that lists every
+  action and shows the first one's exact content or payload, while two
+  approvals each naming one effect stay two gates. A gate read in a language
+  whose effect verbs the deterministic reader does not know no longer blocks a
+  model proposal that names the effect: the gate finds its effect there.
+- **Give open generation its selected context immediately.** Complete deterministic
+  readings and bounded decisions retain priority; generation receives knowledge before
+  spending a preliminary under-informed call. Changed candidates can use remaining
+  repairs, and reported truncation may raise an explicitly lower initial token limit
+  within the original ceiling. Technical failure preserves the request and diagnostics.
+- **The knowledge door keeps relevance, a secondary obligation's block and an honest
+  receipt (builder `knowledge-door-v3`).**
+  - Patterns and blocks were deduplicated in a map, then cut to their caps in id order.
+    A pattern the request matched word for word could lose its slot to generic rows
+    whose ids sort first. The leading family's blocks could also crowd out the block
+    of a second obligation.
+  - Both are now taken in turn, per recalled family and then by direct match, and
+    each source's best-covering block comes first.
+  - A row the byte cap left out was still recorded as selected, as if presented. The
+    receipt now separates available, selected, excluded with a reason, and presented.
+    It states `no_match` when nothing is recalled, and the seat then reads the card
+    alone.
+  - A block is presented with its row's holes, effects, authority, capabilities,
+    callables, known failure modes and version, beside its code (at most 1 KiB).
+  - The record names its selector: the door's Rust BM25 over the Foundry graph, not
+    the Foundry producer's selection.
+  - The shared reader lives beside authoring in the existing `nika-onboard`
+    member; the CLI-host compatibility path is preserved without duplicating logic.
+  - The bounded decision adapter is hosted beside the shared TypeSafe transport;
+    Session retains its monetary admission and persisted observations.
+- **A seat's draft over nothing is asked, and anchors are verbatim.** A
+  seated plan whose steps are all language, with no read, fetch, lookup or
+  search, no effect, no trigger and no material the request names as
+  supplied at invocation (« build me a digest of the docs ») stays
+  incomplete with `intent.clarification` instead of a Ready candidate around
+  an invented `inputs.item`. The draft and extract prompts ask each anchor
+  as a verbatim copy of one contiguous span of the corpus, name which field
+  is the claim and which the anchor (a paraphrase in the anchor still
+  refuses the draft), and the draft and extract schemas describe each
+  property to the seat.
+- **Native authoring repairs complete malformed JSON within its existing
+  budget.** Native authoring can use its existing repair budget to correct a
+  complete, metered response with invalid JSON syntax. Truncated, unmetered
+  or repeated malformed responses remain terminal; no extra allowance or
+  automatic model substitution is introduced.
+- **Keep uncertain effect readings contestable.** Indirect negations and separately
+  targeted bans no longer force the same interpretation on every candidate. Open
+  readings remain visible in review; exact destination bans, approval requirements
+  and execution permissions retain their checks.
+- **A JSON body whose keys the request states is exactly those keys over
+  produced values.** A sealed seed computed `{tickets, total_cents}` correctly
+  and then posted the generic `{action, target, facts}` envelope: run green,
+  wrong body. A brace list in the effect's own words (`with the JSON body
+  {tickets, total_cents}`) is now the payload's shape: a total the typed
+  computation produced under that name, a fact of that name, or, for one key
+  left beside one drafted text, that text. A key nothing produces ends
+  INCOMPLETE with a diagnostic naming it; a payload never carries an invented
+  value. Without a stated key list the envelope stays as before.
+- **A trigger over the request's own material never declares `inputs.item`.**
+  Two sealed seeds compiled READY and died at run time on a missing
+  `inputs.item`: "once all three are done" over a read brief and "pour chaque
+  ligne de niveau critique" over a read CSV both declared an input no run could
+  supply. The item is the material of an invocation only when the request
+  supplies none. Two obligations that input was hiding are now asked instead
+  of dropped: an outbound effect stated inside a distributive trigger's own
+  sentence ("for each critical row, send a POST") repeats per item, which one
+  workflow does not build yet, and several files bound to one drafted text
+  would receive identical content. Both end INCOMPLETE with a diagnostic that
+  names the gap, never READY on wrong content.
+- **A question is a conversation, never a rule read whole.** « Which ending
+  is gentler? » compiled to an incomplete asking for the jq of that sentence
+  because the headless clause consulted the closed rule grammar, which knows
+  « which » as a relative and « is » as a copula. A headless clause that
+  asks (closed by `?`, or led by an interrogative in EN, FR, IT or ES) is
+  never handed to the grammar; it falls to the conversation with the
+  clarification alone. A headed request keeps its meaning whatever its
+  mark.
+- **The language-step cap is sized from the catalog on a reasoning seat.**
+  A structured draft on `openai/gpt-5-mini` died on `NIKA-INFER-002` because
+  the reasoning trace ate a `max_tokens: 1200` cap before any answer was
+  visible. The assembler knows the seat at Ready and reads the catalog
+  there: a catalog-known reasoning seat gets at least 4096 on every language
+  step (validate · extract · classify · per-record classify · draft ·
+  per-item draft); any other seat, and `mock`, keeps the step's own cap. A
+  cap is a ceiling the run never exceeds, never a spend.
+- **A truth value matches the boolean and its spelling; a quantified set the request never
+  locates is asked for, never invented as an input.** « explicito == false » compared a
+  boolean column to the string `"false"` and jq kept no row, so the run was green on an
+  empty file: a truth word in six languages (`false`, `faux`, `falso`, `falsch`, `vero`,
+  `wahr`, `verdadeiro`…) now compares as `(.f == false or .f == "false")`, whichever way the
+  file encodes it. « For each invoice, extract … » with no file, folder, URL, search or
+  record named compiled to a program with a required `inputs.item` the run could not supply;
+  the compiler now asks where the items live (`const.source_glob`) and fans out over the
+  answer. An arriving item (« each incoming brief », « chaque nouveau ticket ») is the
+  material of one invocation and stays the item, as before.
+- **A stated approval now holds its effects to a human's typed yes.** Both approval laws
+  (Law 3, an approval the reader binds to an effect, and Law 3b, a final approval it binds to
+  none: « prépare son envoi à … · demande-moi avant de l'envoyer ») accept an approved effect
+  only when its own `when:` affirms the answer of a confirm `nika:prompt` whose output it
+  binds whole, judged with the analyzer's refusal substitution (Check's affirmative-consent
+  reading, NEP-0020): false on a « no » and on a skipped prompt, not dead on a « yes ». An
+  `after:` wait, a guard a « no » or a skip passes (`== false`, `!`, `||`, `!= false`), a
+  quoted name, an unrelated binding, a derived value, a choice or input prompt, a
+  `default: true`, an `on_error:` or a fan-out on the prompt are refused as APPROVAL ORDER;
+  no prompt is MISSING APPROVAL. A stated final gate is no longer called INVENTED GATE over
+  the final effects, and still is over an earlier one. An `mcp:` tool, a process, a child
+  workflow or an agent with effect tools, whose effect the compiler cannot read, is held to
+  the same guard or refused as APPROVAL UNPROVEN. `nika-check-analyzer` gains
+  `gates::human_confirm` and `gates::affirmed_by`.
+- **Refresh the converged authoring API snapshots.** Record the canonical Ubuntu renderings for shared knowledge loading, Session decision routing, authoring limits and fidelity checks, preserving the existing CLI-host knowledge re-export. The snapshots use nightly-2026-08-24 and cargo-public-api 0.51.0 from the public-api CI artifact.
+- **Short DeepSeek JSON calls use low thinking effort by default.** On
+  catalogued routes with effort control, a structured request capped at
+  8,192 output tokens or less asks for low effort, leaving the same finite
+  token limit and cost admission in place. Explicit caller settings win;
+  other routes and ordinary text generation retain their defaults.
+- **Current DeepSeek drafts reserve room for reasoning.** Recognize the
+  default thinking mode of the exact DeepSeek `deepseek-v4-pro` and
+  `deepseek-flash` API models. Generated language steps now use the existing
+  reasoning token floor, leaving room for the structured answer instead of
+  applying the smaller plain-chat budget. Legacy aliases and gateway routes
+  keep their separate capability and cost-admission rules.
+- **Allow bounded reasoning output.** Compiler-generated inference limits allow 16,384 output tokens for catalog-known reasoning models, bounded by model capacity and run admission. Explicit task limits stay unchanged; structured summaries have room to complete after reasoning.
+- **The `group.<name>` fan-in fold resolves at run time.** A task declaring
+  `group: probes` joined the checker's `fan-in` edges and scheduled its
+  consumer after every member, but the runtime bound no `group` root, so
+  every `${{ group.probes }}` binding died at the boundary with
+  `NIKA-VAR-001` — `nika check` green, `nika run` red. The `with:` renders
+  now bind the declared membership and the fold reads one array of member
+  records `{ id, status, output, duration_ms, error }` in declaration order;
+  a member without a settled record keeps the read loud instead of folding
+  a smaller array.
+- **A harness probe takes its wrapper's grandchild with it.** `nika doctor`
+  (and every census) probes the `codex` seat through its npm wrapper
+  (`node …/bin/codex-acp -c model=…`), which forks the real adapter binary
+  as a grandchild; the probe killed the wrapper alone and the grandchild
+  lived on. Measured 2026-09-22 on a machine whose editor extension polls
+  `nika doctor`: ~1.7 orphaned `codex-acp` per second, the process table
+  full within the hour (« fork: Resource temporarily unavailable » for
+  every shell). Every probe child is now its own process group and the
+  group ends with the probe, on every path (the handshake answer read, a
+  timeout, an exit); a test forks a `sleep 600` grandchild behind a fake
+  wrapper and proves it is gone after the probe.
+- **Preserve CSV headers during native authoring.** Native authoring now receives the existing CSV column-order parameter and the instruction to preserve observed headers when filtering rows.
+- **Preserve other outputs during destination revisions.** A conversational destination replacement can recall an unchanged secondary output. The compiler records a replacement only when the complete candidate preserves every other value and task; an exact substitution no longer needs a model-written gap or a redundant repair call. Native revision guidance treats the change as an update to the original request. A structurally replaced path explicitly recalled in the change stays a pending business decision; document equality alone does not prove that the user meant to replace it. Revision prompts identify reader observations instead of imposing superseded destinations, and a duplicated write of the same content triggers repair rather than passing as a replacement.
+- **A seat the catalog limits to `json_object` is asked only for that.**
+  The OpenAI-compatible wire forwarded `response_format: json_schema`
+  verbatim and DeepSeek refused it at the door (HTTP 400, no token sampled),
+  so the seated compile never answered. The wire now reads the catalog's
+  per-model `json_mode`: `Object` sends `json_object` with the schema
+  rendered into the last user turn and a generic instruction that every
+  enum, every required property and nothing outside the schema is the law;
+  `Unavailable` sends no `response_format`; `Schema` or an absent fact keeps
+  the native mode. Enforcement stays local, in the verb's gate and the
+  compiler's decoder.
+- **A model the seat prices is the seat's own model.** `openai/gpt-4o` was
+  refused at check as « not an openai model, served by azure » because the
+  wrong-seat rule consulted only each provider row's short model list. The
+  rule now asks the pricing snapshot first: a model the seat prices is never
+  a wrong seat, while `groq/grok-3` stays one.
+- **The transport backs off on a rate-limited or overloaded seat, on the
+  run's declared clock.** A 429, 503 or 529 means nothing answered and
+  nothing was billed, so the provider layer re-sends the identical request
+  at most three times (`Retry-After` honoured up to 30 s, from the header
+  or Gemini's body-level `RetryInfo`, else 1 s · 2 s · 4 s), never on
+  another 4xx, an exhausted quota, a dropped connection, another 5xx or a
+  schema failure; the error surfaces unchanged past the bound so an
+  authored `retry:` may still fire. The sleep rides the kernel clock seam:
+  the composition injects the run's declared clock, so `run: { clock:
+  virtual }` and a seeded run never sleep real seconds. Each attempt is
+  boxed so a workflow invoking a workflow fits its stack.
+- **Provider quota exhaustion is terminal and sanitized.** Shared HTTP failures
+  retain safe status, recognized code/type and Retry-After metadata, distinguish
+  exhausted credit from transient rate limits, and discard raw provider prose.
+  Usage and billing remain unknown on failures; existing strict wire schemas
+  are unchanged. Hermetic tests cover buffered and streaming rejection paths.
+- **Publish large release notes.** Large releases link their complete tagged changelog when it exceeds the release-page allowance, preserving the full record while leaving room for GitHub's generated pull request index. This prevents draft creation from failing after an immutable version tag has already been pushed.
+- **Unknown-cost Run approval covers bounded structured sequences.**
+  Explicit unknown-cost Run approval now supports bounded sequential
+  structured inference with project-file input and output. Check and Run
+  share the request-bound analysis, including schema repair calls, while
+  filesystem containment, current consent and per-request admission remain
+  enforced.
+- **An activation's value waits on its own prompt.** While « activate »
+  asks the time zone, the missed policy or the ceiling, the plain loop
+  printed `nika ›` and the renderer showed a free prompt, as if nothing
+  waited; the runtime now exposes the waiting key (`pending_activation`),
+  both shells read it (`reply ›` · a Question wait) and the status line
+  says « Needs one value to declare the schedule · `project.timezone` ».
+- **An answer and a restatement climb the same ladder as the request.**
+  Under a provider seat, a request the seat could not settle was read by
+  the provider's stronger model before Nika said what it could not
+  express; an answered question or a clause restated in words was
+  compiled once and settled as it came (« the request names no operation
+  I can read »). Both now climb the same ladder.
+- **An unpriced cloud model is refused at the question, in words.** When
+  the compiler asks which model runs the language steps and the answer
+  names a cloud model Nika's catalog does not price (the seat an empty
+  line takes included), the session says so at once — « `deepseek/
+  deepseek-flash` is not priced in Nika's catalog: a run under a spending
+  ceiling would refuse it (NIKA-1709) · priced for `deepseek`: … » — and
+  the question keeps waiting, instead of a saved and checked workflow
+  whose first run refuses. A local engine is unpriced by nature and
+  passes; a line that is not a model is left to the compiler.
+- **A change is applied by restating the request; new work always reaches
+  the seat.** At the consent prompt a change (« actually write it to
+  ./out/copie-2.md instead ») is applied by restating the request with the
+  change — one bounded call to the chosen intelligence, shown as « read
+  as: « … » » beside the new proposal so a paraphrase can be corrected —
+  and reading it again through the same door; the Meaning delta says what
+  changed. A request the deterministic reader did not recognise but the
+  route calls new work goes to the authoring seat whether or not it names
+  files; without a seat the first screen is asked in context and the line
+  is kept — never a conversational plan that nothing builds.
+- **A failed route keeps its reason.** When the session's intelligence could
+  not read a line (a failed call, a blank answer) the route said « Failed »
+  and nothing else: an outage read as a night of UNKNOWN outcomes with no cause on
+  any receipt. The decision keeps the failure's own words now (bounded),
+  `/details` shows them beside the route, and the routing receipts carry them.
+- **A gate lists every task it holds back, at any depth.** The aside beside a
+  paused run (« what your answer lets happen ») listed the gate's direct
+  dependents only: behind « gate → format → send » the human saw the
+  formatting and never the send. It now lists the closure — every task that
+  follows the gate through an `after:` edge or a `with:` binding, and every
+  task that follows one of those — in the workflow's order. Two effects
+  behind one gate are both shown (acceptance A10).
+- **A reply is words only, and the identity says so.** A line read as
+  conversation was answered « Je vais d'abord lire le fichier … Je lance
+  la lecture », a promise a reply cannot keep. The seventh law: from a
+  reply Nika cannot read, run or start anything, never says it will, and
+  when the human asks for work it says how to ask for it.
+- **A rule the compiler can only ask as code is asked in words, never as
+  code.** « Read ./sales.csv, compute the total and write it to
+  ./total.txt » reached the human as « Which jq expression implements
+  `the total` over the input object … » (the morning audit's case B:
+  accepted unvalidated, then a run failure at `compute`). The session now
+  asks the clause in words (« One thing I need from you, in words: how to
+  do « the total » … your words take the place of « the total » in your
+  request and Nika reads it again. No code is needed »); the answer
+  replaces the quoted clause in the request and the compiler reads it
+  again (« the total of the amount column » → Ready). A clause that stays
+  code after the words, or one the request does not carry as quoted, is an
+  honest incomplete that names the way on (« it would need a rule I can
+  only write as code, and I never ask you for code »); the round is
+  dropped, nothing written. `AuthoringRound` gains `restatements` (bounded
+  to one).
+- **A seat that cannot answer is never offered as an intelligence.** The
+  first screen used to list every AI app installed and signed in
+  (`gemini-cli` · `claude-code` · `kimi-code` · `qwen-code`) under « Use an
+  AI app I already have », and a kept choice on one of them failed at the
+  first conversation line with the harness's own refusal (« seat gemini-cli
+  is not infer-grade for text ») wrapped in a recovery card whose headline
+  was doubled (« I couldn't use I couldn't use … for this part for this
+  part »). The census now carries whether Nika can get an answer through a
+  seat (the same infer-grade admission `nika run` applies; `codex` today):
+  an app seen but unable to answer is named as such on the screen (« seen
+  but not usable here yet »), refused when named (`1 gemini-cli`) with the
+  ways on this machine holds (the API keys present · the local engines
+  reachable · install Codex), and a kept choice on it opens the session
+  with the problem on the banner. The first line that needs an
+  intelligence under such a choice — a conversation line, or work the
+  reader cannot settle alone — is kept and the first screen asked in
+  context with the reason and the ways on; the app is never called; a
+  choice that answers resumes the very line and the kept choice moves to
+  it. The recovery card's headline reads once (« I couldn't use mistral API
+  (the conversational intelligence) for this part — … »).
+- **Session bounds reasoning labels explicitly.** Session gives
+  catalog-known reasoning models a finite 4,096-token label allowance,
+  preserving monetary admission and explicit infer limits without retries or
+  provider fallback. Ordinary and unknown models retain 1,024 tokens.
+- **Whole file names and explicit model choice.** Copy authoring preserves quoted Unicode paths, asks for a missing destination, and retains an explicitly selected authoring model. The intelligence chooser accepts an explicit provider/model or engine/model selection and rejects trailing input it cannot interpret.
+- **Keep the current request in recovery.** A greeting no longer becomes the automation goal shown after an authoring refusal. Recovery retains the current work and its budget guards; a failed conversation keeps its own words without replacing the saved automation goal.
+- **One admission allowance across Session cognition.** Session inference now reserves catalog-priced exposure before each supported native request and keeps one allowance across routing, conversation and authoring. Missing, contradictory or duplicate usage fields retain an unknown charge instead of permitting another paid attempt. Gate answers and workflow Run ceilings cannot reset that allowance; reopening a session conservatively refuses fresh paid work when prior exposure cannot be recovered.
+- **Interrupted Session inference keeps its monetary exposure visible.** A
+  Session request under an explicit monetary account that may be in flight
+  is now recorded before it can leave: `.nika/session-state.json` carries a
+  line saying the request may have been sent and billed, and only the write
+  after its settlement removes it. A session that leaves during the call
+  (two `Ctrl+C`) restores with that exposure and replays nothing. Its
+  refusal now names the supported way on: restate a saved workflow's Run
+  with an explicit ceiling. The conversation history records the same
+  uncertainty when a call ends without usable settlement.
+- **A lease held for a fork window is not a foreign owner.** The
+  conversation history's lease is a BSD flock; a sibling thread forking a
+  run duplicates the descriptor until the child's exec closes it, so a
+  second opener a few milliseconds early was refused as if another human
+  held the project. `History::open` now waits a bounded grace (250 ms in
+  5 ms steps) on `WouldBlock`; a lease still held past it is refused with
+  the same message.
+- **Priced Session calls remain visible without a budget.** A Session on a
+  priced route with no budget no longer spends invisibly. Every call it
+  makes (conversation, labels, routing, authoring, revisions) is observed
+  without any allowance or cap: `.nika/session-state.json` says a request
+  may have been sent before it leaves, then keeps its usage and catalog
+  estimate, or says its charge is unknown. `/status` shows the no-budget
+  observation, and a later explicit budget never counts those calls as
+  covered. The chosen model still answers with no ceremony, but each call is
+  now bounded (an explicit output limit, one attempt, no automatic retry or
+  redirect), and a reply whose usage contradicts the catalog is refused. A
+  restart names an interrupted call, replays nothing and asks for no
+  reconfirmation.
+- **The Session's seat is told the project, and its budget and review are one
+  bound.** A seated Session compile (a fresh request, its answer rounds, a
+  revision) now attaches the same bounded project observation `nika compile`
+  uses (`compile::observe::world`, now public): the header columns, keys and
+  short categorical values of the files the request names — every column, not
+  only the ones the words mention — observed under the Session's own project
+  root for the intent the compiler reads (a revision reads its base request
+  and its change). Containment is judged on the real location: a file or a
+  folder reached through a link that leads outside the project is reported
+  `outside_project` and never read, for `nika compile` and the Session alike.
+  The Session's authoring policy is aligned with its quality-first mandate: a
+  32768-token hard ceiling, a 16384-token first native generation that a
+  reported truncation widens with one of its three repairs (never a transport
+  retry), and 180 seconds per call. A fresh unknown-cost review built for the
+  Session now admits exactly what one authoring turn may send — seven requests
+  (the turn's classification, the COLD plan and its evidence repair, the native
+  candidate and its three repairs), each at most 32768 output tokens and 180
+  seconds — and says so; a Run review keeps its 8192 tokens and 120 seconds per
+  request, and a numeric allowance is unchanged: it still reserves each call at
+  its full catalog ceiling and admits only what it covers. When authoring
+  fails on Nika's side the card names the precise cause (a cut answer is named
+  as the model's output limit, not the request) and keeps the request, the base
+  and the change: it no longer asks to rewrite the request, split it in two, or
+  describe the whole automation again.
+- **A pasted burst on the plain session is one datum.** « yes ⏎ run it ⏎
+  /quit » pasted at the consent prompt applied the proposal, ran it and
+  left in one gesture (the live campaign's X13 case). The plain loop has
+  no paste bracket, so it reads the line discipline's tell: when the next
+  complete line is already waiting the instant the first was read, nobody
+  typed it; the lines join as one datum (line ends become spaces) — one
+  line that is not a consent, and the proposal still waits. Best effort:
+  a paste the terminal delivers in slow pieces can still split. The
+  renderer keeps its bracketed-paste law unchanged.
+- **`/proof` reads the chain right on a machine without the signing
+  key.** Where `nika trace verify` exits 3 because the seal cannot be
+  judged (no key custody: CI, another operator), the proof view said
+  « chain · not judged » on the same line that reported the chain
+  intact. The chain line is now the judge's first line whatever the
+  exit; the seal line says « not judged on this machine » when the judge
+  prints no seal tier.
+- **Leaving is always one line away, and a stray `yes` is refused.** `/quit`
+  at the consent prompt was answered « that line is not a consent » and the
+  human could not leave without killing the process; it now drops the
+  proposal (nothing written) and closes, as it does at the first screen
+  (no choice made) and at a human gate (the gate keeps waiting in its
+  trace and in the record). A bare `yes`, `ok`, `oui`, `no` or `non` with
+  nothing pending was sent to the compiler as work (« I read this as work
+  but cannot build it yet »); it is now refused as a wrong state — a
+  proposal asks `apply? ›` first — and never reaches a model.
+- **Keep a pending draft when quitting its review.** `/quit` and `/exit` from a proposal now use the ordinary close boundary: previous consent expires, while reopening can offer the exact draft for fresh review and explicit save without another model call.
+- **The review names the reach the bytes declare.** The consent surface
+  read only the check's inferred floor, which leaves a loopback host out by
+  design, so a webhook to `127.0.0.1` rendered « external effects · none ».
+  The review now joins what the candidate's permits declare (`net.http`
+  hosts, the exec grant) with the inferred floor, shows a declared host the
+  floor does not carry, and says when a face could not be pinned instead of
+  folding it into « none ». The human accepts the bytes; the bytes are the
+  boundary.
+- **Answer a revision's clarification before saving.** Session retains the exact base, change and original request while a revision asks a question, then replays its candidate with the answer. The earlier proposal cannot be saved while that question waits; cancellation restores it, and Save remains separate from Run. Rust callers constructing the private foundation's `AuthoringRound` directly should use `AuthoringRound::new` instead of a struct literal, as revision state is now internal.
+- **Conversational revisions preserve the original request.** Session keeps
+  the request, workflow and raw change together through the compiler edit
+  door. If the edit cannot settle, it keeps the previous proposal or saved
+  workflow instead of generating afresh from a model paraphrase.
+- **Keep explicit Run ceilings separate from Session inference.** A closed Run request validates its own spending decision without amending the conversation account; a missing or invalid Run ceiling does not install a persistent Session restriction. Existing zero allowances, unknown charges and restart restrictions remain in force for cognition.
+- **Clear stale Run evidence when saving a proposal.** Saving a new workflow proposal clears the previous workflow’s Run status, including when the saved path is reused. Save no longer appears to have executed the newly saved bytes.
+- **The conversation and the authoring seat ride the provider client.**
+  The session's reasoner and its authoring seat built the FETCH client
+  (`ReqwestHttp::new`: SSRF enforced, 30 s), not the engine's provider
+  client (`nika_runtime::compose`: SSRF off on purpose, the transport
+  ceiling): a local engine on `127.0.0.1` (`ollama` · `lmstudio` · …) or a
+  seat behind a loopback endpoint answered « SSRF blocked » at the first
+  conversation line, and a long local answer was cut at 30 s. The two paths
+  now build the provider plane's client (SSRF disabled — the endpoints come
+  from the fixed provider profiles, never from workflow data — and the
+  600 s transport ceiling; the per-request deadline stays the wire layer's).
+  The stalled-seat scenarios (a loopback endpoint that accepts and never
+  answers) were false passes until now: the call failed at once and the
+  recovery card's « say it again » satisfied the needle; they stall for
+  real and prove the door leaves at once on `Ctrl+C` twice and `SIGTERM`.
+- **The proposal's Does list says what a builtin does, never its id.**
+  « parse_source · nika:jq » read as machine words to the human who asked
+  for a brief; the review says « shapes the data », « reads a file »,
+  « checks a condition », « asks a human », and `/show` keeps the bytes.
+  An MCP tool or a builtin newer than the list keeps its id.
+- **The escalation knows Gemini and never crosses a gateway; the delta
+  lists what stayed.** A Gemini flash seat that cannot settle a request
+  escalates once to Gemini pro; a seat served through an OpenAI-compatible
+  gateway (a base URL override) escalates nowhere, and the card says what
+  stopped it instead of a 404. A revision's Meaning delta lists the clauses
+  kept as they were beside the added, dropped and changed ones, when they
+  are few.
+- **The failure card names the seat it failed on.** « provider endpoint or
+  model not found (HTTP 404) » said nothing about which model at which host;
+  through a gateway it was the provider's default the gateway does not serve.
+  The card now carries « seat: openai/gpt-5.2 · through api.scaleway.ai » (the
+  authoring seat's model, the gateway host when the base URL is overridden).
+- **The failure card says its headline once.** When the authoring model or
+  seat could not answer, the card read « I couldn't use I couldn't use the
+  authoring model for this part for this part — … »: the recovery template
+  wrapped its own « I couldn't use … for this part » around a caller that
+  already said it. The caller's words are the headline now; the template
+  adds the reason, what is kept, what did not happen and the ways on.
+- **The first screen takes a model with the provider.** « 2 openai/gpt-oss-120b »
+  was read as a provider named « openai/gpt-oss-120b » and the call went out
+  as model « default »: a human who wanted a gateway row or a cheaper seat
+  could not say so. The name splits now: the provider before the slash, the
+  model kept whole (`openai/gpt-oss-120b`), for an API (2) and a local engine
+  (3); « 2 mistral » still takes the provider's default.
+- **The gap card never says « rephrase ».** Under « I read this as work but
+  cannot build it yet », the hint said « rephrase with what to read, what to
+  produce and where to write it »; it says « say what to read, what to produce
+  and where to write it » now, the words the pack allows.
+- **The intelligence screen names the gateway the bytes go to.** When a
+  provider's base URL is overridden (an OpenAI-compatible gateway such as
+  Scaleway's, a local server), the first screen lists « openai (through
+  api.scaleway.ai) » and the locus line reads « openai-compatible gateway ·
+  api.scaleway.ai · metered · project context you ask Nika to reason over is
+  sent to api.scaleway.ai, not to openai » — where the data goes, said
+  before the first provider-bound request.
+- **The route, read against its own evidence (four quick wins).** Without
+  any intelligence, a question about the pending question (« what
+  happens if I leave it empty? ») is explained, not bound as its answer —
+  a trailing `?` decides only in that fallback, a hint never a veto.
+  `/details` lists the routes decided this session (phase · act · how ·
+  the line's hash). « ● reading your line » is said while the
+  intelligence routes an open line. The label call rides its own ceiling
+  (1024 tokens, temperature 0) so a thinking model can reason inside it,
+  and an intelligence that fails or answers blank is a FAILED route said
+  in its own words (« the intelligence could not read it — say it again,
+  or in other words »), never « no intelligence is available ».
+- **The seat is never refused at the model question.** When the compiler
+  asked which runtime model should run the language steps and offered the
+  seat (« Enter takes your seat »), taking it was refused as unpriced
+  whenever the seat's name has no catalog price (a gateway model, a legacy
+  name the vendor still serves), and the question looped. The seat the
+  human chose on the first screen passes; another unpriced cloud model is
+  still refused in words; the priced hint now names models as the reasoner
+  speaks them (`deepseek/deepseek-flash`, never a catalog row id).
+- **The seat's offer says before Enter when the seat is unpriced.** Under
+  the model question, « Enter takes your seat `…` » carried no price; the
+  human took an unpriced seat, saved a clean proposal and heard NIKA-1709
+  for the first time at « run it ». The offer now says « is not priced in
+  Nika's catalog: a run under a spending ceiling would refuse it
+  (NIKA-1709) » with the priced models of the provider. Enter still takes
+  the seat.
+- **What stopped an authoring, in words.** The compiler's fidelity
+  reasons (« Candidate 0 is not feasible: dropped the recognized operation
+  `draft` … », « the literal `00` is not in the request ») are said at the
+  human's level: what the draft lost (« the draft lost « draft a short
+  brief » (the draft step) »), what it dropped (« nothing reads or writes
+  it any more »), what it invented (« a value (« 00 ») your request never
+  gave »). Other reasons stay as the compiler said them.
+- **A run refused before its first frame names its reason inside the
+  viewport; the terminal's title returns; `Tab` on an empty composer
+  lists the commands.** In the renderer a run refused at check (a
+  workflow with no `permits:` block) or before the start (`NIKA-1709`, a
+  file that cannot be read) showed only « run observed · exit 2 »: the
+  machine lane prints those refusals as the check verdict document or the
+  error envelope, lines without a `kind` the story dropped. The story now
+  folds them into one line (« ✖ refused before the start · [NIKA-AUTH-006]
+  invoke `nika:read` … · 1 more finding(s) — `nika check` lists them »,
+  « ✖ refused · NIKA-1709 · … »). The title (`nika · <project>`) was set
+  and never restored: the previous title is pushed on the terminal's
+  stack (`CSI 22;0 t`) before ours and popped (`CSI 23;0 t`) by the same
+  restore the panic hook and every exit path run. `Tab` on an empty
+  composer shows every command in the hint row and inserts nothing. The
+  lane's story fold and the child driver gain unit tests (a `/bin/sh`
+  child proves the fold, the exit code, the trace and the pid slot).
+- **A failed provider call names the seat, the wait and the fix.** Under
+  the one spec code `NIKA-INFER-001` the infer verb now reads a failed call
+  in three shapes: the transport's bounded backoff spent on a rate-limited
+  or overloaded seat (the seat, the round-trips and the wait, still
+  transient for an authored `retry:`); a schema refused at the door while it
+  travelled natively (the seat, the wire, the provider's own identifiers,
+  and the fix: simplify the schema or seat a model the catalog lists with
+  `json_mode: schema`; the reply was never sampled); everything else as
+  before. On success the receipt carries the transport's account
+  (attempts, waited, statuses), summed across schema-repair round-trips
+  like usage is.
+
+### Security
+
+- **Refuse credential-bearing and cleartext refund endpoints.** The
+  bounded support composition rejects a refund endpoint whose query
+  carries a credential-like parameter (`api_key`, `token`, `secret`,
+  `sig`, `auth`) and a plain `http` destination other than a loopback
+  development host, so a literal URL can never smuggle a secret into the
+  workflow or POST a refund in cleartext.
 ## [0.120.3](https://github.com/supernovae-st/nika/compare/v0.120.2..v0.120.3) - 2026-09-19
 
 ### Added

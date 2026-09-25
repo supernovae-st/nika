@@ -57,7 +57,7 @@ fn check(yaml: &str) -> (i32, String) {
 
 /// The one row the catalog has carried since the first sourced figure
 /// entered (2026-07-29 · ml.energy) — the measured-model fixture.
-const MEASURED_MODEL: &str = "groq/qwen/qwen3-32b";
+const MEASURED_MODEL: &str = "openrouter/qwen/qwen3-32b";
 
 fn wf(model: &str, max_tokens: Option<u32>) -> String {
     let cap = max_tokens.map_or(String::new(), |n| format!(", max_tokens: {n}"));
@@ -142,7 +142,7 @@ fn uncapped_task_yields_no_total_ceiling() {
 #[test]
 fn an_empty_for_each_claims_no_energy_and_agrees_with_cost() {
     let (code, text) = check(
-        "nika: zero\nmodel: groq/qwen/qwen3-32b\n\
+        "nika: zero\nmodel: openrouter/qwen/qwen3-32b\n\
          const:\n  nothing: []\ntasks:\n  brief:\n    \
          for_each: { items: \"${{ const.nothing }}\" }\n    \
          infer: { prompt: \"hi\", max_tokens: 1000 }\n",

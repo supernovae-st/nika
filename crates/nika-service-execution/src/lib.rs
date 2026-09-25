@@ -45,6 +45,7 @@ use nika_runtime::compose::{
 use nika_runtime::{EventSink, InputOrigin, RunOutcome, RunSeams, RuntimeError, Stamper};
 
 pub mod access;
+pub mod run_cost;
 
 pub use nika_providers::ExecutionAccessPlan;
 
@@ -307,12 +308,42 @@ impl ServiceExecutionDriver {
     /// Returns [`ComposeError`] when the production HTTP or sandbox seams
     /// cannot be built under the workflow's declared capabilities.
     pub fn compose(&self, default_model: &str) -> Result<AuthorizedRuntime, ComposeError> {
+        self.compose_configured(default_model, None)
+    }
+
+    /// Compose using a host-bound inference account; does not change execution grants.
+    /// Library/service hosts remain responsible for actual cap evidence and fresh review.
+    /// # Errors
+    /// Production composition failures.
+    pub fn compose_with_config(
+        &self,
+        default_model: &str,
+        config: nika_runtime::RuntimeConfig,
+    ) -> Result<AuthorizedRuntime, ComposeError> {
+        self.compose_configured(default_model, Some(config))
+    }
+
+    fn compose_configured(
+        &self,
+        default_model: &str,
+        config: Option<nika_runtime::RuntimeConfig>,
+    ) -> Result<AuthorizedRuntime, ComposeError> {
         let caps = nika_runtime::compose::capabilities_of(&self.workflow);
-        let runtime = self.base_runtime(
-            default_model,
-            caps,
-            self.workflow.run.as_ref().map(|run| &run.value),
-        )?;
+        let run = self.workflow.run.as_ref().map(|run| &run.value);
+        let runtime = match config {
+            Some(config) => nika_runtime::compose::production_runtime_with_emitter(
+                default_model,
+                caps,
+                run,
+                match self.surface {
+                    DriverSurface::Service => nika_runtime::compose::StderrEmitter::metadata_only(),
+                    DriverSurface::Local => nika_runtime::compose::StderrEmitter::default(),
+                },
+                self.display_root.clone(),
+                Some(config),
+            )?,
+            None => self.base_runtime(default_model, caps, run)?,
+        };
         let raw_sha = sha256_hex(self.root_source.as_bytes());
         let lf_sha = sha256_hex(lf_normal_form(&self.root_source).as_bytes());
         let runtime = runtime

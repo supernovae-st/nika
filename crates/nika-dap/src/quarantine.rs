@@ -50,6 +50,7 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
+use nika_event::settlement::RunState;
 use nika_runtime::{RunOutcome, TaskStatus, TerminalCause};
 use nika_schema::raw::{RawAction, RawInvokeTarget, RawWorkflow};
 
@@ -59,8 +60,8 @@ use nika_schema::raw::{RawAction, RawInvokeTarget, RawWorkflow};
 const WRITER_TOOLS: [&str; 2] = ["nika:write", "nika:edit"];
 
 /// The quarantine effect for one settled run, folded for the seal's
-/// `covers` — `None` unless the run FAILED (terminal verdict not ok ·
-/// not paused; a killed run never reaches teardown) AND at least one
+/// `covers` — `None` unless the run settled FAILED (a cancelled run
+/// keeps its confirmed effects for resume) AND at least one
 /// Success-settled writer/edit task left an output path. `journal` is
 /// the run journal's path once the `TraceFileSink` opened one: its
 /// file stem IS the run-stamp (the honest run identifier the first
@@ -75,8 +76,11 @@ pub fn attend(
     outcome: &RunOutcome,
     journal: Option<&Path>,
 ) -> Option<serde_json::Value> {
-    if outcome.ok || outcome.paused.is_some() {
-        return None; // a clean run attests nothing (absent is honest)
+    // ADR-128: the typed settlement owns the terminal state. Operator
+    // cancellation is not failure; moving its completed writes would leave
+    // resume cache hits pointing at files the teardown itself removed.
+    if outcome.settlement.state != RunState::Failed {
+        return None;
     }
     let paths = written_paths(wf, outcome);
     if paths.is_empty() {
@@ -245,6 +249,7 @@ mod tests {
 
     use std::collections::BTreeMap;
 
+    use nika_event::settlement::{RunCause, RunSettlement};
     use nika_runtime::{TaskRecord, TerminalCause};
 
     use super::*;
@@ -412,10 +417,7 @@ tasks:
 
     /// The lane gate: a COMPLETED run attests nothing even when writers
     /// settled (absent is honest — the no-fake-zero posture); a failed
-    /// run with no writer debt attests nothing either. (The paused arm
-    /// of the same early-return rides `outcome.paused.is_some()` —
-    /// `WorkflowPause` is non-exhaustive and unconstructible here; the
-    /// clause is the same boolean.)
+    /// run with no writer debt attests nothing either.
     #[test]
     fn attend_folds_only_for_a_failed_run_with_debt() {
         let wf = parsed(WF);
@@ -423,7 +425,7 @@ tasks:
             "a",
             settled(TaskStatus::Success, serde_json::json!("one.txt")),
         )]);
-        ok.ok = true;
+        ok = ok.with_settlement(RunSettlement::new(RunState::Succeeded, RunCause::Normal));
         assert!(attend(&wf, &ok, None).is_none(), "a clean run: no key");
 
         let empty = RunOutcome::new(false, BTreeMap::new(), BTreeMap::new());
@@ -431,6 +433,32 @@ tasks:
             attend(&wf, &empty, None).is_none(),
             "a failed run with no debt: no key"
         );
+    }
+
+    /// Cancellation preserves resume checkpoints; actual task, budget and
+    /// output-contract failures retain the quarantine obligation.
+    #[test]
+    fn attend_uses_the_typed_run_state() {
+        let wf = parsed(WF);
+        for (state, cause, quarantined) in [
+            (RunState::Succeeded, RunCause::Normal, false),
+            (RunState::Paused, RunCause::HumanGate, false),
+            (RunState::Cancelled, RunCause::Operator, false),
+            (RunState::Failed, RunCause::TaskFailed, true),
+            (RunState::Failed, RunCause::Budget, true),
+            (RunState::Failed, RunCause::OutputContract, true),
+        ] {
+            // A nameless path exercises the gate without moving any file or
+            // creating a quarantine directory. The real CLI test owns files.
+            let outcome =
+                outcome_with(&[("a", settled(TaskStatus::Success, serde_json::json!("/")))])
+                    .with_settlement(RunSettlement::new(state, cause));
+            assert_eq!(
+                attend(&wf, &outcome, None).is_some(),
+                quarantined,
+                "quarantine eligibility for {state:?}/{cause:?}"
+            );
+        }
     }
 
     /// The moves: files land under the stamp dir named by file name; a

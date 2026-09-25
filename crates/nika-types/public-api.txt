@@ -449,11 +449,14 @@ pub nika_types::access::HarnessRuntime::display: &'static str
 pub nika_types::access::HarnessRuntime::id: &'static str
 pub nika_types::access::HarnessRuntime::not_installed: &'static str
 impl nika_types::access::HarnessRuntime
-pub const nika_types::access::HarnessRuntime::ALL: [Self; 5]
+pub const nika_types::access::HarnessRuntime::ALL: [Self; 8]
 pub const nika_types::access::HarnessRuntime::CLAUDE_CODE: Self
 pub const nika_types::access::HarnessRuntime::CODEX: Self
+pub const nika_types::access::HarnessRuntime::COPILOT: Self
 pub const nika_types::access::HarnessRuntime::GEMINI_CLI: Self
+pub const nika_types::access::HarnessRuntime::GROK_BUILD: Self
 pub const nika_types::access::HarnessRuntime::KIMI_CODE: Self
+pub const nika_types::access::HarnessRuntime::OPENCODE: Self
 pub const nika_types::access::HarnessRuntime::QWEN_CODE: Self
 pub fn nika_types::access::HarnessRuntime::acp_missing(&self) -> alloc::string::String
 pub fn nika_types::access::HarnessRuntime::lookup(id: &str) -> core::option::Option<Self>
@@ -990,13 +993,105 @@ pub unsafe fn nika_types::cost::Cost::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_types::cost::Cost
 pub fn nika_types::cost::Cost::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::cost::Cost where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_types::cost::InferenceCall
+pub nika_types::cost::InferenceCall::estimated_usd: core::option::Option<nika_types::cost::Cost>
+pub nika_types::cost::InferenceCall::pricing: core::option::Option<alloc::string::String>
+pub nika_types::cost::InferenceCall::request_id: core::option::Option<alloc::string::String>
+pub nika_types::cost::InferenceCall::requested_endpoint: core::option::Option<alloc::string::String>
+pub nika_types::cost::InferenceCall::response_model: core::option::Option<alloc::string::String>
+pub nika_types::cost::InferenceCall::route: core::option::Option<nika_types::cost::InferenceRoute>
+pub nika_types::cost::InferenceCall::usage: core::option::Option<nika_types::token_usage::TokenUsage>
+pub nika_types::cost::InferenceCall::usage_complete: bool
+impl nika_types::cost::InferenceCall
+pub fn nika_types::cost::InferenceCall::known_estimate(&self) -> core::option::Option<nika_types::cost::Cost>
+pub fn nika_types::cost::InferenceCall::new() -> Self
+impl core::clone::Clone for nika_types::cost::InferenceCall
+pub fn nika_types::cost::InferenceCall::clone(&self) -> nika_types::cost::InferenceCall
+impl core::cmp::Eq for nika_types::cost::InferenceCall
+impl core::cmp::PartialEq for nika_types::cost::InferenceCall
+pub fn nika_types::cost::InferenceCall::eq(&self, other: &nika_types::cost::InferenceCall) -> bool
+impl core::default::Default for nika_types::cost::InferenceCall
+pub fn nika_types::cost::InferenceCall::default() -> nika_types::cost::InferenceCall
+impl core::fmt::Debug for nika_types::cost::InferenceCall
+pub fn nika_types::cost::InferenceCall::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_types::cost::InferenceCall
+impl serde_core::ser::Serialize for nika_types::cost::InferenceCall
+pub fn nika_types::cost::InferenceCall::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::cost::InferenceCall
+pub fn nika_types::cost::InferenceCall::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::cost::InferenceCall where U: core::convert::From<T>
+pub fn nika_types::cost::InferenceCall::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::cost::InferenceCall where U: core::convert::Into<T>
+pub type nika_types::cost::InferenceCall::Error = core::convert::Infallible
+pub fn nika_types::cost::InferenceCall::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::cost::InferenceCall where U: core::convert::TryFrom<T>
+pub type nika_types::cost::InferenceCall::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::cost::InferenceCall::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::cost::InferenceCall where T: core::clone::Clone
+pub type nika_types::cost::InferenceCall::Owned = T
+pub fn nika_types::cost::InferenceCall::clone_into(&self, target: &mut T)
+pub fn nika_types::cost::InferenceCall::to_owned(&self) -> T
+impl<T> core::any::Any for nika_types::cost::InferenceCall where T: 'static + ?core::marker::Sized
+pub fn nika_types::cost::InferenceCall::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::cost::InferenceCall where T: ?core::marker::Sized
+pub fn nika_types::cost::InferenceCall::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::cost::InferenceCall where T: ?core::marker::Sized
+pub fn nika_types::cost::InferenceCall::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::cost::InferenceCall where T: core::clone::Clone
+pub unsafe fn nika_types::cost::InferenceCall::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::cost::InferenceCall
+pub fn nika_types::cost::InferenceCall::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::cost::InferenceCall where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_types::cost::InferenceRoute
+pub nika_types::cost::InferenceRoute::endpoint: alloc::string::String
+pub nika_types::cost::InferenceRoute::model: alloc::string::String
+pub nika_types::cost::InferenceRoute::provider: alloc::string::String
+impl nika_types::cost::InferenceRoute
+pub fn nika_types::cost::InferenceRoute::new(provider: alloc::string::String, model: alloc::string::String, endpoint: alloc::string::String) -> Self
+impl core::clone::Clone for nika_types::cost::InferenceRoute
+pub fn nika_types::cost::InferenceRoute::clone(&self) -> nika_types::cost::InferenceRoute
+impl core::cmp::Eq for nika_types::cost::InferenceRoute
+impl core::cmp::PartialEq for nika_types::cost::InferenceRoute
+pub fn nika_types::cost::InferenceRoute::eq(&self, other: &nika_types::cost::InferenceRoute) -> bool
+impl core::fmt::Debug for nika_types::cost::InferenceRoute
+pub fn nika_types::cost::InferenceRoute::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_types::cost::InferenceRoute
+impl serde_core::ser::Serialize for nika_types::cost::InferenceRoute
+pub fn nika_types::cost::InferenceRoute::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::cost::InferenceRoute
+pub fn nika_types::cost::InferenceRoute::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::cost::InferenceRoute where U: core::convert::From<T>
+pub fn nika_types::cost::InferenceRoute::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::cost::InferenceRoute where U: core::convert::Into<T>
+pub type nika_types::cost::InferenceRoute::Error = core::convert::Infallible
+pub fn nika_types::cost::InferenceRoute::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::cost::InferenceRoute where U: core::convert::TryFrom<T>
+pub type nika_types::cost::InferenceRoute::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::cost::InferenceRoute::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::cost::InferenceRoute where T: core::clone::Clone
+pub type nika_types::cost::InferenceRoute::Owned = T
+pub fn nika_types::cost::InferenceRoute::clone_into(&self, target: &mut T)
+pub fn nika_types::cost::InferenceRoute::to_owned(&self) -> T
+impl<T> core::any::Any for nika_types::cost::InferenceRoute where T: 'static + ?core::marker::Sized
+pub fn nika_types::cost::InferenceRoute::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::cost::InferenceRoute where T: ?core::marker::Sized
+pub fn nika_types::cost::InferenceRoute::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::cost::InferenceRoute where T: ?core::marker::Sized
+pub fn nika_types::cost::InferenceRoute::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::cost::InferenceRoute where T: core::clone::Clone
+pub unsafe fn nika_types::cost::InferenceRoute::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::cost::InferenceRoute
+pub fn nika_types::cost::InferenceRoute::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::cost::InferenceRoute where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub struct nika_types::cost::SpendOnFailure
+pub nika_types::cost::SpendOnFailure::inference_calls: alloc::vec::Vec<nika_types::cost::InferenceCall>
 pub nika_types::cost::SpendOnFailure::model_resolved: core::option::Option<alloc::string::String>
 pub nika_types::cost::SpendOnFailure::tools_cost_usd: core::option::Option<f64>
 pub nika_types::cost::SpendOnFailure::usage: nika_types::token_usage::TokenUsage
 impl nika_types::cost::SpendOnFailure
 pub fn nika_types::cost::SpendOnFailure::has_signal(&self) -> bool
 pub fn nika_types::cost::SpendOnFailure::new(usage: nika_types::token_usage::TokenUsage, tools_cost_usd: core::option::Option<f64>, model_resolved: core::option::Option<alloc::string::String>) -> Self
+pub fn nika_types::cost::SpendOnFailure::with_inference_calls(self, calls: alloc::vec::Vec<nika_types::cost::InferenceCall>) -> Self
 impl core::clone::Clone for nika_types::cost::SpendOnFailure
 pub fn nika_types::cost::SpendOnFailure::clone(&self) -> nika_types::cost::SpendOnFailure
 impl core::cmp::PartialEq for nika_types::cost::SpendOnFailure

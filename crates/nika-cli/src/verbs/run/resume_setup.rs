@@ -47,6 +47,12 @@ pub(super) struct ResumeSetup {
 }
 
 impl ResumeSetup {
+    /// Attach durable replay protection only after Run monetary admission.
+    pub(super) fn bind_durable(mut self, output_json: bool) -> Result<Self, u8> {
+        self.paused = durable_paused(self.paused, output_json)?;
+        Ok(self)
+    }
+
     /// A fresh run (no trace to fold) — the answers ride in later.
     const fn fresh() -> Self {
         Self {
@@ -76,6 +82,21 @@ fn refuse_env(message: &str, output_json: bool) -> u8 {
 ///
 /// The exit code to return unchanged.
 pub(super) fn resume_setup(
+    resume: Option<&ResumeRequest>,
+    wf: &RawWorkflow,
+    source: &str,
+    model_override: Option<&str>,
+    access: (&nika_providers::ExecutionAccessPlan, Option<&str>),
+    output_json: bool,
+) -> Result<ResumeSetup, u8> {
+    validate_resume(resume, wf, source, model_override, access, output_json)?
+        .bind_durable(output_json)
+}
+
+/// Read, validate and fold the resume without opening or pruning durable claims.
+/// Run can reject a changed access lane before asking for spending authority.
+/// The returned setup must bind its durable replay protection before execution.
+pub(super) fn validate_resume(
     resume: Option<&ResumeRequest>,
     wf: &RawWorkflow,
     source: &str,
@@ -195,7 +216,7 @@ fn load_resume_plan(
     Ok(ResumeSetup {
         plan: Some(plan),
         answers: BTreeMap::new(),
-        paused: durable_paused(fold.paused, output_json)?,
+        paused: fold.paused,
         compat,
         unverified,
         // #1462 · the continuation link: this leg names the trace it folded.

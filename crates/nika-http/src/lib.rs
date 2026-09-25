@@ -157,6 +157,8 @@ impl NetBoundary {
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct HttpConfig {
+    /// Permit reqwest protocol-NACK retries (disable for metered inference).
+    pub retry_protocol_nacks: bool,
     /// Default request timeout (a per-request `timeout` wins).
     pub timeout: Duration,
     /// Maximum redirect hops followed (each hop re-checked). Counts
@@ -178,6 +180,7 @@ impl Default for HttpConfig {
         Self {
             timeout: DEFAULT_TIMEOUT,
             max_redirects: DEFAULT_MAX_REDIRECTS,
+            retry_protocol_nacks: true,
             max_response_bytes: DEFAULT_MAX_RESPONSE_BYTES,
             ssrf: SsrfMode::Enforce,
             net: NetBoundary::Unbounded,
@@ -289,6 +292,7 @@ impl ReqwestHttp {
             // resolver below. Proxy support is a future explicit
             // HttpConfig field — never ambient (crate docs · layer 3).
             .no_proxy();
+        builder = retry_policy(builder, &config);
         if config.ssrf == SsrfMode::Enforce {
             // Layer 3: range-check INSIDE the connect path. The resolver
             // carries the declared `permits.net.http` so a permitted exact
@@ -503,6 +507,10 @@ impl HttpGetDyn for ReqwestHttp {
 }
 
 impl HttpPostDyn for ReqwestHttp {
+    fn supports_single_attempt(&self) -> bool {
+        !self.config.retry_protocol_nacks
+    }
+
     /// Send a POST request (manual redirect loop · SSRF per hop · size cap).
     ///
     /// CANCEL SAFETY: NOT cancel-safe at the application layer — a
@@ -890,3 +898,15 @@ impl Stream for CappedStream {
 
 #[cfg(test)]
 mod tests;
+
+// Shared by production construction and the real protocol-NACK regression.
+fn retry_policy(builder: reqwest::ClientBuilder, config: &HttpConfig) -> reqwest::ClientBuilder {
+    if config.retry_protocol_nacks {
+        builder
+    } else {
+        builder.retry(reqwest::retry::never())
+    }
+}
+
+#[cfg(test)]
+mod admission_tests;

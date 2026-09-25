@@ -22,8 +22,12 @@ fn dry_run_help_names_the_budget_exemption_that_the_real_run_does_not_take() {
         "nika: budget-preview\nmodel: anthropic/claude-sonnet-5\ntasks:\n  say:\n    timeout: 2s\n    infer: { prompt: hi, max_tokens: 1000 }\n",
     )
     .expect("fixture");
-    let call = |args: &[&str]| {
-        Command::new(env!("CARGO_BIN_EXE_nika"))
+    // `canary_route` aims provider traffic at the owned canary. That override is an unpriced
+    // route: run cost admission refuses it before the budget floor, which judges only the
+    // provider's priced default route (no canary can observe it: the HTTP client ignores proxies).
+    let call = |args: &[&str], canary_route: bool| {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_nika"));
+        command
             .args(args)
             .env_clear()
             .env("PATH", "/usr/bin:/bin")
@@ -34,20 +38,24 @@ fn dry_run_help_names_the_budget_exemption_that_the_real_run_does_not_take() {
                 "ANTHROPIC_API_KEY",
                 "sk-ant-api03-budget-fixture-not-a-real-key",
             )
-            .env("NIKA_ANTHROPIC_BASE_URL", &endpoint)
             .env("NO_COLOR", "1")
-            .current_dir(room.path())
-            .output()
-            .expect("isolated CLI")
+            .current_dir(room.path());
+        if canary_route {
+            command.env("NIKA_ANTHROPIC_BASE_URL", &endpoint);
+        }
+        command.output().expect("isolated CLI")
     };
-    let preview = call(&[
-        "run",
-        "budget.nika",
-        "--dry-run",
-        "--json",
-        "--max-cost-usd",
-        "0.000001",
-    ]);
+    let preview = call(
+        &[
+            "run",
+            "budget.nika",
+            "--dry-run",
+            "--json",
+            "--max-cost-usd",
+            "0.000001",
+        ],
+        true,
+    );
     assert!(
         preview.status.success(),
         "{}",
@@ -62,11 +70,11 @@ fn dry_run_help_names_the_budget_exemption_that_the_real_run_does_not_take() {
             .kind(),
         std::io::ErrorKind::WouldBlock
     );
-    let run = call(&["run", "budget.nika", "--max-cost-usd", "0.000001"]);
-    assert_eq!(run.status.code(), Some(2), "{run:?}");
+    let unpriced = call(&["run", "budget.nika", "--max-cost-usd", "0.000001"], true);
+    assert!(!unpriced.status.success(), "{unpriced:?}");
     assert!(
-        String::from_utf8_lossy(&run.stdout).contains("NIKA-1709"),
-        "{run:?}"
+        String::from_utf8_lossy(&unpriced.stdout).contains("unknown-cost admission"),
+        "{unpriced:?}"
     );
     assert_eq!(
         canary
@@ -75,7 +83,13 @@ fn dry_run_help_names_the_budget_exemption_that_the_real_run_does_not_take() {
             .kind(),
         std::io::ErrorKind::WouldBlock
     );
-    let help = call(&["run", "--help"]);
+    let run = call(&["run", "budget.nika", "--max-cost-usd", "0.000001"], false);
+    assert_eq!(run.status.code(), Some(2), "{run:?}");
+    assert!(
+        String::from_utf8_lossy(&run.stdout).contains("NIKA-1709"),
+        "{run:?}"
+    );
+    let help = call(&["run", "--help"], true);
     assert!(help.status.success());
     let text = String::from_utf8(help.stdout)
         .expect("help UTF-8")

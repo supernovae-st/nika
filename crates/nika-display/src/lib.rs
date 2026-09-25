@@ -41,3 +41,6 @@ pub mod state;
 pub mod theme;
 pub mod vocab;
 pub mod wires;
+
+/// Run machine frames rendered without host effects.
+pub mod run_story;

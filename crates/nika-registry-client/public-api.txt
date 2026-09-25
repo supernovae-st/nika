@@ -1,48 +1,155 @@
-impl core::error::Error for nika_registry_client::RegistryError
-impl core::fmt::Debug for nika_registry_client::RegistryError
-impl core::fmt::Debug for nika_registry_client::Resolved
-impl core::fmt::Display for nika_registry_client::RegistryError
-impl core::marker::Freeze for nika_registry_client::RegistryError
-impl core::marker::Freeze for nika_registry_client::Resolved
-impl core::marker::Send for nika_registry_client::RegistryError
-impl core::marker::Send for nika_registry_client::Resolved
-impl core::marker::Sync for nika_registry_client::RegistryError
-impl core::marker::Sync for nika_registry_client::Resolved
-impl core::marker::Unpin for nika_registry_client::RegistryError
-impl core::marker::Unpin for nika_registry_client::Resolved
-impl core::marker::UnsafeUnpin for nika_registry_client::RegistryError
-impl core::marker::UnsafeUnpin for nika_registry_client::Resolved
-impl core::panic::unwind_safe::RefUnwindSafe for nika_registry_client::RegistryError
-impl core::panic::unwind_safe::RefUnwindSafe for nika_registry_client::Resolved
-impl core::panic::unwind_safe::UnwindSafe for nika_registry_client::RegistryError
-impl core::panic::unwind_safe::UnwindSafe for nika_registry_client::Resolved
-impl nika_registry_client::RegistryError
-impl nika_registry_client::Resolved
+pub mod nika_registry_client
+pub enum nika_registry_client::ProvenanceTier
+pub nika_registry_client::ProvenanceTier::Provenanced
+pub nika_registry_client::ProvenanceTier::StageClear
+pub nika_registry_client::ProvenanceTier::Unprovenanced
+pub nika_registry_client::ProvenanceTier::Verified
+impl nika_registry_client::ProvenanceTier
+pub fn nika_registry_client::ProvenanceTier::as_str(self) -> &'static str
+impl core::clone::Clone for nika_registry_client::ProvenanceTier
+pub fn nika_registry_client::ProvenanceTier::clone(&self) -> nika_registry_client::ProvenanceTier
+impl core::cmp::Eq for nika_registry_client::ProvenanceTier
+impl core::cmp::Ord for nika_registry_client::ProvenanceTier
+pub fn nika_registry_client::ProvenanceTier::cmp(&self, other: &nika_registry_client::ProvenanceTier) -> core::cmp::Ordering
+impl core::cmp::PartialEq for nika_registry_client::ProvenanceTier
+pub fn nika_registry_client::ProvenanceTier::eq(&self, other: &nika_registry_client::ProvenanceTier) -> bool
+impl core::cmp::PartialOrd for nika_registry_client::ProvenanceTier
+pub fn nika_registry_client::ProvenanceTier::partial_cmp(&self, other: &nika_registry_client::ProvenanceTier) -> core::option::Option<core::cmp::Ordering>
+impl core::fmt::Debug for nika_registry_client::ProvenanceTier
+pub fn nika_registry_client::ProvenanceTier::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_registry_client::ProvenanceTier
+pub fn nika_registry_client::ProvenanceTier::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_registry_client::ProvenanceTier
+pub fn nika_registry_client::ProvenanceTier::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_registry_client::ProvenanceTier
+impl core::marker::StructuralPartialEq for nika_registry_client::ProvenanceTier
+impl<D> owo_colors::OwoColorize for nika_registry_client::ProvenanceTier
+impl<Q, K> equivalent::Comparable<K> for nika_registry_client::ProvenanceTier where Q: core::cmp::Ord + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_registry_client::ProvenanceTier::compare(&self, key: &K) -> core::cmp::Ordering
+impl<Q, K> equivalent::Equivalent<K> for nika_registry_client::ProvenanceTier where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_registry_client::ProvenanceTier::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_registry_client::ProvenanceTier where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_registry_client::ProvenanceTier where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_registry_client::ProvenanceTier::equivalent(&self, key: &K) -> bool
+pub fn nika_registry_client::ProvenanceTier::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_registry_client::ProvenanceTier where U: core::convert::From<T>
+pub fn nika_registry_client::ProvenanceTier::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_registry_client::ProvenanceTier where U: core::convert::Into<T>
+pub type nika_registry_client::ProvenanceTier::Error = core::convert::Infallible
+pub fn nika_registry_client::ProvenanceTier::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_registry_client::ProvenanceTier where U: core::convert::TryFrom<T>
+pub type nika_registry_client::ProvenanceTier::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_registry_client::ProvenanceTier::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_registry_client::ProvenanceTier where T: core::clone::Clone
+pub type nika_registry_client::ProvenanceTier::Owned = T
+pub fn nika_registry_client::ProvenanceTier::clone_into(&self, target: &mut T)
+pub fn nika_registry_client::ProvenanceTier::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_registry_client::ProvenanceTier where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_registry_client::ProvenanceTier::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_registry_client::ProvenanceTier where T: 'static + ?core::marker::Sized
+pub fn nika_registry_client::ProvenanceTier::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_registry_client::ProvenanceTier where T: ?core::marker::Sized
+pub fn nika_registry_client::ProvenanceTier::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_registry_client::ProvenanceTier where T: ?core::marker::Sized
+pub fn nika_registry_client::ProvenanceTier::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_registry_client::ProvenanceTier where T: core::clone::Clone
+pub unsafe fn nika_registry_client::ProvenanceTier::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_registry_client::ProvenanceTier
+pub fn nika_registry_client::ProvenanceTier::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_registry_client::ProvenanceTier where T: 'static
+pub fn nika_registry_client::ProvenanceTier::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_registry_client::ProvenanceTier
+pub type nika_registry_client::ProvenanceTier::Output = T
+pub struct nika_registry_client::RegistryClient<H>
 impl<H: nika_kernel_core::io::http::HttpGetDyn> nika_registry_client::RegistryClient<H>
-impl<H> core::marker::Freeze for nika_registry_client::RegistryClient<H> where H: core::marker::Freeze
-impl<H> core::marker::Send for nika_registry_client::RegistryClient<H> where H: core::marker::Send
-impl<H> core::marker::Sync for nika_registry_client::RegistryClient<H> where H: core::marker::Sync
-impl<H> core::marker::Unpin for nika_registry_client::RegistryClient<H> where H: core::marker::Unpin
-impl<H> core::marker::UnsafeUnpin for nika_registry_client::RegistryClient<H> where H: core::marker::UnsafeUnpin
-impl<H> core::panic::unwind_safe::RefUnwindSafe for nika_registry_client::RegistryClient<H> where H: core::panic::unwind_safe::RefUnwindSafe
-impl<H> core::panic::unwind_safe::UnwindSafe for nika_registry_client::RegistryClient<H> where H: core::panic::unwind_safe::UnwindSafe
-pub async fn nika_registry_client::RegistryClient<H>::resolve(&self, arg: &str) -> core::result::Result<nika_registry_client::Resolved, nika_registry_client::RegistryError>
-pub const nika_registry_client::MAX_INDEX_BYTES: usize
-pub fn nika_registry_client::default_cache_root() -> core::result::Result<std::path::PathBuf, nika_registry_client::RegistryError>
-pub fn nika_registry_client::is_registry_ref(arg: &str) -> bool
 pub fn nika_registry_client::RegistryClient<H>::new(http: H, cache_root: std::path::PathBuf) -> Self
+pub async fn nika_registry_client::RegistryClient<H>::resolve(&self, arg: &str) -> core::result::Result<nika_registry_client::Resolved, nika_registry_client::RegistryError>
+impl<D> owo_colors::OwoColorize for nika_registry_client::RegistryClient<H>
+impl<T, U> core::convert::Into<U> for nika_registry_client::RegistryClient<H> where U: core::convert::From<T>
+pub fn nika_registry_client::RegistryClient<H>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_registry_client::RegistryClient<H> where U: core::convert::Into<T>
+pub type nika_registry_client::RegistryClient<H>::Error = core::convert::Infallible
+pub fn nika_registry_client::RegistryClient<H>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_registry_client::RegistryClient<H> where U: core::convert::TryFrom<T>
+pub type nika_registry_client::RegistryClient<H>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_registry_client::RegistryClient<H>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_registry_client::RegistryClient<H> where T: 'static + ?core::marker::Sized
+pub fn nika_registry_client::RegistryClient<H>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_registry_client::RegistryClient<H> where T: ?core::marker::Sized
+pub fn nika_registry_client::RegistryClient<H>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_registry_client::RegistryClient<H> where T: ?core::marker::Sized
+pub fn nika_registry_client::RegistryClient<H>::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_registry_client::RegistryClient<H>
+pub fn nika_registry_client::RegistryClient<H>::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_registry_client::RegistryClient<H> where T: 'static
+pub fn nika_registry_client::RegistryClient<H>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_registry_client::RegistryClient<H>
+pub type nika_registry_client::RegistryClient<H>::Output = T
+pub struct nika_registry_client::RegistryError
+impl nika_registry_client::RegistryError
 pub fn nika_registry_client::RegistryError::code(&self) -> core::option::Option<&'static str>
 pub fn nika_registry_client::RegistryError::env(why: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::error::Error for nika_registry_client::RegistryError
+impl core::fmt::Debug for nika_registry_client::RegistryError
 pub fn nika_registry_client::RegistryError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_registry_client::RegistryError
 pub fn nika_registry_client::RegistryError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-pub fn nika_registry_client::Resolved::describe(&self) -> alloc::string::String
-pub fn nika_registry_client::Resolved::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-pub mod nika_registry_client
+impl<D> owo_colors::OwoColorize for nika_registry_client::RegistryError
+impl<T, U> core::convert::Into<U> for nika_registry_client::RegistryError where U: core::convert::From<T>
+pub fn nika_registry_client::RegistryError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_registry_client::RegistryError where U: core::convert::Into<T>
+pub type nika_registry_client::RegistryError::Error = core::convert::Infallible
+pub fn nika_registry_client::RegistryError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_registry_client::RegistryError where U: core::convert::TryFrom<T>
+pub type nika_registry_client::RegistryError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_registry_client::RegistryError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_registry_client::RegistryError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_registry_client::RegistryError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_registry_client::RegistryError where T: 'static + ?core::marker::Sized
+pub fn nika_registry_client::RegistryError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_registry_client::RegistryError where T: ?core::marker::Sized
+pub fn nika_registry_client::RegistryError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_registry_client::RegistryError where T: ?core::marker::Sized
+pub fn nika_registry_client::RegistryError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_registry_client::RegistryError
+pub fn nika_registry_client::RegistryError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_registry_client::RegistryError where T: 'static
+pub fn nika_registry_client::RegistryError::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_registry_client::RegistryError
+pub type nika_registry_client::RegistryError::Output = T
+pub struct nika_registry_client::Resolved
 pub nika_registry_client::Resolved::coordinate: alloc::string::String
 pub nika_registry_client::Resolved::fetched: bool
 pub nika_registry_client::Resolved::path: std::path::PathBuf
 pub nika_registry_client::Resolved::pinned: bool
 pub nika_registry_client::Resolved::sha256: alloc::string::String
-pub struct nika_registry_client::RegistryClient<H>
-pub struct nika_registry_client::RegistryError
-pub struct nika_registry_client::Resolved
+pub nika_registry_client::Resolved::signed: bool
+pub nika_registry_client::Resolved::tier: nika_registry_client::ProvenanceTier
+impl nika_registry_client::Resolved
+pub fn nika_registry_client::Resolved::describe(&self) -> alloc::string::String
+impl core::fmt::Debug for nika_registry_client::Resolved
+pub fn nika_registry_client::Resolved::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_registry_client::Resolved
+impl<T, U> core::convert::Into<U> for nika_registry_client::Resolved where U: core::convert::From<T>
+pub fn nika_registry_client::Resolved::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_registry_client::Resolved where U: core::convert::Into<T>
+pub type nika_registry_client::Resolved::Error = core::convert::Infallible
+pub fn nika_registry_client::Resolved::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_registry_client::Resolved where U: core::convert::TryFrom<T>
+pub type nika_registry_client::Resolved::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_registry_client::Resolved::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_registry_client::Resolved where T: 'static + ?core::marker::Sized
+pub fn nika_registry_client::Resolved::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_registry_client::Resolved where T: ?core::marker::Sized
+pub fn nika_registry_client::Resolved::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_registry_client::Resolved where T: ?core::marker::Sized
+pub fn nika_registry_client::Resolved::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_registry_client::Resolved
+pub fn nika_registry_client::Resolved::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_registry_client::Resolved where T: 'static
+pub fn nika_registry_client::Resolved::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_registry_client::Resolved
+pub type nika_registry_client::Resolved::Output = T
+pub const nika_registry_client::MAX_INDEX_BYTES: usize
+pub fn nika_registry_client::default_cache_root() -> core::result::Result<std::path::PathBuf, nika_registry_client::RegistryError>
+pub fn nika_registry_client::is_registry_ref(arg: &str) -> bool

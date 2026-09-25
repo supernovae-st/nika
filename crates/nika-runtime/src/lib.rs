@@ -55,6 +55,7 @@ pub mod approval;
 pub mod child;
 pub mod compose;
 pub mod config;
+pub mod cost_choice;
 mod dispatch;
 mod emit_items;
 mod emit_task;
@@ -132,8 +133,9 @@ type ValueBags<'a> = (
 );
 
 pub use admit::{
-    access_pin_refusal, budget_floor_refusal, first_modelless_task, floor_refusal,
-    modelless_refusal, plan_refusal, required_inputs_refusal, scope_to_task, unbounded_breakdown,
+    access_pin_refusal, budget_floor_refusal, budget_floor_refusal_seated, first_modelless_task,
+    floor_refusal, modelless_refusal, plan_refusal, required_inputs_refusal, scope_to_task,
+    unbounded_breakdown,
 };
 pub use compose::{
     ProdRuntime, RunSeams, RuntimeCapabilities, SimRuntime, capabilities_of, production_runtime,
@@ -1284,10 +1286,13 @@ where
         let mut finishes = std::pin::pin!(
             futures_util::stream::iter(members.iter().take_while(|_| !ledger.tripped()).map(
                 |&task| {
-                    self.run_task_pipeline(
+                    // Keep the pipeline out of the stream's by-value item slots.
+                    // Buffered retains its polling frame while a workflow task
+                    // polls a child runtime on this same thread.
+                    Box::pin(self.run_task_pipeline(
                         task, wf, frozen, inputs, consts, secrets, permits, types, resume_ctx,
                         ledger, jq_clock, run_start,
-                    )
+                    ))
                 },
             ))
             .buffered(cap)

@@ -212,7 +212,7 @@ async fn every_wired_profile_stream_maps_401_to_auth_failed() {
             .err()
             .unwrap_or_else(|| panic!("[{id}] stream 401 must error"));
         assert!(
-            matches!(&err, ProviderError::HttpResponse { details } if details.status() == 401),
+            matches!(err.unobserved(), ProviderError::HttpResponse { details } if details.status() == 401),
             "[{id}] stream 401 → AuthFailed (same table as infer), got {err:?}"
         );
         assert_eq!(
@@ -249,8 +249,10 @@ async fn every_wired_profile_maps_401_to_auth_failed() {
             "resolution does not probe key validity"
         );
         let err = rp.infer(request()).await.expect_err("401 must be an error");
+        assert_eq!(err.inference_calls().len(), 1, "one dispatched request");
+        assert!(err.inference_calls()[0].known_estimate().is_none());
         assert!(
-            matches!(&err, ProviderError::HttpResponse { details } if details.status() == 401),
+            matches!(err.unobserved(), ProviderError::HttpResponse { details } if details.status() == 401),
             "[{id}] 401 → AuthFailed, got {err:?}"
         );
         assert_eq!(
@@ -588,7 +590,7 @@ async fn every_wire_keeps_connection_failures_transient_and_streams_fused() {
                 .expect("profile");
             let error = provider.infer(request()).await.expect_err("interrupted");
             assert!(
-                matches!(error, ProviderError::Connection { .. }),
+                matches!(error.unobserved(), ProviderError::Connection { .. }),
                 "{id}: {error:?}"
             );
             assert!(error.is_transient(), "{id}: {error}");
@@ -637,7 +639,11 @@ async fn every_wired_profile_preserves_quota_failure_without_usage_or_retry() {
                     .expect_err("429 returns no response/usage")
             };
             assert!(!error.is_transient(), "{id}: {error}");
-            let ProviderError::HttpResponse { details } = &error else {
+            if !streaming {
+                assert_eq!(error.inference_calls().len(), 1);
+                assert!(error.inference_calls()[0].known_estimate().is_none());
+            }
+            let ProviderError::HttpResponse { details } = error.unobserved() else {
                 panic!("{id}: {error:?}")
             };
             assert_eq!(details.status(), 429);

@@ -164,7 +164,7 @@ mod fragment_tests {
     #[test]
     fn a_measured_capped_task_states_a_scoped_ceiling() {
         let r = report_of(
-            "nika: w\nmodel: groq/qwen/qwen3-32b\ntasks:\n  t:\n    infer: { prompt: \"x\", max_tokens: 1000 }\n",
+            "nika: w\nmodel: openrouter/qwen/qwen3-32b\ntasks:\n  t:\n    infer: { prompt: \"x\", max_tokens: 1000 }\n",
         );
         let frag = inspect_fragment(&r, false).expect("fragment");
         assert!(
@@ -187,7 +187,7 @@ mod fragment_tests {
     #[test]
     fn partial_coverage_names_its_fraction() {
         let r = report_of(
-            "nika: w\ntasks:\n  a:\n    infer: { prompt: \"x\", max_tokens: 1000, model: groq/qwen/qwen3-32b }\n  b:\n    infer: { prompt: \"x\", max_tokens: 1000, model: anthropic/claude-sonnet-4-6 }\n",
+            "nika: w\ntasks:\n  a:\n    infer: { prompt: \"x\", max_tokens: 1000, model: openrouter/qwen/qwen3-32b }\n  b:\n    infer: { prompt: \"x\", max_tokens: 1000, model: anthropic/claude-sonnet-4-6 }\n",
         );
         let frag = inspect_fragment(&r, false).expect("fragment");
         assert!(
@@ -201,7 +201,7 @@ mod fragment_tests {
     #[test]
     fn an_uncapped_task_is_unbounded_never_zero() {
         let r = report_of(
-            "nika: w\nmodel: groq/qwen/qwen3-32b\ntasks:\n  t:\n    infer: { prompt: \"x\" }\n",
+            "nika: w\nmodel: openrouter/qwen/qwen3-32b\ntasks:\n  t:\n    infer: { prompt: \"x\" }\n",
         );
         let frag = inspect_fragment(&r, false).expect("fragment");
         assert_eq!(frag, "energy unbounded");
@@ -213,7 +213,7 @@ mod fragment_tests {
     #[test]
     fn unbounded_with_a_measured_task_names_the_bounded_portion() {
         let r = report_of(
-            "nika: w\ntasks:\n  a:\n    infer: { prompt: \"x\", max_tokens: 1000, model: groq/qwen/qwen3-32b }\n  b:\n    infer: { prompt: \"x\", model: groq/qwen/qwen3-32b }\n",
+            "nika: w\ntasks:\n  a:\n    infer: { prompt: \"x\", max_tokens: 1000, model: openrouter/qwen/qwen3-32b }\n  b:\n    infer: { prompt: \"x\", model: openrouter/qwen/qwen3-32b }\n",
         );
         let frag = inspect_fragment(&r, false).expect("fragment");
         assert!(
@@ -240,7 +240,7 @@ mod fragment_tests {
     #[test]
     fn a_never_running_workflow_has_nothing_to_bound() {
         let r = report_of(
-            "nika: w\nmodel: groq/qwen/qwen3-32b\ntasks:\n  t:\n    for_each: { items: [] }\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 1000 }\n",
+            "nika: w\nmodel: openrouter/qwen/qwen3-32b\ntasks:\n  t:\n    for_each: { items: [] }\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 1000 }\n",
         );
         let frag = inspect_fragment(&r, false).expect("fragment");
         assert_eq!(frag, "no energy to bound (no task runs)");

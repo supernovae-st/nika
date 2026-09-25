@@ -121,7 +121,7 @@ pub fn presence_facts(rows: Vec<AdapterRow>) -> Vec<PresenceFact> {
 /// its product binary is present; a home-file row never spawns.
 pub(crate) fn presence_facts_with(
     rows: Vec<AdapterRow>,
-    probe: &(dyn Fn(&AuthProbe) -> Option<bool> + Sync),
+    probe: &(dyn Fn(&AuthProbe, &[String]) -> Option<bool> + Sync),
 ) -> Vec<PresenceFact> {
     let presence: Vec<(bool, bool)> = rows
         .iter()
@@ -140,7 +140,9 @@ pub(crate) fn presence_facts_with(
             .zip(&presence)
             .map(|(row, &(product_present, _))| {
                 scope.spawn(move || match row.auth {
-                    AuthProbe::Command { .. } if product_present => probe(&row.auth),
+                    AuthProbe::Command { .. } if product_present => {
+                        probe(&row.auth, &row.adapter.passthrough_env)
+                    }
                     AuthProbe::Command { .. } | AuthProbe::HomeFile(_) => None,
                 })
             })
@@ -177,7 +179,7 @@ pub(crate) fn presence_facts_with(
 /// one-shot current-thread runtime hosted by a scoped thread, so the
 /// census can run inside an async context (the serve worker) without
 /// a runtime-in-runtime panic. `None` = the surface did not answer.
-fn probe_auth_sync(surface: &AuthProbe) -> Option<bool> {
+fn probe_auth_sync(surface: &AuthProbe, passthrough: &[String]) -> Option<bool> {
     std::thread::scope(|scope| {
         scope
             .spawn(|| {
@@ -185,7 +187,7 @@ fn probe_auth_sync(surface: &AuthProbe) -> Option<bool> {
                     .enable_all()
                     .build()
                     .ok()?;
-                rt.block_on(probe_auth(surface, None))
+                rt.block_on(probe_auth(surface, None, passthrough))
             })
             .join()
             .unwrap_or(None)
@@ -250,7 +252,8 @@ async fn probe_one(row: AdapterRow) -> AdapterProbeRow {
         Ok(seen) => (seen, String::new()),
         Err(e) => (None, e.to_string()),
     };
-    let authenticated = probe_auth(&row.auth, row.directory_auth).await;
+    let authenticated =
+        probe_auth(&row.auth, row.directory_auth, &row.adapter.passthrough_env).await;
     let detect = nika_types::access::HarnessRuntime::lookup(&row.adapter.id)
         .map_or(row.adapter.command.as_str(), |rt| rt.detect_bin);
     AdapterProbeRow {
@@ -274,6 +277,7 @@ fn binary_on_path(name: &str) -> bool {
 async fn probe_auth(
     surface: &AuthProbe,
     directory_auth: Option<DirectoryAuthProbe>,
+    passthrough: &[String],
 ) -> Option<bool> {
     #[allow(clippy::disallowed_methods)] // the sanctioned env boundary ($HOME presence)
     let home = std::env::var_os("HOME");
@@ -284,6 +288,7 @@ async fn probe_auth(
         override_home.as_deref(),
         surface,
         directory_auth,
+        passthrough,
     )
     .await
 }
@@ -295,6 +300,7 @@ async fn probe_auth_with(
     override_home: Option<&std::ffi::OsStr>,
     surface: &AuthProbe,
     directory_auth: Option<DirectoryAuthProbe>,
+    passthrough: &[String],
 ) -> Option<bool> {
     match surface {
         AuthProbe::HomeFile(rel) => {
@@ -315,23 +321,34 @@ async fn probe_auth_with(
         }
         AuthProbe::Command { command, args } => {
             let parent: std::collections::BTreeMap<String, String> = std::env::vars().collect();
-            let env = compose_env(&parent, &[]);
-            let child = tokio::process::Command::new(command)
-                .args(*args)
-                .env_clear()
-                .envs(&env)
-                .stdin(std::process::Stdio::null())
-                .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null())
-                .kill_on_drop(true)
-                .status();
-            let status = tokio::time::timeout(std::time::Duration::from_secs(10), child)
-                .await
-                .ok()?
-                .ok()?;
-            Some(status.success())
+            probe_auth_command(command, args, &parent, passthrough).await
         }
     }
+}
+
+/// The command probe uses the same declared account roots and credential filter
+/// as the ACP spawn. The injected parent keeps process tests isolated.
+async fn probe_auth_command(
+    command: &str,
+    args: &[&str],
+    parent: &std::collections::BTreeMap<String, String>,
+    passthrough: &[String],
+) -> Option<bool> {
+    let env = compose_env(parent, passthrough);
+    let child = tokio::process::Command::new(command)
+        .args(args)
+        .env_clear()
+        .envs(&env)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .kill_on_drop(true)
+        .status();
+    let status = tokio::time::timeout(std::time::Duration::from_secs(10), child)
+        .await
+        .ok()?
+        .ok()?;
+    Some(status.success())
 }
 
 /// Metadata-only proof that a provider credential is present. Kimi Code stores
@@ -607,7 +624,7 @@ mod tests {
         let asked = AtomicUsize::new(0);
         let asked_ref = &asked;
         let says = |verdict: Option<bool>| {
-            move |_: &AuthProbe| {
+            move |_: &AuthProbe, _: &[String]| {
                 asked_ref.fetch_add(1, Ordering::SeqCst);
                 verdict
             }
@@ -640,6 +657,50 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn selected_account_roots_reach_auth_commands_without_credentials() {
+        use std::collections::BTreeMap;
+        let parent = BTreeMap::from([
+            ("CODEX_HOME".to_owned(), "/fixture/codex-account".to_owned()),
+            (
+                "CLAUDE_CONFIG_DIR".to_owned(),
+                "/fixture/claude-account".to_owned(),
+            ),
+            ("OPENAI_API_KEY".to_owned(), "fixture-not-a-key".to_owned()),
+            (
+                "CLAUDE_CODE_OAUTH_TOKEN".to_owned(),
+                "fixture-not-a-token".to_owned(),
+            ),
+        ]);
+        for (id, script) in [
+            (
+                "codex",
+                "test \"$CODEX_HOME\" = /fixture/codex-account && test -z \"${CLAUDE_CONFIG_DIR+x}\" && test -z \"${OPENAI_API_KEY+x}\" && test -z \"${CLAUDE_CODE_OAUTH_TOKEN+x}\"",
+            ),
+            (
+                "claude-code",
+                "test \"$CLAUDE_CONFIG_DIR\" = /fixture/claude-account && test -z \"${CODEX_HOME+x}\" && test -z \"${OPENAI_API_KEY+x}\" && test -z \"${CLAUDE_CODE_OAUTH_TOKEN+x}\"",
+            ),
+        ] {
+            let row = crate::registry_with(&|_| None)
+                .expect("registry")
+                .into_iter()
+                .find(|row| row.adapter.id == id)
+                .expect("seat");
+            assert_eq!(
+                probe_auth_command(
+                    "/bin/sh",
+                    &["-c", script],
+                    &parent,
+                    &row.adapter.passthrough_env
+                )
+                .await,
+                Some(true),
+                "{id} must select its own account, without keys or the other seat root"
+            );
+        }
+    }
+
     /// The real sync probe reads the exit code like the async one —
     /// `true` is signed in, `false` is not, an absent binary is mute.
     #[test]
@@ -656,9 +717,9 @@ mod tests {
             command: "nika-no-such-binary-anywhere",
             args: &[],
         };
-        assert_eq!(probe_auth_sync(&yes), Some(true));
-        assert_eq!(probe_auth_sync(&no), Some(false));
-        assert_eq!(probe_auth_sync(&absent), None);
+        assert_eq!(probe_auth_sync(&yes, &[]), Some(true));
+        assert_eq!(probe_auth_sync(&no, &[]), Some(false));
+        assert_eq!(probe_auth_sync(&absent, &[]), None);
     }
 
     #[test]
@@ -726,7 +787,7 @@ mod tests {
     fn the_env_registry_wrapper_delegates_and_reads_the_switch() {
         // NIKA_HARNESS_DISABLE is unset in this process → the full table.
         let rows = crate::registry().expect("the live env loads");
-        assert_eq!(rows.len(), 5, "registry() reads the real env boundary");
+        assert_eq!(rows.len(), 8, "registry() reads the real env boundary");
     }
 
     /// The sync façade is FOR sync callers (doctor) — so the test is
@@ -759,7 +820,10 @@ mod tests {
                 "gemini-cli",
                 "qwen-code",
                 "kimi-code",
+                "opencode",
                 "codex",
+                "copilot",
+                "grok-build",
                 "claude-code"
             ]
         );
@@ -818,15 +882,24 @@ mod tests {
 
     #[test]
     fn kimi_code_pin_accepts_the_measured_line_and_refuses_below_the_floor() {
-        let pin = VersionPin::new((0, 37), 0);
-        let seen = judge_version("kimi-code", "0.37.2\n", &pin).expect("measured line");
-        assert_eq!(seen, (0, 37));
-        let err = judge_version("kimi-code", "0.36.9\n", &pin).expect_err("below the floor");
+        // Kimi Code CLI 2.0.2 (the Node rewrite, measured 2026-09-22) is inside the pin;
+        // the archived Python CLI (0.37.2, 2026-08-22) is below its floor; a new major refuses.
+        let pin = VersionPin::new((2, 0), 2);
+        let seen = judge_version("kimi-code", "2.0.2\n", &pin).expect("measured line");
+        assert_eq!(seen, (2, 0));
+        let err = judge_version("kimi-code", "0.37.2\n", &pin).expect_err("below the floor");
         let msg = err.to_string();
         assert!(msg.contains("kimi-code"), "{msg}");
-        assert!(msg.contains("0.36"), "{msg}");
-        let major = judge_version("kimi-code", "1.0.0\n", &pin).expect_err("new major");
-        assert!(major.to_string().contains("major <= 0"), "{major}");
+        assert!(msg.contains("0.37"), "{msg}");
+        let major = judge_version("kimi-code", "3.0.0\n", &pin).expect_err("new major");
+        assert!(major.to_string().contains("major <= 2"), "{major}");
+        // Grok Build prints `grok 1.0.40 (eb1a2256660d) [stable]` (measured 2026-09-22).
+        let grok = VersionPin::new((1, 0), 1);
+        assert_eq!(
+            judge_version("grok-build", "grok 1.0.40 (eb1a2256660d) [stable]\n", &grok)
+                .expect("measured line"),
+            (1, 0)
+        );
     }
 
     #[test]
@@ -853,14 +926,14 @@ mod tests {
             command: "false",
             args: &[],
         };
-        assert_eq!(probe_auth(&yes, None).await, Some(true));
-        assert_eq!(probe_auth(&no, None).await, Some(false));
+        assert_eq!(probe_auth(&yes, None, &[]).await, Some(true));
+        assert_eq!(probe_auth(&no, None, &[]).await, Some(false));
         // An absent binary is unreadable, never a guess.
         let absent = AuthProbe::Command {
             command: "nika-no-such-binary- anywhere",
             args: &[],
         };
-        assert_eq!(probe_auth(&absent, None).await, None);
+        assert_eq!(probe_auth(&absent, None, &[]).await, None);
 
         // HomeFile: presence against the INJECTED home.
         let dir = std::env::temp_dir().join(format!("nika-auth-probe-{}", std::process::id()));
@@ -870,15 +943,15 @@ mod tests {
         let present = AuthProbe::HomeFile(".gemini/google_accounts.json");
         let missing = AuthProbe::HomeFile(".qwen");
         assert_eq!(
-            probe_auth_with(Some(home), None, &present, None).await,
+            probe_auth_with(Some(home), None, &present, None, &[]).await,
             Some(true)
         );
         assert_eq!(
-            probe_auth_with(Some(home), None, &missing, None).await,
+            probe_auth_with(Some(home), None, &missing, None, &[]).await,
             Some(false)
         );
         // No home at all: unreadable, never a guess.
-        assert_eq!(probe_auth_with(None, None, &present, None).await, None);
+        assert_eq!(probe_auth_with(None, None, &present, None, &[]).await, None);
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -899,7 +972,7 @@ mod tests {
         let policy = row.directory_auth.expect("secure directory policy");
 
         assert_eq!(
-            probe_auth_with(Some(home.as_os_str()), None, &row.auth, Some(policy)).await,
+            probe_auth_with(Some(home.as_os_str()), None, &row.auth, Some(policy), &[]).await,
             Some(false),
             "an empty default store is not authentication"
         );
@@ -909,7 +982,7 @@ mod tests {
         )
         .expect("opaque fixture");
         assert_eq!(
-            probe_auth_with(Some(home.as_os_str()), None, &row.auth, Some(policy)).await,
+            probe_auth_with(Some(home.as_os_str()), None, &row.auth, Some(policy), &[]).await,
             Some(true),
             "a non-empty top-level provider JSON is the metadata-only proxy"
         );
@@ -922,6 +995,7 @@ mod tests {
                 Some(relocated.as_os_str()),
                 &row.auth,
                 Some(policy),
+                &[],
             )
             .await,
             Some(false),
@@ -935,6 +1009,7 @@ mod tests {
                 Some(relocated.as_os_str()),
                 &row.auth,
                 Some(policy),
+                &[],
             )
             .await,
             Some(false),
@@ -951,6 +1026,7 @@ mod tests {
                 Some(relocated.as_os_str()),
                 &row.auth,
                 Some(policy),
+                &[],
             )
             .await,
             Some(true)
@@ -980,6 +1056,7 @@ mod tests {
                 Some(std::ffi::OsStr::new("relative-kimi-home")),
                 &row.auth,
                 Some(policy),
+                &[],
             )
             .await,
             Some(false),
@@ -996,6 +1073,7 @@ mod tests {
                     Some(linked.as_os_str()),
                     &row.auth,
                     Some(policy),
+                    &[],
                 )
                 .await,
                 Some(false),
@@ -1029,7 +1107,7 @@ mod tests {
             .find(|row| row.adapter.id == "kimi-code")
             .expect("kimi row");
         let policy = row.directory_auth.expect("secure directory policy");
-        let probe = || probe_auth_with(None, Some(root.as_os_str()), &row.auth, Some(policy));
+        let probe = || probe_auth_with(None, Some(root.as_os_str()), &row.auth, Some(policy), &[]);
         assert_eq!(
             probe().await,
             Some(false),

@@ -67,6 +67,17 @@ fn answer_cursor_report(session: &mut LoggedSession) {
     session.send("\x1b[24;1R").expect("answer the report");
 }
 
+/// The renderer's terminal probe asks the primary device attributes
+/// (`ESC[c`, crossterm's keyboard-enhancement check) before anything else;
+/// a terminal answers at once, so does this harness — or the probe waits
+/// its whole 2 s on every spawn.
+fn answer_device_attributes(session: &mut LoggedSession) {
+    session
+        .expect("\x1b[c")
+        .expect("the terminal probe asks the device attributes");
+    session.send("\x1b[?62;22c").expect("answer the attributes");
+}
+
 fn spawn(args: &[&str]) -> (LoggedSession, Tee) {
     let mut cmd = Command::new(bin());
     cmd.args(args)
@@ -76,12 +87,13 @@ fn spawn(args: &[&str]) -> (LoggedSession, Tee) {
     let tee = Tee::default();
     let mut session = expectrl::session::log(session, tee.clone()).expect("log tee");
     session.set_expect_timeout(Some(Duration::from_secs(30)));
+    answer_device_attributes(&mut session);
     if !args.contains(&"--focus") {
         answer_cursor_report(&mut session);
     }
     session
-        .expect("nika · session")
-        .expect("the banner is the first thing drawn");
+        .expect("automate?")
+        .expect("the banner (the human's question) is the first thing drawn");
     session.expect("nika ›").expect("the free prompt");
     (session, tee)
 }

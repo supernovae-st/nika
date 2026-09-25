@@ -165,3 +165,6 @@ verbs	(positive)	positive-run	conformance/tests/runtime/agent/005-text-without-d
 verbs	NIKA-AGENT-002	run-fail	conformance/tests/runtime/agent/006-text-with-done-exhausts-tokens
 variables	(input-origin)	journal-prologue	conformance/tests/runtime/trace/007-boot-manifest-and-known-pin
 variables	(input-origin)	journal-prologue	conformance/tests/runtime/trace/010-api-input-origins
+stdlib	(positive)	positive-run	conformance/tests/stdlib/behavioral/006-convert-explicit-header-order/input.nika
+stdlib	(positive)	positive-run	conformance/tests/stdlib/behavioral/007-convert-partial-header-order/input.nika
+stdlib	NIKA-BUILTIN-CONVERT	run-fail	conformance/tests/stdlib/behavioral/008-convert-reject-invalid-columns/input.nika

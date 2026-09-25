@@ -12,22 +12,37 @@
 //! Foundation truth, unchanged by this transport: CREATE resolves an exact embedded
 //! skeleton, EDIT changes one existing constant, answers are explicit literals.
 //! Every other intent is the core's `incomplete`, never a guessed workflow.
+//!
+//! Generation 2 exists only on a server the operator built with a native authoring seat
+//! ([`native`]): a caller then opts in per request (`explicitProvider`) or replays a round
+//! the server kept ([`replay`]). Generation 1 keeps this module's path on every server.
 
+mod author;
+mod native;
+mod replay;
 pub(super) mod schema;
+mod v2;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+use bytes::Bytes;
 use hyper::body::Incoming;
 use hyper::{Request, Response, StatusCode};
 use nika_onboard::compile::{AuthoringCognition, COMPILE_WIRE_VERSION, CompileRequest};
 use serde_json::value::RawValue;
 
+pub(super) use author::settle;
+pub(super) use native::Seat;
+pub use native::{
+    NativeAuthoring, NativeAuthoringArgs, NativeAuthoringError, seat_native_authoring,
+};
+
 use super::AppState;
 use super::error::{ApiError, ResponseBody};
 use super::route::{
     body_too_large, collect_body, content_length, drain_oversized_body, json_response,
-    refuse_snapshot_envelope,
+    refuse_snapshot_envelope, request_timeout,
 };
 
 /// Whole-request ceiling. The listener's own body ceiling still applies when lower.
@@ -173,8 +188,48 @@ pub(super) async fn handle(
     request: Request<Incoming>,
     state: Arc<AppState>,
 ) -> Response<ResponseBody> {
+    match intake(request, &state).await {
+        Ok(body) => foundation(&body, state).await,
+        Err(response) => response,
+    }
+}
+
+/// The door on a server that seats native authoring. A native round outlives the route's
+/// request deadline, so the route leaves this door to bound itself: the request deadline
+/// still covers intake, generation 1 and replays exactly as before; a fresh native round
+/// runs under its seat deadline instead.
+pub(super) async fn handle_on_native_server(
+    request: Request<Incoming>,
+    state: Arc<AppState>,
+) -> Response<ResponseBody> {
+    let deadline = tokio::time::Instant::now() + state.limits.request_timeout();
+    let body = match tokio::time::timeout_at(deadline, intake(request, &state)).await {
+        Ok(Ok(body)) => body,
+        Ok(Err(response)) => return response,
+        Err(_) => return request_timeout().into_response(),
+    };
+    match generation(&body) {
+        Some(v2::GENERATION) => author::handle(&body, state, deadline).await,
+        Some(generation) if generation != u64::from(COMPILE_WIRE_VERSION) => ApiError::new(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "compile_version_unsupported",
+            "this resident speaks compile_version 1, and 2 through its native authoring seat",
+        )
+        .into_response(),
+        _ => match tokio::time::timeout_at(deadline, foundation(&body, state)).await {
+            Ok(response) => response,
+            Err(_) => request_timeout().into_response(),
+        },
+    }
+}
+
+/// The bounded body, or the refusal that answers instead of it.
+async fn intake(
+    request: Request<Incoming>,
+    state: &AppState,
+) -> Result<Bytes, Response<ResponseBody>> {
     if let Some(error) = refuse_snapshot_envelope(&request) {
-        return error.into_response();
+        return Err(error.into_response());
     }
     let ceiling = state.limits.max_body_bytes().min(MAX_COMPILE_BODY_BYTES);
     if content_length(&request)
@@ -183,13 +238,23 @@ pub(super) async fn handle(
         .is_some_and(|length| length > ceiling)
     {
         drain_oversized_body(request).await;
-        return body_too_large().into_response();
+        return Err(body_too_large().into_response());
     }
-    let body = match collect_body(request, ceiling).await {
-        Ok(body) => body,
-        Err(error) => return error.into_response(),
-    };
-    let compile_request = match parse(&body) {
+    collect_body(request, ceiling)
+        .await
+        .map_err(ApiError::into_response)
+}
+
+/// The generation a body names, when it names one (a probe: the parse judges the rest).
+fn generation(body: &[u8]) -> Option<u64> {
+    serde_json::from_slice::<Object<VersionProbe>>(body)
+        .ok()
+        .map(|Object(probe)| probe.compile_version)
+}
+
+/// Generation 1: the deterministic core, whatever the server seats.
+async fn foundation(body: &Bytes, state: Arc<AppState>) -> Response<ResponseBody> {
+    let compile_request = match parse(body) {
         Ok(compile_request) => compile_request,
         Err(error) => return error.into_response(),
     };
@@ -290,26 +355,36 @@ fn within_limits(envelope: &Envelope) -> Result<(), ApiError> {
             .is_none_or(|value| value.len() <= MAX_COMPILE_TEXT_BYTES)
     };
     let name = |value: &str| value.len() <= MAX_COMPILE_NAME_BYTES;
-    let literal = |value: &RawValue| value.get().len() <= MAX_COMPILE_LITERAL_BYTES;
-    let change = envelope.change.as_ref().is_none_or(|Object(change)| {
-        text(&change.text)
-            && change.set_constant.as_ref().is_none_or(|Object(constant)| {
-                name(constant.name.as_str()) && literal(constant.value.as_ref())
-            })
-    });
-    let answers =
-        envelope.answers.0.iter().all(|(key, value)| {
-            key.len() <= MAX_COMPILE_ANSWER_KEY_BYTES && literal(value.as_ref())
-        });
     let bounded = text(&envelope.intent)
         && envelope.workflow_id.as_deref().is_none_or(name)
         && envelope
             .source
             .as_ref()
             .is_none_or(|source| source.len() <= MAX_COMPILE_SOURCE_BYTES)
-        && change
-        && answers;
+        && change_within(envelope.change.as_ref())
+        && answers_within(&envelope.answers);
     if bounded { Ok(()) } else { Err(limit()) }
+}
+
+/// A change within its bounds: its text, the constant's name and literal.
+fn change_within(change: Option<&Object<Change>>) -> bool {
+    change.is_none_or(|Object(change)| {
+        change
+            .text
+            .as_ref()
+            .is_none_or(|text| text.len() <= MAX_COMPILE_TEXT_BYTES)
+            && change.set_constant.as_ref().is_none_or(|Object(constant)| {
+                constant.name.len() <= MAX_COMPILE_NAME_BYTES
+                    && constant.value.get().len() <= MAX_COMPILE_LITERAL_BYTES
+            })
+    })
+}
+
+/// Every answer within its bounds: its key and its literal as sent.
+fn answers_within(answers: &Answers) -> bool {
+    answers.0.iter().all(|(key, value)| {
+        key.len() <= MAX_COMPILE_ANSWER_KEY_BYTES && value.get().len() <= MAX_COMPILE_LITERAL_BYTES
+    })
 }
 
 fn malformed() -> ApiError {

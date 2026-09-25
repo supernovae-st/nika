@@ -590,10 +590,12 @@ pub fn nika_kernel_ai::harness::HarnessOutcome::as_any(&self) -> &(dyn core::any
 #[non_exhaustive] pub struct nika_kernel_ai::harness::HarnessRequest
 pub nika_kernel_ai::harness::HarnessRequest::cwd: std::path::PathBuf
 pub nika_kernel_ai::harness::HarnessRequest::prompt: alloc::string::String
+pub nika_kernel_ai::harness::HarnessRequest::requested_mode: core::option::Option<alloc::string::String>
 pub nika_kernel_ai::harness::HarnessRequest::requested_model: core::option::Option<alloc::string::String>
 pub nika_kernel_ai::harness::HarnessRequest::system: core::option::Option<alloc::string::String>
 impl nika_kernel_ai::harness::HarnessRequest
 pub fn nika_kernel_ai::harness::HarnessRequest::new(prompt: impl core::convert::Into<alloc::string::String>, cwd: impl core::convert::Into<std::path::PathBuf>) -> Self
+pub fn nika_kernel_ai::harness::HarnessRequest::with_requested_mode(self, mode: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_kernel_ai::harness::HarnessRequest::with_requested_model(self, model: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_kernel_ai::harness::HarnessRequest::with_system(self, system: impl core::convert::Into<alloc::string::String>) -> Self
 impl core::clone::Clone for nika_kernel_ai::harness::HarnessRequest
@@ -1114,6 +1116,8 @@ impl<T> nika_error::traits::AsAny for nika_kernel_ai::provider::InferEvent where
 pub fn nika_kernel_ai::provider::InferEvent::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_kernel_ai::provider::InferEvent where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub enum nika_kernel_ai::provider::ProviderError
+pub nika_kernel_ai::provider::ProviderError::AdmissionDenied
+pub nika_kernel_ai::provider::ProviderError::AdmissionDenied::reason: alloc::string::String
 pub nika_kernel_ai::provider::ProviderError::Api
 pub nika_kernel_ai::provider::ProviderError::Api::message: alloc::string::String
 pub nika_kernel_ai::provider::ProviderError::Api::status: u16
@@ -1125,13 +1129,20 @@ pub nika_kernel_ai::provider::ProviderError::HttpResponse
 pub nika_kernel_ai::provider::ProviderError::HttpResponse::details: nika_kernel_ai::provider::ProviderHttpError
 pub nika_kernel_ai::provider::ProviderError::ModelNotFound
 pub nika_kernel_ai::provider::ProviderError::ModelNotFound::model: alloc::string::String
+pub nika_kernel_ai::provider::ProviderError::Observed
+pub nika_kernel_ai::provider::ProviderError::Observed::calls: alloc::vec::Vec<nika_types::cost::inference::InferenceCall>
+pub nika_kernel_ai::provider::ProviderError::Observed::source: alloc::boxed::Box<nika_kernel_ai::provider::ProviderError>
 pub nika_kernel_ai::provider::ProviderError::Other
 pub nika_kernel_ai::provider::ProviderError::Other::reason: alloc::string::String
 pub nika_kernel_ai::provider::ProviderError::RateLimited
 pub nika_kernel_ai::provider::ProviderError::RateLimited::retry_after_ms: core::option::Option<u64>
 impl nika_kernel_ai::provider::ProviderError
+pub fn nika_kernel_ai::provider::ProviderError::inference_calls(&self) -> &[nika_types::cost::inference::InferenceCall]
 pub fn nika_kernel_ai::provider::ProviderError::is_transient(&self) -> bool
+pub fn nika_kernel_ai::provider::ProviderError::unobserved(&self) -> &Self
+pub fn nika_kernel_ai::provider::ProviderError::with_inference_calls(self, calls: alloc::vec::Vec<nika_types::cost::inference::InferenceCall>) -> Self
 impl core::error::Error for nika_kernel_ai::provider::ProviderError
+pub fn nika_kernel_ai::provider::ProviderError::source(&self) -> core::option::Option<&(dyn core::error::Error + 'static)>
 impl core::fmt::Debug for nika_kernel_ai::provider::ProviderError
 pub fn nika_kernel_ai::provider::ProviderError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::fmt::Display for nika_kernel_ai::provider::ProviderError
@@ -1295,6 +1306,45 @@ pub fn nika_kernel_ai::provider::ToolChoice::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel_ai::provider::ToolChoice where T: 'static
 pub fn nika_kernel_ai::provider::ToolChoice::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_kernel_ai::provider::ToolChoice where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub enum nika_kernel_ai::provider::UsageCompleteness
+pub nika_kernel_ai::provider::UsageCompleteness::Complete
+pub nika_kernel_ai::provider::UsageCompleteness::Unknown
+impl core::clone::Clone for nika_kernel_ai::provider::UsageCompleteness
+pub fn nika_kernel_ai::provider::UsageCompleteness::clone(&self) -> nika_kernel_ai::provider::UsageCompleteness
+impl core::cmp::Eq for nika_kernel_ai::provider::UsageCompleteness
+impl core::cmp::PartialEq for nika_kernel_ai::provider::UsageCompleteness
+pub fn nika_kernel_ai::provider::UsageCompleteness::eq(&self, other: &nika_kernel_ai::provider::UsageCompleteness) -> bool
+impl core::default::Default for nika_kernel_ai::provider::UsageCompleteness
+pub fn nika_kernel_ai::provider::UsageCompleteness::default() -> nika_kernel_ai::provider::UsageCompleteness
+impl core::fmt::Debug for nika_kernel_ai::provider::UsageCompleteness
+pub fn nika_kernel_ai::provider::UsageCompleteness::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_kernel_ai::provider::UsageCompleteness
+impl core::marker::StructuralPartialEq for nika_kernel_ai::provider::UsageCompleteness
+impl<D> owo_colors::OwoColorize for nika_kernel_ai::provider::UsageCompleteness
+impl<T, U> core::convert::Into<U> for nika_kernel_ai::provider::UsageCompleteness where U: core::convert::From<T>
+pub fn nika_kernel_ai::provider::UsageCompleteness::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_ai::provider::UsageCompleteness where U: core::convert::Into<T>
+pub type nika_kernel_ai::provider::UsageCompleteness::Error = core::convert::Infallible
+pub fn nika_kernel_ai::provider::UsageCompleteness::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_ai::provider::UsageCompleteness where U: core::convert::TryFrom<T>
+pub type nika_kernel_ai::provider::UsageCompleteness::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_ai::provider::UsageCompleteness::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_ai::provider::UsageCompleteness where T: core::clone::Clone
+pub type nika_kernel_ai::provider::UsageCompleteness::Owned = T
+pub fn nika_kernel_ai::provider::UsageCompleteness::clone_into(&self, target: &mut T)
+pub fn nika_kernel_ai::provider::UsageCompleteness::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_ai::provider::UsageCompleteness where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_ai::provider::UsageCompleteness::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_ai::provider::UsageCompleteness where T: ?core::marker::Sized
+pub fn nika_kernel_ai::provider::UsageCompleteness::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_ai::provider::UsageCompleteness where T: ?core::marker::Sized
+pub fn nika_kernel_ai::provider::UsageCompleteness::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_ai::provider::UsageCompleteness where T: core::clone::Clone
+pub unsafe fn nika_kernel_ai::provider::UsageCompleteness::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_ai::provider::UsageCompleteness
+pub fn nika_kernel_ai::provider::UsageCompleteness::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_ai::provider::UsageCompleteness where T: 'static
+pub fn nika_kernel_ai::provider::UsageCompleteness::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_kernel_ai::provider::InferRequest
 pub nika_kernel_ai::provider::InferRequest::baggage: core::option::Option<nika_types::baggage::Baggage>
 pub nika_kernel_ai::provider::InferRequest::budget: core::option::Option<nika_types::budget::BudgetDirective>
@@ -1351,6 +1401,7 @@ pub nika_kernel_ai::provider::InferResponse::content: alloc::vec::Vec<nika_kerne
 pub nika_kernel_ai::provider::InferResponse::cost: core::option::Option<nika_types::cost::Cost>
 pub nika_kernel_ai::provider::InferResponse::finish_reason_raw: core::option::Option<alloc::string::String>
 pub nika_kernel_ai::provider::InferResponse::gen_ai: nika_kernel_ai::genai::GenAiAttrs
+pub nika_kernel_ai::provider::InferResponse::inference_calls: alloc::vec::Vec<nika_types::cost::inference::InferenceCall>
 pub nika_kernel_ai::provider::InferResponse::memory_frames: alloc::vec::Vec<nika_types::memory::MemoryFrameRef>
 pub nika_kernel_ai::provider::InferResponse::request_id: core::option::Option<alloc::string::String>
 pub nika_kernel_ai::provider::InferResponse::span_id: core::option::Option<nika_types::id::SpanId>
@@ -1359,8 +1410,10 @@ pub nika_kernel_ai::provider::InferResponse::trace_id: core::option::Option<nika
 pub nika_kernel_ai::provider::InferResponse::trust_level: core::option::Option<nika_types::trust::TrustLevel>
 pub nika_kernel_ai::provider::InferResponse::ttft_ms: core::option::Option<u64>
 pub nika_kernel_ai::provider::InferResponse::usage: nika_types::token_usage::TokenUsage
+pub nika_kernel_ai::provider::InferResponse::usage_completeness: nika_kernel_ai::provider::UsageCompleteness
 pub nika_kernel_ai::provider::InferResponse::usage_reported: bool
 impl nika_kernel_ai::provider::InferResponse
+pub fn nika_kernel_ai::provider::InferResponse::cost_observations(&self) -> alloc::vec::Vec<nika_types::cost::inference::InferenceCall>
 pub fn nika_kernel_ai::provider::InferResponse::new(content: alloc::vec::Vec<nika_kernel_ai::provider::ContentBlock>, usage: nika_types::token_usage::TokenUsage, stop_reason: nika_kernel_ai::provider::StopReason) -> Self
 pub fn nika_kernel_ai::provider::InferResponse::with_usage_reported(self, reported: bool) -> Self
 impl core::clone::Clone for nika_kernel_ai::provider::InferResponse

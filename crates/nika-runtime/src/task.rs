@@ -23,6 +23,7 @@ use nika_kernel::process::ShellRunDyn;
 use nika_kernel::tool_executor::ToolExecuteDyn;
 use nika_schema::raw::{ForEachValue, RawAction, RawTask, RawWorkflow};
 use nika_schema::types::{OnErrorAction, Permits, WhenGate};
+use nika_types::cost::InferenceCall;
 use serde_json::Value;
 
 use crate::Runtime;
@@ -34,6 +35,7 @@ use crate::expr::{self, Scope};
 use crate::record::{TaskErrorRecord, TaskRecord, TaskStatus};
 use crate::retry::jitter_key;
 pub(crate) use crate::retry::on_error_applies;
+use crate::usage::UsageSplit;
 use crate::witness::PermitWitness;
 use with_map::{render_boundary_with, render_with};
 
@@ -837,11 +839,7 @@ where
         run_start: nika_kernel::tool_executor::ToolRunStart,
     ) -> RanTask {
         let started = self.clock.now();
-        let max_attempts = task
-            .retry
-            .as_ref()
-            .map_or(1, |r| r.value.max_attempts.max(1));
-        let jitter_key = jitter_key(task, scope);
+        let (max_attempts, jitter_key) = retry_parameters(task, scope);
         let mut note = String::new();
         let mut retries: Vec<RetryStamp> = Vec::new();
         // Outside the timeout-cancellable region — survives the attempt's drop (review F1).
@@ -859,6 +857,7 @@ where
             let attempts = async {
                 let mut attempt = 1_u32;
                 // Spend of FAILED attempts — folded onto the terminal frame.
+                let mut failed_calls = Vec::new();
                 let mut failed_cost: Option<f64> = None;
                 let mut failed_unpriced: Option<nika_types::cost::UnpricedReason> = None;
                 loop {
@@ -880,19 +879,25 @@ where
                             // attempts debited theirs; frame reports all).
                             ledger.debit_ok(&ok);
                             ok.fold_failed_spend(failed_cost, failed_unpriced);
+                            UsageSplit::join_calls(&mut ok.usage, &failed_calls, true);
                             return Ok(ok);
                         }
                         Err(failed) => {
-                            let delay = self.failed_attempt_delay(
-                                task,
-                                failed,
-                                ledger,
-                                &mut failed_cost,
-                                &mut failed_unpriced,
-                                attempt,
-                                max_attempts,
-                                &jitter_key,
-                            )?;
+                            if let Some(u) = &failed.usage {
+                                failed_calls.extend_from_slice(&u.inference_calls);
+                            }
+                            let delay = self
+                                .failed_attempt_delay(
+                                    task,
+                                    failed,
+                                    ledger,
+                                    &mut failed_cost,
+                                    &mut failed_unpriced,
+                                    attempt,
+                                    max_attempts,
+                                    &jitter_key,
+                                )
+                                .map_err(|failed| retain_failed_calls(failed, &failed_calls))?;
                             retries.push(RetryStamp {
                                 attempt,
                                 max_attempts,
@@ -908,9 +913,7 @@ where
             self.race_budget(attempts, budget).await
         };
         let duration_ms = self.since_ms(started);
-        if note.is_empty() {
-            verb_note_prefix(&task.action).clone_into(&mut note); // timed out pre-dispatch
-        }
+        let note = attempt_note(note, &task.action);
 
         let (result, evidence, usage) = dispatch_result(task, scope, outcome);
         RanTask {
@@ -986,6 +989,26 @@ where
             .checked_duration_since(started)
             .map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX))
     }
+}
+
+fn retry_parameters(task: &RawTask, scope: &Scope<'_>) -> (u32, String) {
+    let max_attempts = task
+        .retry
+        .as_ref()
+        .map_or(1, |r| r.value.max_attempts.max(1));
+    (max_attempts, jitter_key(task, scope))
+}
+
+fn retain_failed_calls(mut failed: FailedOutcome, calls: &[InferenceCall]) -> FailedOutcome {
+    UsageSplit::join_calls(&mut failed.usage, calls, false);
+    failed
+}
+
+fn attempt_note(mut note: String, action: &RawAction) -> String {
+    if note.is_empty() {
+        verb_note_prefix(action).clone_into(&mut note); // timed out pre-dispatch
+    }
+    note
 }
 
 /// Evaluate the task's `output:` named bindings (spec 04 §Output binding)
@@ -1378,7 +1401,13 @@ fn apply_on_error(task: &RawTask, scope: &Scope<'_>, failed: FailedOutcome) -> R
         usage: _,
         access_refused,
     } = failed;
-    let Some(on_error) = task.on_error.as_ref() else {
+    let Some(on_error) = task
+        .on_error
+        .as_ref()
+        .filter(|on_error| on_error_applies(&on_error.value, &error))
+    else {
+        // No `on_error:`, or an unlisted code: falls through to the
+        // default fail (spec 05).
         return RunResult::Failed {
             error,
             cost_usd,
@@ -1387,16 +1416,6 @@ fn apply_on_error(task: &RawTask, scope: &Scope<'_>, failed: FailedOutcome) -> R
             access_refused,
         };
     };
-    if !on_error_applies(&on_error.value, &error) {
-        // Unlisted code falls through to the default fail (spec 05).
-        return RunResult::Failed {
-            error,
-            cost_usd,
-            cost_unpriced,
-            access,
-            access_refused,
-        };
-    }
     match &on_error.value.action {
         OnErrorAction::Recover(value) => match expr::render_json(&value.value, scope) {
             Ok(recovered) => RunResult::recovered(recovered, error, cost_usd, cost_unpriced),

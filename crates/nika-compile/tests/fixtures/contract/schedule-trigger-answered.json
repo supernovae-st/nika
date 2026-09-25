@@ -1,0 +1,675 @@
+{
+  "compile_version": 1,
+  "document": {
+    "candidate": "const:\n  output_path: ./open.json\n  source_path: ./tickets.json\nnika: compiled-workflow\noutputs:\n  computed: ${{ tasks.compute.output }}\n  write_status: ${{ tasks.write_output.status }}\npermits:\n  fs:\n    read:\n    - ./tickets.json\n    write:\n    - ./open.json\n  tools:\n  - nika:assert\n  - nika:jq\n  - nika:read\n  - nika:write\ntasks:\n  compute:\n    after:\n      compute_admit: success\n    invoke:\n      args:\n        expression: '[.records[] | select(.status == \"open\")]'\n        input:\n          records: ${{ with.records }}\n      tool: nika:jq\n    with:\n      records: ${{ tasks.parse_source.output }}\n  compute_admit:\n    invoke:\n      args:\n        condition: ${{ with.ok }}\n        message: The rule `keep only the rows whose status is open` reads the column(s) `status`, but the first parsed record has no such field; check the source header.\n      tool: nika:assert\n    with:\n      ok: ${{ tasks.compute_guard.output }}\n  compute_guard:\n    after:\n      parse_source: success\n    invoke:\n      args:\n        expression: (.records | type) == \"array\" and ((.records | length) == 0 or (.records[0] | type == \"object\" and has(\"status\")))\n        input:\n          records: ${{ with.records }}\n      tool: nika:jq\n    with:\n      records: ${{ tasks.parse_source.output }}\n  parse_source:\n    invoke:\n      args:\n        expression: fromjson\n        input: ${{ with.document }}\n      tool: nika:jq\n    with:\n      document: ${{ tasks.read_source.output }}\n  read_source:\n    invoke:\n      args:\n        path: ${{ const.source_path }}\n      tool: nika:read\n  write_output:\n    after:\n      compute: success\n    invoke:\n      args:\n        content: ${{ with.content }}\n        create_dirs: true\n        overwrite: true\n        path: ${{ const.output_path }}\n      tool: nika:write\n    with:\n      content: ${{ tasks.compute.output }}\n",
+    "check_preview": {
+      "report": {
+        "analysis": {
+          "blast_radius": [
+            {
+              "blocks": 5,
+              "task": "read_source"
+            },
+            {
+              "blocks": 4,
+              "task": "parse_source"
+            },
+            {
+              "blocks": 3,
+              "task": "compute_guard"
+            },
+            {
+              "blocks": 2,
+              "task": "compute_admit"
+            },
+            {
+              "blocks": 1,
+              "task": "compute"
+            }
+          ],
+          "pinch_points": [
+            "compute",
+            "compute_admit",
+            "compute_guard",
+            "parse_source",
+            "read_source",
+            "write_output"
+          ],
+          "width": 1,
+          "width_witness": [
+            "write_output"
+          ]
+        },
+        "capability_escapes": [],
+        "certificate": {
+          "derivation": [
+            {
+              "attempts": 1,
+              "deps": [
+                "parse_source",
+                "compute_admit"
+              ],
+              "fanout": {
+                "known": 1
+              },
+              "finally_effect": 0,
+              "finally_llm": 0,
+              "finally_spend_micros": 0,
+              "main_effect": 1,
+              "main_llm": 0,
+              "main_spend_micros": 0,
+              "task": "compute"
+            },
+            {
+              "attempts": 1,
+              "deps": [
+                "compute_guard"
+              ],
+              "fanout": {
+                "known": 1
+              },
+              "finally_effect": 0,
+              "finally_llm": 0,
+              "finally_spend_micros": 0,
+              "main_effect": 1,
+              "main_llm": 0,
+              "main_spend_micros": 0,
+              "task": "compute_admit"
+            },
+            {
+              "attempts": 1,
+              "deps": [
+                "parse_source"
+              ],
+              "fanout": {
+                "known": 1
+              },
+              "finally_effect": 0,
+              "finally_llm": 0,
+              "finally_spend_micros": 0,
+              "main_effect": 1,
+              "main_llm": 0,
+              "main_spend_micros": 0,
+              "task": "compute_guard"
+            },
+            {
+              "attempts": 1,
+              "deps": [
+                "read_source"
+              ],
+              "fanout": {
+                "known": 1
+              },
+              "finally_effect": 0,
+              "finally_llm": 0,
+              "finally_spend_micros": 0,
+              "main_effect": 1,
+              "main_llm": 0,
+              "main_spend_micros": 0,
+              "task": "parse_source"
+            },
+            {
+              "attempts": 1,
+              "deps": [],
+              "fanout": {
+                "known": 1
+              },
+              "finally_effect": 0,
+              "finally_llm": 0,
+              "finally_spend_micros": 0,
+              "main_effect": 1,
+              "main_llm": 0,
+              "main_spend_micros": 0,
+              "task": "read_source"
+            },
+            {
+              "attempts": 1,
+              "deps": [
+                "compute"
+              ],
+              "fanout": {
+                "known": 1
+              },
+              "finally_effect": 0,
+              "finally_llm": 0,
+              "finally_spend_micros": 0,
+              "main_effect": 1,
+              "main_llm": 0,
+              "main_spend_micros": 0,
+              "task": "write_output"
+            }
+          ],
+          "effect_calls": {
+            "constant": 6,
+            "terms": []
+          },
+          "effects": {
+            "boundary_declared": true,
+            "escapes": 0,
+            "needed": {
+              "exec": false,
+              "fs": {
+                "read": [
+                  "./tickets.json"
+                ],
+                "write": [
+                  "./open.json"
+                ]
+              },
+              "tools": [
+                "nika:assert",
+                "nika:jq",
+                "nika:read",
+                "nika:write"
+              ]
+            }
+          },
+          "llm_calls": {
+            "constant": 0,
+            "terms": []
+          },
+          "span_attempts": 6,
+          "task_attempts": {
+            "constant": 6,
+            "terms": []
+          },
+          "usd_micros": {
+            "constant": 0,
+            "terms": []
+          }
+        },
+        "composition": [],
+        "conformance": [],
+        "consent_findings": [],
+        "cost": {
+          "bounded_total_usd": 0.0,
+          "has_unbounded": false,
+          "min_path_total_usd": 0.0,
+          "tasks": []
+        },
+        "data_journey": {
+          "classification": "internal",
+          "consents": [],
+          "destinations": [
+            {
+              "kind": "fs.write",
+              "target": "./open.json",
+              "tasks": [
+                "write_output"
+              ]
+            }
+          ],
+          "model_endpoints": [],
+          "secrets_used": [],
+          "sources": [
+            {
+              "kind": "fs.read",
+              "target": "./tickets.json",
+              "tasks": [
+                "read_source"
+              ]
+            }
+          ],
+          "trace_retention": [],
+          "writes": [
+            "./open.json"
+          ]
+        },
+        "energy": {
+          "counts": {
+            "never_runs": 0,
+            "total": 0,
+            "uncapped": 0,
+            "unpriced": 0,
+            "unpriced_local": 0
+          },
+          "scope_subtotals": [],
+          "tasks": []
+        },
+        "exec_floor_findings": [],
+        "findings": [],
+        "gate_findings": [],
+        "hints": [
+          {
+            "advice": "`nika:assert` on `compute_admit` shares the DAG with a write — a red assert moves `out/` into `.nika/quarantine/<trace>/`. Look there before assuming the write never happened; keep the assert off the last wave if you need the artifacts from a red run",
+            "kind": "assert-quarantine",
+            "task": "compute_admit"
+          }
+        ],
+        "lift_findings": [],
+        "missing_args": [],
+        "order_findings": [],
+        "permit_taints": [],
+        "permits": {
+          "declared": {
+            "fs": {
+              "read": [
+                "./tickets.json"
+              ],
+              "write": [
+                "./open.json"
+              ]
+            },
+            "tools": [
+              "nika:assert",
+              "nika:jq",
+              "nika:read",
+              "nika:write"
+            ]
+          },
+          "needed": {
+            "exec": false,
+            "fs": {
+              "read": [
+                "./tickets.json"
+              ],
+              "write": [
+                "./open.json"
+              ]
+            },
+            "tools": [
+              "nika:assert",
+              "nika:jq",
+              "nika:read",
+              "nika:write"
+            ]
+          },
+          "notes": [],
+          "partial": {
+            "composed": false,
+            "exec": false,
+            "fs": false,
+            "net": false
+          },
+          "source": "declared"
+        },
+        "report_version": 1,
+        "requirements": {
+          "inputs_read": [],
+          "inputs_required": [],
+          "models": [],
+          "secrets": []
+        },
+        "retry_safety_findings": [],
+        "run_decl_findings": [],
+        "schema_findings": [],
+        "schema_lints": [],
+        "secret_egresses": [],
+        "secret_leaks": [],
+        "sink_findings": [],
+        "slot_findings": [],
+        "trifecta_findings": [],
+        "trifecta_mitigations": [],
+        "unknown_args": [],
+        "unknown_tools": [],
+        "unverifiable_output_refs": [],
+        "waves": [
+          [
+            4
+          ],
+          [
+            3
+          ],
+          [
+            2
+          ],
+          [
+            1
+          ],
+          [
+            0
+          ],
+          [
+            5
+          ]
+        ],
+        "workflow_semantic": null,
+        "write_conflicts": []
+      },
+      "scope": "sourceOnly"
+    },
+    "compile_version": 1,
+    "diagnostics": [
+      {
+        "kind": "applied",
+        "message": "`every weekday at 8` is a trigger, not a task: recorded as requested_trigger (schedule · weekdays · 08:00) for whoever binds it through a schedule or an ingress; the candidate's bytes carry no cadence, host or event and run once per invocation.",
+        "target": "trigger"
+      }
+    ],
+    "provenance": {
+      "cognition": "deterministicOnly",
+      "compiler_version": "0.121.0",
+      "decision": {
+        "intent_sha256": "39931fc2ff06e46a46963f34699435afe7c5e79a5548f24d09e25e3cb48e3346",
+        "ledger": [
+          {
+            "evidence": "keep only the rows whose status is open",
+            "kind": "transformation",
+            "note": null,
+            "realized_by": "compute",
+            "state": "realized"
+          },
+          {
+            "evidence": "keep only the rows whose status is open",
+            "kind": "filter",
+            "note": null,
+            "realized_by": "compute",
+            "state": "realized"
+          },
+          {
+            "evidence": "write them to ./open.json",
+            "kind": "effect",
+            "note": null,
+            "realized_by": "write_output",
+            "state": "realized"
+          },
+          {
+            "evidence": "every weekday at 8",
+            "kind": "trigger",
+            "note": "requires binding outside the program bytes",
+            "realized_by": "requested_trigger",
+            "state": "realized"
+          }
+        ],
+        "retrieval": {
+          "by_intent": [
+            {
+              "id": "fanout",
+              "kind": "skeleton",
+              "score": 14.5
+            },
+            {
+              "id": "docker-report",
+              "kind": "skeleton",
+              "score": 11.626
+            },
+            {
+              "id": "F15",
+              "kind": "family",
+              "score": 10.781
+            },
+            {
+              "id": "bounded-batch",
+              "kind": "skeleton",
+              "score": 10.578
+            },
+            {
+              "id": "D24",
+              "kind": "family",
+              "score": 10.529
+            },
+            {
+              "id": "F16",
+              "kind": "family",
+              "score": 10.009
+            },
+            {
+              "id": "C22",
+              "kind": "family",
+              "score": 9.339
+            },
+            {
+              "id": "I04",
+              "kind": "family",
+              "score": 8.36
+            },
+            {
+              "id": "F29",
+              "kind": "family",
+              "score": 8.248
+            },
+            {
+              "id": "F25",
+              "kind": "family",
+              "score": 8.112
+            }
+          ],
+          "by_ops": [
+            {
+              "id": "chain",
+              "kind": "skeleton",
+              "score": 15.97
+            },
+            {
+              "id": "F30",
+              "kind": "family",
+              "score": 8.49
+            },
+            {
+              "id": "B02",
+              "kind": "family",
+              "score": 7.878
+            },
+            {
+              "id": "website-brief",
+              "kind": "skeleton",
+              "score": 7.677
+            },
+            {
+              "id": "docker-report",
+              "kind": "skeleton",
+              "score": 7.483
+            },
+            {
+              "id": "media-asset-pack",
+              "kind": "skeleton",
+              "score": 7.348
+            },
+            {
+              "id": "B13",
+              "kind": "family",
+              "score": 7.251
+            },
+            {
+              "id": "etl-state",
+              "kind": "skeleton",
+              "score": 7.151
+            },
+            {
+              "id": "A09",
+              "kind": "family",
+              "score": 7.122
+            },
+            {
+              "id": "B11",
+              "kind": "family",
+              "score": 6.933
+            }
+          ]
+        },
+        "route": [
+          "hot"
+        ],
+        "rule": {
+          "clauses": [
+            {
+              "comparator": "==",
+              "field": "status",
+              "value": "open",
+              "value_kind": "text"
+            }
+          ],
+          "comparator": "==",
+          "field": "status",
+          "fields": [
+            "status"
+          ],
+          "jq": "[.records[] | select(.status == \"open\")]",
+          "lines": false,
+          "program": null,
+          "shape": {
+            "aggregations": [],
+            "columns": [],
+            "derived": [],
+            "descending": false,
+            "distinct": false,
+            "distinct_by": [],
+            "group_by": null,
+            "join_on": null,
+            "limit": null,
+            "renames": [],
+            "sort_by": null
+          },
+          "summary": false,
+          "synthesized": true,
+          "text": "keep only the rows whose status is open",
+          "value": "open"
+        },
+        "shape": {
+          "fan_out": false,
+          "gated": false,
+          "outputs": 1,
+          "per_item": false,
+          "word": "linear"
+        }
+      },
+      "plan": {
+        "bindings": [
+          {
+            "literal": "./open.json",
+            "role": "path"
+          },
+          {
+            "literal": "./tickets.json",
+            "role": "path"
+          },
+          {
+            "literal": "./open.json",
+            "role": "path"
+          }
+        ],
+        "constraints": [],
+        "effects": [
+          {
+            "evidence": "write them to ./open.json",
+            "policy": "automatic",
+            "policy_literal": null,
+            "target": "./open.json",
+            "verb": "write"
+          }
+        ],
+        "obligations": [],
+        "operations": [
+          {
+            "categories": [],
+            "detail": "./tickets.json",
+            "evidence": "read ./tickets.json",
+            "op": "read"
+          },
+          {
+            "categories": [],
+            "detail": "keep only the rows whose status is open",
+            "evidence": "keep only the rows whose status is open",
+            "op": "compute"
+          }
+        ],
+        "rules": [
+          {
+            "clauses": [
+              {
+                "comparator": "==",
+                "field": "status",
+                "value": "open",
+                "value_kind": "text"
+              }
+            ],
+            "comparator": "==",
+            "field": "status",
+            "fields": [
+              "status"
+            ],
+            "jq": "[.records[] | select(.status == \"open\")]",
+            "lines": false,
+            "program": null,
+            "shape": {
+              "aggregations": [],
+              "columns": [],
+              "derived": [],
+              "descending": false,
+              "distinct": false,
+              "distinct_by": [],
+              "group_by": null,
+              "join_on": null,
+              "limit": null,
+              "renames": [],
+              "sort_by": null
+            },
+            "summary": false,
+            "synthesized": true,
+            "text": "keep only the rows whose status is open",
+            "value": "open"
+          }
+        ],
+        "slots": [],
+        "strategy": "hot",
+        "trigger": "every weekday at 8",
+        "unknowns": []
+      },
+      "skeleton": null,
+      "spec_pin": "95ed1acf09c7798314a36fb208c9a5546b6ca658",
+      "strategy": "hot",
+      "suggested_file": "open.nika"
+    },
+    "questions": [],
+    "requested_boundary": {
+      "declared": {
+        "fs": {
+          "read": [
+            "./tickets.json"
+          ],
+          "write": [
+            "./open.json"
+          ]
+        },
+        "tools": [
+          "nika:assert",
+          "nika:jq",
+          "nika:read",
+          "nika:write"
+        ]
+      },
+      "needed": {
+        "exec": false,
+        "fs": {
+          "read": [
+            "./tickets.json"
+          ],
+          "write": [
+            "./open.json"
+          ]
+        },
+        "tools": [
+          "nika:assert",
+          "nika:jq",
+          "nika:read",
+          "nika:write"
+        ]
+      },
+      "notes": [],
+      "partial": {
+        "composed": false,
+        "exec": false,
+        "fs": false,
+        "net": false
+      },
+      "source": "declared"
+    },
+    "requested_trigger": {
+      "at": "08:00",
+      "cadence": "weekdays",
+      "ceiling": "0.1",
+      "cron": "0 8 * * 1-5",
+      "event_hint": null,
+      "kind": "schedule",
+      "missed": "rattraper-une-fois",
+      "overlap": "sauter",
+      "payload_input": null,
+      "source_hint": "every weekday at 8",
+      "status": "requires_binding",
+      "timezone": "Europe/Paris"
+    },
+    "status": "ready"
+  },
+  "fixture": "schedule-trigger-answered",
+  "state": "ready · the same schedule with its binding values answered and echoed"
+}

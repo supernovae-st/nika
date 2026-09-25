@@ -8,6 +8,8 @@
 //! path may become a constant, a permit entry or a tool argument; prose never
 //! does. The shape decides the structure: one file is one read or write, several
 //! files are a fan-out, a directory needs a glob, a placeholder needs a human.
+//! A name with spaces is one literal quoted or given whole; unquoted in prose, its
+//! extent is a human's to settle (a placeholder), never a truncated other file.
 
 /// How one literal token reads as a local path.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -19,47 +21,96 @@ pub enum PathShape {
     Directory(String),
     /// A glob the engine can expand (`*`, `?`, `[`).
     Glob(String),
-    /// A placeholder a human must resolve (`<slug>`, `{name}`, `$x`).
+    /// A placeholder a human must resolve (`<slug>`, `{name}`, `$x`), or an unquoted
+    /// multiword name whose extent the prose leaves open (`Notes équipe.txt`).
     Placeholder(String),
 }
 
-/// Every path-shaped token of a phrase, in order, without duplicates.
+/// Quote pairs that make one literal of a multiword span (a whole string may also be
+/// wrapped in straight single quotes).
+const QUOTES: [(char, char); 4] = [('"', '"'), ('“', '”'), ('«', '»'), ('`', '`')];
+/// Punctuation that may follow a literal without being part of it.
+const TAIL: [char; 6] = ['.', ',', ';', ':', '!', '?'];
+/// What ends a word no name runs over into the next one.
+const CLOSERS: [char; 12] = ['.', ',', ';', ':', '!', '?', ')', ']', '»', '"', '`', '”'];
+const ROOTS: [&str; 4] = ["../", "./", "~/", "/"];
+/// Nouns that introduce a file's name (`le fichier Notes équipe.txt`).
+const FILE_NOUNS: &[&str] = &["file", "fichier", "archivo", "fichero", "datei", "arquivo"];
+/// Words never part of an unquoted file name (articles, prepositions, conjunctions,
+/// pronouns, auxiliaries, read and write verbs), one per line.
+const FUNCTION_WORDS: &str = include_str!("../assets/function_words.txt");
+
+/// Every path-shaped literal of a phrase, in order, without duplicates: a quoted
+/// multiword span is one literal; a bare file an unquoted name visibly runs over is a
+/// placeholder naming those words, never the truncated tail.
 #[must_use]
 pub fn literals(text: &str) -> Vec<PathShape> {
     let mut found: Vec<PathShape> = Vec::new();
-    for word in text.split_whitespace() {
-        if let Some(shape) = token(word)
-            && !found.contains(&shape)
-        {
+    for (shape, ..) in located(text) {
+        if !found.contains(&shape) {
             found.push(shape);
         }
     }
     found
 }
 
-/// The one exact file a phrase names, when it names exactly one path-shaped token
-/// and that token is a file.
+/// Every literal of [`literals`] in order, duplicates kept, with the byte span its words
+/// (quotes included) cover in `text`.
+pub(crate) fn located(text: &str) -> Vec<(PathShape, usize, usize)> {
+    let items = items(text);
+    // Every item is a subslice of `text`: its offset is its distance from the start.
+    let offset = |part: &str| part.as_ptr() as usize - text.as_ptr() as usize;
+    let mut found = Vec::new();
+    for (at, (word, span)) in items.iter().enumerate() {
+        let Some(shape) = span.clone().or_else(|| token(word)) else {
+            continue;
+        };
+        let glued = match &shape {
+            PathShape::File(file) if span.is_none() && !rooted(file) => name_start(&items, at),
+            _ => None,
+        };
+        let start = offset(glued.map_or(*word, |from| items[from].0));
+        let shape = match (glued, shape) {
+            (Some(from), PathShape::File(file)) => {
+                let run: Vec<&str> = items[from..at].iter().map(|(w, _)| trim(w)).collect();
+                PathShape::Placeholder(format!("{} {file}", run.join(" ")))
+            }
+            (_, shape) => shape,
+        };
+        found.push((shape, start, offset(word) + word.len()));
+    }
+    found
+}
+
+/// The one exact file a phrase names: the whole phrase when it is one file's literal
+/// (a quoted name, a name given as an answer), else its only literal when a file.
 #[must_use]
 pub fn single_file(text: &str) -> Option<String> {
+    if let Some(PathShape::File(path)) = token(text) {
+        return Some(path);
+    }
     match literals(text).as_slice() {
         [PathShape::File(path)] => Some(path.clone()),
         _ => None,
     }
 }
 
-/// One whitespace-free word read as a path, or nothing when it is prose.
+/// One literal read as a path, or nothing when it is prose. A word is the common case;
+/// a whole string with spaces (an answer, a quoted span) is one literal only when quoted,
+/// or when it can only be a file's name.
 pub fn token(word: &str) -> Option<PathShape> {
-    let word = word
-        .trim_matches(|c: char| matches!(c, '"' | '\'' | '`' | '(' | ')' | '[' | ']' | '«' | '»'))
-        .trim_end_matches(['.', ',', ';', ':', '!', '?']);
-    if word.len() < 2 || word.contains("://") || word.chars().any(char::is_whitespace) {
+    let outer = word.trim().trim_end_matches(TAIL);
+    let wrapped = (outer.chars().next().zip(outer.chars().next_back()))
+        .is_some_and(|pair| pair == ('\'', '\'') || QUOTES.contains(&pair));
+    let word = trim(word);
+    if word.len() < 2 || word.contains("://") || word.contains(['\n', '\r', '\t']) {
         return None;
     }
-    let rooted = word.starts_with("./")
-        || word.starts_with("../")
-        || word.starts_with('/')
-        || word.starts_with("~/");
-    if !rooted && !bare_filename(word) {
+    let spaced = word.contains(char::is_whitespace);
+    let admits: fn(&str) -> bool = if wrapped { one_path } else { plain_name };
+    if (spaced && !admits(word))
+        || (!rooted(word) && !bare_filename(word, spaced) && !relative_file(word, spaced))
+    {
         return None;
     }
     let literal = word.to_owned();
@@ -75,6 +126,134 @@ pub fn token(word: &str) -> Option<PathShape> {
     Some(PathShape::File(literal))
 }
 
+/// Quotes and brackets wrap a literal, punctuation follows it, and prose nests them
+/// (`(./a.md, ./b.md),`): trim until nothing changes.
+fn trim(mut word: &str) -> &str {
+    loop {
+        let next = word
+            .trim()
+            .trim_matches(|c: char| "\"'`()[]«»“”".contains(c))
+            .trim_end_matches(TAIL);
+        if next == word {
+            return word;
+        }
+        word = next;
+    }
+}
+
+fn rooted(word: &str) -> bool {
+    ROOTS.iter().any(|root| word.starts_with(root))
+}
+
+pub(crate) fn function_word(word: &str) -> bool {
+    let lower = word.to_lowercase();
+    FUNCTION_WORDS.lines().any(|w| w == lower)
+}
+
+pub(crate) fn file_noun(word: &str) -> bool {
+    FILE_NOUNS.contains(&word.to_lowercase().as_str())
+}
+
+/// A quoted literal with spaces: a bare name, or one path whose segments open
+/// and close on a visible character (no prose, no second path rides a leading slash).
+fn one_path(word: &str) -> bool {
+    (!word.contains('/') || word.split('/').skip(1).all(|seg| seg.trim() == seg))
+        && !word.split_whitespace().skip(1).any(rooted)
+        // Two recognizable file paths inside one quote are not one spaced path.
+        && word
+            .split_whitespace()
+            .filter(|part| part.contains('/') && extension(part).is_some())
+            .take(2)
+            .count()
+            < 2
+}
+
+/// An unquoted string that can only be one file's name: two to six words of name
+/// characters, none a function word or a file noun, no path before the last.
+fn plain_name(word: &str) -> bool {
+    let parts: Vec<&str> = word.split_whitespace().collect();
+    (2..=6).contains(&parts.len())
+        && one_path(word)
+        && parts.iter().enumerate().all(|(at, part)| {
+            part.chars()
+                .all(|c| c.is_alphanumeric() || "_-./".contains(c))
+                && part.chars().any(char::is_alphanumeric)
+                && !function_word(part)
+                && !file_noun(part)
+                && (at + 1 == parts.len() || token(part).is_none())
+        })
+}
+
+/// The phrase as `(text, path)` items: a quoted stretch that is one multiword path is
+/// one item, every other stretch (quotes of prose included) its words.
+fn items(text: &str) -> Vec<(&str, Option<PathShape>)> {
+    let (mut items, mut from, mut at) = (Vec::new(), 0, 0);
+    while let Some(open) = text.get(at..).and_then(|rest| rest.chars().next()) {
+        let start = at;
+        at += open.len_utf8();
+        let Some(&(_, close)) = QUOTES.iter().find(|(o, _)| *o == open) else {
+            continue;
+        };
+        let Some(end) = text.get(at..).and_then(|rest| rest.find(close)) else {
+            continue;
+        };
+        let inner = text.get(at..at + end).unwrap_or_default().trim();
+        at += end + close.len_utf8();
+        let worded = inner
+            .split_whitespace()
+            .all(|w| w.chars().any(char::is_alphanumeric));
+        if inner.contains(char::is_whitespace)
+            && !inner.ends_with(TAIL)
+            && worded
+            && let Some(span) = token(&format!("\"{inner}\""))
+        {
+            let before = text.get(from..start).unwrap_or_default();
+            items.extend(before.split_whitespace().map(|word| (word, None)));
+            items.push((text.get(start..at).unwrap_or_default(), Some(span)));
+            from = at;
+        }
+    }
+    let rest = text.get(from..).unwrap_or_default();
+    items.extend(rest.split_whitespace().map(|word| (word, None)));
+    items
+}
+
+/// Where the name of the bare file at `at` visibly begins: at the first word after a
+/// file noun (`le fichier Notes équipe.txt`) or at a capitalized word inside a sentence
+/// (`dans Copie équipe.txt`); `None` when the token alone names the file.
+fn name_start(items: &[(&str, Option<PathShape>)], at: usize) -> Option<usize> {
+    let (mut run, mut capital) = (None, None);
+    for index in (0..at).rev() {
+        let (word, span) = &items[index];
+        let core = trim(word);
+        if span.is_some() || word.ends_with(CLOSERS) || function_word(core) {
+            break;
+        }
+        if file_noun(core) {
+            return run;
+        }
+        if token(word).is_some() || !core.chars().any(char::is_alphanumeric) {
+            break;
+        }
+        run = Some(index);
+        // A capital opening the phrase or a sentence is the sentence's, not the name's.
+        let opens = index == 0 || items[index - 1].0.ends_with(['.', '!', '?', ':']);
+        if !opens && core.starts_with(char::is_uppercase) {
+            capital = Some(index);
+        }
+    }
+    // A relative compound file can have a lowercase directory prefix containing spaces.
+    // Keep the ambiguous extent after a connector; never silently retain only its suffix.
+    // A sentence's first word still belongs to prose, just as for a capitalized opener.
+    capital.or_else(|| {
+        let word = trim(items[at].0);
+        (word.contains('/') && !rooted(word))
+            .then_some(run)
+            .flatten()
+            .filter(|from| *from > 0)
+    })
+}
+
 /// The material a read consumes when a request names a path: a file or a glob as
 /// stated; a directory as every file directly under it (`./notes` → `./notes/*`), a
 /// derivation of the stated literal that guesses neither an extension nor a depth.
@@ -87,8 +266,8 @@ pub(crate) fn material(path: &str) -> String {
 }
 
 /// `name.ext` with a real stem and an alphabetic-led extension; never a bare number,
-/// an abbreviation (`e.g`) or a version (`v1.2`).
-fn bare_filename(word: &str) -> bool {
+/// an abbreviation (`e.g`) or a version (`v1.2`). A name given whole may hold spaces.
+fn bare_filename(word: &str, spaced: bool) -> bool {
     if word.contains('/') {
         return false;
     }
@@ -96,14 +275,36 @@ fn bare_filename(word: &str) -> bool {
         return false;
     };
     !stem.is_empty()
-        && stem
-            .chars()
-            .all(|c| c.is_alphanumeric() || matches!(c, '_' | '-' | '.'))
+        && stem.chars().all(|c| {
+            c.is_alphanumeric()
+                || "_-.".contains(c)
+                || (spaced && (c.is_whitespace() || "'’()&+,".contains(c)))
+        })
         && stem.chars().any(char::is_alphanumeric)
         && ext.len() >= 2
         && ext.len() <= 8
         && ext.chars().next().is_some_and(char::is_alphabetic)
         && ext.chars().all(char::is_alphanumeric)
+}
+
+/// A relative compound file (`notes/source.txt`) needs no `./` prefix. Keep every segment
+/// verbatim, including `..`; this recognizes a literal, it never normalizes or grants it.
+fn relative_file(word: &str, spaced: bool) -> bool {
+    let Some((directory, file)) = word.rsplit_once('/') else {
+        return false;
+    };
+    !directory.is_empty()
+        && bare_filename(file, spaced)
+        && one_path(word)
+        && directory.split('/').all(|segment| {
+            !segment.is_empty()
+                && segment.trim() == segment
+                && segment.chars().all(|c| {
+                    c.is_alphanumeric()
+                        || "_-.".contains(c)
+                        || (spaced && (c.is_whitespace() || "'’()&+,".contains(c)))
+                })
+        })
 }
 
 /// The lowercase extension of the final segment, when it has one.
@@ -198,6 +399,22 @@ mod tests {
     use super::*;
 
     #[test]
+    fn a_path_token_sheds_nested_brackets_and_punctuation_until_nothing_changes() {
+        assert_eq!(
+            token("./docs/fournisseur-c.md),"),
+            Some(PathShape::File("./docs/fournisseur-c.md".to_owned()))
+        );
+        assert_eq!(
+            token("(./docs/fournisseur-a.md,"),
+            Some(PathShape::File("./docs/fournisseur-a.md".to_owned()))
+        );
+        assert_eq!(
+            token("«./out/rapport.md»."),
+            Some(PathShape::File("./out/rapport.md".to_owned()))
+        );
+    }
+
+    #[test]
     fn a_path_token_is_one_word_that_looks_like_a_path() {
         assert_eq!(
             token("./out/summary.md"),
@@ -279,5 +496,225 @@ mod tests {
         assert_eq!(material("./notes/brief.md"), "./notes/brief.md");
         assert_eq!(material("./notes/*.md"), "./notes/*.md");
         assert_eq!(material("./catalog/<slug>.md"), "./catalog/<slug>.md");
+    }
+
+    fn file(path: &str) -> PathShape {
+        PathShape::File(path.to_owned())
+    }
+
+    fn open(name: &str) -> PathShape {
+        PathShape::Placeholder(name.to_owned())
+    }
+
+    #[test]
+    fn a_quoted_multiword_name_is_one_literal_in_every_quote_style() {
+        for (text, source, destination) in [
+            (
+                "Copie \"Notes équipe.txt\" dans \"Copie équipe.txt\".",
+                "Notes équipe.txt",
+                "Copie équipe.txt",
+            ),
+            (
+                "Copie « Notes équipe.txt » dans «Copie équipe.txt».",
+                "Notes équipe.txt",
+                "Copie équipe.txt",
+            ),
+            (
+                "Copy “Team notes.txt” to `Team copy.txt`",
+                "Team notes.txt",
+                "Team copy.txt",
+            ),
+            (
+                "Lies \"Über uns.md\" und schreib nach \"Bericht März.md\"",
+                "Über uns.md",
+                "Bericht März.md",
+            ),
+            (
+                "Copy \"Notes de réunion (v2).txt\", then \"./Mes docs/Compte rendu.md\"",
+                "Notes de réunion (v2).txt",
+                "./Mes docs/Compte rendu.md",
+            ),
+        ] {
+            assert_eq!(
+                literals(text),
+                vec![file(source), file(destination)],
+                "{text}"
+            );
+        }
+    }
+
+    #[test]
+    fn relative_compound_files_keep_their_directory_words() {
+        for name in [
+            "data/input.json",
+            "équipe/notes.txt",
+            "data/../archive/result.json",
+        ] {
+            assert_eq!(token(name), Some(file(name)), "{name}");
+            assert_eq!(literals(&format!("Read {name}")), vec![file(name)]);
+        }
+        for name in ["team notes/source.txt", "dossier source/notes.txt"] {
+            assert_eq!(token(name), Some(file(name)), "whole answer: {name}");
+            assert_eq!(literals(&format!("Read \"{name}\"")), vec![file(name)]);
+        }
+        assert_eq!(
+            literals("Copie le fichier dossier source/notes.txt vers dossier sortie/notes.txt."),
+            vec![
+                open("dossier source/notes.txt"),
+                open("dossier sortie/notes.txt")
+            ]
+        );
+        assert_eq!(
+            literals("Copy the file project notes/input.json to project notes/output.json"),
+            vec![
+                open("project notes/input.json"),
+                open("project notes/output.json")
+            ]
+        );
+        assert_eq!(
+            literals("Copy data/input.json to out/result.json"),
+            vec![file("data/input.json"), file("out/result.json")]
+        );
+        // A quoted path owns its whole extent, even after another name-shaped prose word.
+        assert_eq!(
+            literals("Read report \"team notes/source.txt\""),
+            vec![file("team notes/source.txt")]
+        );
+        assert_eq!(
+            token("\"notes/draft.v1 copy.txt\""),
+            Some(file("notes/draft.v1 copy.txt"))
+        );
+        for text in [
+            "\"a/one.txt b/two.txt\"",
+            "\"data /notes.txt\"",
+            "\"data/ notes.txt\"",
+            "https://example.test/notes.txt",
+            "write it to out/result.json",
+        ] {
+            assert!(token(text).is_none(), "{text}");
+        }
+    }
+
+    #[test]
+    fn an_unquoted_multiword_name_is_never_truncated_to_its_last_word() {
+        assert_eq!(
+            literals(
+                "Copie exactement le fichier Notes équipe.txt dans un nouveau fichier Copie équipe.txt"
+            ),
+            vec![open("Notes équipe.txt"), open("Copie équipe.txt")]
+        );
+        assert_eq!(
+            literals(
+                "un workflow qui lit Notes équipe.txt et écrit son contenu dans Copie équipe.txt."
+            ),
+            vec![open("Notes équipe.txt"), open("Copie équipe.txt")]
+        );
+        assert_eq!(
+            literals("Copy Team notes.txt to Team copy.txt"),
+            vec![open("Team notes.txt"), open("Team copy.txt")]
+        );
+        assert_eq!(
+            literals("Read the file budget 2026.csv"),
+            vec![open("budget 2026.csv")]
+        );
+        for text in [
+            "Copie exactement le fichier Notes équipe.txt dans un nouveau fichier Copie équipe.txt",
+            "dans Copie équipe.txt",
+            "le fichier Notes équipe.txt",
+        ] {
+            assert!(!literals(text).contains(&file("équipe.txt")), "{text}");
+            assert_eq!(single_file(text), None, "{text}");
+        }
+    }
+
+    #[test]
+    fn ordinary_bare_files_and_sentence_openers_keep_their_single_token() {
+        for (text, expected) in [
+            (
+                "Copie entree.txt dans sortie.txt.",
+                vec![file("entree.txt"), file("sortie.txt")],
+            ),
+            ("Fais une copie de entree.txt.", vec![file("entree.txt")]),
+            ("Read the attached notes.txt", vec![file("notes.txt")]),
+            ("Read Notes.txt", vec![file("Notes.txt")]),
+            ("Done. Read AGENTS.md", vec![file("AGENTS.md")]),
+            ("Lis le fichier entree.txt", vec![file("entree.txt")]),
+            ("what the file may read (`fs.read`)", vec![file("fs.read")]),
+            ("Ask \"Write final.md?\" first", vec![file("final.md")]),
+        ] {
+            assert_eq!(literals(text), expected, "{text}");
+        }
+    }
+
+    #[test]
+    fn a_whole_answer_may_name_a_file_with_spaces_and_prose_never_does() {
+        for answer in [
+            "Copie équipe.txt",
+            "copie équipe.txt",
+            "Copie équipe.txt.",
+            "« Notes de réunion.txt »",
+            "`Notes de réunion.txt`",
+            "'Notes de réunion.txt'",
+        ] {
+            let name = answer
+                .trim_matches(|c: char| "«»`'. ".contains(c))
+                .to_owned();
+            assert_eq!(
+                token(answer),
+                Some(PathShape::File(name.clone())),
+                "{answer}"
+            );
+            assert_eq!(single_file(answer), Some(name), "{answer}");
+        }
+        for prose in [
+            "Notes de réunion.txt",
+            "write it to report.md",
+            "the output file.md",
+            "./a.txt ./b.txt",
+            "Copy a.txt b.txt",
+            "report.md please",
+        ] {
+            assert_ne!(
+                token(prose).map(|shape| matches!(shape, PathShape::File(p) if p.contains(' '))),
+                Some(true),
+                "{prose}"
+            );
+        }
+        assert_eq!(
+            single_file("a short Markdown note to ./out/summary.md").as_deref(),
+            Some("./out/summary.md")
+        );
+    }
+
+    #[test]
+    fn a_quoted_span_keeps_path_traversal_verbatim_and_never_holds_two_paths() {
+        assert_eq!(
+            literals("Read « ../secret notes.txt »"),
+            vec![file("../secret notes.txt")]
+        );
+        assert_eq!(
+            token("\"~/Mes documents/a b.md\""),
+            Some(file("~/Mes documents/a b.md"))
+        );
+        for text in [
+            "\"./a.txt ./b.txt\"",
+            "\"/ leading space.txt\"",
+            "\"./out /x.txt\"",
+            "\"https://example.invalid/a b.txt\"",
+            "\"Notes\néquipe.txt\"",
+        ] {
+            assert!(
+                !matches!(token(text), Some(PathShape::File(p)) if p.contains(' ')),
+                "{text}: {:?}",
+                token(text)
+            );
+            assert!(
+                literals(text)
+                    .iter()
+                    .all(|shape| !matches!(shape, PathShape::File(p) if p.contains(' '))),
+                "{text}: {:?}",
+                literals(text)
+            );
+        }
     }
 }

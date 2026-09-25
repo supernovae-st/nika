@@ -620,7 +620,7 @@ fn snapshot_project(path: &str) -> Result<(nika_fs::OwnedDir, std::path::PathBuf
     Ok((project, logical_root))
 }
 
-fn lexical_snapshot_path(path: &std::path::Path) -> std::path::PathBuf {
+pub(crate) fn lexical_snapshot_path(path: &std::path::Path) -> std::path::PathBuf {
     let mut normalized = std::path::PathBuf::new();
     for component in path.components() {
         match component {

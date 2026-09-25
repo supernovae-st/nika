@@ -412,8 +412,11 @@ pub fn judge(
     let modelless = nika_service_execution::access::first_modelless_task(wf);
     // The ACCESS question's premise: a file with no `infer:`/`agent:`
     // task is not waiting on a seat, it will never ask for one.
-    let layers =
+    let mut layers =
         verdict_layers_for(&plan, valid, &capacity, modelless).with_access_moot(!dials_a_model(wf));
+    if let Some(blocker) = crate::run_cost::readiness(wf, &plan) {
+        layers.blockers.push(blocker);
+    }
     let grade = nika_check::risk_grade(report);
     let drift = nika_dap::drift::scan(wf);
     let children = child_references(wf);
@@ -649,6 +652,7 @@ pub fn audit_json(
         serde_json::json!({
             "composition": verdict.judged.composition,
             "skills": verdict.judged.skills,
+            "runtime_admission": false,
             "children": verdict.children,
         }),
     );

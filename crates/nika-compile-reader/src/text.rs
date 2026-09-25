@@ -117,3 +117,77 @@ pub fn banner_sentence(body: &str) -> Option<String> {
         .map(|l| (*l).trim().to_owned())
         .filter(|l| !l.is_empty())
 }
+
+/// Typographic quotes read as their plain twins: a model that answers `“version”` for a
+/// request that wrote `"version"` still names the same text.
+#[must_use]
+pub fn fold_quote(ch: char) -> char {
+    match ch {
+        '“' | '”' | '„' | '«' | '»' => '"',
+        '‘' | '’' | '‚' => '\'',
+        other => other,
+    }
+}
+
+/// The exact request excerpt a proposal's evidence names: the evidence itself when it is a
+/// verbatim substring, else the request substring it matches once runs of whitespace are
+/// folded on both sides (a model may wrap a line or drop a double space; it may not change
+/// a word). None when nothing in the request matches.
+#[must_use]
+pub fn exact_excerpt(intent: &str, evidence: &str) -> Option<String> {
+    let evidence = evidence.trim();
+    if evidence.is_empty() {
+        return None;
+    }
+    if intent.contains(evidence) {
+        return Some(evidence.to_owned());
+    }
+    let mut folded = String::new();
+    let mut offsets: Vec<usize> = Vec::new();
+    let mut pending_space = false;
+    for (index, ch) in intent.char_indices() {
+        if ch.is_whitespace() {
+            pending_space = !folded.is_empty();
+            continue;
+        }
+        if pending_space {
+            folded.push(' ');
+            offsets.push(index);
+            pending_space = false;
+        }
+        let ch = fold_quote(ch);
+        folded.push(ch);
+        for _ in 0..ch.len_utf8() {
+            offsets.push(index);
+        }
+    }
+    // An excerpt that abbreviates a long clause with an ellipsis names the contiguous span
+    // from its first fragment to its last; every fragment must occur, in order, verbatim.
+    let fragments: Vec<String> = evidence
+        .chars()
+        .map(fold_quote)
+        .collect::<String>()
+        .replace('…', "...")
+        .split("...")
+        .map(|part| part.split_whitespace().collect::<Vec<_>>().join(" "))
+        .filter(|part| !part.is_empty())
+        .collect();
+    if fragments.is_empty() {
+        return None;
+    }
+    if fragments.len() == 1 && !folded.contains(fragments[0].as_str()) {
+        return crate::anchor::near_excerpt(&folded, &offsets, intent, &fragments[0]);
+    }
+    let first_at = folded.find(fragments.first()?)?;
+    let mut cursor = first_at + fragments.first()?.len();
+    let mut last_end = cursor;
+    for fragment in fragments.iter().skip(1) {
+        let at = folded.get(cursor..)?.find(fragment.as_str())? + cursor;
+        cursor = at + fragment.len();
+        last_end = cursor;
+    }
+    let start = *offsets.get(first_at)?;
+    let last = *offsets.get(last_end - 1)?;
+    let end = last + intent.get(last..)?.chars().next()?.len_utf8();
+    intent.get(start..end).map(str::to_owned)
+}

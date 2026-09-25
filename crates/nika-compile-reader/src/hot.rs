@@ -10,7 +10,7 @@
 //! escalate. The composer applies the same producer laws to every proposal.
 
 use super::lexicon::{self, Head, Reading};
-use super::plan::{EffectPolicy, EffectVerb, ObligationKind, Op, Plan};
+use super::plan::{Binding, Effect, EffectPolicy, EffectVerb, ObligationKind, Op, Plan};
 
 /// Why a reading may not be admitted as HOT, in addition to [`Reading::hot_rejections`].
 #[must_use]
@@ -21,7 +21,291 @@ pub fn rejections(intent: &str, reading: &Reading) -> Vec<String> {
     path_as_draft(reading, &mut why);
     unproduced_content(&reading.plan, &mut why);
     unrecheckable_revision(&reading.plan, &mut why);
+    why.extend(unopened_sources(intent, &reading.plan));
+    why.extend(unbound_recurrence(intent, &reading.plan));
     why
+}
+
+/// A recurrence the request states without its cadence (« régulièrement », « from time to
+/// time ») that the plan's trigger does not carry. The reader records it as the trigger when no
+/// head took the trigger first, so this is the request whose head did (« Pour chaque fichier
+/// de ./notes/*.md, résume-le régulièrement … »): admitted, the work would run once per
+/// invocation and the recurrence would vanish. A trigger that names a period (« Chaque lundi,
+/// … régulièrement ») carries it.
+fn unbound_recurrence(intent: &str, plan: &Plan) -> Option<String> {
+    use super::trigger_words::{DAILY, HOURLY, MINUTELY, MONTHLY, WEEKDAYS, WEEKLY};
+    let lower = intent.to_lowercase();
+    let phrase = super::words::recurrence(&lower).and_then(|(start, end)| lower.get(start..end))?;
+    let carried = plan.trigger.as_deref().is_some_and(|trigger| {
+        let folded = fold(trigger);
+        folded.contains(&fold(phrase))
+            || folded.split(|c: char| !c.is_alphanumeric()).any(|word| {
+                [DAILY, WEEKDAYS, WEEKLY, MONTHLY, HOURLY, MINUTELY]
+                    .iter()
+                    .any(|table| table.contains(&word))
+                    || super::words::day_part_compound(word).is_some()
+            })
+    });
+    (!carried).then(|| {
+        format!(
+            "the request asks for `{phrase}` and the plan's trigger does not carry it: the work would run once and the recurrence would vanish"
+        )
+    })
+}
+
+/// A source the request names that nothing opens: a path stated as a source (at least one
+/// occurrence not introduced by a destination connector — « de ./tickets.json », « from
+/// ./tickets.json », « aus ./tickets.json ») that no step names, no rule reads, no trigger
+/// fires on and no prohibition refuses. « Chaque lundi matin, envoie-moi un récapitulatif
+/// des tickets ouverts de ./tickets.json » read as one send over the whole clause names the
+/// file in the send's own words and never reads it: a candidate that posts without opening
+/// the file is a false READY (the morning audit of 2026-09-22, both lanes). The same law
+/// feeds the cold merge, where a source the seat's plan never opens is unresolved work. A
+/// path every occurrence of which follows a destination connector (« into a single
+/// ./out/x.md », « belongs in ./out/totals.json ») is a place to write, judged by the write
+/// laws and the named-output question, never here. Only a source-shaped literal counts: a
+/// rooted path (`./`, `../`, `/`, `~/`), a glob, or a bare file name with a data or text
+/// extension; a domain-shaped word (`example.com`) is not a file.
+#[must_use]
+pub fn unopened_sources(intent: &str, plan: &Plan) -> Vec<String> {
+    let opened = |path: &str| {
+        plan.steps
+            .iter()
+            .any(|s| s.detail.contains(path) || s.evidence.contains(path))
+            || plan.effects.iter().any(|e| {
+                (e.verb == EffectVerb::Write
+                    || matches!(e.policy, EffectPolicy::Forbidden | EffectPolicy::Conflict))
+                    && (e.target.contains(path) || e.evidence.contains(path))
+            })
+            || plan.trigger.as_deref().is_some_and(|t| t.contains(path))
+            || plan.rules.iter().any(|r| r.text().contains(path))
+    };
+    stated_sources(intent)
+        .into_iter()
+        .filter(|path| !opened(path))
+        .map(|path| {
+            format!(
+                "`{path}` is named by the request and nothing opens it: no step reads it and no effect writes it"
+            )
+        })
+        .collect()
+}
+
+/// The named-destination floor, the mirror of the source floor: a path the request states
+/// only as a place to write (« en 3 puces dans ./out/resume.md », « → ./out/summary.md »)
+/// that no effect writes, and that rode INSIDE a producing step's clause, is written with
+/// what that step produces — the request never left the write out, it folded it into the
+/// draft. A path a read step consumes (« un digest des notes dans ./notes », « every file in
+/// ./rfc/*.md ») is material, never a destination; a glob is never a file to write; a path
+/// stated in a clause of its own (« the JSON belongs in ./out/totals.json ») stays the
+/// assembler's question — the human decides that write.
+pub fn destination_floor(intent: &str, plan: &mut Plan) {
+    for path in stated_destinations(intent) {
+        if path.contains('*') || path.contains('?') {
+            continue;
+        }
+        let consumes = |step: &super::plan::Step| {
+            matches!(step.op, Op::Read | Op::Fetch | Op::Lookup | Op::Search)
+                && step.detail.starts_with(&path)
+        };
+        if plan.steps.iter().any(consumes) {
+            continue;
+        }
+        let written = plan
+            .effects
+            .iter()
+            .any(|e| e.target.contains(&path) || e.evidence.contains(&path));
+        if written {
+            continue;
+        }
+        let Some(producer) = plan.steps.iter().find(|step| {
+            !matches!(step.op, Op::Read | Op::Fetch | Op::Lookup | Op::Search)
+                && (step.detail.contains(&path) || step.evidence.contains(&path))
+        }) else {
+            continue;
+        };
+        let evidence = super::lexicon::split_sentences(intent)
+            .into_iter()
+            .find(|s| s.contains(&path))
+            .unwrap_or(producer.evidence.as_str())
+            .to_owned();
+        plan.bindings.push(Binding::new("path", path.clone()));
+        plan.effects.push(Effect::new(
+            EffectVerb::Write,
+            path,
+            evidence,
+            EffectPolicy::Automatic,
+        ));
+    }
+    unnamed_destination_floor(plan);
+}
+
+/// The unnamed-destination floor, the named one's twin for a file the request asks for without
+/// naming it (« Résume mes notes dans un fichier », « summarize ./notes.md into a new file »).
+/// The destination rode inside a producing step's object, and the step alone was READY with
+/// nothing written. It becomes a write whose target is the noun phrase and
+/// whose evidence is the connector and the phrase, verbatim: the assembler asks its exact path
+/// (`const.output_path`), an answer round replays the write with the plan, and nothing is granted
+/// before the human names the file. A read, a fetch, a lookup or a search consumes material
+/// (« lis les notes dans un fichier »), never a destination; a step whose clause a write already
+/// carries is left alone, so the floor is idempotent and a replay may apply it to an older record.
+pub fn unnamed_destination_floor(plan: &mut Plan) {
+    let mut carriers: Vec<usize> = Vec::new();
+    for (phrase, evidence, clause) in unnamed_destinations(plan) {
+        if let Some(index) = carrier_of(plan, &carriers, (&phrase, &evidence, &clause)) {
+            carriers.push(index);
+        } else {
+            carriers.push(plan.effects.len());
+            plan.effects.push(Effect::new(
+                EffectVerb::Write,
+                phrase,
+                evidence,
+                EffectPolicy::Automatic,
+            ));
+        }
+    }
+    // A file phrase whose clause does not say whether the result goes there is asked about,
+    // never written nor dropped silently (« the text written in a file »).
+    let unclear: Vec<String> = plan
+        .steps
+        .iter()
+        .filter(|step| step.op.carries_constraints())
+        .filter_map(|step| super::objects::unclear_destination(&step.detail))
+        .map(|excerpt| {
+            format!(
+                "`{excerpt}` does not say whether the result is written to a file; name the file to write, or restate the request without it."
+            )
+        })
+        .collect();
+    for unknown in unclear {
+        if !plan.unknowns.contains(&unknown) {
+            plan.unknowns.push(unknown);
+        }
+    }
+}
+
+/// The unnamed destinations the objects of the producing steps state, as (noun phrase,
+/// evidence, clause); a read, a fetch, a lookup or a search consumes material, never one.
+fn unnamed_destinations(plan: &Plan) -> Vec<(String, String, String)> {
+    plan.steps
+        .iter()
+        .filter(|step| step.op.carries_constraints())
+        .filter_map(|step| {
+            let (excerpt, phrase) = super::objects::unnamed_destination(&step.detail)?;
+            // The evidence is the request's own words (a replay anchors it): a detail the reader
+            // could only lower keeps the whole clause as the excerpt.
+            let evidence = if step.evidence.contains(excerpt) {
+                excerpt
+            } else {
+                step.evidence.as_str()
+            };
+            Some((
+                phrase.to_owned(),
+                evidence.to_owned(),
+                step.evidence.clone(),
+            ))
+        })
+        .collect()
+}
+
+/// The write that already carries the unnamed destination `(phrase, evidence)` of `clause`, one
+/// destination per write: this floor's own write of an earlier pass (a replayed record), a
+/// write stated in this very clause (« …, ask my approval before writing it »), a file the
+/// clause names after the phrase (« dans un fichier : ./out/x.md »), or a gate that names the
+/// write by its verb alone. A file another clause names never carries it, even when the named
+/// floor's evidence is the whole sentence, and the same words stated in two clauses are two
+/// destinations.
+fn carrier_of(
+    plan: &Plan,
+    claimed: &[usize],
+    (phrase, evidence, clause): (&str, &str, &str),
+) -> Option<usize> {
+    plan.effects.iter().enumerate().find_map(|(index, effect)| {
+        let carried = effect.evidence.trim();
+        let matches_output = !claimed.contains(&index)
+            && effect.verb == EffectVerb::Write
+            && !carried.is_empty()
+            && match super::paths::single_file(&effect.target) {
+                Some(path) => clause
+                    .find(evidence)
+                    .zip(clause.rfind(path.as_str()))
+                    .is_some_and(|(phrase_at, path_at)| path_at > phrase_at),
+                None => {
+                    (effect.target == phrase && carried == evidence)
+                        || clause.contains(carried)
+                        || carried.contains(clause.trim())
+                        || (effect.policy == EffectPolicy::HumanFirst
+                            && !super::objects::has_literal(&effect.target))
+                }
+            };
+        matches_output.then_some(index)
+    })
+}
+
+/// The source-shaped paths of the request, in order, without duplicates.
+fn source_paths(intent: &str) -> Vec<String> {
+    super::paths::literals(intent)
+        .into_iter()
+        .filter_map(|shape| match shape {
+            super::paths::PathShape::File(path)
+            | super::paths::PathShape::Directory(path)
+            | super::paths::PathShape::Glob(path) => Some(path),
+            _ => None,
+        })
+        .filter(|path| source_like(path))
+        .collect()
+}
+
+/// Whether some occurrence of `path` in the request is introduced by no destination connector.
+fn stated_as_a_source(lower: &str, path: &str) -> bool {
+    let needle = path.to_lowercase();
+    let mut from = 0;
+    while let Some(pos) = lower.get(from..).and_then(|rest| rest.find(&needle)) {
+        let at = from + pos;
+        if super::objects::destination_at(lower, at).is_none() {
+            return true;
+        }
+        from = at + needle.len();
+    }
+    false
+}
+
+/// The paths the request states as material to read (at least one occurrence no destination
+/// connector introduces): what a candidate must open.
+#[must_use]
+pub fn stated_sources(intent: &str) -> Vec<String> {
+    let lower = intent.to_lowercase();
+    source_paths(intent)
+        .into_iter()
+        .filter(|path| stated_as_a_source(&lower, path))
+        .collect()
+}
+
+/// The paths the request states only as places to write (every occurrence follows a
+/// destination connector): what a candidate must write.
+#[must_use]
+pub fn stated_destinations(intent: &str) -> Vec<String> {
+    let lower = intent.to_lowercase();
+    source_paths(intent)
+        .into_iter()
+        .filter(|path| !stated_as_a_source(&lower, path))
+        .collect()
+}
+
+/// Extensions a bare file name (no `./`) is read as a source under: the data and text
+/// formats a workflow reads or writes. `example.com` and `nika.sh` are not sources.
+const SOURCE_EXTENSIONS: &[&str] = &[
+    "csv", "tsv", "json", "jsonl", "ndjson", "md", "txt", "yaml", "yml", "toml", "xml", "html",
+    "htm", "pdf", "log", "docx", "xlsx", "pptx",
+];
+
+fn source_like(path: &str) -> bool {
+    path.starts_with("./")
+        || path.starts_with("../")
+        || path.starts_with('/')
+        || path.starts_with("~/")
+        || super::paths::extension(path)
+            .is_some_and(|ext| SOURCE_EXTENSIONS.contains(&ext.as_str()))
 }
 
 /// Every cue of the reader's table that occurs in the request must correspond to an element
@@ -195,104 +479,7 @@ const LINK_WORDS: &[&str] = &[
 /// Nouns that name content a step must produce before an effect can carry it (EN · FR ·
 /// ES · IT · PT · DE), in their diacritic-folded lowercase form. The reader shares the
 /// table: a make head (`fais-moi`, `fammi`) drafts only one of these.
-pub(crate) const PRODUCED_NOUNS: &[&str] = &[
-    "bilan",
-    "compte-rendu",
-    "sintesi",
-    "sommario",
-    "sinopsis",
-    "reply",
-    "replies",
-    "report",
-    "reports",
-    "summary",
-    "summaries",
-    "digest",
-    "digests",
-    "brief",
-    "briefs",
-    "note",
-    "notes",
-    "message",
-    "messages",
-    "blurb",
-    "blurbs",
-    "draft",
-    "drafts",
-    "translation",
-    "translations",
-    "recap",
-    "recaps",
-    "memo",
-    "memos",
-    "answer",
-    "response",
-    "reponse",
-    "reponses",
-    "rapport",
-    "rapports",
-    "resume",
-    "resumes",
-    "synthese",
-    "syntheses",
-    "brouillon",
-    "brouillons",
-    "traduction",
-    "traductions",
-    "recapitulatif",
-    "respuesta",
-    "respuestas",
-    "informe",
-    "informes",
-    "resumen",
-    "resumenes",
-    "mensaje",
-    "mensajes",
-    "borrador",
-    "borradores",
-    "traduccion",
-    "traducciones",
-    "nota",
-    "notas",
-    "risposta",
-    "risposte",
-    "rapporto",
-    "rapporti",
-    "riassunto",
-    "riassunti",
-    "messaggio",
-    "messaggi",
-    "bozza",
-    "bozze",
-    "traduzione",
-    "traduzioni",
-    "resposta",
-    "respostas",
-    "relatorio",
-    "relatorios",
-    "resumo",
-    "resumos",
-    "mensagem",
-    "mensagens",
-    "rascunho",
-    "rascunhos",
-    "traducao",
-    "traducoes",
-    "antwort",
-    "antworten",
-    "bericht",
-    "berichte",
-    "zusammenfassung",
-    "zusammenfassungen",
-    "nachricht",
-    "nachrichten",
-    "entwurf",
-    "entwurfe",
-    "ubersetzung",
-    "ubersetzungen",
-    "notiz",
-    "notizen",
-];
+pub(crate) const PRODUCED_NOUNS: &str = include_str!("../assets/produced_nouns.txt");
 
 /// Cues that an effect carries existing material unchanged: a source step is then its
 /// producer. Matched as whole words or whole phrases on the folded text.
@@ -357,7 +544,7 @@ fn produced_noun(text: &str) -> Option<String> {
         .filter(|w| !w.is_empty());
     words
         .zip(folded_words)
-        .find(|(_, folded)| PRODUCED_NOUNS.contains(folded))
+        .find(|(_, folded)| PRODUCED_NOUNS.lines().any(|n| n == *folded))
         .map(|(word, _)| word.to_owned())
 }
 
@@ -376,8 +563,10 @@ fn copy_cue(text: &str) -> bool {
 /// names a produced-content noun (a reply, a report, a summary…) needs a draft, an extract
 /// or a compute step, or, under a copy cue (forward, verbatim, tel quel, attach…), a source
 /// step whose material it carries unchanged. A prohibited or contradictory effect is never
-/// emitted, so it needs nothing; a target naming a local file is a write and follows the
-/// write law.
+/// emitted, so it needs nothing; a target that IS a local file (one bare path token) is a
+/// write and follows the write law — a target that merely names a file among its words
+/// (« -moi un récapitulatif des tickets ouverts de ./tickets.json ») is judged like any
+/// other: the recap it names needs a producer.
 pub fn unproduced_content(plan: &Plan, why: &mut Vec<String>) {
     write_without_producer(plan, why);
     let produces = plan.has(Op::Draft) || plan.has(Op::Extract) || plan.has(Op::Compute);
@@ -398,7 +587,7 @@ pub fn unproduced_content(plan: &Plan, why: &mut Vec<String>) {
                 | EffectVerb::Update
                 | EffectVerb::Other
         ) && !matches!(e.policy, EffectPolicy::Forbidden | EffectPolicy::Conflict)
-            && super::paths::single_file(&e.target).is_none()
+            && super::paths::token(e.target.trim()).is_none()
     }) {
         let text = format!("{} {}", effect.target, effect.evidence);
         let Some(noun) = produced_noun(&text) else {
@@ -420,14 +609,15 @@ pub fn unproduced_content(plan: &Plan, why: &mut Vec<String>) {
     }
 }
 
-/// A revision check rereads the record it looked up; without a lookup there is nothing
-/// retrievable to recheck.
+/// A revision check rereads the record it looked up or reruns the search whose hits it
+/// read; without a lookup and without a search there is nothing retrievable to recheck.
 pub fn unrecheckable_revision(plan: &Plan, why: &mut Vec<String>) {
     if plan
         .obligations
         .iter()
         .any(|o| matches!(o.kind, ObligationKind::RevisionCheck))
         && !plan.has(Op::Lookup)
+        && !plan.has(Op::Search)
     {
         why.push("the obligation `revision_check` has no retrievable source to recheck".to_owned());
     }
@@ -483,6 +673,20 @@ fn write_without_producer(plan: &Plan, why: &mut Vec<String>) {
         if plan.has(Op::Fetch) && super::objects::page_facet(&content).is_some() {
             continue;
         }
+        // « écris-le tel quel dans … », « write it as is to … » after a read: the object
+        // refers back to the material read, which is what the write carries.
+        let sourced = plan
+            .steps
+            .iter()
+            .any(|s| matches!(s.op, Op::Read | Op::Fetch | Op::Lookup | Op::Search));
+        if sourced
+            && super::objects::refers_back(
+                content.trim(),
+                plan.steps.iter().map(|s| s.detail.as_str()),
+            )
+        {
+            continue;
+        }
         let words = content
             .split(|c: char| !c.is_alphanumeric() && c != '-' && c != '\'')
             .filter(|w| !w.is_empty() && !LINK_WORDS.contains(w))
@@ -499,6 +703,69 @@ fn write_without_producer(plan: &Plan, why: &mut Vec<String>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_stated_destination_nothing_writes_is_written_by_the_floor() {
+        let intent = "Résume ./notes/brief.md en 3 puces dans ./out/resume.md";
+        let reading = lexicon::read(intent);
+        let writes: Vec<&str> = reading
+            .plan
+            .effects
+            .iter()
+            .filter(|e| e.verb == EffectVerb::Write)
+            .map(|e| e.target.as_str())
+            .collect();
+        assert_eq!(writes, ["./out/resume.md"], "{:?}", reading.plan);
+        assert!(
+            reading
+                .plan
+                .bindings
+                .iter()
+                .any(|b| b.role == "path" && b.literal == "./out/resume.md")
+        );
+        // An explicit write is not doubled.
+        let reading = lexicon::read(
+            "Lis ./notes/brief.md et écris un résumé de 3 puces dans ./out/resume.md",
+        );
+        assert_eq!(
+            reading
+                .plan
+                .effects
+                .iter()
+                .filter(|e| e.verb == EffectVerb::Write)
+                .count(),
+            1
+        );
+        // No step, no write: a destination alone is not a workflow.
+        let mut plan = Plan::default();
+        destination_floor("dans ./out/x.md", &mut plan);
+        assert!(plan.effects.is_empty());
+        // A folder a read step consumes, after a destination connector, is material.
+        let reading =
+            lexicon::read("fais-moi un digest des notes dans ./notes et écris-le dans ./digest.md");
+        let writes: Vec<&str> = reading
+            .plan
+            .effects
+            .iter()
+            .filter(|e| e.verb == EffectVerb::Write)
+            .map(|e| e.target.as_str())
+            .collect();
+        assert_eq!(writes, ["./digest.md"], "{:?}", reading.plan);
+        // A path in a clause of its own stays the assembler's question, never a floor write.
+        let reading = lexicon::read(
+            "Read ./data/orders.csv. Harmonise the totals per country; the JSON belongs in \
+             ./out/totals.json. Write a note to ./out/note.md.",
+        );
+        assert!(
+            !reading
+                .plan
+                .effects
+                .iter()
+                .any(|e| e.target == "./out/totals.json"),
+            "{:?}",
+            reading.plan
+        );
+    }
 
     #[test]
     fn a_path_is_recognized_and_prose_is_not() {
@@ -642,6 +909,235 @@ mod tests {
             why,
             ["the obligation `revision_check` has no retrievable source to recheck"]
         );
+        // A search is a retrievable source too: its hits are rerun before the action.
+        plan.steps.push(super::super::plan::Step::new(
+            Op::Search,
+            "retrouve les passages pertinents du guide interne",
+            "les passages pertinents du guide interne",
+            Vec::new(),
+        ));
+        let mut why = Vec::new();
+        unrecheckable_revision(&plan, &mut why);
+        assert!(why.is_empty(), "{why:?}");
+    }
+
+    #[test]
+    fn a_gate_that_names_sending_gates_the_send_and_a_waiver_gates_nothing() {
+        let intent = "Lisez ./station/remontees.csv (colonnes remontee, etat), comptez les remontées dont l'état est « fermée » et écrivez ce nombre seul dans ./out/fermees.txt. Envoyez ensuite une requête POST à https://example.com/etat dont le corps est un objet JSON avec la clé fermees contenant ce nombre. Demandez-moi confirmation avant tout envoi ; rien ne doit partir sans mon accord.";
+        let reading = lexicon::read(intent);
+        let policy = |verb: EffectVerb| {
+            reading
+                .plan
+                .effects
+                .iter()
+                .find(|e| e.verb == verb)
+                .map(|e| e.policy)
+        };
+        assert_eq!(
+            policy(EffectVerb::Write),
+            Some(EffectPolicy::Automatic),
+            "{:?}",
+            reading.plan.effects
+        );
+        assert_eq!(
+            policy(EffectVerb::Send),
+            Some(EffectPolicy::HumanFirst),
+            "{:?}",
+            reading.plan.effects
+        );
+        let intent = "Nel file ./piscina/ingressi.csv ci sono le colonne giorno e ingressi. Calcola la somma di tutti gli ingressi. Scrivi il numero, e solo il numero, in ./out/totale.txt. Poi invia una richiesta POST a https://example.com/settimana con un corpo JSON che abbia la chiave totale con quel numero. Non serve chiedermi conferma.";
+        let reading = lexicon::read(intent);
+        let send = reading
+            .plan
+            .effects
+            .iter()
+            .find(|e| e.verb == EffectVerb::Send)
+            .expect("a send");
+        assert_eq!(
+            send.policy,
+            EffectPolicy::Automatic,
+            "{:?}",
+            reading.plan.effects
+        );
+        assert!(
+            reading
+                .policy_clauses
+                .iter()
+                .any(|c| c.contains("Non serve chiedermi conferma")),
+            "{:?}",
+            reading.policy_clauses
+        );
+        // A negated waiver is the gate it denies waiving (the clause-drop probe wording).
+        let intent = "lis ./draft.md et écris-le dans ./final.md, mais pas sans me demander";
+        let reading = lexicon::read(intent);
+        let write = reading
+            .plan
+            .effects
+            .iter()
+            .find(|e| e.verb == EffectVerb::Write)
+            .expect("a write");
+        assert_eq!(
+            write.policy,
+            EffectPolicy::HumanFirst,
+            "{:?}",
+            reading.plan.effects
+        );
+        assert!(reading.unresolved.is_empty(), "{:?}", reading.unresolved);
+    }
+
+    #[test]
+    fn a_read_of_owned_records_is_a_lookup() {
+        let intent = "Lis mes disponibilités et celles des participants, puis propose par écrit trois créneaux compatibles dans le fuseau Europe/Paris.";
+        let reading = lexicon::read(intent);
+        assert!(
+            reading.plan.steps.iter().any(|s| s.op == Op::Lookup),
+            "{:?}",
+            reading.plan.steps
+        );
+        assert!(
+            !reading.plan.steps.iter().any(|s| s.op == Op::Read),
+            "{:?}",
+            reading.plan.steps
+        );
+        assert_eq!(
+            lexicon::settle_retrieval("our open tickets", &[Op::Read, Op::Lookup]),
+            Some(Op::Lookup)
+        );
+        assert_eq!(
+            lexicon::settle_retrieval("the supplied transcript", &[Op::Read, Op::Lookup]),
+            Some(Op::Read)
+        );
+        assert_eq!(
+            lexicon::settle_retrieval("the meeting notes", &[Op::Read, Op::Lookup]),
+            None
+        );
+    }
+
+    #[test]
+    fn a_source_named_only_by_an_outbound_effect_is_rejected() {
+        // The morning audit's false READY (2026-09-22): read as one send over the clause, the
+        // file is named by the send and never opened, and the recap has no producer.
+        let intent =
+            "Chaque lundi matin, envoie-moi un récapitulatif des tickets ouverts de ./tickets.json";
+        let reading = lexicon::read(intent);
+        assert!(
+            reading
+                .plan
+                .effects
+                .iter()
+                .any(|e| e.verb == EffectVerb::Send),
+            "{:?}",
+            reading.plan
+        );
+        let why = rejections(intent, &reading);
+        assert!(
+            why.iter().any(
+                |w| w.contains("`./tickets.json` is named by the request and nothing opens it")
+            ),
+            "{why:?}"
+        );
+        assert!(
+            why.iter()
+                .any(|w| w.contains("`send` names content no step produces: récapitulatif")),
+            "{why:?}"
+        );
+        // Opened by a read and drafted, the same recap is admitted by these laws.
+        let intent = "Lis ./tickets.json, rédige un récapitulatif des tickets ouverts et envoie le récapitulatif à ops@example.invalid";
+        let reading = lexicon::read(intent);
+        let why = rejections(intent, &reading);
+        assert!(
+            !why.iter()
+                .any(|w| w.contains("nothing opens it") || w.contains("no step produces")),
+            "{why:?} plan={:?}",
+            reading.plan
+        );
+    }
+
+    #[test]
+    fn a_path_a_write_a_trigger_or_a_prohibition_names_is_opened_and_a_destination_is_not_judged() {
+        // The law on a plan directly: a write, a trigger, a rule or a prohibition opens or
+        // refuses its path; a domain-shaped word and a placeholder are not sources.
+        let mut plan = Plan::default();
+        assert_eq!(
+            unopened_sources("post it on example.com and read ./in/<slug>.md", &plan),
+            Vec::<String>::new()
+        );
+        assert_eq!(
+            unopened_sources("Résume ./notes/brief.md pour moi", &plan).len(),
+            1
+        );
+        plan.trigger = Some("Pour chaque fichier de ./contrats/*.md".to_owned());
+        plan.effects.push(super::super::plan::Effect::new(
+            EffectVerb::Write,
+            "./index.csv",
+            "rassemble tout dans ./index.csv",
+            EffectPolicy::Automatic,
+        ));
+        plan.effects.push(super::super::plan::Effect::new(
+            EffectVerb::Send,
+            "./secret.txt",
+            "n'envoie jamais ./secret.txt",
+            EffectPolicy::Forbidden,
+        ));
+        assert!(
+            unopened_sources(
+                "Pour chaque fichier de ./contrats/*.md, rassemble tout dans ./index.csv ; n'envoie jamais ./secret.txt",
+                &plan
+            )
+            .is_empty()
+        );
+        assert_eq!(
+            unopened_sources("envoie orders.csv et ./x", &plan),
+            vec![
+                "`orders.csv` is named by the request and nothing opens it: no step reads it and no effect writes it".to_owned(),
+                "`./x` is named by the request and nothing opens it: no step reads it and no effect writes it".to_owned(),
+            ]
+        );
+        // A path every occurrence of which follows a destination connector is a place to
+        // write (« the JSON belongs in ./out/totals.json », « merge … into a single
+        // ./out/catalog-blurbs.md », « publish it to ./announce.md »): never a source here.
+        let plan = Plan::default();
+        for intent in [
+            "Harmonise the totals per country; the JSON belongs in ./out/totals.json.",
+            "then merge all four blurbs in the listed order into a single ./out/catalog-blurbs.md",
+            "Read ./draft.md, draft a short announcement from it, and publish it to ./announce.md",
+        ] {
+            let unopened = unopened_sources(intent, &plan);
+            assert!(
+                unopened.iter().all(|u| u.contains("`./draft.md`")),
+                "{intent}: {unopened:?}"
+            );
+        }
+        // Stated as a source once (« from ./tickets.json ») and as a destination elsewhere:
+        // the source occurrence is judged.
+        assert_eq!(
+            unopened_sources(
+                "send me a summary from ./tickets.json to ./tickets.json",
+                &plan
+            )
+            .len(),
+            1
+        );
+    }
+
+    #[test]
+    fn the_request_states_its_sources_and_its_destinations() {
+        let intent = "prends ce fichier ./data/paiements.csv, garde uniquement les paiements payés, calcule le total et fais-moi un petit rapport dans ./out/rapport.md";
+        assert_eq!(
+            stated_sources(intent),
+            vec!["./data/paiements.csv".to_owned()]
+        );
+        assert_eq!(
+            stated_destinations(intent),
+            vec!["./out/rapport.md".to_owned()]
+        );
+        let intent = "Every morning, read yesterday's support tickets in ./tickets.json, group the open ones by topic";
+        // « in ./tickets.json » follows a locative the reader takes for a destination: the
+        // request states no source here, and no destination law fires on a read.
+        assert!(
+            stated_sources(intent).is_empty()
+                || stated_sources(intent) == vec!["./tickets.json".to_owned()]
+        );
     }
 
     #[test]
@@ -670,5 +1166,196 @@ mod tests {
             "{:?}",
             rejections(intent, &reading)
         );
+    }
+
+    #[test]
+    fn a_recurrence_the_trigger_does_not_carry_is_never_hot() {
+        for (intent, head) in [
+            (
+                "Pour chaque fichier de ./notes/*.md, résume-le régulièrement dans ./out/resume.md",
+                "pour chaque fichier de ./notes/*.md",
+            ),
+            (
+                "Quand un ticket arrive, rédige régulièrement un accusé de réception dans ./out/accuse.md",
+                "quand un ticket arrive",
+            ),
+        ] {
+            let reading = lexicon::read(intent);
+            assert_eq!(reading.plan.trigger.as_deref(), Some(head), "{intent}");
+            let why = rejections(intent, &reading);
+            assert!(
+                why.iter().any(|w| w.contains("`régulièrement`")),
+                "{intent}: {why:?}"
+            );
+        }
+        // The trigger the reader records carries it, and so does a head that names a period.
+        for carried in [
+            "Fais-moi un rapport des trucs importants régulièrement",
+            "Régulièrement, fais-moi un rapport des trucs importants",
+            "Chaque lundi, résume ./notes.md régulièrement dans ./out/resume.md",
+            "Résume ./notes.md dans ./out/resume.md en vérifiant la régularité des dépenses",
+        ] {
+            let why = rejections(carried, &lexicon::read(carried));
+            assert!(
+                !why.iter().any(|w| w.contains("recurrence")),
+                "{carried}: {why:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_file_the_request_asks_for_without_naming_it_is_a_write_and_nothing_else_is() {
+        // The S98 J02 witness at 53f8c640: one draft and no effect, READY after the model alone.
+        for (intent, target, evidence) in [
+            (
+                "Résume mes notes dans un fichier.",
+                "un fichier",
+                "dans un fichier",
+            ),
+            (
+                "Écris un haïku dans un fichier.",
+                "un fichier",
+                "dans un fichier",
+            ),
+            (
+                "Summarize ./notes.md into a new file.",
+                "a new file",
+                "into a new file",
+            ),
+        ] {
+            let reading = lexicon::read(intent);
+            let writes: Vec<(&str, &str)> = reading
+                .plan
+                .effects
+                .iter()
+                .filter(|e| e.verb == EffectVerb::Write)
+                .map(|e| (e.target.as_str(), e.evidence.as_str()))
+                .collect();
+            assert_eq!(writes, [(target, evidence)], "{intent}: {:?}", reading.plan);
+            let why = reading.hot_rejections();
+            assert!(why.is_empty(), "{intent}: {why:?}");
+            let why = rejections(intent, &reading);
+            assert!(why.is_empty(), "{intent}: {why:?}");
+            // Idempotent: a second pass over the read plan adds nothing.
+            let mut again = reading.plan.clone();
+            unnamed_destination_floor(&mut again);
+            assert_eq!(again.effects, reading.plan.effects, "{intent}");
+        }
+        // A locative over a file the request already has, quoted words, a read, and a named
+        // destination add no unnamed write.
+        for intent in [
+            "Résume les notes dans le fichier.",
+            "Summarize the notes in my file.",
+            "Traduis « dans un fichier » en anglais.",
+            "Lis les notes dans un fichier.",
+            "Résume mes notes dans ./out/resume.md.",
+        ] {
+            let reading = lexicon::read(intent);
+            assert!(
+                reading
+                    .plan
+                    .effects
+                    .iter()
+                    .all(|e| e.verb != EffectVerb::Write
+                        || super::super::paths::single_file(&e.target).is_some()),
+                "{intent}: {:?}",
+                reading.plan.effects
+            );
+        }
+    }
+
+    #[test]
+    fn each_unnamed_destination_is_its_own_write_and_no_other_destination_carries_it() {
+        use super::super::paths::single_file;
+        // The named floor's evidence is the whole sentence; it never carries the
+        // unnamed destination of another clause. The same words in two clauses are
+        // two destinations.
+        for (intent, named, unnamed) in [
+            (
+                "Résume ./notes.md dans ./out/resume.md et extrais les dates dans un fichier.",
+                1,
+                1,
+            ),
+            (
+                "Résume mes notes dans un fichier. Extrais les dates dans un fichier.",
+                0,
+                2,
+            ),
+            (
+                "Summarize my notes into a file. Extract the dates into a file.",
+                0,
+                2,
+            ),
+        ] {
+            let reading = lexicon::read(intent);
+            let count = |is_named: bool| {
+                reading
+                    .plan
+                    .effects
+                    .iter()
+                    .filter(|e| {
+                        e.verb == EffectVerb::Write && single_file(&e.target).is_some() == is_named
+                    })
+                    .count()
+            };
+            assert_eq!(
+                (count(true), count(false)),
+                (named, unnamed),
+                "{intent}: {:?}",
+                reading.plan
+            );
+            // A replayed record gains nothing.
+            let mut again = reading.plan.clone();
+            unnamed_destination_floor(&mut again);
+            assert_eq!(again.effects, reading.plan.effects, "{intent}");
+        }
+        // One write each, as before: a file the clause names after a colon is that destination,
+        // and a gate that names the write carries it, in the same clause or in its own.
+        for intent in [
+            "Résume mes notes dans un fichier : ./out/resume.md.",
+            "Summarize my notes into a file, ask my approval before writing it.",
+            "Summarize my notes into a file, but ask me before writing it.",
+        ] {
+            let reading = lexicon::read(intent);
+            let writes = reading
+                .plan
+                .effects
+                .iter()
+                .filter(|e| e.verb == EffectVerb::Write)
+                .count();
+            assert_eq!(writes, 1, "{intent}: {:?}", reading.plan);
+        }
+    }
+
+    #[test]
+    fn a_stated_final_approval_holds_the_write_a_floor_adds() {
+        // Settled before the floors, the deferred gate missed their write and, beside
+        // a prohibited send, vanished (source trace: READY with an ungated write).
+        for intent in [
+            "Summarize my notes into a file. Never send anything. Only after my approval.",
+            "Summarize my notes into ./out/summary.md. Never send anything. Only after my approval.",
+            "Résume mes notes dans un fichier après mon approbation.",
+        ] {
+            let reading = lexicon::read(intent);
+            let write = reading
+                .plan
+                .effects
+                .iter()
+                .find(|e| e.verb == EffectVerb::Write);
+            assert!(
+                write.is_some_and(|w| w.policy == EffectPolicy::HumanFirst),
+                "{intent}: {:?}",
+                reading.plan
+            );
+            assert!(
+                !reading
+                    .plan
+                    .unknowns
+                    .iter()
+                    .any(|u| u == lexicon::GATE_WITHOUT_EFFECT),
+                "{intent}: {:?}",
+                reading.plan.unknowns
+            );
+        }
     }
 }

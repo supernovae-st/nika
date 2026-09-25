@@ -6,8 +6,13 @@
 //! structured record (#1464 · `.nika/session-state.json`) and the consent
 //! journal (#1465 · `.nika/consents.ndjson`).
 
+use super::draft::{self, Restored};
 use super::history::{
     AuthorityState, EffectState, History, HistoryMode, Operation, RunState, Saved,
+};
+use super::inference::{
+    DISPATCH_PREFIX, GATE_MONEY_PREFIX, OBSERVED_PREFIX, RECONFIRM, gate_money_marker,
+    is_money_marker,
 };
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
@@ -46,16 +51,30 @@ impl SessionRuntime {
         }
         self.history = HistoryMode::Blocked("conversation history did not open".to_owned());
         let history = History::open(home, &self.snapshot.root).map_err(history_refusal)?;
-        self.intent = IntentDraft {
+        self.restore_intent(IntentDraft {
             goal: history.state.goal.clone(),
             decisions: history.state.decisions.clone(),
             unresolved: history.state.unresolved.clone(),
-        };
+        });
         self.recent.clone_from(&history.state.recent);
+        self.restored_draft = history.state.pending.clone().map(Restored::from_raw);
+        self.money.reconfirm |= history.restored && history.monetary_seen;
+        if self.money.reconfirm {
+            // Legacy history cannot distinguish spent/unknown Session exposure
+            // from gate-only money. Preserve that uncertainty in both stores.
+            self.retain_money_guard();
+        }
         let notice = history.restored.then(|| {
             let mut text = "conversation restored · previous proposals and gates require fresh validation".to_owned();
             if history.uncertain {
                 text.push_str("\ninterrupted operation: its result may be unknown; inspect effects and receipts before retrying · nothing was replayed");
+            }
+            if let Some(restored) = &self.restored_draft {
+                text.push('\n');
+                text.push_str(&draft::restored_line(restored, self.money.reconfirm));
+                if self.restored_draft_id().is_some() {
+                    text.push_str(super::restore::RESTORE_HINT);
+                }
             }
             text
         });
@@ -67,11 +86,27 @@ impl SessionRuntime {
     pub fn turn(&mut self, input: &str) -> TurnOutcome {
         // Closing remains possible even after storage failure.
         if matches!(input.trim(), "/quit" | "/exit") {
+            self.set_cost_host_evidence(nika_runtime::cost_choice::CostHostEvidence::default());
             self.pending = None;
             self.pending_gate = None;
             return TurnOutcome::Quit;
         }
-        self.recorded(Operation::Turn, input, |s| s.turn_unrecorded(input))
+        // `/restore` records itself as the re-proposal act; what already waits refuses it.
+        if input.trim() == "/restore" {
+            return self.restore_draft();
+        }
+        let operation = if self.local_run_line(input) {
+            Operation::Run
+        } else {
+            Operation::Turn
+        };
+        self.recorded(operation, input, |s| {
+            if s.waiting_cost_choice() {
+                s.cost_answer(input)
+            } else {
+                s.turn_unrecorded(input)
+            }
+        })
     }
 
     /// Answer the current intelligence choice through the same durable boundary.
@@ -85,6 +120,15 @@ impl SessionRuntime {
     /// project's structured record (#1464); a held question, a stale
     /// revision or a blocked history decides nothing and writes nothing.
     pub fn consent(&mut self, answer: &str) -> TurnOutcome {
+        // Closing a review expires authority through the same door as closing a turn.
+        // It must not overwrite the journal that keeps the unaccepted draft.
+        if super::is_quit(answer) {
+            return self.turn(answer);
+        }
+        if self.waiting_cost_choice() {
+            return self.turn(answer);
+        }
+        self.unknown_cost.in_consent = true;
         let staged = self.pending_proposal();
         let outcome = self.recorded(Operation::Consent, answer, |s| {
             let outcome = s.consent_unrecorded(answer);
@@ -95,12 +139,14 @@ impl SessionRuntime {
             }
             outcome
         });
+        self.unknown_cost.in_consent = false;
         let decided = staged.is_some()
             && self.pending.is_none()
+            && self.revising.is_none()
             && !matches!(
                 &outcome,
                 TurnOutcome::Refusal(Refusal {
-                    class: RefusalClass::StaleRevision,
+                    class: RefusalClass::StaleRevision | RefusalClass::NotAllowed,
                     ..
                 })
             );
@@ -112,21 +158,32 @@ impl SessionRuntime {
     }
 
     /// Record the human's gate answer before returning a resume request;
-    /// an answer that resumes is a decision of the durable intent and keeps
-    /// the project's structured record (#1464).
+    /// an answer that resumes or holds a monetary amendment keeps the project's
+    /// structured record (#1464), even when conversation history is unavailable.
     pub fn answer_gate(&mut self, line: &str) -> TurnOutcome {
         let waiting = self.waiting_gate();
         let outcome = self.recorded(Operation::Gate, line, |s| {
             let outcome = s.answer_gate_unrecorded(line);
             if let (Some(gate), TurnOutcome::ResumeRequested { answer, .. }) = (&waiting, &outcome)
             {
+                // Expire only this gate's hold, not an earlier inference marker.
+                let marker = gate_money_marker(gate);
+                s.intent.decisions.retain(|d| d != &marker);
+                s.restore_money_guards();
                 s.intent
                     .decisions
                     .push(format!("answered the gate {gate}: {answer}"));
+            } else if let Some(gate) = &waiting
+                && s.money.gate.is_some()
+            {
+                let marker = gate_money_marker(gate);
+                if !s.intent.decisions.contains(&marker) {
+                    s.intent.decisions.push(marker);
+                }
             }
             outcome
         });
-        if matches!(outcome, TurnOutcome::ResumeRequested { .. }) {
+        if matches!(outcome, TurnOutcome::ResumeRequested { .. }) || self.money.gate.is_some() {
             self.keep_state(outcome)
         } else {
             outcome
@@ -145,8 +202,9 @@ impl SessionRuntime {
 
     /// The project's structured record, read at open (#1464) — after
     /// [`Self::enable_history`] when the door keeps one: the record wins
-    /// over the transcript's projection for the goal, the decisions and the
-    /// unresolved questions (the transcript keeps the dialogue). A proposal
+    /// over the transcript's ordinary goal/decisions/questions (the transcript
+    /// keeps the dialogue); monetary restrictions are conserved from both.
+    /// A proposal
     /// never survives a close (ADR-133 · nothing is written before its
     /// consent); a gate pending at close is the engine's own paused trace
     /// and waits again when that trace still carries the pause. A record
@@ -156,20 +214,40 @@ impl SessionRuntime {
             Ok(Some(state)) => state,
             Ok(None) => return None,
             Err(error) => {
+                self.money.reconfirm = true;
                 return Some(format!(
-                    "session record unreadable (.nika/{STATE_FILE}: {error}) · left in place · this session starts from the conversation alone"
+                    "session record unreadable (.nika/{STATE_FILE}: {error}) · left in place · inference exposure is unknown; paid continuation is blocked"
                 ));
             }
         };
-        self.intent = IntentDraft {
+        self.unknown_cost.observations = state.inference_observations;
+        // A no-budget observation had no allowance to reconfirm: it stays
+        // exposure, never a restriction. Any other observation restricts.
+        if self
+            .unknown_cost
+            .observations
+            .iter()
+            .any(|o| o["unbudgeted"] != true)
+        {
+            self.money.reconfirm = true;
+        }
+        self.restore_intent(IntentDraft {
             goal: state.goal,
             decisions: state.decisions,
             unresolved: state.unresolved,
-        };
+        });
         let mut notice = format!(
             "session record restored (.nika/{STATE_FILE} · written {})",
             state.updated_at
         );
+        for line in self
+            .intent
+            .decisions
+            .iter()
+            .filter(|d| d.starts_with(DISPATCH_PREFIX) || d.starts_with(OBSERVED_PREFIX))
+        {
+            let _ = write!(notice, "\n  ⚠ {line} · nothing was replayed");
+        }
         if let Some(Pending::Gate {
             workflow,
             trace,
@@ -192,7 +270,51 @@ impl SessionRuntime {
                 }
             }
         }
+        self.restore_money_guards();
         Some(notice)
+    }
+
+    // Conversation and structured state can have different last-write times.
+    // Replace ordinary prose, but never erase independently recorded constraints.
+    fn restore_intent(&mut self, mut restored: IntentDraft) {
+        for marker in self.intent.decisions.iter().filter(|d| is_money_marker(d)) {
+            if !restored.decisions.contains(marker) {
+                restored.decisions.push(marker.clone());
+            }
+        }
+        self.intent = restored;
+        self.money.reconfirm |= self
+            .intent
+            .decisions
+            .iter()
+            .any(|d| d == RECONFIRM || d.starts_with(DISPATCH_PREFIX));
+    }
+
+    fn restore_money_guards(&mut self) {
+        let waiting = self.waiting_gate().as_ref().map(gate_money_marker);
+        let mut matched = false;
+        let mut lost = false;
+        for marker in self
+            .intent
+            .decisions
+            .iter()
+            .filter(|d| d.starts_with(GATE_MONEY_PREFIX))
+        {
+            if waiting.as_ref() == Some(marker) {
+                matched = true;
+            } else {
+                lost = true;
+            }
+        }
+        if matched {
+            self.restore_gate_money();
+        }
+        if lost {
+            // Missing/different gate authority cannot release a monetary hold.
+            // No scope can now prove completion, so only conservative refusal is safe.
+            self.money.reconfirm = true;
+            self.retain_money_guard();
+        }
     }
 
     /// The durable evidence of a consent that landed every change (#1465),
@@ -252,8 +374,9 @@ impl SessionRuntime {
     fn projected_state(&self) -> SessionState {
         let redact = |s: &String| crate::broker::redact(s).0;
         let mut state = SessionState::new(now_rfc3339());
+        state.inference_observations = self.cost_observations();
         state.goal = self.intent.goal.as_ref().map(redact);
-        state.decisions = self.intent.decisions.iter().map(redact).collect();
+        state.decisions = self.saved_decisions();
         state.unresolved = self.intent.unresolved.iter().map(redact).collect();
         state.pending = self.pending_gate.as_ref().map(|gate| Pending::Gate {
             workflow: gate.workflow.clone(),
@@ -267,6 +390,30 @@ impl SessionRuntime {
     /// Keep the structured record after an operation that decided or
     /// observed something. A refused write rides the outcome's own text:
     /// the effect happened, and the human must know the record did not.
+    pub(super) fn save_cost_state(&self) -> Result<(), String> {
+        self.projected_state()
+            .save(&self.snapshot.root)
+            .map_err(|e| e.to_string())
+    }
+
+    /// The record at a paid-dispatch boundary, written BEFORE any request can
+    /// enter transport: this projection plus the in-flight line. The line lives
+    /// only in the record, so reading it back means the writer left before the
+    /// settlement's own write (S98 F10: a record never reads « Open · 0 calls »
+    /// while a request may be in flight).
+    pub(super) fn save_dispatch_boundary(&self) -> Result<(), String> {
+        self.save_boundary(self.dispatch_marker())
+    }
+
+    /// The same write for any in-flight line, including a no-budget one.
+    pub(super) fn save_boundary(&self, marker: Option<String>) -> Result<(), String> {
+        let mut state = self.projected_state();
+        if let Some(marker) = marker {
+            state.decisions.push(crate::broker::redact(&marker).0);
+        }
+        state.save(&self.snapshot.root).map_err(|e| e.to_string())
+    }
+
     fn keep_state(&self, outcome: TurnOutcome) -> TurnOutcome {
         match self.projected_state().save(&self.snapshot.root) {
             Ok(()) => outcome,
@@ -300,19 +447,35 @@ impl SessionRuntime {
         if let Err(error) = history.begin(operation, input) {
             return self.history_failed(error);
         }
+        let charged_before = self.uncertain_charges();
         let outcome = perform(self);
+        // A new proposal replaces a draft kept from an earlier session.
+        if self.pending.is_some() {
+            self.restored_draft = None;
+        }
+        // A choice that resumed a waiting line is judged by that line's
+        // own outcome: the record sees what the human's request became.
+        let judged = match &outcome {
+            TurnOutcome::Resumed { outcome, .. } => outcome.as_ref(),
+            other => other,
+        };
         let effect = if matches!(operation, Operation::Consent | Operation::Gate)
             && let TurnOutcome::Refusal(Refusal {
                 class: RefusalClass::Io,
                 text,
-            }) = &outcome
+            }) = judged
         {
-            self.remember("(effect)", text);
+            let text = text.clone();
+            self.remember("(effect)", &text);
+            EffectState::Unknown
+        } else if self.uncertain_charges() > charged_before {
+            // This operation left a possibly billed request without usable
+            // settlement: the history says so, as the record's observation does.
             EffectState::Unknown
         } else {
             EffectState::NoUncertaintyReported
         };
-        let run = match (&outcome, operation) {
+        let run = match (judged, operation) {
             (TurnOutcome::RunRequested { .. } | TurnOutcome::ResumeRequested { .. }, _) => {
                 RunState::AwaitingObservation
             }
@@ -344,17 +507,38 @@ impl SessionRuntime {
         TurnOutcome::Refusal(history_refusal(reason))
     }
 
+    fn saved_decisions(&self) -> Vec<String> {
+        let mut decisions: Vec<_> = self
+            .intent
+            .decisions
+            .iter()
+            .map(|s| crate::broker::redact(s).0)
+            .collect();
+        // An unreadable record supplies no conversational facts, but its unknown
+        // exposure must survive the next legitimate history/state write.
+        if self.money.reconfirm && !decisions.iter().any(|d| d == RECONFIRM) {
+            decisions.push(RECONFIRM.into());
+        }
+        decisions
+    }
+
     fn saved_conversation(&self) -> Saved {
         let redact = |s: &String| crate::broker::redact(s).0;
         Saved {
             goal: self.intent.goal.as_ref().map(redact),
-            decisions: self.intent.decisions.iter().map(redact).collect(),
+            decisions: self.saved_decisions(),
             unresolved: self.intent.unresolved.iter().map(redact).collect(),
             recent: self
                 .recent
                 .iter()
                 .map(|(a, b)| (redact(a), redact(b)))
                 .collect(),
+            pending: self
+                .pending
+                .as_ref()
+                .or(self.revising.as_ref().map(|(set, _)| set))
+                .and_then(|set| draft::capture(&self.proposal_id(set), set))
+                .or_else(|| self.restored_draft.as_ref().map(|r| r.raw().clone())),
         }
     }
 }
@@ -377,6 +561,8 @@ fn outcome_kind(outcome: &TurnOutcome) -> &'static str {
         TurnOutcome::RunRequested { .. } => "run_requested",
         TurnOutcome::GateAsk { .. } => "gate_ask",
         TurnOutcome::ResumeRequested { .. } => "resume_requested",
+        TurnOutcome::Aside(_) => "aside",
+        TurnOutcome::Resumed { outcome, .. } => outcome_kind(outcome),
     }
 }
 
@@ -390,6 +576,7 @@ fn with_note(outcome: TurnOutcome, note: &str) -> TurnOutcome {
         TurnOutcome::Facts(text) => TurnOutcome::Facts(text + &line),
         TurnOutcome::Help(text) => TurnOutcome::Help(text + &line),
         TurnOutcome::Ask(text) => TurnOutcome::Ask(text + &line),
+        TurnOutcome::Aside(text) => TurnOutcome::Aside(text + &line),
         TurnOutcome::Refusal(why) => {
             TurnOutcome::Refusal(Refusal::new(why.class, why.text + &line))
         }
@@ -412,6 +599,10 @@ fn with_note(outcome: TurnOutcome, note: &str) -> TurnOutcome {
         TurnOutcome::GateAsk { id, question } => TurnOutcome::GateAsk {
             id,
             question: question + &line,
+        },
+        TurnOutcome::Resumed { notice, outcome } => TurnOutcome::Resumed {
+            notice,
+            outcome: Box::new(with_note(*outcome, note)),
         },
         other @ (TurnOutcome::Quit | TurnOutcome::ResumeRequested { .. }) => other,
     }

@@ -5,15 +5,18 @@
 //! #1277: pins and child models remain selected, and the human learns the
 //! override's scope before the provider answers. Every provider request goes to a
 //! listener owned by this test; the child process has no operator credentials.
+//! The explicit local vLLM lane admits the fixture without borrowing a native
+//! API tariff for an overridden endpoint. Both streamed and single responses
+//! still cross the real CLI and OpenAI-compatible transport.
 
 use std::fs::File;
 use std::io::{BufRead, BufReader, Read, Write};
-use std::net::TcpListener;
+use std::net::{TcpListener, TcpStream};
 use std::process::{Command, Output};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
-const SEAT: &str = "anthropic/claude-sonnet-5";
+const SEAT: &str = "vllm/scope-fixture";
 const PREFIX: &str = "model override: --model `mock/echo`";
 
 struct Room {
@@ -54,15 +57,8 @@ impl Room {
             .env("NIKA_KEYCHAIN", "off")
             .env("NO_COLOR", "1")
             .env(
-                "ANTHROPIC_API_KEY",
-                "sk-ant-api03-model-scope-fixture-not-a-real-key",
-            )
-            .env(
-                "NIKA_ANTHROPIC_BASE_URL",
-                format!(
-                    "http://{}/v1/messages",
-                    self.listener.local_addr().expect("address")
-                ),
+                "NIKA_VLLM_BASE_URL",
+                self.listener.local_addr().expect("address").to_string(),
             )
             .stderr(File::create(self.dir.path().join("stderr.log")).expect("stderr file"))
             .current_dir(self.dir.path())
@@ -74,11 +70,17 @@ impl Room {
         std::fs::read_to_string(self.dir.path().join("stderr.log")).expect("stderr")
     }
 
-    fn no_request(&self) {
-        assert_eq!(
-            self.listener.accept().expect_err("no provider call").kind(),
-            std::io::ErrorKind::WouldBlock
-        );
+    fn no_model_request(&self) {
+        loop {
+            match self.listener.accept() {
+                Ok((stream, _)) => assert!(
+                    read_provider_request(&stream).is_none(),
+                    "no model call (local reachability probes are not inference)"
+                ),
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => break,
+                Err(error) => panic!("listener: {error}"),
+            }
+        }
     }
 
     #[allow(clippy::disallowed_methods)]
@@ -87,9 +89,14 @@ impl Room {
         let stderr = self.dir.path().join("stderr.log");
         std::thread::spawn(move || {
             let deadline = Instant::now() + Duration::from_secs(10);
-            let mut stream = loop {
+            let (mut stream, request) = loop {
+                assert!(Instant::now() < deadline, "provider request missing");
                 match listener.accept() {
-                    Ok((stream, _)) => break stream,
+                    Ok((stream, _)) => {
+                        if let Some(request) = read_provider_request(&stream) {
+                            break (stream, request);
+                        }
+                    }
                     Err(error)
                         if error.kind() == std::io::ErrorKind::WouldBlock
                             && Instant::now() < deadline =>
@@ -99,30 +106,6 @@ impl Room {
                     Err(error) => panic!("provider request missing: {error}"),
                 }
             };
-            stream
-                .set_nonblocking(false)
-                .expect("blocking request socket");
-            stream
-                .set_read_timeout(Some(Duration::from_secs(3)))
-                .expect("read bound");
-            let mut reader = BufReader::new(stream.try_clone().expect("socket clone"));
-            let mut length = 0;
-            loop {
-                let mut line = String::new();
-                assert!(reader.read_line(&mut line).expect("header") > 0);
-                if line == "\r\n" {
-                    break;
-                }
-                if let Some((key, value)) = line.split_once(':')
-                    && key.eq_ignore_ascii_case("content-length")
-                {
-                    length = value.trim().parse::<usize>().expect("body length");
-                }
-            }
-            assert!(length < 1_048_576);
-            let mut body = vec![0; length];
-            reader.read_exact(&mut body).expect("request body");
-            let request: serde_json::Value = serde_json::from_slice(&body).expect("request JSON");
             // A regular file avoids cross-pipe reader scheduling: the notice
             // must be visible when handling the request, before responding.
             let before_response = std::fs::read_to_string(stderr).expect("boot stderr");
@@ -130,22 +113,61 @@ impl Room {
                 (
                     "text/event-stream",
                     concat!(
-                        "data: {\"type\":\"message_start\",\"message\":{\"id\":\"owned\",\"usage\":{\"input_tokens\":2}}}\n\n",
-                        "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"owned-provider-answer\"}}\n\n",
-                        "data: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":1}}\n\n",
-                        "data: {\"type\":\"message_stop\"}\n\n",
+                        "data: {\"id\":\"owned\",\"choices\":[{\"delta\":{\"content\":\"owned-provider-answer\"},\"finish_reason\":null}]}\n\n",
+                        "data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n",
+                        "data: {\"choices\":[],\"usage\":{\"prompt_tokens\":2,\"completion_tokens\":1}}\n\n",
+                        "data: [DONE]\n\n",
                     ),
                 )
             } else {
                 (
                     "application/json",
-                    r#"{"id":"owned","model":"claude-sonnet-5","content":[{"type":"text","text":"owned-provider-answer"}],"stop_reason":"end_turn","usage":{"input_tokens":2,"output_tokens":1}}"#,
+                    r#"{"id":"owned","model":"scope-fixture","choices":[{"index":0,"message":{"role":"assistant","content":"owned-provider-answer"},"finish_reason":"stop"}],"usage":{"prompt_tokens":2,"completion_tokens":1}}"#,
                 )
             };
             write!(stream, "HTTP/1.1 200 OK\r\ncontent-type: {content_type}\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{response}", response.len()).expect("response");
             (request, before_response)
         })
     }
+}
+
+/// Local census may connect or issue GET / before dispatch. Only POST is a model call.
+fn read_provider_request(stream: &TcpStream) -> Option<serde_json::Value> {
+    stream
+        .set_nonblocking(false)
+        .expect("blocking request socket");
+    stream
+        .set_read_timeout(Some(Duration::from_secs(3)))
+        .expect("read bound");
+    let mut reader = BufReader::new(stream);
+    let mut request_line = String::new();
+    if reader.read_line(&mut request_line).expect("request line") == 0 {
+        return None;
+    }
+    let mut length = 0;
+    loop {
+        let mut line = String::new();
+        assert!(reader.read_line(&mut line).expect("header") > 0);
+        if line == "\r\n" {
+            break;
+        }
+        if let Some((key, value)) = line.split_once(':')
+            && key.eq_ignore_ascii_case("content-length")
+        {
+            length = value.trim().parse::<usize>().expect("body length");
+        }
+    }
+    if request_line.starts_with("GET / ") {
+        return None;
+    }
+    assert!(
+        request_line.starts_with("POST /v1/chat/completions "),
+        "{request_line}"
+    );
+    assert!(length < 1_048_576);
+    let mut body = vec![0; length];
+    reader.read_exact(&mut body).expect("request body");
+    Some(serde_json::from_slice(&body).expect("request JSON"))
 }
 
 #[test]
@@ -156,18 +178,18 @@ fn human_notice_is_visible_to_the_provider_handler_and_models_stay_selected() {
         let out = room.call(&["run", "parent.nika", "--model", "mock/echo"]);
         let (request, early_stderr) = server.join().expect("canary");
         assert!(out.status.success(), "{kind}: {}", room.stderr());
-        assert_eq!(request["model"], "claude-sonnet-5", "{kind}");
+        assert_eq!(request["model"], "scope-fixture", "{kind}");
         assert!(early_stderr.contains(PREFIX), "{kind}: {early_stderr}");
         assert!(
             early_stderr.contains(if kind == "child" { "parent-only" } else { SEAT }),
             "{early_stderr}"
         );
-        room.no_request();
+        room.no_model_request();
     }
 }
 
 #[test]
-fn check_explains_pins_and_children_on_human_and_json_doors_without_io() {
+fn check_explains_pins_and_children_on_human_and_json_doors_without_model_calls() {
     for kind in ["infer", "agent", "child"] {
         let room = Room::new(kind);
         for json in [false, true] {
@@ -193,7 +215,7 @@ fn check_explains_pins_and_children_on_human_and_json_doors_without_io() {
                 assert_eq!(scope.len(), 1, "{scope:?}");
                 assert_eq!(scope[0]["task"], "selected");
             }
-            room.no_request();
+            room.no_model_request();
         }
     }
 }
@@ -208,7 +230,7 @@ fn both_machine_run_outputs_stay_parseable_and_keep_the_pinned_model() {
         let out = room.call(&args);
         let (request, early_stderr) = server.join().expect("canary");
         assert!(out.status.success(), "{}", room.stderr());
-        assert_eq!(request["model"], "claude-sonnet-5");
+        assert_eq!(request["model"], "scope-fixture");
         assert!(!early_stderr.contains("model override:"));
         assert!(!room.stderr().contains("model override:"));
         let text = String::from_utf8(out.stdout).expect("machine output");
@@ -220,7 +242,7 @@ fn both_machine_run_outputs_stay_parseable_and_keep_the_pinned_model() {
         } else {
             serde_json::from_str::<serde_json::Value>(&text).expect("one output object");
         }
-        room.no_request();
+        room.no_model_request();
     }
 }
 
@@ -237,11 +259,11 @@ fn task_scope_excludes_an_unused_pin_and_dry_run_never_calls_the_provider() {
     ]);
     assert!(scoped.status.success(), "{}", room.stderr());
     assert!(!room.stderr().contains("model override:"));
-    room.no_request();
+    room.no_model_request();
     let preview = room.call(&["run", "parent.nika", "--model", "mock/echo", "--dry-run"]);
     assert!(preview.status.success(), "{}", room.stderr());
     assert!(room.stderr().contains(PREFIX));
-    room.no_request();
+    room.no_model_request();
 }
 
 #[test]
@@ -256,9 +278,9 @@ fn no_override_and_quiet_mode_preserve_the_existing_announcement_policy() {
         let out = room.call(&args);
         let (request, early_stderr) = server.join().expect("canary");
         assert!(out.status.success(), "{}", room.stderr());
-        assert_eq!(request["model"], "claude-sonnet-5");
+        assert_eq!(request["model"], "scope-fixture");
         assert!(!early_stderr.contains("model override:"));
         assert!(!room.stderr().contains("model override:"));
-        room.no_request();
+        room.no_model_request();
     }
 }

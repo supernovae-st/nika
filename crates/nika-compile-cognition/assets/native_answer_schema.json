@@ -1,0 +1,64 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "candidate",
+    "candidate_lines",
+    "questions",
+    "gaps",
+    "notes"
+  ],
+  "properties": {
+    "candidate": {
+      "type": "string",
+      "description": "Complete YAML text with real newlines, or empty when candidate_lines is used."
+    },
+    "questions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "key",
+          "label",
+          "answer_type",
+          "why"
+        ],
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "answer_type": {
+            "type": "string",
+            "enum": [
+              "text",
+              "literal"
+            ]
+          },
+          "why": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "gaps": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "notes": {
+      "type": "string"
+    },
+    "candidate_lines": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Preferred for multiline YAML: one physical line per element, indentation preserved; empty when candidate is used. Use an empty final element for a final newline."
+    }
+  }
+}

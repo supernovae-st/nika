@@ -109,6 +109,7 @@
     reason = "build-tool lint carve-out — see lib.rs top-level doc"
 )]
 
+mod admission;
 mod capabilities;
 mod embeddings;
 mod emit;
@@ -250,25 +251,7 @@ pub fn generate(
     features: FeatureSet,
 ) -> Result<Emitted, CodegenError> {
     let mut emitted = Emitted::new();
-
-    // Walk the data dir to register `cargo:rerun-if-changed` paths even
-    // for files we don't end up emitting from. Matches legacy behavior :
-    // a TOML edit triggers rebuild regardless of feature gate, so the
-    // gate-flip itself produces a fresh emission.
-    let read_dir = fs::read_dir(data_dir).map_err(|source| CodegenError::Io {
-        path: data_dir.to_path_buf(),
-        source,
-    })?;
-    for entry in read_dir {
-        let entry = entry.map_err(|source| CodegenError::Io {
-            path: data_dir.to_path_buf(),
-            source,
-        })?;
-        let path = entry.path();
-        if path.extension() == Some(OsStr::new("toml")) {
-            emitted.rerun_paths.push(path);
-        }
-    }
+    track_catalog_sources(data_dir, &mut emitted)?;
 
     // Providers are parsed unconditionally when `providers` OR
     // `embeddings` OR `capabilities` is on — both downstream catalogs
@@ -319,13 +302,55 @@ pub fn generate(
     if features.pricing {
         let path = data_dir.join("model-pricing.toml");
         let raw = read_file(&path)?;
-        let rust_src = codegen_pricing(&raw)?;
+        let mut pricing = pricing::parse_pricing_bytes(&raw, &path)?;
+        let admission_path = data_dir.join("inference-admission.toml");
+        if admission_path.exists() {
+            admission::project_pricing(&read_file(&admission_path)?, &mut pricing)?;
+        }
+        let rust_src = pricing::generate_pricing_rs(&pricing.meta, &pricing.rules);
         let out_path = out_dir.join("model_pricing.rs");
         write_file(&out_path, &rust_src)?;
         emitted.files.push(out_path);
     }
 
+    // Missing qualification data means no admitted tariffs. Always overwrite
+    // the output, so removing a catalog cannot preserve stale qualification.
+    let path = data_dir.join("inference-admission.toml");
+    if features.pricing {
+        let rust_src = if path.exists() {
+            admission::generate(&read_file(&path)?)?
+        } else {
+            "static TARIFFS: &[InferenceTariff] = &[];\n".to_owned()
+        };
+        let out_path = out_dir.join("inference_admission.rs");
+        write_file(&out_path, &rust_src)?;
+        emitted.rerun_paths.push(path);
+        emitted.files.push(out_path);
+    }
+
     Ok(emitted)
+}
+
+// Walk the data dir to register `cargo:rerun-if-changed` paths even
+// for files we don't end up emitting from. Matches legacy behavior :
+// a TOML edit triggers rebuild regardless of feature gate, so the
+// gate-flip itself produces a fresh emission.
+fn track_catalog_sources(data_dir: &Path, emitted: &mut Emitted) -> Result<(), CodegenError> {
+    let read_dir = fs::read_dir(data_dir).map_err(|source| CodegenError::Io {
+        path: data_dir.to_path_buf(),
+        source,
+    })?;
+    for entry in read_dir {
+        let entry = entry.map_err(|source| CodegenError::Io {
+            path: data_dir.to_path_buf(),
+            source,
+        })?;
+        let path = entry.path();
+        if path.extension() == Some(OsStr::new("toml")) {
+            emitted.rerun_paths.push(path);
+        }
+    }
+    Ok(())
 }
 
 fn read_file(path: &Path) -> Result<Vec<u8>, CodegenError> {
@@ -645,7 +670,16 @@ mod tests {
         let (base, out) = scratch_dirs("all");
         let emitted =
             generate(&base.join("data"), &out, FeatureSet::all()).expect("generate all features");
-        assert_eq!(emitted.files.len(), 5, "all 5 catalogs emitted");
+        assert_eq!(
+            emitted.files.len(),
+            6,
+            "all catalogs plus admission emitted"
+        );
+        assert!(
+            fs::read_to_string(out.join("inference_admission.rs"))
+                .expect("admission")
+                .contains("= &[];")
+        );
         let providers =
             fs::read_to_string(out.join("providers.rs")).expect("providers.rs written to disk");
         assert_eq!(

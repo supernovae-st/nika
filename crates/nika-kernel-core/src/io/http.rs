@@ -360,6 +360,13 @@ pub trait HttpGet: Send + Sync {
 /// HTTP POST operations (includes streaming responses).
 #[trait_variant::make(HttpPostDyn: Send)]
 pub trait HttpPost: Send + Sync {
+    /// Whether this effect guarantees one transport attempt per `post`, with
+    /// no protocol retries, and honors `follow_redirects = false` exactly.
+    /// Defaults to refusal for custom effects. This says nothing about billing.
+    fn supports_single_attempt(&self) -> bool {
+        false
+    }
+
     /// Send a POST request.
     ///
     /// CANCEL SAFETY: NOT cancel-safe at the application layer. A dropped

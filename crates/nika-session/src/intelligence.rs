@@ -10,6 +10,7 @@
 //! never silently replaced. Each path names where the project context
 //! goes before a human reasons over it (the data locus).
 
+use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -130,6 +131,36 @@ pub struct SeatSeen {
     pub product_present: bool,
     /// The seat's sign-in evidence.
     pub configured: bool,
+    /// Nika can get an answer through this seat in a conversation: the
+    /// seat's infer-grade attestation (one turn · no implicit tool · a
+    /// text answer · an observable identity). A seat merely installed and
+    /// signed in is a connection, never an intelligence that answers.
+    pub answers_here: bool,
+}
+
+impl SeatSeen {
+    /// The seat is on PATH and Nika can get an answer through it.
+    #[must_use]
+    pub fn usable(&self) -> bool {
+        self.product_present && self.answers_here
+    }
+}
+
+/// Whether Nika can get an answer through `seat` in a conversation — the
+/// SAME infer-grade admission `nika run` applies to an `infer:` under a
+/// seat (a static attestation, never a spawn). Without the harness
+/// feature no seat answers.
+#[must_use]
+pub fn seat_answers_here(seat: &str) -> bool {
+    #[cfg(feature = "access-harness")]
+    {
+        nika_harness::meet_infer_grade(seat, nika_harness::StructuredOutputGrade::Text).is_ok()
+    }
+    #[cfg(not(feature = "access-harness"))]
+    {
+        let _ = seat;
+        false
+    }
 }
 
 /// The deterministic census — presence only, never a dial, never a value.
@@ -177,6 +208,7 @@ impl IntelligenceCensus {
                 // the same fact the runtime's plan reads) — never the HTTP
                 // provider rows, which carry no seat.
                 configured: s.signed_in,
+                answers_here: seat_answers_here(&s.id),
             })
             .collect();
         let api_keys = probe
@@ -205,39 +237,105 @@ impl IntelligenceCensus {
         }
     }
 
+    /// The apps on this machine Nika cannot get an answer through.
+    fn seats_unable_here(&self) -> Vec<&str> {
+        self.seats
+            .iter()
+            .filter(|s| s.product_present && !s.answers_here)
+            .map(|s| s.id.as_str())
+            .collect()
+    }
+
+    /// The ways on this machine holds when a choice cannot answer — the
+    /// picks that can, from the census, never a route that was not seen.
+    #[must_use]
+    pub fn ways_on(&self) -> String {
+        let mut ways = Vec::new();
+        if !self.api_keys.is_empty() {
+            ways.push(format!(
+                "2 (an API key is here for {})",
+                self.api_keys.join(" · ")
+            ));
+        }
+        if !self.locals.is_empty() {
+            ways.push(format!(
+                "3 (a local engine is reachable: {})",
+                self.locals.join(" · ")
+            ));
+        }
+        if ways.is_empty() {
+            "`/intelligence` then 2 with a key (`export <PROVIDER>_API_KEY=…` · `nika doctor` names the variable) or 3 with a local engine".to_owned()
+        } else {
+            format!("`/intelligence` then {}", ways.join(" or "))
+        }
+    }
+
     /// The first screen — human words, the atelier order (an app you
     /// already have · an API · local · none), never a class name.
     #[must_use]
     pub fn first_screen(&self) -> String {
+        format!(
+            "Nika\nChoose which AI answers your questions here. You can change this later (`/intelligence`); the choice is kept at ~/.nika/session-intelligence.json.\n\n{}",
+            self.options_screen()
+        )
+    }
+
+    /// The four options alone, as this machine holds them — the part of
+    /// the first screen a contextual ask shows under its own reason.
+    #[must_use]
+    pub fn options_screen(&self) -> String {
         let seats: Vec<&str> = self
             .seats
             .iter()
-            .filter(|s| s.product_present)
+            .filter(|s| s.usable())
             .map(|s| s.id.as_str())
             .collect();
-        let apps = if seats.is_empty() {
+        let mut apps = if seats.is_empty() {
             "none found on this machine".to_owned()
         } else {
             seats.join(" · ")
         };
+        // An app that is here but cannot answer is named as such — a
+        // connection seen is never offered as an intelligence.
+        let unable = self.seats_unable_here();
+        if !unable.is_empty() {
+            let _ = write!(
+                apps,
+                "\n     seen but not usable here yet: {} — Nika cannot get an answer through them; pick 2 or 3, or install Codex",
+                unable.join(" · ")
+            );
+        }
         let keys = if self.api_keys.is_empty() {
             "no key in the environment".to_owned()
         } else {
-            self.api_keys.join(" · ")
+            annotated_keys(&self.api_keys, &crate::authoring::gateway_host)
         };
         let locals = if self.locals.is_empty() {
             "none reachable".to_owned()
         } else {
             self.locals.join(" · ")
         };
+        // A pick may name its model: taught with a provider this machine holds, the way
+        // the line is typed (`2 deepseek/<model>`), never offered where nothing serves it.
+        let model = |pick: char, provider: Option<&String>| {
+            provider.map_or_else(String::new, |p| {
+                format!("\n     or name its model: {pick} {p}/<model>")
+            })
+        };
+        let (api_model, local_model) = (
+            model('2', self.api_keys.first()),
+            model('3', self.locals.first()),
+        );
         format!(
-            "Nika\nChoose which AI answers your questions here. You can change this later (`/intelligence`); the choice is kept at ~/.nika/session-intelligence.json.\n\n  1  Use an AI app I already have (a coding assistant you are signed into)\n     {apps}\n  2  Use an API (metered · your own key)\n     {keys}\n  3  Run locally (private · on this machine)\n     {locals}\n  4  No AI in this conversation\n     Nika still answers from its own catalog: your workflows · checks · examples · builtins\n"
+            "  1  Use an AI app I already have (a coding assistant you are signed into)\n     {apps}\n  2  Use an API (metered · your own key)\n     {keys}{api_model}\n  3  Run locally (private · on this machine)\n     {locals}{local_model}\n  4  No AI in this conversation\n     Nika still answers from its own catalog: your workflows · checks · examples · builtins\n"
         )
     }
 
-    /// Turn a first-screen answer (`1`..`4`, optionally with a name:
-    /// `1 codex` · `2 mistral` · `3 ollama`) into a choice — refused with
-    /// its fix when this machine cannot serve it.
+    /// Turn a first-screen answer (`1`..`4`, optionally with one name:
+    /// `1 codex` · `2 mistral` · `2 deepseek/deepseek-v4-pro` · `3 ollama`)
+    /// into a choice — refused with its fix when this machine cannot serve
+    /// it, and refused when it holds more than a pick and one name (a word
+    /// is never silently dropped).
     ///
     /// # Errors
     ///
@@ -247,17 +345,41 @@ impl IntelligenceCensus {
         let mut words = answer.split_whitespace();
         let pick = words.next().unwrap_or("");
         let name = words.next().map(str::to_owned);
+        if words.next().is_some() || (pick == "4" && name.is_some()) {
+            return Err(format!(
+                "`{}` is not a choice — answer a number alone, or 1, 2 or 3 followed by one name (`2 <provider>/<model>`)",
+                answer.trim()
+            ));
+        }
         match pick {
             "1" => {
                 let seat = match name {
+                    // An app that is here but cannot answer is refused with
+                    // the ways on — never kept as a choice that fails later.
+                    Some(n) if self.seats.iter().any(|s| s.id == n && s.product_present && !s.answers_here) => {
+                        return Err(format!(
+                            "`{n}` is installed, but Nika cannot get an answer through it yet — {} · or install Codex (the one app proven to answer here)",
+                            self.ways_on()
+                        ));
+                    }
                     Some(n) => n,
                     None => self
                         .seats
                         .iter()
-                        .find(|s| s.product_present)
+                        .find(|s| s.usable())
                         .map(|s| s.id.clone())
                         .ok_or_else(|| {
-                            "no AI app found on this machine — install one (Codex · Claude Code · Gemini CLI · Kimi Code · Qwen Code) or pick 2, 3 or 4".to_owned()
+                            let unable = self.seats_unable_here();
+                            if unable.is_empty() {
+                                "no AI app found on this machine — install Codex (the one app proven to answer here) or pick 2, 3 or 4".to_owned()
+                            } else {
+                                format!(
+                                    "{} installed, but Nika cannot get an answer through {} yet — {} · or install Codex (the one app proven to answer here)",
+                                    unable.join(" · "),
+                                    if unable.len() == 1 { "it" } else { "them" },
+                                    self.ways_on()
+                                )
+                            }
                         })?,
                 };
                 Ok(UserIntelligencePreference::new(
@@ -266,35 +388,70 @@ impl IntelligenceCensus {
                 ))
             }
             "2" => {
-                let provider = match name {
-                    Some(n) => n,
-                    None => self.api_keys.first().cloned().ok_or_else(|| {
-                        "no API key in the environment — `export <PROVIDER>_API_KEY=…` (`nika doctor` names the variable) or pick 1, 3 or 4".to_owned()
-                    })?,
+                let (provider, model) = match name {
+                    Some(n) => split_seat(&n),
+                    None => (
+                        self.api_keys.first().cloned().ok_or_else(|| {
+                            "no API key in the environment — `export <PROVIDER>_API_KEY=…` (`nika doctor` names the variable) or pick 1, 3 or 4".to_owned()
+                        })?,
+                        None,
+                    ),
                 };
                 Ok(UserIntelligencePreference::new(
                     IntelligenceKind::Api { provider },
-                    None,
+                    model,
                 ))
             }
             "3" => {
-                let provider = match name {
-                    Some(n) => n,
-                    None => self.locals.first().cloned().ok_or_else(|| {
-                        "no local engine reachable — start one (ollama · lmstudio · llamacpp · localai · vllm) or pick 1, 2 or 4".to_owned()
-                    })?,
+                let (provider, model) = match name {
+                    Some(n) => split_seat(&n),
+                    None => (
+                        self.locals.first().cloned().ok_or_else(|| {
+                            "no local engine reachable — start one (ollama · lmstudio · llamacpp · localai · vllm) or pick 1, 2 or 4".to_owned()
+                        })?,
+                        None,
+                    ),
                 };
                 Ok(UserIntelligencePreference::new(
                     IntelligenceKind::Local { provider },
-                    None,
+                    model,
                 ))
             }
             "4" => Ok(UserIntelligencePreference::new(
                 IntelligenceKind::None,
                 None,
             )),
-            other => Err(format!("`{other}` is not a choice — answer 1, 2, 3 or 4")),
+            other => Err(self.not_a_choice(other)),
         }
+    }
+
+    /// The refusal of a line that is no pick; a model named alone is taught
+    /// the numbered form that chooses it (`2 deepseek/deepseek-v4-pro`).
+    fn not_a_choice(&self, other: &str) -> String {
+        let Some((provider, _)) = other.split_once('/') else {
+            return format!("`{other}` is not a choice — answer 1, 2, 3 or 4");
+        };
+        let pick = if self.locals.iter().any(|local| local == provider) {
+            "3"
+        } else {
+            "2"
+        };
+        format!(
+            "`{other}` is not a choice — answer 1, 2, 3 or 4; a model follows its number: `{pick} {other}`"
+        )
+    }
+}
+
+/// A choice's name as the human typed it: `openai` names the provider;
+/// `openai/gpt-oss-120b` names the provider AND the model (a gateway row,
+/// a cheaper seat), the model kept whole as `<provider>/<name>` — the form
+/// the catalog and the reasoner speak. An empty side is no model.
+fn split_seat(name: &str) -> (String, Option<String>) {
+    match name.split_once('/') {
+        Some((provider, model)) if !provider.is_empty() && !model.is_empty() => {
+            (provider.to_owned(), Some(name.to_owned()))
+        }
+        _ => (name.to_owned(), None),
     }
 }
 
@@ -311,6 +468,14 @@ pub enum DataLocus {
     Metered {
         /// The provider.
         provider: String,
+    },
+    /// Through an OpenAI-compatible gateway: the provider id names the
+    /// wire, the host names where the bytes go.
+    Gateway {
+        /// The provider id the wire speaks.
+        provider: String,
+        /// The host the base URL override points at.
+        host: String,
     },
     /// Stays on this machine.
     Local,
@@ -329,12 +494,42 @@ impl DataLocus {
             Self::Metered { provider } => format!(
                 "{provider} API · metered · project context you ask Nika to reason over is sent to {provider}"
             ),
+            Self::Gateway { provider, host } => format!(
+                "{provider}-compatible gateway · {host} · metered · project context you ask Nika to reason over is sent to {host}, not to {provider}"
+            ),
             Self::Local => "local · private · project context stays on this machine".to_owned(),
             Self::None => {
                 "no conversational AI · nothing leaves this machine · the facts stay".to_owned()
             }
         }
     }
+}
+
+/// The locus of a metered provider: its own API, or the gateway its base
+/// URL is overridden to — the human is told where the bytes go.
+fn metered_or_gateway(provider: &str) -> DataLocus {
+    match crate::authoring::gateway_host(provider) {
+        Some(host) => DataLocus::Gateway {
+            provider: provider.to_owned(),
+            host,
+        },
+        None => DataLocus::Metered {
+            provider: provider.to_owned(),
+        },
+    }
+}
+
+/// The API keys as the first screen lists them, a gateway named beside
+/// the provider whose calls it carries (« openai (through api.scaleway.ai) »).
+#[must_use]
+pub fn annotated_keys(keys: &[String], host_of: &dyn Fn(&str) -> Option<String>) -> String {
+    keys.iter()
+        .map(|k| match host_of(k) {
+            Some(host) => format!("{k} (through {host})"),
+            None => k.clone(),
+        })
+        .collect::<Vec<_>>()
+        .join(" · ")
 }
 
 /// The intelligence the session runs with — the choice judged against
@@ -364,12 +559,26 @@ impl ResolvedSessionIntelligence {
             IntelligenceKind::Harness { seat } => {
                 let seen = census.seats.iter().find(|s| &s.id == seat);
                 match seen {
-                    Some(s) if s.product_present && s.configured => (
+                    Some(s) if s.product_present && s.configured && s.answers_here => (
                         DataLocus::Remote {
                             product: seat.clone(),
                         },
                         true,
                         None,
+                    ),
+                    // Installed, even signed in — but Nika cannot get an
+                    // answer through it: a connection, not an intelligence.
+                    // Said in plain words, with the ways on this machine holds.
+                    Some(s) if s.product_present && !s.answers_here => (
+                        DataLocus::Remote {
+                            product: seat.clone(),
+                        },
+                        false,
+                        Some(format!(
+                            "`{seat}` is installed{}, but Nika cannot get an answer through it yet — {} · or install Codex (the one app proven to answer here)",
+                            if s.configured { " and signed in" } else { "" },
+                            census.ways_on()
+                        )),
                     ),
                     Some(s) if s.product_present => (
                         DataLocus::Remote {
@@ -393,18 +602,10 @@ impl ResolvedSessionIntelligence {
             }
             IntelligenceKind::Api { provider } => {
                 if census.api_keys.iter().any(|k| k == provider) {
-                    (
-                        DataLocus::Metered {
-                            provider: provider.clone(),
-                        },
-                        true,
-                        None,
-                    )
+                    (metered_or_gateway(provider), true, None)
                 } else {
                     (
-                        DataLocus::Metered {
-                            provider: provider.clone(),
-                        },
+                        metered_or_gateway(provider),
                         false,
                         Some(format!(
                             "no key for `{provider}` in the environment — `export <VAR>=…` (`nika doctor` names the variable), or `/intelligence` to choose another path"
@@ -442,6 +643,54 @@ impl ResolvedSessionIntelligence {
 mod tests {
     use super::*;
 
+    /// Under an OpenAI-compatible gateway the words name the host the bytes
+    /// go to, never the provider whose wire is spoken; the key list says so too.
+    #[test]
+    fn a_gateway_is_named_where_the_bytes_go() {
+        let locus = DataLocus::Gateway {
+            provider: "openai".to_owned(),
+            host: "api.scaleway.ai".to_owned(),
+        };
+        let line = locus.line();
+        assert!(
+            line.starts_with("openai-compatible gateway · api.scaleway.ai")
+                && line.contains("sent to api.scaleway.ai, not to openai"),
+            "{line}"
+        );
+        let keys = vec!["openai".to_owned(), "mistral".to_owned()];
+        let text = annotated_keys(&keys, &|p| {
+            (p == "openai").then(|| "api.scaleway.ai".to_owned())
+        });
+        assert_eq!(text, "openai (through api.scaleway.ai) · mistral");
+    }
+
+    /// The first screen takes a model with the provider: « 2 openai/gpt-oss-120b »
+    /// names the provider openai and keeps the model whole (the form the
+    /// reasoner speaks); « 2 mistral » names no model; a local engine the same.
+    #[test]
+    fn a_choice_may_name_the_model_with_the_provider() {
+        let c = census();
+        let named = c.choose("2 openai/gpt-oss-120b").expect("api");
+        assert_eq!(
+            named.kind,
+            IntelligenceKind::Api {
+                provider: "openai".to_owned()
+            }
+        );
+        assert_eq!(named.model.as_deref(), Some("openai/gpt-oss-120b"));
+        let bare = c.choose("2 mistral").expect("api");
+        assert_eq!(bare.model, None);
+        let local = c.choose("3 ollama/llama3.3").expect("local");
+        assert_eq!(
+            local.kind,
+            IntelligenceKind::Local {
+                provider: "ollama".to_owned()
+            }
+        );
+        assert_eq!(local.model.as_deref(), Some("ollama/llama3.3"));
+        assert_eq!(split_seat("openai/"), ("openai/".to_owned(), None));
+    }
+
     fn census() -> IntelligenceCensus {
         IntelligenceCensus {
             seats: vec![
@@ -449,16 +698,88 @@ mod tests {
                     id: "codex".to_owned(),
                     product_present: true,
                     configured: true,
+                    answers_here: true,
                 },
                 SeatSeen {
                     id: "claude-code".to_owned(),
                     product_present: false,
                     configured: false,
+                    answers_here: false,
                 },
             ],
             api_keys: vec!["mistral".to_owned()],
             locals: vec![],
         }
+    }
+
+    /// A seat that is here and signed in but cannot answer (no infer-grade
+    /// attestation) is shown as such, never offered as the app, refused
+    /// when named, and a kept choice on it is not ready — each time with
+    /// the ways on this machine holds, from the census.
+    #[test]
+    fn a_seat_seen_but_unable_to_answer_is_never_offered_as_an_intelligence() {
+        let mut c = census();
+        c.seats.push(SeatSeen {
+            id: "gemini-cli".to_owned(),
+            product_present: true,
+            configured: true,
+            answers_here: false,
+        });
+        let screen = c.options_screen();
+        let apps = screen.lines().nth(1).expect("the apps line");
+        assert!(
+            apps.contains("codex") && !apps.contains("gemini-cli"),
+            "only an app that answers is offered under 1: {apps}"
+        );
+        assert!(
+            screen.contains("seen but not usable here yet: gemini-cli")
+                && screen.contains("cannot get an answer through them"),
+            "{screen}"
+        );
+        assert_eq!(
+            c.choose("1").expect("the app that answers").kind,
+            IntelligenceKind::Harness {
+                seat: "codex".to_owned()
+            }
+        );
+        let refused = c.choose("1 gemini-cli").expect_err("named, refused");
+        assert!(
+            refused.contains("cannot get an answer through it")
+                && refused.contains("2 (an API key is here for mistral)")
+                && refused.contains("install Codex"),
+            "{refused}"
+        );
+        let kept = UserIntelligencePreference::new(
+            IntelligenceKind::Harness {
+                seat: "gemini-cli".to_owned(),
+            },
+            None,
+        );
+        let r = ResolvedSessionIntelligence::resolve(&kept, &c);
+        assert!(!r.ready, "{r:?}");
+        let why = r.why.as_deref().expect("the reason");
+        assert!(
+            why.contains("`gemini-cli` is installed and signed in, but Nika cannot get an answer through it yet")
+                && why.contains("/intelligence")
+                && why.contains("mistral"),
+            "{why}"
+        );
+        assert_eq!(r.kind, kept.kind, "the choice stands");
+        // Without any app that answers, `1` refuses with the same ways on.
+        c.seats.retain(|s| s.id != "codex");
+        let refused = c.choose("1").expect_err("no app answers");
+        assert!(
+            refused.contains("gemini-cli installed, but Nika cannot get an answer through it yet")
+                && refused.contains("mistral"),
+            "{refused}"
+        );
+        // No key and no local engine: the ways on name how to bring one.
+        c.api_keys.clear();
+        assert!(
+            c.ways_on().contains("`export <PROVIDER>_API_KEY=…`"),
+            "{}",
+            c.ways_on()
+        );
     }
 
     /// The choice round-trips through the user file under a home.
@@ -540,6 +861,58 @@ mod tests {
             r.locus.line().contains("may be sent through codex"),
             "{}",
             r.locus.line()
+        );
+    }
+
+    /// The screen teaches the numbered form that names a model, with a
+    /// provider this machine holds; a model typed alone is refused with that
+    /// form, and a line holding more than a pick and one name is refused
+    /// whole — no word of it is dropped in silence.
+    #[test]
+    fn a_model_is_named_after_its_number_and_no_extra_word_is_dropped() {
+        let mut c = census();
+        c.api_keys = vec!["deepseek".to_owned()];
+        c.locals = vec!["ollama".to_owned()];
+        let screen = c.options_screen();
+        assert!(
+            screen.contains("or name its model: 2 deepseek/<model>")
+                && screen.contains("or name its model: 3 ollama/<model>"),
+            "{screen}"
+        );
+        let pinned = c.choose("2 deepseek/deepseek-v4-pro").expect("api");
+        assert_eq!(
+            pinned.kind,
+            IntelligenceKind::Api {
+                provider: "deepseek".to_owned()
+            }
+        );
+        assert_eq!(pinned.model.as_deref(), Some("deepseek/deepseek-v4-pro"));
+        let spaced = c.choose("  2   deepseek/deepseek-v4-pro ").expect("api");
+        assert_eq!(spaced.model.as_deref(), Some("deepseek/deepseek-v4-pro"));
+        let bare = c.choose("deepseek/deepseek-v4-pro").expect_err("no pick");
+        assert!(
+            bare.contains("is not a choice") && bare.contains("`2 deepseek/deepseek-v4-pro`"),
+            "{bare}"
+        );
+        let local = c.choose("ollama/llama3.3").expect_err("no pick");
+        assert!(local.contains("`3 ollama/llama3.3`"), "{local}");
+        for extra in [
+            "2 deepseek/deepseek-v4-pro please",
+            "2 deepseek flash",
+            "4 mistral",
+            "1 codex now",
+        ] {
+            let refused = c.choose(extra).expect_err(extra);
+            assert!(
+                refused.contains("is not a choice") && refused.contains("2 <provider>/<model>"),
+                "{extra}: {refused}"
+            );
+        }
+        c.api_keys.clear();
+        c.locals.clear();
+        assert!(
+            !c.options_screen().contains("or name its model"),
+            "no model is taught where nothing on this machine serves it"
         );
     }
 

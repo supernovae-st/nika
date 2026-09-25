@@ -133,7 +133,12 @@ async fn a_spent_backoff_names_the_seat_the_attempts_and_stays_transient() {
     assert_eq!(*waited_ms, 7000);
     assert_eq!(err.spec_code(), "NIKA-INFER-001");
     assert!(err.is_transient(), "an authored retry: may still fire");
-    assert!(err.spend().is_none(), "nothing answered, nothing billed");
+    let calls = &err
+        .spend()
+        .expect("dispatches remain unknown")
+        .inference_calls;
+    assert_eq!(calls.len(), 4);
+    assert!(calls.iter().all(|c| c.known_estimate().is_none()));
     let text = err.to_string();
     assert!(
         text.contains("on `openai/gpt-4o-mini` after 4 round-trips"),
@@ -236,4 +241,48 @@ async fn a_first_time_answer_reports_one_attempt_and_no_summary() {
     assert_eq!(out.transport.attempts, 1);
     assert!(!out.transport.retried());
     assert_eq!(out.transport.summary(), None);
+}
+
+#[tokio::test]
+async fn s80_failed_schema_repair_retains_prior_price_and_failed_dispatch() {
+    let body = r#"{"model":"deepseek-v4-pro","choices":[{"message":{"content":"not-json"},"finish_reason":"stop"}],"usage":{"prompt_tokens":100,"completion_tokens":10,"prompt_cache_hit_tokens":80,"prompt_cache_miss_tokens":20,"total_tokens":110}}"#;
+    let seam = SeamHttp::with_answers(&[(200, body), (500, BAD_REQUEST)]);
+    let mut input = InferInput::new("q");
+    input.schema = Some(typed());
+    let err = verb(
+        &seam,
+        "deepseek/deepseek-v4-pro",
+        Arc::new(NoWait::default()),
+    )
+    .run(input)
+    .await
+    .expect_err("repair failed");
+    let calls = &err.spend().expect("spend").inference_calls;
+    assert_eq!(calls.len(), 2);
+    assert_eq!(
+        calls[0].known_estimate(),
+        Some(nika_types::cost::Cost::new(69_520))
+    );
+    assert_eq!(calls[1].known_estimate(), None);
+    assert!(calls[1].route.is_some());
+}
+
+#[tokio::test]
+async fn s80_blank_answer_failure_keeps_observed_price_and_route() {
+    let body = r#"{"model":"deepseek-v4-pro","choices":[{"message":{"content":""},"finish_reason":"stop"}],"usage":{"prompt_tokens":100,"completion_tokens":10,"prompt_cache_hit_tokens":80,"prompt_cache_miss_tokens":20,"total_tokens":110}}"#;
+    let seam = SeamHttp::with_answers(&[(200, body)]);
+    let err = verb(
+        &seam,
+        "deepseek/deepseek-v4-pro",
+        Arc::new(NoWait::default()),
+    )
+    .run(InferInput::new("q"))
+    .await
+    .expect_err("blank");
+    let calls = &err.spend().expect("spend").inference_calls;
+    assert_eq!(calls.len(), 1);
+    assert_eq!(
+        calls[0].known_estimate(),
+        Some(nika_types::cost::Cost::new(69_520))
+    );
 }
