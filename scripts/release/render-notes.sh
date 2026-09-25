@@ -32,6 +32,13 @@ what="$(printf '%s\n' "$what" | sed -e '/[^[:space:]]/,$!d')"
 if [ -z "${what//[[:space:]]/}" ]; then
   what="Curated notes pending for this tag: the full diff: https://github.com/${repo}/compare/$(git describe --tags --abbrev=0 "${tag}^" 2>/dev/null || echo "v0.90.0")..${tag}"
 fi
+# GitHub rejects release bodies above 125,000 characters. Keep the complete
+# changelog in the tagged tree and leave room for the generated PR index.
+# Count bytes conservatively, and link the whole section rather than cutting
+# through a Markdown fence or silently dropping the end of a change.
+if [ "$(printf '%s' "$what" | wc -c | tr -d ' ')" -gt 64000 ]; then
+  what="Read the [complete changes for ${tag}](https://github.com/${repo}/blob/${tag}/CHANGELOG.md). The full changelog is preserved in this release's source tree; the pull request index follows below."
+fi
 
 cat <<EOF
 ## What

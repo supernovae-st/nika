@@ -699,6 +699,8 @@ python3 "$ROOT/scripts/release/tests/test-draft-authority.py" \
   || fail 'draft access escaped its owner or replay input admission failed'
 python3 "$ROOT/scripts/release/tests/test-release-payload.py" \
   || fail 'replay payload selection or immutable asset admission failed'
+python3 "$ROOT/scripts/release/tests/test-render-notes.py" \
+  || fail 'release notes exceeded the publication allowance or lost their source link'
 python3 "$ROOT/scripts/release/tests/test-oci-index.py" \
   || fail 'OCI runnable platforms or attestation bindings were not judged'
 bash "$ROOT/scripts/release/tests/next-tag-estate.test.sh" >/dev/null \
