@@ -72,8 +72,8 @@ pub use lookup::{
 };
 #[cfg(feature = "pricing")]
 pub use lookup::{
-    estimate_cost, estimate_cost_for, estimate_cost_usage_for, find_pricing, find_pricing_for,
-    find_pricing_scoped,
+    declares_exact_zero_price, estimate_cost, estimate_cost_for, estimate_cost_usage_for,
+    find_pricing, find_pricing_for, find_pricing_scoped,
 };
 #[cfg(feature = "mcp")]
 pub use lookup::{find_mcp_server, is_known_mcp_server, resolve_mcp_name};

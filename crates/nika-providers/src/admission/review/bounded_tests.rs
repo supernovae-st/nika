@@ -20,6 +20,27 @@ fn route() -> CostRoute {
     CostRoute::observe("deepseek/unpriced-bounded-fixture", ProvidersConfig::new()).expect("route")
 }
 #[test]
+fn declared_free_openrouter_route_is_not_an_unknown_charge() {
+    let free = CostRoute::observe(
+        "openrouter/qwen/qwen3.8-27b:free",
+        ProvidersConfig::new(),
+    )
+    .expect("free route");
+    assert!(!free.needs_unknown_choice());
+    let priced = CostRoute::observe(
+        "openrouter/qwen/qwen3.8-max-0902",
+        ProvidersConfig::new(),
+    )
+    .expect("priced route");
+    assert!(priced.needs_unknown_choice());
+    let missing = CostRoute::observe(
+        "openrouter/some-vendor/not-in-the-snapshot",
+        ProvidersConfig::new(),
+    )
+    .expect("missing route");
+    assert!(missing.needs_unknown_choice());
+}
+#[test]
 fn bound_is_displayed_without_overflow_and_zero_is_refused() {
     assert!(review().for_run(0).is_err());
     assert!(

@@ -142,9 +142,19 @@ impl CostRoute {
         })
     }
     /// Whether numeric USD catalog admission cannot qualify this exact route.
+    ///
+    /// An exact vendored row of all-zero rates is a declared free seat
+    /// (`openrouter/...:free` and the other zero rows in the pricing
+    /// snapshot). It is not an unknown charge, so Run does not ask for a
+    /// fresh human choice and a non-interactive host is not refused.
+    /// A missing row, a positive rate, or a `contains` match stays unknown:
+    /// silence is never metered as zero.
     #[must_use]
     pub fn needs_unknown_choice(&self) -> bool {
-        InferenceAdmission::qualify(&self.provider, &self.model, &self.endpoint).is_err()
+        if InferenceAdmission::qualify(&self.provider, &self.model, &self.endpoint).is_ok() {
+            return false;
+        }
+        !nika_catalog::declares_exact_zero_price(&self.provider, &self.model)
     }
 }
 
