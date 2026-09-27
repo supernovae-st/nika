@@ -102,6 +102,35 @@ include!(concat!(env!("OUT_DIR"), "/inference_admission.rs"));
 mod route_tests {
     use super::*;
     #[test]
+    fn a_declared_free_tariff_is_exact_and_still_bounds_output() {
+        let endpoint = "https://openrouter.ai/api/v1/chat/completions";
+        let model = "qwen/qwen3.8-27b:free";
+        let tariff = InferenceTariff::new("openrouter", model, endpoint).expect("curated zero");
+        assert_eq!(tariff.reserve(4096), Some(Cost::zero()));
+        assert_eq!(tariff.price(10, 10, 0), Some(Cost::zero()));
+        assert_eq!(tariff.price(10, 10, 11), None, "contradictory usage");
+        assert_eq!(tariff.reserve(0), None);
+        assert_eq!(tariff.reserve(tariff.max_output_tokens + 1), None);
+        for other in [
+            "qwen/qwen3.8-27b:free-extra",
+            "qwen/qwen3.8-27b",
+            "unknown:free",
+            "openrouter/free",
+            "google/lyria-3-clip-preview",
+        ] {
+            assert!(InferenceTariff::new("openrouter", other, endpoint).is_none());
+        }
+        for other in [
+            "https://gateway.example/v1/chat/completions",
+            "https://openrouter.ai.evil.test/api/v1/chat/completions",
+            "https://openrouter.ai/api/v1/chat/completions?free=true",
+            "http://openrouter.ai/api/v1/chat/completions",
+        ] {
+            assert!(InferenceTariff::new("openrouter", model, other).is_none());
+        }
+        assert!(InferenceTariff::new("openai", model, endpoint).is_none());
+    }
+    #[test]
     fn deepseek_peak_and_cache_have_one_owning_source() {
         let t = InferenceTariff::new(
             "deepseek",

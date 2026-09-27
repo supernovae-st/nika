@@ -299,7 +299,7 @@ impl InferenceAdmission {
         let Ok(total) = s.committed().and_then(|committed| add(committed, quote)) else {
             return Err(s.refuse("admission arithmetic overflow"));
         };
-        if !s.unbudgeted && (s.limit.nano_usd == 0 || total.nano_usd > s.limit.nano_usd) {
+        if !s.unbudgeted && total.nano_usd > s.limit.nano_usd {
             return Err(
                 s.refuse("remaining catalog allowance cannot cover the full-context reservation")
             );
@@ -367,8 +367,7 @@ impl PricedAttempt {
         }
         let mut s = self.account.lock()?;
         if s.status != AdmissionState::Open
-            || (!s.unbudgeted
-                && (s.committed()?.nano_usd > s.limit.nano_usd || s.limit.nano_usd == 0))
+            || (!s.unbudgeted && s.committed()?.nano_usd > s.limit.nano_usd)
         {
             return Err(s.refuse("allowance revoked or lowered before dispatch"));
         }
@@ -414,8 +413,11 @@ impl PricedAttempt {
         s.active = Cost::new(s.active.nano_usd - self.quote.nano_usd);
         s.estimated = total;
         s.attempts[self.id].estimated = Some(cost);
-        s.attempts[self.id].note =
-            "complete usage priced at pinned catalog tariff; invoice unknown".into();
+        s.attempts[self.id].note = if self.tariff.provider == "openrouter" && self.quote == Cost::zero() {
+            "complete usage priced at pinned catalog tariff; provider-reported usage.cost=0, non-BYOK; invoice unknown"
+        } else {
+            "complete usage priced at pinned catalog tariff; invoice unknown"
+        }.into();
         self.done = true;
         Ok(())
     }
@@ -447,6 +449,10 @@ impl Drop for PricedAttempt {
 #[cfg(test)]
 #[path = "admission/wire_tests.rs"]
 mod wire_tests;
+
+#[cfg(test)]
+#[path = "admission/zero_wire_tests.rs"]
+mod zero_wire_tests;
 
 impl InferenceReceipt {
     /// Durable observation for traces/recovery, NEVER restorable execution
