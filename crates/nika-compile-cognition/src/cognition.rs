@@ -570,7 +570,104 @@ pub(super) fn first_json_object(text: &str) -> Option<&str> {
     if trimmed.starts_with('{') && trimmed.ends_with('}') {
         return Some(trimmed);
     }
-    let start = text.find('{')?;
+    balanced_object(text, 0)?.ok().map(|range| &text[range])
+}
+
+/// The unclosed braces a scan retries after, before it stops judging.
+const UNCLOSED_RETRIES: usize = 64;
+
+/// What the complete JSON objects of a seat's text come to, judged by the answer's own type.
+pub(super) enum Objects<'a> {
+    /// No complete, non-empty JSON object: the text keeps its syntax path.
+    None,
+    /// The one answer to read (the first object when none is an answer), and the objects
+    /// beside it that cannot be answers: kept by digest, never read.
+    One {
+        answer: &'a str,
+        unread: Vec<&'a str>,
+    },
+    /// Two different answers: neither is read.
+    Two,
+    /// An object that never closes beside a complete one, or unclosed braces past the retry
+    /// bound: undecided, never read as one answer.
+    Undecided,
+}
+
+/// Every complete JSON object of a seat's text, an identical repetition once; prose, template
+/// braces and empty objects are skipped. `is_answer` is the answer's own type: two answers are
+/// never resolved by reading the first, and an example that cannot be one never kills it.
+pub(super) fn answer_objects(text: &str, is_answer: impl Fn(&str) -> bool) -> Objects<'_> {
+    let mut objects: Vec<&str> = Vec::new();
+    let (mut from, mut retries, mut undecided) = (0, 0, false);
+    while let Some(group) = balanced_object(text, from) {
+        match group {
+            Ok(range) => {
+                let object = &text[range.clone()];
+                let empty = object[1..object.len() - 1].trim().is_empty();
+                if !empty
+                    && !objects.contains(&object)
+                    && serde_json::from_str::<serde::de::IgnoredAny>(object).is_ok()
+                {
+                    objects.push(object);
+                }
+                from = range.end;
+            }
+            Err(start) => {
+                // A brace that opens like an object (`{` then `"`) and never closes may be a
+                // cut answer.
+                undecided |= text[start + 1..].trim_start().starts_with('"');
+                retries += 1;
+                if retries > UNCLOSED_RETRIES {
+                    undecided = true;
+                    break;
+                }
+                from = start + 1;
+            }
+        }
+    }
+    let Some(&first) = objects.first() else {
+        return Objects::None;
+    };
+    if undecided {
+        return Objects::Undecided;
+    }
+    let mut answers = objects.iter().copied().filter(|object| is_answer(object));
+    let answer = match (answers.next(), answers.next()) {
+        (Some(_), Some(_)) => return Objects::Two,
+        (Some(answer), None) => answer,
+        (None, _) => first,
+    };
+    let unread = objects
+        .into_iter()
+        .filter(|object| *object != answer)
+        .collect();
+    Objects::One { answer, unread }
+}
+
+/// The objects beside an answer that cannot be answers, recorded on the call that returned
+/// them by digest and length: never read, never silent.
+pub(super) fn record_unread(out: &mut CompileOutcome, unread: &[&str]) {
+    if unread.is_empty() {
+        return;
+    }
+    if let Some(call) = out
+        .provenance
+        .authoring
+        .as_mut()
+        .and_then(|receipt| receipt.context.last_mut())
+    {
+        call["unread_objects"] = unread
+            .iter()
+            .map(|object| json!({"sha256": knowledge::sha256(object), "bytes": object.len()}))
+            .collect();
+    }
+}
+
+/// The balanced `{…}` opening at the first `{` at or after byte `from` (braces inside JSON
+/// strings ignored), as a byte range; `Err(start)` when that brace never closes, None when no
+/// brace opens.
+fn balanced_object(text: &str, from: usize) -> Option<Result<std::ops::Range<usize>, usize>> {
+    let start = from + text.get(from..)?.find('{')?;
     let mut depth: i32 = 0;
     let mut in_string = false;
     let mut escaped = false;
@@ -593,13 +690,13 @@ pub(super) fn first_json_object(text: &str) -> Option<&str> {
             '}' => {
                 depth -= 1;
                 if depth == 0 {
-                    return Some(&text[start..start + i + ch.len_utf8()]);
+                    return Some(Ok(start..start + i + ch.len_utf8()));
                 }
             }
             _ => {}
         }
     }
-    None
+    Some(Err(start))
 }
 
 fn settle(
@@ -1093,4 +1190,119 @@ async fn sampled<P: ProviderInferDyn>(
         }
     }
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Objects, UNCLOSED_RETRIES, answer_objects, first_json_object};
+    use nika_kernel::ai::provider::{ContentBlock, InferResponse, StopReason, TokenUsage};
+
+    const A: &str = r#"{"steps": [], "note": "a {brace} and a \" quote in a string"}"#;
+    const B: &str = r#"{"steps": [{"op": "read"}]}"#;
+    const EXAMPLE: &str = r#"{"status": "paid"}"#;
+
+    /// The answer's own type, for these tests: an object that carries `steps`.
+    fn is_plan(object: &str) -> bool {
+        serde_json::from_str::<serde_json::Value>(object).is_ok_and(|v| v.get("steps").is_some())
+    }
+
+    fn read(text: &str) -> Option<&str> {
+        match answer_objects(text, is_plan) {
+            Objects::One { answer, .. } => Some(answer),
+            _ => None,
+        }
+    }
+
+    #[test]
+    fn one_answer_is_read_through_prose_repetitions_templates_and_examples() {
+        for text in [
+            A.to_owned(),
+            format!("Sure!\n```json\n{A}\n```"),
+            // The same answer twice, bare or in prose, is one answer.
+            format!("{A}\n{A}"),
+            format!("Draft {A} final {A}"),
+            // Template braces, an empty object and a closing prose brace are not answers.
+            format!("{A}\nIt reads ${{{{ with.content }}}}, keeps permits: {{}}, ends {{name}}"),
+            format!("It uses ${{{{ with.content }}}} before the answer:\n{A}"),
+            // An example that cannot be an answer never kills the one answer.
+            format!("For example {EXAMPLE}, then {A}"),
+            format!("{A} then {{ an unclosed prose brace"),
+        ] {
+            assert_eq!(read(&text), Some(A), "{text}");
+        }
+        let beside_example = format!("E.g. {EXAMPLE}: {A}");
+        let Objects::One { unread, .. } = answer_objects(&beside_example, is_plan) else {
+            panic!("one answer beside an example");
+        };
+        assert_eq!(unread, [EXAMPLE], "kept by digest, never read");
+        assert_eq!(
+            first_json_object(&format!("Sure!\n```json\n{A}\n```")),
+            Some(A)
+        );
+    }
+
+    #[test]
+    fn two_answers_or_one_beside_a_cut_object_are_never_resolved_by_reading_the_first() {
+        for text in [
+            format!("Draft {A} final {B}"),
+            format!("{A}\n{B}"),
+            format!("```json\n{B}\n```\n```json\n{A}\n```"),
+            format!("{A} then {{ an unclosed brace, then {B}"),
+        ] {
+            assert!(
+                matches!(answer_objects(&text, is_plan), Objects::Two),
+                "{text}"
+            );
+        }
+        for text in [
+            // A competitor that opens like an object and never closes, after or before.
+            format!("Draft:\n{A}\nFinal:\n{{\"steps\": [{{\"op\": \"write\""),
+            format!("Draft:\n{{ \"steps\": [\nFinal:\n{A}"),
+            // Past the retry bound, the rest of the text is not judged: never one answer.
+            format!("{A}{}", " {".repeat(UNCLOSED_RETRIES + 1)),
+        ] {
+            assert!(
+                matches!(answer_objects(&text, is_plan), Objects::Undecided),
+                "{text}"
+            );
+        }
+        assert_eq!(
+            read(&format!("{A}{}", " {".repeat(UNCLOSED_RETRIES))),
+            Some(A)
+        );
+        // Without a complete object, the text keeps its syntax path.
+        assert!(matches!(
+            answer_objects("{\"steps\": !}", is_plan),
+            Objects::None
+        ));
+        assert!(matches!(
+            answer_objects("no object", is_plan),
+            Objects::None
+        ));
+    }
+
+    #[test]
+    fn a_cold_plan_is_read_beside_an_example_and_never_beside_another_plan() {
+        let plan = r#"{"steps":[],"effects":[],"obligations":[],"constraints":[],"unknowns":[]}"#;
+        let other = r#"{"steps":[{"op":"draft","detail":"x","evidence":"x"}],"effects":[],"obligations":[],"constraints":[],"unknowns":[]}"#;
+        let response = |text: String| {
+            InferResponse::new(
+                vec![ContentBlock::Text { text }],
+                TokenUsage::new(1, 1),
+                StopReason::EndTurn,
+            )
+        };
+        let mut out = crate::initial();
+        let two = response(format!("Plan A:\n{plan}\nPlan B:\n{other}"));
+        assert!(super::proposal::decode(&two, &mut out).is_none());
+        assert!(
+            out.diagnostics
+                .iter()
+                .any(|d| d.message.contains("two plans")),
+            "{out:#?}"
+        );
+        let mut out = crate::initial();
+        let one = response(format!("Plan:\n{plan}\nFor example {EXAMPLE}."));
+        assert!(super::proposal::decode(&one, &mut out).is_some());
+    }
 }

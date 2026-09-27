@@ -344,7 +344,23 @@ pub(super) fn decode(response: &InferResponse, out: &mut CompileOutcome) -> Opti
             return None;
         }
     };
-    if let Ok(plan) = serde_json::from_str(super::first_json_object(text).unwrap_or(text)) {
+    let json = match super::answer_objects(text, |o| serde_json::from_str::<Proposal>(o).is_ok()) {
+        super::Objects::One { answer, unread } => {
+            super::record_unread(out, &unread);
+            answer
+        }
+        super::Objects::None => super::first_json_object(text).unwrap_or(text),
+        super::Objects::Two | super::Objects::Undecided => {
+            crate::finding(
+                out,
+                DiagnosticKind::Unknown,
+                "authoring_plan",
+                "The authoring response carries two plans, or one beside an object that never closes; neither was read. No source was emitted.",
+            );
+            return None;
+        }
+    };
+    if let Ok(plan) = serde_json::from_str(json) {
         Some(plan)
     } else {
         crate::finding(

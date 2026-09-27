@@ -534,7 +534,7 @@ async fn exchange<P: ProviderInferDyn>(
     if let Some(diagnostic) = revision::duplicate_write(talk.revision.as_ref(), &answer.candidate) {
         diagnostics.push(diagnostic);
     }
-    talk.rounds.push(json!({
+    let mut entry = json!({
         "round": round,
         "candidate_sha256": knowledge::sha256(&answer.candidate),
         "candidate": answer.candidate,
@@ -542,7 +542,11 @@ async fn exchange<P: ProviderInferDyn>(
         "gaps": answer.gaps.clone(),
         "notes": answer.notes.clone(),
         "diagnostics": diagnostics.iter().map(|d| json!({"kind": d.kind, "message": d.message})).collect::<Vec<_>>(),
-    }));
+    });
+    if let Some(dual) = &answer.dual {
+        entry["transport"] = dual.record();
+    }
+    talk.rounds.push(entry);
     if diagnostics.is_empty() {
         return Round::Accepted(answer);
     }

@@ -307,6 +307,7 @@ async fn fill<P: ProviderInferDyn>(
                 questions: answer.questions.clone(),
                 gaps: answer.gaps.clone(),
                 notes: answer.notes.clone(),
+                dual: None,
             });
         }
         talk.refused = Some(candidate);

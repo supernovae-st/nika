@@ -243,10 +243,10 @@ fn cold_authoring_is_bounded_and_ambient_credentials_do_not_opt_in() {
 
 /// The CLI defaults to escalation after the cold plan fails. Its receipt must include
 /// both phases and exactly the calls the seat received; an invalid candidate is never
-/// accepted. The seat is a scripted loopback, not the schema mock: the mock fills every
-/// required field of the native answer (`candidate` AND `candidate_lines`), and the door
-/// refuses such an ambiguous answer before judging any candidate, so no repair could be
-/// observed. Here the first answer is not a plan and every later answer is ONE lossless
+/// accepted. The seat is a scripted loopback, not the schema mock, so the calls are exact:
+/// the mock's plan may buy the cold round's evidence repair, and its native answer carries
+/// the same text (`mock`) in `candidate` AND `candidate_lines`, one candidate that is not a
+/// workflow. Here the first answer is not a plan and every later answer is ONE lossless
 /// candidate that is not a workflow, so each native round is judged and refused.
 #[test]
 fn default_native_escalation_preserves_calls_and_honors_the_repair_bound() {
