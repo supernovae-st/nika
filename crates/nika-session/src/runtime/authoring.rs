@@ -22,7 +22,7 @@ use crate::authoring::{
 use crate::change::{RunRequest, check_on_disk};
 use crate::outcome::{ProposalId, Refusal, RefusalClass};
 use crate::review;
-use crate::turn::{RoutingMethod, SessionPhase, TurnAct};
+use crate::turn::{RouteRecord, RoutingMethod, SessionPhase, TurnAct, TurnDecision};
 
 impl SessionRuntime {
     /// The authoring question the next line answers, when one is open.
@@ -586,8 +586,9 @@ impl SessionRuntime {
     }
 
     /// The human's line as the answer to the open question: typed to its
-    /// shape, bound to its key, and the same plan replayed. A cancel word
-    /// drops the round; an empty line is not an answer.
+    /// shape, bound to its key, and the same plan replayed. Its protocol
+    /// (`why` · a cancel word · a command) was answered before any review
+    /// (`question_protocol`); an empty line is not an answer.
     pub(super) fn answer_question_unrecorded(&mut self, line: &str) -> TurnOutcome {
         let Some(round) = self.authoring.take() else {
             return TurnOutcome::Refusal(Refusal::new(
@@ -595,29 +596,9 @@ impl SessionRuntime {
                 "no authoring question waits",
             ));
         };
-        // « why? » beside the question: what the value is for, from the
-        // compiler's own words; the question keeps waiting.
-        if is_why(line) {
-            let text = round.current().map_or_else(
-                || "no authoring question waits".to_owned(),
-                |q| super::aside::explain_question(q, &round),
-            );
-            self.authoring = Some(round);
-            return TurnOutcome::Aside(text);
-        }
         // `drop` is the disposition a clause's question names (`gap.N`): its answer there.
         let disposes = line.trim().eq_ignore_ascii_case("drop")
             && round.current().is_some_and(|q| q.key.starts_with("gap."));
-        if is_cancel(line) && !disposes {
-            let asked = self.question_id_of(&round);
-            self.questions.close(asked);
-            self.intent.unresolved.clear();
-            self.remember(line, "(authoring discarded)");
-            return TurnOutcome::Facts(
-                "authoring discarded · nothing was written · describe the work again when ready"
-                    .to_owned(),
-            );
-        }
         // An empty line takes the offered default and nothing else: the
         // `model` question's default is the seat the human already chose.
         let seat_default = match (round.current().map(|q| q.key.as_str()), &self.seat) {
@@ -710,7 +691,9 @@ impl SessionRuntime {
     /// Open language at a question, routed: a question about the question
     /// explains it (`Err`, the question still waits), a change or new work
     /// reads the request again with the words (`Err`), a run is refused
-    /// (`Err`); an answer, or a line nothing could read, binds (`Ok`).
+    /// (`Err`); an ANSWER binds (`Ok`) — the route's, or the question's
+    /// declared protocol when nothing could judge the line — and UNKNOWN
+    /// binds nothing (`Err`, the question still waits).
     fn route_at_question(
         &mut self,
         round: AuthoringRound,
@@ -719,17 +702,25 @@ impl SessionRuntime {
         // Open language at a question: its act is a bounded decision — an
         // answer binds, a question about the question explains it (the
         // question still waits), a change reads the request again with the
-        // human's words; without any intelligence a line is the answer.
+        // human's words; UNKNOWN binds nothing.
         let decision = self.classify(SessionPhase::QuestionPending, line);
-        // A `?` is a hint, never a veto: it decides only when nothing could
-        // judge the line — an unread question is then asked, not bound.
-        let act = if decision.act == TurnAct::Unknown
-            && decision.method == RoutingMethod::Fallback
-            && line.trim_end().ends_with('?')
-        {
-            TurnAct::Discuss
-        } else {
-            decision.act
+        let act = match (decision.act, decision.method) {
+            // A `?` is a hint, never a veto: it decides only when nothing could
+            // judge the line — an unread question is then asked, not bound.
+            (TurnAct::Unknown, RoutingMethod::Fallback) if line.trim_end().ends_with('?') => {
+                TurnAct::Discuss
+            }
+            // Nothing could judge the line: it answers only by the question's
+            // declared protocol, and the route records that it did.
+            (TurnAct::Unknown, RoutingMethod::Fallback)
+                if self.answers_by_protocol(&round, line) =>
+            {
+                let answer = TurnDecision::new(TurnAct::Answer, RoutingMethod::Protocol);
+                let record = RouteRecord::new(SessionPhase::QuestionPending, line, &answer);
+                self.routes.push(record);
+                TurnAct::Answer
+            }
+            (act, _) => act,
         };
         match act {
             TurnAct::Cancel => {
@@ -762,9 +753,16 @@ impl SessionRuntime {
                         .to_owned(),
                 ));
             }
-            // ANSWER, or a line the route could not read: the answer to the
-            // question asked (a short line at a question is the answer).
-            TurnAct::Answer | TurnAct::Unknown => {}
+            // ANSWER — the route's, or the declared protocol's — binds through
+            // the typed reading of the question asked.
+            TurnAct::Answer => {}
+            // UNKNOWN — a line the route could not read, a route that failed,
+            // a line no protocol answers — binds nothing: the question waits,
+            // unchanged, and says how to go on.
+            TurnAct::Unknown => {
+                let why = Self::unknown_route_text(SessionPhase::QuestionPending, decision.method);
+                return Err(self.answer_waits(round, &why));
+            }
         }
         Ok(round)
     }
@@ -920,14 +918,8 @@ impl SessionRuntime {
         // « why? » beside the input: what it is and who declares it; the
         // input keeps waiting.
         if is_why(line) {
-            let text = match inputs.first_needed() {
-                Some(name) => {
-                    super::aside::explain_input(&inputs.workflow, name, inputs.remaining())
-                }
-                None => "no input waits".to_owned(),
-            };
             self.run_inputs = Some(inputs);
-            return TurnOutcome::Aside(text);
+            return self.explain_pending();
         }
         if is_cancel(line) {
             self.intent.unresolved.clear();
@@ -936,6 +928,16 @@ impl SessionRuntime {
                 "run discarded · nothing ran · say « run it » again when the inputs are ready"
                     .to_owned(),
             );
+        }
+        // A command-shaped line is never an input's value.
+        if let Some(text) = super::protocol::unserved_command(line) {
+            self.run_inputs = Some(inputs);
+            return TurnOutcome::Refusal(Refusal::new(
+                RefusalClass::WrongState,
+                format!(
+                    "{text}\n  the input still waits · reply on the next line · `cancel` drops the run"
+                ),
+            ));
         }
         let value = line.trim();
         if value.is_empty() {

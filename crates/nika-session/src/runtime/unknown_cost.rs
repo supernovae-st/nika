@@ -296,13 +296,7 @@ impl SessionRuntime {
         // spends and never silently cancels.
         match super::decision_answer(answer) {
             super::DecisionAnswer::Approve => {}
-            super::DecisionAnswer::Decline => {
-                self.pending = None;
-                self.money.pending = None;
-                self.authoring = None;
-                self.revising = None;
-                return TurnOutcome::Facts("Unknown-cost request cancelled; nothing sent. Describe the next request to review it afresh.".into());
-            }
+            super::DecisionAnswer::Decline => return self.declined_review(),
             super::DecisionAnswer::Details => {
                 self.unknown_cost.pending = Some(pending);
                 return TurnOutcome::Facts(self.cost_choice_details().unwrap_or_default());
@@ -363,6 +357,35 @@ impl SessionRuntime {
                 "request may have been billed; observation persistence failed: {error}"
             )),
         }
+    }
+
+    /// A declined review cancels its own call and nothing else: what waited before the line that
+    /// asked it — a proposal, a question, the proposal a revision set aside — waits again,
+    /// unchanged, its identity intact. Only its own answer (`no` · `cancel`) discards it.
+    fn declined_review(&mut self) -> TurnOutcome {
+        const CANCELLED: &str = "Unknown-cost request cancelled; nothing sent.";
+        if let Some(set) = &self.pending {
+            return TurnOutcome::Held {
+                id: self.proposal_id(set),
+                preview: format!(
+                    "{CANCELLED} The proposal is unchanged.\n(the proposal still waits · `yes` applies it · `no` discards it)"
+                ),
+            };
+        }
+        if let Some(round) = &self.authoring
+            && let Some(question) = round.current()
+        {
+            return TurnOutcome::Question {
+                key: question.key.clone(),
+                question: format!(
+                    "{CANCELLED} The question is unchanged.\n{}",
+                    super::authoring::question_text(question, &round.reasons)
+                ),
+            };
+        }
+        TurnOutcome::Facts(format!(
+            "{CANCELLED} Describe the next request to review it afresh."
+        ))
     }
 }
 fn cost_refusal(why: String) -> TurnOutcome {

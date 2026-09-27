@@ -66,23 +66,23 @@ impl TurnAct {
         Self::Unknown,
     ];
 
-    /// The first label found in a reply, whole word, in the reply's order.
+    /// The one label a reply names, whole word; a reply naming none, or several
+    /// different ones (« not MODIFY, this is DISCUSS »), is UNKNOWN — never
+    /// the first label met.
     #[must_use]
     pub fn parse(reply: &str) -> Self {
         let upper = reply.to_ascii_uppercase();
-        let mut best: Option<(usize, Self)> = None;
-        for act in Self::ALL {
-            if let Some(at) = upper.find(act.label()) {
-                let before = upper[..at].chars().next_back();
-                let after = upper[at + act.label().len()..].chars().next();
-                let whole = !before.is_some_and(|c| c.is_ascii_alphanumeric() || c == '_')
-                    && !after.is_some_and(|c| c.is_ascii_alphanumeric() || c == '_');
-                if whole && best.is_none_or(|(b, _)| at < b) {
-                    best = Some((at, act));
-                }
-            }
+        let word = |c: Option<char>| c.is_some_and(|c| c.is_ascii_alphanumeric() || c == '_');
+        let mut named = Self::ALL.into_iter().filter(|act| {
+            upper.match_indices(act.label()).any(|(at, label)| {
+                !word(upper[..at].chars().next_back())
+                    && !word(upper[at + label.len()..].chars().next())
+            })
+        });
+        match (named.next(), named.next()) {
+            (Some(act), None) => act,
+            _ => Self::Unknown,
         }
-        best.map_or(Self::Unknown, |(_, act)| act)
     }
 }
 
@@ -352,15 +352,23 @@ impl RouteRecord {
 mod tests {
     use super::*;
 
-    /// The label is read whole, first in the reply's order; an unknown reply is UNKNOWN.
+    /// The label is read whole and must be the only one the reply names: a reply
+    /// naming two different labels is UNKNOWN (V9 P1 · a reasoning seat that
+    /// leaks « not MODIFY, this is DISCUSS » once revised a proposal); an
+    /// unknown reply is UNKNOWN.
     #[test]
-    fn a_label_is_parsed_whole_and_first() {
+    fn a_reply_names_exactly_one_label_or_it_is_unknown() {
         assert_eq!(TurnAct::parse("MODIFY"), TurnAct::Modify);
         assert_eq!(TurnAct::parse("Label: discuss."), TurnAct::Discuss);
-        assert_eq!(
-            TurnAct::parse("I think MIXED (a yes and MODIFY)"),
-            TurnAct::Mixed
-        );
+        assert_eq!(TurnAct::parse("DISCUSS. Label: DISCUSS"), TurnAct::Discuss);
+        assert_eq!(TurnAct::parse("MODIFYING, so MODIFY"), TurnAct::Modify);
+        for two in [
+            "I think MIXED (a yes and MODIFY)",
+            "not MODIFY, this is DISCUSS",
+            "DISCUSS or MODIFY",
+        ] {
+            assert_eq!(TurnAct::parse(two), TurnAct::Unknown, "{two}");
+        }
         assert_eq!(TurnAct::parse("NEW_WORK"), TurnAct::NewWork);
         assert_eq!(TurnAct::parse("REQUEST_RUN"), TurnAct::RequestRun);
         assert_eq!(TurnAct::parse("CANCEL"), TurnAct::Cancel);

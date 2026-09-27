@@ -263,9 +263,10 @@ fn a_run_line_with_a_change_in_it_is_not_a_run() {
 }
 
 /// At a question: a question about the question explains it and it still
-/// waits; without intelligence a line is the answer (the fallback binds).
+/// waits; without intelligence the question's declared protocol takes the
+/// line as typed (an ANSWER by protocol, never because UNKNOWN binds).
 #[test]
-fn at_a_question_a_question_explains_and_the_fallback_binds() {
+fn at_a_question_a_question_explains_and_the_declared_protocol_binds() {
     let (_dir, mut s) = session_with(Box::new(corpus()));
     let intent = "Read ./notes/brief.md, draft a 3-bullet summary of it and write the summary to ./out/summary.md";
     let TurnOutcome::Question { key, .. } = s.turn(intent) else {
@@ -279,8 +280,8 @@ fn at_a_question_a_question_explains_and_the_fallback_binds() {
     assert!(s.pending_question().is_some(), "the question still waits");
     // An ANSWER binds to the pending key: the question is answered.
     assert!(matches!(s.turn("mock/echo"), TurnOutcome::Proposal { .. }));
-    // Without any intelligence the fallback binds a line as the answer too
-    // (a short line at a question is the answer more often than not).
+    // Without any intelligence nothing reads a reply: the question's declared
+    // protocol takes the line as typed (recorded as ANSWER · Protocol).
     let (_dir2, mut f) = session_with(Box::new(ConservativeFallback));
     assert!(matches!(f.turn(intent), TurnOutcome::Question { .. }));
     // …except a line that ends with `?`: the hint decides only here, when
@@ -474,7 +475,11 @@ fn an_unpriced_cloud_model_is_refused_at_the_question_in_words() {
     assert!(super::authoring::unpriced_model_text("mock/echo").is_none());
     assert!(super::authoring::unpriced_model_text("five lines").is_none());
     // At the question: refused in words, the round waits; a passing answer binds.
-    let (_dir, mut s) = session_with(Box::new(corpus()));
+    // The route reads each model name as the ANSWER it is (UNKNOWN would bind nothing).
+    let (_dir, mut s) = session_with(Box::new(Scripted(BTreeMap::from([
+        ("deepseek/deepseek-unpriced-v0", TurnAct::Answer),
+        ("mock/echo", TurnAct::Answer),
+    ]))));
     let TurnOutcome::Question { key, .. } = s.turn(
         "Read ./notes/brief.md, draft a 3-bullet summary of it and write the summary to ./out/summary.md",
     ) else {

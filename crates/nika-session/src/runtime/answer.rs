@@ -261,6 +261,20 @@ impl SessionRuntime {
         (is_value_question(question) && !self.reads_answers()).then_some(AS_TYPED_NOTICE)
     }
 
+    /// When no intelligence routed the line, whether it still answers the open question by the
+    /// question's declared protocol — never because the route could not tell: as typed when
+    /// nothing reads replies (a value question says so), else through the typed reading of a
+    /// value or of an offered choice (it binds a verbatim value or nothing), else only as a
+    /// value alone (`as_typed`: one token, a JSON literal).
+    pub(super) fn answers_by_protocol(&self, round: &AuthoringRound, line: &str) -> bool {
+        round.current().is_some_and(|question| {
+            !self.reads_answers()
+                || is_value_question(question)
+                || is_offered_choice(question)
+                || as_typed(line)
+        })
+    }
+
     /// The typed reading of `line` as the answer to `question`: as typed, a verbatim
     /// part, or nothing bound. One metered call at most, and only for several words at
     /// a value question — or a line that is not an offered key alone but carries one at a
@@ -349,7 +363,7 @@ impl SessionRuntime {
     }
 
     /// The question keeps waiting, said with the reason nothing was bound.
-    fn answer_waits(&mut self, round: AuthoringRound, why: &str) -> TurnOutcome {
+    pub(super) fn answer_waits(&mut self, round: AuthoringRound, why: &str) -> TurnOutcome {
         let (key, text) = round.current().map_or_else(
             || (String::new(), why.to_owned()),
             |q| {

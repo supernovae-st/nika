@@ -7,7 +7,7 @@ use nika_providers::admission::HardMonetaryCap;
 use nika_runtime::cost_choice::{CapEvidence, CostHostEvidence};
 use nika_types::cost::Cost;
 const UNPRICED: &str = "deepseek/s81-unpriced-fixture";
-fn open_unknown(root: &Path) -> SessionRuntime {
+pub(super) fn open_unknown(root: &Path) -> SessionRuntime {
     let mut s = open(root);
     s.intelligence.model = Some(UNPRICED.into());
     s.reasoner = Box::new(ProviderReasoner {
@@ -24,12 +24,12 @@ fn open_unknown(root: &Path) -> SessionRuntime {
     s.set_cost_host_evidence(CostHostEvidence::unmanaged_interactive_local());
     s
 }
-fn unpriced_response(text: &str) -> Value {
+pub(super) fn unpriced_response(text: &str) -> Value {
     let mut body = response(text);
     body["model"] = json!("s81-unpriced-fixture");
     body
 }
-fn asked(out: &TurnOutcome) {
+pub(super) fn asked(out: &TurnOutcome) {
     assert!(
         matches!(out, TurnOutcome::Question { key, question }
         if key == "unknown_cost" && question.contains("7 requests") && question.contains("32768")
@@ -286,7 +286,11 @@ fn revision_has_a_new_cost_question_and_cannot_apply_old_candidate_identity() {
     let details = s.cost_choice_details().unwrap();
     assert!(details.contains("invocation"));
     let _ = s.turn("cancel");
-    // Cancellation of a cost revision expires the pending work review too.
+    // Declining the revision's review cancels that call only (V9 P1 · S05b): nothing was
+    // revised or sent, so the candidate the human reviewed waits under its own identity —
+    // and only its own `no` discards it, after which that identity applies nothing.
+    assert_eq!(s.pending_proposal(), Some(old.clone()));
+    assert!(matches!(s.consent("no"), TurnOutcome::Facts(ref t) if t.contains("discarded")));
     assert!(matches!(s.consent_to(&old, "yes"), TurnOutcome::Refusal(_)));
     assert_eq!(peer.bodies().len(), first_count);
 }

@@ -40,6 +40,7 @@ mod history;
 mod inference;
 mod money_gate;
 mod money_parse;
+mod protocol;
 mod question;
 mod recovery;
 mod restore;
@@ -671,6 +672,12 @@ impl SessionRuntime {
         if let Some(command) = local_command_of(answer) {
             return self.answer_locally(command);
         }
+        if let Some(outcome) = self.beside(
+            answer,
+            "the first screen still waits · the next line is your choice",
+        ) {
+            return outcome;
+        }
         let pref = match census.choose(answer) {
             Ok(pref) => pref,
             // The screen stays on the table with the line it holds: the
@@ -777,20 +784,19 @@ impl SessionRuntime {
 
     /// One turn.
     fn turn_unrecorded(&mut self, input: &str) -> TurnOutcome {
+        let original = input;
+        let input = input.trim();
+        // Read-only lines answer first, from the machine's own state: nothing
+        // is spent or changed — a read-only line never discards a proposal.
+        if let Some(outcome) = self.read_only_turn(input) {
+            return outcome;
+        }
         // A new turn discards a pending proposal: consent is the NEXT line
         // and nothing else (the door routes that line to `consent`).
         self.pending = None;
         self.money.pending = None;
-        let original = input;
-        let input = input.trim();
         match input {
             "/quit" | "/exit" => return TurnOutcome::Quit,
-            "/help" => return TurnOutcome::Help(self.help_card()),
-            "/status" => return TurnOutcome::Facts(self.status()),
-            "/why" => return self.explain_pending(),
-            "/meaning" => return self.meaning_unrecorded(),
-            "/proof" => return self.proof_unrecorded(),
-            "/details" => return TurnOutcome::Facts(self.details()),
             "/intelligence" => {
                 return match &self.census {
                     Some(census) => {
@@ -804,16 +810,13 @@ impl SessionRuntime {
             }
             _ => {}
         }
-        // « what happened? » repeats the last recovery card from memory,
-        // whatever waits: it consumes nothing and calls nothing.
-        if crate::authoring::is_what_happened(input)
-            && let Some(card) = self.last_recovery()
-        {
-            return card;
-        }
         // An open authoring question owns the next line — before any
-        // fact, digit or model reads it (`./notes` answers « which folder »).
+        // fact, digit or model reads it (`./notes` answers « which folder »);
+        // its own protocol (`why` · `cancel` · a command) before any review.
         if self.authoring.is_some() {
+            if let Some(outcome) = self.question_protocol(input) {
+                return self.keep_revising(outcome);
+            }
             if let Err(refusal) = self.admit_money(original, true) {
                 return refusal;
             }
@@ -926,38 +929,6 @@ impl SessionRuntime {
         }
     }
 
-    /// `/why` — the aside for whatever waits: an authoring question, a
-    /// declared input, a gate, a proposal; a fact when nothing waits.
-    fn explain_pending(&self) -> TurnOutcome {
-        if let Some(round) = &self.authoring
-            && let Some(question) = round.current()
-        {
-            return TurnOutcome::Aside(aside::explain_question(question, round));
-        }
-        if let Some(inputs) = &self.run_inputs
-            && let Some(name) = inputs.first_needed()
-        {
-            return TurnOutcome::Aside(aside::explain_input(
-                inputs.workflow(),
-                name,
-                inputs.remaining(),
-            ));
-        }
-        if let Some(gate) = &self.pending_gate {
-            return TurnOutcome::Aside(aside::explain_gate(gate, &self.snapshot.root));
-        }
-        if let Some(set) = &self.pending {
-            return TurnOutcome::Aside(format!(
-                "{}\n(the proposal still waits · `yes` applies it · `no` discards it)",
-                set.effects_fact()
-            ));
-        }
-        TurnOutcome::Facts(
-            "nothing waits for you right now · describe work, ask a fact, or `run …` an accepted workflow"
-                .to_owned(),
-        )
-    }
-
     /// The human's answer to a proposal: `yes` lands the set (every
     /// witness checked before the first write · atomic writes · nothing
     /// outside the set), the real check follows every workflow written,
@@ -995,6 +966,17 @@ impl SessionRuntime {
                     "{preview}(the proposal still waits · `yes` applies it · `no` discards it)"
                 ),
             };
+        }
+        // `why` is `/why`; « what happened? » and a command this prompt does
+        // not serve answer beside the proposal, its identity kept: never a
+        // cost review, a route, a revision or a consent.
+        let waits = "(the proposal still waits · `yes` applies it · `no` discards it)";
+        if let Some(outcome) = crate::authoring::is_why(answer)
+            .then(|| TurnOutcome::Aside(format!("{}\n{waits}", set.effects_fact())))
+            .or_else(|| self.beside(answer, waits))
+        {
+            self.pending = Some(set);
+            return outcome;
         }
         if is_no(answer) {
             self.decided = Some(id);
@@ -1306,6 +1288,11 @@ impl SessionRuntime {
         if let Some(command) = local_command_of(line) {
             self.pending_gate = Some(gate);
             return self.answer_locally(command);
+        }
+        if let Some(outcome) = self.beside(line, "the gate still waits · nothing answers for you")
+        {
+            self.pending_gate = Some(gate);
+            return outcome;
         }
         if line.trim().is_empty() {
             self.pending_gate = Some(gate);

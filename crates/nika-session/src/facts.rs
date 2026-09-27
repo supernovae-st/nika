@@ -109,7 +109,7 @@ fn newest_trace(store: &Path) -> Option<std::path::PathBuf> {
 
 /// The last run, read from its trace (the evidence), never from memory:
 /// the workflow, every task's outcome, the settlement.
-fn last_run(root: &Path) -> String {
+pub(crate) fn last_run(root: &Path) -> String {
     let store = root.join(".nika").join("traces");
     let Some(trace) = newest_trace(&store) else {
         return "no run yet under this root (no trace in `.nika/traces/`)".to_owned();
