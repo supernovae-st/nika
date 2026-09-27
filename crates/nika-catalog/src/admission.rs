@@ -41,6 +41,13 @@ pub struct InferenceTariff {
     cached: i128,
 }
 impl InferenceTariff {
+    /// Explicitly declared complete-zero text tariff. The generator rejects
+    /// all-zero rows without that declaration and every partly-zero tariff.
+    #[must_use]
+    pub fn is_declared_free(self) -> bool {
+        self.input == 0 && self.output == 0 && self.cached == 0
+    }
+
     /// Qualified `DeepSeek` chat text tariff at PEAK rates; no time discount
     /// is assumed. Other providers, legacy aliases and gateways stay unknown.
     #[must_use]

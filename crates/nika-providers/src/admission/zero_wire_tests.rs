@@ -155,7 +155,9 @@ async fn exact_zero_is_sent_and_settled_but_contradictions_never_become_free() {
             calls: AtomicUsize::new(0),
             body,
         });
-        let account = InferenceAdmission::new(Cost::zero()).expect("zero allowance");
+        let account = InferenceAdmission::observe_declared_free()
+            .for_scope("candidate", "invocation")
+            .expect("host binding preserves route scope");
         let model = format!("openrouter/{MODEL}");
         let provider = ProviderRegistry::new(
             transport.clone(),
@@ -206,4 +208,112 @@ async fn exact_zero_is_sent_and_settled_but_contradictions_never_become_free() {
             );
         }
     }
+}
+
+#[tokio::test]
+async fn free_observation_preserves_mixed_routes_and_rejects_unqualified_free_shapes() {
+    let http = Arc::new(ZeroHttp {
+        calls: AtomicUsize::new(0),
+        body: response(),
+    });
+    let account = InferenceAdmission::observe_declared_free()
+        .for_scope("candidate", "invocation")
+        .expect("scope");
+    let config = ProvidersConfig::new()
+        .with_key("openrouter", Secret::new("fixture"))
+        .with_key("deepseek", Secret::new("fixture"));
+    let registry = ProviderRegistry::new(http.clone(), config.clone())
+        .with_inference_admission(account.clone());
+    for model in [
+        "mock/echo",
+        "deepseek/deepseek-v4-pro",
+        "openrouter/vendor/unseen:free",
+    ] {
+        assert!(
+            registry
+                .resolve(model)
+                .expect("resolve")
+                .admission
+                .is_none(),
+            "{model}"
+        );
+    }
+    let altered = ProviderRegistry::new(
+        http.clone(),
+        config.with_base_url("openrouter", "https://gateway.invalid/v1/chat/completions"),
+    )
+    .with_inference_admission(account.clone());
+    let model = format!("openrouter/{MODEL}");
+    assert!(
+        altered
+            .resolve(&model)
+            .expect("override")
+            .admission
+            .is_none()
+    );
+    let free = registry.resolve(&model).expect("free");
+    assert!(free.admission.is_some());
+    let mut request = InferRequest::new(&model, vec![Message::text(Role::User, "ready?")]);
+    request.max_tokens = Some(512);
+    request.thinking_budget = Some(16);
+    assert!(
+        free.infer(request.clone()).await.is_err(),
+        "unqualified thinking refuses before transport"
+    );
+    assert_eq!(http.calls.load(Ordering::SeqCst), 0);
+    request.thinking_budget = None;
+    assert!(free.infer(request.clone()).await.is_ok());
+    account.close("this account is revoked").expect("close");
+    assert!(free.infer(request).await.is_err());
+    let mock = registry.resolve("mock/echo").expect("mock");
+    assert!(
+        mock.infer(InferRequest::new(
+            "mock/echo",
+            vec![Message::text(Role::User, "hello")]
+        ))
+        .await
+        .is_ok()
+    );
+    assert_eq!(http.calls.load(Ordering::SeqCst), 1);
+    let receipt = account.snapshot().expect("receipt");
+    assert_eq!(
+        receipt.attempts.len(),
+        1,
+        "mock and excluded routes are outside this subtotal"
+    );
+    assert!(receipt.unbudgeted);
+}
+
+#[test]
+fn all_route_accounts_keep_their_original_strict_admission() {
+    let config = ProvidersConfig::new().with_key("deepseek", Secret::new("fixture"));
+    let registry = ProviderRegistry::without_http(config)
+        .with_inference_admission(InferenceAdmission::unbudgeted());
+    assert!(
+        registry
+            .resolve("mock/echo")
+            .expect("mock")
+            .admission
+            .is_some()
+    );
+    let selected = InferenceAdmission::observe_declared_free();
+    assert!(
+        selected
+            .reserve(
+                "deepseek",
+                "deepseek-v4-pro",
+                "https://api.deepseek.com/v1/chat/completions",
+                512
+            )
+            .is_err()
+    );
+    assert!(
+        selected
+            .check_route(
+                "deepseek",
+                "deepseek-v4-pro",
+                "https://api.deepseek.com/v1/chat/completions"
+            )
+            .is_err()
+    );
 }

@@ -99,6 +99,7 @@ pub struct ProviderRegistry<H = NoHttp> {
     /// clock unless the composition injects its own.
     backoff: Arc<dyn Backoff>,
     pub(crate) admission: Option<crate::InferenceAdmission>,
+    admission_http: Option<Arc<H>>,
 }
 
 impl ProviderRegistry<NoHttp> {
@@ -112,6 +113,7 @@ impl ProviderRegistry<NoHttp> {
             config,
             backoff: retry::system_backoff(),
             admission: None,
+            admission_http: None,
         }
     }
 }
@@ -124,6 +126,21 @@ impl<H> ProviderRegistry<H> {
     #[must_use]
     pub fn with_inference_admission(mut self, admission: crate::InferenceAdmission) -> Self {
         self.admission = Some(admission);
+        self.admission_http = None;
+        self
+    }
+
+    /// Attach an account with a separate single-attempt HTTP transport for
+    /// the routes it observes. Other routes keep the registry's original
+    /// transport, including its protocol retry policy and wire family.
+    #[must_use]
+    pub fn with_inference_admission_http(
+        mut self,
+        admission: crate::InferenceAdmission,
+        http: Arc<H>,
+    ) -> Self {
+        self.admission = Some(admission);
+        self.admission_http = Some(http);
         self
     }
 
@@ -192,6 +209,7 @@ where
             config,
             backoff: retry::system_backoff(),
             admission: None,
+            admission_http: None,
         }
     }
 
@@ -281,15 +299,26 @@ where
             .get(profile.id)
             .cloned()
             .unwrap_or_else(|| profile.base_url.to_owned());
+        let wire_model = profile.resolve_model(model_rest).to_owned();
+        let admission = self
+            .admission
+            .as_ref()
+            .filter(|account| account.tracks_route(profile.id, &wire_model, &base_url))
+            .cloned();
+        let http = if admission.is_some() {
+            self.admission_http.as_ref().map(Arc::clone).or(http)
+        } else {
+            http
+        };
 
         Ok(ResolvedProvider {
             profile: profile.clone(),
-            wire_model: profile.resolve_model(model_rest).to_owned(),
+            wire_model,
             base_url,
             key,
             http,
             backoff: Arc::clone(&self.backoff),
-            admission: self.admission.clone(),
+            admission,
         })
     }
 }

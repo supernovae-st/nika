@@ -14,10 +14,13 @@ pub use review::{
     SESSION_REVIEW_MAX_OUTPUT_TOKENS, SESSION_REVIEW_MAX_REQUESTS, SESSION_REVIEW_TIMEOUT,
     monetary_default, native_catalog_price_known,
 };
+mod scope;
 mod unknown;
 pub use declared::{DeclaredTariff, TariffUnit};
 pub use unknown::{HardMonetaryCap, UnknownAttemptReceipt, UnknownCostChoice, UnknownCostPolicy};
 
+#[cfg(test)]
+mod scope_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
@@ -69,6 +72,9 @@ pub struct AttemptReceipt {
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct InferenceReceipt {
+    /// Only exact declared-free routes are observed by this account. Its
+    /// subtotal cannot describe excluded paid, local or unknown-cost work.
+    pub scoped_to_declared_free: bool,
     /// Explicit unknown-cost scope, absent for strict numeric admission.
     pub unknown_cost: Option<UnknownCostChoice>,
     /// Sent calls excluded from the known USD subtotal, never priced as zero.
@@ -117,7 +123,7 @@ struct State {
 }
 /// Clones share the same atomic allowance across factories, repairs and revisions.
 #[derive(Clone, Debug)]
-pub struct InferenceAdmission(Arc<Mutex<State>>, bool);
+pub struct InferenceAdmission(Arc<Mutex<State>>, scope::HandleScope);
 
 pub(crate) fn denied(reason: impl Into<String>) -> ProviderError {
     ProviderError::AdmissionDenied {
@@ -174,7 +180,10 @@ impl InferenceAdmission {
                 refusal: None,
                 attempts: Vec::new(),
             })),
-            true,
+            scope::HandleScope {
+                bound: true,
+                routes: scope::RouteSelection::All,
+            },
         )
     }
     fn lock(&self) -> Result<MutexGuard<'_, State>, ProviderError> {
@@ -228,6 +237,7 @@ impl InferenceAdmission {
     pub fn snapshot(&self) -> Result<InferenceReceipt, ProviderError> {
         let s = self.lock()?;
         Ok(InferenceReceipt {
+            scoped_to_declared_free: self.observes_declared_free_only(),
             unknown_cost: s.unknown.clone(),
             unknown_calls: s
                 .unknown_attempts
@@ -284,6 +294,9 @@ impl InferenceAdmission {
         endpoint: &str,
         output: u32,
     ) -> Result<Attempt, ProviderError> {
+        if !self.tracks_route(provider, model, endpoint) {
+            return Err(self.refuse("route is outside this declared-free observation account"));
+        }
         if let Some(attempt) = self.reserve_unknown(provider, model, endpoint, output)? {
             return Ok(Attempt::Unknown(attempt));
         }
@@ -488,6 +501,9 @@ impl InferenceReceipt {
         });
         if self.unbudgeted {
             observation["unbudgeted"] = serde_json::Value::Bool(true);
+        }
+        if self.scoped_to_declared_free {
+            observation["scoped_to_declared_free"] = serde_json::Value::Bool(true);
         }
         observation
     }

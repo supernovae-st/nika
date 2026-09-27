@@ -206,7 +206,7 @@ impl InferenceAdmission {
             s.unknown = Some(choice);
             s.overridden_defaults = policy.defaults;
         }
-        account.1 = false;
+        account.1.bound = false;
         Ok(account)
     }
     /// Bind a handle to the candidate and invocation independently known by
@@ -223,7 +223,13 @@ impl InferenceAdmission {
                 "unknown-cost choice belongs to a different candidate or invocation",
             ));
         }
-        Ok(Self(self.0.clone(), true))
+        Ok(Self(
+            self.0.clone(),
+            super::scope::HandleScope {
+                bound: true,
+                ..self.1
+            },
+        ))
     }
     pub(crate) fn check_route(
         &self,
@@ -231,9 +237,16 @@ impl InferenceAdmission {
         model: &str,
         endpoint: &str,
     ) -> Result<(), ProviderError> {
+        if !self.tracks_route(provider, model, endpoint) {
+            return Err(denied(
+                "route is outside this declared-free observation account",
+            ));
+        }
         let s = self.lock()?;
         if let Some(c) = &s.unknown {
-            if !self.1 || !c.matches(provider, model, endpoint) || s.status != AdmissionState::Open
+            if !self.1.bound
+                || !c.matches(provider, model, endpoint)
+                || s.status != AdmissionState::Open
             {
                 return Err(denied(
                     "unknown-cost choice is unbound, closed, or names a different route/model",

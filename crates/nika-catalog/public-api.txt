@@ -17,6 +17,7 @@ pub nika_catalog::admission::InferenceTariff::source: &'static str
 pub nika_catalog::admission::InferenceTariff::source_sha256: &'static str
 impl nika_catalog::admission::InferenceTariff
 pub fn nika_catalog::admission::InferenceTariff::deepseek(model: &str) -> core::option::Option<Self>
+pub fn nika_catalog::admission::InferenceTariff::is_declared_free(self) -> bool
 pub fn nika_catalog::admission::InferenceTariff::new(provider: &str, model: &str, endpoint: &str) -> core::option::Option<Self>
 pub fn nika_catalog::admission::InferenceTariff::price(self, input: u64, output: u64, cached: u64) -> core::option::Option<nika_types::cost::Cost>
 pub fn nika_catalog::admission::InferenceTariff::price_native(self, input: u64, output: u64, cached: u64) -> core::option::Option<i128>
