@@ -316,4 +316,11 @@ fn all_route_accounts_keep_their_original_strict_admission() {
             )
             .is_err()
     );
+    assert!(
+        selected
+            .snapshot()
+            .expect("untouched observer")
+            .refusal
+            .is_none()
+    );
 }

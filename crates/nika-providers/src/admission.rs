@@ -295,7 +295,9 @@ impl InferenceAdmission {
         output: u32,
     ) -> Result<Attempt, ProviderError> {
         if !self.tracks_route(provider, model, endpoint) {
-            return Err(self.refuse("route is outside this declared-free observation account"));
+            return Err(denied(
+                "route is outside this declared-free observation account",
+            ));
         }
         if let Some(attempt) = self.reserve_unknown(provider, model, endpoint, output)? {
             return Ok(Attempt::Unknown(attempt));
