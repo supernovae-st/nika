@@ -17,7 +17,7 @@ use super::{SessionRuntime, TurnOutcome, ceiling_in, named_files};
 use crate::activity::{Activity, Phase};
 use crate::authoring::{
     AuthoringContext, AuthoringError, AuthoringRound, AuthoringSeat, Reading,
-    compile_deterministic, compile_in, is_cancel, is_greeting, is_why, reasons,
+    compile_deterministic, compile_in, is_cancel, is_greeting, reasons,
 };
 use crate::change::{RunRequest, check_on_disk};
 use crate::outcome::{ProposalId, Refusal, RefusalClass};
@@ -915,12 +915,7 @@ impl SessionRuntime {
                 "no run waits on an input",
             ));
         };
-        // « why? » beside the input: what it is and who declares it; the
-        // input keeps waiting.
-        if is_why(line) {
-            self.run_inputs = Some(inputs);
-            return self.explain_pending();
-        }
+        // Its « why? » is the turn's (`read_only_turn`): it never reaches here.
         if is_cancel(line) {
             self.intent.unresolved.clear();
             self.remember(line, "(run request discarded)");

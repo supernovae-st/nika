@@ -415,7 +415,7 @@ fn the_review_reads_in_sections_and_meaning_holds_the_proposal() {
 ///
 /// The shared first act: a daily copy stated in words, proposed, saved by
 /// a yes; the save declares nothing.
-fn saved_daily_copy(dir: &Path) -> SessionRuntime {
+pub(super) fn saved_daily_copy(dir: &Path) -> SessionRuntime {
     std::fs::create_dir_all(dir.join("notes")).expect("notes");
     std::fs::write(dir.join("notes/brief.md"), "brief\n").expect("brief");
     let mut s = SessionRuntime::open(

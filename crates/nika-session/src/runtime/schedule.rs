@@ -17,7 +17,7 @@ use std::path::{Path, PathBuf};
 use nika_onboard::compile::{TriggerKind, TriggerRequirement, TriggerStatus};
 
 use super::{SessionRuntime, TurnOutcome};
-use crate::authoring::{is_cancel, is_why};
+use crate::authoring::is_cancel;
 use crate::change::{ProjectChange, ProjectChangeSet, Witness};
 use crate::outcome::{Refusal, RefusalClass};
 
@@ -49,6 +49,14 @@ impl Activation {
     /// The key the next line answers.
     pub(super) fn current(&self) -> Option<&'static str> {
         self.needed.first().copied()
+    }
+
+    /// « why? » beside the activation's question: what declaring does and does not do.
+    pub(super) fn why(&self) -> String {
+        format!(
+            "Activating declares the schedule in `nika.yaml`, beside `{}` — the workflow itself is already saved and checked. Declared is not active: a firer on this machine must run it (`nika serve`, or the OS unit `nika arm --emit launchd --write`).\n  the question still waits · reply on the next line · `cancel` drops the activation",
+            self.workflow.display()
+        )
     }
 
     /// The question for the current key, in the human's words, with the
@@ -200,14 +208,6 @@ impl SessionRuntime {
                 "no activation question waits",
             ));
         };
-        if is_why(line) {
-            let text = format!(
-                "Activating declares the schedule in `nika.yaml`, beside `{}` — the workflow itself is already saved and checked. Declared is not active: a firer on this machine must run it (`nika serve`, or the OS unit `nika arm --emit launchd --write`).\n  the question still waits · reply on the next line · `cancel` drops the activation",
-                activation.workflow.display()
-            );
-            self.activation = Some(activation);
-            return TurnOutcome::Aside(text);
-        }
         if is_cancel(line) {
             self.intent.unresolved.clear();
             return TurnOutcome::Facts(

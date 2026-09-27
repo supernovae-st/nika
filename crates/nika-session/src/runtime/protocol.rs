@@ -12,7 +12,7 @@
 //! candidate's bytes and the consent's identity stay exactly as they were.
 
 use super::{SLASH_COMMANDS, SessionRuntime, TurnOutcome, aside};
-use crate::authoring::{is_cancel, is_what_happened, is_why};
+use crate::authoring::{is_cancel, is_meaning, is_what_happened, is_why};
 use crate::outcome::{Refusal, RefusalClass};
 
 /// Commands served beyond the help card's list, then those a turn serves after its read-only lines.
@@ -106,7 +106,8 @@ impl SessionRuntime {
     }
 
     /// A turn's read-only lines, answered before a proposal a host left waiting is discarded
-    /// and before anything else reads them: the read-only commands, « what happened? » (the
+    /// and before anything else reads them: the read-only commands, the closed « why? » and
+    /// « what did you understand? » sets (as `/why` and `/meaning`), « what happened? » (the
     /// last card from memory, else the last run from its trace), and — when no question owns
     /// the line — a command the turn does not serve. `None` for any other line.
     pub(super) fn read_only_turn(&mut self, input: &str) -> Option<TurnOutcome> {
@@ -115,10 +116,10 @@ impl SessionRuntime {
         Some(match input {
             "/help" => TurnOutcome::Help(self.help_card()),
             "/status" => TurnOutcome::Facts(self.status()),
-            "/why" => self.explain_pending(),
-            "/meaning" => self.meaning_unrecorded(),
             "/proof" => self.proof_unrecorded(),
             "/details" => TurnOutcome::Facts(self.details()),
+            _ if is_why(input) => self.explain_pending(),
+            _ if is_meaning(input) => self.meaning_unrecorded(),
             _ if is_what_happened(input) => match self.last_recovery() {
                 Some(card) => card,
                 None if owned => self.beside(input, QUESTION_WAITS)?,
@@ -132,14 +133,12 @@ impl SessionRuntime {
         })
     }
 
-    /// An open authoring question's own protocol, before any cost review, route or reading:
-    /// « why? » explains it, a cancel word drops the round (`drop` answers a clause's
-    /// disposition instead), a command-shaped line is refused. Nothing binds; `None` otherwise.
+    /// An open authoring question's own protocol, before any cost review, route or reading (its
+    /// « why? » is the turn's, `read_only_turn`): a cancel word drops the round (`drop` answers
+    /// a clause's disposition instead), a command-shaped line is refused. Nothing binds; `None`
+    /// for any other line.
     pub(super) fn question_protocol(&mut self, line: &str) -> Option<TurnOutcome> {
         let round = self.authoring.as_ref()?;
-        if is_why(line) {
-            return Some(self.explain_pending());
-        }
         let disposes = line.trim().eq_ignore_ascii_case("drop")
             && round.current().is_some_and(|q| q.key.starts_with("gap."));
         if is_cancel(line) && !disposes {
@@ -161,7 +160,8 @@ impl SessionRuntime {
     }
 
     /// `/why` — the aside for whatever waits: an authoring question, a
-    /// declared input, a gate, a proposal; a fact when nothing waits.
+    /// declared input, an activation's value, a gate, a proposal; a fact when
+    /// nothing waits.
     pub(super) fn explain_pending(&self) -> TurnOutcome {
         if let Some(round) = &self.authoring
             && let Some(question) = round.current()
@@ -176,6 +176,11 @@ impl SessionRuntime {
                 name,
                 inputs.remaining(),
             ));
+        }
+        if let Some(activation) = &self.activation
+            && activation.current().is_some()
+        {
+            return TurnOutcome::Aside(activation.why());
         }
         if let Some(gate) = &self.pending_gate {
             return TurnOutcome::Aside(aside::explain_gate(gate, &self.snapshot.root));

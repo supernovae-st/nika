@@ -171,7 +171,7 @@ fn a_command_shaped_line_is_refused_before_any_route_reading_or_work() {
         ("/Help", "did you mean `/help`"),
         ("/stat", "did you mean `/status`"),
         ("/meening", "did you mean `/meaning`"),
-        ("/why?", "type `/why` alone"),
+        ("/status?", "type `/status` alone"),
         ("/meaning please", "type `/meaning` alone"),
         ("/show", "`/show` does not apply here"),
         ("/cancel", "`/cancel` does not apply here"),
@@ -192,6 +192,11 @@ fn a_command_shaped_line_is_refused_before_any_route_reading_or_work() {
     );
     assert!(w.s.authoring.is_none() && w.s.pending.is_none() && !w.s.waiting_cost_choice());
     assert!(w.s.routes().is_empty() && w.s.recent.is_empty());
+    // `/why?` is `/why`, punctuation aside (the closed « why » set): answered, not refused.
+    assert!(
+        matches!(w.s.turn("/why?"), TurnOutcome::Facts(ref t) if t.starts_with("nothing waits"))
+    );
+    assert_eq!(w.routed() + w.read(), 0);
     // A path is never a command: the line keeps going where it went before.
     for path in ["/tmp/notes.md", "/notes.md", "/Users/me"] {
         assert!(!refused_with(&w.s.turn(path), "command"), "{path}");
@@ -417,6 +422,7 @@ fn a_read_only_turn_never_discards_the_proposal() {
     let TurnOutcome::Proposal { id, .. } = w.s.turn(COPY) else {
         panic!("a proposal");
     };
+    let state = semantic(&w.s);
     for line in [
         "/status",
         "/help",
@@ -426,11 +432,55 @@ fn a_read_only_turn_never_discards_the_proposal() {
         "/proof",
         "/bogus",
         "what happened?",
+        // E5 FB1: the closed « why » and « what did you understand » sets, bare.
+        "why",
+        "why?",
+        "pourquoi",
+        "explain",
+        "meaning",
+        "what did you understand?",
+        "qu'as-tu compris",
     ] {
-        let _ = w.s.turn(line);
-        assert_eq!(w.s.pending_proposal().as_ref(), Some(&id), "{line}");
+        let out = w.s.turn(line);
+        assert_eq!(
+            w.s.pending_proposal().as_ref(),
+            Some(&id),
+            "{line}: {out:?}"
+        );
+        assert_eq!(semantic(&w.s), state, "{line} wrote semantic state");
     }
-    assert_eq!(w.routed() + w.read(), 0);
+    assert_eq!(
+        w.routed() + w.read(),
+        0,
+        "a read-only line was routed or read"
+    );
+    // The control: a line that is not read-only is still a new turn, and a new turn still
+    // discards the proposal (consent is the next line and nothing else).
+    let _ = w.s.turn("build me a digest of the docs");
+    assert!(w.s.pending_proposal().is_none());
+}
+
+/// E5 FB1 at an activation: `/why` and `why` beside the schedule's question explain the
+/// activation (not « nothing waits »), the question keeps waiting, nothing is written.
+#[test]
+fn why_beside_an_activation_explains_it() {
+    let dir = tree();
+    let mut s = super::super::tests::saved_daily_copy(dir.path());
+    let TurnOutcome::Question { key, .. } = s.turn("activate") else {
+        panic!("activate asks first");
+    };
+    assert_eq!(key, "project.timezone");
+    let state = semantic(&s);
+    for line in ["/why", "why", "why?", "pourquoi"] {
+        let out = s.turn(line);
+        assert!(
+            matches!(&out, TurnOutcome::Aside(t) if t.contains("Declared is not active")),
+            "{line}: {out:?}"
+        );
+        assert_eq!(s.pending_activation(), Some("project.timezone"), "{line}");
+        assert_eq!(semantic(&s), state, "{line}");
+    }
+    assert!(!dir.path().join("nika.yaml").exists());
 }
 
 /// A slash line is never the answer to a gate (a confirm or a text gate) nor a run's input:
