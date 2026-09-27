@@ -37,6 +37,21 @@ reasons, presented references and byte identities remain observable.
 existing callers. The existing L4 edge remains acyclic; no new crate or compiler
 is introduced. `nika-event` supplies the existing shared SHA-256 byte identity.
 
+## The Meaning projection (read by Session)
+
+`compile::meaning` projects an outcome's obligation ledger
+(`provenance.decision.ledger`) into the Meaning view: each clause's fate
+(represented · needs an answer · external · not expressible · refused ·
+contradicted), its assurance (read from the task that carries it in the
+candidate's bytes, parsed by the one strict `nika_schema` law: strict mode, one
+anonymous file, and bytes it refuses carry no verb), the rendered view and a
+revision's delta. It is pure (an outcome or a ledger in, words out), never
+certifies coverage (a clause the compiler did not read is not listed, and the
+view says so) and renders « unavailable » without a ledger. It moved here from
+`nika-session` on 2026-09-28; `nika_session::meaning` re-exports it unchanged.
+Its tests and their three recorded outcomes live beside it
+(`src/compile/meaning/`).
+
 ## Compile foundation
 
 `compile` is a stateless in-memory authoring core behind the CLI creation door. CREATE accepts exact embedded skeleton names

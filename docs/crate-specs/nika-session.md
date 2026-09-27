@@ -17,7 +17,7 @@
 
 ## What it must NOT own
 
-The workflow grammar · the builtin catalog · the model catalog · the error definitions · the check semantics · the runtime · the ARM semantics · the trace verification · what a run's trace proves · the project file grammar. It queries those authorities (`nika_pack` · `nika_builtin` · `nika_catalog` · `nika_error` · `nika_cli_host::oracle` · `nika_dap::inventory` · `nika_vocab::project` · `nika_onboard::routing` · `nika_trace::run_view`).
+The workflow grammar · the builtin catalog · the model catalog · the error definitions · the check semantics · the runtime · the ARM semantics · the trace verification · what a run's trace proves · the project file grammar · the Meaning projection of the compiler's ledger. It queries those authorities (`nika_pack` · `nika_builtin` · `nika_catalog` · `nika_error` · `nika_cli_host::oracle` · `nika_dap::inventory` · `nika_vocab::project` · `nika_onboard::routing` · `nika_trace::run_view` · `nika_onboard::compile::meaning`).
 
 ## Run facts: read here, owned by the trace reader
 
@@ -36,6 +36,20 @@ the facts' fields stay private to `nika-trace`. A private
 `crate::run_view`. The paused/resumed trace fixtures moved with their
 tests; `tests/fixtures/traces/copy.ndjson` stays here too, because the
 runtime's observation test reads it.
+
+## Meaning: shown here, owned beside the compiler's ledger
+
+The Meaning view (what survived of a request, clause by clause, from the
+compiler's own obligation ledger) is a pure projection of that ledger, so it
+lives in `nika_onboard::compile::meaning` since 2026-09-28, beside the
+`CompileOutcome` it reads; the move also brought this crate back under its
+production-LOC wall. `nika_session::meaning` stays a documented re-export of
+that module: the same types, functions and constant under the old path, which
+`tests/meaning_reexport.rs` compiles against as an external consumer. The
+candidate's bytes are read by the same strict `nika_schema` law as the
+review's. What stays here is the session's side: `/meaning` shows the view and
+holds a waiting proposal, and a revision's delta rides beside the revised
+proposal. The three recorded outcomes its tests read moved with them.
 
 ## Exact schedule activation
 

@@ -12,8 +12,9 @@
 //! and the footer says so. A missing ledger renders « unavailable », never
 //! an invented coverage.
 //!
-//! Owned here, beside the ledger it projects. Pure: an outcome or a ledger
-//! in, words out.
+//! Owned here, beside the ledger it projects (moved from `nika-session`
+//! 2026-09-28, whose `nika_session::meaning` re-exports this module). Pure:
+//! an outcome or a ledger in, words out.
 
 use std::fmt::Write as _;
 
