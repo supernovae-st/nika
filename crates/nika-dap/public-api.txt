@@ -1151,6 +1151,269 @@ pub type nika_dap::chain::Verdict::Output = T
 pub const nika_dap::chain::CHAIN_GENESIS: &[u8]
 pub const nika_dap::chain::MAX_LINE_BYTES: usize
 pub fn nika_dap::chain::walk(raw: &str) -> nika_dap::chain::Verdict
+pub mod nika_dap::cost_journal
+#[non_exhaustive] pub enum nika_dap::cost_journal::Exposure
+pub nika_dap::cost_journal::Exposure::Uncertain
+pub nika_dap::cost_journal::Exposure::Unjudged
+pub nika_dap::cost_journal::Exposure::Unknown
+pub nika_dap::cost_journal::Exposure::Unknown::pid: core::option::Option<u64>
+impl core::clone::Clone for nika_dap::cost_journal::Exposure
+pub fn nika_dap::cost_journal::Exposure::clone(&self) -> nika_dap::cost_journal::Exposure
+impl core::cmp::Eq for nika_dap::cost_journal::Exposure
+impl core::cmp::PartialEq for nika_dap::cost_journal::Exposure
+pub fn nika_dap::cost_journal::Exposure::eq(&self, other: &nika_dap::cost_journal::Exposure) -> bool
+impl core::fmt::Debug for nika_dap::cost_journal::Exposure
+pub fn nika_dap::cost_journal::Exposure::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_dap::cost_journal::Exposure
+impl<D> owo_colors::OwoColorize for nika_dap::cost_journal::Exposure
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::cost_journal::Exposure where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::cost_journal::Exposure::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::cost_journal::Exposure where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::cost_journal::Exposure::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::cost_journal::Exposure where U: core::convert::From<T>
+pub fn nika_dap::cost_journal::Exposure::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::cost_journal::Exposure where U: core::convert::Into<T>
+pub type nika_dap::cost_journal::Exposure::Error = core::convert::Infallible
+pub fn nika_dap::cost_journal::Exposure::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::cost_journal::Exposure where U: core::convert::TryFrom<T>
+pub type nika_dap::cost_journal::Exposure::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::cost_journal::Exposure::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::cost_journal::Exposure where T: core::clone::Clone
+pub type nika_dap::cost_journal::Exposure::Owned = T
+pub fn nika_dap::cost_journal::Exposure::clone_into(&self, target: &mut T)
+pub fn nika_dap::cost_journal::Exposure::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::cost_journal::Exposure where T: 'static + ?core::marker::Sized
+pub fn nika_dap::cost_journal::Exposure::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::cost_journal::Exposure where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::Exposure::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::cost_journal::Exposure where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::Exposure::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::cost_journal::Exposure where T: core::clone::Clone
+pub unsafe fn nika_dap::cost_journal::Exposure::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::cost_journal::Exposure
+pub fn nika_dap::cost_journal::Exposure::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::cost_journal::Exposure where T: core::clone::Clone
+pub fn nika_dap::cost_journal::Exposure::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::cost_journal::Exposure where T: 'static
+pub fn nika_dap::cost_journal::Exposure::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::cost_journal::Exposure where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::Exposure::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::cost_journal::Exposure::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::cost_journal::Exposure
+impl<T> tracing::instrument::WithSubscriber for nika_dap::cost_journal::Exposure
+impl<T> typenum::type_operators::Same for nika_dap::cost_journal::Exposure
+pub type nika_dap::cost_journal::Exposure::Output = T
+#[non_exhaustive] pub enum nika_dap::cost_journal::Taken
+pub nika_dap::cost_journal::Taken::Busy
+pub nika_dap::cost_journal::Taken::Busy::pid: core::option::Option<u64>
+pub nika_dap::cost_journal::Taken::Held(nika_dap::cost_journal::Lease)
+impl core::fmt::Debug for nika_dap::cost_journal::Taken
+pub fn nika_dap::cost_journal::Taken::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_dap::cost_journal::Taken
+impl<T, U> core::convert::Into<U> for nika_dap::cost_journal::Taken where U: core::convert::From<T>
+pub fn nika_dap::cost_journal::Taken::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::cost_journal::Taken where U: core::convert::Into<T>
+pub type nika_dap::cost_journal::Taken::Error = core::convert::Infallible
+pub fn nika_dap::cost_journal::Taken::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::cost_journal::Taken where U: core::convert::TryFrom<T>
+pub type nika_dap::cost_journal::Taken::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::cost_journal::Taken::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_dap::cost_journal::Taken where T: 'static + ?core::marker::Sized
+pub fn nika_dap::cost_journal::Taken::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::cost_journal::Taken where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::Taken::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::cost_journal::Taken where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::Taken::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_dap::cost_journal::Taken
+pub fn nika_dap::cost_journal::Taken::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_dap::cost_journal::Taken where T: 'static
+pub fn nika_dap::cost_journal::Taken::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::cost_journal::Taken where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::Taken::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::cost_journal::Taken::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::cost_journal::Taken
+impl<T> tracing::instrument::WithSubscriber for nika_dap::cost_journal::Taken
+impl<T> typenum::type_operators::Same for nika_dap::cost_journal::Taken
+pub type nika_dap::cost_journal::Taken::Output = T
+#[non_exhaustive] pub struct nika_dap::cost_journal::Blocker
+pub nika_dap::cost_journal::Blocker::exposure: nika_dap::cost_journal::Exposure
+pub nika_dap::cost_journal::Blocker::invocation: alloc::string::String
+impl nika_dap::cost_journal::Blocker
+pub fn nika_dap::cost_journal::Blocker::new(invocation: alloc::string::String, exposure: nika_dap::cost_journal::Exposure) -> Self
+impl core::clone::Clone for nika_dap::cost_journal::Blocker
+pub fn nika_dap::cost_journal::Blocker::clone(&self) -> nika_dap::cost_journal::Blocker
+impl core::cmp::Eq for nika_dap::cost_journal::Blocker
+impl core::cmp::PartialEq for nika_dap::cost_journal::Blocker
+pub fn nika_dap::cost_journal::Blocker::eq(&self, other: &nika_dap::cost_journal::Blocker) -> bool
+impl core::fmt::Debug for nika_dap::cost_journal::Blocker
+pub fn nika_dap::cost_journal::Blocker::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_dap::cost_journal::Blocker
+impl<D> owo_colors::OwoColorize for nika_dap::cost_journal::Blocker
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::cost_journal::Blocker where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::cost_journal::Blocker::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::cost_journal::Blocker where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::cost_journal::Blocker::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::cost_journal::Blocker where U: core::convert::From<T>
+pub fn nika_dap::cost_journal::Blocker::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::cost_journal::Blocker where U: core::convert::Into<T>
+pub type nika_dap::cost_journal::Blocker::Error = core::convert::Infallible
+pub fn nika_dap::cost_journal::Blocker::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::cost_journal::Blocker where U: core::convert::TryFrom<T>
+pub type nika_dap::cost_journal::Blocker::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::cost_journal::Blocker::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::cost_journal::Blocker where T: core::clone::Clone
+pub type nika_dap::cost_journal::Blocker::Owned = T
+pub fn nika_dap::cost_journal::Blocker::clone_into(&self, target: &mut T)
+pub fn nika_dap::cost_journal::Blocker::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::cost_journal::Blocker where T: 'static + ?core::marker::Sized
+pub fn nika_dap::cost_journal::Blocker::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::cost_journal::Blocker where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::Blocker::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::cost_journal::Blocker where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::Blocker::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::cost_journal::Blocker where T: core::clone::Clone
+pub unsafe fn nika_dap::cost_journal::Blocker::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::cost_journal::Blocker
+pub fn nika_dap::cost_journal::Blocker::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::cost_journal::Blocker where T: core::clone::Clone
+pub fn nika_dap::cost_journal::Blocker::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::cost_journal::Blocker where T: 'static
+pub fn nika_dap::cost_journal::Blocker::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::cost_journal::Blocker where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::Blocker::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::cost_journal::Blocker::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::cost_journal::Blocker
+impl<T> tracing::instrument::WithSubscriber for nika_dap::cost_journal::Blocker
+impl<T> typenum::type_operators::Same for nika_dap::cost_journal::Blocker
+pub type nika_dap::cost_journal::Blocker::Output = T
+#[non_exhaustive] pub struct nika_dap::cost_journal::Exposures
+pub nika_dap::cost_journal::Exposures::runs: alloc::vec::Vec<nika_dap::cost_journal::Blocker>
+pub nika_dap::cost_journal::Exposures::torn: alloc::vec::Vec<alloc::string::String>
+impl nika_dap::cost_journal::Exposures
+pub fn nika_dap::cost_journal::Exposures::is_clear(&self) -> bool
+pub fn nika_dap::cost_journal::Exposures::new(runs: alloc::vec::Vec<nika_dap::cost_journal::Blocker>, torn: alloc::vec::Vec<alloc::string::String>) -> Self
+impl core::cmp::Eq for nika_dap::cost_journal::Exposures
+impl core::cmp::PartialEq for nika_dap::cost_journal::Exposures
+pub fn nika_dap::cost_journal::Exposures::eq(&self, other: &nika_dap::cost_journal::Exposures) -> bool
+impl core::fmt::Debug for nika_dap::cost_journal::Exposures
+pub fn nika_dap::cost_journal::Exposures::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_dap::cost_journal::Exposures
+impl<D> owo_colors::OwoColorize for nika_dap::cost_journal::Exposures
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::cost_journal::Exposures where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::cost_journal::Exposures::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::cost_journal::Exposures where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::cost_journal::Exposures::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::cost_journal::Exposures where U: core::convert::From<T>
+pub fn nika_dap::cost_journal::Exposures::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::cost_journal::Exposures where U: core::convert::Into<T>
+pub type nika_dap::cost_journal::Exposures::Error = core::convert::Infallible
+pub fn nika_dap::cost_journal::Exposures::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::cost_journal::Exposures where U: core::convert::TryFrom<T>
+pub type nika_dap::cost_journal::Exposures::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::cost_journal::Exposures::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_dap::cost_journal::Exposures where T: 'static + ?core::marker::Sized
+pub fn nika_dap::cost_journal::Exposures::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::cost_journal::Exposures where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::Exposures::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::cost_journal::Exposures where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::Exposures::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_dap::cost_journal::Exposures
+pub fn nika_dap::cost_journal::Exposures::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_dap::cost_journal::Exposures where T: 'static
+pub fn nika_dap::cost_journal::Exposures::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::cost_journal::Exposures where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::Exposures::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::cost_journal::Exposures::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::cost_journal::Exposures
+impl<T> tracing::instrument::WithSubscriber for nika_dap::cost_journal::Exposures
+impl<T> typenum::type_operators::Same for nika_dap::cost_journal::Exposures
+pub type nika_dap::cost_journal::Exposures::Output = T
+pub struct nika_dap::cost_journal::Lease
+impl core::fmt::Debug for nika_dap::cost_journal::Lease
+pub fn nika_dap::cost_journal::Lease::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_dap::cost_journal::Lease
+impl<T, U> core::convert::Into<U> for nika_dap::cost_journal::Lease where U: core::convert::From<T>
+pub fn nika_dap::cost_journal::Lease::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::cost_journal::Lease where U: core::convert::Into<T>
+pub type nika_dap::cost_journal::Lease::Error = core::convert::Infallible
+pub fn nika_dap::cost_journal::Lease::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::cost_journal::Lease where U: core::convert::TryFrom<T>
+pub type nika_dap::cost_journal::Lease::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::cost_journal::Lease::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_dap::cost_journal::Lease where T: 'static + ?core::marker::Sized
+pub fn nika_dap::cost_journal::Lease::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::cost_journal::Lease where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::Lease::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::cost_journal::Lease where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::Lease::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_dap::cost_journal::Lease
+pub fn nika_dap::cost_journal::Lease::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_dap::cost_journal::Lease where T: 'static
+pub fn nika_dap::cost_journal::Lease::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::cost_journal::Lease where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::Lease::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::cost_journal::Lease::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::cost_journal::Lease
+impl<T> tracing::instrument::WithSubscriber for nika_dap::cost_journal::Lease
+impl<T> typenum::type_operators::Same for nika_dap::cost_journal::Lease
+pub type nika_dap::cost_journal::Lease::Output = T
+#[non_exhaustive] pub struct nika_dap::cost_journal::Writer
+pub nika_dap::cost_journal::Writer::host: alloc::string::String
+pub nika_dap::cost_journal::Writer::pid: u32
+impl nika_dap::cost_journal::Writer
+pub fn nika_dap::cost_journal::Writer::json(&self) -> serde_json::value::Value
+pub fn nika_dap::cost_journal::Writer::this_process() -> Self
+impl core::clone::Clone for nika_dap::cost_journal::Writer
+pub fn nika_dap::cost_journal::Writer::clone(&self) -> nika_dap::cost_journal::Writer
+impl core::cmp::Eq for nika_dap::cost_journal::Writer
+impl core::cmp::PartialEq for nika_dap::cost_journal::Writer
+pub fn nika_dap::cost_journal::Writer::eq(&self, other: &nika_dap::cost_journal::Writer) -> bool
+impl core::fmt::Debug for nika_dap::cost_journal::Writer
+pub fn nika_dap::cost_journal::Writer::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_dap::cost_journal::Writer
+impl<D> owo_colors::OwoColorize for nika_dap::cost_journal::Writer
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::cost_journal::Writer where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::cost_journal::Writer::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::cost_journal::Writer where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::cost_journal::Writer::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::cost_journal::Writer where U: core::convert::From<T>
+pub fn nika_dap::cost_journal::Writer::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::cost_journal::Writer where U: core::convert::Into<T>
+pub type nika_dap::cost_journal::Writer::Error = core::convert::Infallible
+pub fn nika_dap::cost_journal::Writer::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::cost_journal::Writer where U: core::convert::TryFrom<T>
+pub type nika_dap::cost_journal::Writer::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::cost_journal::Writer::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::cost_journal::Writer where T: core::clone::Clone
+pub type nika_dap::cost_journal::Writer::Owned = T
+pub fn nika_dap::cost_journal::Writer::clone_into(&self, target: &mut T)
+pub fn nika_dap::cost_journal::Writer::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::cost_journal::Writer where T: 'static + ?core::marker::Sized
+pub fn nika_dap::cost_journal::Writer::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::cost_journal::Writer where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::Writer::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::cost_journal::Writer where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::Writer::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::cost_journal::Writer where T: core::clone::Clone
+pub unsafe fn nika_dap::cost_journal::Writer::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::cost_journal::Writer
+pub fn nika_dap::cost_journal::Writer::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::cost_journal::Writer where T: core::clone::Clone
+pub fn nika_dap::cost_journal::Writer::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::cost_journal::Writer where T: 'static
+pub fn nika_dap::cost_journal::Writer::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::cost_journal::Writer where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::Writer::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::cost_journal::Writer::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::cost_journal::Writer
+impl<T> tracing::instrument::WithSubscriber for nika_dap::cost_journal::Writer
+impl<T> typenum::type_operators::Same for nika_dap::cost_journal::Writer
+pub type nika_dap::cost_journal::Writer::Output = T
+pub const nika_dap::cost_journal::JOURNAL: &str
+pub fn nika_dap::cost_journal::append_row(nika: &nika_fs::owned_dir::OwnedDir, row: &str) -> core::io::error::Result<()>
+pub fn nika_dap::cost_journal::fold(nika: &nika_fs::owned_dir::OwnedDir, host: &str, observer: &str) -> core::io::error::Result<nika_dap::cost_journal::Exposures>
+pub fn nika_dap::cost_journal::refusal(exposures: &nika_dap::cost_journal::Exposures) -> alloc::string::String
+pub fn nika_dap::cost_journal::take(nika: &nika_fs::owned_dir::OwnedDir, writer: &nika_dap::cost_journal::Writer) -> core::io::error::Result<nika_dap::cost_journal::Taken>
 pub mod nika_dap::cost_replay
 #[non_exhaustive] pub enum nika_dap::cost_replay::Agreement
 pub nika_dap::cost_replay::Agreement::Agrees

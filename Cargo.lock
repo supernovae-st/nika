@@ -4775,6 +4775,7 @@ dependencies = [
  "nika-check",
  "nika-display",
  "nika-event",
+ "nika-fs",
  "nika-kernel",
  "nika-kernel-mock",
  "nika-runtime",

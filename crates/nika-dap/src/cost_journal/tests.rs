@@ -3,7 +3,8 @@
 //! The journal fold: settled rows clear, an uncertain settlement blocks, a
 //! leased row whose writer is gone becomes ONE durable unknown, a row no lease
 //! covers is never judged, and a row cut mid-write is named by its digest.
-//! Rows are appended, never rewritten.
+//! Rows are appended, never rewritten. The lease: held refuses, released is
+//! taken again. (Moved with the code from nika-cli-host's `run_cost`.)
 #![allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 use super::*;
 use serde_json::json;
@@ -233,4 +234,24 @@ fn the_refusal_names_each_run_and_its_evidence() {
     assert!(text.contains("Run run-c was admitted and never settled"));
     assert!(text.contains("no automatic retry"));
     assert!(text.contains(".nika/inference-cost-observations.ndjson"));
+}
+
+/// A held lease refuses a second holder and names it; a dropped lease is taken
+/// again (the kernel's release is the whole liveness proof).
+#[test]
+fn a_held_lease_is_busy_and_a_released_one_is_taken_again() {
+    let (root, nika) = project(&[]);
+    let writer = Writer::this_process();
+    let Taken::Held(lease) = take(&nika, &writer).unwrap() else {
+        panic!("a free lease is taken");
+    };
+    match take(&nika, &writer).unwrap() {
+        Taken::Busy { pid } => assert_eq!(pid, Some(u64::from(writer.pid))),
+        Taken::Held(_) => panic!("a held lease is never shared"),
+    }
+    drop(lease);
+    assert!(matches!(take(&nika, &writer).unwrap(), Taken::Held(_)));
+    let record = std::fs::read_to_string(root.path().join(".nika").join(LEASE)).unwrap();
+    let record: serde_json::Value = serde_json::from_str(&record).unwrap();
+    assert_eq!(record, writer.json());
 }

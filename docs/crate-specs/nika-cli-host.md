@@ -119,6 +119,10 @@ projection. CLI retains thin compatibility exports and still owns dispatch.
 The project default is read through `nika-vocab`; the journal uses `nika-fs`
 `OwnedDir`. Neither move changes default/cap precedence, request/token/time
 bounds, route binding, uncertain-charge stop, or subscription separation.
+Since 2026-09-28 the journal's writer lease, strict fold (a killed Run's
+UNKNOWN, recorded once) and torn-tail append live in `nika_dap::cost_journal`
+(descended at the 15k wall); `run_cost` keeps the question, the live account
+and its rows (`prepared` · `settled` · settle-on-drop).
 
 `lines::fresh_terminal` is the fresh-input boundary of both local spending doors:
 the plain session before its `continue once? ›` prompt, and `ReviewChannel::Terminal`

@@ -66,6 +66,7 @@ pub mod store      { TRACE_DIR · TraceState · TraceMeta · scan · fold_facts 
 pub mod retention  { RetentionConfig · Reason · GcReport · plan · newest_per_workflow · collect }
 pub mod journal    { TraceFileSink · JsonSink · Tee · seal_journal }   // the WRITE half (descended 2026-07-22)
 pub mod resume     { ResumeRequest · PlanFold · fold_plan · apply_from · parse_answers · summary_line }   // ADR-099 (descended 2026-07-22)
+pub mod cost_journal { JOURNAL · Writer · Lease · Taken · take · Exposure · Blocker · Exposures · fold · refusal · append_row }   // billing evidence (descended 2026-09-28)
 ```
 
 Consumers: `nika-cli` (the bin's `Command::Dap` arm + the re-exported
@@ -88,6 +89,20 @@ thiserror — the absorption is L4-legal). Every moved type follows
 FCI-002/FCI-016 (`#[non_exhaustive]` + `new()` per invariant #19);
 the two cli-side exhaustive `TraceState` matches gained honest
 wildcard arms.
+
+## 6. The cost journal descent (2026-09-28)
+
+`nika-cli-host` crossed the 15k wall with the paid Run's durable settlement
+(P3): the writer lease beside `.nika/inference-cost-observations.ndjson`, the
+strict fold that records a killed Run's UNKNOWN once, and the torn-tail append.
+They come home beside `liveness` (the same ADR-129 lease law, applied to billing
+evidence) as `cost_journal`: descriptor-rooted through `nika-fs` `OwnedDir`
+(the one new dependency edge), `std::io::Result` at the boundary (invalid
+journal data is `InvalidData`, never a bare `String`), every public type
+`#[non_exhaustive]` with `new()` where it is constructed. The host keeps the
+question, the live account and its own rows (`prepared` · `settled` ·
+settle-on-drop); the fold, the lease and the refusal wording moved unchanged,
+their tests with them.
 
 ## 4. Gates at admission (2026-07-09)
 

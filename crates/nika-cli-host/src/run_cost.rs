@@ -10,11 +10,10 @@ use nika_providers::admission::{CostHostEvidence, CostReview, CostRoute, monetar
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 mod exchange;
-mod lease;
 mod readiness;
 mod shape;
-mod unsettled;
 pub use exchange::ReviewChannel;
+use nika_dap::cost_journal;
 pub(crate) use readiness::readiness;
 
 /// A fresh Run decision and its observation journal; never recovered authority.
@@ -49,9 +48,9 @@ struct Journal {
     account: InferenceAdmission,
     root: std::path::PathBuf,
     invocation: String,
-    writer: lease::Writer,
+    writer: cost_journal::Writer,
     settled: AtomicBool,
-    _lease: lease::Lease,
+    _lease: cost_journal::Lease,
 }
 impl Journal {
     fn observe(&self, phase: &str) -> Result<(), String> {
@@ -60,7 +59,7 @@ impl Journal {
             "phase":phase, "observation":receipt.observation(), "lease":self.writer.json()});
         nika_fs::OwnedDir::open(&self.root)
             .and_then(|d| d.create_below(&[".nika"]))
-            .and_then(|d| unsettled::append_row(&d, &row.to_string()))
+            .and_then(|d| cost_journal::append_row(&d, &row.to_string()))
             .map_err(|e| e.to_string())
     }
     fn settle(&self) -> Result<(), String> {
@@ -84,26 +83,32 @@ impl Drop for Journal {
 
 /// Take the writer lease and read what earlier Runs left, before any question:
 /// a live Run that has not settled, or an exposure not yet reconciled, refuses.
-fn clear_exposure(root: &Path, observer: &str) -> Result<(lease::Lease, lease::Writer), String> {
+fn clear_exposure(
+    root: &Path,
+    observer: &str,
+) -> Result<(cost_journal::Lease, cost_journal::Writer), String> {
     let nika = nika_fs::OwnedDir::open(root)
         .and_then(|d| d.create_below(&[".nika"]))
         .map_err(|e| e.to_string())?;
-    let writer = lease::Writer::this_process();
-    let held = match lease::take(&nika, &writer)? {
-        lease::Taken::Held(held) => held,
-        lease::Taken::Busy { pid } => {
-            let holder = pid.map_or_else(
-                || "an unnamed process holds its cost lease".to_owned(),
-                |pid| format!("process {pid} holds its cost lease"),
-            );
+    let writer = cost_journal::Writer::this_process();
+    let held = match cost_journal::take(&nika, &writer).map_err(|e| e.to_string())? {
+        cost_journal::Taken::Held(held) => held,
+        // Busy, or an outcome this host does not know: never a second writer.
+        busy => {
+            let holder = match busy {
+                cost_journal::Taken::Busy { pid: Some(pid) } => {
+                    format!("process {pid} holds its cost lease")
+                }
+                _ => "an unnamed process holds its cost lease".to_owned(),
+            };
             return Err(format!(
                 "another unknown-cost Run in this project has not settled yet ({holder}) · no second Run, no automatic retry"
             ));
         }
     };
-    let exposures = unsettled::fold(&nika, &writer.host, observer)?;
+    let exposures = cost_journal::fold(&nika, &writer.host, observer).map_err(|e| e.to_string())?;
     if !exposures.is_clear() {
-        return Err(unsettled::refusal(&exposures));
+        return Err(cost_journal::refusal(&exposures));
     }
     Ok((held, writer))
 }
@@ -212,8 +217,8 @@ fn witness(
     clippy::disallowed_types
 )]
 mod tests {
-    use super::unsettled::JOURNAL;
     use super::*;
+    use nika_dap::cost_journal::JOURNAL;
     use std::io::BufRead as _;
     fn cost(root: &Path) -> RunCost {
         let route = CostRoute::observe(
@@ -239,8 +244,8 @@ mod tests {
             .unwrap()
             .create_below(&[".nika"])
             .unwrap();
-        let writer = lease::Writer::this_process();
-        let lease::Taken::Held(held) = lease::take(&nika, &writer).unwrap() else {
+        let writer = cost_journal::Writer::this_process();
+        let cost_journal::Taken::Held(held) = cost_journal::take(&nika, &writer).unwrap() else {
             panic!("a fresh project's cost lease is free");
         };
         let journal = Journal {

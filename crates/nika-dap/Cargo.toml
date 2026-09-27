@@ -21,6 +21,7 @@ nika-vocab  = { path = "../nika-vocab", version = "0.121.0" }   # the project fi
 nika-runtime = { path = "../nika-runtime", version = "0.121.0" }  # the proof layer (preimage · receipt · semantic hash) — seal canonicalization + the evidence pack's fold
 nika-kernel = { path = "../nika-kernel", version = "0.121.0" }   # the HttpPostDyn seam the anchor's submit rides
 nika-store  = { path = "../nika-store", version = "0.121.0" }    # F-P8 signed memory — the teardown's `covers["memory"]` fold substrate (memory::attend)
+nika-fs     = { path = "../nika-fs", version = "0.121.0" }      # descriptor-rooted cost observation journal + its writer lease (cost_journal · descended from nika-cli-host 2026-09-28)
 sha2        = { workspace = true }                              # the chain primitive + source identity (one voice)
 # The trust plane (descended from nika-cli 2026-07-21 · the 15k wall —
 # compute descends, render stays): seal custody · workflow signing.

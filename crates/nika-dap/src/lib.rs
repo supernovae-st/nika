@@ -26,6 +26,7 @@
 pub mod anchor;
 pub mod bounded;
 pub mod chain;
+pub mod cost_journal;
 pub mod cost_replay;
 pub mod drift;
 pub mod evidence;
