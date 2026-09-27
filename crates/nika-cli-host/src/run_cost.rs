@@ -7,96 +7,105 @@
 
 use nika_providers::InferenceAdmission;
 use nika_providers::admission::{CostHostEvidence, CostReview, CostRoute, monetary_default};
-use std::io::Read as _;
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 mod exchange;
+mod lease;
 mod readiness;
 mod shape;
+mod unsettled;
 pub use exchange::ReviewChannel;
 pub(crate) use readiness::readiness;
-const JOURNAL: &str = "inference-cost-observations.ndjson";
 
 /// A fresh Run decision and its observation journal; never recovered authority.
 #[non_exhaustive]
 pub struct RunCost {
     pub account: InferenceAdmission,
     pub config: nika_runtime::RuntimeConfig,
-    root: std::path::PathBuf,
-    invocation: String,
+    journal: Journal,
 }
 impl RunCost {
     /// Append observation only; no callable authority is serialized.
     /// # Errors
     /// Unreadable account or unwritable descriptor-rooted journal.
     pub fn observe(&self, phase: &str) -> Result<(), String> {
-        let receipt = self.account.snapshot().map_err(|e| e.to_string())?;
-        let row = serde_json::json!({"schema":"nika/run-cost-observation@1", "invocation":self.invocation,
-            "phase":phase, "observation":receipt.observation()});
-        nika_fs::OwnedDir::open(&self.root)
-            .and_then(|d| d.create_below(&[".nika"]))
-            .and_then(|d| d.append_line(JOURNAL, &row.to_string()))
-            .map_err(|e| e.to_string())
+        self.journal.observe(phase)
     }
     /// Close live authority and persist the final observation, including uncertainty.
     /// # Errors
     /// Account closure or journal failure; the caller must report possible billing.
     pub fn finish(&self) -> Result<(), String> {
+        self.journal.settle()
+    }
+}
+
+/// The Run's side of the journal. It holds the writer lease from before the
+/// `prepared` row until after the `settled` one, and every row it writes names
+/// that writer. A Run that ends without `finish` (an early return, an unwinding
+/// panic) still settles what its account observed when this drops; only a
+/// process that dies leaves `prepared` behind, and its released lease lets the
+/// next review record that Run as unknown.
+struct Journal {
+    account: InferenceAdmission,
+    root: std::path::PathBuf,
+    invocation: String,
+    writer: lease::Writer,
+    settled: AtomicBool,
+    _lease: lease::Lease,
+}
+impl Journal {
+    fn observe(&self, phase: &str) -> Result<(), String> {
+        let receipt = self.account.snapshot().map_err(|e| e.to_string())?;
+        let row = serde_json::json!({"schema":"nika/run-cost-observation@1", "invocation":self.invocation,
+            "phase":phase, "observation":receipt.observation(), "lease":self.writer.json()});
+        nika_fs::OwnedDir::open(&self.root)
+            .and_then(|d| d.create_below(&[".nika"]))
+            .and_then(|d| unsettled::append_row(&d, &row.to_string()))
+            .map_err(|e| e.to_string())
+    }
+    fn settle(&self) -> Result<(), String> {
         self.account
             .close("Run ended; fresh decision required")
             .map_err(|e| e.to_string())?;
-        self.observe("settled")
+        self.observe("settled")?;
+        self.settled.store(true, Ordering::SeqCst);
+        Ok(())
     }
 }
-fn exposure_clear(root: &Path) -> Result<(), String> {
-    let file = nika_fs::OwnedDir::open(root)
-        .and_then(|d| d.open_below(&[".nika"]))
-        .and_then(|d| d.open_relative(Path::new(JOURNAL)));
-    let mut text = String::new();
-    match file {
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-        Err(e) => return Err(e.to_string()),
-        Ok(f) => {
-            f.take(1_048_577)
-                .read_to_string(&mut text)
-                .map_err(|e| e.to_string())?;
+impl Drop for Journal {
+    fn drop(&mut self) {
+        if !self.settled.load(Ordering::SeqCst) {
+            // Best effort while the lease is still held: a failure leaves the
+            // `prepared` row, which the next review records as unknown.
+            let _ = self.settle();
         }
     }
-    if text.len() > 1_048_576 {
-        return Err("cost observation journal exceeds the read bound".into());
-    }
-    let mut latest = std::collections::BTreeMap::new();
-    for line in text.lines() {
-        let row: serde_json::Value = serde_json::from_str(line).map_err(|e| e.to_string())?;
-        let id = row["invocation"]
-            .as_str()
-            .ok_or("unreadable cost invocation")?
-            .to_owned();
-        if row["schema"] != "nika/run-cost-observation@1" {
-            return Err("unrecognized cost observation".into());
+}
+
+/// Take the writer lease and read what earlier Runs left, before any question:
+/// a live Run that has not settled, or an exposure not yet reconciled, refuses.
+fn clear_exposure(root: &Path, observer: &str) -> Result<(lease::Lease, lease::Writer), String> {
+    let nika = nika_fs::OwnedDir::open(root)
+        .and_then(|d| d.create_below(&[".nika"]))
+        .map_err(|e| e.to_string())?;
+    let writer = lease::Writer::this_process();
+    let held = match lease::take(&nika, &writer)? {
+        lease::Taken::Held(held) => held,
+        lease::Taken::Busy { pid } => {
+            let holder = pid.map_or_else(
+                || "an unnamed process holds its cost lease".to_owned(),
+                |pid| format!("process {pid} holds its cost lease"),
+            );
+            return Err(format!(
+                "another unknown-cost Run in this project has not settled yet ({holder}) · no second Run, no automatic retry"
+            ));
         }
-        let observation = &row["observation"];
-        if observation["schema"] != "nika/inference-cost-observation@1"
-            || observation["known_subtotal_nano_usd"]
-                .as_str()
-                .and_then(|v| v.parse::<i128>().ok())
-                .is_none()
-            || observation["unknown_calls"].as_u64().is_none()
-            || !matches!(
-                observation["state"].as_str(),
-                Some("Open" | "Closed" | "Uncertain")
-            )
-        {
-            return Err("unreadable cost observation; prior exposure is unknown".into());
-        }
-        latest.insert(id, row);
+    };
+    let exposures = unsettled::fold(&nika, &writer.host, observer)?;
+    if !exposures.is_clear() {
+        return Err(unsettled::refusal(&exposures));
     }
-    if latest
-        .values()
-        .any(|r| r["phase"] != "settled" || r["observation"]["state"] == "Uncertain")
-    {
-        return Err("an earlier dispatch has uncertain billing; inspect/reconcile its observation before a new Run, no automatic retry".into());
-    }
-    Ok(())
+    Ok((held, writer))
 }
 /// Unsupported hosts and workflow shapes never borrow this approval.
 /// # Errors
@@ -129,7 +138,7 @@ pub fn review(
     if invocation_default == Some(0.0) {
         return Err("zero invocation ceiling refuses unknown spend before HTTP".into());
     }
-    exposure_clear(root)?;
+    let (held, writer) = clear_exposure(root, &invocation)?;
     let config_root = std::env::current_dir().map_err(|e| e.to_string())?;
     let project =
         nika_vocab::project::discover_reachable(&config_root).map_err(|e| e.to_string())?;
@@ -170,11 +179,18 @@ pub fn review(
     let config = nika_runtime::RuntimeConfig::new(None, 0)
         .with_inference_admission(&account, &actual_candidate, &invocation)
         .map_err(|e| e.to_string())?;
+    let journal = Journal {
+        account: account.clone(),
+        root: root.into(),
+        invocation,
+        writer,
+        settled: AtomicBool::new(false),
+        _lease: held,
+    };
     let choice = RunCost {
         account,
         config,
-        root: root.into(),
-        invocation,
+        journal,
     };
     choice.observe("prepared")?;
     Ok(Some(choice))
@@ -189,9 +205,16 @@ fn witness(
 }
 
 #[cfg(test)]
-#[allow(clippy::expect_used, clippy::unwrap_used)]
+#[allow(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::disallowed_types
+)]
 mod tests {
+    use super::unsettled::JOURNAL;
     use super::*;
+    use std::io::BufRead as _;
     fn cost(root: &Path) -> RunCost {
         let route = CostRoute::observe(
             "deepseek/deepseek-v4-pro",
@@ -212,30 +235,80 @@ mod tests {
         let config = nika_runtime::RuntimeConfig::new(None, 0)
             .with_inference_admission(&account, "candidate", "run-1")
             .unwrap();
+        let nika = nika_fs::OwnedDir::open(root)
+            .unwrap()
+            .create_below(&[".nika"])
+            .unwrap();
+        let writer = lease::Writer::this_process();
+        let lease::Taken::Held(held) = lease::take(&nika, &writer).unwrap() else {
+            panic!("a fresh project's cost lease is free");
+        };
+        let journal = Journal {
+            account: account.clone(),
+            root: root.into(),
+            invocation: "run-1".into(),
+            writer,
+            settled: AtomicBool::new(false),
+            _lease: held,
+        };
         RunCost {
             account,
             config,
-            root: root.into(),
-            invocation: "run-1".into(),
+            journal,
         }
+    }
+    fn rows(root: &Path) -> Vec<serde_json::Value> {
+        std::fs::read_to_string(root.join(".nika").join(JOURNAL))
+            .unwrap()
+            .lines()
+            .map(|line| serde_json::from_str(line).unwrap())
+            .collect()
     }
     #[test]
     fn prepared_run_is_not_replayed_and_settled_observation_cannot_restore_authority() {
         let root = tempfile::tempdir().unwrap();
         let cost = cost(root.path());
         cost.observe("prepared").unwrap();
-        assert!(exposure_clear(root.path()).is_err());
+        let live = clear_exposure(root.path(), "run-2").unwrap_err();
+        assert!(live.contains("has not settled yet"), "{live}");
         cost.finish().unwrap();
-        assert!(exposure_clear(root.path()).is_ok());
-        let text = std::fs::read_to_string(root.path().join(".nika").join(JOURNAL)).unwrap();
-        let row: serde_json::Value = serde_json::from_str(text.lines().last().unwrap()).unwrap();
+        let rows_now = rows(root.path());
+        let row = rows_now.last().unwrap();
+        assert_eq!(row["phase"], "settled");
         assert_eq!(row["observation"]["known_subtotal_nano_usd"], "0");
         assert_eq!(row["observation"]["unknown_calls"], 0);
         assert!(row["observation"]["limit_nano_usd"].is_null());
+        assert_eq!(row["lease"]["pid"], std::process::id());
         assert_eq!(
             cost.account.snapshot().unwrap().state,
             nika_providers::AdmissionState::Closed
         );
+        drop(cost);
+        assert!(clear_exposure(root.path(), "run-2").is_ok());
+        assert_eq!(rows(root.path()).len(), 2, "a settled Run settles once");
+    }
+    /// Control · an early return after `prepared` (a pre-dispatch failure before
+    /// the runtime starts) is no death: dropping the unfinished Run settles what
+    /// its account observed — closed, nothing sent — and never reads unknown.
+    #[test]
+    fn a_run_that_ends_without_finish_settles_what_its_account_observed() {
+        let root = tempfile::tempdir().unwrap();
+        let cost = cost(root.path());
+        cost.observe("prepared").unwrap();
+        drop(cost);
+        let rows = rows(root.path());
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[1]["phase"], "settled");
+        assert_eq!(rows[1]["observation"]["state"], "Closed");
+        assert_eq!(rows[1]["observation"]["unknown_calls"], 0);
+        assert!(clear_exposure(root.path(), "run-2").is_ok());
+    }
+    /// The private journal (lease · settle-on-drop) keeps the public type's
+    /// auto traits: a host may still move a reviewed Run across threads.
+    #[test]
+    fn a_reviewed_run_stays_send_and_sync() {
+        fn send_sync<T: Send + Sync>() {}
+        send_sync::<RunCost>();
     }
     #[test]
     fn missing_or_corrupt_observation_fields_fail_closed() {
@@ -249,6 +322,77 @@ mod tests {
             r#"{"schema":"nika/run-cost-observation@1","invocation":"run-1","phase":"settled"}"#,
         )
         .unwrap();
-        assert!(exposure_clear(root.path()).is_err());
+        assert!(clear_exposure(root.path(), "run-2").is_err());
+    }
+    /// The killed writer: prepares under the lease, names itself, then waits to
+    /// be killed. Only the parent test below enters it (the marker file).
+    #[test]
+    fn killed_writer_fixture_child() {
+        if !Path::new(".p3-killed-writer-fixture").exists() {
+            return;
+        }
+        let cost = cost(Path::new("."));
+        cost.observe("prepared").unwrap();
+        println!("PREPARED {}", std::process::id());
+        std::thread::sleep(std::time::Duration::from_secs(30));
+        drop(cost);
+    }
+    /// P3 · a writer killed after `prepared` runs no handler. While it lives its
+    /// lease refuses a second review and nothing is judged; once the kernel has
+    /// released it, the next review records THAT Run as unknown — once, appended
+    /// after the untouched row it was derived from — and still refuses.
+    #[test]
+    fn a_killed_writer_is_recorded_unknown_by_the_next_review_and_still_blocks() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::write(root.path().join(".p3-killed-writer-fixture"), "test only").unwrap();
+        let mut child = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "run_cost::tests::killed_writer_fixture_child",
+                "--nocapture",
+                "--quiet",
+            ])
+            .current_dir(root.path())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .unwrap();
+        let mut out = std::io::BufReader::new(child.stdout.take().unwrap());
+        let pid: u64 = loop {
+            let mut line = String::new();
+            assert!(out.read_line(&mut line).unwrap() > 0, "the child prepared");
+            if let Some(pid) = line.trim().strip_prefix("PREPARED ") {
+                break pid.parse().unwrap();
+            }
+        };
+        let live = clear_exposure(root.path(), "run-2").unwrap_err();
+        child.kill().unwrap();
+        child.wait().unwrap();
+        assert!(
+            live.contains(&format!("process {pid} holds its cost lease")),
+            "{live}"
+        );
+        assert_eq!(rows(root.path()).len(), 1, "a live writer is never judged");
+        let refused = clear_exposure(root.path(), "run-2").unwrap_err();
+        assert!(
+            refused.contains(&format!(
+                "Run run-1 ended without a settlement and its process {pid} is gone"
+            )),
+            "{refused}"
+        );
+        let text = std::fs::read_to_string(root.path().join(".nika").join(JOURNAL)).unwrap();
+        let lines: Vec<&str> = text.lines().collect();
+        assert_eq!(lines.len(), 2, "one durable unknown, appended");
+        let derived: serde_json::Value = serde_json::from_str(lines[1]).unwrap();
+        assert_eq!(derived["invocation"], "run-1");
+        assert_eq!(derived["phase"], "unknown");
+        assert_eq!(derived["unsettled"]["writer"]["pid"], pid);
+        assert_eq!(
+            derived["unsettled"]["prior_sha256"],
+            nika_event::source_id::sha256_hex(lines[0].as_bytes())
+        );
+        assert_eq!(derived["unsettled"]["observed_by"], "run-2");
+        assert!(clear_exposure(root.path(), "run-3").is_err(), "no retry");
+        assert_eq!(rows(root.path()).len(), 2, "recorded once");
     }
 }
