@@ -40,6 +40,9 @@ pub mod compile {
     pub use nika_compile_cognition::{
         Cognition, NoProvider, compile_with_cognition, compile_with_provider, decide,
     };
+    /// The Meaning view of an outcome's obligation ledger — what survived of the request,
+    /// clause by clause — owned beside the ledger it reads.
+    pub mod meaning;
 }
 pub mod fixtures;
 pub mod founding;

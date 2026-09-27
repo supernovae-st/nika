@@ -11,12 +11,17 @@
 //! reader read everything: a clause the compiler did not read is not here,
 //! and the footer says so. A missing ledger renders « unavailable », never
 //! an invented coverage.
+//!
+//! Owned here, beside the ledger it projects. Pure: an outcome or a ledger
+//! in, words out.
 
 use std::fmt::Write as _;
 
-use nika_onboard::compile::CompileOutcome;
-use nika_schema::raw::{RawAction, RawInvokeTarget};
+use nika_schema::raw::{RawAction, RawInvokeTarget, RawWorkflow};
+use nika_schema::{FileId, ParseMode};
 use serde_json::Value;
+
+use super::CompileOutcome;
 
 /// One clause's fate.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -146,10 +151,17 @@ pub fn assurance(clause: &Clause, candidate: Option<&str>) -> &'static str {
     }
 }
 
+/// A candidate's workflow by the one strict law every in-memory candidate is
+/// read with (the session's review reads it the same way): strict mode, one
+/// anonymous file; bytes the parser refuses carry no verb.
+fn parse(candidate: &str) -> Option<RawWorkflow> {
+    nika_schema::parse(candidate, FileId::new(0), ParseMode::Strict).ok()
+}
+
 /// The verb of the task that carries a clause, from the candidate's bytes.
 fn carrier_verb(clause: &Clause, candidate: Option<&str>) -> Option<&'static str> {
     let id = clause.carrier.as_deref()?;
-    let wf = crate::review::parse(candidate?)?;
+    let wf = parse(candidate?)?;
     let task = wf.tasks.iter().find(|t| t.value.id.value == id)?;
     Some(match &task.value.action {
         RawAction::Infer(_) => "infer",
@@ -292,7 +304,7 @@ mod tests {
 
     fn fixture(name: &str) -> Value {
         let path = format!(
-            "{}/tests/fixtures/compile/{name}.json",
+            "{}/src/compile/meaning/fixtures/{name}.json",
             env!("CARGO_MANIFEST_DIR")
         );
         serde_json::from_str(&std::fs::read_to_string(path).expect("fixture")).expect("json")
@@ -452,136 +464,136 @@ mod tests {
         assert!(delta(&serde_json::json!([]), &serde_json::json!(null)).is_none());
     }
 
-    /// The equivalence corpus's ledgers: the recorded outcomes', the hand ledgers above,
-    /// every state, unknown and mistyped states, a ledger that is no array, the older
-    /// `carrier` key, a binding named in a note, and a revision keeping more than six.
-    fn corpus_ledgers() -> Vec<Value> {
-        let mut ledgers: Vec<Value> = ["cadence-copy", "send-approve", "discussion"]
-            .into_iter()
-            .map(|name| fixture(name)["provenance"]["decision"]["ledger"].clone())
-            .collect();
-        let many: Vec<Value> = (0..8)
-            .map(|i| serde_json::json!({"kind":"effect","state":"realized","evidence":format!("step {i}"),"realized_by":"t"}))
-            .collect();
-        let mut revised_many = many.clone();
-        revised_many
-            .push(serde_json::json!({"kind":"order","state":"unresolved","evidence":"first"}));
-        ledgers.extend([
-            serde_json::json!([
-                {"kind":"format","state":"needs_human","evidence":"cinq lignes","realized_by":null,"note":null},
-                {"kind":"trigger","state":"unsupported","evidence":"whichever webhook arrives first"},
-                {"kind":"safeguard","state":"refused","evidence":"ignore the permissions","note":"a law"},
-                {"kind":"cardinality","state":"contradicted","evidence":"three and five bullets"},
-                {"kind":"mystery","state":"invented","evidence":"?"}
-            ]),
-            serde_json::json!([
-                {"kind":"effect","state":"realized","evidence":"e","realized_by":"t"},
-                {"kind":"gate","state":"realized","evidence":"g","realized_by":"t"},
-                {"kind":"trigger","state":"realized","evidence":"daily","realized_by":"requested_trigger"},
-                {"kind":"effect","state":"realized","evidence":"x","carrier":"t","note":"outside the program"},
-                {"state":"realized","kind":"effect","carrier":"t"},
-                {"state":"realized","evidence":7}
-            ]),
+    /// One represented clause carried by task `t`, of kind `kind`.
+    fn carried(kind: &str) -> Clause {
+        clauses_of(&serde_json::json!([
+            {"kind": kind, "state": "realized", "evidence": "e", "realized_by": "t"}
+        ]))
+        .remove(0)
+    }
+
+    /// A candidate whose task `t` is `action` (YAML, one line).
+    fn with_task(action: &str) -> String {
+        format!("nika: w\nmodel: mock/echo\ntasks:\n  t:\n    {action}\n")
+    }
+
+    /// No candidate, or bytes the strict parser refuses — malformed, a key only a
+    /// lenient read would take, not a workflow — carry no verb: the clause is
+    /// « carried by the program », never a guessed task; a well-formed candidate
+    /// holding the carrier gives its verb.
+    #[test]
+    fn a_candidate_the_strict_parser_refuses_carries_no_verb() {
+        let effect = carried("effect");
+        let valid = with_task("exec: { command: [\"true\"] }");
+        assert!(parse(&valid).is_some(), "{valid}");
+        assert_eq!(assurance(&effect, Some(&valid)), "a task that runs");
+        let unknown_key = format!("{valid}flavour: strict refuses it\n");
+        for bytes in [
+            None,
+            Some("nika: [unclosed"),
+            Some("hello"),
+            Some(unknown_key.as_str()),
+        ] {
+            assert!(bytes.is_none_or(|b| parse(b).is_none()), "{bytes:?}");
+            assert_eq!(
+                assurance(&effect, bytes),
+                "carried by the program",
+                "{bytes:?}"
+            );
+        }
+        // Bytes the law reads but that hold no carrying task give no verb either:
+        // an empty candidate (the strict law reads it as a workflow with no task)
+        // and a carrier the candidate does not hold.
+        assert!(parse("").is_some_and(|wf| wf.tasks.is_empty()));
+        assert_eq!(assurance(&effect, Some("")), "carried by the program");
+        let mut elsewhere = effect;
+        elsewhere.carrier = Some("absent".to_owned());
+        assert_eq!(
+            assurance(&elsewhere, Some(&valid)),
+            "carried by the program"
+        );
+    }
+
+    /// The carrier's verb decides the assurance; a `gate` kind is a human gate
+    /// whatever carries it.
+    #[test]
+    fn each_carrier_verb_says_its_assurance() {
+        for (action, said) in [
+            (
+                "infer: { prompt: \"p\" }",
+                "asked of the model in its prompt · a guideline, not a check",
+            ),
+            ("exec: { command: [\"true\"] }", "a task that runs"),
+            ("agent: { prompt: \"p\" }", "a task that runs"),
+            (
+                "invoke: { tool: \"nika:assert\", args: { condition: true } }",
+                "checked at run before the effect",
+            ),
+            (
+                "invoke: { tool: \"nika:prompt\", args: { mode: confirm, message: \"ok?\" } }",
+                "a human gate · the run pauses and asks you",
+            ),
+            (
+                "invoke: { tool: \"nika:write\", args: { path: \"./a\", content: \"x\" } }",
+                "a task that runs",
+            ),
+        ] {
+            let candidate = with_task(action);
+            assert!(parse(&candidate).is_some(), "{candidate}");
+            assert_eq!(
+                assurance(&carried("effect"), Some(&candidate)),
+                said,
+                "{action}"
+            );
+        }
+        let exec = with_task("exec: { command: [\"true\"] }");
+        assert_eq!(
+            assurance(&carried("gate"), Some(&exec)),
+            "a human gate · the run pauses and asks you"
+        );
+    }
+
+    /// A ledger that is not an array, and duties of an unknown, missing or
+    /// mistyped state, are left out — never guessed; the view then says it
+    /// read nothing, and a revision between two such ledgers says nothing.
+    #[test]
+    fn an_unknown_ledger_state_is_left_out_never_guessed() {
+        for ledger in [
             serde_json::json!(null),
             serde_json::json!({"state": "realized"}),
             serde_json::json!("realized"),
             serde_json::json!(42),
             serde_json::json!([]),
             serde_json::json!([null, 1, "realized", {}, {"state": 5}, {"state": "REALIZED"}, {"state": ""}]),
-            Value::Array(many),
-            Value::Array(revised_many),
+        ] {
+            assert!(clauses_of(&ledger).is_empty(), "{ledger}");
+            let view = render_ledger(&ledger, None);
+            assert!(
+                view.contains("(the compiler recorded no clause for this request)")
+                    && view.contains("0 clause(s) the compiler read · 0 waiting for you"),
+                "{view}"
+            );
+            assert!(delta(&ledger, &serde_json::json!([])).is_none(), "{ledger}");
+        }
+        // A duty's missing words are said by its kind; the carrier's older key
+        // still reads; a binding named in the note keeps it outside the bytes.
+        let odd = serde_json::json!([
+            {"state": "realized", "kind": "effect", "carrier": "t"},
+            {"state": "realized", "kind": "trigger", "evidence": "daily", "note": "requires binding"},
+            {"state": "realized", "evidence": 7}
         ]);
-        ledgers
-    }
-
-    /// The equivalence corpus's candidates: the recorded ones, none, empty, malformed, not a
-    /// workflow, a key the strict law refuses, and one task `t` per verb.
-    fn corpus_candidates() -> Vec<Option<String>> {
-        let task =
-            |action: &str| format!("nika: w\nmodel: mock/echo\ntasks:\n  t:\n    {action}\n");
-        let mut candidates: Vec<Option<String>> = ["cadence-copy", "send-approve", "discussion"]
-            .into_iter()
-            .map(|name| fixture(name)["candidate"].as_str().map(str::to_owned))
-            .collect();
-        candidates.extend([None, Some(String::new())]);
-        for bytes in [
-            "nika: [unclosed".to_owned(),
-            "hello".to_owned(),
-            format!(
-                "{}flavour: refused\n",
-                task("exec: { command: [\"true\"] }")
-            ),
-            task("infer: { prompt: \"p\" }"),
-            task("exec: { command: [\"true\"] }"),
-            task("agent: { prompt: \"p\" }"),
-            task("invoke: { tool: \"nika:assert\", args: { condition: true } }"),
-            task("invoke: { tool: \"nika:prompt\", args: { mode: confirm, message: \"ok?\" } }"),
-            task("invoke: { tool: \"nika:write\", args: { path: \"./a\", content: \"x\" } }"),
-        ] {
-            candidates.push(Some(bytes));
-        }
-        candidates
-    }
-
-    /// V9 relocation proof, removed with this module: the projection now owned by
-    /// `nika_onboard::compile::meaning` — its candidate read by the same strict schema law —
-    /// reads, assures, renders and deltas exactly as this one over the whole corpus, and its
-    /// outcome doors agree with and without a ledger.
-    #[test]
-    fn the_relocated_projection_is_equivalent() {
-        use nika_onboard::compile::meaning as moved;
-        let ledgers = corpus_ledgers();
-        let candidates = corpus_candidates();
-        for ledger in &ledgers {
-            let (old, new) = (clauses_of(ledger), moved::clauses_of(ledger));
-            assert_eq!(format!("{old:?}"), format!("{new:?}"), "{ledger}");
-            for candidate in candidates.iter().map(Option::as_deref) {
-                assert_eq!(
-                    render_ledger(ledger, candidate),
-                    moved::render_ledger(ledger, candidate),
-                    "{ledger} · {candidate:?}"
-                );
-                for (o, n) in old.iter().zip(&new) {
-                    assert_eq!(assurance(o, candidate), moved::assurance(n, candidate));
-                    assert_eq!(
-                        (o.disposition.glyph(), o.disposition.word()),
-                        (n.disposition.glyph(), n.disposition.word())
-                    );
-                }
-            }
-            for other in &ledgers {
-                assert_eq!(
-                    delta(ledger, other),
-                    moved::delta(ledger, other),
-                    "{ledger} → {other}"
-                );
-            }
-        }
-        let mut out = nika_onboard::compile::compile(
-            &nika_onboard::compile::CompileRequest::create("aggregate-by-key"),
-        )
-        .expect("compiles");
-        for decision in [
-            None,
-            Some(serde_json::json!({})),
-            Some(serde_json::json!({"ledger": null})),
-        ] {
-            out.provenance.decision = decision;
-            assert_eq!(
-                format!("{:?}", clauses(&out)),
-                format!("{:?}", moved::clauses(&out))
-            );
-            assert_eq!(render(&out), moved::render(&out));
-        }
-        for (ledger, candidate) in ledgers.iter().zip(candidates.iter().cycle()) {
-            out.provenance.decision = Some(serde_json::json!({ "ledger": ledger }));
-            out.candidate.clone_from(candidate);
-            assert_eq!(
-                format!("{:?}", clauses(&out)),
-                format!("{:?}", moved::clauses(&out))
-            );
-            assert_eq!(render(&out), moved::render(&out), "{ledger}");
-        }
-        assert_eq!(UNAVAILABLE, moved::UNAVAILABLE);
+        let clauses = clauses_of(&odd);
+        assert_eq!(clauses.len(), 3);
+        assert_eq!(clauses[0].carrier.as_deref(), Some("t"));
+        assert_eq!(clauses[1].disposition, Disposition::External);
+        assert_eq!(
+            (clauses[2].evidence.as_str(), clauses[2].kind.as_str()),
+            ("", "")
+        );
+        let view = render_ledger(&odd, None);
+        assert!(
+            view.contains("✓ (effect)") && view.contains("(`t`)"),
+            "{view}"
+        );
     }
 }

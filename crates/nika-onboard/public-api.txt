@@ -50,6 +50,125 @@ pub use nika_onboard::compile::revise_intent
 pub use nika_onboard::compile::stated_destinations
 pub use nika_onboard::compile::stated_sources
 pub use nika_onboard::compile::text
+pub mod nika_onboard::compile::meaning
+#[non_exhaustive] pub enum nika_onboard::compile::meaning::Disposition
+pub nika_onboard::compile::meaning::Disposition::Contradicted
+pub nika_onboard::compile::meaning::Disposition::External
+pub nika_onboard::compile::meaning::Disposition::Gap
+pub nika_onboard::compile::meaning::Disposition::NeedsAnswer
+pub nika_onboard::compile::meaning::Disposition::Refused
+pub nika_onboard::compile::meaning::Disposition::Represented
+impl nika_onboard::compile::meaning::Disposition
+pub fn nika_onboard::compile::meaning::Disposition::glyph(self) -> &'static str
+pub fn nika_onboard::compile::meaning::Disposition::word(self) -> &'static str
+impl core::clone::Clone for nika_onboard::compile::meaning::Disposition
+pub fn nika_onboard::compile::meaning::Disposition::clone(&self) -> nika_onboard::compile::meaning::Disposition
+impl core::cmp::Eq for nika_onboard::compile::meaning::Disposition
+impl core::cmp::PartialEq for nika_onboard::compile::meaning::Disposition
+pub fn nika_onboard::compile::meaning::Disposition::eq(&self, other: &nika_onboard::compile::meaning::Disposition) -> bool
+impl core::fmt::Debug for nika_onboard::compile::meaning::Disposition
+pub fn nika_onboard::compile::meaning::Disposition::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_onboard::compile::meaning::Disposition
+impl core::marker::StructuralPartialEq for nika_onboard::compile::meaning::Disposition
+impl<D> owo_colors::OwoColorize for nika_onboard::compile::meaning::Disposition
+impl<Q, K> equivalent::Equivalent<K> for nika_onboard::compile::meaning::Disposition where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile::meaning::Disposition::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_onboard::compile::meaning::Disposition where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile::meaning::Disposition::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_onboard::compile::meaning::Disposition where U: core::convert::From<T>
+pub fn nika_onboard::compile::meaning::Disposition::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::meaning::Disposition where U: core::convert::Into<T>
+pub type nika_onboard::compile::meaning::Disposition::Error = core::convert::Infallible
+pub fn nika_onboard::compile::meaning::Disposition::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::meaning::Disposition where U: core::convert::TryFrom<T>
+pub type nika_onboard::compile::meaning::Disposition::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::compile::meaning::Disposition::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_onboard::compile::meaning::Disposition where T: core::clone::Clone
+pub type nika_onboard::compile::meaning::Disposition::Owned = T
+pub fn nika_onboard::compile::meaning::Disposition::clone_into(&self, target: &mut T)
+pub fn nika_onboard::compile::meaning::Disposition::to_owned(&self) -> T
+impl<T> core::any::Any for nika_onboard::compile::meaning::Disposition where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::compile::meaning::Disposition::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::compile::meaning::Disposition where T: ?core::marker::Sized
+pub fn nika_onboard::compile::meaning::Disposition::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::compile::meaning::Disposition where T: ?core::marker::Sized
+pub fn nika_onboard::compile::meaning::Disposition::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_onboard::compile::meaning::Disposition where T: core::clone::Clone
+pub unsafe fn nika_onboard::compile::meaning::Disposition::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_onboard::compile::meaning::Disposition
+pub fn nika_onboard::compile::meaning::Disposition::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_onboard::compile::meaning::Disposition where T: core::clone::Clone
+pub fn nika_onboard::compile::meaning::Disposition::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_onboard::compile::meaning::Disposition where T: 'static
+pub fn nika_onboard::compile::meaning::Disposition::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_onboard::compile::meaning::Disposition where T: core::marker::Copy
+pub fn nika_onboard::compile::meaning::Disposition::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::compile::meaning::Disposition where T: ?core::marker::Sized
+pub fn nika_onboard::compile::meaning::Disposition::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::compile::meaning::Disposition::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::compile::meaning::Disposition
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::meaning::Disposition
+impl<T> typenum::type_operators::Same for nika_onboard::compile::meaning::Disposition
+pub type nika_onboard::compile::meaning::Disposition::Output = T
+#[non_exhaustive] pub struct nika_onboard::compile::meaning::Clause
+pub nika_onboard::compile::meaning::Clause::carrier: core::option::Option<alloc::string::String>
+pub nika_onboard::compile::meaning::Clause::disposition: nika_onboard::compile::meaning::Disposition
+pub nika_onboard::compile::meaning::Clause::evidence: alloc::string::String
+pub nika_onboard::compile::meaning::Clause::kind: alloc::string::String
+pub nika_onboard::compile::meaning::Clause::note: core::option::Option<alloc::string::String>
+impl core::clone::Clone for nika_onboard::compile::meaning::Clause
+pub fn nika_onboard::compile::meaning::Clause::clone(&self) -> nika_onboard::compile::meaning::Clause
+impl core::cmp::Eq for nika_onboard::compile::meaning::Clause
+impl core::cmp::PartialEq for nika_onboard::compile::meaning::Clause
+pub fn nika_onboard::compile::meaning::Clause::eq(&self, other: &nika_onboard::compile::meaning::Clause) -> bool
+impl core::fmt::Debug for nika_onboard::compile::meaning::Clause
+pub fn nika_onboard::compile::meaning::Clause::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_onboard::compile::meaning::Clause
+impl<D> owo_colors::OwoColorize for nika_onboard::compile::meaning::Clause
+impl<Q, K> equivalent::Equivalent<K> for nika_onboard::compile::meaning::Clause where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile::meaning::Clause::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_onboard::compile::meaning::Clause where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile::meaning::Clause::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_onboard::compile::meaning::Clause where U: core::convert::From<T>
+pub fn nika_onboard::compile::meaning::Clause::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::meaning::Clause where U: core::convert::Into<T>
+pub type nika_onboard::compile::meaning::Clause::Error = core::convert::Infallible
+pub fn nika_onboard::compile::meaning::Clause::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::meaning::Clause where U: core::convert::TryFrom<T>
+pub type nika_onboard::compile::meaning::Clause::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::compile::meaning::Clause::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_onboard::compile::meaning::Clause where T: core::clone::Clone
+pub type nika_onboard::compile::meaning::Clause::Owned = T
+pub fn nika_onboard::compile::meaning::Clause::clone_into(&self, target: &mut T)
+pub fn nika_onboard::compile::meaning::Clause::to_owned(&self) -> T
+impl<T> core::any::Any for nika_onboard::compile::meaning::Clause where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::compile::meaning::Clause::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::compile::meaning::Clause where T: ?core::marker::Sized
+pub fn nika_onboard::compile::meaning::Clause::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::compile::meaning::Clause where T: ?core::marker::Sized
+pub fn nika_onboard::compile::meaning::Clause::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_onboard::compile::meaning::Clause where T: core::clone::Clone
+pub unsafe fn nika_onboard::compile::meaning::Clause::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_onboard::compile::meaning::Clause
+pub fn nika_onboard::compile::meaning::Clause::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_onboard::compile::meaning::Clause where T: core::clone::Clone
+pub fn nika_onboard::compile::meaning::Clause::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_onboard::compile::meaning::Clause where T: 'static
+pub fn nika_onboard::compile::meaning::Clause::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::compile::meaning::Clause where T: ?core::marker::Sized
+pub fn nika_onboard::compile::meaning::Clause::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::compile::meaning::Clause::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::compile::meaning::Clause
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::meaning::Clause
+impl<T> typenum::type_operators::Same for nika_onboard::compile::meaning::Clause
+pub type nika_onboard::compile::meaning::Clause::Output = T
+pub const nika_onboard::compile::meaning::UNAVAILABLE: &str
+pub fn nika_onboard::compile::meaning::assurance(clause: &nika_onboard::compile::meaning::Clause, candidate: core::option::Option<&str>) -> &'static str
+pub fn nika_onboard::compile::meaning::clauses(out: &nika_compile::types::CompileOutcome) -> core::option::Option<alloc::vec::Vec<nika_onboard::compile::meaning::Clause>>
+pub fn nika_onboard::compile::meaning::clauses_of(ledger: &serde_json::value::Value) -> alloc::vec::Vec<nika_onboard::compile::meaning::Clause>
+pub fn nika_onboard::compile::meaning::delta(base: &serde_json::value::Value, revised: &serde_json::value::Value) -> core::option::Option<alloc::string::String>
+pub fn nika_onboard::compile::meaning::render(out: &nika_compile::types::CompileOutcome) -> core::option::Option<alloc::string::String>
+pub fn nika_onboard::compile::meaning::render_ledger(ledger: &serde_json::value::Value, candidate: core::option::Option<&str>) -> alloc::string::String
 pub mod nika_onboard::fixtures
 pub fn nika_onboard::fixtures::fixture_prefixes(body: &str) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_onboard::fixtures::materialize(body: &str, dest: &std::path::Path) -> core::io::error::Result<(usize, usize)>
