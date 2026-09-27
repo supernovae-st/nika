@@ -460,6 +460,32 @@ fn a_read_only_turn_never_discards_the_proposal() {
     assert!(w.s.pending_proposal().is_none());
 }
 
+/// A slash line is never an activation value: the time-zone check alone took `/bogus` for an
+/// `Area/City` name. The question keeps waiting; a real zone still answers it.
+#[test]
+fn a_command_shaped_line_never_answers_an_activation() {
+    let dir = tree();
+    let mut s = super::super::tests::saved_daily_copy(dir.path());
+    let TurnOutcome::Question { key, .. } = s.turn("activate") else {
+        panic!("activate asks first");
+    };
+    assert_eq!(key, "project.timezone");
+    let state = semantic(&s);
+    for line in ["/bogus", "/show", "/status please"] {
+        let out = s.turn(line);
+        assert!(
+            matches!(&out, TurnOutcome::Refusal(r) if r.class == RefusalClass::WrongState),
+            "{line}: {out:?}"
+        );
+        assert_eq!(s.pending_activation(), Some("project.timezone"), "{line}");
+        assert_eq!(semantic(&s), state, "{line}");
+    }
+    let TurnOutcome::Question { key, .. } = s.turn("Europe/Paris") else {
+        panic!("a real zone answers");
+    };
+    assert_eq!(key, "project.missed");
+}
+
 /// E5 FB1 at an activation: `/why` and `why` beside the schedule's question explain the
 /// activation (not « nothing waits »), the question keeps waiting, nothing is written.
 #[test]

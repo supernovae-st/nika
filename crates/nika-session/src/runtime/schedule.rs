@@ -214,6 +214,16 @@ impl SessionRuntime {
                 "activation dropped · nothing was declared · the workflow stays saved and runs when you ask".to_owned(),
             );
         }
+        // A command-shaped line is never an activation value (`/bogus` is no `Area/City`).
+        if let Some(text) = super::protocol::unserved_command(line) {
+            self.activation = Some(activation);
+            return TurnOutcome::Refusal(Refusal::new(
+                RefusalClass::WrongState,
+                format!(
+                    "{text}\n  the question still waits · reply on the next line · `cancel` drops the activation"
+                ),
+            ));
+        }
         if let Err(why) = activation.answer(line) {
             self.activation = Some(activation);
             return TurnOutcome::Refusal(Refusal::new(RefusalClass::EmptyAnswer, why));
