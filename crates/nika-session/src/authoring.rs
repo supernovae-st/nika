@@ -487,17 +487,20 @@ impl AuthoringRound {
 }
 
 /// The human's line as the JSON literal the question's shape takes: a
-/// `Text` question takes the line as one string; a `Literal` question
-/// takes the line verbatim when it already is JSON (`5` · `true` ·
-/// `["a"]`), else as a string (`./notes` is a path, not a parse error);
-/// a `Choice` takes the line verbatim when it already is a JSON string
-/// (`"montant"`, the shape the compiler asks of a choice), else as one.
+/// `Literal` question takes the line verbatim when it already is JSON (`5` ·
+/// `true` · `["a"]`), else as a string (`./notes` is a path, not a parse
+/// error); a `Text` question and a `Choice` take the line verbatim when it
+/// already is a JSON string (a value in quotes — `"exports/rapport final.txt"`
+/// — is that value, never its quotes; `"montant"` is the shape the compiler
+/// asks of a choice), else as one string.
 #[must_use]
 pub fn literal_for(question: &CompileQuestion, line: &str) -> String {
     let line = line.trim();
     let already = match question.answer_type {
         QuestionType::Literal => serde_json::from_str::<Value>(line).is_ok(),
-        QuestionType::Choice => matches!(serde_json::from_str::<Value>(line), Ok(Value::String(_))),
+        QuestionType::Choice | QuestionType::Text => {
+            matches!(serde_json::from_str::<Value>(line), Ok(Value::String(_)))
+        }
         _ => false,
     };
     if already {

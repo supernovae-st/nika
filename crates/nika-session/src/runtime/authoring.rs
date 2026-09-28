@@ -760,7 +760,12 @@ impl SessionRuntime {
             // a line no protocol answers — binds nothing: the question waits,
             // unchanged, and says how to go on.
             TurnAct::Unknown => {
-                let why = Self::unknown_route_text(SessionPhase::QuestionPending, decision.method);
+                // Nothing reads replies: a value question's sentence waits for the value alone.
+                let why = if decision.method == RoutingMethod::Fallback && !self.reads_answers() {
+                    "that line is not a value on its own and no intelligence reads replies — nothing was bound · put a longer value in quotes".to_owned()
+                } else {
+                    Self::unknown_route_text(SessionPhase::QuestionPending, decision.method)
+                };
                 return Err(self.answer_waits(round, &why));
             }
         }

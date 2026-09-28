@@ -56,8 +56,7 @@ pub(super) enum AnswerReading {
 }
 
 /// What a value question says when no intelligence reads its reply.
-pub(super) const AS_TYPED_NOTICE: &str =
-    "no intelligence reads this reply: it is taken exactly as you type it — say the value alone";
+pub(super) const AS_TYPED_NOTICE: &str = "no intelligence reads this reply: say the value alone (one word, a number, a path), or put a longer value in quotes — it is taken exactly as you type it";
 
 /// A question whose answer is a business value the compiler bakes as a literal. The
 /// seat's `model` (provider selection keeps its own door), the replacement request
@@ -86,6 +85,13 @@ fn keeps_the_reading(question: &CompileQuestion) -> bool {
         && question.key != "intent.clarification"
         && !question.key.starts_with("gap.")
         && !super::authoring::asks_for_syntax(question)
+}
+
+/// A value the compiler reads again in words rather than bakes as a literal — the cadence of a
+/// stated trigger (« chaque vendredi à 10h »), which its cadence grammar parses: with no
+/// intelligence it keeps its words like a restatement; with one, its typed reading applies.
+fn restated_in_words(question: &CompileQuestion) -> bool {
+    question.key == "trigger.cadence"
 }
 
 /// Whether `text` is one of the keys the question offers, exactly.
@@ -258,20 +264,25 @@ impl SessionRuntime {
 
     /// The notice a value question carries when its reply is taken as typed.
     pub(super) fn as_typed_notice(&self, question: &CompileQuestion) -> Option<&'static str> {
-        (is_value_question(question) && !self.reads_answers()).then_some(AS_TYPED_NOTICE)
+        (is_value_question(question) && !restated_in_words(question) && !self.reads_answers())
+            .then_some(AS_TYPED_NOTICE)
     }
 
     /// When no intelligence routed the line, whether it still answers the open question by the
-    /// question's declared protocol — never because the route could not tell: as typed when
-    /// nothing reads replies (a value question says so), else through the typed reading of a
-    /// value or of an offered choice (it binds a verbatim value or nothing), else only as a
-    /// value alone (`as_typed`: one token, a JSON literal).
+    /// question's declared protocol — never because the route could not tell. A value binds
+    /// through its typed reading when a reader exists (a verbatim value or nothing), else only
+    /// when it stands alone (`as_typed`: one token, a JSON literal, a longer value in quotes),
+    /// as the question says: a sentence is never a value because nothing could read it. The
+    /// doors whose answer is words (the replacement request, a clause's disposition, a rule
+    /// restated in words) keep them when nothing reads replies; an offered choice is read
+    /// against its offers; any other answer binds only standing alone.
     pub(super) fn answers_by_protocol(&self, round: &AuthoringRound, line: &str) -> bool {
         round.current().is_some_and(|question| {
-            !self.reads_answers()
-                || is_value_question(question)
-                || is_offered_choice(question)
-                || as_typed(line)
+            if is_value_question(question) && !restated_in_words(question) {
+                self.reads_answers() || as_typed(line)
+            } else {
+                !self.reads_answers() || is_offered_choice(question) || as_typed(line)
+            }
         })
     }
 
