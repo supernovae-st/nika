@@ -303,7 +303,7 @@ file for you, and the check keeps it honest:
 | **Your coding agent** · [nika-plugins](https://github.com/supernovae-st/nika-plugins) | Claude Code, Codex, Cursor and others learn to write a workflow, check it and repair what the check finds. | ▶ [above](media/gifs/agent-plugin.optimized.gif) |
 | **Your editor** · [nika-vscode](https://github.com/supernovae-st/nika-vscode) | Errors as you type, and your workflow as a live graph. | ▶ [The audit, as you type](media/gifs/editor-diagnostics.optimized.gif) |
 | **Your pull requests** · [nika-action](https://github.com/supernovae-st/nika-action) | One comment with the verdict, before anyone spends a token. | ▶ [Every pull request gets a verdict](media/gifs/pr-check-comment.optimized.gif) |
-| **Your app** · [nika-client](https://github.com/supernovae-st/nika-client) | Run a workflow from TypeScript, get a typed result and verify its receipt. | [The package](https://www.npmjs.com/package/@supernovae-st/nika) |
+| **Your app** · [nika-client](https://github.com/supernovae-st/nika-client) | Run a workflow from TypeScript ([the package](https://www.npmjs.com/package/@supernovae-st/nika)), get a typed result and verify its receipt. | ▶ [Run it from your app, prove what ran](media/gifs/typescript-client.optimized.gif) |
 
 ## Know the limits
 
