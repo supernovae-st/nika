@@ -10,7 +10,6 @@ use nika_providers::admission::{
     CostChallenge, CostHostEvidence, CostResponse, CostReview, CostRoute, PendingCostReview,
     monetary_default,
 };
-use nika_service_execution::run_cost::DispatchBound;
 use std::path::{Path, PathBuf};
 mod exchange;
 mod readiness;
@@ -100,7 +99,7 @@ pub struct ReviewedRun {
     model: String,
     prior: JournalWitness,
     bounds: (u32, u32, std::time::Duration),
-    dispatch: DispatchBound,
+    dispatch: nika_service_execution::run_cost::DispatchBound,
     defaults: [Option<f64>; 2],
 }
 
@@ -156,23 +155,15 @@ pub fn prepare(
     if let Some(why) = evidence.unknown_cost_refusal() {
         return Ok(RunCostPlan::HardCapped(why));
     }
-    let review = CostReview::new(
+    let review = dispatch.review(CostReview::new(
         candidate,
         invocation.clone(),
         route,
         evidence,
         monetary_default(invocation_default)?,
         monetary_default(project_default)?,
-    )?
-    .for_run(dispatch.requests())?
-    .with_concurrency(dispatch.max_in_flight())?
-    .with_breakdown(dispatch.lines())
-    .with_authored_retry(dispatch.authored_retry());
-    let bounds = (
-        review.max_requests(),
-        review.max_output_tokens(),
-        review.request_timeout(),
-    );
+    )?)?;
+    let bounds = review.bounds();
     let pending = PendingCostReview::new(
         review,
         nika_event::source_id::sha256_hex(source.as_bytes()),
@@ -223,7 +214,7 @@ impl ReviewedRun {
     }
     /// The typed dispatch bound (total, in-flight, per-task rows) it confirms.
     #[must_use]
-    pub fn dispatch_bound(&self) -> &DispatchBound {
+    pub fn dispatch_bound(&self) -> &nika_service_execution::run_cost::DispatchBound {
         &self.dispatch
     }
     /// The invocation and project defaults approval overrides once.
