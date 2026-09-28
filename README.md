@@ -37,8 +37,8 @@
 That sentence becomes six obligations, grounded in fields Nika actually
 observed. Rust proves the plan, and the one unknown, the currency, is asked
 rather than guessed. The plan is lowered into a `.nika` program that passes
-`nika check`. A person approves that exact revision; one payment runs; the
-result comes back with its proof.
+Nika's static check. A person approves that exact revision; one payment runs;
+the result comes back with its proof.
 
 <p align="center">
   <a href="https://github.com/supernovae-st/nika/raw/refs/heads/main/media/videos/intent-to-proof.mp4">
@@ -49,8 +49,8 @@ result comes back with its proof.
 [Watch the full 30-second film with sound (MP4)](https://github.com/supernovae-st/nika/raw/refs/heads/main/media/videos/intent-to-proof.mp4).
 
 *Architecture illustration with fixture data, not a recording of the CLI. The
-program it draws passes `nika check`, and its check rows, task durations and
-totals come from the real binary. The payment is illustrative, and some
+program it draws passes the static check, and its check rows, task durations
+and totals come from the real binary. The payment is illustrative, and some
 components carry their target-design names. The
 [film notes](scripts/media/motion/intent-to-proof/README.md) separate what is
 real from what is illustration.*
