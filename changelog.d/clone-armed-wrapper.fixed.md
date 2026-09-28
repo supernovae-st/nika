@@ -1,1 +1,1 @@
-Keep clone-arming self-tests inside their disposable repositories when Git is wrapped by a session guard; use the discovered Git installation instead of copying the wrapper into the isolated environment.
+- **Isolated hook fixtures.** Keep clone-arming self-tests inside their disposable repositories when Git is wrapped by a session guard; use the discovered Git installation instead of copying the wrapper into the isolated environment.
