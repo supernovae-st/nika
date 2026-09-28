@@ -118,6 +118,17 @@ fn observed_non_numbers_are_asked_before_ready_and_never_run_on_lenient_jq() {
     );
 }
 
+/// The rule a READY candidate's compute runs, its number law folded: the exact decimal laws (R4
+/// A8) ride in front of a rule that reads a number, the rule is their last line.
+fn rule(candidate: &str) -> String {
+    let compute = common::compute(candidate);
+    assert!(
+        compute.starts_with("# Exact decimal order laws (R4 A8)"),
+        "{compute}"
+    );
+    compute.rsplit('\n').next().unwrap_or_default().to_owned()
+}
+
 #[test]
 fn skip_and_fail_answers_bind_the_law_and_a_wrong_answer_is_asked_again() {
     let world = world("./tickets.json", &mixed());
@@ -125,8 +136,8 @@ fn skip_and_fail_answers_bind_the_law_and_a_wrong_answer_is_asked_again() {
     assert_eq!(skip.status, CompileStatus::Ready, "{skip:#?}");
     let source = skip.candidate.as_deref().unwrap();
     assert_eq!(
-        common::compute(source),
-        "[.records[] | select(((.amount | isnum) and (.amount | num) > 100))]"
+        rule(source),
+        "[.records[] | select(((.amount | isnum) and ((.amount | num) | dkey) > (\"100\" | dkey)))]"
     );
     assert!(
         !source.contains("has(\"amount\")"),
@@ -137,8 +148,8 @@ fn skip_and_fail_answers_bind_the_law_and_a_wrong_answer_is_asked_again() {
     let fail = run(FILTER, &world, &[("const.rule_number_1", r#""fail""#)]);
     assert_eq!(fail.status, CompileStatus::Ready, "{fail:#?}");
     assert_eq!(
-        common::compute(fail.candidate.as_deref().unwrap()),
-        "[.records[] | select((.amount | num) > 100)]"
+        rule(fail.candidate.as_deref().unwrap()),
+        "[.records[] | select(((.amount | num) | dkey) > (\"100\" | dkey))]"
     );
     let wrong = run(FILTER, &world, &[("const.rule_number_1", r#""maybe""#)]);
     assert_ne!(wrong.status, CompileStatus::Ready);
@@ -171,8 +182,8 @@ fn a_top_n_over_observed_nulls_is_asked_and_never_ranks_them_by_total_order() {
     let skip = run(TOP, &world, &[("const.rule_number_1", r#""skip""#)]);
     assert_eq!(skip.status, CompileStatus::Ready, "{skip:#?}");
     assert_eq!(
-        common::compute(skip.candidate.as_deref().unwrap()),
-        ".records | (length as $all | map(select((.points | isnum))) | if length == 0 and $all > 0 then error(\"no `points` is a number: no row can be ranked\") else . end) | sort_by((.points | num)) | reverse | .[:2]"
+        rule(skip.candidate.as_deref().unwrap()),
+        ".records | (length as $all | map(select((.points | isnum))) | if length == 0 and $all > 0 then error(\"no `points` is a number: no row can be ranked\") else . end) | sort_by((.points | num) | dkey) | reverse | dtie(2; (.points | num) | dkey; .; \"`points`\") | .[:2]"
     );
 }
 
@@ -183,8 +194,8 @@ fn numbers_only_ask_nothing_and_an_unobserved_source_reads_the_law() {
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     assert!(question(&out, "const.rule_number_1").is_none());
     assert_eq!(
-        common::compute(out.candidate.as_deref().unwrap()),
-        "[.records[] | select((.amount | num) > 100)]"
+        rule(out.candidate.as_deref().unwrap()),
+        "[.records[] | select(((.amount | num) | dkey) > (\"100\" | dkey))]"
     );
     let record = numbers_record(&out);
     assert_eq!(record[0]["bound_by"], "observed numbers");
@@ -195,8 +206,8 @@ fn numbers_only_ask_nothing_and_an_unobserved_source_reads_the_law() {
         .unwrap();
     assert_eq!(bare.status, CompileStatus::Ready, "{bare:#?}");
     assert_eq!(
-        common::compute(bare.candidate.as_deref().unwrap()),
-        "[.records[] | select((.amount | num) > 100)]"
+        rule(bare.candidate.as_deref().unwrap()),
+        "[.records[] | select(((.amount | num) | dkey) > (\"100\" | dkey))]"
     );
     assert_eq!(numbers_record(&bare)[0]["bound_by"], "unobserved");
 }
@@ -241,7 +252,8 @@ fn a_total_and_a_plain_sort_read_the_law_where_the_sample_says_numbers() {
     let sorted = run(SORT, &world("./tickets.json", &numbers()), &[]);
     assert_eq!(sorted.status, CompileStatus::Ready, "{sorted:#?}");
     assert!(
-        common::compute(sorted.candidate.as_deref().unwrap()).contains("sort_by((.amount | num))"),
+        common::compute(sorted.candidate.as_deref().unwrap())
+            .contains("sort_by((.amount | num) | dkey)"),
         "{}",
         common::compute(sorted.candidate.as_deref().unwrap())
     );
@@ -302,8 +314,8 @@ fn a_legacy_numeric_plan_replays_canonical_and_is_grounded_again() {
     .unwrap();
     assert_eq!(clean.status, CompileStatus::Ready, "{clean:#?}");
     assert_eq!(
-        common::compute(clean.candidate.as_deref().unwrap()),
-        "[.records[] | select((.amount | num) > 100)]"
+        rule(clean.candidate.as_deref().unwrap()),
+        "[.records[] | select(((.amount | num) | dkey) > (\"100\" | dkey))]"
     );
     // Replayed over observed non-numbers: never READY without a stated policy.
     let mixed = compile(
@@ -359,8 +371,8 @@ fn exponent_texts_are_numbers_and_an_overflow_is_not() {
     // The candidate reads the law (the exponent grammar and its finiteness test, folded to `num`).
     let candidate = out.candidate.as_deref().unwrap();
     assert_eq!(
-        common::compute(candidate),
-        "[.records[] | select((.amount | num) > 100)]"
+        rule(candidate),
+        "[.records[] | select(((.amount | num) | dkey) > (\"100\" | dkey))]"
     );
     assert!(
         candidate.contains("([eE][+-]?[0-9]+)?")

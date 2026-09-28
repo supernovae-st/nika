@@ -43,7 +43,7 @@ async fn a_format_the_rule_states_is_carried_by_the_compute_task() {
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     let source = out.candidate.as_deref().unwrap();
     assert!(
-        common::compute(source).contains("sort_by((.tiempo_seg | num))"),
+        common::compute(source).contains("sort_by((.tiempo_seg | num) | dkey)"),
         "{source}"
     );
     assert!(source.contains("[:3]"), "{source}");

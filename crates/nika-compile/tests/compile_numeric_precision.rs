@@ -164,3 +164,70 @@ fn whole_rows_or_the_records_themselves_guard_every_number() {
         assert_eq!(guard_scope(intent), "null", "{intent}");
     }
 }
+
+/// Root's rank (public counterexample `a5-decimal-order-root`).
+const RANK: &str = "Read ./rows.json, keep the top 2 rows by points and write them to ./top.json";
+
+/// The plan the frozen A7 binary (`nika 0.121.0 (4c119fb82)`) recorded for [`RANK`], byte for
+/// byte: a plan recorded before R4 A8, whose rule keeps the reader's own reading.
+const A7_RANK_PLAN: &str = r#"{"bindings": [{"literal": "./top.json", "role": "path"}, {"literal": "./rows.json", "role": "path"}, {"literal": "./top.json", "role": "path"}], "constraints": [], "effects": [{"evidence": "write them to ./top.json", "policy": "automatic", "policy_literal": null, "target": "./top.json", "verb": "write"}], "obligations": [], "observed_world": {"kinds": {"./rows.json": {"keys": {"name": {"text": 3}, "points": {"number_text": 3}}, "sampled": 3}}, "observed": [{"bytes": 147, "columns": ["name", "points"], "common_columns": ["name", "points"], "complete": false, "kind": "json", "path": "./rows.json", "peek_sha256": "c4f0fd7fada4224a40144a9d94645134590844aa32105b5af49f1e34ab3245e1", "state": "observed"}, {"complete": false, "path": "./top.json", "state": "absent"}]}, "operations": [{"categories": [], "detail": "./rows.json", "evidence": "Read ./rows.json", "op": "read"}, {"categories": [], "detail": "keep the top 2 rows by points", "evidence": "keep the top 2 rows by points", "op": "compute"}], "rules": [{"clauses": [], "fields": ["points"], "jq": ".records | sort_by(.points | tonumber? // .) | reverse | .[:2]", "junction": "and", "lines": false, "program": null, "shape": {"aggregations": [], "columns": [], "derived": [], "descending": true, "distinct": false, "distinct_by": [], "group_by": null, "join_on": null, "limit": 2, "renames": [], "sort_by": "points"}, "summary": false, "synthesized": true, "text": "keep the top 2 rows by points"}], "slots": [], "strategy": "hot", "trigger": null, "unknowns": []}"#;
+
+/// The rule a READY candidate's compute runs, after the laws in front of it.
+fn rule_after_laws(doc: &Value) -> String {
+    let compute = expression(doc, "compute");
+    carries_the_order_laws(&compute);
+    compute.rsplit('\n').next().unwrap_or_default().to_owned()
+}
+
+#[test]
+fn a_bound_rank_orders_by_the_exact_key_and_checks_its_cut() {
+    let request = CompileRequest::create(RANK).with_knowledge(common::observed(&[ROWS]));
+    let out = compile(&request).unwrap();
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    let doc: Value = serde_yaml_bw::from_str(out.candidate.as_deref().unwrap()).unwrap();
+    let rule = common::short(&rule_after_laws(&doc));
+    assert_eq!(
+        rule,
+        ".records | sort_by((.points | num) | dkey) | reverse | dtie(2; (.points | num) | dkey; .; \"`points`\") | .[:2]"
+    );
+    // The plan keeps the reader's own reading, byte for byte what A7 recorded: continuation.
+    let recorded: Value = serde_json::from_str(A7_RANK_PLAN).unwrap();
+    assert_eq!(
+        out.provenance.plan.as_ref().unwrap()["rules"][0]["jq"],
+        recorded["rules"][0]["jq"]
+    );
+}
+
+#[test]
+fn a_plan_recorded_before_a8_replays_ready_and_binds_the_exact_laws() {
+    let plan: Value = serde_json::from_str(A7_RANK_PLAN).unwrap();
+    let out = compile(&CompileRequest::create(RANK).with_plan(plan)).unwrap();
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    let doc: Value = serde_yaml_bw::from_str(out.candidate.as_deref().unwrap()).unwrap();
+    let rule = common::short(&rule_after_laws(&doc));
+    assert!(rule.contains("sort_by((.points | num) | dkey)"), "{rule}");
+    assert!(rule.contains("| dtie(2; (.points | num) | dkey;"), "{rule}");
+}
+
+#[test]
+fn a_bound_comparison_reads_the_literal_as_the_request_states_it() {
+    let doc = ready(
+        "Read ./rows.json, keep only the rows whose points is above 1.000000000000000002 and write them to ./above.json",
+        &[ROWS],
+    );
+    assert_eq!(
+        common::short(&rule_after_laws(&doc)),
+        "[.records[] | select(((.points | num) | dkey) > (\"1.000000000000000002\" | dkey))]"
+    );
+}
+
+#[test]
+fn a_rule_that_reads_no_number_carries_no_law() {
+    let doc = ready(
+        "Read ./rows.json, keep only the rows whose team is x and write them to ./x.json",
+        &[ROWS],
+    );
+    let compute = expression(&doc, "compute");
+    assert!(!compute.contains("def dkey"), "{compute}");
+    assert!(compute.starts_with("[.records[] | select("), "{compute}");
+}

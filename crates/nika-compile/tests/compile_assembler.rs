@@ -83,6 +83,20 @@ fn label(out: &CompileOutcome, key: &str) -> String {
     }
 }
 
+/// The rule the compute task runs, its number law folded; the exact decimal laws (R4 A8) a
+/// rule that reads a number carries in front are skipped (`compile_numeric_precision` pins them).
+fn compute_rule(doc: &Value) -> String {
+    let jq = tasks(doc)["compute"]["invoke"]["args"]["expression"]
+        .as_str()
+        .unwrap_or_default();
+    let rule = if jq.starts_with("# Exact decimal") {
+        jq.rsplit('\n').next().unwrap_or_default()
+    } else {
+        jq
+    };
+    common::short(rule)
+}
+
 fn tasks(doc: &Value) -> &serde_json::Map<String, Value> {
     doc["tasks"].as_object().unwrap()
 }
@@ -368,8 +382,8 @@ async fn a_numeric_rule_stated_in_the_request_needs_no_rule_question() {
     let compute = &tasks(&doc)["compute"];
     assert_eq!(compute["invoke"]["tool"], "nika:jq");
     assert_eq!(
-        common::short(compute["invoke"]["args"]["expression"].as_str().unwrap()),
-        "[.records[] | select((.amount | num) > 100)]",
+        compute_rule(&doc),
+        "[.records[] | select(((.amount | num) | dkey) > (\"100\" | dkey))]",
         "{doc:#}"
     );
     assert_eq!(
@@ -413,7 +427,7 @@ async fn a_numeric_rule_stated_in_the_request_needs_no_rule_question() {
     assert_eq!(rule["value"], "100");
     assert_eq!(
         common::short(rule["jq"].as_str().unwrap()),
-        "[.records[] | select((.amount | num) > 100)]"
+        "[.records[] | select(((.amount | num) | dkey) > (\"100\" | dkey))]"
     );
     // An explicit answer still wins over the synthesis: the human's expression runs.
     let answered = compile(BIG_ORDERS, &big_orders_plan(), &[MODEL, RULE]).await;
@@ -479,12 +493,8 @@ fn an_equality_rule_on_a_status_column_is_synthesized() {
     let out = replay(intent, &record, &[]);
     let doc = document(&out);
     assert_eq!(
-        common::short(
-            tasks(&doc)["compute"]["invoke"]["args"]["expression"]
-                .as_str()
-                .unwrap()
-        ),
-        r#"[.records[] | select(.status == "Shipped" and (.amount_eur | num) >= 120)]"#,
+        compute_rule(&doc),
+        r#"[.records[] | select(.status == "Shipped" and ((.amount_eur | num) | dkey) >= ("120" | dkey))]"#,
         "{doc:#}"
     );
     let rule = &out.provenance.decision.as_ref().unwrap()["rule"];
@@ -518,12 +528,8 @@ fn a_count_and_total_folded_into_the_rule_is_the_summary_stage() {
     assert_eq!(keys(&out), Vec::<&str>::new(), "{out:#?}");
     let doc = document(&out);
     assert_eq!(
-        common::short(
-            tasks(&doc)["compute"]["invoke"]["args"]["expression"]
-                .as_str()
-                .unwrap()
-        ),
-        "[.records[] | select((.amount | num) > 100)]",
+        compute_rule(&doc),
+        "[.records[] | select(((.amount | num) | dkey) > (\"100\" | dkey))]",
         "{doc:#}"
     );
     assert_eq!(
@@ -550,7 +556,7 @@ fn a_count_and_total_folded_into_the_rule_is_the_summary_stage() {
     assert_eq!(rule["summary"], true, "{rule:#}");
     assert_eq!(
         common::short(rule["jq"].as_str().unwrap()),
-        "[.records[] | select((.amount | num) > 100)]"
+        "[.records[] | select(((.amount | num) | dkey) > (\"100\" | dkey))]"
     );
     // Without the fold, the summary stage is not emitted for a rule nothing later reads. The
     // plain record writes no note, so it answers the request without the note clause: a

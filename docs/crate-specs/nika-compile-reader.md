@@ -219,6 +219,28 @@ while `nika-compile` stood at its wall; they ascended to `nika-compile-fidelity`
   exactly the extra spellings the compiler grounded; it is never a normalization at run.
   Policies and spellings are serialized only when stated, and a plan record carrying either
   is refused, never read without them.
+- **Exact order where a policy binds (R4 A8).** A number the compiler binds under a stated
+  policy compares, ranks and sorts by its exact decimal key. The key is `dkey`, one of the
+  decimal laws `nika-compile` emits in front of the rule; jq's own equality and ordering are
+  unchanged.
+  - A comparison reads `(<law> | dkey) <op> (<other> | dkey)`. The other side is the literal
+    as the request states it (the text `Operand::Number` keeps, never a jq number literal),
+    another column's law, or a slot (`numbers::compared`).
+  - A ranking sorts by `<law> | dkey`. Descending is still the ascending order reversed, so
+    equal values keep their documented order: source order ascending, reverse source order
+    descending.
+  - A ranking that keeps n rows passes through `dtie` before its own `.[:n]`. When rows n and
+    n+1 tie and the tie holds distinct records as written (after any projection), input order
+    would choose, so the run stops. JSON-equal copies, and ties the cut does not separate,
+    pass.
+  - A plain sort bound over observed numbers sorts by the key too.
+  - Unbound reads render as before, byte for byte, so every plan record keeps its canonical
+    `jq` and replays under the strict check. This covers a rule with no stated policy, a sort
+    with no policy, and a ranking over a produced value (a count or a total per group). Such
+    a ranking breaks ties by the group key's order, never by input order.
+
+  The unbound code is retained for that reason, and it is not the candidate's computation:
+  the compiler binds a policy on every number field of every synthesized rule.
 - The 12 ADR-003 gates were passed by `nika-onboard` at its admission; this member inherits
   them as the third member of the same unit (the ADR-115 and ADR-137 precedent). Mutation
   and property attestations for the reader are owed as pending evidence, tracked with the

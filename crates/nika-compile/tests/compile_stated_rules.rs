@@ -42,10 +42,18 @@ fn keys(out: &CompileOutcome) -> Vec<&str> {
     out.questions.iter().map(|q| q.key.as_str()).collect()
 }
 
+/// A task's jq, its number law folded; the exact decimal laws (R4 A8) a task carries in front
+/// are skipped (`compile_numeric_precision` pins them): the rule is their last line.
 fn expression(doc: &Value, task: &str) -> String {
     let jq = doc["tasks"][task]["invoke"]["args"]["expression"].as_str();
     assert!(jq.is_some(), "no jq on `{task}`: {doc:#}");
-    common::short(jq.unwrap_or_default())
+    let jq = jq.unwrap_or_default();
+    let rule = if jq.starts_with("# Exact decimal") {
+        jq.rsplit('\n').next().unwrap_or_default()
+    } else {
+        jq
+    };
+    common::short(rule)
 }
 
 fn rule_jq(out: &CompileOutcome) -> String {
@@ -66,7 +74,7 @@ fn a_stated_filter_over_a_json_source_is_the_code_the_workflow_runs() {
     );
     assert_eq!(rule_jq(&out), expression(&doc, "compute"));
     // Whole rows are written: every number of the source is guarded past the decode (R4 A8).
-    assert!(expression(&doc, "parse_source").ends_with("\nfromjson | dguard(null)"));
+    assert_eq!(expression(&doc, "parse_source"), "fromjson | dguard(null)");
     // The rows the rule kept are what the write carries; no model, no draft, no question.
     assert_eq!(
         doc["tasks"]["write_output"]["with"]["content"],
@@ -123,7 +131,7 @@ fn a_french_restriction_is_a_filter_and_a_csv_write_keeps_the_header_order() {
     let (_, doc) = ready(intent);
     assert_eq!(
         expression(&doc, "compute"),
-        "[.records[] | select((.amount | num) > 200)]"
+        "[.records[] | select(((.amount | num) | dkey) > (\"200\" | dkey))]"
     );
     // CSV in, CSV out: the source's own header order feeds the conversion stage.
     assert!(doc["tasks"].get("source_columns").is_some(), "{doc:#}");
@@ -203,7 +211,7 @@ fn a_stated_top_n_and_a_stated_sort_run_as_code_and_write_csv_in_header_order() 
     let (out, doc) = ready(intent);
     assert_eq!(
         expression(&doc, "compute"),
-        ".records | sort_by((.amount | num)) | reverse | .[:2]"
+        ".records | sort_by((.amount | num) | dkey) | reverse | dtie(2; (.amount | num) | dkey; .; \"`amount`\") | .[:2]"
     );
     assert_eq!(rule_jq(&out), expression(&doc, "compute"));
     assert_eq!(
@@ -220,7 +228,7 @@ fn a_stated_top_n_and_a_stated_sort_run_as_code_and_write_csv_in_header_order() 
     );
     assert_eq!(
         expression(&doc, "compute"),
-        ".records | sort_by((.montant | num)) | reverse | .[:2]"
+        ".records | sort_by((.montant | num) | dkey) | reverse | dtie(2; (.montant | num) | dkey; .; \"`montant`\") | .[:2]"
     );
     // A sort, then a write whose whole object is the path: the write carries the sorted rows.
     let intent = "Read ./sales.csv, sort the rows by amount descending and write ./sorted.csv";

@@ -369,7 +369,8 @@ impl Clause {
                 };
             }
             return if self.comparator.numeric() {
-                let test = format!("{read} {} ({slot} | tonumber)", self.comparator.symbol());
+                let (op, bound) = (self.comparator.symbol(), numbers.contains_key(&self.field));
+                let test = numbers::compared(&read, op, &format!("({slot} | tonumber)"), bound);
                 numbers::guarded(skip(&self.field), &field, test)
             } else {
                 format!(
@@ -393,13 +394,22 @@ impl Clause {
             };
         }
         match (&self.value, self.comparator.numeric()) {
+            // A bound number compares with the literal as the request states it (R4 A8).
             (Operand::Number(n), _) => {
-                let test = format!("{read} {} {n}", self.comparator.symbol());
+                let bound = numbers.contains_key(&self.field);
+                let other = if bound {
+                    json!(n).to_string()
+                } else {
+                    n.clone()
+                };
+                let test = numbers::compared(&read, self.comparator.symbol(), &other, bound);
                 numbers::guarded(skip(&self.field), &field, test)
             }
             (Operand::Column(other), true) => {
                 let right = key(other);
-                let test = format!("{read} {} {}", self.comparator.symbol(), law(&right, other));
+                let bound = numbers.contains_key(&self.field) || numbers.contains_key(other);
+                let (op, other_law) = (self.comparator.symbol(), law(&right, other));
+                let test = numbers::compared(&read, op, &other_law, bound);
                 let test = numbers::guarded(skip(other), &right, test);
                 numbers::guarded(skip(&self.field), &field, test)
             }

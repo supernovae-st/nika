@@ -211,6 +211,25 @@ certify that a whole file holds one match, and the source may change between the
 run. An object directory yields its keyed entry, and the per-invocation lookup
 (`SELECT_BY_KEY`, keyed by `inputs.record_id`) is unchanged.
 
+## Exact order of the numbers a bound rule reads
+
+Every number field of a synthesized rule is bound under a policy: `bind_computation` passes the
+rule through `observed::numbered`, which gives FAIL where nothing stated another. This is the
+one site that makes a `RuleBinding::Synthesized`, whether the compile is fresh or replays a
+recorded plan.
+
+For such a rule, the reader emits exact comparisons, rank keys and rank cuts (R4 A8, reader
+spec). `laws::with_decimal` puts `laws/order.jq` in front of any compute that calls these laws;
+a rule that reads no number carries none.
+
+The plan record keeps the reader's unbound reading, byte for byte. A plan recorded before R4 A8
+therefore replays READY, and its candidate binds the exact laws.
+
+Unbound, as before:
+- a seat's verified program;
+- an answered `const.rule_expression`;
+- a plain sort over a key that is not observed as numbers only.
+
 ## Numbers past the parse: exact or stopped
 
 A JSON source's numbers reach the next task through the engine's JSON transport between tasks

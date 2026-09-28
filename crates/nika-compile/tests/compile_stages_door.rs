@@ -110,7 +110,10 @@ fn a_spanish_filter_with_a_plural_write_head_compiles_at_the_door() {
         "Lee ./ventas.csv, conserva solo las filas cuyo importe supera 200 y escríbelas en ./grandes.csv",
     );
     let jq = expression(&doc);
-    assert!(jq.contains("(.importe | num) > 200"), "{jq}");
+    assert!(
+        jq.contains(r#"((.importe | num) | dkey) > ("200" | dkey)"#),
+        "{jq}"
+    );
     assert_eq!(writes(&doc), ["./grandes.csv"]);
 }
 

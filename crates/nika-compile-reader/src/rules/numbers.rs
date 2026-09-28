@@ -58,6 +58,16 @@ pub(crate) fn number(key: &str, field: &str) -> String {
     )
 }
 
+/// A numeric comparison: by the exact decimal key where the compiler bound the law (R4 A8),
+/// else as the reader's own reading, the one a recorded plan keeps, always compared.
+pub(crate) fn compared(read: &str, op: &str, other: &str, bound: bool) -> String {
+    if bound {
+        format!("({read} | dkey) {op} ({other} | dkey)")
+    } else {
+        format!("{read} {op} {other}")
+    }
+}
+
 /// `test`, held under SKIP only by a record whose value at `key` is a number.
 pub(crate) fn guarded(skip: bool, key: &str, test: String) -> String {
     if skip {
@@ -244,7 +254,8 @@ mod tests {
     fn fail_reads_the_law_and_skip_guards_every_numeric_read() {
         let above = rule("keep only the rows whose amount is strictly greater than 100");
         assert_eq!(above.number_fields(), ["amount"]);
-        // No stated policy reads as a recorded plan always read it; a stated one reads the law.
+        // No stated policy reads as a recorded plan always read it; a stated one reads the law
+        // and compares by the exact key, the literal as the request states it (R4 A8).
         assert_eq!(
             short(&above.jq()),
             "[.records[] | select((.amount | tonumber) > 100)]"
@@ -254,14 +265,14 @@ mod tests {
             .expect("numeric");
         assert_eq!(
             short(&stated.jq()),
-            "[.records[] | select((.amount | num) > 100)]"
+            "[.records[] | select(((.amount | num) | dkey) > (\"100\" | dkey))]"
         );
         let skip = above
             .with_number_policy("amount", NumberPolicy::Skip)
             .expect("numeric");
         assert_eq!(
             short(&skip.jq()),
-            "[.records[] | select(((.amount | isnum) and (.amount | num) > 100))]"
+            "[.records[] | select(((.amount | isnum) and ((.amount | num) | dkey) > (\"100\" | dkey)))]"
         );
         // Two columns: each side reads the law, each skipped side is guarded.
         let columns = Rule::typed(
@@ -280,7 +291,7 @@ mod tests {
             .expect("numeric");
         assert_eq!(
             short(&one.jq()),
-            "[.records[] | select(((.reorder_level | isnum) and (.stock_qty | tonumber) < (.reorder_level | num)))]"
+            "[.records[] | select(((.reorder_level | isnum) and ((.stock_qty | tonumber) | dkey) < ((.reorder_level | num) | dkey)))]"
         );
     }
 
@@ -298,14 +309,14 @@ mod tests {
             .expect("numeric");
         assert_eq!(
             short(&strict.jq()),
-            ".records | sort_by((.amount | num)) | reverse | .[:2]"
+            ".records | sort_by((.amount | num) | dkey) | reverse | dtie(2; (.amount | num) | dkey; .; \"`amount`\") | .[:2]"
         );
         let skip = top
             .with_number_policy("amount", NumberPolicy::Skip)
             .expect("numeric");
         assert_eq!(
             short(&skip.jq()),
-            ".records | (length as $all | map(select((.amount | isnum))) | if length == 0 and $all > 0 then error(\"no `amount` is a number: no row can be ranked\") else . end) | sort_by((.amount | num)) | reverse | .[:2]"
+            ".records | (length as $all | map(select((.amount | isnum))) | if length == 0 and $all > 0 then error(\"no `amount` is a number: no row can be ranked\") else . end) | sort_by((.amount | num) | dkey) | reverse | dtie(2; (.amount | num) | dkey; .; \"`amount`\") | .[:2]"
         );
         let total = rule("the total of the amount column");
         assert_eq!(
@@ -369,7 +380,10 @@ mod tests {
         let numeric = sorted
             .with_number_policy("amount", NumberPolicy::Fail)
             .expect("its key");
-        assert_eq!(short(&numeric.jq()), ".records | sort_by((.amount | num))");
+        assert_eq!(
+            short(&numeric.jq()),
+            ".records | sort_by((.amount | num) | dkey)"
+        );
     }
 
     #[test]

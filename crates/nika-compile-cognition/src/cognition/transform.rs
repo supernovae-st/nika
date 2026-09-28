@@ -791,6 +791,171 @@ mod tests {
         }
     }
 
+    /// The names a computed row list holds, in order.
+    fn names(rows: &Value) -> Vec<String> {
+        rows.as_array()
+            .unwrap()
+            .iter()
+            .map(|r| r["name"].as_str().unwrap().to_owned())
+            .collect()
+    }
+
+    #[test]
+    fn a_rank_orders_stated_numbers_exactly_whatever_the_input_order() {
+        let compute = emitted(
+            &over(
+                "Read ./rows.json, keep the top 2 rows by points and write them to ./top.json",
+                &[("./rows.json", &["name", "points"])],
+            ),
+            "compute",
+        );
+        let top = |rows: Value| run(&compute, &json!({"records": rows}));
+        // Root's counterexample: every order of the three fine decimals keeps …003 then …002.
+        let (a, b, c) = (
+            json!({"name": "a", "points": "1.000000000000000001"}),
+            json!({"name": "b", "points": "1.000000000000000003"}),
+            json!({"name": "c", "points": "1.000000000000000002"}),
+        );
+        for order in [
+            [&a, &b, &c],
+            [&a, &c, &b],
+            [&b, &a, &c],
+            [&b, &c, &a],
+            [&c, &a, &b],
+            [&c, &b, &a],
+        ] {
+            let rows = json!(order);
+            assert_eq!(names(&top(rows.clone()).unwrap()), ["b", "c"], "{rows}");
+        }
+        // Signs, zero, negative zero and exponents far beyond f64 order exactly, cheaply.
+        let rows = json!([
+            {"name": "z", "points": "-0"},
+            {"name": "u", "points": "1e-1000000000"},
+            {"name": "n", "points": "-1e-1000000000"},
+            {"name": "m", "points": "-1.5"}
+        ]);
+        assert_eq!(names(&top(rows).unwrap()), ["u", "z"]);
+        // Equal values the cut keeps together stay; JSON-equal copies satisfy the count.
+        let rows = json!([
+            {"name": "a", "points": "1.5"},
+            {"name": "a", "points": "1.5"},
+            {"name": "c", "points": "2"},
+            {"name": "d", "points": "1"}
+        ]);
+        assert_eq!(names(&top(rows).unwrap()), ["c", "a"]);
+        // Distinct records that tie across the cut have no answer in the request: it stops.
+        for rows in [
+            json!([{"name": "a", "points": "1.5"}, {"name": "b", "points": "1.50"}, {"name": "c", "points": "2"}]),
+            json!([{"name": "b", "points": "15e-1"}, {"name": "c", "points": "2"}, {"name": "a", "points": "1.5"}]),
+        ] {
+            let why = top(rows.clone()).unwrap_err().0;
+            assert!(
+                why.contains("tie between 2 different records")
+                    && why.contains("would choose among them by input order"),
+                "{rows}: {why}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_comparison_reads_the_literal_the_request_states() {
+        let compute = emitted(
+            &over(
+                "Read ./rows.json, keep only the rows whose points is above 1.000000000000000002 and write them to ./above.json",
+                &[("./rows.json", &["name", "points"])],
+            ),
+            "compute",
+        );
+        assert!(
+            compute.contains(r#"| dkey) > ("1.000000000000000002" | dkey)"#),
+            "{compute}"
+        );
+        let rows = json!([
+            {"name": "a", "points": "1.000000000000000001"},
+            {"name": "b", "points": "1.000000000000000003"},
+            {"name": "c", "points": "1.000000000000000002"},
+            {"name": "d", "points": " 1.000000000000000003\t"}
+        ]);
+        assert_eq!(
+            names(&run(&compute, &json!({"records": rows})).unwrap()),
+            ["b", "d"]
+        );
+    }
+
+    /// A request over one JSON source the host observed with its value kinds, as the CLI's
+    /// observation reports them (`observation::records`): the kinds decide the number policy.
+    fn observed_rows(intent: &str, rows: &[Value]) -> nika_compile::CompileRequest {
+        let sample = nika_compile::observation::records(rows);
+        let row = json!({"path": "./rows.json", "state": "observed", "complete": false, "kind": "json",
+            "columns": sample.columns, "common_columns": sample.common});
+        nika_compile::CompileRequest::create(intent)
+            .with_knowledge(json!({"observed": [row], "kinds": {"./rows.json": sample.kinds}}))
+    }
+
+    #[test]
+    fn under_skip_a_non_number_is_left_out_and_the_numbers_keep_their_exact_order() {
+        let rows = [
+            json!({"name": "a", "points": "1.000000000000000003"}),
+            json!({"name": "n", "points": "n-a"}),
+            json!({"name": "b", "points": 1}),
+            json!({"name": "c", "points": "1.000000000000000001"}),
+        ];
+        let skip =
+            |intent: &str| observed_rows(intent, &rows).answer("const.rule_number_1", r#""skip""#);
+        let above = emitted(
+            &skip(
+                "Read ./rows.json, keep only the rows whose points is above 1.000000000000000002 and write them to ./above.json",
+            ),
+            "compute",
+        );
+        assert_eq!(
+            names(&run(&above, &json!({"records": rows})).unwrap()),
+            ["a"]
+        );
+        let top = emitted(
+            &skip("Read ./rows.json, keep the top 2 rows by points and write them to ./top.json"),
+            "compute",
+        );
+        assert_eq!(
+            names(&run(&top, &json!({"records": rows})).unwrap()),
+            ["a", "c"]
+        );
+        // Under FAIL the same non-number stops the run by name, as it did before (R4 A5).
+        let fail = emitted(
+            &observed_rows(
+                "Read ./rows.json, keep the top 2 rows by points and write them to ./top.json",
+                &rows,
+            )
+            .answer("const.rule_number_1", r#""fail""#),
+            "compute",
+        );
+        let why = run(&fail, &json!({"records": rows})).unwrap_err().0;
+        assert!(
+            why.contains("`points` is") && why.contains("not a number"),
+            "{why}"
+        );
+    }
+
+    #[test]
+    fn a_plain_sort_over_observed_numbers_orders_them_exactly() {
+        let rows = [
+            json!({"name": "a", "points": "1.000000000000000003"}),
+            json!({"name": "b", "points": "1.000000000000000001"}),
+            json!({"name": "c", "points": "1.000000000000000002"}),
+        ];
+        let sort = emitted(
+            &observed_rows(
+                "Read ./rows.json, sort the rows by points and write them to ./sorted.json",
+                &rows,
+            ),
+            "compute",
+        );
+        assert_eq!(
+            names(&run(&sort, &json!({"records": rows})).unwrap()),
+            ["b", "c", "a"]
+        );
+    }
+
     #[test]
     fn the_record_a_lookup_selects_crosses_exactly_or_the_run_stops() {
         let request = nika_compile::CompileRequest::create(

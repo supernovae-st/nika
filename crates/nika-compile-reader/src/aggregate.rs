@@ -539,7 +539,7 @@ impl Shape {
                     let kept = numbered(&key(field), field, "no row can be ranked", false);
                     jq = format!("{jq} | {kept}");
                 }
-                number(&key(field), field)
+                format!("{} | dkey", number(&key(field), field))
             } else {
                 format!("{} | tonumber? // .", key(field))
             };
@@ -547,18 +547,18 @@ impl Shape {
             if *descending {
                 jq.push_str(" | reverse");
             }
+            // A cut through distinct records that tie on a bound number has no answer (R4 A8).
+            if let (Some(n), Some(_)) = (self.limit, policy) {
+                let out = self.projection().unwrap_or_else(|| ".".to_owned());
+                let what = json!(format!("`{field}`"));
+                jq = format!("{jq} | dtie({n}; {by}; {out}; {what})");
+            }
         }
         if let Some(n) = self.limit {
             jq = format!("{jq} | .[:{n}]");
         }
-        if !self.columns.is_empty() && !self.is_totals() {
-            let projection = self
-                .columns
-                .iter()
-                .map(|c| format!("{}: {}", json!(c), key(c)))
-                .collect::<Vec<_>>()
-                .join(", ");
-            jq = format!("{jq} | map({{{projection}}})");
+        if let Some(projection) = self.projection() {
+            jq = format!("{jq} | map({projection})");
         }
         if !self.renames.is_empty() && !self.is_totals() {
             let arms = self
@@ -579,6 +579,17 @@ impl Shape {
             jq = format!("{jq} | {DISTINCT}");
         }
         jq
+    }
+    /// The object one written row is, when the shape projects named columns.
+    fn projection(&self) -> Option<String> {
+        (!self.columns.is_empty() && !self.is_totals()).then(|| {
+            let entries: Vec<String> = self
+                .columns
+                .iter()
+                .map(|c| format!("{}: {}", json!(c), key(c)))
+                .collect();
+            format!("{{{}}}", entries.join(", "))
+        })
     }
     /// Totals over every row (aggregates without a group): one object, not rows.
     pub(crate) fn is_totals(&self) -> bool {

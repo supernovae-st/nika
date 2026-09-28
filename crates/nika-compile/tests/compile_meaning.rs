@@ -448,7 +448,7 @@ async fn a_typed_predicate_from_the_proposal_needs_no_rule_question() {
     let _ = ready;
     let candidate = out.candidate.as_deref().unwrap_or_default();
     assert!(
-        common::compute(candidate).contains("select((.amount | num) > 100)")
+        common::compute(candidate).contains(r#"select(((.amount | num) | dkey) > ("100" | dkey))"#)
             || out.status != CompileStatus::Ready,
         "{candidate}"
     );
@@ -490,13 +490,13 @@ async fn a_drop_predicate_is_lowered_as_its_complement() {
     assert_eq!(rules.len(), 1, "{plan:#}");
     let candidate = out.candidate.as_deref().unwrap_or_default();
     assert!(
-        common::compute(candidate)
-            .contains("select((.amount | num) >= 100 and .status != \"refunded\")")
-            || out.status != CompileStatus::Ready,
+        common::compute(candidate).contains(
+            r#"select(((.amount | num) | dkey) >= ("100" | dkey) and .status != "refunded")"#
+        ) || out.status != CompileStatus::Ready,
         "{candidate}"
     );
     assert!(
-        !common::compute(candidate).contains("(.amount | num) < 100"),
+        !common::compute(candidate).contains(r#"((.amount | num) | dkey) < ("100" | dkey)"#),
         "the exclusion was re-read as a keep: {candidate}"
     );
 }

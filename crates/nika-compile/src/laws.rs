@@ -74,6 +74,15 @@ pub(super) fn guarded_parse(fields: Option<&[String]>) -> String {
     format!("{ORDER}\nfromjson | dguard({scope})")
 }
 
+/// A rule's jq with the decimal laws it calls in front of it (unchanged when it calls none).
+pub(super) fn with_decimal(jq: &str) -> String {
+    if ["dkey", "dtie("].iter().any(|law| jq.contains(law)) {
+        format!("{ORDER}\n{jq}")
+    } else {
+        jq.to_owned()
+    }
+}
+
 /// A record a lookup selects crosses to the next task with every number exact, or stops.
 pub(super) fn guarded_lookup(select: &str) -> String {
     format!("{ORDER}\n{select} | dguard(null)")

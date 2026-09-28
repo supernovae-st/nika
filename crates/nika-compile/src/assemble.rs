@@ -24,7 +24,7 @@ use super::laws::{
     FOLD_DOCUMENTS, FOLD_DRAFTS, FOLD_FIELDS, INFER_TIMEOUT, LINES, SELECT_BY_FIELD, SELECT_BY_KEY,
     SOURCE_COLUMNS, SOURCE_COLUMNS_UNION, SUMMARY, ZIP, anchor_law, bullet_layout, category_schema,
     draft_law, draft_schema, extract_schema, guarded_lookup, guarded_parse, per_item_extract_law,
-    per_item_law, per_item_translation_law, translation, translation_law,
+    per_item_law, per_item_translation_law, translation, translation_law, with_decimal,
 };
 use super::ledger::{DutyKind, Ledger};
 use super::paths::{self, Structured};
@@ -1018,7 +1018,7 @@ fn emit_synthesized_rule(d: &mut Doc, plan: &Plan, rule: &super::rules::Rule) {
     d.tool(
         "compute",
         "nika:jq",
-        json!({"input": input, "expression": rule.jq()}),
+        json!({"input": input, "expression": with_decimal(&rule.jq())}),
         Some(json!({"records": records})),
         true,
     );
