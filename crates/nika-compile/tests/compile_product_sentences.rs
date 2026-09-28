@@ -328,9 +328,9 @@ fn a_classification_of_each_record_routes_the_records_to_the_files_named_after_i
     assert_eq!(keys(&out), ["model"], "{out:#?}");
     let doc = ready_with_model(intent);
     let tasks = doc["tasks"].as_object().unwrap();
-    // The source is parsed once; the classify runs per record; each write carries the
-    // records routed to the category its clause names.
-    assert_eq!(expression(&doc, "parse_source"), "fromjson");
+    // The source is parsed once, every number kept exact past the decode (R4 A8); the classify
+    // runs per record; each write carries the records routed to the category its clause names.
+    assert!(expression(&doc, "parse_source").ends_with("\nfromjson | dguard(null)"));
     assert_eq!(
         doc["tasks"]["classify"]["for_each"]["items"],
         "${{ with.records }}"

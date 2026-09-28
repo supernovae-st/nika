@@ -75,7 +75,12 @@ fn a_literal_lookup_selects_through_the_one_record_law() {
     let doc = workflow(LOOK_UP, None);
     let record = &tasks(&doc)["lookup_record"]["invoke"]["args"];
     let expression = record["expression"].as_str().unwrap();
-    assert_eq!(expression, nika_compile::surface::SELECT_BY_FIELD);
+    // The one-record law, and the record it selects keeps every number exact (R4 A8).
+    let guarded = format!(
+        "\n{} | dguard(null)",
+        nika_compile::surface::SELECT_BY_FIELD
+    );
+    assert!(expression.ends_with(&guarded), "{expression}");
     assert!(expression.contains("all(.[]; . == $m[0])"), "{expression}");
     assert!(
         expression.contains("no single record can be chosen"),
@@ -145,6 +150,10 @@ fn roots_recorded_decision_replays_through_the_one_record_law() {
     let expression = tasks(&doc)["lookup_record"]["invoke"]["args"]["expression"]
         .as_str()
         .unwrap();
-    assert_eq!(expression, nika_compile::surface::SELECT_BY_FIELD);
+    let guarded = format!(
+        "\n{} | dguard(null)",
+        nika_compile::surface::SELECT_BY_FIELD
+    );
+    assert!(expression.ends_with(&guarded), "{expression}");
     assert!(ancestors(&doc, "write_output").contains("lookup_admit"));
 }

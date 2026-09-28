@@ -667,4 +667,113 @@ mod tests {
         );
         assert!(run("empty", &records).unwrap_err().0.contains("no value"));
     }
+
+    /// The expression the compile EMITS at `task` for `intent` over the observed JSON `files`
+    /// (R4 A8): the READY candidate is parsed and its task of exactly that id is read (ids are
+    /// unique map keys); the test fails when the candidate is not READY, when the task is absent
+    /// or holds no expression, and when it does not carry the decimal laws it is meant to test.
+    /// The laws are exercised as generated artifacts, not as a copy of their source.
+    fn emitted(request: &nika_compile::CompileRequest, task: &str) -> String {
+        let out = nika_compile::compile(request).unwrap();
+        assert_eq!(out.status, nika_compile::CompileStatus::Ready, "{out:#?}");
+        let doc: Value = serde_yaml_bw::from_str(out.candidate.as_deref().unwrap()).unwrap();
+        let expression = doc["tasks"][task]["invoke"]["args"]["expression"]
+            .as_str()
+            .unwrap_or_else(|| panic!("no task `{task}` with an expression: {doc:#}"))
+            .to_owned();
+        assert!(
+            expression.starts_with("# Exact decimal order laws (R4 A8)"),
+            "`{task}` carries no decimal law: {expression}"
+        );
+        expression
+    }
+
+    /// A compile request over JSON files the host observed, with their record keys.
+    fn over(intent: &str, files: &[(&str, &[&str])]) -> nika_compile::CompileRequest {
+        let observed: Vec<Value> = files
+            .iter()
+            .map(|(path, keys)| json!({"path": path, "state": "observed", "complete": false, "kind": "json", "columns": keys, "common_columns": keys}))
+            .collect();
+        nika_compile::CompileRequest::create(intent).with_knowledge(json!({"observed": observed}))
+    }
+
+    #[test]
+    fn a_decoded_json_number_crosses_to_the_next_task_exactly_or_the_run_stops() {
+        let parse = emitted(
+            &over(
+                "Read ./rows.json and write it to ./copy.csv",
+                &[("./rows.json", &["name", "id", "weight"])],
+            ),
+            "parse_source",
+        );
+        // Ordinary numbers pass: an integer serde keeps (within [-2^63, 2^64-1]), a decimal
+        // whose shortest f64 text states the same value, zero and negative zero.
+        let kept = r#"[{"name": "a", "id": 42, "weight": 0.1, "big": 18446744073709551615, "low": -9223372036854775808, "e": 1e2, "f": 2.5e-3, "z": -0, "t": 0.30000000000000004}]"#;
+        assert!(run(&parse, &json!(kept)).is_ok(), "{kept}");
+        // A number the transport would change stops the run, named with what it would become.
+        for (text, at, carried) in [
+            (
+                r#"[{"id": 123456789012345678901234567890}]"#,
+                "0.id is 123456789012345678901234567890",
+                "1.2345678901234568e29",
+            ),
+            (
+                r#"[{"name": "a", "weight": 1.000000000000000001}]"#,
+                "0.weight is 1.000000000000000001",
+                "1.0",
+            ),
+            (
+                r#"[{"n": 18446744073709551616}]"#,
+                "0.n is 18446744073709551616",
+                "1.8446744073709552e19",
+            ),
+            (
+                r#"[{"n": -9223372036854775809}]"#,
+                "0.n is -9223372036854775809",
+                "-9.223372036854776e18",
+            ),
+            (
+                r#"[{"deep": {"x": [1, 2.000000000000000001]}}]"#,
+                "0.deep.x.1 is 2.000000000000000001",
+                "2.0",
+            ),
+        ] {
+            let why = run(&parse, &json!(text)).unwrap_err().0;
+            assert!(
+                why.contains(&format!("the number at {at}"))
+                    && why.contains(&format!("carry it as {carried}"))
+                    && why.contains("nothing is written"),
+                "{text}: {why}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_record_a_lookup_selects_crosses_exactly_or_the_run_stops() {
+        let request = nika_compile::CompileRequest::create(
+            "Route support tickets, look up the customer, draft a reply, and ask me before any refund",
+        )
+        .answer("model", r#""mock/echo""#)
+        .answer("const.customer_directory", r#""customers.json""#)
+        .answer("const.refund_endpoint", r#""https://refund.example.invalid/refunds""#)
+        .answer(
+            "const.refund_policy",
+            r#"{"cap":100,"currency":"EUR","criteria":"unused purchase within 14 days"}"#,
+        );
+        let pick = emitted(&request, "lookup_customer");
+        let look = |directory: &str| run(&pick, &json!({"directory": directory, "id": "c1"}));
+        assert_eq!(
+            look(r#"{"c1": {"name": "Ada", "balance": 12.5}}"#).unwrap(),
+            json!({"name": "Ada", "balance": 12.5})
+        );
+        assert_eq!(look(r#"{"c2": {"name": "Bo"}}"#).unwrap(), Value::Null);
+        let why = look(r#"{"c1": {"name": "Ada", "balance": 1.000000000000000001}}"#)
+            .unwrap_err()
+            .0;
+        assert!(
+            why.contains("the number at balance is 1.000000000000000001")
+                && why.contains("carry it as 1.0"),
+            "{why}"
+        );
+    }
 }

@@ -23,8 +23,8 @@ use super::bindings::{self, Bindings, Need, RuleBinding, Source};
 use super::laws::{
     FOLD_DOCUMENTS, FOLD_DRAFTS, FOLD_FIELDS, INFER_TIMEOUT, LINES, SELECT_BY_FIELD, SELECT_BY_KEY,
     SOURCE_COLUMNS, SOURCE_COLUMNS_UNION, SUMMARY, ZIP, anchor_law, bullet_layout, category_schema,
-    draft_law, draft_schema, extract_schema, per_item_extract_law, per_item_law,
-    per_item_translation_law, translation, translation_law,
+    draft_law, draft_schema, extract_schema, guarded_lookup, guarded_parse, per_item_extract_law,
+    per_item_law, per_item_translation_law, translation, translation_law,
 };
 use super::ledger::{DutyKind, Ledger};
 use super::paths::{self, Structured};
@@ -599,7 +599,7 @@ fn emit_lookup(d: &mut Doc, b: &Bindings) {
     d.tool(
         "lookup_record",
         "nika:jq",
-        json!({"input": input, "expression": expression}),
+        json!({"input": input, "expression": guarded_lookup(expression)}),
         Some(json!({"directory": "${{ tasks.lookup_read.output }}"})),
         false,
     );
@@ -694,12 +694,12 @@ fn emit_parse_lines(d: &mut Doc) {
 
 /// Several structured files a rule joins are decoded apart: one array of records per file,
 /// in item order, so the join reads `.records[0]`, `.records[1]`, … as the request listed
-/// the files.
+/// the files. A JSON file's every number keeps its exact value past the decode, or it stops.
 fn emit_parse_each(d: &mut Doc, format: Structured) {
     let (tool, args) = match format {
         Structured::Json => (
             "nika:jq",
-            json!({"input": "${{ item }}", "expression": "fromjson"}),
+            json!({"input": "${{ item }}", "expression": guarded_parse(None)}),
         ),
         other => (
             "nika:convert",
@@ -715,14 +715,15 @@ fn emit_parse_each(d: &mut Doc, format: Structured) {
 }
 
 /// A structured source is decoded once for code rules; prompts keep the raw text. Emitted
-/// only when a code rule, an endpoint payload or a structured write consumes the records.
+/// only when a code rule, an endpoint payload or a structured write consumes the records. A
+/// JSON source's every number keeps its exact value past the decode, or the run stops.
 fn emit_parse(d: &mut Doc, format: Structured) {
     let with = json!({"document": "${{ tasks.read_source.output }}"});
     match format {
         Structured::Json => d.tool(
             "parse_source",
             "nika:jq",
-            json!({"input": "${{ with.document }}", "expression": "fromjson"}),
+            json!({"input": "${{ with.document }}", "expression": guarded_parse(None)}),
             Some(with),
             false,
         ),

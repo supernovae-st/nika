@@ -211,6 +211,39 @@ certify that a whole file holds one match, and the source may change between the
 run. An object directory yields its keyed entry, and the per-invocation lookup
 (`SELECT_BY_KEY`, keyed by `inputs.record_id`) is unchanged.
 
+## Numbers past the parse: exact or stopped
+
+A JSON source's numbers reach the next task through the engine's JSON transport between tasks
+(serde_json with `float_roundtrip`, no `arbitrary_precision`). An integer within [−2⁶³, 2⁶⁴−1]
+passes as itself; anything else passes as the shortest text of its f64. Before R4 A8 that
+changed values in silence, with exit 0, in every candidate that decoded JSON:
+- a >u64 identifier (`123456789012345678901234567890`) became `1.2345678901234568e29`;
+- a fine decimal (`1.000000000000000001`) became `1.0`.
+
+The decode is now guarded (`laws::guarded_parse`, the `dguard` law of `laws/order.jq`). Every
+number the next task may read or write keeps its exact value through the transport, or the run
+stops at `parse_source` before any effect, naming:
+- the number's path;
+- its value;
+- what the transport would have made of it.
+
+What is kept is the value, not the spelling: as before, `1.50` passes as `1.5` and `1e2` as
+`100.0`.
+
+Lookups are guarded the same way, over every number of the record they select:
+`SELECT_BY_FIELD`, `SELECT_BY_KEY` and the support composition's customer lookup.
+
+Other sources:
+- **CSV:** converted to text cells; it needs no guard.
+- **YAML or TOML:** the numbers are parsed inside `nika:convert` before any law can see them.
+  This is a known limit, owned by the builtin.
+
+The laws are jq that the one runtime runs.
+- `laws/order.jq` is readable source, counted with this crate: Rust and jq together stay
+  within the crate budget.
+- It carries no regular expression.
+- It defines nothing global: each guarded expression carries it in front.
+
 ## Observed fields and pending transformations
 
 Source observation distinguishes absent, unreadable, empty, unknown and observed

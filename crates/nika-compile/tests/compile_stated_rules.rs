@@ -65,7 +65,8 @@ fn a_stated_filter_over_a_json_source_is_the_code_the_workflow_runs() {
         "[.records[] | select(.status == \"open\")]"
     );
     assert_eq!(rule_jq(&out), expression(&doc, "compute"));
-    assert_eq!(expression(&doc, "parse_source"), "fromjson");
+    // Whole rows are written: every number of the source is guarded past the decode (R4 A8).
+    assert!(expression(&doc, "parse_source").ends_with("\nfromjson | dguard(null)"));
     // The rows the rule kept are what the write carries; no model, no draft, no question.
     assert_eq!(
         doc["tasks"]["write_output"]["with"]["content"],

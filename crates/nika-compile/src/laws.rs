@@ -62,6 +62,23 @@ pub(super) const SELECT_BY_KEY: &str = ". as $lookup | ($lookup.directory | from
 /// directory yields its keyed entry.
 pub const SELECT_BY_FIELD: &str = r#". as $l | ($l.directory | fromjson) | if type == "array" then (map(select(type == "object" and (.[$l.field] == $l.id or ((.[$l.field] | type) == "number" and (.[$l.field] | tostring) == $l.id)))) | . as $m | if all(.[]; . == $m[0]) then $m[0] else error("\($m | length) records have `\($l.field)` \($l.id) and they differ: no single record can be chosen, and input order is no reason to pick one") end) else .[$l.id] end"#;
 
+/// The exact decimal order laws (R4 A8) in the one jq the runtime runs: the exact order key, the
+/// rank cut and the transport guard (`laws/order.jq`, readable, counted with this crate).
+pub(super) const ORDER: &str = include_str!("laws/order.jq");
+
+/// The decode of a JSON source, guarded: every number the next task may read or write (all of
+/// them, or those under the named record fields) keeps its exact value through the JSON transport
+/// between tasks, or the run stops before any effect naming it (R4 A8).
+pub(super) fn guarded_parse(fields: Option<&[String]>) -> String {
+    let scope = fields.map_or_else(|| "null".to_owned(), |f| json!(f).to_string());
+    format!("{ORDER}\nfromjson | dguard({scope})")
+}
+
+/// A record a lookup selects crosses to the next task with every number exact, or stops.
+pub(super) fn guarded_lookup(select: &str) -> String {
+    format!("{ORDER}\n{select} | dguard(null)")
+}
+
 /// The header order of a CSV source: its first line, `\r` trimmed, split on commas,
 /// the surrounding double quotes stripped from each cell. A quoted header holding a
 /// comma is out of scope: the cells are then a superset, still emitted first.

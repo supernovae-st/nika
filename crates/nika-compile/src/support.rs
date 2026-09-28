@@ -3,6 +3,7 @@
 
 //! Bounded support composition. This is a private plan, not a language or registry entry.
 //! The deterministic frontend consumes whole clauses; unmatched words never disappear.
+use super::laws::{SELECT_BY_KEY, guarded_lookup};
 use super::{CompileError, CompileOutcome, CompileRequest, DiagnosticKind, QuestionType};
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
@@ -382,7 +383,7 @@ impl Assembly {
         );
         let mut pick = invoke(
             "nika:jq",
-            json!({"input":{"directory":"${{ with.directory }}","id":"${{ inputs.customer_id }}"},"expression":". as $lookup | ($lookup.directory | fromjson)[$lookup.id]"}),
+            json!({"input":{"directory":"${{ with.directory }}","id":"${{ inputs.customer_id }}"},"expression":guarded_lookup(SELECT_BY_KEY)}),
         );
         pick["with"] = json!({"directory":"${{ tasks.lookup_read.output }}"});
         self.task("lookup_customer", pick);
