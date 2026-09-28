@@ -14,7 +14,9 @@
 //! the grammar does not cover is `None`: the human is asked, nothing is guessed. Every
 //! expression shape emitted here was run on the engine's jq before it was written down.
 
-use super::rule_tokens::{ATTEMPT_UNITS, Kind, SIZE_UNITS, Token, fold, number, phrase, tokenize};
+use super::rule_tokens::{
+    ATTEMPT_UNITS, Kind, SIZE_UNITS, Token, hinted, normalized, number, phrase, tokenize,
+};
 use serde_json::{Value, json};
 
 pub use super::aggregate::{AggOp, Aggregation, ArithOp, Derived, Shape, Term};
@@ -218,16 +220,6 @@ pub(crate) fn identifier_shaped(word: &str) -> bool {
     let inner_upper = word.chars().skip(1).any(char::is_uppercase);
     let lower = word.chars().any(char::is_lowercase);
     starts && joined && (word.contains('_') || (digit && letter) || (inner_upper && lower))
-}
-
-fn normalized(name: &str) -> String {
-    fold(name).replace([' ', '-'], "_")
-}
-
-/// The hint column a name designates, in the hint's own spelling.
-fn hinted(name: &str, columns: &[String]) -> Option<String> {
-    let wanted = normalized(name);
-    columns.iter().find(|c| normalized(c) == wanted).cloned()
 }
 
 /// A token that names a column: a hint column when a hint exists, else an identifier.
@@ -996,56 +988,7 @@ fn last_relative(region: &[Token]) -> Option<(usize, usize)> {
 /// A verb that drops the rows it describes ("exclude the rows whose …", "filter out …",
 /// "supprime les lignes dont …"): the clauses name what leaves, and the grammar reads no
 /// polarity there. Reading them as a keep would run the complement of the request.
-const EXCLUSION_LEADS: &[&str] = &[
-    "exclude",
-    "excludes",
-    "excluding",
-    "drop",
-    "drops",
-    "remove",
-    "removes",
-    "delete",
-    "deletes",
-    "discard",
-    "discards",
-    "omit",
-    "omits",
-    "skip",
-    "skips",
-    "ignore",
-    "ignores",
-    "strip",
-    "out",
-    "exclus",
-    "exclure",
-    "excluez",
-    "supprime",
-    "supprimez",
-    "supprimer",
-    "retire",
-    "retirez",
-    "retirer",
-    "enleve",
-    "enlevez",
-    "enlever",
-    "elimine",
-    "eliminez",
-    "eliminer",
-    "ignorez",
-    "ecarte",
-    "ecartez",
-    "elimina",
-    "quita",
-    "descarta",
-    "excluye",
-    "omite",
-    "rimuovi",
-    "escludi",
-    "scarta",
-    "entferne",
-    "losche",
-    "verwerfe",
-];
+const EXCLUSION_LEADS: &str = include_str!("../assets/exclusion_leads.txt");
 
 fn negated_lead(lead: &[Token]) -> bool {
     let words: Vec<&str> = lead.iter().filter_map(Token::word).collect();
@@ -1056,7 +999,7 @@ fn negated_lead(lead: &[Token]) -> bool {
                 .is_some_and(|window| window.contains(&"que"));
         }
         NEGATIONS.contains(word)
-            || EXCLUSION_LEADS.contains(word)
+            || EXCLUSION_LEADS.lines().any(|lead| lead == *word)
             || matches!(
                 *word,
                 "never"

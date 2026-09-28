@@ -444,3 +444,12 @@ fn a_negation_among_the_lead_words_is_read_as_nothing_never_inverted() {
         Some("[.records[] | select(.status != \"closed\")]".to_owned())
     );
 }
+
+/// The exclusion leads before they became data (rules.rs at 4bddf8a14, sha256 15e84e0e…):
+/// the asset holds exactly these words, in this order.
+#[test]
+fn the_exclusion_leads_are_the_frozen_list() {
+    let frozen = "exclude excludes excluding drop drops remove removes delete deletes discard discards omit omits skip skips ignore ignores strip out exclus exclure excluez supprime supprimez supprimer retire retirez retirer enleve enlevez enlever elimine eliminez eliminer ignorez ecarte ecartez elimina quita descarta excluye omite rimuovi escludi scarta entferne losche verwerfe";
+    let read: Vec<&str> = EXCLUSION_LEADS.lines().collect();
+    assert_eq!(read, frozen.split(' ').collect::<Vec<_>>());
+}

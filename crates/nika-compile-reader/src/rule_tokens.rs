@@ -116,6 +116,17 @@ pub fn fold(text: &str) -> String {
     out
 }
 
+/// A column name as the grammar compares it: folded, spaces and dashes read as underscores.
+pub(crate) fn normalized(name: &str) -> String {
+    fold(name).replace([' ', '-'], "_")
+}
+
+/// The hint column a name designates, in the hint's own spelling.
+pub(crate) fn hinted(name: &str, columns: &[String]) -> Option<String> {
+    let wanted = normalized(name);
+    columns.iter().find(|c| normalized(c) == wanted).cloned()
+}
+
 // ── tokens ───────────────────────────────────────────────────────────────────────
 
 #[derive(Clone, Debug, PartialEq, Eq)]
