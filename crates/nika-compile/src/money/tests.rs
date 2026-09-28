@@ -174,3 +174,266 @@ fn a_money_segment_keeps_conjunctions_missing_amounts_and_default_references() {
         (vec![], None)
     );
 }
+
+/// What a request states about money: every money-shaped word is business data, one directive
+/// was stated (its exact text and amount), or the stated money refuses.
+#[derive(Clone, Copy, Debug)]
+enum Stated {
+    Data,
+    Directive(&'static str, f64),
+    Refused,
+}
+
+/// The frozen B15 EN/FR public matrix (R4 · frozen before any run): twelve scenarios, each in
+/// English then French, over `./data/input.csv`. Their business outcome is judged end to end
+/// (`nika-cli` `compile_money_doors`); here only what the request states about money.
+const MATRIX: [(&str, &str, Stated); 24] = [
+    (
+        "S01-EN",
+        "read ./data/input.csv, keep the rows where cost is under 5 USD, write them to ./out/result.json",
+        Stated::Data,
+    ),
+    (
+        "S01-FR",
+        "lis ./data/input.csv, garde les lignes où cost est inférieur à 5 USD, écris-les dans ./out/result.json",
+        Stated::Data,
+    ),
+    (
+        "S02-EN",
+        "read ./data/input.csv, keep the rows whose budget is 1500 USD, write them to ./out/result.json",
+        Stated::Data,
+    ),
+    (
+        "S02-FR",
+        "lis ./data/input.csv, garde les lignes dont le budget est 1500 USD, écris-les dans ./out/result.json",
+        Stated::Data,
+    ),
+    (
+        "S03-EN",
+        "read ./data/input.csv, keep the rows whose budget is over 1000 USD, write them to ./out/result.json",
+        Stated::Data,
+    ),
+    (
+        "S03-FR",
+        "lis ./data/input.csv, garde les lignes dont budget dépasse 1000 USD, écris-les dans ./out/result.json",
+        Stated::Data,
+    ),
+    (
+        "S04-EN",
+        "read ./data/input.csv, keep the rows whose budget is between 1000 USD and 1600 USD, write them to ./out/result.json",
+        Stated::Data,
+    ),
+    (
+        "S04-FR",
+        "lis ./data/input.csv, garde les lignes dont le budget est entre 1000 USD et 1600 USD, écris-les dans ./out/result.json",
+        Stated::Data,
+    ),
+    (
+        "S05-EN",
+        "read ./data/input.csv, keep the rows where cost is under $5, write them to ./out/result.json",
+        Stated::Data,
+    ),
+    (
+        "S05-FR",
+        "lis ./data/input.csv, garde les lignes où plafond=3USD, écris-les dans ./out/result.json",
+        Stated::Data,
+    ),
+    (
+        "S06-EN",
+        "read ./data/input.csv, keep the rows where price is under 15 USD, write them to ./out/result.json",
+        Stated::Data,
+    ),
+    (
+        "S06-FR",
+        "lis ./data/input.csv, garde les lignes dont le montant est supérieur à 100 dollars, écris-les dans ./out/result.json",
+        Stated::Data,
+    ),
+    (
+        "S07-EN",
+        "read ./data/input.csv, keep the rows with a budget of 1500 USD, write them to ./out/result.json",
+        Stated::Data,
+    ),
+    (
+        "S07-FR",
+        "lis ./data/input.csv, garde les lignes avec un budget de 1500 USD, écris-les dans ./out/result.json",
+        Stated::Data,
+    ),
+    (
+        "S08-EN",
+        "read ./data/input.csv, keep the rows where amount_usd is over 250, write them to ./out/result.json, budget 0 USD",
+        Stated::Directive("budget 0 USD", 0.0),
+    ),
+    (
+        "S08-FR",
+        "lis ./data/input.csv, garde les lignes dont amount_usd dépasse 250, écris-les dans ./out/result.json, plafond de 0 dollar",
+        Stated::Directive("plafond de 0 dollar", 0.0),
+    ),
+    (
+        "S09-EN",
+        "read ./data/input.csv, keep the rows whose budget is 1500 USD, write them to ./out/result.json. Budget: 0 USD.",
+        Stated::Directive("Budget: 0 USD", 0.0),
+    ),
+    (
+        "S09-FR",
+        "lis ./data/input.csv, garde les lignes dont le budget est 1500 USD, écris-les dans ./out/result.json. Budget : 0 dollar.",
+        Stated::Directive("Budget : 0 dollar", 0.0),
+    ),
+    (
+        "S10-EN",
+        "read ./data/input.csv, keep the rows where amount_usd is over 250, write them to ./out/result.json with a budget of 2 USD",
+        Stated::Directive("with a budget of 2 USD", 2.0),
+    ),
+    (
+        "S10-FR",
+        "lis ./data/input.csv, garde les lignes dont amount_usd dépasse 250, écris-les dans ./out/result.json avec un plafond de 2 dollars",
+        Stated::Directive("avec un plafond de 2 dollars", 2.0),
+    ),
+    (
+        "S11-EN",
+        "read ./data/input.csv, keep the rows where amount_usd is over 250, write them to ./out/result.json. Budget: 1 USD. Cap: 2 USD.",
+        Stated::Refused,
+    ),
+    (
+        "S11-FR",
+        "lis ./data/input.csv, garde les lignes dont amount_usd dépasse 250, écris-les dans ./out/result.json. Budget : 1 dollar. Plafond : 2 dollars.",
+        Stated::Refused,
+    ),
+    (
+        "S12-EN",
+        "read ./data/input.csv, keep the rows where amount_usd is over 250, write them to ./out/result.json. Budget: $abc.",
+        Stated::Refused,
+    ),
+    (
+        "S12-FR",
+        "lis ./data/input.csv, garde les lignes dont amount_usd dépasse 250, écris-les dans ./out/result.json avec un plafond de $NaN",
+        Stated::Refused,
+    ),
+];
+
+/// The frozen separating cases (R4 B15): quoted and path text, a business money action, a
+/// relative clause a conjunction continues, the heads that attach a phrase to the work, the
+/// French copula alone and inside a relative clause, `cost` in its own sentence, and (v1.1)
+/// negative business values apart from a genuine negative directive (Addon V4) and a consent
+/// line's explicit amendment (M7).
+const SEPARATING: [(&str, &str, Stated); 16] = [
+    (
+        "X01-EN quoted",
+        "write \"Budget: $0\" to ./out/note.txt",
+        Stated::Data,
+    ),
+    (
+        "X02-FR quoted",
+        "écris « plafond : 3 dollars » dans ./out/note.txt",
+        Stated::Data,
+    ),
+    (
+        "X03 path",
+        "read ./budget=0.csv and write it to ./out/copy.csv",
+        Stated::Data,
+    ),
+    (
+        "X04-EN business action",
+        "read ./data/input.csv, keep the rows where amount_usd is over 250, then refund the cost of 50 USD to each customer",
+        Stated::Data,
+    ),
+    (
+        "X05-FR business action",
+        "lis ./data/input.csv, garde les lignes dont amount_usd dépasse 250, puis accorde à chaque client un budget de 50 dollars",
+        Stated::Data,
+    ),
+    (
+        "X06 governed conjunction",
+        "read ./data/input.csv, keep the rows whose status is open and budget=1500USD, write them to ./out/result.json",
+        Stated::Data,
+    ),
+    (
+        "X07 greeting head",
+        "hello budget 2 USD",
+        Stated::Directive("budget 2 USD", 2.0),
+    ),
+    (
+        "X08-FR standalone copula",
+        "Copie ./in.txt vers ./out.txt. Le budget est de 2 dollars.",
+        Stated::Directive("Le budget est de 2 dollars", 2.0),
+    ),
+    (
+        "X09-FR relative copula",
+        "lis ./data/input.csv, garde les lignes dont le budget est de 2 dollars, écris-les dans ./out/result.json",
+        Stated::Data,
+    ),
+    (
+        "X10 cost sentence",
+        "Summarize ./notes/a.md into ./out/a.md. The cost is 5 USD.",
+        Stated::Data,
+    ),
+    (
+        "X11 zero copy",
+        "Copy ./data/input.csv to ./out/copy.csv, budget 0 USD",
+        Stated::Directive("budget 0 USD", 0.0),
+    ),
+    (
+        "X12-EN negative business value",
+        "read ./data/input.csv, keep the rows whose budget is -5 USD, write them to ./out/result.json",
+        Stated::Data,
+    ),
+    (
+        "X13-FR negative business value",
+        "lis ./data/input.csv, garde les lignes dont le budget est inférieur à -10 dollars, écris-les dans ./out/result.json",
+        Stated::Data,
+    ),
+    (
+        "X14 negative directive",
+        "Copy ./data/input.csv to ./out/copy.csv. Budget: -1 USD.",
+        Stated::Refused,
+    ),
+    (
+        "X15 consent amendment",
+        "yes but budget 0 dollars",
+        Stated::Directive("budget 0 dollars", 0.0),
+    ),
+    (
+        "X16 malformed consent amendment",
+        "yes but budget NaN dollars",
+        Stated::Refused,
+    ),
+];
+
+/// Every case whose reading differs from its frozen expectation, with what the law read.
+fn misread(cases: &[(&str, &str, Stated)]) -> Vec<String> {
+    let mut wrong = Vec::new();
+    for &(id, request, expected) in cases {
+        let got = directives(request).map(|found| {
+            let texts: Vec<String> = found
+                .found
+                .iter()
+                .map(|d| request[d.span.clone()].to_owned())
+                .collect();
+            (texts, found.money.amount)
+        });
+        let bits = |amount: &Option<f64>| amount.map(f64::to_bits);
+        let right = match (expected, &got) {
+            (Stated::Data, Ok((texts, amount))) => texts.is_empty() && amount.is_none(),
+            (Stated::Directive(text, value), Ok((texts, amount))) => {
+                texts.as_slice() == [text] && bits(amount) == Some(value.to_bits())
+            }
+            (Stated::Refused, Err(_)) => true,
+            _ => false,
+        };
+        if !right {
+            wrong.push(format!("{id}: expected {expected:?}, read {got:?}"));
+        }
+    }
+    wrong
+}
+
+#[test]
+fn the_frozen_matrix_reads_money_by_the_role_of_its_words() {
+    let wrong = misread(&MATRIX);
+    assert!(wrong.is_empty(), "{wrong:#?}");
+}
+
+#[test]
+fn separating_cases_keep_business_money_apart_from_explicit_directives() {
+    let wrong = misread(&SEPARATING);
+    assert!(wrong.is_empty(), "{wrong:#?}");
+}

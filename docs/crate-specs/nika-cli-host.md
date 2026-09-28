@@ -76,6 +76,18 @@ never read, followed, removed or rewritten (`--force` included), never shown
 as this round's output or judged a workflow, and status, exit code and the
 absent `nika run` next step are unchanged.
 
+The operator's words carry its money (R4 B15). `build_request` marks the
+request `with_stated_money`: the compile core reads every monetary directive of
+the request (of a replacement request on the seats' door) with the law of
+`nika_compile::money`, blanks it from the business reading and records it in
+`decision.money`; a malformed or conflicting one refuses. This door meters no
+authoring seat, so any stated ceiling, zero or positive, keeps
+`--authoring-model` and `--decision-model` closed: nothing is prepared or sent,
+a HOT-settled request stays READY, and other work stays incomplete with an
+`authoring_money` finding. Naming a model grants no budget. The ceiling never
+enters the workflow bytes and grants no Run authority; `nika run` keeps its own
+`--max-cost-usd`.
+
 The binary and all dispatch remain in `nika-cli`. Existing CLI integration
 tests exercise the re-exported surface and actual process boundary; the
 quoting law itself is unit-tested here, beside `output::sh_word`. No new

@@ -5,8 +5,10 @@
 //! « …, budget=0 » a filter on a field named `budget`. A caller that admitted the directive
 //! (Session's money gate) says so; the compiler reads the request with those exact spans
 //! blanked, records them beside the original request's identity, and certifies no cap. Without
-//! an admission (the CLI) nothing changes. A directive with no currency whose anchor names an
-//! observed field reads both ways and is asked; a span that is no directive is refused.
+//! an admission nothing changes. A directive with no currency whose anchor names an observed
+//! field reads both ways and is asked; a span that is no directive is refused. Money-shaped words
+//! are a directive or business data by their role in the request, never by a word or a field
+//! (R4 B15).
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 use nika_compile::{CompileOutcome, CompileRequest, CompileStatus, compile, intent_sha256};
 use serde_json::{Value, json};
@@ -19,16 +21,21 @@ const PLAIN: &str = "[.records[] | select(.status == \"open\")]";
 
 /// The world a host observes for one CSV head.
 fn world(head: &str) -> Value {
+    world_at("./tickets.csv", head)
+}
+
+/// The world a host observes for one CSV head at `path`.
+fn world_at(path: &str, head: &str) -> Value {
     let sample = nika_compile::observation::csv(head, false);
     let mut row = json!({
-        "path": "./tickets.csv", "state": "observed", "complete": false, "kind": "csv",
+        "path": path, "state": "observed", "complete": false, "kind": "csv",
         "columns": sample.columns, "bytes": head.len(), "peek_sha256": format!("len-{}", head.len()),
         "delimiter": ",",
     });
     if !sample.values.is_empty() {
         row["values"] = Value::Object(sample.values.into_iter().collect());
     }
-    json!({"observed": [row], "kinds": {"./tickets.csv": sample.kinds}})
+    json!({"observed": [row], "kinds": {path: sample.kinds}})
 }
 
 const TICKETS: &str = "id,status,amount\n1,open,10\n2,closed,20\n3,open,30\n";
@@ -86,7 +93,7 @@ fn an_admitted_ceiling_is_read_as_the_callers_never_as_a_clause() {
             "never in the bytes"
         );
     }
-    // Without an admission (the CLI), the words are read as they always were.
+    // Without an admission, the words are read as they always were.
     let unadmitted = plain(&format!("{WORK}. Budget: $0."), TICKETS);
     assert_ne!(unadmitted.status, CompileStatus::Ready, "{unadmitted:#?}");
     assert!(
@@ -145,5 +152,72 @@ fn a_span_that_is_no_directive_is_refused_and_offsets_survive_multibyte_text() {
     assert_eq!(
         &french[found.found.last().unwrap().span.clone()],
         "Budget: $0"
+    );
+}
+
+/// The frozen B15 fixture: every field the matrix names, `budget` among them.
+const INPUT: &str = "id,cost,budget,price,plafond,montant,amount_usd\na,3,1500,10,3,120,100\nb,5,1000,15,5,250,250\nc,7,2000,20,3,300,300\nd,4,1500,14,10,80,251\ne,0,999,0,0,0,0\nf,12,1200,30,3,600,600\n";
+
+/// The request with every directive the money reader finds admitted, over the B15 fixture when
+/// it is observed and over no observation at all otherwise.
+fn admitted_input(request: &str, observed: bool) -> CompileOutcome {
+    let spans = nika_compile::money::directives(request)
+        .unwrap()
+        .found
+        .into_iter()
+        .map(|d| d.span)
+        .collect();
+    let mut with = CompileRequest::create(request).with_admitted_money(spans);
+    if observed {
+        with = with.with_knowledge(world_at("./data/input.csv", INPUT));
+    }
+    compile(&with).unwrap()
+}
+
+/// R4 B15 · Q2: a phrase is money or business data by its role, never by a word or a field. The
+/// source has a `budget` column, yet the operator's trailing « with a budget of 2 USD » stays the
+/// caller's ceiling; « rows whose budget is 1500 USD » and « rows with a budget of 1500 USD »
+/// stay business data, observed or not.
+#[test]
+fn a_phrase_is_money_or_data_by_its_role_never_by_a_field() {
+    let directive = "read ./data/input.csv, keep the rows where amount_usd is over 250, write them to ./out/result.json with a budget of 2 USD";
+    let out = admitted_input(directive, true);
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    let decision = out.provenance.decision.as_ref().unwrap();
+    assert_eq!(
+        decision["money"]["directives"][0]["text"], "with a budget of 2 USD",
+        "{decision:#}"
+    );
+    let compute = common::compute(out.candidate.as_deref().unwrap());
+    assert!(
+        compute.contains("amount_usd") && compute.contains("250"),
+        "{compute}"
+    );
+    let equality = "read ./data/input.csv, keep the rows whose budget is 1500 USD, write them to ./out/result.json";
+    let with_a = "read ./data/input.csv, keep the rows with a budget of 1500 USD, write them to ./out/result.json";
+    for business in [equality, with_a] {
+        for observed in [true, false] {
+            let out = admitted_input(business, observed);
+            let money = out
+                .provenance
+                .decision
+                .as_ref()
+                .and_then(|d| d.get("money"));
+            assert!(
+                money.is_none(),
+                "{business} (observed: {observed}): {money:?}"
+            );
+            assert!(
+                !says(&out, "the monetary ceiling the caller admitted"),
+                "{out:#?}"
+            );
+        }
+    }
+    let rule = admitted_input(equality, true);
+    assert_eq!(rule.status, CompileStatus::Ready, "{rule:#?}");
+    let compute = common::compute(rule.candidate.as_deref().unwrap());
+    assert!(
+        compute.contains("budget") && compute.contains("1500"),
+        "{compute}"
     );
 }

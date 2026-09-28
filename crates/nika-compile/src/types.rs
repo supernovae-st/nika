@@ -27,6 +27,9 @@ pub struct CompileRequest {
     /// The monetary directives of the request the caller admitted as its own authority (R4 A6)
     /// — see [`Self::with_admitted_money`]; empty when the caller admits none.
     pub money: Vec<std::ops::Range<usize>>,
+    /// The operator states money in the words the compiler reads, on a door that meters no
+    /// seat (R4 B15) — see [`Self::with_stated_money`].
+    pub stated_money: bool,
 }
 
 /// One reference a knowledge snapshot recalled for the seat: its kind (`pattern` · `block` ·
@@ -154,6 +157,15 @@ impl CompileRequest {
         self.money = spans;
         self
     }
+    /// The operator states money in the words the compiler reads, on a door that meters no
+    /// seat (R4 B15 · the CLI): every directive of the request — of a replacement request, on
+    /// the seats' door — is the caller's ceiling, read with the law of `crate::money`; a
+    /// malformed or conflicting one refuses, and any stated ceiling, zero or not, opens no seat.
+    #[must_use]
+    pub fn with_stated_money(mut self) -> Self {
+        self.stated_money = true;
+        self
+    }
     /// Create from an exact skeleton or bounded support clauses. Other intents
     /// remain incomplete unless an explicit provider authoring call resolves them.
     #[must_use]
@@ -169,6 +181,7 @@ impl CompileRequest {
             authoring_knowledge: None,
             original_intent: None,
             money: Vec::new(),
+            stated_money: false,
         }
     }
 
@@ -193,6 +206,7 @@ impl CompileRequest {
             authoring_knowledge: None,
             original_intent: None,
             money: Vec::new(),
+            stated_money: false,
         }
     }
 
@@ -228,6 +242,7 @@ impl CompileRequest {
             authoring_knowledge: None,
             original_intent: None,
             money: Vec::new(),
+            stated_money: false,
         }
     }
 

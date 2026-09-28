@@ -9,6 +9,7 @@
 //! `nika-session` (`runtime/money_parse.rs`) so both read one law.
 
 mod directives;
+pub(crate) use directives::stated;
 pub use directives::{Directive, Directives, directives};
 
 /// The refusal when an amount is not a finite, nonnegative USD ceiling.
@@ -54,10 +55,12 @@ fn anchor(word: &str) -> bool {
     )
 }
 
+/// Link words between an anchor and its amount; a lone colon, which French typography sets
+/// apart (« Budget : 0 dollar »), is left empty once its punctuation is trimmed.
 fn filler(word: &str) -> bool {
     matches!(
         word,
-        "of" | "to" | "at" | "under" | "de" | "à" | "is" | ":" | "="
+        "of" | "to" | "at" | "under" | "de" | "à" | "is" | ":" | "=" | ""
     )
 }
 

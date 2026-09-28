@@ -34,6 +34,7 @@ use nika_kernel::ai::provider::{
 };
 use serde_json::{Value, json};
 
+mod admitted;
 mod instructions;
 use instructions::INSTRUCTIONS;
 mod backstops;
@@ -164,7 +165,8 @@ async fn revise<P: ProviderInferDyn>(
 /// Compile with explicit cognition: a decision seat (WARM) and/or a generative provider (COLD).
 /// Exact skeletons and resolved constant edits keep the zero-call path. A text revision
 /// may use native authoring under an explicit policy; CREATE follows the selected strategy,
-/// including native/sketch modes that can precede the deterministic intent path.
+/// including native/sketch modes that can precede the deterministic intent path. The money
+/// the host admitted or its operator stated is read first, for every strategy (R4 B15).
 ///
 /// # Errors
 /// Returns the same representation/registry machinery failures as [`super::compile`].
@@ -173,7 +175,29 @@ pub async fn compile_with_cognition<P: ProviderInferDyn>(
     request: &CompileRequest,
     cognition: Cognition<'_, P>,
 ) -> Result<CompileOutcome, CompileError> {
-    let mut out = compile_inner(request, cognition).await?;
+    let admitted::Money {
+        reading,
+        record,
+        closed,
+    } = match admitted::read(request) {
+        Ok(money) => money,
+        Err(refused) => return Ok(*refused),
+    };
+    let offered = cognition.provider.is_some() || cognition.seat.is_some();
+    let seats = if closed.is_some() {
+        Cognition::default()
+    } else {
+        cognition
+    };
+    let mut out = compile_inner(&reading, seats).await?;
+    if let Some(money) = record {
+        admitted::record(
+            request,
+            money,
+            closed.as_deref().filter(|_| offered),
+            &mut out,
+        );
+    }
     nika_compile::surface::observed::record(request, &mut out);
     Ok(out)
 }

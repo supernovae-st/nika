@@ -106,7 +106,12 @@ fn positive_authoring_amendment_and_save_share_one_account() {
             .iter()
             .all(|b| b["model"] == "deepseek-v4-pro")
     );
-    assert!(peer.bodies()[0].to_string().contains(&input));
+    // The seat reads the work; the admitted ceiling is the Session's, never work (R4 B15).
+    let asked = peer.bodies()[0].to_string();
+    assert!(
+        asked.contains(WORK) && !asked.contains("budget 2 USD"),
+        "{asked}"
+    );
     assert!(!dir.path().join("sortie.txt").exists());
     let out = s.consent("budget 3 USD");
     let TurnOutcome::Proposal { id, .. } = out else {

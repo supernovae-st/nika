@@ -17,6 +17,11 @@ pub use crate::types::{EditChange, Input};
 pub mod observed {
     pub use crate::observed::{columns, field_answer, for_intent, record, world};
 }
+
+/// The money a caller admitted or its operator stated, read before any strategy (R4 B15).
+pub mod admitted {
+    pub use crate::admitted::{read, record, refused, replacement};
+}
 pub use crate::{finding, finish, initial, literal_answer, parse, question};
 
 /// Durable unresolved computation and its exact field-choice context.

@@ -248,7 +248,7 @@ impl SessionRuntime {
                     return Err("a previous dispatch may have been billed; automatic retry and a replacement allowance are blocked".into());
                 }
             }
-            let parsed = super::money_parse::parse(input).map_err(str::to_owned)?;
+            let parsed = super::money_parse::directives(input)?.money;
             if parsed.amount == Some(0.0) {
                 return Err(
                     "the explicit zero constraint forbids this call; no request was sent".into(),

@@ -315,7 +315,8 @@ struct Setup {
 }
 
 /// The request the arguments state: an edit of the base (with the original intent beside it
-/// when stated) or a creation (named after its destination), the HOT policy, the answers.
+/// when stated) or a creation (named after its destination), the HOT policy, the answers, and
+/// the money the operator states in its words, which this door meters for no seat (R4 B15).
 fn build_request(args: &CompileArgs, dest: Option<&String>) -> Result<CompileRequest, VerbOutput> {
     let mut request = if let Some(base) = &args.base {
         let source = match std::fs::read_to_string(base) {
@@ -364,7 +365,7 @@ fn build_request(args: &CompileArgs, dest: Option<&String>) -> Result<CompileReq
         };
         request = request.answer(key, literal);
     }
-    Ok(request)
+    Ok(request.with_stated_money())
 }
 
 /// The intent the compiler will actually read, as the sha key must see it: the

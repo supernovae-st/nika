@@ -101,18 +101,18 @@ impl SessionRuntime {
         // Blocked cognition reads nothing, and a line that states no money has nothing
         // to admit: a restored exposure's refusal would expire the proposal for a line
         // nobody read. The route holds it with its observed effects (E5 FB3).
+        let law = super::authoring::run_prefix(answer).is_none();
+        let stated = self.read_money(answer, law);
         let unread = !review
             && self.money_blocks_cognition()
-            && self
-                .read_money(answer, false)
-                .is_ok_and(|(p, _)| p.amount.is_none());
+            && stated.as_ref().is_ok_and(|(p, _)| p.amount.is_none());
         if !unread && let Err(refusal) = self.admit_money(answer, true) {
             return refusal;
         }
         self.pending = None;
         // A closed monetary-only amendment changes Session's own ceiling,
         // never workflow bytes. It has its own preview and fresh consent id.
-        if money_parse::parse(answer).is_ok_and(|p| p.money_only) {
+        if stated.is_ok_and(|(p, _)| p.money_only) {
             let preview = self.draft_preview(&set);
             let id = ProposalId::of(&preview);
             self.bind_proposal_money(&id);
@@ -232,14 +232,14 @@ impl SessionRuntime {
         self.last_outcome = None;
     }
 
-    // Shared validation precedes either scope's continuation fast path. A work request states
-    // money only in its directives (R4 A6); Run, gate and consent lines keep the whole line.
+    // Shared validation precedes either scope's continuation fast path. Work, consent and answer
+    // lines state money only in their directives (R4 A6 · B15); Run and gate lines, the whole line.
     fn read_money(
         &self,
         input: &str,
-        work: bool,
+        law: bool,
     ) -> Result<(ParsedMoney, Vec<std::ops::Range<usize>>), String> {
-        let (parsed, spans) = if work {
+        let (parsed, spans) = if law {
             let found = money_parse::directives(input).map_err(str::to_owned)?;
             (
                 found.money,
@@ -333,8 +333,8 @@ impl SessionRuntime {
         if self.money.gate.is_some() {
             return self.admit_gate_money(input);
         }
-        let work = !continuation && super::authoring::run_prefix(input).is_none();
-        let parsed = match self.read_money(input, work) {
+        let law = super::authoring::run_prefix(input).is_none();
+        let parsed = match self.read_money(input, law) {
             Ok((parsed, spans)) => {
                 if !continuation {
                     self.money.admitted = spans;

@@ -10,9 +10,15 @@
 //! offsets), never as business clauses, and the decision records each one beside the original
 //! request's identity. A directive with no currency whose anchor names an observed field
 //! (« budget=0 » over a file with a `budget` column) reads both ways: it stays text and is asked.
+//! A door that meters no seat states its operator's money instead (R4 B15 · the CLI): every
+//! directive of the words the compiler reads is admitted, a replacement request's on the seats'
+//! door, never the words of a request it replaced.
+
+use std::ops::Range;
 
 use serde_json::{Value, json};
 
+use crate::money::Directives;
 use crate::types::{CompileRequest, Input};
 use crate::{CompileOutcome, CompileStatus, DiagnosticKind, QuestionType};
 
@@ -20,18 +26,78 @@ use crate::{CompileOutcome, CompileStatus, DiagnosticKind, QuestionType};
 /// caller admitted nothing (or the input is no request in words).
 ///
 /// # Errors
-/// The refusal when a span the caller admitted is not one of the request's monetary directives.
-pub(crate) fn read(request: &CompileRequest) -> Result<Option<(CompileRequest, Value)>, String> {
+/// The refusal when a span the caller admitted is not one of the request's monetary directives,
+/// or when the money a caller states is malformed or conflicting.
+pub fn read(request: &CompileRequest) -> Result<Option<(CompileRequest, Value)>, String> {
     let Input::Create(intent) = &request.input else {
         return Ok(None);
     };
-    if request.money.is_empty() {
+    if request.money.is_empty() && !request.stated_money {
         return Ok(None);
     }
     let found = crate::money::directives(intent).map_err(str::to_owned)?;
-    let mut text = intent.clone();
+    let spans: Vec<Range<usize>> = if request.stated_money {
+        found.found.iter().map(|d| d.span.clone()).collect()
+    } else {
+        request.money.clone()
+    };
+    let Some((text, records)) = blank(request, intent, &found, &spans)? else {
+        return Ok(None);
+    };
+    // A request that names a skeleton only once its directive is blanked (« hello budget 2 USD »)
+    // is no skeleton request: it is read as written.
+    let bare = text.trim();
+    if matches!(bare, "hello" | "01-hello") || nika_pack::template_names().iter().any(|n| n == bare)
+    {
+        return Ok(None);
+    }
+    let read_sha = crate::intent_sha256(&text);
+    let mut reading = request.clone();
+    reading.input = Input::Create(text);
+    reading.money = Vec::new();
+    reading.stated_money = false;
+    Ok(Some((
+        reading,
+        json!({"directives": records, "read_intent_sha256": read_sha}),
+    )))
+}
+
+/// A replacement request the operator states on the seats' door (`intent.clarification`), read
+/// by the same law: its text with its directives blanked and their record, or `None` when it
+/// states none. The words of the request it replaced grant it nothing.
+///
+/// # Errors
+/// The refusal of a malformed or conflicting directive.
+pub fn replacement(
+    request: &CompileRequest,
+    text: &str,
+) -> Result<Option<(String, Value)>, String> {
+    let found = crate::money::directives(text).map_err(str::to_owned)?;
+    let spans: Vec<Range<usize>> = found.found.iter().map(|d| d.span.clone()).collect();
+    let Some((blanked, records)) = blank(request, text, &found, &spans)? else {
+        return Ok(None);
+    };
+    let read_sha = crate::intent_sha256(&blanked);
+    Ok(Some((
+        blanked,
+        json!({"directives": records, "read_intent_sha256": read_sha}),
+    )))
+}
+
+/// `intent` with each admitted span blanked (the same bytes, the same offsets) and the record
+/// of each, or `None` when no span was admitted.
+fn blank(
+    request: &CompileRequest,
+    intent: &str,
+    found: &Directives,
+    spans: &[Range<usize>],
+) -> Result<Option<(String, Vec<Value>)>, String> {
+    if spans.is_empty() {
+        return Ok(None);
+    }
+    let mut text = intent.to_owned();
     let mut records = Vec::new();
-    for span in &request.money {
+    for span in spans {
         let Some(directive) = found.found.iter().find(|d| &d.span == span) else {
             return Err(format!(
                 "the admitted monetary span {}..{} is not a monetary directive of the request",
@@ -39,7 +105,7 @@ pub(crate) fn read(request: &CompileRequest) -> Result<Option<(CompileRequest, V
             ));
         };
         let words = &intent[span.clone()];
-        let money = crate::money::parse(words).map_err(str::to_owned)?;
+        let money = crate::money::stated(words).map_err(str::to_owned)?;
         let mut record = json!({"text": words, "span": [span.start, span.end],
             "amount": money.amount, "literal": money.literal, "currency": directive.currency});
         let field = (!directive.currency)
@@ -57,26 +123,12 @@ pub(crate) fn read(request: &CompileRequest) -> Result<Option<(CompileRequest, V
         }
         records.push(record);
     }
-    // A request that names a skeleton only once its directive is blanked (« hello budget 2 USD »)
-    // is no skeleton request: it is read as written.
-    let bare = text.trim();
-    if matches!(bare, "hello" | "01-hello") || nika_pack::template_names().iter().any(|n| n == bare)
-    {
-        return Ok(None);
-    }
-    let read_sha = crate::intent_sha256(&text);
-    let mut reading = request.clone();
-    reading.input = Input::Create(text);
-    reading.money = Vec::new();
-    Ok(Some((
-        reading,
-        json!({"directives": records, "read_intent_sha256": read_sha}),
-    )))
+    Ok(Some((text, records)))
 }
 
 /// Record what the caller admitted beside the outcome of the reading: the original request's
 /// identity, each directive, and a question where one reads both ways.
-pub(crate) fn record(request: &CompileRequest, money: Value, out: &mut CompileOutcome) {
+pub fn record(request: &CompileRequest, money: Value, out: &mut CompileOutcome) {
     let Input::Create(intent) = &request.input else {
         return;
     };
@@ -123,10 +175,10 @@ pub(crate) fn record(request: &CompileRequest, money: Value, out: &mut CompileOu
     out.provenance.decision = Some(decision);
 }
 
-/// The outcome of a request whose admitted span is none of its monetary directives: refused,
-/// nothing read.
+/// The outcome of a request whose admitted span is none of its monetary directives, or whose
+/// stated money is malformed or conflicting: refused, nothing read.
 #[must_use]
-pub(crate) fn refused(why: &str) -> CompileOutcome {
+pub fn refused(why: &str) -> CompileOutcome {
     let mut out = crate::initial();
     out.status = CompileStatus::Refused;
     crate::finding(&mut out, DiagnosticKind::Refused, "money", why);

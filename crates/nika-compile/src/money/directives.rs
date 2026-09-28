@@ -1,17 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The monetary directives of a work request (R4 A6): recognition only, never admission. A
-//! directive is a whole sentence or comma segment made of money words only that states an
-//! amount beside an anchor or a currency (« Budget: $0 », « budget=0 », « budget 2 USD »,
-//! « --max-cost-usd 0 »), or the trailing phrase of a segment that opens with a connector and
-//! names an anchor, a currency and an amount (« … with a budget of $1 », « … avec un plafond de
-//! 3 dollars »), or the trailing money words of a segment from their anchor on, currency
-//! included (« hello budget 2 USD »). Everything else is data, whatever it looks like: a word
-//! inside a business
-//! clause (« rows whose budget is 15 », « price under $5 »), an anchor followed by a plain
-//! word, quoted text, a path, a file name. Run, gate and consent lines keep [`super::parse`]'s
-//! whole-line reading.
+//! The monetary directives of a work request (R4 A6 · B15): recognition only, never admission.
+//! A directive is an explicit act about the work's own money, in one of two closed forms: a
+//! whole sentence or comma segment made of money words only (« Budget: $0 », « budget=0 »,
+//! « Le budget est de 2 dollars », « --max-cost-usd 0 »), or the phrase that ends a segment and
+//! attaches to the work — a connector, its articles and a limit anchor (« … ./out.csv with a
+//! budget of $1 », « … avec un plafond de 3 dollars ») or the limit anchor alone (« hello budget
+//! 2 USD »), then the amount and its currency and nothing else. A phrase attaches to the work
+//! when its head, the word before it past the determiners, is a path or a file, a pronoun, a
+//! greeting, or a conjunction no relative clause governs. Everything else money-shaped is
+//! business data, by its role in the request and never by a word or an observed field: a
+//! predicate over records (« rows whose budget is 1500 USD », « rows where cost is under 5 USD »,
+//! « rows with a budget of 1500 USD »), a business amount (« refund the cost of 50 USD »),
+//! `cost` wherever it stands, quoted text, a path, a file name. Run and gate lines keep
+//! [`super::parse`]'s whole-line reading.
 
 use std::ops::Range;
 
@@ -60,7 +63,7 @@ pub fn directives(request: &str) -> Result<Directives, &'static str> {
         .filter_map(|segment| directive(&visible, segment))
     {
         let span = offsets[chars.start]..offsets[chars.end];
-        let money = parse(&request[span.clone()])?;
+        let money = stated(&request[span.clone()])?;
         let differ = |a: Option<f64>, b: Option<f64>| {
             a.zip(b).is_some_and(|(a, b)| a.to_bits() != b.to_bits())
         };
@@ -84,6 +87,21 @@ pub fn directives(request: &str) -> Result<Directives, &'static str> {
             covered(*at) || c.is_whitespace() || matches!(c, '.' | ',' | ';' | '!' | '?')
         });
     Ok(all)
+}
+
+/// What one directive's own words state, the French copula read as a link (« Le budget est de
+/// 2 dollars »): the whole-line reading keeps no copula of its own, so it never swallows a
+/// relative clause.
+///
+/// # Errors
+/// As [`super::parse`].
+pub(crate) fn stated(words: &str) -> Result<ParsedMoney, &'static str> {
+    let linked = words
+        .split(' ')
+        .map(|w| if w.eq_ignore_ascii_case("est") { "" } else { w })
+        .collect::<Vec<_>>()
+        .join(" ");
+    parse(&linked)
 }
 
 /// Sentence and comma segments of the visible text, as char ranges: a period, a comma, `!` or
@@ -123,6 +141,13 @@ fn word(raw: &str) -> Option<Word> {
         });
     }
     if let Some(amount) = compact_literal(raw) {
+        // `cost` measures what a record holds (« cost=5 »): it never limits the work's money.
+        if lower
+            .split_once(['=', ':'])
+            .is_some_and(|(name, _)| name == "cost")
+        {
+            return None;
+        }
         let currency = amount.starts_with('$') || without_currency(raw) != raw;
         return Some(Word {
             anchor: raw.contains(['=', ':']),
@@ -131,7 +156,7 @@ fn word(raw: &str) -> Option<Word> {
         });
     }
     if anchor(lower) {
-        return Some(Word {
+        return (lower != "cost").then_some(Word {
             anchor: true,
             ..Word::default()
         });
@@ -175,11 +200,14 @@ fn money_link(word: &str) -> bool {
     )
 }
 
-/// An anchor and currency commit one unrecognized, non-path amount word to validation.
+/// An anchor and currency commit one unrecognized, non-path word to validation when it stands
+/// where the amount would (« budget nope dollars »). Beside an amount of its own the word
+/// relates that amount to something (« budget over 1000 USD »): business data, never money.
 fn invalid_amount_word(read: &[Option<Word>], text: &[String]) -> bool {
     read.first().is_some_and(|w| w.is_some_and(|w| w.anchor))
         && read.last().is_some_and(|w| w.is_some_and(|w| w.currency))
         && read.iter().filter(|w| w.is_none()).count() == 1
+        && !read.iter().flatten().any(|w| w.amount)
         && read
             .iter()
             .zip(text)
@@ -212,6 +240,169 @@ fn article(word: &str) -> bool {
     )
 }
 
+/// Determiners between a phrase and its head (« the rows », « chaque client »).
+fn determiner(word: &str) -> bool {
+    matches!(
+        word,
+        "a" | "an"
+            | "the"
+            | "my"
+            | "our"
+            | "your"
+            | "their"
+            | "its"
+            | "each"
+            | "every"
+            | "un"
+            | "une"
+            | "le"
+            | "la"
+            | "les"
+            | "des"
+            | "du"
+            | "mon"
+            | "ma"
+            | "mes"
+            | "son"
+            | "sa"
+            | "ses"
+            | "notre"
+            | "nos"
+            | "votre"
+            | "vos"
+            | "leur"
+            | "leurs"
+            | "ce"
+            | "cet"
+            | "cette"
+            | "ces"
+            | "chaque"
+    )
+}
+
+/// Words that open a relative clause: what follows them predicates over records.
+fn relative(word: &str) -> bool {
+    matches!(
+        word,
+        "where"
+            | "whose"
+            | "which"
+            | "that"
+            | "who"
+            | "whom"
+            | "wherein"
+            | "où"
+            | "dont"
+            | "qui"
+            | "que"
+            | "lequel"
+            | "laquelle"
+            | "lesquels"
+            | "lesquelles"
+            | "auquel"
+            | "auxquels"
+            | "auxquelles"
+            | "duquel"
+            | "desquels"
+            | "desquelles"
+    )
+}
+
+/// A whole segment of money words is an explicit directive. The French copula links its words
+/// there (« Le budget est de 2 dollars »), and only there: never inside a relative clause.
+fn standalone(read: &[Option<Word>], text: &[String]) -> bool {
+    let linked: Vec<Option<Word>> = read
+        .iter()
+        .zip(text)
+        .map(|(w, t)| w.or_else(|| (token(t).to_lowercase() == "est").then(Word::default)))
+        .collect();
+    let all = || linked.iter().flatten();
+    !linked.is_empty()
+        && (linked.iter().all(Option::is_some) || invalid_amount_word(&linked, text))
+        && all().any(|w| w.amount || w.anchor)
+        && all().any(|w| w.anchor || w.currency)
+}
+
+/// Whether the words from `from` to the end of the segment make the closed shape of a trailing
+/// directive: an optional connector and its articles, a limit anchor, an optional link (of, de,
+/// a colon, an equals sign), then the amount and its currency — nothing else, no copula, no
+/// comparator, no verb. A compact anchor (`budget=0.5USD`) or the ceiling flag holds its own.
+fn closed(read: &[Option<Word>], text: &[String], from: usize) -> bool {
+    let lower = |i: usize| token(&text[i]).to_lowercase();
+    let mut at = from;
+    if connector(&lower(at)) {
+        at += 1;
+        while at < read.len() && article(&lower(at)) {
+            at += 1;
+        }
+    }
+    let Some(anchor) = read.get(at).copied().flatten().filter(|w| w.anchor) else {
+        return false;
+    };
+    at += 1;
+    let mut currency = anchor.currency;
+    if !anchor.amount {
+        if at < read.len() && matches!(lower(at).as_str(), "of" | "de" | "" | "=") {
+            at += 1;
+        }
+        let Some(amount) = read
+            .get(at)
+            .copied()
+            .flatten()
+            .filter(|w| w.amount && !w.anchor)
+        else {
+            return false;
+        };
+        currency |= amount.currency;
+        at += 1;
+    }
+    match read.get(at..) {
+        Some([]) => currency,
+        Some([Some(unit)]) => unit.currency && !unit.amount,
+        _ => false,
+    }
+}
+
+/// Whether a trailing phrase opening at `from` attaches to the work rather than to business
+/// data: its head — the word before it, past the determiners — is none, a path or a file, a
+/// pronoun, a greeting or a consent word, or a conjunction no relative clause governs. « …
+/// stars and budget=0.5USD » and « yes but budget 0 dollars » are the work's; « … rows whose
+/// status is open and budget=1500USD » continues the predicate; « … rows with a budget of 1500
+/// USD » restricts the rows.
+fn attached(text: &[String], from: usize) -> bool {
+    let lower = |i: usize| token(&text[i]).to_lowercase();
+    let Some(head) = (0..from).rev().find(|&i| !determiner(&lower(i))) else {
+        return true;
+    };
+    let word = lower(head);
+    let governed = || {
+        (0..head)
+            .rev()
+            .map(lower)
+            .take_while(|w| !data(w))
+            .any(|w| relative(&w))
+    };
+    data(&word)
+        || matches!(
+            word.as_str(),
+            "it" | "them"
+                | "ça"
+                | "cela"
+                | "hello"
+                | "hi"
+                | "hey"
+                | "bonjour"
+                | "salut"
+                | "yes"
+                | "oui"
+                | "ok"
+        )
+        || (matches!(
+            word.as_str(),
+            "and" | "et" | "but" | "mais" | "then" | "puis" | "also" | "aussi"
+        ) && !governed())
+}
+
 /// The directive a segment holds (its char range, whether it marks a currency, its first
 /// anchor), if it holds one.
 fn directive(
@@ -235,26 +426,10 @@ fn directive(
         .map(|w| chars[w.clone()].iter().collect())
         .collect();
     let read: Vec<Option<Word>> = text.iter().map(|t| word(token(t))).collect();
-    let states = |from: usize, trailing: bool| {
-        let tail = &read[from..];
-        let all = || tail.iter().flatten();
-        !tail.is_empty()
-            && (tail.iter().all(Option::is_some) || invalid_amount_word(tail, &text[from..]))
-            && all().any(|w| w.amount || w.anchor)
-            && all().any(|w| w.anchor || w.currency)
-            && (!trailing || (all().any(|w| w.anchor) && all().any(|w| w.currency)))
-    };
-    // The ceiling flag or an anchor opens a directive in place (« hello budget 2 USD »); a
-    // connector opens a trailing phrase. Either way the phrase names an anchor and a currency.
-    let opens = |i: usize| {
-        let lower = token(&text[i]).to_lowercase();
-        (read[i].is_some_and(|w| w.anchor) && states(i, true))
-            || (connector(&lower) && states(i + 1, true))
-    };
-    let from = if states(0, false) {
+    let from = if standalone(&read, &text) {
         0
     } else {
-        (0..text.len()).find(|&i| opens(i))?
+        (0..text.len()).find(|&i| closed(&read, &text, i) && attached(&text, i))?
     };
     let tail = &read[from..];
     let currency = tail.iter().flatten().any(|w| w.currency);
