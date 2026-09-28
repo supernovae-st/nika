@@ -1,4 +1,5 @@
 {
+  "agent-plugin": "sha256:53cc4f23469608b7ae5924a87dda4aed9e1ac687de4b7fa7a9dc99e69dc7d538",
   "chat-to-workflow": "sha256:425949cd40a60673617f27feb2dda815bb8b4af7296be398e76c7c5f9d07d7eb",
   "dag-execution": "sha256:8176162aab6c6c491b80f448f1730c891989621089407b0675ef044f6c1dc6c8",
   "editor-diagnostics": "sha256:3130f97adc7629f6007487e0ac9dfafe5703a147fbdc981b9c3f8b6b54e659e5",
