@@ -142,8 +142,8 @@ admission ceremony.
 
 ## Finite unknown-cost Run shape
 
-The filesystem-blind `run_cost` module owns two observations, neither an
-execution nor a spending grant:
+The filesystem-blind `run_cost` module owns three observations, none an
+execution or a spending grant (the third, `declared_free_shape`, follows):
 
 - `request_bound(workflow, access_plan, unknown_routes)` returns the finite
   physical-request upper bound for static sequential direct text inference.
@@ -161,6 +161,17 @@ tools and actions, and dynamic or unconfined project paths. `Display` is the
 unchanged refusal wording hosts render. It owns no NIKA registry range: it is a
 host-side static observation that never enters the workflow or verb plane (the
 `transport-surface` exemption of the error one-voice gate).
+
+`declared_free_shape(workflow, access_plan, providers_config, model_override)`
+(C2 · 2026-09-28) says whether an admitted API lane is an exact
+catalog-declared-free route and refuses, with the typed `FreeShapeRefusal`
+(`#[non_exhaustive]` struct: task, model, shape), the first task on such a route
+that its observation cannot admit: an `agent:` loop, enabled thinking, vision,
+or a `max_tokens` missing, zero or over the tariff's output bound. Check's
+readiness mirror and the host's Run observer consume the same judgment before
+any effect, so an unsupported shape is never run-ready and never a known zero.
+The provider wire guard still refuses what it alone can see (the rendered body
+over 1 MiB).
 
 The L4 host owns descriptor-rooted input observations, fresh source/route-bound
 consent and the live monetary account. The provider account meters every actual

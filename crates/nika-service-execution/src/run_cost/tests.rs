@@ -248,3 +248,159 @@ fn project_paths_are_typed_as_dynamic_or_unconfined() {
     let dynamic = source.replace("path: './input.txt'", "path: '${{ inputs.path }}'");
     assert_eq!(read_path(&dynamic), Err(RunShapeError::DynamicPath));
 }
+
+const FREE: &str = "openrouter/qwen/qwen3.8-27b:free";
+const FREE_ONE: &str = "nika: free\nmodel: openrouter/qwen/qwen3.8-27b:free\npermits: {}\ntasks:\n  first:\n    infer: { prompt: text, max_tokens: 64 }\n";
+
+/// An admitted API plan over the given (model, provider, key env) lanes.
+fn lanes(needs: &[(&str, &str, &str)]) -> nika_providers::ExecutionAccessPlan {
+    use nika_providers::probe::{ExecutionLocus, ProviderProbe, ProviderReadiness};
+    let probes: Vec<ProviderProbe> = needs
+        .iter()
+        .map(|&(_, provider, env)| {
+            ProviderProbe::new(
+                provider,
+                true,
+                true,
+                env,
+                false,
+                ProviderReadiness::new(
+                    true,
+                    true,
+                    None,
+                    None,
+                    true,
+                    ExecutionLocus::Cloud,
+                    nika_types::access::AccessClass::Api,
+                ),
+                "https://fixture.invalid",
+            )
+        })
+        .collect();
+    let models: Vec<nika_providers::ModelNeed> = needs
+        .iter()
+        .map(|&(model, _, _)| nika_providers::ModelNeed::new(model, true, false))
+        .collect();
+    nika_providers::resolve_execution_plan(&models, &probes, Some("api"))
+}
+
+fn free_shape(source: &str, override_model: Option<&str>) -> Result<bool, FreeShapeRefusal> {
+    let plan = lanes(&[
+        (FREE, "openrouter", "OPENROUTER_API_KEY"),
+        ("deepseek/deepseek-chat", "deepseek", "DEEPSEEK_API_KEY"),
+    ]);
+    declared_free_shape(
+        &parsed(source),
+        &plan,
+        &nika_providers::ProvidersConfig::new(),
+        override_model,
+    )
+}
+
+/// C2 · a bounded text infer on an exact declared-free route is the one shape
+/// its observation admits; Check and Run read the same `Ok(true)`.
+#[test]
+fn a_bounded_text_infer_on_a_declared_free_route_is_admitted() {
+    assert_eq!(free_shape(FREE_ONE, None), Ok(true));
+    let schema = FREE_ONE.replace("max_tokens: 64", "max_tokens: 64, schema: { type: object }");
+    assert_eq!(
+        free_shape(&schema, None),
+        Ok(true),
+        "structured text stays text"
+    );
+    let quiet_thinking = FREE_ONE.replace(
+        "max_tokens: 64",
+        "max_tokens: 64, thinking: { enabled: false, budget_tokens: 1024 }",
+    );
+    assert_eq!(
+        free_shape(&quiet_thinking, None),
+        Ok(true),
+        "a disabled thinking config never reaches the wire"
+    );
+}
+
+/// C2 · every shape the provider's bounded-text guard would refuse is named
+/// before any effect: never a runtime surprise, never a known zero.
+#[test]
+fn unsupported_free_shapes_are_refused_by_task_and_shape() {
+    let vision = FREE_ONE.replace(
+        "max_tokens: 64",
+        "max_tokens: 64, vision: [{ source: file, path: './image.png' }]",
+    );
+    let thinking = FREE_ONE.replace(
+        "max_tokens: 64",
+        "max_tokens: 64, thinking: { enabled: true, budget_tokens: 1024 }",
+    );
+    let unbounded = FREE_ONE.replace(", max_tokens: 64", "");
+    let oversized = FREE_ONE.replace("max_tokens: 64", "max_tokens: 4000000");
+    let agent = FREE_ONE
+        .replace("    infer:", "    agent:")
+        .replace("max_tokens:", "max_tokens_total:");
+    let bound = "an output bound outside its tariff";
+    for (source, shape) in [
+        (vision, "vision"),
+        (thinking, "thinking"),
+        (unbounded, bound),
+        (oversized, bound),
+        (agent, "an agent loop"),
+    ] {
+        let refusal = free_shape(&source, None).expect_err(shape);
+        assert_eq!((refusal.task.as_str(), refusal.shape), ("first", shape));
+        assert_eq!(refusal.model, FREE);
+        assert!(
+            refusal.to_string().contains("declared-free route"),
+            "{refusal}"
+        );
+    }
+}
+
+/// Other lanes keep their own policy: a paid route's vision is not this
+/// guard's business, and a plan without a declared-free lane reads `false`.
+#[test]
+fn only_declared_free_lanes_are_judged() {
+    let paid_vision = format!(
+        "{FREE_ONE}  look:\n    infer: {{ prompt: text, model: deepseek/deepseek-chat, max_tokens: 64, vision: [{{ source: file, path: './image.png' }}] }}\n"
+    );
+    assert_eq!(free_shape(&paid_vision, None), Ok(true));
+    let paid_only = lanes(&[("deepseek/deepseek-chat", "deepseek", "DEEPSEEK_API_KEY")]);
+    let source = FREE_ONE.replace(FREE, "deepseek/deepseek-chat");
+    assert_eq!(
+        declared_free_shape(
+            &parsed(&source),
+            &paid_only,
+            &nika_providers::ProvidersConfig::new(),
+            None
+        ),
+        Ok(false)
+    );
+}
+
+/// The Run's `--model` names the lane a model-less task rides.
+#[test]
+fn the_run_override_names_the_lane_a_modelless_task_rides() {
+    let modelless = "nika: plain\npermits: {}\ntasks:\n  first:\n    infer: { prompt: text, vision: [{ source: file, path: './image.png' }], max_tokens: 64 }\n";
+    let refusal = free_shape(modelless, Some(FREE)).expect_err("override rides the free lane");
+    assert_eq!(refusal.shape, "vision");
+    assert_eq!(
+        free_shape(modelless, None),
+        Ok(true),
+        "no override, no free task"
+    );
+}
+
+/// E6 S1 · a declared-free lane beside an unknown-cost lane never shares one
+/// account: the unknown-cost review refuses the two-lane plan before any
+/// question or effect.
+#[test]
+fn a_declared_free_lane_beside_an_unknown_cost_lane_is_refused_before_review() {
+    let two = lanes(&[
+        (FREE, "openrouter", "OPENROUTER_API_KEY"),
+        (MODEL, "deepseek", "DEEPSEEK_API_KEY"),
+    ]);
+    let source =
+        format!("{ONE}  free:\n    infer: {{ prompt: text, model: {FREE}, max_tokens: 32 }}\n");
+    assert_eq!(
+        request_bound(&parsed(&source), &two, 1),
+        Err(RunShapeError::Route)
+    );
+}

@@ -176,5 +176,103 @@ pub fn project_file_path(
     Ok(path.into())
 }
 
+/// A task that uses an exact catalog-declared-free route in a shape its
+/// provider observation cannot admit. That observation takes bounded text only
+/// (no tools, thinking, vision or memory; a literal output bound the tariff
+/// covers). Host-side and static like [`RunShapeError`]: Check and Run refuse
+/// before any effect, and nothing unsupported becomes a known zero.
+#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
+#[error(
+    "task `{task}` uses the declared-free route {model} with {shape}; that route admits bounded text only: no tools, thinking or vision, and a literal max_tokens within its tariff"
+)]
+#[non_exhaustive]
+pub struct FreeShapeRefusal {
+    /// The task that uses the route.
+    pub task: String,
+    /// The route's model, as the workflow names it.
+    pub model: String,
+    /// What the route cannot admit (`an agent loop` · `thinking` · `vision` ·
+    /// `an output bound outside its tariff`).
+    pub shape: &'static str,
+}
+
+/// Whether an admitted API lane of `plan` is an exact catalog-declared-free
+/// route, every task that uses one being a shape its observation admits.
+/// `Ok(false)` means no such route: the Run keeps today's composition, and no
+/// account or text guard reaches its paid, local or mock lanes.
+/// `model_override` is the Run's `--model` (Check passes the effective file).
+/// # Errors
+/// The first task that uses a declared-free route with an unsupported shape.
+pub fn declared_free_shape(
+    wf: &RawWorkflow,
+    plan: &nika_providers::ExecutionAccessPlan,
+    config: &nika_providers::ProvidersConfig,
+    model_override: Option<&str>,
+) -> Result<bool, FreeShapeRefusal> {
+    let free: std::collections::BTreeMap<&str, u32> = plan
+        .admitted()
+        .filter(|(_, lane)| lane.plan.chosen == nika_types::access::AccessClass::Api)
+        .filter_map(|(model, _)| {
+            let route =
+                nika_providers::admission::CostRoute::observe(model, config.clone()).ok()?;
+            nika_providers::InferenceAdmission::qualify(
+                &route.provider,
+                &route.model,
+                &route.endpoint,
+            )
+            .ok()
+            .filter(|tariff| tariff.is_declared_free())
+            .map(|tariff| (model, tariff.max_output_tokens))
+        })
+        .collect();
+    let fallback = model_override.or(wf.model.as_ref().map(|m| m.value.as_str()));
+    for task in &wf.tasks {
+        let (declared, infer) = match &task.value.action {
+            RawAction::Infer(a) => (a.model.as_ref(), Some(a)),
+            RawAction::Agent(a) => (a.model.as_ref(), None),
+            _ => continue,
+        };
+        let model = declared.map(|m| m.value.as_str()).or(fallback);
+        let Some((model, &max)) = model.and_then(|m| free.get_key_value(m)) else {
+            continue;
+        };
+        // This first slice admits direct infer only: an agent loop (tools,
+        // turns, its own output bounds) stays refused on a free route.
+        let shape = infer.map_or(Some("an agent loop"), |a| free_infer_shape(a, max));
+        if let Some(shape) = shape {
+            return Err(FreeShapeRefusal {
+                task: task.value.id.value.clone(),
+                model: (*model).to_owned(),
+                shape,
+            });
+        }
+    }
+    Ok(!free.is_empty())
+}
+
+/// What one infer asks that a declared-free observation cannot admit: the
+/// same request fields the provider's bounded-text guard refuses (a thinking
+/// budget reaches the wire only when enabled), and an output bound the tariff
+/// does not cover.
+fn free_infer_shape(action: &RawInferAction, max: u32) -> Option<&'static str> {
+    if action
+        .thinking
+        .as_ref()
+        .is_some_and(|t| t.value.enabled && t.value.budget_tokens.is_some())
+    {
+        Some("thinking")
+    } else if !action.vision.is_empty() {
+        Some("vision")
+    } else if action
+        .max_tokens
+        .as_ref()
+        .is_none_or(|n| n.value == 0 || n.value > max)
+    {
+        Some("an output bound outside its tariff")
+    } else {
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests;
