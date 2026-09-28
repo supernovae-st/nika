@@ -31,13 +31,17 @@ nika check --color never "$FIX/fixed-pr-review.nika" >"$RAW/check-fixed.txt" 2>&
 diff -u "$FIX/broken-pr-review.nika" "$FIX/fixed-pr-review.nika" \
   >"$RAW/fix-diff.txt" 2>&1 || true # diff exits 1 when files differ
 
-# ── chat-to-workflow ────────────────────────────────────────────────────
+# ── chat-to-workflow · nika-hero ────────────────────────────────────────
+MODEL="ollama/llama3.2:3b"
 nika check --color never "$FIX/meeting-actions.nika" >"$RAW/check-meeting.txt" 2>&1
+# The same audit under the model the run below uses. check never dials a
+# server, so this one refreshes even where the run cannot.
+nika check --color never --model "$MODEL" "$FIX/meeting-actions.nika" \
+  >"$RAW/check-meeting-ollama.txt" 2>&1
 
 # The run transcript uses a REAL local model. Only refresh when an Ollama
 # server is reachable — otherwise keep the committed snapshot.
 if curl -s --max-time 2 http://localhost:11434/api/tags >/dev/null 2>&1; then
-  MODEL="ollama/llama3.2:3b"
   curl -s http://localhost:11434/api/generate \
     -d '{"model":"llama3.2:3b","prompt":"warm","stream":false}' >/dev/null || true
   rm -f action-items.json
