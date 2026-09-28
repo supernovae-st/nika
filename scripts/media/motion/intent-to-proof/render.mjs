@@ -263,7 +263,9 @@ async function renderClip(name) {
   const grade = `format=yuv444p16le,${finish(24)}`;
   ff(['-i', joined, '-vf', grade, '-c:v', 'libx264', '-preset', 'slow', '-crf', '20', '-pix_fmt', 'yuv420p', '-an', '-movflags', '+faststart', media(`videos/${name}.mp4`)]);
   ff(['-i', joined, '-vf', grade, '-c:v', 'libvpx-vp9', '-b:v', '0', '-crf', '38', '-row-mt', '1', '-pix_fmt', 'yuv420p', '-an', media(`videos/${name}.webm`)]);
-  ff(['-i', joined, '-filter_complex', 'fps=16,scale=1280:-2:flags=lanczos,split[x][y];[y]palettegen=max_colors=160:stats_mode=diff[p];[x][p]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle',
+  // README size: the camera pushes text to 23-33 px, legible at 960 wide;
+  // 12 fps keeps camera moves (whole-frame repaints) inside the budget
+  ff(['-i', joined, '-filter_complex', 'fps=12,scale=960:-2:flags=lanczos,split[x][y];[y]palettegen=max_colors=128:stats_mode=diff[p];[x][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle',
     '-loop', '0', media(`gifs/${name}.optimized.gif`)]);
   ff(['-ss', String(clip.meta.poster), '-i', joined, '-frames:v', '1', media(`posters/${name}.png`)]);
   // a clip can also keep a legacy path other repositories hotlink

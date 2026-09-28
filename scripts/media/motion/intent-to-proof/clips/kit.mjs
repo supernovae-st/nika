@@ -6,8 +6,8 @@
 // ellipsis after a verbatim prefix, never rewritten.
 import fs from 'node:fs';
 import path from 'node:path';
-import { C, E, clamp, lerp, seg, smooth } from '../src/engine/core.mjs';
-import { text, rrect, rect, line, circle, arc, poly, check, cross, measure, ROOT } from '../src/engine/render.mjs';
+import { C, E, clamp, lerp, seg, smooth, rgba } from '../src/engine/core.mjs';
+import { text, rrect, rect, line, circle, arc, poly, check, cross, measure, ROOT, DW, DH } from '../src/engine/render.mjs';
 import { beatTitle } from '../src/scenes/shared.mjs';
 
 export const REPO = path.resolve(ROOT, '../../../..');
@@ -209,10 +209,54 @@ export function pill(R, x, y, label, color, alpha, align = 'left') {
   text(R, label, x0 + 12, y + 4.5, { ...st, color, alpha, glow: 0.3 });
 }
 
+// Break a line of spans at spaces into rows of at most `max` cells; the
+// continuation rows start `indent` cells in. Only where the line breaks
+// changes: every character, colour and mark stays.
+export function wrapSpans(spans, max, indent = 0) {
+  const full = spans.map(sp => sp.s).join('');
+  if (full.length <= max) return [spans];
+  const cuts = [];
+  let start = 0, width = max;
+  while (full.length - start > width) {
+    let cut = full.lastIndexOf(' ', start + width);
+    if (cut <= start) cut = start + width;
+    cuts.push([start, cut]);
+    start = cut;
+    while (full[start] === ' ') start++;
+    width = max - indent;
+  }
+  cuts.push([start, full.length]);
+  return cuts.map(([a, b], r) => {
+    const row = r ? [{ s: ' '.repeat(indent) }] : [];
+    let pos = 0;
+    for (const sp of spans) {
+      const s0 = Math.max(a, pos), s1 = Math.min(b, pos + sp.s.length);
+      if (s1 > s0) row.push({ ...sp, s: full.slice(s0, s1) });
+      pos += sp.s.length;
+    }
+    return row;
+  });
+}
+
+// The terminal rows a block of captured lines occupies: [{ line, spans }].
+// `wrap` (true, or a regex a line must match) breaks long lines instead of
+// cutting them; the rest keep one row, cut with an ellipsis if too long.
+export function layoutRows(lines, { box, st = MONO, marks, wrap = false, indent = 12 } = {}) {
+  const max = Math.floor((box.w - 48) / cw(st));
+  const rows = [];
+  lines.forEach((l, line) => {
+    const spans = cliSpans(l, marks);
+    const w = wrap === true || (wrap instanceof RegExp && wrap.test(l));
+    for (const row of w ? wrapSpans(spans, max, indent) : [spans]) rows.push({ line, spans: row });
+  });
+  return rows;
+}
+
 // ── terminal ────────────────────────────────────────────────────────────
 // steps (clip clock, seconds):
 //   { t, cmd: 'nika check file.nika', dur }         types a command after "$ "
-//   { t, out: ['line', …], every = 0.06, marks }     streams captured lines
+//   { t, out: ['line', …], every = 0.06, marks, wrap } streams captured lines
+//                                                    (wrap: see layoutRows)
 //   { t, clear: true }                               clears the screen
 // The newest line stays in view: the buffer scrolls smoothly upwards.
 export function terminal(R, t, box, steps, { title = '', alpha = 1, k = 1, badge = null, lh = LH, st = MONO } = {}) {
@@ -231,10 +275,10 @@ export function terminal(R, t, box, steps, { title = '', alpha = 1, k = 1, badge
       rows.push({ spans: cliSpans(`$ ${sp.cmd.slice(0, n)}`), born: sp.t, caret: n < sp.cmd.length || t < sp.t + (sp.dur ?? 0.9) + 0.25 });
     } else if (sp.out) {
       const every = sp.every ?? 0.06;
-      sp.out.forEach((l, i) => {
-        const born = sp.t + i * every;
-        if (t >= born) rows.push({ spans: cliSpans(l, sp.marks), born });
-      });
+      for (const r of layoutRows(sp.out, { box, st, marks: sp.marks, wrap: sp.wrap, indent: sp.indent })) {
+        const born = sp.t + r.line * every;
+        if (t >= born) rows.push({ spans: r.spans, born });
+      }
     } else if (sp.gap) rows.push({ spans: [], born: sp.t });
   }
   const top = box.y + 44 + 30, cap = Math.floor((box.h - 44 - 40) / lh);
@@ -288,9 +332,9 @@ const until = (t1, d, t) => (t1 === undefined || t1 === Infinity ? 1 : 1 - smoot
 // line windows of each version. marks: [{ line, re, c, t0, t1, squiggle,
 // version }] recolour or underline a token on a line of the version shown.
 // fold: [[first, last]] hides a block behind one "⋯ n lines" row (single
-// version only). highlights: [{ line, t0, t1?, c, running? }] light a row:
-// a bar behind it and a check in the gutter (a pulse and a spinner while
-// running).
+// version only). highlights: [{ line, t0, t1?, c, running?, icon? }] light
+// a row: a bar behind it and, in the gutter, a check (a pulse and a
+// spinner while running; icon: 'none' marks a row without a verdict).
 export function codeCard(R, t, box, { title = '', alpha = 1, k = 1, badge = null, before, after = null, win = {}, reveal = null, morph = null, marks = [], lh = LH, st = MONO, fold = [], highlights = [] } = {}) {
   const [fa, ta] = win.a ?? [1, Infinity], [fb, tb] = win.b ?? win.a ?? [1, Infinity];
   panel(R, box, { title, alpha, k, badge });
@@ -328,11 +372,19 @@ export function codeCard(R, t, box, { title = '', alpha = 1, k = 1, badge = null
     const rv = reveal ? smooth(reveal.t0 + (inA ? na : nb) * reveal.every, reveal.t0 + (inA ? na : nb) * reveal.every + 0.12, t) : 1;
     const a = alpha * shown * rv;
     if (a > 0.004) {
+      // a row opening or folding shows only the part of it its slot holds
+      const partial = hk < 0.999;
+      if (partial) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(box.x, y - lh + 7, box.w, lh * hk);
+        ctx.clip();
+      }
       const num = mp < 0.5 ? na ?? nb : nb ?? na;
       text(R, String(num), box.x + gutter - 14, rowY, { f: 'MM 400', size: st.size - 3, color: C.dim, alpha: a * 0.8, align: 'right' });
       if (o.op !== '=' && morph && t >= morph.t0) {
         const fl = o.op === '+' ? smooth(0.35, 0.6, mp) * (1 - smooth(1, 1, mp)) : smooth(0, 0.25, mp) * (1 - smooth(0.25, 0.6, mp));
-        const flash = o.op === '+' ? 0.5 + 0.5 * (1 - smooth(morph.t1, morph.t1 + 0.9, t)) : fl;
+        const flash = o.op === '+' ? 0.5 + 0.5 * (1 - smooth(morph.t1, morph.t1 + 0.4, t)) : fl;
         rect(R, box.x + 6, rowY - lh + 7, box.w - 12, lh, { fill: o.op === '+' ? C.teal : C.red, alpha: a * 0.1 * flash });
         text(R, o.op, box.x + gutter - 2, rowY, { f: 'MM 500', size: st.size - 2, color: o.op === '+' ? C.teal : C.red, alpha: a * flash });
       }
@@ -344,8 +396,9 @@ export function codeCard(R, t, box, { title = '', alpha = 1, k = 1, badge = null
         rect(R, box.x + 6, rowY - lh + 7, box.w - 12, lh, { fill: hl.c, alpha: a * 0.12 * hk * pulse });
         rect(R, box.x + 6, rowY - lh + 7, 3, lh, { fill: hl.c, alpha: a * hk, glow: 0.8 });
         const gx = box.x + gutter + 2, gy = rowY - st.size * 0.34;
-        if (!hl.running) check(R, gx, gy, st.size * 0.6, E.snap(seg(t, hl.t0, hl.t0 + 0.3)), { color: hl.c, w: 1.8, alpha: a * hk, glow: 0.7 });
-        else arc(R, gx, gy, st.size * 0.3, (t - hl.t0) * 7, (t - hl.t0) * 7 + Math.PI * 1.4, { color: hl.c, w: 1.8, alpha: a * hk, glow: 0.7 });
+        const icon = hl.icon ?? (hl.running ? 'spin' : 'check');
+        if (icon === 'check') check(R, gx, gy, st.size * 0.6, E.snap(seg(t, hl.t0, hl.t0 + 0.3)), { color: hl.c, w: 1.8, alpha: a * hk, glow: 0.7 });
+        else if (icon === 'spin') arc(R, gx, gy, st.size * 0.3, (t - hl.t0) * 7, (t - hl.t0) * 7 + Math.PI * 1.4, { color: hl.c, w: 1.8, alpha: a * hk, glow: 0.7 });
       }
       const lineMarks = marks.filter(mk => mk.line === lineNo && (!mk.version || mk.version === (mp < 0.5 ? 'before' : 'after')) && t >= (mk.t0 ?? 0) && t <= (mk.t1 ?? Infinity));
       mono(R, yamlSpans(o.text, lineMarks.filter(mk => mk.re && !mk.squiggle)), box.x + gutter + 12, rowY, { alpha: a, st, max });
@@ -356,6 +409,7 @@ export function codeCard(R, t, box, { title = '', alpha = 1, k = 1, badge = null
         const k2 = smooth(mk.t0 ?? 0, (mk.t0 ?? 0) + 0.35, t) * until(mk.t1, 0.2, t);
         squiggle(R, box.x + gutter + 12 + m.index * adv, box.x + gutter + 12 + (m.index + m[0].length) * adv, rowY + 6, mk.c, a * k2, t);
       }
+      if (partial) ctx.restore();
     }
     y += lh * hk;
   }
@@ -377,11 +431,60 @@ export function squiggle(R, x0, x1, y, color, alpha, t = 0) {
   ctx.restore();
 }
 
+// ── camera ──────────────────────────────────────────────────────────────
+// The area a framed shot fills: the whole frame inside the kicker and the
+// plate. The title band is part of it, so a clip dims its title while the
+// camera is pushed in (titleFade).
+export const SAFE = { x: 40, y: 92, w: 1840, h: 916 };
+
+// The camera that shows world rectangle `box` as large as it fits in
+// `area`, centred there, with `pad` world px of margin around it.
+export function frameBox(box, pad = 24, area = SAFE) {
+  const s = Math.min(area.w / (box.w + 2 * pad), area.h / (box.h + 2 * pad));
+  const ax = area.x + area.w / 2, ay = area.y + area.h / 2;
+  return { s, x: box.x + box.w / 2 - (ax - DW / 2) / s, y: box.y + box.h / 2 - (ay - DH / 2) / s };
+}
+
+// The resting camera: the world as laid out, unscaled.
+export const WIDE = { x: DW / 2, y: DH / 2, s: 1 };
+
+// shots: [{ at, cam, move = 0.9 }] in time order. The camera holds each
+// shot and eases into the next one over the `move` seconds before its
+// `at`, starting from wherever it was when that move began. Zoom
+// interpolates in log space, so a push-in reads at a constant rate
+// whatever its depth.
+export function cameraPath(t, shots, ease = E.glide) {
+  let k = 0;
+  while (k + 1 < shots.length && t >= shots[k + 1].at - (shots[k + 1].move ?? 0.9)) k++;
+  const b = shots[k];
+  const t0 = b.at - (b.move ?? 0.9);
+  if (k === 0 || t >= b.at) return b.cam;
+  const a = cameraPath(t0, shots.slice(0, k), ease);
+  const p = ease(seg(t, t0, b.at));
+  return { s: Math.exp(lerp(Math.log(a.s), Math.log(b.cam.s), p)), x: lerp(a.x, b.cam.x, p), y: lerp(a.y, b.cam.y, p) };
+}
+
+// The title stays readable at rest and gives way while the camera is in.
+export const titleFade = cam => 1 - smooth(1.03, 1.18, cam.s);
+
 // ── frame ───────────────────────────────────────────────────────────────
 // The clip's instrument frame: the mark and kicker top-left, provenance
-// bottom-left, nika.sh bottom-right. `alpha` fades it with the loop.
-export function frame(R, t, { kicker, plate, alpha = 1 }) {
+// bottom-left, nika.sh bottom-right. `alpha` fades it with the loop;
+// `scrim` (0..1) darkens the bands behind it while the camera is in.
+export function frame(R, t, { kicker, plate, alpha = 1, scrim = 0 }) {
   if (alpha <= 0) return;
+  // while the camera is in, the world passes under dark bands that keep
+  // the kicker and the plate readable
+  if (scrim > 0 && !R.glowPass) {
+    const ctx = R.ctx;
+    for (const [y0, y1, top] of [[0, 104, true], [996, DH, false]]) {
+      const g = ctx.createLinearGradient(0, y0, 0, y1);
+      g.addColorStop(top ? 0 : 1, rgba(C.bg0, 0.94 * scrim * alpha));
+      g.addColorStop(top ? 1 : 0, rgba(C.bg0, 0));
+      ctx.fillStyle = g;
+      ctx.fillRect(0, y0, DW, y1 - y0);
+    }
+  }
   text(R, 'NIKA', 64, 66, { f: 'MGW 500', size: 13, tracking: 6, color: C.ice, alpha, glow: 0.3 });
   if (kicker) text(R, kicker.toUpperCase(), 150, 66, { f: 'MGW 500', size: 11, tracking: 3, color: C.dim, alpha });
   if (plate) text(R, plate.toUpperCase(), 64, 1038, { f: 'MGW 500', size: 10.5, tracking: 3, color: C.dim, alpha: alpha * 0.9 });
@@ -400,6 +503,7 @@ export function headline(R, t, t0, t1, main, sub, opts = {}) {
 }
 
 // Loop envelope: fade in from black and back out, so the GIF loops cleanly.
-export const loopFade = (t, dur, a = 0.35, b = 0.5) => Math.min(smooth(0, a, t), 1 - smooth(dur - b, dur, t));
+// Short: every faded frame repaints the whole GIF frame.
+export const loopFade = (t, dur, a = 0.2, b = 0.3) => Math.min(smooth(0, a, t), 1 - smooth(dur - b, dur, t));
 
 export { C, E, clamp, lerp, seg, smooth };

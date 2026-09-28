@@ -1,7 +1,13 @@
 // Frame compositor for the short feature clips (clips/*.mjs): the film's
 // background, emissive glow and vignette around one clip's own drawing.
 // Like the film, every frame is a pure function of time.
-import { createSurfaces, makeR, compositeGlow, loadFonts } from './engine/render.mjs';
+//
+// A clip paints its panels in world coordinates with draw(). An optional
+// camera(t) → { x, y, s } puts world point (x, y) at the frame's centre at
+// zoom s, so a clip can push in on the line the viewer should read; an
+// optional chrome() paints the title, kicker and plate in screen space,
+// above the world and unmoved by the camera.
+import { createSurfaces, makeR, compositeGlow, loadFonts, DW, DH } from './engine/render.mjs';
 import { background, vignette } from './hud.mjs';
 
 export const CLIPS = [
@@ -31,8 +37,19 @@ export function drawClip(surf, clip, t) {
     }
     background(R, t, env);
     R.ctx.save();
+    const cam = clip.camera ? clip.camera(t) : null;
+    if (cam) {
+      R.ctx.translate(DW / 2, DH / 2);
+      R.ctx.scale(cam.s, cam.s);
+      R.ctx.translate(-cam.x, -cam.y);
+    }
     clip.draw(R, t, env);
     R.ctx.restore();
+    if (clip.chrome) {
+      R.ctx.save();
+      clip.chrome(R, t, env);
+      R.ctx.restore();
+    }
   }
   compositeGlow(surf, env.glowStrength ?? 1);
   vignette(makeR(surf, 'main', t));
