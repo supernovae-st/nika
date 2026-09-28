@@ -96,12 +96,17 @@ export function passAlpha(R, alpha = 1, glow = 0) {
 }
 
 // ── measurement (pass-independent, cached) ─────────────────────────────
+// A width measured before the fonts are registered is the fallback font's,
+// and the cache would keep it for the whole render: a module that lays
+// text out at import time (a clip's row layout) must still measure the
+// real faces, so measuring loads them first.
 const mctx = createCanvas(8, 8).getContext('2d');
 const mcache = new Map();
 export function measure(str, st) {
   const key = `${st.f}|${st.size}|${st.tracking || 0}|${str}`;
   let w = mcache.get(key);
   if (w === undefined) {
+    loadFonts();
     setText(mctx, { ...st, align: 'left' });
     w = mctx.measureText(str).width;
     // letterSpacing adds trailing space after the last glyph: remove it
@@ -371,6 +376,7 @@ export function pop(R) {
 
 // Full TextMetrics for a string in a style (pass-independent).
 export function metrics(str, st) {
+  loadFonts();
   setText(mctx, { ...st, align: 'left', baseline: 'alphabetic' });
   return mctx.measureText(str);
 }
