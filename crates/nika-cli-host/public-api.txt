@@ -3624,6 +3624,7 @@ impl<T> zvariant::optional::NoneValue for nika_cli_host::run_cost::ReviewChannel
 pub type nika_cli_host::run_cost::ReviewChannel::NoneType = T
 pub fn nika_cli_host::run_cost::ReviewChannel::null_value() -> T
 #[non_exhaustive] pub enum nika_cli_host::run_cost::RunCostPlan
+pub nika_cli_host::run_cost::RunCostPlan::HardCapped(alloc::string::String)
 pub nika_cli_host::run_cost::RunCostPlan::Observer(alloc::boxed::Box<nika_cli_host::run_cost::RunCost>)
 pub nika_cli_host::run_cost::RunCostPlan::Review(alloc::boxed::Box<nika_cli_host::run_cost::ReviewedRun>)
 pub nika_cli_host::run_cost::RunCostPlan::Unneeded
@@ -3659,6 +3660,7 @@ pub fn nika_cli_host::run_cost::ReviewedRun::bounds(&self) -> (u32, u32, core::t
 pub fn nika_cli_host::run_cost::ReviewedRun::challenge(&self) -> &nika_providers::admission::review::exchange::CostChallenge
 pub fn nika_cli_host::run_cost::ReviewedRun::confirm(self, answer: &nika_providers::admission::review::exchange::CostResponse, source: &str) -> core::result::Result<nika_cli_host::run_cost::RunCost, alloc::string::String>
 pub fn nika_cli_host::run_cost::ReviewedRun::defaults(&self) -> [core::option::Option<f64>; 2]
+pub fn nika_cli_host::run_cost::ReviewedRun::dispatch_bound(&self) -> &nika_service_execution::run_cost::DispatchBound
 pub fn nika_cli_host::run_cost::ReviewedRun::prior_journal(&self) -> &nika_dap::cost_journal::run::JournalWitness
 impl<D> owo_colors::OwoColorize for nika_cli_host::run_cost::ReviewedRun
 impl<T, U> core::convert::Into<U> for nika_cli_host::run_cost::ReviewedRun where U: core::convert::From<T>
@@ -3690,6 +3692,7 @@ pub type nika_cli_host::run_cost::ReviewedRun::Output = T
 pub nika_cli_host::run_cost::RunCost::account: nika_providers::admission::InferenceAdmission
 pub nika_cli_host::run_cost::RunCost::config: nika_runtime::config::RuntimeConfig
 impl nika_cli_host::run_cost::RunCost
+pub fn nika_cli_host::run_cost::RunCost::dispatch_bound(&self) -> core::option::Option<&nika_service_execution::run_cost::DispatchBound>
 pub fn nika_cli_host::run_cost::RunCost::finish(&self) -> core::result::Result<(), alloc::string::String>
 pub fn nika_cli_host::run_cost::RunCost::observe(&self, phase: &str) -> core::result::Result<(), alloc::string::String>
 impl<D> owo_colors::OwoColorize for nika_cli_host::run_cost::RunCost

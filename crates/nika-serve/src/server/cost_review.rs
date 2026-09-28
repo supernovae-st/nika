@@ -314,9 +314,17 @@ fn frame(
         None,
         (evidence(ceiling), &ask),
     )?;
+    // Version 1 documents only a single-attempt sequential Run: a fan or an
+    // authored retry, and a fan that sends nothing, keep their v1 refusal.
+    let v1_refusal = || nika_service_execution::run_cost::RunShapeError::Control.to_string();
     Ok(match prepared {
+        RunCostPlan::Review(review) if review.dispatch_bound().multiplied() => {
+            return Err(v1_refusal());
+        }
         RunCostPlan::Review(review) => (Some((review, session, plan, execution)), false),
+        RunCostPlan::Observer(cost) if cost.dispatch_bound().is_some() => return Err(v1_refusal()),
         RunCostPlan::Observer(_) => (None, true),
+        RunCostPlan::HardCapped(why) => return Err(why),
         _ => (None, false),
     })
 }
