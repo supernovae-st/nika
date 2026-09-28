@@ -377,9 +377,7 @@ impl ReqwestHttp {
             if let Some(deadline) = total_deadline {
                 builder = builder.timeout(deadline);
             }
-            for (key, value) in &headers {
-                builder = builder.header(key.as_str(), value.as_str());
-            }
+            builder = with_request_headers(builder, &headers)?;
             if let Some(bytes) = &body {
                 builder = builder.body(bytes.clone());
             }
@@ -593,6 +591,33 @@ const BODY_HEADERS: &[&str] = &["content-type", "content-length", "transfer-enco
 /// per the kernel's one list.
 fn strip_sensitive_headers(headers: &mut std::collections::BTreeMap<String, String>) {
     headers.retain(|key, _| !is_credential_header(key));
+}
+
+/// Explicit Authorization replaces URL-derived Basic auth; it is a singleton.
+fn with_request_headers(
+    mut builder: reqwest::RequestBuilder,
+    headers: &BTreeMap<String, String>,
+) -> Result<reqwest::RequestBuilder, HttpError> {
+    let mut auth = reqwest::header::HeaderMap::new();
+    for (key, value) in headers {
+        if key.eq_ignore_ascii_case("authorization") {
+            if !auth.is_empty() {
+                return Err(HttpError::Other {
+                    reason: "multiple explicit Authorization headers are ambiguous".to_owned(),
+                });
+            }
+            let mut value =
+                reqwest::header::HeaderValue::from_str(value).map_err(|_| HttpError::Other {
+                    reason: "invalid Authorization header value".to_owned(),
+                })?;
+            value.set_sensitive(true);
+            auth.insert(reqwest::header::AUTHORIZATION, value);
+        } else {
+            builder = builder.header(key.as_str(), value.as_str());
+        }
+    }
+    // Unlike RequestBuilder::header, headers replaces an existing field value.
+    Ok(builder.headers(auth))
 }
 
 /// Remove every [`BODY_HEADERS`] entry (case-insensitive) in place.

@@ -860,6 +860,60 @@ fn has_auth_header(head: &str) -> bool {
 }
 
 #[tokio::test]
+async fn explicit_authorization_replaces_url_basic_auth_on_every_same_origin_hop() {
+    let _net = net_guard();
+    for key in ["authorization", "Authorization", "AUTHORIZATION"] {
+        let (addr, heads, _) =
+            serve_recording_full(vec![redirect_response("/next"), ok_response("ok", "")]).await;
+        let mut req = HttpRequest::get(format!("http://user:pass@{addr}/start"));
+        req.headers.insert(key.into(), "Bearer explicit-key".into());
+        mechanics_client().get(req).await.unwrap();
+        let captured = heads.lock().unwrap().clone();
+        assert_eq!(captured.len(), 2);
+        for head in captured {
+            let auth: Vec<_> = head
+                .lines()
+                .filter(|line| line.to_ascii_lowercase().starts_with("authorization:"))
+                .map(|line| line.split_once(':').unwrap().1.trim())
+                .collect();
+            assert_eq!(auth, ["Bearer explicit-key"], "explicit {key} wins once");
+        }
+    }
+}
+
+#[tokio::test]
+async fn url_basic_auth_remains_when_no_explicit_authorization_was_supplied() {
+    let _net = net_guard();
+    let (addr, heads, _) = serve_recording_full(vec![ok_response("ok", "")]).await;
+    mechanics_client()
+        .get(HttpRequest::get(format!("http://user:pass@{addr}/start")))
+        .await
+        .unwrap();
+    let captured = heads.lock().unwrap().clone();
+    let auth: Vec<_> = captured[0]
+        .lines()
+        .filter(|line| line.to_ascii_lowercase().starts_with("authorization:"))
+        .map(|line| line.split_once(':').unwrap().1.trim())
+        .collect();
+    assert_eq!(auth, ["Basic dXNlcjpwYXNz"]);
+}
+
+#[tokio::test]
+async fn ambiguous_explicit_authorization_refuses_before_any_request() {
+    let _net = net_guard();
+    let (addr, heads, _) = serve_recording_full(vec![ok_response("ok", "")]).await;
+    let mut req = HttpRequest::get(format!("http://{addr}/start"));
+    req.headers
+        .insert("Authorization".into(), "Bearer first".into());
+    req.headers
+        .insert("authorization".into(), "Bearer second".into());
+    let result = mechanics_client().get(req).await;
+    assert!(matches!(result, Err(HttpError::Other { reason })
+        if reason == "multiple explicit Authorization headers are ambiguous"));
+    assert!(heads.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
 async fn authorization_stripped_on_cross_origin_redirect() {
     let _net = net_guard();
     // hop1 redirects to a DIFFERENT host (target) — Authorization must
