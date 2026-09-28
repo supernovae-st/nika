@@ -143,8 +143,9 @@ impl Drop for InFlight<'_> {
     }
 }
 
-/// Complete usage for the model the request named (each vendor's shape).
-fn served(req: &HttpRequest) -> HttpResponse {
+/// Complete usage for the model the request named (each vendor's shape), under
+/// a response id that names the item, so a call record says which item it was.
+fn served(req: &HttpRequest, item: &str) -> HttpResponse {
     let sent: serde_json::Value =
         serde_json::from_slice(req.body.as_ref().expect("a body")).expect("json");
     let usage = if req.url.contains("openrouter") {
@@ -155,7 +156,7 @@ fn served(req: &HttpRequest) -> HttpResponse {
             "prompt_cache_hit_tokens": 0, "prompt_cache_miss_tokens": 10})
     };
     let body = serde_json::json!({
-        "id": "fan-fixture", "model": sent["model"],
+        "id": format!("fan-fixture-{item}"), "model": sent["model"],
         "choices": [{"message": {"content": "observed"}, "finish_reason": "stop"}],
         "usage": usage
     });
@@ -186,7 +187,7 @@ impl HttpPostDyn for Held {
             Answer::Refuse => Err(HttpError::Connection {
                 reason: "fixture: connection refused".into(),
             }),
-            Answer::Serve => Ok(served(&req)),
+            Answer::Serve => Ok(served(&req, item)),
             Answer::Limit => Ok(HttpResponse::new(
                 429,
                 std::collections::BTreeMap::new(),
@@ -350,6 +351,38 @@ fn ledger(events: &[Event]) -> (Option<i64>, Option<i64>) {
             })
     };
     (int("priced_calls"), int("unpriced_calls"))
+}
+
+/// The fan-out parent's own frame (the one task frame these workflows write):
+/// its durable call records and its unknown-call count, as written.
+fn parent_calls(events: &[Event]) -> (Vec<serde_json::Value>, Option<i64>) {
+    let parent = events
+        .iter()
+        .find(|e| matches!(e.kind, EventKind::TaskFailed | EventKind::TaskCompleted))
+        .expect("the fan-out's own frame");
+    let calls = parent
+        .str_field("inference_calls")
+        .map_or_else(Vec::new, |text| {
+            serde_json::from_str(text).expect("a call list")
+        });
+    let unknown = parent
+        .fields
+        .iter()
+        .find(|f| f.key == "cost_unknown_calls")
+        .and_then(|f| match &f.value {
+            FieldValue::Int(n) => Some(*n),
+            _ => None,
+        });
+    (calls, unknown)
+}
+
+/// Every task frame's field `key`, in the order the frames were written.
+fn task_fields<'e>(events: &'e [Event], key: &str) -> Vec<&'e str> {
+    events
+        .iter()
+        .filter(|e| matches!(e.kind, EventKind::TaskFailed | EventKind::TaskCompleted))
+        .filter_map(|e| e.str_field(key))
+        .collect()
 }
 
 fn sent_attempts(account: &InferenceAdmission) -> usize {
@@ -947,4 +980,179 @@ async fn a_dropped_request_closes_the_account_for_a_later_run_decided_route() {
     let receipt = wires.account.snapshot().expect("the account reads");
     assert_eq!(receipt.unknown_calls, 1);
     assert!(outcome.records["ask"].error.is_some(), "{outcome:?}");
+}
+
+/// E33 · E32 finding 1: a fan-out's calls used to reach no frame. The parent
+/// now carries every completed iteration's call records once, in input order
+/// whatever order they completed in (a answers last), and invents no meter,
+/// transport or single-route field of its own.
+#[tokio::test]
+async fn a_fan_out_parent_records_every_completed_call_once_in_input_order() {
+    let wires = Wires::unobserved(
+        Held::new(false, &[("a", SERVE), ("b", SERVE), ("c", SERVE)], 3).answering_last("a"),
+    );
+    let (outcome, events) = run(&fan("max_parallel: 3", PAID, ""), &wires).await;
+    assert!(outcome.ok, "{outcome:?}");
+    assert_eq!(wires.normal.posts().len(), 3);
+    let (calls, unknown) = parent_calls(&events);
+    let ids: Vec<Option<&str>> = calls.iter().map(|c| c["request_id"].as_str()).collect();
+    assert_eq!(
+        ids,
+        [
+            Some("fan-fixture-a"),
+            Some("fan-fixture-b"),
+            Some("fan-fixture-c")
+        ],
+        "{calls:?}"
+    );
+    assert_eq!(unknown, Some(0), "every paid call has its estimate");
+    assert_eq!(ledger(&events), (Some(3), Some(0)));
+    let parent = events
+        .iter()
+        .find(|e| e.kind == EventKind::TaskCompleted)
+        .expect("the parent frame");
+    for key in [
+        "tokens_in",
+        "tokens_out",
+        "attempts",
+        "model_served",
+        "response_id",
+        "pricing_route",
+    ] {
+        assert!(
+            parent.fields.iter().all(|f| f.key != key),
+            "{key} is not invented on the parent"
+        );
+    }
+}
+
+/// A provider retry inside a fan-out: the 429 and its re-send are two physical
+/// requests, and the parent keeps both beside b's and c's. The 429's unknown
+/// charge is the parent's one unknown call, as it is the ledger's.
+#[tokio::test]
+async fn a_provider_retry_inside_a_fan_out_keeps_both_requests_on_the_parent() {
+    let wires = Wires::unobserved(Held::new(
+        false,
+        &[
+            ("a", &[Answer::Limit, Answer::Serve]),
+            ("b", SERVE),
+            ("c", SERVE),
+        ],
+        1,
+    ));
+    let (outcome, events) = run(&fan("max_parallel: 1", PAID, ""), &wires).await;
+    assert!(outcome.ok, "{outcome:?}");
+    assert_eq!(wires.normal.posts(), ["a", "a", "b", "c"]);
+    let (calls, unknown) = parent_calls(&events);
+    assert_eq!(calls.len(), 4, "{calls:?}");
+    assert_eq!(unknown, Some(1), "{calls:?}");
+    assert_eq!(
+        ledger(&events),
+        (Some(3), Some(1)),
+        "{:?}",
+        terminal(&events)
+    );
+}
+
+/// Without `fail_fast` every item settles: a's refused request is recorded once
+/// beside b's and c's completions, and the parent's unknown count is a's.
+#[tokio::test]
+async fn a_refused_item_keeps_its_call_beside_the_served_ones_on_the_parent() {
+    let wires = Wires::observed(Held::new(
+        true,
+        &[("a", REFUSE), ("b", SERVE), ("c", SERVE)],
+        3,
+    ));
+    let (outcome, events) = run(&fan("max_parallel: 3, fail_fast: false", FREE, ""), &wires).await;
+    assert!(!outcome.ok, "item a still fails the task");
+    let (calls, unknown) = parent_calls(&events);
+    let ids: Vec<Option<&str>> = calls.iter().map(|c| c["request_id"].as_str()).collect();
+    assert_eq!(
+        ids,
+        [None, Some("fan-fixture-b"), Some("fan-fixture-c")],
+        "{calls:?}"
+    );
+    assert_eq!(unknown, Some(1));
+    assert_eq!(ledger(&events), (Some(2), Some(1)));
+}
+
+/// `fail_fast` drops b and c in flight: their sends stay on the ledger and the
+/// account (E17-F1), but no transport report ever returns for them, so the
+/// parent records a's call only and invents none for b or c.
+#[tokio::test]
+async fn a_sibling_dropped_in_flight_leaves_no_invented_call_on_the_parent() {
+    let wires = Wires::observed(Held::new(
+        true,
+        &[("a", REFUSE), ("b", HANG), ("c", HANG)],
+        3,
+    ));
+    let (outcome, events) = run(&fan("max_parallel: 3", FREE, ""), &wires).await;
+    assert!(!outcome.ok);
+    assert_eq!(
+        (wires.bounded.posts().len(), wires.bounded.dropped()),
+        (3, 2)
+    );
+    assert_eq!(ledger(&events), (Some(0), Some(3)));
+    assert_eq!(sent_attempts(&wires.account), 3);
+    let (calls, unknown) = parent_calls(&events);
+    assert_eq!(calls.len(), 1, "a's call only: {calls:?}");
+    assert_eq!(unknown, Some(1));
+}
+
+/// The serial control: the same three prompts as three tasks record the same
+/// call records, byte for byte, as the fan-out's parent does.
+#[tokio::test]
+async fn three_serial_tasks_record_the_calls_the_fan_out_parent_records() {
+    let serial = format!(
+        "nika: serial\npermits: {{}}\ntasks:\n  a:\n    infer: {{ model: '{PAID}', prompt: 'say a', max_tokens: 256 }}\n  b:\n    after: {{ a: success }}\n    infer: {{ model: '{PAID}', prompt: 'say b', max_tokens: 256 }}\n  c:\n    after: {{ b: success }}\n    infer: {{ model: '{PAID}', prompt: 'say c', max_tokens: 256 }}\n"
+    );
+    let script: &[(&'static str, &[Answer])] = &[("a", SERVE), ("b", SERVE), ("c", SERVE)];
+    let wires = Wires::unobserved(Held::new(false, script, 1));
+    let (outcome, events) = run(&serial, &wires).await;
+    assert!(outcome.ok, "{outcome:?}");
+    let serial_calls: Vec<serde_json::Value> = task_fields(&events, "inference_calls")
+        .into_iter()
+        .flat_map(|text| serde_json::from_str::<Vec<serde_json::Value>>(text).expect("calls"))
+        .collect();
+    let fanned = Wires::unobserved(Held::new(false, script, 1));
+    let (outcome, events) = run(&fan("max_parallel: 1", PAID, ""), &fanned).await;
+    assert!(outcome.ok, "{outcome:?}");
+    assert_eq!(serial_calls.len(), 3);
+    assert_eq!(parent_calls(&events).0, serial_calls);
+    assert_eq!(wires.normal.posts(), fanned.normal.posts());
+}
+
+/// A fan-out whose sends never return a transport report writes no call
+/// evidence and invents none (the fake-zero law): a's attempt times out and b
+/// and c are dropped in flight, while the ledger keeps all three sends as
+/// unknown charges. An empty collection is skipped before any iteration and
+/// writes none either.
+#[tokio::test]
+async fn a_fan_out_whose_calls_never_returned_writes_no_call_evidence() {
+    let wires = Wires::observed(Held::new(true, &[("a", HANG), ("b", HANG), ("c", HANG)], 3));
+    let (outcome, events) = run(
+        &fan("max_parallel: 3", FREE, "    timeout: \"300ms\"\n"),
+        &wires,
+    )
+    .await;
+    assert!(!outcome.ok);
+    assert_eq!(
+        (wires.bounded.posts().len(), wires.bounded.dropped()),
+        (3, 3)
+    );
+    assert_eq!(ledger(&events), (Some(0), Some(3)));
+    assert_eq!(parent_calls(&events), (Vec::new(), None));
+    let empty = format!(
+        "nika: empty\npermits: {{}}\ntasks:\n  ask:\n    for_each: {{ items: [] }}\n    infer: {{ model: '{PAID}', prompt: 'say ${{{{ item }}}}', max_tokens: 256 }}\n"
+    );
+    let quiet = Wires::unobserved(Held::new(false, &[], 1));
+    let (outcome, events) = run(&empty, &quiet).await;
+    assert!(outcome.ok, "{outcome:?}");
+    assert!(quiet.normal.posts().is_empty());
+    for key in ["inference_calls", "cost_unknown_calls"] {
+        assert!(
+            events.iter().all(|e| e.fields.iter().all(|f| f.key != key)),
+            "{key} rode a frame: {events:?}"
+        );
+    }
 }

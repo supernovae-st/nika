@@ -66,9 +66,9 @@ impl HttpPostDyn for Wire {
     }
 }
 
-async fn run(wire: &Arc<Wire>) -> (RunOutcome, Vec<Event>) {
+async fn run(wire: &Arc<Wire>, source: &str) -> (RunOutcome, Vec<Event>) {
     let wf = nika_schema::parse(
-        SOURCE,
+        source,
         nika_schema::FileId::new(0),
         nika_schema::ParseMode::Strict,
     )
@@ -134,7 +134,7 @@ fn json(event: &Event, key: &str) -> serde_json::Value {
 #[tokio::test]
 async fn task_frames_and_attribution_keys_name_origins_only() {
     let wire = Arc::new(Wire::default());
-    let (outcome, events) = run(&wire).await;
+    let (outcome, events) = run(&wire, SOURCE).await;
     let urls = wire.urls.lock().expect("urls").clone();
     assert!(
         urls.iter().any(|url| url.contains(S)),
@@ -188,6 +188,30 @@ async fn task_frames_and_attribution_keys_name_origins_only() {
         settled.spend.by_source.keys().collect::<Vec<_>>(),
         by_source.keys().collect::<Vec<_>>()
     );
+    let journal = serde_json::to_string(&events).expect("events serialize");
+    for form in forms(S) {
+        assert!(!journal.contains(&form), "{form} reached the journal");
+    }
+}
+
+/// E33 · a fan-out's parent carries its iterations' calls through the same
+/// durable projection: origins only, while each request used the exact endpoint.
+#[tokio::test]
+async fn a_fan_out_parent_names_origins_only() {
+    let wire = Arc::new(Wire::default());
+    let source = "nika: fanned\npermits: {}\ntasks:\n  ask:\n    for_each: { items: ['a', 'b'] }\n    infer: { model: 'openai/gpt-oss-120b', prompt: 'say ${{ item }}', max_tokens: 256 }\n";
+    let (outcome, events) = run(&wire, source).await;
+    assert!(outcome.ok, "{outcome:?}");
+    let urls = wire.urls.lock().expect("urls").clone();
+    assert_eq!(urls.len(), 2, "{urls:?}");
+    assert!(urls.iter().all(|url| url.contains(S)), "{urls:?}");
+    let calls = json(task_frame(&events, "ask"), "inference_calls");
+    let calls = calls.as_array().expect("an array");
+    assert_eq!(calls.len(), 2, "{calls:?}");
+    for call in calls {
+        assert_eq!(call["route"]["origin"], "https://api.scaleway.ai:443");
+        assert_eq!(call["withheld"], serde_json::json!([]));
+    }
     let journal = serde_json::to_string(&events).expect("events serialize");
     for form in forms(S) {
         assert!(!journal.contains(&form), "{form} reached the journal");

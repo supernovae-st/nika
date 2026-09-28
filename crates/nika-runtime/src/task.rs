@@ -635,6 +635,7 @@ where
         let (cap, fail_fast) = Self::fan_out_limits(task, items.len());
         let total = items.len();
         let began = fan_out::unstarted(total);
+        let mut calls = BTreeMap::new(); // each yielded iteration's calls, by index
         let mut stream = futures_util::stream::iter(
             items
                 .iter()
@@ -656,10 +657,12 @@ where
                     fan_out::started_on_first_poll(index, began.get(index), iteration)
                 }),
         )
-        .buffer_unordered(cap);
+        .buffer_unordered(cap)
+        .inspect(|(i, ran)| drop(calls.insert(*i, ran.usage.clone().map(|u| u.inference_calls))));
 
         let mut acc = fan_out::collect_fan_out(&mut stream, total, fail_fast).await;
         drop(stream);
+        let calls: Vec<_> = calls.into_values().flatten().flatten().collect();
         let item_terminals = fan_out::items_json(std::mem::take(&mut acc.items), &items, &began);
         if acc.outputs.len() < total && ledger.tripped() && acc.first_error.is_none() {
             acc.first_error = Some(fan_out::budget_stop_record(total - acc.outputs.len()));
@@ -685,7 +688,7 @@ where
             evidence: None,
             duration_ms: 0,
             items: Some(FanItems::new(item_terminals, acc.recovered)),
-            usage: None, // its iterations carry their own metered terminals
+            usage: UsageSplit::default().with_calls(&calls).carried(),
             result,
         };
         let scope = Self::fan_out_finally_scope(records, (inputs, consts, secrets), permits);
