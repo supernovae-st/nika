@@ -1,0 +1,13 @@
+{
+  "nika": "nika 0.121.0 (d71559be5-dirty)",
+  "session_exit": 0,
+  "run_exit": 0,
+  "run": "succeeded",
+  "tasks": 8,
+  "written": {
+    "path": "./out/paid.csv",
+    "bytes": 92
+  },
+  "sealed": true,
+  "model_usage_recorded": false
+}
