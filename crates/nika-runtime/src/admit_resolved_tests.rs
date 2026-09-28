@@ -592,19 +592,19 @@ async fn without_a_cap_the_gate_makes_no_budget_claim() {
     .expect_err("the MODELS rung refuses a seat the resolver cannot name");
     assert!(
         !matches!(err, RuntimeError::BudgetFloor { .. }),
-        "no budget armed → no budget-floor claim: {err}"
+        "no budget armed → no budget-floor claim"
     );
     let RuntimeError::ReportMismatch { detail } = &err else {
-        panic!("the MODELS rung's refusal: {err:?}");
+        panic!("the MODELS rung must return a report mismatch");
     };
     let refusal = nika_providers::resolve_refusal("claude-opus-4.1").expect("the resolver refuses");
     assert!(
         detail.contains("`claude-opus-4.1`") && detail.contains(&refusal.why),
-        "{detail}"
+        "the refusal must name the requested model and resolver reason"
     );
     // The zero-effect boundary: the whole run refuses before any event.
     let err = run_refused(&runtime_with(MockShell::new()), &wf).await;
-    assert_eq!(err.spec_code(), "NIKA-1707", "{err}");
+    assert_eq!(err.spec_code(), "NIKA-1707");
 }
 
 /// The run-level pin: the refusal precedes the prologue — zero events,
