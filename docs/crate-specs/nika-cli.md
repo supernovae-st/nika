@@ -389,3 +389,5 @@ results create neither workflow files nor trace-protection files.
 The Compile transport/materializer is owned by `nika-cli-host::compile` and
 re-exported at `verbs::compile`; `nika-onboard` owns its typed core. The CLI
 binary only dispatches. This follows the existing ADR-110 interface split.
+
+Builtin discovery (`nika catalog --tools`, also `nika tools`) keeps agent-only context visible in its short human listing. The JSON projection exposes `legal_contexts` and `standalone_invoke` from the shared static-checking law, so a consumer can distinguish an agent tool from a legal standalone invoke.

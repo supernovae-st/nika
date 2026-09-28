@@ -88,7 +88,7 @@ pub use permits::{ExecPermit, FsPermits, NetPermits, Permits, glob_matches};
 // the approval tickets and the certificate all read them without ever
 // reading a declaration.
 pub use effect_vocab::{CertEffects, EffectClass, HUMAN_GATE_TOOL};
-pub use shape::builtin_shape_findings;
+pub use shape::{builtin_invoke_refusal, builtin_shape_findings};
 // NEP-0002 · the lethal-trifecta judge (`NIKA-SEC-009`) — the pure
 // leg-conjunction + path-dominance logic; the projection lives in
 // `nika-schema::check::trifecta` (the PolicySubject / policy_violations split).

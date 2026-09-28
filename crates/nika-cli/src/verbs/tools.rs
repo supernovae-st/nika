@@ -141,4 +141,23 @@ mod tests {
             "the human surface teaches the machine surface",
         );
     }
+
+    #[test]
+    fn the_short_human_listing_keeps_the_agent_only_constraint() {
+        let out = run(false, PLAIN);
+        for name in ["nika:compose", "nika:done"] {
+            let row = out
+                .text
+                .lines()
+                .find(|line| line.contains(name))
+                .expect("tool row");
+            assert!(row.to_lowercase().contains("agent tools only"), "{row}");
+        }
+        let row = out
+            .text
+            .lines()
+            .find(|line| line.contains("nika:jq"))
+            .expect("invoke row");
+        assert!(!row.to_lowercase().contains("agent tools only"), "{row}");
+    }
 }

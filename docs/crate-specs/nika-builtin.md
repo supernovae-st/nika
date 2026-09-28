@@ -184,3 +184,5 @@ MCP half (`mcp:server/*` via live `tools/list`) arrives with `nika-mcp`
 | 12 ATOMIC COMMIT | ⏳ this admission commit removes `nika-builtin` from `workspace.metadata.diamond.wip`. |
 
 🦋 Nika — workflow engine for AI, AGPL, SuperNovae Studio.
+
+The version-1 tools projection includes additive `legal_contexts` and `standalone_invoke` fields. These derive from the same capability law as Check: `compose` and `done` are agent-tool-only; the remaining catalog builtins also support standalone invoke. Context eligibility does not grant permits or validate arguments.

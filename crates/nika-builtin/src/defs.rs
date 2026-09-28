@@ -73,6 +73,7 @@ pub fn tools_json() -> serde_json::Value {
         .map(|d| {
             let bare = d.name.strip_prefix("nika:").unwrap_or(&d.name);
             let entry = nika_catalog::find_builtin(bare);
+            let agent_only = nika_cap::builtin_invoke_refusal(&d.name).is_some();
             serde_json::json!({
                 "name": d.name,
                 "category": entry.map(|b| b.category.as_str()),
@@ -80,6 +81,9 @@ pub fn tools_json() -> serde_json::Value {
                 "parameters": d.parameters,
                 "args": entry.map_or(&[][..], |b| b.args),
                 "required": entry.map_or(&[][..], |b| b.required),
+                "standalone_invoke": !agent_only,
+                "legal_contexts": if agent_only { &["agent_tool"][..] }
+                    else { &["invoke", "agent_tool"][..] },
             })
         })
         .collect();
@@ -133,7 +137,7 @@ fn core_defs() -> Vec<ToolDef> {
         ),
         def(
             "done",
-            "Mark the current agent loop complete (the loop-completion sentinel · agent loops only).",
+            "Agent tools only: mark the current loop complete (the loop-completion sentinel).",
             serde_json::json!({ "result": { "description": "optional final value (any JSON)" } }),
             &[],
         ),
@@ -368,7 +372,7 @@ fn introspection_defs() -> Vec<ToolDef> {
     vec![
         def(
             "compose",
-            "Statically check a Nika workflow draft you wrote · returns the full `nika check` verdict as JSON (conformance + secret-flow + permits + the termination/cost certificate) · NEVER executes it. Iterate until valid, then deliver the draft. Agent loops only.",
+            "Agent tools only: statically check a Nika workflow draft you wrote · returns the full `nika check` verdict as JSON (conformance + secret-flow + permits + the termination/cost certificate) · NEVER executes it. Iterate until valid, then deliver the draft.",
             serde_json::json!({ "workflow_yaml": s("the complete workflow YAML draft") }),
             &["workflow_yaml"],
         ),
@@ -507,6 +511,29 @@ mod tests {
             nika_catalog::all_builtins().len(),
             "the join is total — defs and catalog are the same set",
         );
+    }
+
+    #[test]
+    fn discovery_names_agent_only_tools_and_keeps_invoke_controls() {
+        let payload = tools_json();
+        let tools = payload["tools"].as_array().expect("tools array");
+        for name in ["nika:compose", "nika:done", "nika:jq", "nika:inspect"] {
+            let tool = tools
+                .iter()
+                .find(|tool| tool["name"] == name)
+                .expect("tool");
+            let agent_only = matches!(name, "nika:compose" | "nika:done");
+            assert_eq!(tool["standalone_invoke"], !agent_only, "{name}");
+            assert_eq!(
+                tool["legal_contexts"],
+                if agent_only {
+                    serde_json::json!(["agent_tool"])
+                } else {
+                    serde_json::json!(["invoke", "agent_tool"])
+                },
+                "{name}"
+            );
+        }
     }
 
     #[test]

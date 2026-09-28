@@ -458,3 +458,5 @@ the workflow vocabulary leaves (types · error · catalog · cap). The exemption
 the conscious DAG decision ADR-027 requires; the alternative (keeping permits
 inline) would deny `nika-policy`/runtime the lean, parser-free reuse that is the
 whole reason to extract `nika-cap`.
+
+The standalone-invoke context law is exported as `builtin_invoke_refusal`. Both static checking and builtin discovery use it: `nika:done` and `nika:compose` require the agent loop. An absent refusal is not proof of valid arguments, permits or an installed unknown tool. Compose checks a draft; it does not spawn or run it.
