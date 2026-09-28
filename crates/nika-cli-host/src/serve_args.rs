@@ -101,7 +101,7 @@ pub struct ServeArgs {
     /// Explicit model invocation and physical-request ceiling per authoring round (default 1).
     #[arg(long, value_name = "N", requires = "model")]
     pub authoring_max_calls: Option<u32>,
-    /// Seat the cost-review door (POST /v1/cost-reviews · health `costReviewV1`).
+    /// Seat the cost-review door (POST /v1 and /v2/cost-reviews · health `costReviewV1`/`V2`).
     #[arg(long, requires = "bind")]
     pub cost_review: bool,
     /// Per-run spend ceiling of manual jobs in USD (default 1); `none` disarms it explicitly.
