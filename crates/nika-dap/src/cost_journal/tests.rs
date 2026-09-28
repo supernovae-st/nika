@@ -27,6 +27,16 @@ fn row(invocation: &str, phase: &str, state: &str, lease: Option<(u64, &str)>) -
     row.to_string()
 }
 
+/// The lease holder a review judges from: this host name, and a kernel boot
+/// identity only where the fixture proves one.
+fn holder(host: &str, boot: Option<&str>) -> Writer {
+    Writer {
+        pid: 1,
+        host: host.into(),
+        boot: boot.map(Into::into),
+    }
+}
+
 fn project(lines: &[String]) -> (tempfile::TempDir, OwnedDir) {
     let root = tempfile::tempdir().unwrap();
     let nika = OwnedDir::open(root.path())
@@ -53,7 +63,11 @@ fn runs(nika: &OwnedDir, host: &str, observer: &str) -> Vec<Blocker> {
 #[test]
 fn an_absent_journal_blocks_nothing_and_writes_nothing() {
     let (root, nika) = project(&[]);
-    assert!(fold(&nika, HOST, "observer").unwrap().is_clear());
+    assert!(
+        fold_as(&nika, &holder(HOST, None), "observer")
+            .unwrap()
+            .is_clear()
+    );
     assert!(!root.path().join(".nika").join(JOURNAL).exists());
 }
 
@@ -69,10 +83,7 @@ fn settled_rows_clear_and_an_uncertain_settlement_blocks_without_a_new_row() {
     let before = journal(&root);
     assert_eq!(
         runs(&nika, HOST, "observer"),
-        vec![Blocker {
-            invocation: "run-b".into(),
-            exposure: Exposure::Uncertain
-        }]
+        vec![Blocker::new("run-b".into(), Exposure::Uncertain)]
     );
     assert_eq!(journal(&root), before, "a settled Run is never re-derived");
 }
@@ -88,6 +99,7 @@ fn a_leased_prepared_row_becomes_one_durable_unknown_and_stays_unknown() {
     let unknown = Blocker {
         invocation: "run-killed".into(),
         exposure: Exposure::Unknown { pid: Some(4242) },
+        trace: None,
     };
     assert_eq!(runs(&nika, HOST, "run-next"), vec![unknown.clone()]);
     let after = journal(&root);
@@ -105,8 +117,13 @@ fn a_leased_prepared_row_becomes_one_durable_unknown_and_stays_unknown() {
     assert_eq!(derived["phase"], "unknown");
     let original: serde_json::Value = serde_json::from_str(&prepared).unwrap();
     assert_eq!(
-        derived["observation"], original["observation"],
+        derived["prior_observation"], original["observation"],
         "the account's last words, verbatim"
+    );
+    assert!(
+        derived.get("observation").is_none(),
+        "C3 · N4 · the prepared-time Open and zero counters are labeled prior, \
+         never read as the unknown Run's current state"
     );
     assert_eq!(derived["unsettled"]["cause"], "interrupted");
     assert_eq!(
@@ -142,6 +159,7 @@ fn rows_without_a_lease_or_from_another_host_are_never_judged() {
     let unjudged = |id: &str| Blocker {
         invocation: id.into(),
         exposure: Exposure::Unjudged,
+        trace: None,
     };
     assert_eq!(
         runs(&nika, HOST, "observer"),
@@ -158,6 +176,29 @@ fn rows_without_a_lease_or_from_another_host_are_never_judged() {
     assert_eq!(journal(&root_nameless).lines().count(), 1);
 }
 
+/// C3 · N4 · an unknown row an earlier engine derived (its prior observation
+/// under `observation`) still reads as that Run's recorded unknown; a derived
+/// row whose prior observation is unreadable fails closed.
+#[test]
+fn an_earlier_derived_unknown_reads_and_a_broken_prior_fails_closed() {
+    let prepared = row("run-e", "prepared", "Open", Some((9, HOST)));
+    let current = derived(&prepared, "run-review");
+    let earlier = current.replace("\"prior_observation\"", "\"observation\"");
+    assert_ne!(earlier, current);
+    let (_root, nika) = project(&[prepared.clone(), earlier]);
+    assert_eq!(
+        runs(&nika, "another-host", "run-next"),
+        vec![Blocker::new(
+            "run-e".into(),
+            Exposure::Unknown { pid: Some(9) }
+        )]
+    );
+    let broken = current.replace("\"unknown_calls\":0", "\"unknown_calls\":\"0\"");
+    assert_ne!(broken, current);
+    let (_root, nika) = project(&[prepared, broken]);
+    assert!(fold_as(&nika, &holder(HOST, None), "run-next").is_err());
+}
+
 #[test]
 fn an_unrecognized_row_fails_closed() {
     let foreign_phase = row("run-a", "reconciled", "Closed", None);
@@ -165,7 +206,10 @@ fn an_unrecognized_row_fails_closed() {
     let foreign_schema = r#"{"schema":"other@1","invocation":"run-a"}"#.to_owned();
     for text in [foreign_phase, bare_unknown, foreign_schema] {
         let (_root, nika) = project(std::slice::from_ref(&text));
-        assert!(fold(&nika, HOST, "observer").is_err(), "{text}");
+        assert!(
+            fold_as(&nika, &holder(HOST, None), "observer").is_err(),
+            "{text}"
+        );
     }
 }
 
@@ -187,7 +231,7 @@ fn a_row_cut_mid_write_is_named_by_digest_and_never_fuses() {
         format!("{cut}\n{settled}\n"),
         "the cut bytes stay, alone"
     );
-    let exposures = fold(&nika, HOST, "observer").unwrap();
+    let exposures = fold_as(&nika, &holder(HOST, None), "observer").unwrap();
     assert_eq!(
         exposures.torn,
         vec![nika_event::source_id::sha256_hex(cut.as_bytes())]
@@ -203,11 +247,373 @@ fn a_row_cut_mid_write_is_named_by_digest_and_never_fuses() {
         vec![Blocker {
             invocation: "run-cut".into(),
             exposure: Exposure::Unknown { pid: Some(5) },
+            trace: None,
         }]
     );
     let lines: Vec<String> = journal(&root_whole).lines().map(str::to_owned).collect();
     assert_eq!(lines.len(), 2);
     assert_eq!(lines[0], prepared);
+}
+
+/// The derived `unknown` line a later review appends for `prepared`.
+fn derived(prepared: &str, observer: &str) -> String {
+    let row: serde_json::Value = serde_json::from_str(prepared).unwrap();
+    let id = row["invocation"].as_str().unwrap();
+    unknown_row(id, &row, prepared.as_bytes(), observer).to_string()
+}
+
+/// The conflicts a fold names: (invocation, sha256 of the exact line, reason).
+fn conflicts(exposures: &Exposures) -> Vec<(String, String, &'static str)> {
+    exposures
+        .conflicts
+        .iter()
+        .map(|c| (c.invocation.clone(), c.sha256.clone(), c.reason))
+        .collect()
+}
+
+fn sha(line: &str) -> String {
+    nika_event::source_id::sha256_hex(line.as_bytes())
+}
+
+/// C3 · N1 · E4's counterexample and its kin: a settled row appended by hand,
+/// lease-less or with a copied or foreign writer, after the recorded unknown
+/// or before it, never erases the exposure. Each is a named conflict that
+/// blocks by itself, and the Run keeps the standing its legal rows give it.
+#[test]
+fn a_late_or_foreign_settlement_never_erases_an_exposure() {
+    let prepared = row("run-k", "prepared", "Open", Some((41, HOST)));
+    let unknown = derived(&prepared, "run-review");
+    let unleased = row("run-k", "settled", "Closed", None);
+    let copied = row("run-k", "settled", "Closed", Some((41, HOST)));
+    let (root, nika) = project(&[
+        prepared.clone(),
+        unknown.clone(),
+        unleased.clone(),
+        copied.clone(),
+    ]);
+    let before = journal(&root);
+    let exposures = fold_as(&nika, &holder(HOST, None), "run-next").unwrap();
+    let killed = Blocker::new("run-k".into(), Exposure::Unknown { pid: Some(41) });
+    assert_eq!(exposures.runs, vec![killed]);
+    assert_eq!(
+        conflicts(&exposures),
+        vec![
+            (
+                "run-k".into(),
+                sha(&unleased),
+                "carries no cost lease after leased rows began"
+            ),
+            (
+                "run-k".into(),
+                sha(&copied),
+                "follows the Run's recorded unknown"
+            ),
+        ]
+    );
+    assert!(!exposures.is_clear());
+    assert_eq!(
+        journal(&root),
+        before,
+        "nothing appended: the unknown was recorded"
+    );
+    let text = refusal(&exposures);
+    assert!(
+        text.contains(&format!("(sha256 {})", sha(&copied))),
+        "{text}"
+    );
+    assert!(text.contains("refused as a conflict, the exposure before it stands"));
+    // A foreign writer settles before any review derived the unknown: the
+    // prepared row still stands, so this review derives it (one row appended).
+    let prepared = row("run-f", "prepared", "Open", Some((42, HOST)));
+    let foreign = row("run-f", "settled", "Closed", Some((1, HOST)));
+    let (root, nika) = project(&[prepared.clone(), foreign.clone()]);
+    let exposures = fold_as(&nika, &holder(HOST, None), "run-next").unwrap();
+    assert_eq!(
+        exposures.runs,
+        vec![Blocker::new(
+            "run-f".into(),
+            Exposure::Unknown { pid: Some(42) }
+        )]
+    );
+    assert_eq!(
+        conflicts(&exposures),
+        vec![(
+            "run-f".into(),
+            sha(&foreign),
+            "settles a Run from a writer that did not prepare it"
+        )]
+    );
+    let lines: Vec<String> = journal(&root).lines().map(str::to_owned).collect();
+    assert_eq!(
+        lines,
+        vec![prepared.clone(), foreign, derived(&prepared, "run-next")]
+    );
+}
+
+/// C3 · N1 · the other illegal rows: a Run with no prepared row, a second
+/// preparation, an unknown that does not derive from the prepared row's exact
+/// bytes, and a settlement changed after the fact. A byte-identical repeat of
+/// a settled row (a retried append) stays benign.
+#[test]
+fn only_legal_transitions_move_a_run() {
+    let orphan = row("run-o", "settled", "Closed", Some((5, HOST)));
+    let prepared = row("run-p", "prepared", "Open", Some((6, HOST)));
+    let again = row("run-p", "prepared", "Open", Some((6, HOST))).replace("Open", "Closed");
+    let forged_unknown = derived(&prepared, "run-x").replace(&sha(&prepared), &"0".repeat(64));
+    let settled = row("run-s", "settled", "Closed", Some((7, HOST)));
+    let changed = row("run-s", "settled", "Uncertain", Some((7, HOST)));
+    let (_root, nika) = project(&[
+        orphan.clone(),
+        prepared.clone(),
+        again.clone(),
+        forged_unknown.clone(),
+        row("run-s", "prepared", "Open", Some((7, HOST))),
+        settled.clone(),
+        settled.clone(),
+        changed.clone(),
+    ]);
+    let exposures = fold_as(&nika, &holder("another-host", None), "run-next").unwrap();
+    assert_eq!(
+        exposures.runs,
+        vec![Blocker::new("run-p".into(), Exposure::Unjudged)],
+        "run-s settled cleanly; its exact repeat is benign"
+    );
+    assert_eq!(
+        conflicts(&exposures),
+        vec![
+            (
+                "run-o".into(),
+                sha(&orphan),
+                "names a Run with no prepared row before it"
+            ),
+            (
+                "run-p".into(),
+                sha(&again),
+                "prepares the Run a second time"
+            ),
+            (
+                "run-p".into(),
+                sha(&forged_unknown),
+                "records unknown from a row other than the Run's prepared one"
+            ),
+            (
+                "run-s".into(),
+                sha(&changed),
+                "follows the Run's settlement"
+            ),
+        ]
+    );
+}
+
+/// C3 · N1 · control: a lease-less pair written before the lease existed still
+/// settles, and so does a leased pair; a lease-less row after them does not.
+#[test]
+fn legacy_pairs_settle_only_before_leased_rows_began() {
+    let late = row("run-late", "prepared", "Open", None);
+    let (_root, nika) = project(&[
+        row("run-legacy", "prepared", "Open", None),
+        row("run-legacy", "settled", "Closed", None),
+        row("run-leased", "prepared", "Open", Some((8, HOST))),
+        row("run-leased", "settled", "Closed", Some((8, HOST))),
+        late.clone(),
+    ]);
+    let exposures = fold_as(&nika, &holder(HOST, None), "run-next").unwrap();
+    assert!(exposures.runs.is_empty(), "{exposures:?}");
+    assert_eq!(
+        conflicts(&exposures),
+        vec![(
+            "run-late".into(),
+            sha(&late),
+            "carries no cost lease after leased rows began"
+        )]
+    );
+}
+
+/// C3 · N7 · a Run is named by its execution id and, when a trace recorded
+/// that execution, by the trace file `nika trace show` takes: a store name of
+/// that trace id whose first frame names the same execution, never a decoy
+/// with the same short suffix. Wording speaks of the lease only: the writer
+/// "no longer holds" it, never "is gone".
+#[test]
+fn a_blocking_run_names_the_trace_that_recorded_it() {
+    let id = "01a0e5a3-1a92-7779-8387-a719e96ab793";
+    let invocation = format!("exe-{id}");
+    let prepared = row(&invocation, "prepared", "Open", Some((77, HOST)));
+    let (root, nika) = project(std::slice::from_ref(&prepared));
+    let traces = root.path().join(".nika").join("traces");
+    std::fs::create_dir_all(&traces).unwrap();
+    let frame = |uuid: &str| {
+        format!(
+            "{}\n",
+            json!({"kind": "workflow_started", "execution": {"uuid": uuid}})
+        )
+    };
+    let decoy = "2026-09-28T01-00-00Z-b793.ndjson";
+    std::fs::write(
+        traces.join(decoy),
+        frame("01a0e5a3-0000-7000-8000-00000000b793"),
+    )
+    .unwrap();
+    let recorded = "2026-09-28T01-00-01Z-b793.ndjson";
+    std::fs::write(traces.join(recorded), frame(id)).unwrap();
+    let exposures = fold_as(&nika, &holder(HOST, None), "exe-next").unwrap();
+    let [blocker] = exposures.runs.as_slice() else {
+        panic!("{exposures:?}");
+    };
+    assert_eq!(blocker.trace.as_deref(), Some(recorded));
+    let text = refusal(&exposures);
+    assert!(
+        text.contains(&format!(
+            "Run {invocation} (trace .nika/traces/{recorded}) ended without a settlement; its writer, process 77, no longer holds the cost lease: billing unknown"
+        )),
+        "{text}"
+    );
+    assert!(!text.contains("is gone"), "{text}");
+    // An invocation that is not an execution id names no trace.
+    let (_root, nika) = project(&[row("run-plain", "prepared", "Open", None)]);
+    let exposures = fold_as(&nika, &holder(HOST, None), "exe-next").unwrap();
+    assert_eq!(exposures.runs[0].trace, None);
+}
+
+const BOOT: &str = "6f1d2c1e-8a47-4f0e-9b1a-2e5b7c9d0a13";
+const OTHER_BOOT: &str = "0b9c8d7e-6f5a-4b3c-8d2e-1f0a9b8c7d6e";
+
+/// A `prepared` row whose lease names `host` and, when proven, `boot`.
+fn prepared_on(invocation: &str, pid: u64, host: &str, boot: Option<&str>) -> String {
+    let mut row: serde_json::Value =
+        serde_json::from_str(&row(invocation, "prepared", "Open", Some((pid, host)))).unwrap();
+    if let Some(boot) = boot {
+        row["lease"]["boot"] = json!(boot);
+    }
+    row.to_string()
+}
+
+/// C3 · N2 · a container restarted on the same kernel comes back under a new
+/// hostname. The lease it acquired proves the killed writer's lock is gone,
+/// and the boot identity proves it is the same kernel's lock: the Run is
+/// derived unknown, once, instead of staying unjudged forever.
+#[test]
+fn a_restarted_container_on_the_same_kernel_derives_the_unknown() {
+    let prepared = prepared_on("run-c", 12, "container-a", Some(BOOT));
+    let (root, nika) = project(std::slice::from_ref(&prepared));
+    let exposures = fold_as(&nika, &holder("container-b", Some(BOOT)), "run-next").unwrap();
+    assert_eq!(
+        exposures.runs,
+        vec![Blocker::new(
+            "run-c".into(),
+            Exposure::Unknown { pid: Some(12) }
+        )]
+    );
+    let lines: Vec<String> = journal(&root).lines().map(str::to_owned).collect();
+    assert_eq!(
+        lines,
+        vec![prepared.clone(), derived(&prepared, "run-next")]
+    );
+}
+
+/// C3 · N2 · negative controls: a journal copied from another machine (another
+/// host, another kernel) is never judged, and neither is a row whose boot
+/// identity is absent on either side: absent never matches absent, and an
+/// empty hostname never matches an empty one. Nothing is appended.
+#[test]
+fn another_kernel_or_an_absent_identity_is_never_judged() {
+    let cases = [
+        (
+            prepared_on("run-x", 3, "far-host", Some(OTHER_BOOT)),
+            holder(HOST, Some(BOOT)),
+        ),
+        (
+            prepared_on("run-x", 3, "far-host", None),
+            holder(HOST, Some(BOOT)),
+        ),
+        (
+            prepared_on("run-x", 3, "far-host", Some(BOOT)),
+            holder(HOST, None),
+        ),
+        (
+            prepared_on("run-x", 3, "far-host", None),
+            holder(HOST, None),
+        ),
+        (prepared_on("run-x", 3, "", None), holder("", None)),
+    ];
+    for (prepared, holder) in cases {
+        let (root, nika) = project(std::slice::from_ref(&prepared));
+        let exposures = fold_as(&nika, &holder, "run-next").unwrap();
+        assert_eq!(
+            exposures.runs,
+            vec![Blocker::new("run-x".into(), Exposure::Unjudged)],
+            "{prepared} judged by {holder:?}"
+        );
+        assert_eq!(journal(&root), format!("{prepared}\n"), "nothing appended");
+    }
+}
+
+/// The source-compatible `fold` names its holder by hostname only, so a row
+/// matched by kernel alone stays unjudged there; `fold_as` with the proven
+/// boot identity derives it.
+#[test]
+fn the_compatible_fold_judges_by_hostname_only() {
+    let prepared = prepared_on("run-b", 21, "container-a", Some(BOOT));
+    let (root, nika) = project(std::slice::from_ref(&prepared));
+    assert_eq!(
+        runs(&nika, "container-b", "run-next"),
+        vec![Blocker::new("run-b".into(), Exposure::Unjudged)]
+    );
+    assert_eq!(journal(&root), format!("{prepared}\n"));
+    let exposures = fold_as(&nika, &holder("container-b", Some(BOOT)), "run-next").unwrap();
+    assert_eq!(
+        exposures.runs,
+        vec![Blocker::new(
+            "run-b".into(),
+            Exposure::Unknown { pid: Some(21) }
+        )]
+    );
+}
+
+/// The lease record names the kernel only where the platform proves one.
+#[test]
+fn the_lease_record_carries_a_proven_boot_identity_only() {
+    assert_eq!(
+        holder(HOST, Some(BOOT)).json(),
+        json!({"pid": 1, "host": HOST, "boot": BOOT})
+    );
+    assert_eq!(holder(HOST, None).json(), json!({"pid": 1, "host": HOST}));
+}
+
+/// C3 · N5 · a writer cut inside a multi-byte character leaves bytes that are
+/// not UTF-8: one torn row, named by the digest of its exact bytes. The rows
+/// before it still read (never a raw decoding error that bricks every later
+/// review), and the next append ends the torn line without touching its bytes.
+#[test]
+fn a_row_cut_inside_a_multibyte_character_is_torn_not_an_unreadable_journal() {
+    let whole =
+        r#"{"schema":"nika/run-cost-observation@1","invocation":"run-é","phase":"prepared"}"#;
+    let cut = &whole.as_bytes()[..=whole.find('é').unwrap()];
+    assert!(
+        std::str::from_utf8(cut).is_err(),
+        "the fixture cuts inside é"
+    );
+    let (root, nika) = project(&[
+        row("run-a", "prepared", "Open", Some((7, HOST))),
+        row("run-a", "settled", "Closed", Some((7, HOST))),
+    ]);
+    let path = root.path().join(".nika").join(JOURNAL);
+    let mut bytes = std::fs::read(&path).unwrap();
+    bytes.extend_from_slice(cut);
+    std::fs::write(&path, &bytes).unwrap();
+    let exposures = fold_as(&nika, &holder(HOST, None), "observer").unwrap();
+    assert_eq!(exposures.torn, vec![nika_event::source_id::sha256_hex(cut)]);
+    assert!(exposures.runs.is_empty(), "run-a settled: {exposures:?}");
+    assert!(refusal(&exposures).contains("a row was cut mid-write (sha256 "));
+    let next = row("run-b", "prepared", "Open", Some((8, HOST)));
+    append_row(&nika, &next).unwrap();
+    let mut expected = bytes;
+    expected.extend_from_slice(format!("\n{next}\n").as_bytes());
+    assert_eq!(
+        std::fs::read(&path).unwrap(),
+        expected,
+        "the cut bytes stay, alone"
+    );
 }
 
 #[test]
@@ -217,23 +623,273 @@ fn the_refusal_names_each_run_and_its_evidence() {
             Blocker {
                 invocation: "run-a".into(),
                 exposure: Exposure::Unknown { pid: Some(12) },
+                trace: None,
             },
             Blocker {
                 invocation: "run-b".into(),
                 exposure: Exposure::Uncertain,
+                trace: None,
             },
             Blocker {
                 invocation: "run-c".into(),
                 exposure: Exposure::Unjudged,
+                trace: None,
             },
         ],
         torn: Vec::new(),
+        conflicts: vec![Conflict::new(
+            "run-d\u{1b}]52;;x\u{7}".into(),
+            "ab12".into(),
+            "follows the Run's settlement",
+        )],
     });
-    assert!(text.contains("Run run-a ended without a settlement and its process 12 is gone"));
+    assert!(text.contains(
+        "Run run-a ended without a settlement; its writer, process 12, no longer holds the cost lease"
+    ));
+    assert!(
+        text.contains("a row for Run run-d]52;;x (sha256 ab12) follows the Run's settlement: refused as a conflict"),
+        "journal text is escaped: {text:?}"
+    );
     assert!(text.contains("Run run-b settled with a sent request whose charge is unknown"));
     assert!(text.contains("Run run-c was admitted and never settled"));
     assert!(text.contains("no automatic retry"));
     assert!(text.contains(".nika/inference-cost-observations.ndjson"));
+}
+
+/// One unknown-cost attempt as the account serializes it (nika-providers
+/// `UnknownAttemptReceipt`): `sent` and `estimated_nano_usd` are what its
+/// counters and subtotal are made of.
+fn attempt(sent: bool, estimated: Option<&str>) -> serde_json::Value {
+    json!({"id": 0, "choice": null, "pricing": {"kind": "unknown"}, "sent": sent,
+        "usage": null, "estimated_nano_usd": estimated, "native_estimated_nano": estimated,
+        "currency": null, "response_model": null, "request_id": null, "note": "fixture"})
+}
+
+/// One priced attempt as the account serializes it (`AttemptReceipt`).
+fn priced(sent: bool, estimated: Option<&str>) -> serde_json::Value {
+    json!({"id": 0, "model": "m", "endpoint": "https://api.example.test/v1", "sent": sent,
+        "estimated_nano_usd": estimated, "reserved_nano_usd": "9000", "usage": null,
+        "billing_provider": "p", "currency": "USD", "source": null, "as_of": null,
+        "source_sha256": null, "note": "fixture"})
+}
+
+/// A leased `phase` row for `invocation` whose observation is the fresh
+/// account's with `changes` written over it.
+fn observed(invocation: &str, phase: &str, pid: u64, changes: &serde_json::Value) -> String {
+    let state = if phase == "prepared" {
+        "Open"
+    } else {
+        "Closed"
+    };
+    let mut row: serde_json::Value =
+        serde_json::from_str(&row(invocation, phase, state, Some((pid, HOST)))).unwrap();
+    for (key, value) in changes.as_object().unwrap() {
+        row["observation"][key] = value.clone();
+    }
+    row.to_string()
+}
+
+/// A prepared Run and a settlement no legal transition can let through: the
+/// settlement is a conflict, the prepared row stands, and this review derives
+/// that Run's unknown once, appended after the rows it read.
+fn assert_refused_settlement(changes: &serde_json::Value, reason: &str) {
+    let prepared = observed("run-t", "prepared", 31, &json!({}));
+    let settlement = observed("run-t", "settled", 31, changes);
+    let (root, nika) = project(&[prepared.clone(), settlement.clone()]);
+    let exposures = fold_as(&nika, &holder(HOST, None), "run-next").unwrap();
+    assert_eq!(
+        exposures.runs,
+        vec![Blocker::new(
+            "run-t".into(),
+            Exposure::Unknown { pid: Some(31) }
+        )],
+        "{settlement}"
+    );
+    assert_eq!(
+        conflicts(&exposures),
+        vec![("run-t".into(), sha(&settlement), reason)],
+        "{settlement}"
+    );
+    assert!(!exposures.is_clear());
+    let lines: Vec<String> = journal(&root).lines().map(str::to_owned).collect();
+    assert_eq!(
+        lines,
+        vec![prepared.clone(), settlement, derived(&prepared, "run-next")],
+        "the rows read stay byte-identical; one derived row is appended"
+    );
+    assert!(refusal(&exposures).contains(reason));
+}
+
+/// B5 · root's independent fault review: a settlement its own account could
+/// never have written never clears the Run. The account closes before it
+/// settles (`Run ended; fresh decision required`), counts as unknown exactly
+/// the sent attempts it could not price, and only ever adds nonnegative
+/// estimates to its known subtotal (nika-providers `InferenceReceipt::
+/// observation`, unchanged since the journal's first writer).
+#[test]
+fn a_settlement_its_own_account_contradicts_never_clears() {
+    for (changes, reason) in [
+        (
+            json!({"state": "Open"}),
+            "settles the Run with its account still open",
+        ),
+        (
+            json!({"unknown_calls": 1}),
+            "counts unknown calls its sent attempts do not record",
+        ),
+        (
+            json!({"known_subtotal_nano_usd": "-1"}),
+            "reports a negative known subtotal",
+        ),
+    ] {
+        assert_refused_settlement(&changes, reason);
+    }
+}
+
+/// B5 · the nearby contradictions are conflicts too: counters that disagree
+/// with the attempts either way, a subtotal no estimate backs, an attempt no
+/// account writes (a negative or non-decimal estimate, an estimate on a request
+/// never sent, a non-boolean `sent`), missing attempt lists, and an uncertain
+/// settlement whose counters contradict it (it blocked before; now it is named).
+#[test]
+fn nearby_contradictions_are_named_conflicts_never_clears() {
+    let unknown_call = attempt(true, None);
+    for (changes, reason) in [
+        (
+            json!({"unknown_attempts": [unknown_call]}),
+            "counts unknown calls its sent attempts do not record",
+        ),
+        (
+            json!({"unknown_calls": 2, "unknown_attempts": [unknown_call]}),
+            "counts unknown calls its sent attempts do not record",
+        ),
+        (
+            json!({"known_subtotal_nano_usd": "1500"}),
+            "reports a known subtotal its attempts do not add up to",
+        ),
+        (
+            json!({"known_subtotal_nano_usd": "1500", "attempts": [priced(true, Some("1000"))]}),
+            "reports a known subtotal its attempts do not add up to",
+        ),
+        (
+            json!({"known_subtotal_nano_usd": "-1500",
+                "unknown_attempts": [attempt(true, Some("-1500"))]}),
+            "records an attempt its account cannot write",
+        ),
+        (
+            json!({"known_subtotal_nano_usd": "1500",
+                "unknown_attempts": [attempt(false, Some("1500"))]}),
+            "records an attempt its account cannot write",
+        ),
+        (
+            json!({"known_subtotal_nano_usd": "1500",
+                "attempts": [{"sent": true, "estimated_nano_usd": 1500}]}),
+            "records an attempt its account cannot write",
+        ),
+        (
+            json!({"unknown_calls": 1,
+                "unknown_attempts": [{"sent": "yes", "estimated_nano_usd": null}]}),
+            "records an attempt its account cannot write",
+        ),
+        (
+            json!({"attempts": null}),
+            "records its account without both attempt lists",
+        ),
+        (
+            json!({"state": "Uncertain", "unknown_calls": 1}),
+            "counts unknown calls its sent attempts do not record",
+        ),
+    ] {
+        assert_refused_settlement(&changes, reason);
+    }
+}
+
+/// B5 · controls: every settlement the account does write keeps its meaning.
+/// Closed clears, including a completed unknown-cost call whose USD price stays
+/// unknown (the TUI's own Run: `unknown_calls` 1 with that sent attempt), a
+/// declared USD estimate, priced attempts that add up, and a request reserved
+/// but never sent. Uncertain blocks with its sent request. A byte-identical
+/// repeat stays benign, and nothing is appended.
+#[test]
+fn every_settlement_the_account_writes_keeps_its_meaning() {
+    for (changes, exposure) in [
+        (json!({}), None),
+        (
+            json!({"unknown_calls": 1, "unknown_attempts": [attempt(true, None)]}),
+            None,
+        ),
+        (
+            json!({"known_subtotal_nano_usd": "1500",
+                "unknown_attempts": [attempt(true, Some("1500"))]}),
+            None,
+        ),
+        (
+            json!({"known_subtotal_nano_usd": "1500",
+                "attempts": [priced(true, Some("1000")), priced(true, Some("500"))]}),
+            None,
+        ),
+        (
+            json!({"unknown_attempts": [attempt(false, None)], "attempts": [priced(false, None)]}),
+            None,
+        ),
+        (
+            json!({"state": "Uncertain", "unknown_calls": 2,
+                "unknown_attempts": [attempt(true, None)], "attempts": [priced(true, None)]}),
+            Some(Exposure::Uncertain),
+        ),
+    ] {
+        let prepared = observed("run-s", "prepared", 32, &json!({}));
+        let settlement = observed("run-s", "settled", 32, &changes);
+        let (root, nika) = project(&[prepared, settlement.clone(), settlement.clone()]);
+        let before = journal(&root);
+        let exposures = fold_as(&nika, &holder(HOST, None), "run-next").unwrap();
+        let blockers: Vec<Blocker> = exposure
+            .into_iter()
+            .map(|e| Blocker::new("run-s".into(), e))
+            .collect();
+        assert_eq!(exposures.runs, blockers, "{settlement}");
+        assert!(exposures.conflicts.is_empty(), "{settlement}");
+        assert_eq!(journal(&root), before, "nothing appended: {settlement}");
+    }
+}
+
+/// B5 · a `prepared` row is the account before any request (the host writes
+/// it right after the review confirms the choice): Open, with no attempt. One
+/// whose account already moved is a conflict, so the settlement after it names
+/// a Run with no prepared row; both block, and nothing is appended.
+#[test]
+fn a_prepared_row_whose_account_already_moved_is_a_conflict() {
+    for changes in [
+        json!({"state": "Closed"}),
+        json!({"state": "Uncertain"}),
+        json!({"unknown_calls": 1, "unknown_attempts": [attempt(true, None)]}),
+        json!({"attempts": [priced(false, None)]}),
+    ] {
+        let prepared = observed("run-m", "prepared", 33, &changes);
+        let settlement = observed("run-m", "settled", 33, &json!({}));
+        let (root, nika) = project(&[prepared.clone(), settlement.clone()]);
+        let before = journal(&root);
+        let exposures = fold_as(&nika, &holder(HOST, None), "run-next").unwrap();
+        assert!(exposures.runs.is_empty(), "{prepared}");
+        assert_eq!(
+            conflicts(&exposures),
+            vec![
+                (
+                    "run-m".into(),
+                    sha(&prepared),
+                    "prepares the Run with an account that already moved"
+                ),
+                (
+                    "run-m".into(),
+                    sha(&settlement),
+                    "names a Run with no prepared row before it"
+                ),
+            ],
+            "{prepared}"
+        );
+        assert!(!exposures.is_clear());
+        assert_eq!(journal(&root), before, "nothing appended: {prepared}");
+    }
 }
 
 /// A held lease refuses a second holder and names it; a dropped lease is taken

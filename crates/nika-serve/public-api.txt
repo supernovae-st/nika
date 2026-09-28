@@ -2596,6 +2596,9 @@ impl<T> tracing::instrument::Instrument for nika_serve::JobOrigin
 impl<T> tracing::instrument::WithSubscriber for nika_serve::JobOrigin
 impl<T> typenum::type_operators::Same for nika_serve::JobOrigin
 pub type nika_serve::JobOrigin::Output = T
+impl<T> zvariant::optional::NoneValue for nika_serve::JobOrigin where T: core::default::Default
+pub type nika_serve::JobOrigin::NoneType = T
+pub fn nika_serve::JobOrigin::null_value() -> T
 #[non_exhaustive] pub enum nika_serve::JobStatus
 pub nika_serve::JobStatus::Cancelled
 pub nika_serve::JobStatus::Failed
@@ -4289,6 +4292,9 @@ impl<T> tracing::instrument::Instrument for nika_serve::ServerLimits
 impl<T> tracing::instrument::WithSubscriber for nika_serve::ServerLimits
 impl<T> typenum::type_operators::Same for nika_serve::ServerLimits
 pub type nika_serve::ServerLimits::Output = T
+impl<T> zvariant::optional::NoneValue for nika_serve::ServerLimits where T: core::default::Default
+pub type nika_serve::ServerLimits::NoneType = T
+pub fn nika_serve::ServerLimits::null_value() -> T
 pub struct nika_serve::SystemResidentClock
 impl core::fmt::Debug for nika_serve::SystemResidentClock
 pub fn nika_serve::SystemResidentClock::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result

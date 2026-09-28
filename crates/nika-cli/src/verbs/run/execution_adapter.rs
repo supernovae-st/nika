@@ -324,7 +324,7 @@ fn run_admitted_context(
         &world.display_root,
         request.file,
         source,
-        format!("{:?}", world.execution_id),
+        world.execution_id.to_string(),
         &wf,
         request.model_override,
         &plan,

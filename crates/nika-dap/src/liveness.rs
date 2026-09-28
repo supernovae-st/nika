@@ -95,6 +95,43 @@ pub fn host_name() -> String {
     }
 }
 
+/// Where the platform names its running kernel's boot: Linux only. Every
+/// container on one kernel reads the same value, whatever its hostname. No
+/// safe owner reads macOS `kern.bootsessionuuid` yet (it needs `sysctl`), so
+/// there a lease is still judged by hostname alone.
+const BOOT_ID: Option<&str> = if cfg!(target_os = "linux") {
+    Some("/proc/sys/kernel/random/boot_id")
+} else {
+    None
+};
+
+/// This kernel's boot identity, when the platform proves one (see
+/// [`boot_id_from`]); `None` otherwise, and `None` never matches anything.
+pub(crate) fn boot_id() -> Option<String> {
+    BOOT_ID.and_then(|path| boot_id_from(Path::new(path)))
+}
+
+/// Read a boot identity: a bounded read of exactly one lowercase UUID
+/// (`8-4-4-4-12` hex digits), optionally followed by one newline. A missing,
+/// unreadable, empty or malformed value is `None`, never a guess.
+pub(crate) fn boot_id_from(path: &Path) -> Option<String> {
+    use std::io::Read as _;
+    let mut bytes = Vec::new();
+    std::fs::File::open(path) // seam-bypass-ok: the kernel's own identity file, read once per lease record; no project path
+        .ok()?
+        .take(64)
+        .read_to_end(&mut bytes)
+        .ok()?;
+    let text = std::str::from_utf8(&bytes).ok()?;
+    let id = text.strip_suffix('\n').unwrap_or(text);
+    let exact = id.len() == 36
+        && id.char_indices().all(|(i, c)| match i {
+            8 | 13 | 18 | 23 => c == '-',
+            _ => c.is_ascii_digit() || ('a'..='f').contains(&c),
+        });
+    exact.then(|| id.to_owned())
+}
+
 /// Take the lease for `trace`: create `<trace>.lock` (owner-only) with
 /// this process's pid and host, and hold it exclusively. Fails when the
 /// lease cannot be created or is already held (two writers on one journal
@@ -285,6 +322,37 @@ mod tests {
         assert_eq!(probe(&trace), Liveness::Unknown, "another host → unknown");
         remove_lease(&trace);
         assert_eq!(probe(&trace), Liveness::Unknown);
+    }
+
+    /// C3 · N2 · a boot identity is exactly one lowercase UUID, bounded; any
+    /// other content (empty, uppercase, short, trailing text, oversized,
+    /// missing) is no identity at all.
+    #[test]
+    fn a_boot_identity_is_one_exact_uuid_or_none() {
+        let path = scratch("boot").with_file_name("boot_id");
+        let id = "6f1d2c1e-8a47-4f0e-9b1a-2e5b7c9d0a13";
+        for (content, expected) in [
+            (format!("{id}\n"), Some(id)),
+            (id.to_owned(), Some(id)),
+            (String::new(), None),
+            (format!("{}\n", id.to_uppercase()), None),
+            (format!("{}\n", &id[..35]), None),
+            (format!("{id}\nextra\n"), None),
+            (format!("{id} \n"), None),
+            (format!("{id}{}", "0".repeat(64)), None),
+        ] {
+            std::fs::write(&path, &content).unwrap();
+            assert_eq!(boot_id_from(&path).as_deref(), expected, "{content:?}");
+        }
+        std::fs::remove_file(&path).unwrap();
+        assert_eq!(boot_id_from(&path), None, "missing");
+    }
+
+    /// Linux CI: the running kernel names its boot.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn this_linux_kernel_names_its_boot() {
+        assert!(boot_id().is_some());
     }
 
     #[test]

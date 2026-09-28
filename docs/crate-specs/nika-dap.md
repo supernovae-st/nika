@@ -104,6 +104,62 @@ question, the live account and its own rows (`prepared` · `settled` ·
 settle-on-drop); the fold, the lease and the refusal wording moved unchanged,
 their tests with them.
 
+C3 hardening (2026-09-28, the E4 P3 review). The journal is read as bytes: a
+line that is not UTF-8 or not JSON is torn, named by the sha256 of its exact
+bytes. Rows no longer win by being latest: each Run moves only by legal
+transitions, `prepared`, then `settled` by the same lease writer or the
+`unknown` derived from that exact row (writer and `prior_sha256` match), and
+nothing after either but a byte-identical repeat. A lease-less `prepared` or
+`settled` row is legacy evidence only before the first leased row. Any other
+row (orphan, foreign or late settlement, second preparation, mismatched
+unknown) is a `Conflict`: it never changes its Run's standing, it blocks by
+itself, and the refusal names it by digest (journal text is escaped). A
+reconciled resolution needs its own append-only evidence, principal and
+digest contract (P4); none is accepted here. A derived `unknown` row carries
+the prepared-time observation as `prior_observation`, so its `Open` state and
+zero counters never read as the unknown Run's current state (rows an earlier
+engine derived with `observation` still read, as prior). The lease record
+also carries the running kernel's boot identity where the platform proves
+one (Linux `/proc/sys/kernel/random/boot_id`: a bounded read of exactly one
+lowercase UUID, otherwise none). A lease holder derives a killed Run only for
+a writer on its own nonempty hostname (the historical heuristic, never proof
+of one machine) or on its boot identity (the same kernel's lock table, e.g.
+a container restarted under a new hostname); absent or empty identities
+never match. `fold_as` takes the holder's `Writer` with that identity;
+`fold` keeps its source-compatible signature and judges by hostname only. On macOS judgment stays hostname-only: `kern.bootsessionuuid`
+needs a safe `sysctl` owner (a dependency or kernel wrapper), which is a
+recorded follow-up, not implied here. The refusal names each blocking Run
+by its journal identity and, when a trace recorded it, the trace file (a
+store name of that trace id whose first frame names the same execution,
+never a same-suffix decoy), escapes journal text, and says only that a
+writer "no longer holds the cost lease": the lease proves no more, and the
+pid may be this very process's.
+
+Terminal consistency (2026-09-28, root's independent review of C3). A
+`prepared` or `settled` row the transitions admit must also be an observation
+its account could have written, per nika-providers
+`InferenceReceipt::observation`, the same serializer since the journal's
+first writer:
+- `unknown_calls` equals the number of sent attempts, in either attempt list,
+  that carry no estimate;
+- every estimate is a nonnegative decimal on a sent attempt, and the known
+  subtotal is their sum;
+- `prepared` is the untouched account, Open with no attempt, because the host
+  writes it right after the review confirms the choice;
+- `settled` is never Open, because the host closes the account before it
+  settles.
+
+Any other admitted row is a `Conflict` named by digest and reason. The
+transition law's own reasons come first, so a foreign or late row keeps its
+reason. A conflict changes no standing: a contradicted settlement leaves its
+Run prepared, and a review that can judge that writer derives the Run's
+unknown once, append-only. A consistent Closed settlement still clears,
+including a completed unknown-cost call whose USD price stays unknown
+(`unknown_calls` 1 with that sent attempt, as in the TUI's own Run), and
+Uncertain still blocks. Malformed rows still fail closed as unreadable. This
+checks what a row says, never who wrote it: a consistent row forged by a
+copied writer remains the open P4 authentication work.
+
 ## 4. Gates at admission (2026-07-09)
 
 | Gate | Name | Verdict |

@@ -101,19 +101,18 @@ fn clear_exposure(
     let held = match cost_journal::take(&nika, &writer).map_err(|e| e.to_string())? {
         cost_journal::Taken::Held(held) => held,
         // Busy, or an outcome this host does not know: never a second writer.
+        // The holder may be a Run in flight or a review awaiting its answer.
         busy => {
             let holder = match busy {
-                cost_journal::Taken::Busy { pid: Some(pid) } => {
-                    format!("process {pid} holds its cost lease")
-                }
-                _ => "an unnamed process holds its cost lease".to_owned(),
+                cost_journal::Taken::Busy { pid: Some(pid) } => format!("process {pid}"),
+                _ => "an unnamed process".to_owned(),
             };
             return Err(format!(
-                "another unknown-cost Run in this project has not settled yet ({holder}) · no second Run, no automatic retry"
+                "{holder} holds this project's cost lease: an unknown-cost Run in flight or a review waiting for its answer · no second Run, no automatic retry"
             ));
         }
     };
-    let exposures = cost_journal::fold(&nika, &writer.host, observer).map_err(|e| e.to_string())?;
+    let exposures = cost_journal::fold_as(&nika, &writer, observer).map_err(|e| e.to_string())?;
     if !exposures.is_clear() {
         return Err(cost_journal::refusal(&exposures));
     }
@@ -172,6 +171,9 @@ pub fn review_with_model(
     if unknown.is_empty() {
         return declared_free(wf, plan, &config, model_override, &invocation);
     }
+    // Record what earlier Runs left before any refusal of this host or shape:
+    // a host that cannot ask still leaves a killed Run's UNKNOWN on record.
+    let (held, writer) = clear_exposure(root, &invocation)?;
     let channel = channel.into();
     if !channel.available() {
         return Err("price unknown: this host cannot obtain a fresh one-time choice; use an interactive local `nika run` or a host with explicit cap evidence and confirmation".into());
@@ -183,7 +185,6 @@ pub fn review_with_model(
     if invocation_default == Some(0.0) {
         return Err("zero invocation ceiling refuses unknown spend before HTTP".into());
     }
-    let (held, writer) = clear_exposure(root, &invocation)?;
     let config_root = std::env::current_dir().map_err(|e| e.to_string())?;
     let project =
         nika_vocab::project::discover_reachable(&config_root).map_err(|e| e.to_string())?;
@@ -344,7 +345,10 @@ mod tests {
         let cost = cost(root.path());
         cost.observe("prepared").unwrap();
         let live = clear_exposure(root.path(), "run-2").unwrap_err();
-        assert!(live.contains("has not settled yet"), "{live}");
+        assert!(
+            live.contains("holds this project's cost lease: an unknown-cost Run in flight or a review waiting for its answer"),
+            "{live}"
+        );
         cost.finish().unwrap();
         let rows_now = rows(root.path());
         let row = rows_now.last().unwrap();
@@ -383,6 +387,85 @@ mod tests {
     fn a_reviewed_run_stays_send_and_sync() {
         fn send_sync<T: Send + Sync>() {}
         send_sync::<RunCost>();
+    }
+    /// C3 · N3 · a host that cannot ask (automation, `--json`) still records
+    /// what an earlier killed Run left: the review takes the lease and derives
+    /// that Run's UNKNOWN before it refuses the channel, so the disposition is
+    /// on record, and the refusal names it. A clean project still refuses for
+    /// the channel and writes no journal.
+    #[test]
+    fn a_host_that_cannot_ask_still_records_a_killed_runs_unknown() {
+        use nika_providers::probe::{ExecutionLocus, ProviderProbe, ProviderReadiness};
+        let model = "deepseek/c3-unpriced-fixture";
+        let source = format!(
+            "nika: automated\nmodel: {model}\npermits: {{}}\ntasks:\n  ask:\n    infer: {{ prompt: hi, max_tokens: 16 }}\n"
+        );
+        let wf = nika_schema::parse(
+            &source,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .unwrap();
+        let ready = ProviderReadiness::new(
+            true,
+            true,
+            None,
+            None,
+            true,
+            ExecutionLocus::Cloud,
+            nika_types::access::AccessClass::Api,
+        );
+        let plan = nika_providers::resolve_execution_plan(
+            &[nika_providers::ModelNeed::new(model, true, false)],
+            &[ProviderProbe::new(
+                "deepseek",
+                true,
+                true,
+                "DEEPSEEK_API_KEY",
+                false,
+                ready,
+                "https://api.deepseek.com",
+            )],
+            Some("api"),
+        );
+        let refuse = |root: &Path| {
+            review(
+                root,
+                "wf.nika",
+                &source,
+                "exe-next".into(),
+                &wf,
+                &plan,
+                &std::collections::BTreeMap::new(),
+                None,
+                ReviewChannel::Unavailable,
+            )
+            .err()
+            .expect("an unavailable channel never admits")
+        };
+        let clean = tempfile::tempdir().unwrap();
+        assert!(refuse(clean.path()).starts_with("price unknown"));
+        assert!(!clean.path().join(".nika").join(JOURNAL).exists());
+        // A writer on this host prepared, then let its lease go unsettled.
+        let root = tempfile::tempdir().unwrap();
+        let nika = nika_fs::OwnedDir::open(root.path())
+            .unwrap()
+            .create_below(&[".nika"])
+            .unwrap();
+        let prepared = serde_json::json!({"schema": "nika/run-cost-observation@1",
+            "invocation": "exe-killed", "phase": "prepared",
+            "observation": cost(tempfile::tempdir().unwrap().path()).account.snapshot().unwrap().observation(),
+            "lease": cost_journal::Writer::this_process().json()});
+        cost_journal::append_row(&nika, &prepared.to_string()).unwrap();
+        let refused = refuse(root.path());
+        assert!(
+            refused.contains("Run exe-killed ended without a settlement"),
+            "{refused}"
+        );
+        let rows = rows(root.path());
+        assert_eq!(rows.len(), 2, "the derived unknown is on record");
+        assert_eq!(rows[1]["phase"], "unknown");
+        assert_eq!(rows[1]["unsettled"]["observed_by"], "exe-next");
     }
     const FREE: &str = "openrouter/qwen/qwen3.8-27b:free";
     fn free_plan() -> nika_providers::ExecutionAccessPlan {
@@ -544,14 +627,14 @@ mod tests {
         child.kill().unwrap();
         child.wait().unwrap();
         assert!(
-            live.contains(&format!("process {pid} holds its cost lease")),
+            live.contains(&format!("process {pid} holds this project's cost lease")),
             "{live}"
         );
         assert_eq!(rows(root.path()).len(), 1, "a live writer is never judged");
         let refused = clear_exposure(root.path(), "run-2").unwrap_err();
         assert!(
             refused.contains(&format!(
-                "Run run-1 ended without a settlement and its process {pid} is gone"
+                "Run run-1 ended without a settlement; its writer, process {pid}, no longer holds the cost lease"
             )),
             "{refused}"
         );

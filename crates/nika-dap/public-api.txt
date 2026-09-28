@@ -1238,6 +1238,7 @@ pub type nika_dap::cost_journal::Taken::Output = T
 #[non_exhaustive] pub struct nika_dap::cost_journal::Blocker
 pub nika_dap::cost_journal::Blocker::exposure: nika_dap::cost_journal::Exposure
 pub nika_dap::cost_journal::Blocker::invocation: alloc::string::String
+pub nika_dap::cost_journal::Blocker::trace: core::option::Option<alloc::string::String>
 impl nika_dap::cost_journal::Blocker
 pub fn nika_dap::cost_journal::Blocker::new(invocation: alloc::string::String, exposure: nika_dap::cost_journal::Exposure) -> Self
 impl core::clone::Clone for nika_dap::cost_journal::Blocker
@@ -1286,7 +1287,60 @@ impl<T> tracing::instrument::Instrument for nika_dap::cost_journal::Blocker
 impl<T> tracing::instrument::WithSubscriber for nika_dap::cost_journal::Blocker
 impl<T> typenum::type_operators::Same for nika_dap::cost_journal::Blocker
 pub type nika_dap::cost_journal::Blocker::Output = T
+#[non_exhaustive] pub struct nika_dap::cost_journal::Conflict
+pub nika_dap::cost_journal::Conflict::invocation: alloc::string::String
+pub nika_dap::cost_journal::Conflict::reason: &'static str
+pub nika_dap::cost_journal::Conflict::sha256: alloc::string::String
+impl nika_dap::cost_journal::Conflict
+pub fn nika_dap::cost_journal::Conflict::new(invocation: alloc::string::String, sha256: alloc::string::String, reason: &'static str) -> Self
+impl core::clone::Clone for nika_dap::cost_journal::Conflict
+pub fn nika_dap::cost_journal::Conflict::clone(&self) -> nika_dap::cost_journal::Conflict
+impl core::cmp::Eq for nika_dap::cost_journal::Conflict
+impl core::cmp::PartialEq for nika_dap::cost_journal::Conflict
+pub fn nika_dap::cost_journal::Conflict::eq(&self, other: &nika_dap::cost_journal::Conflict) -> bool
+impl core::fmt::Debug for nika_dap::cost_journal::Conflict
+pub fn nika_dap::cost_journal::Conflict::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_dap::cost_journal::Conflict
+impl<D> owo_colors::OwoColorize for nika_dap::cost_journal::Conflict
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::cost_journal::Conflict where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::cost_journal::Conflict::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::cost_journal::Conflict where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::cost_journal::Conflict::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::cost_journal::Conflict where U: core::convert::From<T>
+pub fn nika_dap::cost_journal::Conflict::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::cost_journal::Conflict where U: core::convert::Into<T>
+pub type nika_dap::cost_journal::Conflict::Error = core::convert::Infallible
+pub fn nika_dap::cost_journal::Conflict::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::cost_journal::Conflict where U: core::convert::TryFrom<T>
+pub type nika_dap::cost_journal::Conflict::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::cost_journal::Conflict::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::cost_journal::Conflict where T: core::clone::Clone
+pub type nika_dap::cost_journal::Conflict::Owned = T
+pub fn nika_dap::cost_journal::Conflict::clone_into(&self, target: &mut T)
+pub fn nika_dap::cost_journal::Conflict::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::cost_journal::Conflict where T: 'static + ?core::marker::Sized
+pub fn nika_dap::cost_journal::Conflict::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::cost_journal::Conflict where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::Conflict::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::cost_journal::Conflict where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::Conflict::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::cost_journal::Conflict where T: core::clone::Clone
+pub unsafe fn nika_dap::cost_journal::Conflict::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::cost_journal::Conflict
+pub fn nika_dap::cost_journal::Conflict::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::cost_journal::Conflict where T: core::clone::Clone
+pub fn nika_dap::cost_journal::Conflict::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::cost_journal::Conflict where T: 'static
+pub fn nika_dap::cost_journal::Conflict::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::cost_journal::Conflict where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::Conflict::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::cost_journal::Conflict::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::cost_journal::Conflict
+impl<T> tracing::instrument::WithSubscriber for nika_dap::cost_journal::Conflict
+impl<T> typenum::type_operators::Same for nika_dap::cost_journal::Conflict
+pub type nika_dap::cost_journal::Conflict::Output = T
 #[non_exhaustive] pub struct nika_dap::cost_journal::Exposures
+pub nika_dap::cost_journal::Exposures::conflicts: alloc::vec::Vec<nika_dap::cost_journal::Conflict>
 pub nika_dap::cost_journal::Exposures::runs: alloc::vec::Vec<nika_dap::cost_journal::Blocker>
 pub nika_dap::cost_journal::Exposures::torn: alloc::vec::Vec<alloc::string::String>
 impl nika_dap::cost_journal::Exposures
@@ -1412,6 +1466,7 @@ pub type nika_dap::cost_journal::Writer::Output = T
 pub const nika_dap::cost_journal::JOURNAL: &str
 pub fn nika_dap::cost_journal::append_row(nika: &nika_fs::owned_dir::OwnedDir, row: &str) -> core::io::error::Result<()>
 pub fn nika_dap::cost_journal::fold(nika: &nika_fs::owned_dir::OwnedDir, host: &str, observer: &str) -> core::io::error::Result<nika_dap::cost_journal::Exposures>
+pub fn nika_dap::cost_journal::fold_as(nika: &nika_fs::owned_dir::OwnedDir, holder: &nika_dap::cost_journal::Writer, observer: &str) -> core::io::error::Result<nika_dap::cost_journal::Exposures>
 pub fn nika_dap::cost_journal::refusal(exposures: &nika_dap::cost_journal::Exposures) -> alloc::string::String
 pub fn nika_dap::cost_journal::take(nika: &nika_fs::owned_dir::OwnedDir, writer: &nika_dap::cost_journal::Writer) -> core::io::error::Result<nika_dap::cost_journal::Taken>
 pub mod nika_dap::cost_replay

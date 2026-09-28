@@ -580,6 +580,15 @@ fn trace_file_name(ts: Timestamp, id: Uuid) -> String {
     format!("{}-{short}.ndjson", compact_ts(ts))
 }
 
+/// Whether a store file name could be the journal of trace `id`: its short
+/// id, or the full-id name taken on a same-second collision. Names only: the
+/// caller confirms the execution the file's first frame records.
+pub(crate) fn may_name_trace(name: &str, id: Uuid) -> bool {
+    let simple = id.as_simple().to_string();
+    let short = &simple[simple.len().saturating_sub(4)..];
+    name.ends_with(&format!("-{short}.ndjson")) || name.ends_with(&format!("-{simple}.ndjson"))
+}
+
 /// Fans one event stream into two sinks — `emit` delivers to BOTH (one
 /// clone per event · events are small values). This is how the run
 /// journal rides beside every primary surface without forking the

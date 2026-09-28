@@ -136,7 +136,11 @@ bounds, route binding, uncertain-charge stop, or subscription separation.
 Since 2026-09-28 the journal's writer lease, strict fold (a killed Run's
 UNKNOWN, recorded once) and torn-tail append live in `nika_dap::cost_journal`
 (descended at the 15k wall); `run_cost` keeps the question, the live account
-and its rows (`prepared` · `settled` · settle-on-drop).
+and its rows (`prepared` · `settled` · settle-on-drop). Since C3 the review
+takes the lease and folds (`fold_as`, deriving and appending a killed Run's
+UNKNOWN) before any refusal of its channel or the workflow's shape, so a
+host that cannot ask still leaves the disposition on record and is refused
+with it.
 
 A Run with no unknown-cost route but an exact catalog-declared-free API route
 (C2 · 2026-09-28) gets no question, lease or journal row. `review_with_model`
