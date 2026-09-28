@@ -470,6 +470,46 @@ impl NativeMode {
     }
 }
 
+/// An explicit reasoning effort an operator asks of every authoring and decision call
+/// (R4 B16): the closed levels a model catalog can qualify. Absent, each seat's route keeps its
+/// own default.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum AuthoringReasoning {
+    /// The `low` level.
+    Low,
+    /// The `high` level.
+    High,
+    /// The `max` level.
+    Max,
+}
+
+impl AuthoringReasoning {
+    /// The level words, in order.
+    pub const WORDS: [&'static str; 3] = ["low", "high", "max"];
+
+    /// The stable machine word.
+    #[must_use]
+    pub const fn word(self) -> &'static str {
+        match self {
+            Self::Low => "low",
+            Self::High => "high",
+            Self::Max => "max",
+        }
+    }
+
+    /// The level an exact word names; no other spelling is a level.
+    #[must_use]
+    pub fn parse(word: &str) -> Option<Self> {
+        match word {
+            "low" => Some(Self::Low),
+            "high" => Some(Self::High),
+            "max" => Some(Self::Max),
+            _ => None,
+        }
+    }
+}
+
 /// Explicit limits for one authoring call. Ambient credentials are not consent.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
@@ -483,8 +523,18 @@ pub struct AuthoringPolicy {
     pub samples: u32,
     pub native: NativeMode,
     pub repairs: u32,
+    /// The explicit reasoning effort every authoring and decision call asks for (R4 B16).
+    pub reasoning: Option<AuthoringReasoning>,
 }
 impl AuthoringPolicy {
+    /// Ask every authoring and decision call for this reasoning effort (R4 B16): sent only on a
+    /// route whose catalog qualifies it, refused before any request elsewhere. The output cap
+    /// stays the policy's own.
+    #[must_use]
+    pub fn with_reasoning(mut self, reasoning: AuthoringReasoning) -> Self {
+        self.reasoning = Some(reasoning);
+        self
+    }
     /// When the native candidate is written (default: after the private plan fails a human).
     #[must_use]
     pub fn with_native(mut self, native: NativeMode) -> Self {
@@ -523,6 +573,7 @@ impl AuthoringPolicy {
             samples: 1,
             native: NativeMode::default(),
             repairs: 3,
+            reasoning: None,
         }
     }
 }

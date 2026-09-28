@@ -115,11 +115,11 @@ pub use nika_compile_reader::text;
 pub use observed::basis::{Basis, basis, basis_for};
 pub use retrieve::{Hit, HitKind, retrieve, retrieve_by_ops};
 pub use types::{
-    AuthoringCognition, AuthoringKnowledge, AuthoringPolicy, AuthoringReceipt, ChoiceOffer,
-    CompileDiagnostic, CompileError, CompileOutcome, CompilePreview, CompileProvenance,
-    CompileQuestion, CompileRequest, CompileStatus, DiagnosticKind, HotPolicy, KnowledgeReference,
-    NativeMode, PreviewScope, QuestionType, RepresentationError, Strategy, TriggerKind,
-    TriggerRequirement, TriggerStatus,
+    AuthoringCognition, AuthoringKnowledge, AuthoringPolicy, AuthoringReasoning, AuthoringReceipt,
+    ChoiceOffer, CompileDiagnostic, CompileError, CompileOutcome, CompilePreview,
+    CompileProvenance, CompileQuestion, CompileRequest, CompileStatus, DiagnosticKind, HotPolicy,
+    KnowledgeReference, NativeMode, PreviewScope, QuestionType, RepresentationError, Strategy,
+    TriggerKind, TriggerRequirement, TriggerStatus,
 };
 pub use wire::{COMPILE_WIRE_VERSION, outcome_document};
 
