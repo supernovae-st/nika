@@ -69,38 +69,100 @@ pub enum RunShapeError {
     Cardinality,
 }
 
-/// One infer task's physical dispatch bound.
+/// One infer task's physical dispatch bound, read through its accessors; only
+/// [`dispatch_bound`] makes one.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct TaskDispatch {
+    task: String,
+    items: Option<u32>,
+    attempts: u32,
+    calls_per_attempt: u32,
+    max_parallel: u32,
+    requests: u32,
+}
+impl TaskDispatch {
     /// The task id.
-    pub task: String,
+    #[must_use]
+    pub fn task(&self) -> &str {
+        &self.task
+    }
     /// The fan's item count as the run binds it; `None` for a plain task.
-    pub items: Option<u32>,
+    #[must_use]
+    pub fn items(&self) -> Option<u32> {
+        self.items
+    }
     /// Authored attempts per item (`retry.max_attempts`, 1 without one).
-    pub attempts: u32,
+    #[must_use]
+    pub fn attempts(&self) -> u32 {
+        self.attempts
+    }
     /// Physical requests per attempt: the call and the stock schema re-asks.
-    pub calls_per_attempt: u32,
+    #[must_use]
+    pub fn calls_per_attempt(&self) -> u32 {
+        self.calls_per_attempt
+    }
     /// Requests of this task in flight at once (1 for a plain task).
-    pub max_parallel: u32,
+    #[must_use]
+    pub fn max_parallel(&self) -> u32 {
+        self.max_parallel
+    }
     /// `items × attempts × calls_per_attempt`, checked.
-    pub requests: u32,
+    #[must_use]
+    pub fn requests(&self) -> u32 {
+        self.requests
+    }
 }
 
 /// The typed law one fresh unknown-cost choice confirms: the worst-case total
 /// of physical requests, the requests in flight at once, and the per-task
 /// breakdown behind them. CLI and HTTP project this same value.
+///
+/// Only [`dispatch_bound`] makes one, and no holder can change it: its fields
+/// are private, so another crate can neither build a bound nor widen one. A
+/// bound is not authority either way: it only configures a review, whose
+/// question shows what the confirmed account then enforces. The first example
+/// compiles, so each of the two after it fails for that reason alone:
+/// ```
+/// fn shown(bound: &nika_service_execution::run_cost::DispatchBound) -> (u32, u32) {
+///     (bound.requests(), bound.max_in_flight())
+/// }
+/// ```
+/// ```compile_fail
+/// fn widen(bound: &mut nika_service_execution::run_cost::DispatchBound) {
+///     bound.requests = u32::MAX;
+/// }
+/// ```
+/// ```compile_fail
+/// let minted = nika_service_execution::run_cost::DispatchBound {
+///     requests: u32::MAX,
+///     max_in_flight: u32::MAX,
+///     tasks: Vec::new(),
+/// };
+/// ```
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct DispatchBound {
-    /// The worst-case total of physical requests.
-    pub requests: u32,
-    /// Requests in flight at once (one infer task per wave).
-    pub max_in_flight: u32,
-    /// One row per infer task, in document order.
-    pub tasks: Vec<TaskDispatch>,
+    requests: u32,
+    max_in_flight: u32,
+    tasks: Vec<TaskDispatch>,
 }
 impl DispatchBound {
+    /// The worst-case total of physical requests.
+    #[must_use]
+    pub fn requests(&self) -> u32 {
+        self.requests
+    }
+    /// Requests in flight at once (one infer task per wave).
+    #[must_use]
+    pub fn max_in_flight(&self) -> u32 {
+        self.max_in_flight
+    }
+    /// One row per infer task, in document order.
+    #[must_use]
+    pub fn tasks(&self) -> &[TaskDispatch] {
+        &self.tasks
+    }
     /// Whether any task fans out or retries: only then does a fresh choice
     /// show a breakdown (a single sequential Run keeps its historical words).
     #[must_use]

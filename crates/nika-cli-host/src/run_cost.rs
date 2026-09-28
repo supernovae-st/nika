@@ -141,7 +141,7 @@ pub fn prepare(
     let dispatch =
         nika_service_execution::run_cost::dispatch_bound(wf, plan, unknown.len(), inputs);
     if let Ok(bound) = &dispatch
-        && bound.requests == 0
+        && bound.requests() == 0
     {
         let mut observer = run_observer(wf);
         observer.dispatch = Some(bound.clone());
@@ -173,8 +173,8 @@ pub fn prepare(
         monetary_default(invocation_default)?,
         monetary_default(project_default)?,
     )?
-    .for_run(dispatch.requests)?
-    .with_concurrency(dispatch.max_in_flight)?
+    .for_run(dispatch.requests())?
+    .with_concurrency(dispatch.max_in_flight())?
     .with_breakdown(dispatch.lines())
     .with_authored_retry(dispatch.authored_retry());
     let bounds = (
@@ -1101,7 +1101,7 @@ mod tests {
         };
         assert_eq!((asked, review.bounds().0), (1, 6));
         let dispatch = review.dispatch_bound();
-        assert_eq!((dispatch.requests, dispatch.max_in_flight), (6, 2));
+        assert_eq!((dispatch.requests(), dispatch.max_in_flight()), (6, 2));
         let question = &review.challenge().question;
         for line in [
             "`ask`: 3 items × 2 attempts × 1 call = 6 requests, at most 2 at once",
@@ -1112,7 +1112,7 @@ mod tests {
         }
         let answer = review.challenge().response(true);
         let cost = review.confirm(&answer, &source).unwrap();
-        assert_eq!(cost.dispatch_bound().map(|d| d.requests), Some(6));
+        assert_eq!(cost.dispatch_bound().map(DispatchBound::requests), Some(6));
         let receipt = cost.account.snapshot().unwrap();
         let choice = serde_json::to_value(receipt.unknown_cost).unwrap();
         assert_eq!(choice["max_requests"], 6);
@@ -1147,7 +1147,7 @@ mod tests {
                 panic!("zero work never asks: {tasks}");
             };
             assert_eq!(asked, 0);
-            assert_eq!(cost.dispatch_bound().map(|d| d.requests), Some(0));
+            assert_eq!(cost.dispatch_bound().map(DispatchBound::requests), Some(0));
             assert!(cost.account.observes_declared_free_only());
             assert!(clear_exposure(root.path(), "next").is_ok(), "lease free");
         }

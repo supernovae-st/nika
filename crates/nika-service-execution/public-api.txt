@@ -436,13 +436,13 @@ impl<T> tracing::instrument::WithSubscriber for nika_service_execution::run_cost
 impl<T> typenum::type_operators::Same for nika_service_execution::run_cost::BoundFile
 pub type nika_service_execution::run_cost::BoundFile::Output = T
 #[non_exhaustive] pub struct nika_service_execution::run_cost::DispatchBound
-pub nika_service_execution::run_cost::DispatchBound::max_in_flight: u32
-pub nika_service_execution::run_cost::DispatchBound::requests: u32
-pub nika_service_execution::run_cost::DispatchBound::tasks: alloc::vec::Vec<nika_service_execution::run_cost::TaskDispatch>
 impl nika_service_execution::run_cost::DispatchBound
 pub fn nika_service_execution::run_cost::DispatchBound::authored_retry(&self) -> bool
 pub fn nika_service_execution::run_cost::DispatchBound::lines(&self) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_service_execution::run_cost::DispatchBound::max_in_flight(&self) -> u32
 pub fn nika_service_execution::run_cost::DispatchBound::multiplied(&self) -> bool
+pub fn nika_service_execution::run_cost::DispatchBound::requests(&self) -> u32
+pub fn nika_service_execution::run_cost::DispatchBound::tasks(&self) -> &[nika_service_execution::run_cost::TaskDispatch]
 impl core::clone::Clone for nika_service_execution::run_cost::DispatchBound
 pub fn nika_service_execution::run_cost::DispatchBound::clone(&self) -> nika_service_execution::run_cost::DispatchBound
 impl core::cmp::Eq for nika_service_execution::run_cost::DispatchBound
@@ -648,12 +648,13 @@ impl<T> tracing::instrument::WithSubscriber for nika_service_execution::run_cost
 impl<T> typenum::type_operators::Same for nika_service_execution::run_cost::ScheduledProgram
 pub type nika_service_execution::run_cost::ScheduledProgram::Output = T
 #[non_exhaustive] pub struct nika_service_execution::run_cost::TaskDispatch
-pub nika_service_execution::run_cost::TaskDispatch::attempts: u32
-pub nika_service_execution::run_cost::TaskDispatch::calls_per_attempt: u32
-pub nika_service_execution::run_cost::TaskDispatch::items: core::option::Option<u32>
-pub nika_service_execution::run_cost::TaskDispatch::max_parallel: u32
-pub nika_service_execution::run_cost::TaskDispatch::requests: u32
-pub nika_service_execution::run_cost::TaskDispatch::task: alloc::string::String
+impl nika_service_execution::run_cost::TaskDispatch
+pub fn nika_service_execution::run_cost::TaskDispatch::attempts(&self) -> u32
+pub fn nika_service_execution::run_cost::TaskDispatch::calls_per_attempt(&self) -> u32
+pub fn nika_service_execution::run_cost::TaskDispatch::items(&self) -> core::option::Option<u32>
+pub fn nika_service_execution::run_cost::TaskDispatch::max_parallel(&self) -> u32
+pub fn nika_service_execution::run_cost::TaskDispatch::requests(&self) -> u32
+pub fn nika_service_execution::run_cost::TaskDispatch::task(&self) -> &str
 impl core::clone::Clone for nika_service_execution::run_cost::TaskDispatch
 pub fn nika_service_execution::run_cost::TaskDispatch::clone(&self) -> nika_service_execution::run_cost::TaskDispatch
 impl core::cmp::Eq for nika_service_execution::run_cost::TaskDispatch

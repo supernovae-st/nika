@@ -180,6 +180,15 @@ nested workflows stay refused. A task's width is its declared `max_parallel`
 Run's in-flight bound is the widest task. A zero total is a value, never an
 allowance: hosts route it to their no-paid-dispatch observer.
 
+Both types keep their fields private. A host reads `requests()`,
+`max_in_flight()` and `tasks()`, and each row's `task()`, `items()`,
+`attempts()`, `calls_per_attempt()`, `max_parallel()` and `requests()`. Only
+`dispatch_bound` makes a bound, and no holder can widen one. `compile_fail`
+doctests pin that another crate can neither build nor mutate a bound; a
+compiling doctest beside them reads the same fields through the accessors. A
+bound is not authority in any case: it only configures a review, whose question
+shows what the confirmed account enforces.
+
 `DispatchBound::authored_retry()` is true only when a task authored
 `retry.max_attempts` above one. It is the sole source of a choice's
 authored-retry law. Fan cardinality, the total and schema re-asks never imply

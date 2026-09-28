@@ -397,11 +397,11 @@ fn document(
     if version == 2 {
         // The typed bound the approval confirms; the witness below covers it.
         let d = review.dispatch_bound();
-        view["bounds"] = json!({"max_requests": requests, "max_in_flight": d.max_in_flight, "max_output_tokens": tokens,
+        view["bounds"] = json!({"max_requests": requests, "max_in_flight": d.max_in_flight(), "max_output_tokens": tokens,
             "request_timeout_seconds": timeout.as_secs(), "transport_retries": 0});
-        view["dispatch"] = json!({"requests": d.requests, "max_in_flight": d.max_in_flight, "authored_retry": d.authored_retry(),
-            "tasks": d.tasks.iter().map(|t| json!({"task": t.task, "items": t.items, "attempts": t.attempts,
-                "calls_per_attempt": t.calls_per_attempt, "max_parallel": t.max_parallel, "requests": t.requests})).collect::<Vec<_>>()});
+        view["dispatch"] = json!({"requests": d.requests(), "max_in_flight": d.max_in_flight(), "authored_retry": d.authored_retry(),
+            "tasks": d.tasks().iter().map(|t| json!({"task": t.task(), "items": t.items(), "attempts": t.attempts(),
+                "calls_per_attempt": t.calls_per_attempt(), "max_parallel": t.max_parallel(), "requests": t.requests()})).collect::<Vec<_>>()});
     }
     let mut nonce = [0_u8; 32];
     getrandom::fill(&mut nonce).ok()?;
