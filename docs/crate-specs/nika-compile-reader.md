@@ -241,6 +241,13 @@ while `nika-compile` stood at its wall; they ascended to `nika-compile-fidelity`
 
   The unbound code is retained for that reason, and it is not the candidate's computation:
   the compiler binds a policy on every number field of every synthesized rule.
+- **Closed word tables are data (V9 A10, A0).** The 30 word tables of the stage grammar live
+  in `assets/stage_words.txt`, one `[name]` section per table, read into statics under their
+  old names; `EXCLUSION_LEADS` lives in `assets/exclusion_leads.txt`. They moved unchanged
+  from `stages.rs` and `rules.rs` at 4bddf8a14 (`GROUP_PHRASES`, pairs, stays in Rust), and
+  two tests pin every table against that frozen pre-edit list, word for word and in order.
+  The assets hold words only, no executable string; their raw lines (523 + 48) are reported
+  beside the production count, which they do not enter.
 - The 12 ADR-003 gates were passed by `nika-onboard` at its admission; this member inherits
   them as the third member of the same unit (the ADR-115 and ADR-137 precedent). Mutation
   and property attestations for the reader are owed as pending evidence, tracked with the
