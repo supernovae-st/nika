@@ -185,6 +185,7 @@ impl SessionRuntime {
         if let Some(fact) = crate::facts::answer(raw, &self.snapshot, &self.snapshot.root) {
             return self.hold_pending(set, id, &fact);
         }
+        let blocked = self.money_blocks_cognition();
         let decision = self.classify(SessionPhase::ProposalPending, raw);
         match decision.act {
             TurnAct::Cancel => {
@@ -218,13 +219,18 @@ impl SessionRuntime {
                 "no question is open — `yes` applies the proposal, `no` discards it, or say the change you want",
             ),
             // UNKNOWN: the set's own effects answer what most lines at this
-            // prompt ask (what it reads and writes), then the protocol forms.
+            // prompt ask (what it reads and writes), then the protocol forms —
+            // or, when money blocks cognition, the reason nothing read it.
             _ => {
-                let text = format!(
-                    "{}\n{}",
-                    set.effects_fact(),
+                let why = if blocked {
+                    format!(
+                        "that line is not a consent, and nothing read it — {}",
+                        self.cognition_blocked()
+                    )
+                } else {
                     Self::unknown_route_text(SessionPhase::ProposalPending, decision.method)
-                );
+                };
+                let text = format!("{}\n{why}", set.effects_fact());
                 self.hold_pending(set, id, &text)
             }
         }

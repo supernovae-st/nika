@@ -89,10 +89,17 @@ impl SessionRuntime {
         answer: &str,
     ) -> TurnOutcome {
         // Keep custody of the exact reviewed proposal while a cost question waits.
-        if self.unreviewed_unknown_route() {
+        let review = self.unreviewed_unknown_route();
+        if review {
             self.pending = Some(set.clone());
         }
-        if let Err(refusal) = self.admit_money(answer, true) {
+        // Blocked cognition reads nothing, and a line that states no money has nothing
+        // to admit: a restored exposure's refusal would expire the proposal for a line
+        // nobody read. The route holds it with its observed effects (E5 FB3).
+        let unread = !review
+            && self.money_blocks_cognition()
+            && self.read_money(answer).is_ok_and(|p| p.amount.is_none());
+        if !unread && let Err(refusal) = self.admit_money(answer, true) {
             return refusal;
         }
         self.pending = None;
@@ -367,19 +374,24 @@ impl SessionRuntime {
     }
 
     pub(super) fn cognition_money_refusal(&self) -> TurnOutcome {
+        TurnOutcome::Refusal(Refusal::new(
+            RefusalClass::NotAllowed,
+            self.cognition_blocked(),
+        ))
+    }
+
+    /// Why no cognition reads a line now, in the account's own words.
+    pub(super) fn cognition_blocked(&self) -> String {
         let way = if self.money.reconfirm {
             format!(" · {}", super::inference::RESTORED_WAY)
         } else {
             String::new()
         };
-        TurnOutcome::Refusal(Refusal::new(
-            RefusalClass::NotAllowed,
-            format!(
-                "no further cognition admitted on {}: {} · deterministic work remains available; billed cost is unknown{way}",
-                self.reasoner.name(),
-                self.inference_line()
-            ),
-        ))
+        format!(
+            "no further cognition admitted on {}: {} · deterministic work remains available; billed cost is unknown{way}",
+            self.reasoner.name(),
+            self.inference_line()
+        )
     }
 
     pub(super) fn bind_proposal_money(&mut self, id: &ProposalId) {

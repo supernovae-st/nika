@@ -216,7 +216,11 @@ changes the selected authoring model to a stronger one.
 A prepared decision participates in the exact proposal preview and identity.
 A monetary-only amendment can revise Session's own ceiling without changing
 workflow bytes or calling a model; it creates a new proposal requiring fresh
-consent. Invalid amendments expire pending authority. Save retains the ceiling
+consent. Invalid amendments expire pending authority. A line that states no
+money at a consent prompt whose cognition is blocked (a restored exposure, a
+zero or closed allowance, a held gate amendment) has nothing to admit and
+nothing reads it: the proposal waits with its identity, answered from its own
+observed effects and that reason; only `yes` applies it. Save retains the ceiling
 against that proposal and the exact saved workflow bytes within the current
 runtime. A separate Run carries it in `RunRequest::max_cost_usd`; an explicit
 Run ceiling can replace it, and changed bytes require a fresh decision. Neither

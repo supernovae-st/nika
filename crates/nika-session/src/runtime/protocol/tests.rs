@@ -617,6 +617,103 @@ fn a_reply_naming_two_labels_never_revises_the_proposal() {
     assert_eq!(semantic(&s), state);
 }
 
+/// E5 FB3: with Session cognition blocked — a restored exposure no ceiling covers, an explicit
+/// zero budget — a free-form question at the consent prompt is answered from the proposal's
+/// own observed effects and the true reason nothing read it: the proposal keeps its identity
+/// and its authority (a question never expires it), nothing is routed or read, no meaning is
+/// invented, and only the explicit `yes` applies it.
+#[test]
+fn a_blocked_cognition_answers_a_consent_question_from_observed_effects() {
+    for blocked in ["restored exposure", "zero budget"] {
+        let mut w = world(&[], false);
+        if blocked == "zero budget" {
+            assert!(w.s.admit_money("budget 0 USD", false).is_ok(), "{blocked}");
+        }
+        let TurnOutcome::Proposal { id, .. } = w.s.turn(COPY) else {
+            panic!("{blocked}: deterministic work remains available");
+        };
+        if blocked == "restored exposure" {
+            w.s.money.reconfirm = true;
+        }
+        assert!(w.s.money_blocks_cognition(), "{blocked}");
+        let state = semantic(&w.s);
+        for line in ["what does it write?", "and if the file is already there"] {
+            let out = w.s.consent(line);
+            let TurnOutcome::Held { id: held, preview } = &out else {
+                panic!("{blocked} · {line}: the proposal still waits: {out:?}");
+            };
+            assert_eq!(held, &id, "{blocked} · {line}");
+            assert!(
+                preview.contains("when it runs:")
+                    && preview.contains("no further cognition admitted")
+                    && !preview.contains("no intelligence is available"),
+                "{blocked} · {line}: {preview}"
+            );
+            assert_eq!(w.s.pending_proposal().as_ref(), Some(&id), "{blocked}");
+            assert_eq!(semantic(&w.s), state, "{blocked} · {line}");
+        }
+        assert_eq!(
+            w.routed() + w.read(),
+            0,
+            "{blocked}: a blocked line was routed"
+        );
+        assert!(
+            w.s.money_blocks_cognition(),
+            "{blocked}: a question lifts no restriction"
+        );
+        assert!(
+            !w.dir.path().join(COPY_DEST).exists(),
+            "{blocked}: a question is never a consent"
+        );
+        assert!(
+            matches!(w.s.consent_to(&id, "yes"), TurnOutcome::Facts(ref t) if t.contains("applied")),
+            "{blocked}: the explicit yes still applies the same proposal"
+        );
+        assert!(w.dir.path().join(COPY_DEST).exists(), "{blocked}");
+    }
+}
+
+/// The FB3 controls, the nearest wrong readings: a line that states money is no unread question
+/// — with cognition blocked an amendment still takes its own door (a new proposal under the new
+/// ceiling, the old identity stale) and an invalid amount still expires the authority; with
+/// cognition admitted the same question is still read by the route, never held unread.
+#[test]
+fn a_blocked_cognition_still_takes_money_and_only_blocked_lines_go_unread() {
+    let mut w = world(&[], false);
+    let TurnOutcome::Proposal { id, .. } = w.s.turn(COPY) else {
+        panic!("a proposal");
+    };
+    w.s.money.reconfirm = true;
+    let out = w.s.consent("budget 0.10 USD");
+    let TurnOutcome::Proposal { id: revised, .. } = out else {
+        panic!("the amendment is a new proposal: {out:?}");
+    };
+    assert_ne!(revised, id);
+    assert!(matches!(
+        w.s.consent_to(&id, "yes"),
+        TurnOutcome::Refusal(ref r) if r.class == RefusalClass::StaleRevision
+    ));
+    let out = w.s.consent("budget -1 USD");
+    assert!(
+        matches!(&out, TurnOutcome::Refusal(r) if r.class == RefusalClass::NotAllowed),
+        "an invalid amount is refused: {out:?}"
+    );
+    assert_eq!(w.s.pending_proposal(), None, "a rejected amount expires it");
+
+    let question = "what does it write?";
+    let mut w = world(&[(question, TurnAct::Discuss)], false);
+    let TurnOutcome::Proposal { id, .. } = w.s.turn(COPY) else {
+        panic!("a proposal");
+    };
+    assert!(!w.s.money_blocks_cognition());
+    let out = w.s.consent(question);
+    assert!(
+        matches!(&out, TurnOutcome::Held { id: held, preview } if held == &id && preview.contains("words")),
+        "an admitted cognition reads the question: {out:?}"
+    );
+    assert_eq!((w.routed(), w.read()), (1, 1));
+}
+
 /// The durable door (ADR-133): with the history on, read-only lines through `consent` and
 /// `turn` leave the kept draft the very proposal the human saw — after a restart its identity
 /// is that proposal's, and no authority comes back (only `/restore` proposes it again, for a
