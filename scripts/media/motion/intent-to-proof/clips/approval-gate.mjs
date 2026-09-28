@@ -11,7 +11,7 @@
 // fixture's, and the clip refuses to render if the captures stop telling
 // this story. Illustration: the door and its light, the pulse on the track,
 // the tethers from the gate to its lines, the keypress and the CI frame.
-import { C, E, seg, smooth, clamp, lerp, repoLines, readRepo, NIKA_VERSION, frame, headline, loopFade, mono, pill, cw, cameraPath, frameBox, WIDE } from './kit.mjs';
+import { C, E, seg, smooth, clamp, lerp, repoLines, readRepo, NIKA_VERSION, frame, headline, loopFade, mono, cw, cameraPath, frameBox, WIDE } from './kit.mjs';
 import { text, rrect, rect, line, circle, poly, arc, check, light, measure } from '../src/engine/render.mjs';
 import { rgba } from '../src/engine/core.mjs';
 
