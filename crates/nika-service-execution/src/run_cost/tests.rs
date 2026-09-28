@@ -897,3 +897,57 @@ fn readiness_names_the_same_typed_bound_and_zero_needs_no_choice() {
     assert_eq!(dispatch(&empty, &[]).unwrap().requests, 0);
     assert_eq!(readiness(&parsed(&empty), &plan(), &config), None);
 }
+
+/// B12 r5 · the bound's owner configures a fresh review with its whole law:
+/// the question and the confirmed choice carry its total, width, breakdown
+/// and retry law; a sequential bound keeps the historical review, and a zero
+/// total configures nothing.
+#[test]
+fn the_bound_configures_a_review_with_its_whole_law() {
+    use nika_providers::admission::{CostHostEvidence, CostReview, CostRoute};
+    let route = CostRoute::observe(MODEL, nika_providers::ProvidersConfig::new()).unwrap();
+    let fresh = || {
+        let local = CostHostEvidence::unmanaged_interactive_local();
+        CostReview::new(
+            "candidate".into(),
+            "run".into(),
+            route.clone(),
+            local,
+            None,
+            None,
+        )
+        .unwrap()
+    };
+    let bound = dispatch(FAN, &[]).unwrap();
+    let review = bound.review(fresh()).unwrap();
+    assert_eq!((review.max_requests(), review.max_in_flight()), (6, 2));
+    let question = review.question();
+    for line in bound.lines() {
+        assert!(question.contains(&line), "{question}");
+    }
+    assert!(
+        question.contains("Task retries authored in the workflow"),
+        "{question}"
+    );
+    let account = review.confirm("candidate", &route).unwrap();
+    let choice = serde_json::to_value(account.snapshot().unwrap().unknown_cost).unwrap();
+    assert_eq!(
+        (
+            &choice["max_requests"],
+            &choice["max_in_flight"],
+            &choice["authored_retry"]
+        ),
+        (
+            &serde_json::json!(6),
+            &serde_json::json!(2),
+            &serde_json::json!(true)
+        )
+    );
+    let one = dispatch(ONE, &[]).unwrap().review(fresh()).unwrap();
+    assert_eq!(one.question(), fresh().for_run(1).unwrap().question());
+    let empty = dispatch(&FAN.replace("[a, b, c]", "[]"), &[]).unwrap();
+    assert!(
+        empty.review(fresh()).is_err(),
+        "zero work buys no allowance"
+    );
+}

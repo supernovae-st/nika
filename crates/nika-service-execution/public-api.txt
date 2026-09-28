@@ -442,6 +442,7 @@ pub fn nika_service_execution::run_cost::DispatchBound::lines(&self) -> alloc::v
 pub fn nika_service_execution::run_cost::DispatchBound::max_in_flight(&self) -> u32
 pub fn nika_service_execution::run_cost::DispatchBound::multiplied(&self) -> bool
 pub fn nika_service_execution::run_cost::DispatchBound::requests(&self) -> u32
+pub fn nika_service_execution::run_cost::DispatchBound::review(&self, review: nika_providers::admission::review::CostReview) -> core::result::Result<nika_providers::admission::review::CostReview, alloc::string::String>
 pub fn nika_service_execution::run_cost::DispatchBound::tasks(&self) -> &[nika_service_execution::run_cost::TaskDispatch]
 impl core::clone::Clone for nika_service_execution::run_cost::DispatchBound
 pub fn nika_service_execution::run_cost::DispatchBound::clone(&self) -> nika_service_execution::run_cost::DispatchBound

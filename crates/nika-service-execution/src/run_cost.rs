@@ -4,6 +4,7 @@
 use nika_check::analyzer::static_args::{ConstStrings, judgeable_arg};
 use nika_check::analyzer::static_literal_of;
 use nika_providers::InferenceAdmission;
+use nika_providers::admission::CostReview;
 use nika_schema::raw::{
     ForEachValue, RawAction, RawInferAction, RawInvokeAction, RawTask, RawWorkflow,
 };
@@ -199,6 +200,18 @@ impl DispatchBound {
             )
         };
         self.tasks.iter().map(line).collect()
+    }
+    /// Configure a fresh unknown-cost review with this bound: its total, its
+    /// width, its breakdown and its authored-retry law, so every host's
+    /// question and confirmed choice carry this one value.
+    /// # Errors
+    /// A zero total (zero work buys no allowance) or a width the review refuses.
+    pub fn review(&self, review: CostReview) -> Result<CostReview, String> {
+        Ok(review
+            .for_run(self.requests)?
+            .with_concurrency(self.max_in_flight)?
+            .with_breakdown(self.lines())
+            .with_authored_retry(self.authored_retry()))
     }
 }
 

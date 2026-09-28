@@ -195,7 +195,12 @@ authored-retry law. Fan cardinality, the total and schema re-asks never imply
 it; a schema re-ask is an extra call inside one attempt, never a transport
 resend. `lines()` is the breakdown a fresh choice shows, one line per infer
 task, and is empty for a single sequential Run, which keeps its historical
-words.
+words. `review(CostReview)` is where the bound's owner configures a fresh review
+with all four: `for_run(requests)`, `with_concurrency(max_in_flight)`,
+`with_breakdown(lines())` and `with_authored_retry(authored_retry())`. Every
+host's question and confirmed choice therefore carry this one value. A
+sequential bound leaves the historical review byte for byte, and a zero total
+is refused (`for_run`), so zero work buys no allowance even through this door.
 
 `declared_free_shape(workflow, access_plan, providers_config, model_override)`
 (C2 · 2026-09-28) says whether an admitted API lane is an exact
