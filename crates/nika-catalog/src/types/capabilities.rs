@@ -21,7 +21,7 @@
 //! is useless without the generated rule table. The gate lives at the
 //! `pub mod capabilities;` declaration in `types/mod.rs`.
 
-use super::model::{ModelCapabilities, TokenLimitParam};
+use super::model::{ModelCapabilities, ReasoningLevel, TokenLimitParam};
 use super::region::Region;
 use super::{JsonMode, Modality, ParamFlag, TokenizerFamily};
 
@@ -91,6 +91,9 @@ pub struct CapPatch {
     pub max_output_tokens: Option<u32>,
     /// Per-field override for [`ModelCapabilities::json_mode`].
     pub json_mode: Option<JsonMode>,
+    // ── R4 B16 addition ────────────────────────────────────────────────
+    /// Per-field override for [`ModelCapabilities::reasoning_efforts`].
+    pub reasoning_efforts: Option<&'static [ReasoningLevel]>,
 }
 
 impl CapPatch {
@@ -136,6 +139,7 @@ impl CapPatch {
             context_window_tokens,
             max_output_tokens,
             json_mode,
+            reasoning_efforts,
         );
         self
     }
@@ -204,6 +208,12 @@ impl CapPatch {
                 .is_some(),
             "[defaults].supports_system_messages missing",
         );
+        debug_assert!(
+            self.reasoning_efforts
+                .or(defaults.reasoning_efforts)
+                .is_some(),
+            "[defaults].reasoning_efforts missing",
+        );
         ModelCapabilities {
             token_limit_param: self
                 .token_limit_param
@@ -246,6 +256,10 @@ impl CapPatch {
                 .or(defaults.context_window_tokens),
             max_output_tokens: self.max_output_tokens.or(defaults.max_output_tokens),
             json_mode: self.json_mode.or(defaults.json_mode),
+            reasoning_efforts: self
+                .reasoning_efforts
+                .or(defaults.reasoning_efforts)
+                .unwrap_or(&[]),
         }
     }
 }
@@ -345,6 +359,12 @@ impl CapPatchBuilder {
     #[must_use]
     pub fn json_mode(mut self, v: JsonMode) -> Self {
         self.inner.json_mode = Some(v);
+        self
+    }
+    /// Set [`CapPatch::reasoning_efforts`].
+    #[must_use]
+    pub fn reasoning_efforts(mut self, v: &'static [ReasoningLevel]) -> Self {
+        self.inner.reasoning_efforts = Some(v);
         self
     }
     /// Consume the builder, returning the assembled [`CapPatch`].
@@ -569,6 +589,7 @@ mod tests {
             .context_window_tokens(128_000)
             .max_output_tokens(8_192)
             .json_mode(JsonMode::Object)
+            .reasoning_efforts(&[ReasoningLevel::Max])
             .build();
 
         assert_eq!(
@@ -592,6 +613,7 @@ mod tests {
         assert_eq!(patch.context_window_tokens, Some(128_000));
         assert_eq!(patch.max_output_tokens, Some(8_192));
         assert_eq!(patch.json_mode, Some(JsonMode::Object));
+        assert_eq!(patch.reasoning_efforts, Some(&[ReasoningLevel::Max][..]));
     }
 
     fn toml_like_defaults() -> CapPatch {
@@ -611,7 +633,32 @@ mod tests {
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: None,
+            reasoning_efforts: Some(&[]),
         }
+    }
+
+    #[test]
+    fn reasoning_levels_merge_and_materialize_only_where_a_rule_lists_them() {
+        const LEVELS: &[ReasoningLevel] = &[
+            ReasoningLevel::Low,
+            ReasoningLevel::High,
+            ReasoningLevel::Max,
+        ];
+        let defaults = toml_like_defaults();
+        let listed = CapPatchBuilder::default().reasoning_efforts(LEVELS).build();
+        assert_eq!(listed.materialize(&defaults).reasoning_efforts, LEVELS);
+        let unlisted = CapPatchBuilder::default().reasoning(true).build();
+        assert!(unlisted.materialize(&defaults).reasoning_efforts.is_empty());
+        assert_eq!(
+            defaults.merge_with(listed).reasoning_efforts,
+            Some(LEVELS),
+            "a rule's levels win over the defaults' none"
+        );
+        assert_eq!(
+            listed.merge_with(unlisted).reasoning_efforts,
+            Some(LEVELS),
+            "a rule silent on levels keeps the ones below it"
+        );
     }
 
     #[test]
@@ -673,6 +720,8 @@ mod tests {
             context_window_tokens: Some(128_000),
             max_output_tokens: Some(32_768),
             json_mode: Some(JsonMode::Schema),
+            // R4 B16
+            reasoning_efforts: Some(&[ReasoningLevel::High]),
         };
         let merged = base.merge_with(patch);
         // Session 2a
@@ -696,6 +745,8 @@ mod tests {
         assert_eq!(merged.context_window_tokens, Some(128_000));
         assert_eq!(merged.max_output_tokens, Some(32_768));
         assert_eq!(merged.json_mode, Some(JsonMode::Schema));
+        // R4 B16
+        assert_eq!(merged.reasoning_efforts, Some(&[ReasoningLevel::High][..]));
     }
 
     #[test]

@@ -13,6 +13,7 @@ pub(crate) static CAPABILITY_DEFAULTS: crate::types::capabilities::CapPatch = cr
     context_window_tokens: None,
     max_output_tokens: None,
     json_mode: None,
+    reasoning_efforts: Some(&[]),
 };
 
 pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
@@ -35,6 +36,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: Some(crate::types::JsonMode::Schema),
+            reasoning_efforts: None,
         },
     },
     // rule "openai-o4-family"
@@ -56,6 +58,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: Some(crate::types::JsonMode::Schema),
+            reasoning_efforts: None,
         },
     },
     // rule "openai-o-series-family"
@@ -77,6 +80,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: Some(crate::types::JsonMode::Schema),
+            reasoning_efforts: None,
         },
     },
     // rule "openai-gpt5-exact"
@@ -98,6 +102,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: Some(crate::types::JsonMode::Schema),
+            reasoning_efforts: None,
         },
     },
     // rule "openai-gpt5-family"
@@ -119,6 +124,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: Some(crate::types::JsonMode::Schema),
+            reasoning_efforts: None,
         },
     },
     // rule "openai-gpt4o-family"
@@ -140,6 +146,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: Some(crate::types::JsonMode::Schema),
+            reasoning_efforts: None,
         },
     },
     // rule "openai-gpt41-family"
@@ -161,6 +168,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: Some(crate::types::JsonMode::Schema),
+            reasoning_efforts: None,
         },
     },
     // rule "openai-gpt4-family"
@@ -182,6 +190,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: Some(crate::types::JsonMode::Schema),
+            reasoning_efforts: None,
         },
     },
     // rule "claude-family-any-provider"
@@ -203,6 +212,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: Some(crate::types::JsonMode::Schema),
+            reasoning_efforts: None,
         },
     },
     // rule "anthropic-any-model"
@@ -224,6 +234,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: None,
+            reasoning_efforts: None,
         },
     },
     // rule "deepseek-reasoner"
@@ -245,6 +256,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: Some(crate::types::JsonMode::Object),
+            reasoning_efforts: None,
         },
     },
     // rule "deepseek-any-model"
@@ -266,6 +278,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: Some(crate::types::JsonMode::Object),
+            reasoning_efforts: None,
         },
     },
     // rule "xai-grok4"
@@ -287,6 +300,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: Some(crate::types::JsonMode::Schema),
+            reasoning_efforts: None,
         },
     },
     // rule "xai-grok3-mini"
@@ -308,6 +322,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: Some(crate::types::JsonMode::Schema),
+            reasoning_efforts: None,
         },
     },
     // rule "xai-any-model"
@@ -329,6 +344,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: Some(crate::types::JsonMode::Schema),
+            reasoning_efforts: None,
         },
     },
     // rule "gemini-2-5-pro"
@@ -350,6 +366,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: Some(crate::types::JsonMode::Schema),
+            reasoning_efforts: None,
         },
     },
     // rule "gemini-2-5-flash"
@@ -371,6 +388,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: Some(crate::types::JsonMode::Schema),
+            reasoning_efforts: None,
         },
     },
     // rule "gemini-any-model"
@@ -392,6 +410,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: None,
+            reasoning_efforts: None,
         },
     },
     // rule "mistral-small-3"
@@ -413,6 +432,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: Some(crate::types::JsonMode::Schema),
+            reasoning_efforts: None,
         },
     },
     // rule "mistral-vision-models"
@@ -434,6 +454,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: Some(crate::types::JsonMode::Schema),
+            reasoning_efforts: None,
         },
     },
     // rule "magistral-family"
@@ -455,6 +476,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: Some(crate::types::JsonMode::Schema),
+            reasoning_efforts: None,
         },
     },
     // rule "mistral-any-model"
@@ -476,6 +498,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: Some(crate::types::JsonMode::Schema),
+            reasoning_efforts: None,
         },
     },
     // rule "bedrock-claude"
@@ -497,6 +520,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: Some(crate::types::JsonMode::Schema),
+            reasoning_efforts: None,
         },
     },
     // rule "azure-gpt4o"
@@ -518,6 +542,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: Some(crate::types::JsonMode::Schema),
+            reasoning_efforts: None,
         },
     },
     // rule "openrouter-claude"
@@ -539,6 +564,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: Some(crate::types::JsonMode::Schema),
+            reasoning_efforts: None,
         },
     },
     // rule "native-any"
@@ -560,6 +586,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: None,
+            reasoning_efforts: None,
         },
     },
     // rule "voyage-any"
@@ -581,6 +608,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: None,
+            reasoning_efforts: None,
         },
     },
     // rule "moonshot-kimi"
@@ -602,6 +630,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: Some(crate::types::JsonMode::Schema),
+            reasoning_efforts: None,
         },
     },
     // rule "qwen-vl"
@@ -623,6 +652,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: Some(crate::types::JsonMode::Schema),
+            reasoning_efforts: None,
         },
     },
     // rule "qwen-any-model"
@@ -644,6 +674,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: Some(crate::types::JsonMode::Schema),
+            reasoning_efforts: None,
         },
     },
     // rule "minimax-vl"
@@ -665,6 +696,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: Some(crate::types::JsonMode::Schema),
+            reasoning_efforts: None,
         },
     },
     // rule "minimax-any-model"
@@ -686,6 +718,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: Some(crate::types::JsonMode::Schema),
+            reasoning_efforts: None,
         },
     },
     // rule "zhipu-any-model"
@@ -707,6 +740,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: Some(crate::types::JsonMode::Schema),
+            reasoning_efforts: None,
         },
     },
     // rule "groq-any-model"
@@ -728,6 +762,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: Some(crate::types::JsonMode::Schema),
+            reasoning_efforts: None,
         },
     },
     // rule "together-any-model"
@@ -749,6 +784,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: Some(crate::types::JsonMode::Schema),
+            reasoning_efforts: None,
         },
     },
     // rule "fireworks-any-model"
@@ -770,6 +806,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: Some(crate::types::JsonMode::Schema),
+            reasoning_efforts: None,
         },
     },
     // rule "cerebras-any-model"
@@ -791,6 +828,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: Some(crate::types::JsonMode::Schema),
+            reasoning_efforts: None,
         },
     },
     // rule "sambanova-any-model"
@@ -812,6 +850,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: Some(crate::types::JsonMode::Schema),
+            reasoning_efforts: None,
         },
     },
     // rule "cohere-any-model"
@@ -833,6 +872,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: None,
+            reasoning_efforts: None,
         },
     },
     // rule "ai21-any-model"
@@ -854,6 +894,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: None,
+            reasoning_efforts: None,
         },
     },
     // rule "perplexity-any-model"
@@ -875,6 +916,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: Some(crate::types::JsonMode::Schema),
+            reasoning_efforts: None,
         },
     },
     // rule "nvidia-nim-any-model"
@@ -896,6 +938,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: Some(crate::types::JsonMode::Schema),
+            reasoning_efforts: None,
         },
     },
     // rule "deepinfra-any-model"
@@ -917,6 +960,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: Some(crate::types::JsonMode::Schema),
+            reasoning_efforts: None,
         },
     },
     // rule "replicate-any-model"
@@ -938,6 +982,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: None,
+            reasoning_efforts: None,
         },
     },
     // rule "hyperbolic-any-model"
@@ -959,6 +1004,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: Some(crate::types::JsonMode::Schema),
+            reasoning_efforts: None,
         },
     },
     // rule "writer-any-model"
@@ -980,6 +1026,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: Some(crate::types::JsonMode::Schema),
+            reasoning_efforts: None,
         },
     },
     // rule "databricks-any-model"
@@ -1001,6 +1048,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: Some(crate::types::JsonMode::Schema),
+            reasoning_efforts: None,
         },
     },
     // rule "cloudflare-any-model"
@@ -1022,6 +1070,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: Some(crate::types::JsonMode::Schema),
+            reasoning_efforts: None,
         },
     },
     // rule "mock-full"
@@ -1043,6 +1092,7 @@ pub(crate) static CAPABILITY_RULES: &[crate::types::capabilities::CapRule] = &[
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: Some(crate::types::JsonMode::Schema),
+            reasoning_efforts: None,
         },
     },
 ];

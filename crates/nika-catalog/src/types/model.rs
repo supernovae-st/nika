@@ -27,6 +27,31 @@ pub enum TokenLimitParam {
     MaxOutputTokens,
 }
 
+/// A reasoning effort level a model's own API documents for it (R4 B16). Data-backed per exact
+/// model: a level no rule lists is not qualified for that model, whatever its name suggests.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum ReasoningLevel {
+    /// The `low` level.
+    Low,
+    /// The `high` level.
+    High,
+    /// The `max` level.
+    Max,
+}
+
+impl ReasoningLevel {
+    /// The level's wire word.
+    #[must_use]
+    pub const fn word(self) -> &'static str {
+        match self {
+            Self::Low => "low",
+            Self::High => "high",
+            Self::Max => "max",
+        }
+    }
+}
+
 /// Capabilities of a specific model on a specific provider.
 ///
 /// Provider-aware: the same model name gets different treatment depending
@@ -119,6 +144,10 @@ pub struct ModelCapabilities {
     /// finer granularity — the runtime dispatches: `Schema` → native
     /// `json_schema`; `Object` → `json_object`; else → prompt fallback.
     pub json_mode: Option<JsonMode>,
+    /// The reasoning effort levels this exact model documents (declaration order); empty
+    /// when no rule qualifies any (R4 B16).
+    #[cfg(feature = "capabilities")]
+    pub reasoning_efforts: &'static [ReasoningLevel],
 }
 
 impl Default for ModelCapabilities {
@@ -140,6 +169,8 @@ impl Default for ModelCapabilities {
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: None,
+            #[cfg(feature = "capabilities")]
+            reasoning_efforts: &[],
         }
     }
 }
@@ -195,7 +226,16 @@ impl ModelCapabilities {
             context_window_tokens,
             max_output_tokens,
             json_mode,
+            reasoning_efforts: &[],
         }
+    }
+
+    /// The same capabilities with these documented reasoning effort levels (R4 B16).
+    #[must_use]
+    #[cfg(feature = "capabilities")]
+    pub const fn with_reasoning_efforts(mut self, levels: &'static [ReasoningLevel]) -> Self {
+        self.reasoning_efforts = levels;
+        self
     }
 
     /// 4-argument constructor used when the `capabilities` feature is off
@@ -260,6 +300,23 @@ mod model_capabilities_tests {
         assert_eq!(caps.context_window_tokens, Some(128_000));
         assert_eq!(caps.max_output_tokens, Some(32_768));
         assert_eq!(caps.json_mode, Some(crate::types::JsonMode::Schema));
+        assert!(caps.reasoning_efforts.is_empty());
+    }
+
+    #[test]
+    #[cfg(feature = "capabilities")]
+    fn reasoning_efforts_are_empty_unless_listed() {
+        use super::ReasoningLevel;
+        const LEVELS: &[ReasoningLevel] = &[
+            ReasoningLevel::Low,
+            ReasoningLevel::High,
+            ReasoningLevel::Max,
+        ];
+        assert!(ModelCapabilities::default().reasoning_efforts.is_empty());
+        let caps = ModelCapabilities::default().with_reasoning_efforts(LEVELS);
+        assert_eq!(caps.reasoning_efforts, LEVELS);
+        let words: Vec<&str> = LEVELS.iter().map(|l| l.word()).collect();
+        assert_eq!(words, ["low", "high", "max"]);
     }
 
     #[test]
