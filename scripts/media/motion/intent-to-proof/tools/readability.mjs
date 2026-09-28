@@ -11,8 +11,9 @@
 // least --min px tall on a 1920×1080 screen count as must-read; smaller
 // type is instrument texture and is reported only with --all. A counter's
 // intermediate values (05/10 → 06/10, rolling odometer digits) are marked
-// "transient", and a line that never holds still (words in flight, a
-// camera fly-by) is marked "motion": neither is a read. A line that settles
+// "transient", as is a command's prefix while it is typed ("typed"),
+// and a line that never holds still (words in flight, a camera fly-by)
+// is marked "motion": none of them is a read. A line that settles
 // but not for long enough is a miss (✖); --strict makes misses fail.
 import { init, drawFrame } from '../src/film.mjs';
 import { DURATION } from '../src/timeline.mjs';
@@ -67,7 +68,7 @@ for (const [str, all] of seen) {
     }
     const n = words(str);
     const floor = n <= 3 ? 0.8 : Math.max(1.2, 0.3 * n);
-    rows.push({ t: run[0].f / FPS, end: run[run.length - 1].f / FPS, str, px, settled: best / FPS, floor, n });
+    rows.push({ t: run[0].f / FPS, end: run[run.length - 1].f / FPS, str, px, settled: best / FPS, floor, n, sx: run[0].sx, sy: run[0].sy });
     run = [];
   };
   let last = -9;
@@ -83,8 +84,12 @@ rows.sort((p, q) => p.t - q.t);
 // A counting sequence: a numeric line of the same shape and size takes its
 // place within a few samples of it ending.
 const shape = r => r.str.replace(/\d/g, '0');
+// A typed line: a longer line it is the start of takes its place, at the
+// same spot, within a sample or two (a command being typed, key by key).
 for (const r of rows) {
   r.transient = /\d/.test(r.str) && rows.some(q => q !== r && shape(q) === shape(r) && q.str !== r.str && q.t >= r.end - 0.2 && q.t <= r.end + 0.15 && q.end > r.end);
+  r.typed = rows.some(q => q !== r && q.str.length > r.str.length && q.str.startsWith(r.str) && Math.abs(q.t - r.end) <= 0.1 && Math.hypot(q.sx - r.sx, q.sy - r.sy) < 3);
+  r.transient ||= r.typed;
 }
 const must = rows.filter(r => r.px >= MIN && r.n > 0);
 const show = args.includes('--all') ? rows : must;
@@ -93,7 +98,7 @@ for (const r of show) {
   r.motion = !r.transient && r.settled < 0.1;
   const miss = r.px >= MIN && !r.transient && !r.motion && r.settled < r.floor;
   if (miss) short++;
-  const note = r.transient ? '  (transient)' : r.motion ? '  (motion)' : '';
+  const note = r.typed ? '  (typed)' : r.transient ? '  (transient)' : r.motion ? '  (motion)' : '';
   const mark = r.transient || r.motion ? '~' : miss ? '✖' : '✔';
   console.log(`${mark} ${r.t.toFixed(2).padStart(6)}–${r.end.toFixed(2).padEnd(6)} ${r.px.toFixed(0).padStart(4)}px  settled ${r.settled.toFixed(2)}s / floor ${r.floor.toFixed(1)}s  ${JSON.stringify(r.str).slice(0, 70)}${note}`);
 }
