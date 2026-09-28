@@ -1654,6 +1654,7 @@ pub fn nika_compile_reader::structure::Law::from(t: T) -> T
 pub fn nika_compile_reader::structure::binds_no_operation(text: &str) -> bool
 pub fn nika_compile_reader::structure::context_statement(text: &str) -> bool
 pub fn nika_compile_reader::structure::laws(text: &str) -> alloc::vec::Vec<nika_compile_reader::structure::Law>
+pub fn nika_compile_reader::structure::selection_demand(text: &str) -> bool
 pub mod nika_compile_reader::text
 pub const nika_compile_reader::text::NUMBER_TEXT: &str
 pub const nika_compile_reader::text::STOPWORDS: &[&str]

@@ -189,6 +189,14 @@ fn constraint_duty(constraint: &str) -> Duty {
     if !super::structure::laws(constraint).is_empty() {
         return Duty::new(DutyKind::Structure, constraint);
     }
+    // A selection of the material's rows the rule grammar could not read (R4 A10): requested
+    // work, named, never realized by the material nor by a prompt's guidance.
+    if super::structure::selection_demand(constraint) {
+        return Duty::new(DutyKind::Work, constraint).with_state(
+            DutyState::Unresolved,
+            "a selection of the rows the rule grammar cannot read; a restated rule or a model must carry it",
+        );
+    }
     if super::structure::context_statement(constraint) {
         let mut duty = Duty::new(DutyKind::Context, constraint);
         duty.realize(

@@ -33,3 +33,8 @@
     unpaid one. The reading of the request's own clauses now replaces such a proposal, and
     a program that misses a stated operation is never READY.
   - Words the compiler cannot read are listed as unverified, not as done.
+- **A filter the compiler cannot read is never taken for a description of the data.**
+  - « Keep the rows whose status is a » compiled READY into a workflow that wrote every row:
+    the value `a` kept the compiler from reading the condition, and the clause was taken as
+    a sentence about the file. It is now reported as work the compiler cannot carry and no
+    workflow is produced; with a value it reads, the same request still filters.

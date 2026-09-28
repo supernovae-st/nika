@@ -409,3 +409,44 @@ async fn a_proposal_changing_a_parameter_is_never_the_rule_bound() {
         assert_eq!(typed_duties(&out).len(), 3, "{computation}");
     }
 }
+
+/// A selection of the rows the rule grammar cannot read is named work, never context (R4 A10).
+/// « keep the rows whose status is a » compiled READY with its filter dropped: the literal
+/// defeated the grammar, and the clause was recorded as context the material realizes. It is
+/// now an unresolved work duty and nothing is READY; the same selection over a literal the
+/// grammar reads still runs as the program's filter, after the sort.
+#[test]
+fn an_unread_selection_of_the_rows_is_work_never_context() {
+    let clause = "keep the rows whose status is a";
+    let out = compiled(&format!(
+        "read ./data/input.csv, sort the rows by amount_usd, then {clause}, write them to ./out/result.json"
+    ));
+    assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
+    assert!(out.candidate.is_none(), "{out:#?}");
+    let ledger = out.provenance.decision.as_ref().unwrap()["ledger"].clone();
+    let stated = ledger
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|d| d["evidence"] == clause);
+    assert!(
+        stated.is_some_and(|d| d["kind"] == "work" && d["state"] == "unresolved"),
+        "{ledger:#}"
+    );
+    assert!(format!("{out:?}").contains(&format!("The request states `{clause}` (work)")));
+    let sorted = "sort the rows by amount_usd";
+    let paid = compiled(&format!(
+        "read ./data/input.csv, {sorted}, then {PAID}, write them to ./out/result.json"
+    ));
+    assert_eq!(
+        bound_rule(&paid),
+        ".records | sort_by(.amount_usd | tonumber? // .) | map(select(.status == \"paid\"))"
+    );
+    assert_eq!(
+        typed_duties(&paid),
+        [
+            duty("order", sorted, 0, &["amount_usd"]),
+            duty("filter", PAID, 1, &["status"]),
+        ]
+    );
+}

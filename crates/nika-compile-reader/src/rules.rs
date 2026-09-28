@@ -1083,6 +1083,11 @@ fn last_relative(region: &[Token]) -> Option<(usize, usize)> {
 /// polarity there. Reading them as a keep would run the complement of the request.
 const EXCLUSION_LEADS: &str = include_str!("../assets/exclusion_leads.txt");
 
+/// Whether a folded word is one of the exclusion leads.
+pub(crate) fn exclusion_lead(word: &str) -> bool {
+    EXCLUSION_LEADS.lines().any(|lead| lead == word)
+}
+
 fn negated_lead(lead: &[Token]) -> bool {
     let words: Vec<&str> = lead.iter().filter_map(Token::word).collect();
     words.iter().enumerate().any(|(at, word)| {
@@ -1092,7 +1097,7 @@ fn negated_lead(lead: &[Token]) -> bool {
                 .is_some_and(|window| window.contains(&"que"));
         }
         NEGATIONS.contains(word)
-            || EXCLUSION_LEADS.lines().any(|lead| lead == *word)
+            || exclusion_lead(word)
             || matches!(
                 *word,
                 "never"

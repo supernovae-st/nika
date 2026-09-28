@@ -259,6 +259,7 @@ fn realize(ledger: &mut Ledger, plan: &Plan, b: &Bindings, d: &Doc, trigger_stat
                 }
             }
             DutyKind::Structure => realize_structure(duty, b, d),
+            DutyKind::Work => realize_selection(duty, plan, has_task("compute")),
             DutyKind::Transformation
             | DutyKind::Filter
             | DutyKind::Count
@@ -266,9 +267,33 @@ fn realize(ledger: &mut Ledger, plan: &Plan, b: &Bindings, d: &Doc, trigger_stat
             | DutyKind::Limit
             | DutyKind::Effect
             | DutyKind::Gate
-            | DutyKind::Work
             | DutyKind::Context => {}
         }
+    }
+}
+
+/// A selection of rows stated as a constraint (R4 A10) is carried by the compute task when the
+/// compute step states each of its clauses (in its detail, its evidence or one of its rules):
+/// the constraint restates the computation. Anywhere else it stays unresolved work.
+fn realize_selection(duty: &mut Duty, plan: &Plan, computes: bool) {
+    let Some(step) = plan.step(Op::Compute) else {
+        return;
+    };
+    if !computes || !super::structure::selection_demand(&duty.evidence) {
+        return;
+    }
+    let stated = |clause: &str| {
+        let clause = clause.trim();
+        !clause.is_empty()
+            && (step.detail.contains(clause)
+                || step.evidence.contains(clause)
+                || plan.rules.iter().any(|rule| rule.text().contains(clause)))
+    };
+    if duty.evidence.split([',', ';']).all(stated) {
+        duty.realize(
+            "compute",
+            Some("restates the computation the compute step runs"),
+        );
     }
 }
 

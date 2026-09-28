@@ -316,6 +316,11 @@ pub(crate) fn lead_word(folded: &str) -> bool {
     KEEP_LEADS.contains(&folded) || ONLY_WORDS.contains(&folded) || DETERMINERS.contains(&folded)
 }
 
+/// A verb that keeps the rows it describes (« keep », « garde », « conserva », « behalte »).
+pub(crate) fn keep_lead(folded: &str) -> bool {
+    KEEP_LEADS.contains(&folded)
+}
+
 /// One step a reading builds (R4 F5): a filter, then stages in the fixed per-step lowering
 /// order; the first becomes the rule's own filter and shape, every later one a `Then`.
 #[derive(Default)]

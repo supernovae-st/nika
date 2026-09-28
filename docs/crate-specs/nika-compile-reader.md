@@ -304,6 +304,17 @@ while `nika-compile` stood at its wall; they ascended to `nika-compile-fidelity`
     written only when a rule has a later step: every other record keeps its bytes, a binary
     before this one refuses the key instead of replaying part of the reading, and `fields`
     lists what any step reads.
+- **A selection of the rows is a demand, never context (V9 A10).** A clause led by a keep
+  or an exclusion lead of the rule grammar over a noun of the material
+  (`structure::selection_demand`: « keep the rows whose status is a », « garde les lignes
+  dont … », « ignore the rows where … ») demands an operation even where the grammar cannot
+  read its predicate. `structure::context_statement` never calls it context, and the compile
+  ledger names it unresolved work unless the compute step states each of its clauses (the
+  constraint then restates the computation): such a clause compiled READY with its filter
+  dropped, taken for a description the material realizes. The leads are the grammar's own
+  tables (`stages::keep_lead`, `rules::exclusion_lead`); the context sentences of every
+  language keep their reading. The lexicon still files the clause as a constraint, so HOT
+  names it in a question rather than routing it to cognition.
 - The 12 ADR-003 gates were passed by `nika-onboard` at its admission; this member inherits
   them as the third member of the same unit (the ADR-115 and ADR-137 precedent). Mutation
   and property attestations for the reader are owed as pending evidence, tracked with the

@@ -92,12 +92,13 @@ pub fn laws(text: &str) -> Vec<Law> {
 
 /// A sentence that describes the material rather than demanding work: a declarative joint
 /// beside a noun of the material, with no effect word, no measurable bound, no prohibition
-/// and no gate in it. « The file has the columns a,b,c », « both requirements are checked on
-/// the produced file », « Le fichier ./x.csv contient les colonnes … ».
+/// and no gate in it, and not a selection of the material's rows. « The file has the columns
+/// a,b,c », « both requirements are checked on the produced file », « Le fichier ./x.csv
+/// contient les colonnes … ».
 #[must_use]
 pub fn context_statement(text: &str) -> bool {
     let padded = padded(text);
-    if !hit_lines(&padded, MATERIAL) || !hit_lines(&padded, DECLARATIVE) {
+    if !hit_lines(&padded, MATERIAL) || !hit_lines(&padded, DECLARATIVE) || selection_demand(text) {
         return false;
     }
     let lower = text.to_lowercase();
@@ -107,6 +108,19 @@ pub fn context_statement(text: &str) -> bool {
         && !super::gates::starts_with_prohibition(&lower)
         && super::gates::final_gate(&lower).is_none()
         && super::gates::named_gate(&lower).is_none()
+}
+
+/// A clause that selects rows of the material (R4 A10): led by a keep or an exclusion lead of
+/// the rule grammar (« keep the rows whose … », « garde les lignes dont … », « ignore the rows
+/// where … ») over a noun of the material. It demands an operation even where the grammar
+/// cannot read its predicate (« … whose status is a »): named work, never a description the
+/// material realizes nor a prompt's guidance.
+#[must_use]
+pub fn selection_demand(text: &str) -> bool {
+    let padded = padded(text);
+    let lead = padded.split_whitespace().next().unwrap_or_default();
+    (super::stages::keep_lead(lead) || super::rules::exclusion_lead(lead))
+        && hit_lines(&padded, MATERIAL)
 }
 
 /// Whether a constraint needs no operation to carry it: a context statement or a structure
@@ -188,6 +202,40 @@ mod tests {
             "Nothing else.",
         ] {
             assert!(!context_statement(text), "{text}");
+        }
+    }
+
+    /// A selection of the material's rows is a demand in every language the grammar leads
+    /// with, whatever literal its predicate compares (R4 A10): « whose status is a » defeats
+    /// the rule grammar, never the category. The context sentences stay context; a keep of
+    /// something else than rows (« keep the tone formal ») stays a constraint of the prose.
+    #[test]
+    fn a_selection_of_the_rows_is_a_demand_never_context() {
+        for text in [
+            "keep the rows whose status is a",
+            "keep only the records where the grade is a",
+            "ignore the rows whose status is a",
+            "garde les lignes dont le statut est a",
+            "conserva le righe il cui codice contiene a",
+            "mantén las filas cuyo estado es a",
+            "behalte die Zeilen, deren Status a ist",
+        ] {
+            assert!(selection_demand(text), "{text}");
+            assert!(!context_statement(text), "{text}");
+            assert!(!binds_no_operation(text), "{text}");
+        }
+        for text in [
+            "Le fichier ./cave/recolte-2026.csv contient les colonnes parcelle,cepage,kg,degre",
+            "which has the columns loan_id,member,title,due_date,returned",
+            "Both requirements are mandatory and are checked on the produced file",
+            "The file ./people.json is a JSON array of records",
+            "La tabla tiene las columnas id,nombre,total",
+            "Die Datei hat die Spalten artikel,stueck",
+            "O ficheiro tem as colunas paciente,data,medico",
+            "Il file ha le colonne codice,prezzo",
+            "keep the tone formal",
+        ] {
+            assert!(!selection_demand(text), "{text}");
         }
         assert!(binds_no_operation("Nothing else."));
         assert!(binds_no_operation("which has the columns a,b,c"));
