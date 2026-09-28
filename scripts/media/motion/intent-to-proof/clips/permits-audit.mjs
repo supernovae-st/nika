@@ -39,7 +39,6 @@ const reachOf = lines => {
 };
 const HOSTS = listIn(before, 'net', 'http');
 const HOSTS_FIXED = listIn(after, 'net', 'http');
-const WRITES = listIn(before, 'fs', 'write');
 const REACH = reachOf(before);
 const ESCAPE = REACH.find(r => r.kind === 'http' && !HOSTS.includes(r.target));
 if (!ESCAPE || !HOSTS_FIXED.includes(ESCAPE.target)) throw new Error('the fixtures no longer show one escape and its fix');
