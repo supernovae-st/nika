@@ -6,7 +6,7 @@
   and no cron, and the compile asks its cadence before READY: a
   cadence a schedule binds (« every Monday at 09:00 ») or « manual »
   resolves it; another alternate period is refused as an answer.
-- **A number a rule reads is read under one explicit law.** A compiled
+  **A number a rule reads is read under one explicit law.** A compiled
   filter, total, average, minimum, maximum or ranking parsed its column
   with jq's lenient `tonumber`: « 1,5 » became 1, « Infinity » an infinite
   value, an empty cell silently dropped its record, and a ranking put
@@ -15,7 +15,7 @@
   other value stops the run with the column and the value named, before
   anything is written. Plans recorded by earlier versions replay
   unchanged.
-- **A column holding values that are not numbers is asked, not guessed.**
+  **A column holding values that are not numbers is asked, not guessed.**
   « keep only the rows whose amount is above 100 » over a file whose
   amounts include null, true, « n-a » or a list was READY and then failed
   at run; « keep the 2 rows with the highest points » over null points
@@ -28,7 +28,7 @@
   writing 0 or null, and a skipped record never counts in an average. The
   answer is tied to the file's revision and asked again when the file or
   its kinds change.
-- **A stated text also matches its observed canonical spelling.** « keep
+  **A stated text also matches its observed canonical spelling.** « keep
   the rows whose statut is livré » over a file spelling « livré » with a
   combining accent (e + U+0301) was READY and wrote a header only:
   equality is byte-exact. Where the observed values of the column hold a
