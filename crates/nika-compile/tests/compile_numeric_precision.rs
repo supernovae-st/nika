@@ -112,3 +112,55 @@ fn the_record_the_support_lookup_selects_is_guarded() {
         "{pick}"
     );
 }
+
+const ROWS: (&str, &[&str]) = ("./rows.json", &["name", "team", "points", "id", "weight"]);
+
+/// The scope the decode's guard carries for `intent` over the rows: `null` or the field list.
+fn guard_scope(intent: &str) -> String {
+    let parse = expression(&ready(intent, &[ROWS]), "parse_source");
+    carries_the_order_laws(&parse);
+    let (_, scope) = parse
+        .rsplit_once("\nfromjson | dguard(")
+        .expect("the decode is guarded");
+    scope.trim_end_matches(')').to_owned()
+}
+
+#[test]
+fn a_sole_rule_that_fixes_what_it_writes_guards_only_the_fields_it_reads() {
+    // A projection writes its named columns: a precise payload it drops never stops the run.
+    assert_eq!(
+        guard_scope(
+            "Read ./rows.json, keep only the columns name and points and write them to ./names.json"
+        ),
+        r#"["name","points"]"#
+    );
+    // Totals write only what they compute from the fields they read.
+    assert_eq!(
+        guard_scope(
+            "Read ./rows.json, compute the total of the points column and write the total to ./total.txt"
+        ),
+        r#"["points"]"#
+    );
+    // A group writes its key and what it computes.
+    assert_eq!(
+        guard_scope(
+            "Read ./rows.json, compute the total of the points column per team and write it to ./teams.json"
+        ),
+        r#"["team","points"]"#
+    );
+}
+
+#[test]
+fn whole_rows_or_the_records_themselves_guard_every_number() {
+    for intent in [
+        // A rank or a filter writes whole rows: any field of a kept row reaches the output.
+        "Read ./rows.json, keep the top 2 rows by points and write them to ./top.json",
+        "Read ./rows.json, keep only the rows whose points is above 1.5 and write them to ./above.json",
+        // No rule: the records themselves are written.
+        "Read ./rows.json and write it to ./copy.csv",
+        // An endpoint payload names every fact, the records included.
+        "Read ./rows.json, compute the total of the points column, write it to ./total.txt and post it to http://127.0.0.1:18471/hook",
+    ] {
+        assert_eq!(guard_scope(intent), "null", "{intent}");
+    }
+}

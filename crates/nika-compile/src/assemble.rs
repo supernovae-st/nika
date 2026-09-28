@@ -636,7 +636,7 @@ fn emit_read(d: &mut Doc, plan: &Plan, b: &Bindings) {
                 if format == Structured::Csv && writes_csv(b) {
                     emit_source_columns(d);
                 }
-                emit_parse(d, format);
+                emit_parse(d, format, b.guard_scope().as_deref());
             } else if b.rule_over_lines() {
                 emit_parse_lines(d);
             }
@@ -716,14 +716,15 @@ fn emit_parse_each(d: &mut Doc, format: Structured) {
 
 /// A structured source is decoded once for code rules; prompts keep the raw text. Emitted
 /// only when a code rule, an endpoint payload or a structured write consumes the records. A
-/// JSON source's every number keeps its exact value past the decode, or the run stops.
-fn emit_parse(d: &mut Doc, format: Structured) {
+/// JSON source's numbers in `scope` (every one, or the fields a sole rule reads) keep their
+/// exact value past the decode, or the run stops.
+fn emit_parse(d: &mut Doc, format: Structured, scope: Option<&[String]>) {
     let with = json!({"document": "${{ tasks.read_source.output }}"});
     match format {
         Structured::Json => d.tool(
             "parse_source",
             "nika:jq",
-            json!({"input": "${{ with.document }}", "expression": guarded_parse(None)}),
+            json!({"input": "${{ with.document }}", "expression": guarded_parse(scope)}),
             Some(with),
             false,
         ),

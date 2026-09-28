@@ -749,6 +749,49 @@ mod tests {
     }
 
     #[test]
+    fn a_scoped_guard_decides_and_names_only_the_fields_the_rule_reads() {
+        // « keep only the columns name and points » writes two fields: the guard's scope.
+        let parse = emitted(
+            &over(
+                "Read ./rows.json, keep only the columns name and points and write them to ./names.json",
+                &[("./rows.json", &["name", "points", "id", "weight"])],
+            ),
+            "parse_source",
+        );
+        assert!(
+            parse.ends_with(r#"fromjson | dguard(["name","points"])"#),
+            "{parse}"
+        );
+        // A precise payload the projection drops never stops the run, nor is it named.
+        for kept in [
+            r#"[{"name": "a", "points": "1.000000000000000001", "id": 123456789012345678901234567890, "weight": 1.000000000000000001}]"#,
+            r#"[{"weight": 2.000000000000000002, "name": "b", "points": 2.5}]"#,
+        ] {
+            assert!(run(&parse, &json!(kept)).is_ok(), "{kept}");
+        }
+        // Where a dropped payload comes FIRST, the refusal still names the read field that lost
+        // its value, never the dropped one (root's correction 1).
+        for (text, at) in [
+            (
+                r#"[{"weight": 1.000000000000000001, "points": 2.000000000000000002}]"#,
+                "0.points is 2.000000000000000002",
+            ),
+            (
+                r#"[{"id": 123456789012345678901234567890, "name": "a", "points": "1"}, {"id": 1, "name": "b", "points": 1.000000000000000001}]"#,
+                "1.points is 1.000000000000000001",
+            ),
+        ] {
+            let why = run(&parse, &json!(text)).unwrap_err().0;
+            assert!(
+                why.contains(&format!("the number at {at}"))
+                    && !why.contains("weight")
+                    && !why.contains(".id "),
+                "{text}: {why}"
+            );
+        }
+    }
+
+    #[test]
     fn the_record_a_lookup_selects_crosses_exactly_or_the_run_stops() {
         let request = nika_compile::CompileRequest::create(
             "Route support tickets, look up the customer, draft a reply, and ask me before any refund",

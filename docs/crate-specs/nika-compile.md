@@ -230,6 +230,21 @@ stops at `parse_source` before any effect, naming:
 What is kept is the value, not the spelling: as before, `1.50` passes as `1.5` and `1e2` as
 `100.0`.
 
+By default the scope is every number (`Bindings::guard_scope`). It narrows to the source fields
+a rule reads (`Rule::source_fields`, the columns it writes included) only when both of these
+hold:
+- one synthesized rule is the records' only consumer: no per-record classification, no
+  endpoint payload, no join;
+- the rule fixes what it writes: named columns, groups or totals.
+
+Then a precise payload the rule drops (a >u64 id, a fine-decimal weight) never stops the run.
+The check and the name in its refusal obey the same scope, so a field outside it never decides
+and never appears.
+
+Whole rows (a rank, a filter), a copy of the records and any payload keep the whole-document
+guard. A lossy number in a row that is not kept may therefore stop the run: a conservative
+refusal, never a silent change.
+
 Lookups are guarded the same way, over every number of the record they select:
 `SELECT_BY_FIELD`, `SELECT_BY_KEY` and the support composition's customer lookup.
 

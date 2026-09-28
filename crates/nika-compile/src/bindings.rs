@@ -245,6 +245,16 @@ impl Bindings {
                 .iter()
                 .any(|w| Structured::of(&w.path).is_some())
     }
+    /// The record fields whose numbers a JSON decode must keep exact (R4 A8): every number
+    /// (`None`) unless one synthesized rule is the records' only consumer (no per-record
+    /// classification, no endpoint payload, no join) and fixes what it writes (named columns,
+    /// groups or totals); then the source fields it reads, those it writes included, suffice.
+    pub(super) fn guard_scope(&self) -> Option<Vec<String>> {
+        let rule = self.synthesized()?;
+        let alone = !self.classify_per_record && self.wired.is_empty() && !rule.joins();
+        let fixed = rule.output_columns().is_some() || !rule.totals_names().is_empty();
+        (alone && fixed).then(|| rule.source_fields())
+    }
     pub(super) fn ready(&self, plan: &Plan) -> bool {
         (!uses_model(plan) || self.model.is_some())
             && self.lookup.settled()
