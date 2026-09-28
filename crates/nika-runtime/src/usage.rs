@@ -205,7 +205,7 @@ impl UsageSplit {
 /// returned it, the transport's `attempts` whenever the verb reported
 /// one and `waited_ms` · `retried_on` only when it re-sent (a first-time
 /// answer reads `attempts: 1` and nothing else — zero waits are not a
-/// fact worth a field).
+/// fact worth a field). Call and pricing records ride durable: origins only.
 pub(crate) fn push_usage_fields(
     fields: &mut Vec<(&'static str, FieldValue)>,
     split: Option<&UsageSplit>,
@@ -218,12 +218,14 @@ pub(crate) fn push_usage_fields(
     let Some(split) = split else { return };
     if let Some(count) = split.unknown_calls() {
         fields.push(("cost_unknown_calls", i(i64::from(count))));
-        if let Ok(calls) = serde_json::to_string(&split.inference_calls) {
-            fields.push(("inference_calls", s(&calls)));
-        }
+        let calls = nika_providers::durable_calls(&split.inference_calls);
+        fields.push(("inference_calls", s(&calls.to_string())));
     }
     if let Some(pricing) = &split.pricing {
-        fields.push(("pricing_route", s(pricing)));
+        let pricing = nika_providers::durable_pricing(pricing, &split.inference_calls);
+        if !pricing.is_null() {
+            fields.push(("pricing_route", s(&pricing.to_string())));
+        }
     }
     if split.has_signal() {
         fields.push(("tokens_in", n(split.input)));

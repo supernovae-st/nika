@@ -49,8 +49,13 @@ fn s80_partial_failure_prices_known_calls_and_tools_keeps_unknown_count() {
     assert_eq!(snapshot.unpriced_calls, 2);
     assert!((snapshot.spent_usd - 0.30).abs() < f64::EPSILON);
     assert!(
-        (snapshot.by_source["fixture/exact @ https://one.example/complete"] - 0.05).abs()
-            < f64::EPSILON
+        (snapshot.by_source["fixture/exact @ https://one.example:443"] - 0.05).abs() < f64::EPSILON
+    );
+    assert!(
+        snapshot
+            .by_source
+            .keys()
+            .all(|key| !key.contains("/complete"))
     );
     assert!((snapshot.by_source["requested/model (tools)"] - 0.25).abs() < f64::EPSILON);
     assert!(!snapshot.by_source.contains_key("requested/model"));
@@ -118,6 +123,60 @@ fn s80_returned_model_and_absent_usage_cannot_reuse_a_known_estimate() {
         mutate(&mut call);
         assert_eq!(spend_for_calls(&[call]).0, None);
     }
+}
+
+/// O-L12: two priced requests through `DeepSeek`'s two curated paths share one
+/// origin label and sum under it; another origin keeps its own; an unknown call
+/// is counted, never keyed. Totals and counters are the fold of the same calls:
+/// the label is presentation, each call is still debited by its own estimate.
+#[test]
+fn same_origin_routes_share_one_label_and_totals_are_unchanged() {
+    let priced = |endpoint: &str, nano: i128| {
+        let mut call = known();
+        call.route = Some(InferenceRoute::new(
+            "deepseek".into(),
+            "deepseek-v4-pro".into(),
+            endpoint.into(),
+        ));
+        call.response_model = Some("deepseek-v4-pro".into());
+        call.estimated_usd = Some(Cost::new(nano));
+        call
+    };
+    let calls = [
+        priced("https://api.deepseek.com/v1/chat/completions", 50_000_000),
+        priced("https://api.deepseek.com/chat/completions", 20_000_000),
+        priced("https://gateway.example/v1/chat/completions", 5_000_000),
+        InferenceCall::new(),
+    ];
+    let ledger = crate::ledger::RunLedger::new(None);
+    let known = ledger.debit_calls(&calls);
+    let snapshot = ledger.snapshot();
+    assert!((known - 0.075).abs() < 1e-12);
+    assert!((snapshot.spent_usd - 0.075).abs() < 1e-12);
+    assert_eq!((snapshot.priced_calls, snapshot.unpriced_calls), (3, 1));
+    let label = "deepseek/deepseek-v4-pro @ https://api.deepseek.com:443";
+    let other = "deepseek/deepseek-v4-pro @ https://gateway.example:443";
+    assert_eq!(
+        snapshot.by_source.keys().collect::<Vec<_>>(),
+        [label, other]
+    );
+    assert!((snapshot.by_source[label] - 0.07).abs() < 1e-12);
+    assert!((snapshot.by_source[other] - 0.005).abs() < 1e-12);
+    let mut fields = Vec::new();
+    push_usage_fields(&mut fields, Some(&UsageSplit::default().with_calls(&calls)));
+    let Some((_, crate::FieldValue::String(text))) =
+        fields.iter().find(|(key, _)| *key == "inference_calls")
+    else {
+        panic!("inference_calls rides: {fields:?}");
+    };
+    assert!(!text.contains("/chat/completions"), "{text}");
+    let durable: serde_json::Value = serde_json::from_str(text).expect("durable calls");
+    assert_eq!(
+        durable[1]["route"]["origin"],
+        "https://api.deepseek.com:443"
+    );
+    assert_eq!(durable[0]["estimate_known"], true);
+    assert_eq!(durable[3]["estimate_known"], false);
 }
 
 #[test]

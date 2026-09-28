@@ -63,7 +63,7 @@ pub(crate) struct LedgerSnapshot {
     pub priced_calls: u32,
     pub unpriced_calls: u32,
     pub budget: Option<f64>,
-    /// Spend per attribution key (`provider/model` · tool id).
+    /// Spend per attribution key (`provider/model @ origin` · tool id).
     pub by_source: BTreeMap<String, f64>,
     /// The run's elapsed time when known (#1247 · [`RunLedger::snapshot_at`]).
     pub elapsed: Option<std::time::Duration>,
@@ -165,10 +165,7 @@ impl RunLedger {
                 .known_estimate()
                 .map(nika_types::cost::Cost::to_usd_f64);
             known += estimate.unwrap_or(0.0);
-            let route = call
-                .route
-                .as_ref()
-                .map(|r| format!("{}/{} @ {}", r.provider, r.model, r.endpoint));
+            let route = call.route.as_ref().map(nika_providers::route_label);
             self.debit(route.as_deref(), estimate, estimate.is_none());
         }
         known
