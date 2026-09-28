@@ -215,7 +215,7 @@ function checkPanel(R, t, alpha) {
     if (row.length > max) row = row.slice(0, max - 1).trimEnd() + '…';
     const yy = y + 70 + i * 30;
     check(R, x + 28, yy - 5, 10, E.snap(seg(t, tr, tr + 0.15)), { color: C.teal, w: 1.6, glow: 0.6, alpha: k });
-    const [head, ...tail] = row.split(/\s{2,}|\s(?=\S)/);
+    const [head] = row.split(/\s{2,}|\s(?=\S)/);
     text(R, head, x + 44, yy, { f: 'MM 500', size: 11.5, color: C.teal, alpha: k * rk });
     text(R, row.slice(head.length).trim(), x + 128, yy, { f: 'MM 400', size: 11.5, color: C.mist, alpha: k * rk });
   });

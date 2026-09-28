@@ -138,7 +138,6 @@ export function draw(R, t) {
       if (kind === 'hero') circle(R, p.x, p.y, r * 1.8, { color: col, w: 0.8, alpha: a * 0.6 });
     }
     if (hit > 0) circle(R, p.x, p.y, r * 0.5, { fill: col, alpha: a * hit, glow: 1 });
-    const below = n[3] === BOT || n[0] === 'review' || n[0] === 'consent';
     const lx = n[0] === 'review' || n[0] === 'consent' ? p.x - 22 * p.s : p.x;
     // the top row is dense: two-word labels stack so neighbours never touch
     const size = kind === 'hero' ? 13.5 : 11.5;

@@ -63,11 +63,6 @@ function t3(R, cam, x, y, z, str, st) {
   text(R, str, p.x, p.y, { ...st, size: st.size * p.s });
   return p;
 }
-function line3(R, cam, a, b, st) {
-  const p = P(cam, ...a), q = P(cam, ...b);
-  if (!p.ok || !q.ok) return;
-  line(R, p.x, p.y, q.x, q.y, st);
-}
 function curve3(R, cam, a, b, st, prog = 1, lift = 0) {
   const pts = [];
   for (let i = 0; i <= 24; i++) {
@@ -165,7 +160,6 @@ export function draw(R, t) {
   if (t >= T.plan + 0.15) {
     const dissolve = smooth(T.alive, T.alive + 0.45, t);
     if (dissolve < 1) {
-      const fill = SOCKET_NODE.map(() => 0);
       const f6 = [0, 1, 2, 3, 4, 5].map(i => socketFill(t, i));
       f6.names = [0, 1, 2, 3, 4, 5].map(i => smooth(T.plan + 0.35 + i * 0.03, T.plan + 0.55 + i * 0.03, t));
       drawBlock(R, t, { ...BLOCK, p: 1, alpha: 1, fill: f6, dissolve });

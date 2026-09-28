@@ -8,7 +8,7 @@
 // must precede the payment, so Nika reorders by meaning, not word order.
 import { C, E, clamp, lerp, seg, smooth, ez, win } from '../engine/core.mjs';
 import {
-  text, line, poly, circle, rect, measure, glyphs, bezierAt, light, font, passAlpha, metrics, brackets, streak,
+  text, line, poly, circle, rect, measure, glyphs, bezierAt, light, passAlpha, metrics, brackets, streak,
 } from '../engine/render.mjs';
 import { T } from '../timeline.mjs';
 import * as observe from './s2-observe.mjs';
@@ -387,15 +387,6 @@ function bigLayout() {
   const dot = g.find(q => q.ch === '.');
   const dm = metrics('.', BIG);
   return { w, x0, zx: x0 + dot.x + dot.w * 0.5, zy: BIG_BASE - dm.actualBoundingBoxAscent * 0.5 };
-}
-
-function drawBig(c) {
-  const B = bigLayout();
-  c.font = font(BIG.f, BIG.size);
-  c.letterSpacing = `${BIG.tracking}px`;
-  c.textAlign = 'left';
-  c.textBaseline = 'alphabetic';
-  return B;
 }
 
 function diveWindow(R, t) {

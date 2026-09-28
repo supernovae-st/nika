@@ -4,7 +4,7 @@
 // matches the certificate, the consent, the hash-chained trace — and the
 // same seal that certified the plan now certifies the execution.
 import { C, E, lerp, seg, smooth } from '../engine/core.mjs';
-import { text, line, circle, rrect, rect, measure, check } from '../engine/render.mjs';
+import { text, line, circle, rrect, measure, check } from '../engine/render.mjs';
 import { T } from '../timeline.mjs';
 import { seal } from './shared.mjs';
 import { hashes, short } from '../facts.mjs';
