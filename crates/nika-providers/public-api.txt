@@ -1140,6 +1140,49 @@ impl<T> core::convert::From<T> for nika_providers::probe::PingState
 pub fn nika_providers::probe::PingState::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::probe::PingState where T: 'static
 pub fn nika_providers::probe::PingState::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_providers::probe::ModelListing
+pub nika_providers::probe::ModelListing::failure: core::option::Option<alloc::string::String>
+pub nika_providers::probe::ModelListing::http_status: core::option::Option<u16>
+pub nika_providers::probe::ModelListing::models: alloc::vec::Vec<alloc::string::String>
+pub nika_providers::probe::ModelListing::protocol_compatible: core::option::Option<bool>
+impl nika_providers::probe::ModelListing
+pub fn nika_providers::probe::ModelListing::available(&self) -> core::option::Option<bool>
+pub fn nika_providers::probe::ModelListing::new(reason: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_providers::probe::ModelListing
+pub fn nika_providers::probe::ModelListing::clone(&self) -> nika_providers::probe::ModelListing
+impl core::cmp::Eq for nika_providers::probe::ModelListing
+impl core::cmp::PartialEq for nika_providers::probe::ModelListing
+pub fn nika_providers::probe::ModelListing::eq(&self, other: &nika_providers::probe::ModelListing) -> bool
+impl core::fmt::Debug for nika_providers::probe::ModelListing
+pub fn nika_providers::probe::ModelListing::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_providers::probe::ModelListing
+impl serde_core::ser::Serialize for nika_providers::probe::ModelListing
+pub fn nika_providers::probe::ModelListing::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_providers::probe::ModelListing
+impl<T, U> core::convert::Into<U> for nika_providers::probe::ModelListing where U: core::convert::From<T>
+pub fn nika_providers::probe::ModelListing::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::probe::ModelListing where U: core::convert::Into<T>
+pub type nika_providers::probe::ModelListing::Error = core::convert::Infallible
+pub fn nika_providers::probe::ModelListing::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::probe::ModelListing where U: core::convert::TryFrom<T>
+pub type nika_providers::probe::ModelListing::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::probe::ModelListing::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::probe::ModelListing where T: core::clone::Clone
+pub type nika_providers::probe::ModelListing::Owned = T
+pub fn nika_providers::probe::ModelListing::clone_into(&self, target: &mut T)
+pub fn nika_providers::probe::ModelListing::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::probe::ModelListing where T: 'static + ?core::marker::Sized
+pub fn nika_providers::probe::ModelListing::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::probe::ModelListing where T: ?core::marker::Sized
+pub fn nika_providers::probe::ModelListing::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::probe::ModelListing where T: ?core::marker::Sized
+pub fn nika_providers::probe::ModelListing::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::probe::ModelListing where T: core::clone::Clone
+pub unsafe fn nika_providers::probe::ModelListing::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::probe::ModelListing
+pub fn nika_providers::probe::ModelListing::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::probe::ModelListing where T: 'static
+pub fn nika_providers::probe::ModelListing::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_providers::probe::ProviderProbe
 pub nika_providers::probe::ProviderProbe::endpoint: alloc::string::String
 pub nika_providers::probe::ProviderProbe::fix_var: alloc::string::String
@@ -1192,6 +1235,7 @@ pub nika_providers::probe::ProviderReadiness::access: nika_types::access::Access
 pub nika_providers::probe::ProviderReadiness::configured: bool
 pub nika_providers::probe::ProviderReadiness::execution_locus: nika_providers::probe::ExecutionLocus
 pub nika_providers::probe::ProviderReadiness::model_available: core::option::Option<bool>
+pub nika_providers::probe::ProviderReadiness::model_listing: core::option::Option<nika_providers::probe::ModelListing>
 pub nika_providers::probe::ProviderReadiness::priced: bool
 pub nika_providers::probe::ProviderReadiness::reachable: core::option::Option<bool>
 pub nika_providers::probe::ProviderReadiness::recognized: bool
@@ -1240,6 +1284,7 @@ pub fn nika_providers::probe::env_present(name: &str) -> bool
 pub fn nika_providers::probe::harness_access_probe(id: impl core::convert::Into<alloc::string::String>, serves: alloc::vec::Vec<alloc::string::String>, acp_present: bool, configured: bool, product_present: bool) -> nika_providers::probe::ProviderProbe
 pub fn nika_providers::probe::local_run_gate<H>(registry: &nika_providers::registry::ProviderRegistry<H>, model: &str) -> core::option::Option<nika_providers::probe::LocalLiveness> where H: nika_kernel_core::io::http::HttpPostDyn + core::marker::Send + core::marker::Sync + 'static
 pub fn nika_providers::probe::ping_addr(url: &str) -> core::option::Option<alloc::string::String>
+pub async fn nika_providers::probe::probe_model_listing<H: nika_kernel_core::io::http::HttpGetDyn>(http: &H, endpoint: &str) -> nika_providers::probe::ModelListing
 pub fn nika_providers::probe::spawn_local_liveness(addr: &str) -> std::sync::mpsc::Receiver<nika_providers::probe::LocalLiveness>
 pub fn nika_providers::probe::spawn_ping(addr: &str, timeout: core::time::Duration) -> std::sync::mpsc::Receiver<core::option::Option<u64>>
 pub mod nika_providers::profile

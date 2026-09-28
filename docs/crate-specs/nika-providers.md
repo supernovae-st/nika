@@ -334,3 +334,13 @@ requests, 32768 output tokens and 180 seconds per request. The displayed review
 and consuming admission use these same values. `CostReview::new` and
 `with_run_requests` retain the Run per-request limits (8192 tokens, 120 seconds);
 unknown outcomes freeze their account and never grant a transport retry.
+
+## Opt-in local model listing
+
+`probe::probe_model_listing` sends one bodyless GET through the kernel HTTP seam.
+`ModelListing` distinguishes unobserved transport, incompatible HTTP/JSON, an empty
+compatible list and advertised models. Duplicate fields, malformed rows, redirects,
+changed endpoints and bounded-size/cardinality violations never establish availability.
+The host supplies the no-retry transport and opts in. `ProviderReadiness.model_listing`
+is additive; the existing constructor initializes it absent. `model_available` means
+an advertised model exists, not that a selected model supports inference or authoring.

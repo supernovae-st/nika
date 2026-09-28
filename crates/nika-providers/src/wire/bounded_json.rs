@@ -6,7 +6,7 @@ use serde::de::{Deserialize, Deserializer, Error, MapAccess, SeqAccess, Visitor}
 use serde_json::{Map, Number, Value};
 use std::fmt;
 
-pub(super) fn parse(body: &[u8]) -> Result<Value, serde_json::Error> {
+pub(crate) fn parse(body: &[u8]) -> Result<Value, serde_json::Error> {
     serde_json::from_slice::<Unique>(body).map(|v| v.0)
 }
 

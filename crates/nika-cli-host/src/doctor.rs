@@ -9,9 +9,9 @@
 //! observed, the value is never bound into a variable, so no secret can reach
 //! stdout / stderr / a trace (alignment Rule 1). No network BY DEFAULT, no
 //! phone-home ever: the base run reports the configured surface and prints
-//! the fix. `--ping` (opt-in) TCP-probes the LOCAL provider ports only —
-//! loopback defaults or the operator's own `NIKA_*_LOCAL_URL` — never a
-//! vendor endpoint, never a request body, 300ms cap per port.
+//! the fix. `--ping` opts in to local port probes and bounded model-list
+//! GET requests at effective local-protocol endpoints. No inference, model
+//! download, auth header, request body or cloud-profile request is sent.
 //!
 //! Exit · `0` (a diagnosis is informational) · `3` (ENV · spec §4) only when
 //! there is NO inference path at all (zero cloud keys present AND zero local
@@ -32,6 +32,8 @@ pub(crate) use crate::probe::{
     ModelsProbe, PingState, PricingProbe, Probe, ProviderProbe, TtsProbe,
 };
 use nika_providers::probe::{ExecutionLocus, KeyAuth};
+
+mod local_models;
 
 /// Severity of one diagnosis line.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
@@ -234,6 +236,7 @@ fn provider_findings(probe: &Probe, out: &mut Vec<Finding>) {
         );
     }
     out.extend(probe.local_pings.iter().map(ping_finding));
+    out.extend(probe.providers.iter().filter_map(local_models::finding));
 
     for p in cloud_rows {
         cloud_keys += usize::from(p.key_present);
@@ -1088,8 +1091,10 @@ fn local_finding(local_ids: &[&str], pinged: bool) -> Finding {
             crate::text::count(local_ids.len(), "provider"),
             local_ids.join(" · ")
         ),
-        fix: (!pinged)
-            .then(|| "nika doctor --ping   # probe the local ports (offline otherwise)".to_owned()),
+        fix: (!pinged).then(|| {
+            "nika doctor --ping   # probe local ports and model lists (offline otherwise)"
+                .to_owned()
+        }),
     }
 }
 
@@ -1164,12 +1169,15 @@ pub fn run_with(
     let code = exit_code(&findings);
     VerbOutput {
         text: if json {
-            with_cascade(render_json(
-                &findings,
-                crate::probe::adoption_state(&probe),
-                &crate::probe::capability_receipts(&probe),
-                &probe.census,
-            ))
+            local_models::json(
+                with_cascade(render_json(
+                    &findings,
+                    crate::probe::adoption_state(&probe),
+                    &crate::probe::capability_receipts(&probe),
+                    &probe.census,
+                )),
+                &probe.providers,
+            )
         } else {
             // The same sobriety seam the concierge rides: `--plain`
             // promises ASCII glyph twins, and doctor's ✔/⚠/· column

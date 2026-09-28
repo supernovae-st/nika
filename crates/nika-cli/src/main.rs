@@ -384,8 +384,8 @@ struct GuardArgs {
 /// The doctor arm's flags (the `GuardArgs` tuple-variant precedent).
 #[derive(Args)]
 struct DoctorArgs {
-    /// TCP-probe the local provider ports (loopback/configured only ·
-    /// 300ms cap · nothing is sent on the socket). Offline without it.
+    /// Probe local ports and compatible model lists (configured endpoints only;
+    /// bounded GET, no inference or download). Offline without it.
     #[arg(long)]
     ping: bool,
     /// Emit the machine projection (summary + findings[] — agents/CI

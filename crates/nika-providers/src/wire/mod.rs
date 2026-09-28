@@ -666,4 +666,4 @@ mod tests {
 
 mod admission;
 
-mod bounded_json;
+pub(crate) mod bounded_json;

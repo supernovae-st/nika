@@ -242,3 +242,15 @@ adapter and its observation journal beside the one TypeSafe transport. Session
 still decides whether its current monetary account admits a call and persists
 observations; the host helper accepts that explicit verdict, not conversation text.
 The existing Session public selection path remains a compatibility re-export.
+
+## Doctor local protocol evidence
+
+`doctor --ping` keeps TCP reachability separate from a compatible model list. The
+opt-in probe makes one GET to each effective local-protocol base plus `/models`,
+with a one-second request timeout, 256-KiB response bound, no redirects or retries,
+no credentials, inference, download or cloud-profile probe. URL userinfo, query
+and fragment are removed. Responses use the provider-owned strict listing decoder.
+An empty compatible list, incompatible protocol and failed observation are distinct
+from advertised models. JSON exposes `local_model_probes` and `inference_tested:false`;
+human rows state that inference was not tested. No opt-in leaves observations absent.
+The existing `Probe` and render function signatures remain compatible.
