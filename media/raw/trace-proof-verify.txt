@@ -1,0 +1,11 @@
+nika trace: reading .nika/traces/2026-09-28T19-06-09Z-8d1d.ndjson (the workspace latest)
+OK — 5 events · chain intact · head 2a927d2e5975adb3b5fd6c2a3b7eeed3207444a459614ef1364b02d1fb265d8f
+  internally consistent (tamper-evident, not tamper-proof) — compare the head
+  against the one the run printed to close the loop
+UNSEALED — no run_sealed frame: the run was not signed (no signing key at run time · a run killed before its seal · or a journal cut after it) — `nika sign` seals future runs · `--sealed` requires the tier
+COST-REPLAY — the pinned pricing table is this engine's (nika/model-pricing@1.3 · as_of 2026-09-23 · sha256_16 acf00fb003caf42c)
+  the budget verdict re-judged from the journaled dollars (re-pricing from the
+  token split is the v2 owe — the journal carries no input/output usage split)
+  re-summed $0.000000 across 0 priced frame(s)
+  totals: nothing metered — the journal says `unpriced` (no total_cost_usd, never a zero)
+  budget: none journaled (the run was unbounded) — totals-consistency only
