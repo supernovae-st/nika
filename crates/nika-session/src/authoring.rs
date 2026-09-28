@@ -530,15 +530,24 @@ pub fn is_cancel(line: &str) -> bool {
     )
 }
 
+/// A closed line's words whatever the typography: spaces as one (a no-break
+/// space, or the narrow one French sets before `?`), the closing marks set
+/// aside, a typographic apostrophe as `'`, lower case. It adds no word.
+fn closed_words(line: &str, closing: &[char]) -> String {
+    line.split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .trim_end_matches(|c: char| c == ' ' || closing.contains(&c))
+        .replace(['\u{2018}', '\u{2019}'], "'")
+        .to_lowercase()
+}
+
 /// The few words that ask WHY beside what waits (a question, a gate) —
 /// answered from the machine's state, consuming nothing. A closed set of
 /// whole lines, punctuation aside.
 #[must_use]
 pub fn is_why(line: &str) -> bool {
-    let word = line
-        .trim()
-        .trim_end_matches(['?', '!', '.', ' '])
-        .to_lowercase();
+    let word = closed_words(line, &['?', '!', '.']);
     matches!(
         word.as_str(),
         "why"
@@ -561,10 +570,7 @@ pub fn is_why(line: &str) -> bool {
 /// Meaning view from the compiler's ledger; beside a proposal it holds it.
 #[must_use]
 pub fn is_meaning(line: &str) -> bool {
-    let word = line
-        .trim()
-        .trim_end_matches(['?', '!', '.', ' '])
-        .to_lowercase();
+    let word = closed_words(line, &['?', '!', '.']);
     matches!(
         word.as_str(),
         "/meaning"
@@ -582,10 +588,7 @@ pub fn is_meaning(line: &str) -> bool {
 /// recovery card, from memory, never by another call.
 #[must_use]
 pub fn is_what_happened(line: &str) -> bool {
-    let word = line
-        .trim()
-        .trim_end_matches(['?', '!', '.', ' '])
-        .to_lowercase();
+    let word = closed_words(line, &['?', '!', '.']);
     matches!(
         word.as_str(),
         "what happened"
@@ -607,10 +610,7 @@ pub fn is_what_happened(line: &str) -> bool {
 /// lesson). A closed set of whole lines, punctuation aside.
 #[must_use]
 pub fn is_greeting(input: &str) -> bool {
-    let word = input
-        .trim()
-        .trim_end_matches(['!', '.', '?', ',', ' '])
-        .to_lowercase();
+    let word = closed_words(input, &['!', '.', '?', ',']);
     matches!(
         word.as_str(),
         "hello"

@@ -596,6 +596,46 @@ fn a_command_shaped_line_never_answers_a_gate_or_an_input() {
     ));
 }
 
+/// E8 (4): French typography is the same closed line — a narrow no-break space before `?`, a
+/// no-break space, a typographic apostrophe: `pourquoi ?`, `qu’as-tu compris ?` keep the
+/// proposal as their plain forms do, nothing routed or read (a miss was a classification, paid
+/// in an API session, and a new turn that discarded the proposal). The words are unchanged.
+#[test]
+fn french_typography_reads_as_the_same_closed_line() {
+    let mut w = world(&[], false);
+    let TurnOutcome::Proposal { id, .. } = w.s.turn(COPY) else {
+        panic!("a proposal");
+    };
+    let state = semantic(&w.s);
+    for line in [
+        "pourquoi\u{202f}?",
+        "Pourquoi\u{a0}?",
+        "pourquoi\u{a0}ça\u{202f}?",
+        "c\u{2019}est quoi\u{202f}?",
+        "qu\u{2019}as-tu compris\u{202f}?",
+        "qu\u{2019}est-ce qui s\u{2019}est passé\u{202f}?",
+    ] {
+        let _ = w.s.turn(line);
+        assert_eq!(w.s.pending_proposal().as_ref(), Some(&id), "{line}");
+        assert_eq!(semantic(&w.s), state, "{line}");
+    }
+    assert_eq!(w.routed() + w.read(), 0, "a closed line was routed or read");
+    assert!(
+        crate::authoring::is_greeting("merci\u{202f}!")
+            && crate::authoring::is_greeting("Bonjour\u{a0}!")
+    );
+    for line in [
+        "pourquoi pas",
+        "pourquoi\u{202f}? et le fichier",
+        "qu\u{2019}as-tu fait",
+    ] {
+        assert!(
+            !crate::authoring::is_why(line) && !crate::authoring::is_meaning(line),
+            "{line}: no new words"
+        );
+    }
+}
+
 /// E8 (3): the quoted escape reaches a run's input as it reaches a question — a value in
 /// quotes is its content (how a protocol word becomes the literal value: `"why"` binds `why`,
 /// where `why` alone explains), never its quotes; unquoted words and a path bind as typed.
