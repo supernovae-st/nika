@@ -22,10 +22,10 @@ nika --version | tee "$RAW/nika-version.txt"
 
 # ── static-check-fix ────────────────────────────────────────────────────
 # The broken fixture MUST fail (exit 2) · the fixed one MUST be clean.
-nika check --color never "$FIX/broken-pr-review.nika" >"$RAW/check-broken.txt" 2>&1 && {
+if nika check --color never "$FIX/broken-pr-review.nika" >"$RAW/check-broken.txt" 2>&1; then
   echo "FATAL: broken fixture unexpectedly passed nika check" >&2
   exit 1
-} || true
+fi
 nika check --color never "$FIX/fixed-pr-review.nika" >"$RAW/check-fixed.txt" 2>&1
 
 diff -u "$FIX/broken-pr-review.nika" "$FIX/fixed-pr-review.nika" \
@@ -66,10 +66,10 @@ nika check --color never "$SHOWCASE" >"$RAW/check-fanout.txt" 2>&1
 # ── permits-audit ───────────────────────────────────────────────────────
 # The escaping fixture MUST fail (the boundary catches it) · the widened
 # one MUST be clean with a HARD cost ceiling.
-nika check --color never "$FIX/permits-escape.nika" >"$RAW/check-permits-escape.txt" 2>&1 && {
+if nika check --color never "$FIX/permits-escape.nika" >"$RAW/check-permits-escape.txt" 2>&1; then
   echo "FATAL: permits-escape fixture unexpectedly passed nika check" >&2
   exit 1
-} || true
+fi
 nika check --color never "$FIX/permits-fits.nika" >"$RAW/check-permits-fits.txt" 2>&1
 diff -u "$FIX/permits-escape.nika" "$FIX/permits-fits.nika" \
   >"$RAW/permits-fix-diff.txt" 2>&1 || true
@@ -78,9 +78,12 @@ diff -u "$FIX/permits-escape.nika" "$FIX/permits-fits.nika" \
 # Deterministic + offline: the missing live-rates.json IS the failure; the
 # cache task is the fallback. Run from a scratch dir so ./out starts clean.
 RECOVER_TMP="$(mktemp -d)"
+cp "$FIX/recover-fallback.nika" "$RECOVER_TMP/"
 (
   cd "$RECOVER_TMP"
-  nika run --no-progress --color never "$ROOT/$FIX/recover-fallback.nika" \
+  # Run it by relative name: the CLI echoes the path it was given, and a
+  # transcript must not carry this machine's checkout location.
+  nika run --no-progress --color never recover-fallback.nika \
     >"$ROOT/$RAW/run-recover.txt" 2>&1
   cp out/rates.json "$ROOT/$RAW/recover-rates.json"
 )

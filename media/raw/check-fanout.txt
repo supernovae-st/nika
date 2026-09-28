@@ -1,4 +1,4 @@
-nika check · pr-review-fanout.nika.yaml
+nika check · pr-review-fanout.nika
  ✔ PLAN     7 waves · 8 tasks · max parallelism 2
       wave 1 approve (invoke · nika:prompt)
       wave 2 changed (exec · git) · todo_sweep (invoke · nika:grep)
@@ -7,10 +7,11 @@ nika check · pr-review-fanout.nika.yaml
       wave 5 merged (invoke · nika:jq)
       wave 6 summary (infer · ollama/qwen3.5:4b)
       wave 7 save (invoke · nika:write)
- ✔ MODELS   1 model resolves in this binary · local servers not probed (nika doctor --ping)
- ⚠  COST     bounded portion $0.0000 no total ceiling · 1 uncapped task · 1 unpriced task · prompts, exec + mcp unpriced · prices 2026-07-28
+ ✔ MODELS   1 model resolves in this binary · local servers not probed (nika doctor --ping) · this machine's paths on the ACCESS line
+ ✔ ACCESS   ollama/qwen3.5:4b → ollama (local · local · declared) · present · liveness judged at run
+ ⚠  COST     bounded portion $0.0000 no total ceiling · 1 uncapped task · 1 unpriced task · prompts, exec + mcp unpriced · prices 2026-09-23
    reviews  ollama/qwen3.5:4b  UNBOUNDED — for_each over an expression (unknown count)
-   summary  ollama/qwen3.5:4b  UNBOUNDED — no catalog price (local/unknown model)
+   summary  ollama/qwen3.5:4b  UNBOUNDED — no catalog price (local model; spend not metered)
  ⚠  ENERGY   no total energy ceiling · 0 of 2 tasks measured · 1 unpriced · 1 uncapped · never 0 Wh (NEP-0018)
  ✔ SECRETS  no declared secret reaches an effect · model echo untracked
  ✔ TYPES    deep references fit the shapes tasks declare · builtin output has none
@@ -18,10 +19,15 @@ nika check · pr-review-fanout.nika.yaml
  ✔ ARGS     every builtin invoke arg key is declared + required args present
  ✔ SCHEMA   no known-unsatisfiable form in an authored schema: · $ref opaque
  ✔ GATES    no task proven dead · status literals in vocabulary
- ✔ WRITES   no two unordered tasks write the same static path · computed paths at run
+ ✔ WRITES   no two unordered tasks write the same static path · computed paths at run · engine writes .nika/traces
  ✔ EXEC     no literal argv the exec floor refuses at run · a templated argv is the RUN's verdict
- ✔ PERMITS  literal + const: args fit the boundary · computed paths + symlinks are the RUN's verdict · exec outside the fs bounds
+ ✔ RETRY    no `retry:` on a keyless mutating `nika:fetch` · a templated method/headers is the RUN's verdict
+ ✔ ORDER    no exec: sits downstream of a net-effecting task · unauthored content never reaches a shell
+ ✔ PERMITS  literal + const: args fit the boundary · computed programs, paths + symlinks are the RUN's verdict · exec outside the fs bounds
  ✔ TRIFECTA no lethal trifecta over the declared permits: without a human gate
- ✔ JOURNEY internal · 1 source · 2 destinations · 8 model endpoints · no secret reaches a cloud destination
- ↳ HINT     [headless-prompt] `nika:prompt` on `approve` declares no `default:` — unattended (CI, or an agent handing it over) the run pauses at this gate awaiting a human (exit 4 · the resume line taught on the frame); at a terminal it asks directly. Answer it in one pass with `nika run <file> --answer approve=<value>`, or declare the `default:` the unattended path should take
- ⚠ audited · 8 tasks · 7 waves · permits declared · est unbounded · 1 uncapped task · 1 unpriced task · 1 hint · risk unbounded — declare max_tokens/ceilings, or cap it on the run: `nika run <file> --max-cost-usd <usd>`
+ ✔ JOURNEY internal · 1 source · 2 destinations · 2 model endpoints · no secret reaches an external destination
+ ↳ HINT     [consent] `save` sits on a route from `approve` the checker cannot PROVE consumes the answer (a nested binding · a non-fragment expression) — if it does not, a REFUSED confirm still settles success with value false and the effect fires on 'no'; make the consumption provable: `with: { go: "${{ tasks.approve.output }}" }` + `when: ${{ with.go == true }}` (the human-gated-ship pattern)
+ ↳ HINT     [inputs] `todo_sweep` reads `./src` which does not exist here — create it (or point its var elsewhere) · the run would fail at that wave
+ ⚠ audited · 8 tasks · 7 waves · permits exec:git tools:nika:done,nika:grep,nika:jq,nika:prompt,nika:read,nika:write read:./src/** write:./REVIEW.md · est unbounded · 1 uncapped task · 1 unpriced task · 2 hints · risk unbounded — declare max_tokens/ceilings, or cap it on the run: `nika run <file> --max-cost-usd <usd>` · no ceiling on the grant: fs.read ./src/** · narrow it to what the body reaches (`nika check --infer-permits <file>` derives that boundary)
+ layers · valid ✔ · access ready ✔ · capacity fit ✔ · run ready ✔
+ ↳ NEXT     see `nika explain` for coded findings — nothing here is a typed rename, so these are yours to place

@@ -1,10 +1,11 @@
-nika check · permits-escape.nika.yaml
+nika check · permits-escape.nika
  ✔ PLAN     3 waves · 4 tasks · max parallelism 2
       wave 1 release (invoke · nika:fetch) · changelog_page (invoke · nika:fetch)
       wave 2 brief (infer · ollama/llama3.2:3b)
       wave 3 save (invoke · nika:write)
- ✔ MODELS   1 model resolves in this binary · local servers not probed (nika doctor --ping)
- ⚠  COST     bounded portion $0.0000 no total ceiling · 1 uncapped task · prompts, exec + mcp unpriced · prices 2026-07-28
+ ✔ MODELS   1 model resolves in this binary · local servers not probed (nika doctor --ping) · this machine's paths on the ACCESS line
+ ✔ ACCESS   ollama/llama3.2:3b → ollama (local · local · declared) · present · liveness judged at run
+ ⚠  COST     bounded portion $0.0000 no total ceiling · 1 uncapped task · prompts, exec + mcp unpriced · prices 2026-09-23
    brief  ollama/llama3.2:3b  UNBOUNDED — no max_tokens declared
  ⚠  ENERGY   no total energy ceiling · 0 of 1 tasks measured · 1 uncapped · never 0 Wh (NEP-0018)
  ✔ SECRETS  no declared secret reaches an effect · model echo untracked
@@ -13,10 +14,15 @@ nika check · permits-escape.nika.yaml
  ✔ ARGS     every builtin invoke arg key is declared + required args present
  ✔ SCHEMA   no known-unsatisfiable form in an authored schema: · $ref opaque
  ✔ GATES    no task proven dead · status literals in vocabulary
- ✔ WRITES   no two unordered tasks write the same static path · computed paths at run
+ ✔ WRITES   no two unordered tasks write the same static path · computed paths at run · engine writes .nika/traces
  ✔ EXEC     no literal argv the exec floor refuses at run · a templated argv is the RUN's verdict
+ ✔ RETRY    no `retry:` on a keyless mutating `nika:fetch` · a templated method/headers is the RUN's verdict
+ ✔ ORDER    no exec: sits downstream of a net-effecting task · unauthored content never reaches a shell
  ✖ PERMITS  [NIKA-SEC-004 · net] task `changelog_page` · `nika:fetch` host `nika.sh` is outside permits.net.http · fix: add "nika.sh" to permits.net.http
  ✔ TRIFECTA no lethal trifecta over the declared permits: without a human gate
- ✔ JOURNEY internal · 0 sources · 3 destinations · 4 model endpoints · no secret reaches a cloud destination
+ ✔ JOURNEY internal · 0 sources · 3 destinations · 1 model endpoint · no secret reaches an external destination
  ↳ HINT     [cost] declare `max_tokens` on `brief` — the cost report becomes a hard ceiling instead of UNBOUNDED
- ✖ findings above
+ ✖ findings above · 4 tasks · 3 waves · permits tools:nika:fetch,nika:write write:./out/** http:api.github.com · est unbounded · 1 uncapped task · 1 hint · risk unbounded — declare max_tokens/ceilings, or cap it on the run: `nika run <file> --max-cost-usd <usd>` · no ceiling on the grant: fs.write ./out/** · narrow it to what the body reaches (`nika check --infer-permits <file>` derives that boundary)
+ ↳ NEXT     see `nika explain` for coded findings — nothing here is a typed rename, so these are yours to place
+
+ note · the file is `permits-escape` and its name is `release-brief` — traces, journal events and errors will all say `release-brief`. Deliberate is fine; a forgotten header after a copy is not.

@@ -1,9 +1,12 @@
   🦋 nika · rates-with-fallback · 3 tasks
      permits ✓ declared boundary · exec outside the fs bounds
 
-  ✔  cache    invoke · nika:jq  1ms
-  ✔  live     exec · cat  22ms · recovered
-  ✔  publish  invoke · nika:write  1ms
-  ── 3/3 done · 1 recovered · $0.00 · elapsed 0.0s ───────────────
+  ✔  cache    invoke · nika:jq  5ms
+  ✔  live     exec · cat · untrusted input from live  10ms · recovered
+  ✔  publish  invoke · nika:write · untrusted input from live  1ms
+  3 tasks · 3 waves · 0 retries · 1 recovered
+  ── 3/3 done · 1 recovered · unmetered · elapsed 0.0s ───────────
     wrote ./out/rates.json (61B)
-    trace: .nika/traces/2026-08-19T01-15-49Z-2ebb.ndjson · 18 events · chain 82f01064be24e7f38ce8185f2dc43c8a67d852b5a82500f5bc3718034732ddc2
+    wrote .nika/traces
+  explore: nika run recover-fallback.nika --json > run.ndjson · nika trace outputs run.ndjson
+    trace: .nika/traces/2026-09-28T13-43-19Z-d4e9.ndjson · 18 events · chain 3857418f6eff40862b17797dcd25bbe949fc83331daa4d6a4a7423e477bd5e51
