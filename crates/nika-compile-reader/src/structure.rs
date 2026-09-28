@@ -22,135 +22,18 @@ pub enum Law {
     SingleRequest,
 }
 
-/// Closures: the request ends here, nothing beyond the stated steps.
-const NOTHING_ELSE: &[&str] = &[
-    "nothing else",
-    "nothing more",
-    "no other step",
-    "no other action",
-    "no further action",
-    "that's all",
-    "that is all",
-    "rien d'autre",
-    "rien de plus",
-    "c'est tout",
-    "aucune autre action",
-    "nada mas",
-    "eso es todo",
-    "ninguna otra accion",
-    "nada mais",
-    "sem mais nada",
-    "mais nada",
-    "nient'altro",
-    "niente altro",
-    "nient altro",
-    "nessun'altra azione",
-    "sonst nichts",
-    "sonst nix",
-    "nichts weiter",
-    "nichts anderes",
-    "keine weitere aktion",
-    // « stop after these steps » / « stop there »: the same closure, stated as a halt.
-    "stop after",
-    "stop there",
-    "stop here",
-    "arrete-toi apres",
-    "arrete-toi la",
-    "arretez-vous apres",
-    "arretez-vous la",
-    "detente despues",
-    "detente ahi",
-    "detente aqui",
-    "fermati dopo",
-    "fermati li",
-    "fermati qui",
-    "hor danach auf",
-    "halt danach an",
-    "para depois",
-    "pare depois",
-    "pare ai",
-];
+/// Closures: the request ends here, nothing beyond the stated steps; « stop after these
+/// steps » and « stop there » are the same closure, stated as a halt.
+const NOTHING_ELSE: &str = include_str!("../assets/law_nothing_else.txt");
 
 /// No destination beyond the stated ones.
-const NO_OTHER_FILE: &[&str] = &[
-    "no other file",
-    "no other files",
-    "aucun autre fichier",
-    "pas d'autre fichier",
-    "ningun otro archivo",
-    "ningun otro fichero",
-    "nessun altro file",
-    "nenhum outro ficheiro",
-    "nenhum outro arquivo",
-    "keine andere datei",
-    "keine weitere datei",
-];
+const NO_OTHER_FILE: &str = include_str!("../assets/law_no_other_file.txt");
 
 /// No language model in the workflow.
-const NO_MODEL: &[&str] = &[
-    "no language model",
-    "without a language model",
-    "without any language model",
-    "no llm",
-    "without an llm",
-    "no model call",
-    "zero model call",
-    "zero model calls",
-    "sans modele de langage",
-    "sans aucun modele de langage",
-    "aucun modele de langage",
-    "sans llm",
-    "sin modelo de lenguaje",
-    "sin ningun modelo de lenguaje",
-    "ningun modelo de lenguaje",
-    "sin llm",
-    "nessun modello di linguaggio",
-    "senza modello di linguaggio",
-    "senza alcun modello di linguaggio",
-    "senza llm",
-    "kein sprachmodell",
-    "ohne sprachmodell",
-    "ohne llm",
-    "sem modelo de linguagem",
-    "sem nenhum modelo de linguagem",
-    "nenhum modelo de linguagem",
-    "sem llm",
-];
+const NO_MODEL: &str = include_str!("../assets/law_no_model.txt");
 
 /// One outbound request for the whole run.
-const SINGLE_REQUEST: &[&str] = &[
-    "a single http request",
-    "a single request",
-    "a single post",
-    "one single request",
-    "one single post",
-    "one http request",
-    "only one request",
-    "only one post",
-    "une seule requete",
-    "une seule requete http",
-    "un seul post",
-    "un seul appel http",
-    "un seul envoi",
-    "una sola peticion",
-    "una unica peticion",
-    "una sola solicitud",
-    "un solo post",
-    "un unico post",
-    "una sola richiesta",
-    "un'unica richiesta",
-    "una unica richiesta",
-    "un solo post http",
-    "eine einzige anfrage",
-    "ein einziger post",
-    "nur eine anfrage",
-    "nur ein post",
-    "um unico pedido",
-    "um so pedido",
-    "um unico post",
-    "uma unica requisicao",
-    "uma so requisicao",
-];
+const SINGLE_REQUEST: &str = include_str!("../assets/law_single_request.txt");
 
 /// Nouns of the material a context sentence describes.
 const MATERIAL: &str = include_str!("../assets/material_nouns.txt");
@@ -181,10 +64,6 @@ fn padded(text: &str) -> String {
     out
 }
 
-fn hit(padded: &str, table: &[&str]) -> bool {
-    table.iter().any(|m| padded.contains(&format!(" {m} ")))
-}
-
 /// The same hit over an embedded table, one word or phrase per line.
 fn hit_lines(padded: &str, table: &str) -> bool {
     table.lines().any(|m| padded.contains(&format!(" {m} ")))
@@ -196,16 +75,16 @@ fn hit_lines(padded: &str, table: &str) -> bool {
 pub fn laws(text: &str) -> Vec<Law> {
     let padded = padded(text);
     let mut out = Vec::new();
-    if hit(&padded, NO_MODEL) {
+    if hit_lines(&padded, NO_MODEL) {
         out.push(Law::NoModel);
     }
-    if hit(&padded, SINGLE_REQUEST) {
+    if hit_lines(&padded, SINGLE_REQUEST) {
         out.push(Law::SingleRequest);
     }
-    if hit(&padded, NO_OTHER_FILE) {
+    if hit_lines(&padded, NO_OTHER_FILE) {
         out.push(Law::NoOtherFile);
     }
-    if hit(&padded, NOTHING_ELSE) && super::cardinality::bound(text).is_none() {
+    if hit_lines(&padded, NOTHING_ELSE) && super::cardinality::bound(text).is_none() {
         out.push(Law::NothingElse);
     }
     out

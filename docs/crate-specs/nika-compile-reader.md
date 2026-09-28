@@ -84,6 +84,15 @@ while `nika-compile` stood at its wall; they ascended to `nika-compile-fidelity`
   schedule. The French plural weekdays (« tous les lundis ») join the cadence tables
   (`cadence_words.txt`, `trigger_words::{WEEKLY, TIME_WORDS}`): the head « Tous les lundis, … »
   was read as an event.
+  A recurrence is never a one-shot READY claim wherever the request places it (R4 S0). « each »
+  opens a head only over cadence words (`CADENCE_HEAD_PREFIXES`, `cadence_bounds`: « Each weekday
+  at 8, … » is a schedule; « Each row whose status is open, … » states no trigger, the comma
+  fallback of the other prefixes is not taken). A cadence that ends an earlier clause of its
+  sentence (« Read ./tickets.json every weekday at 8, keep … ») is cut from that clause as the
+  sentence-final one is (`cut_clause_tail`, the same guards), except in a clause that opens on
+  a prohibition (`opens_negated`, the negated-sentence law), and settled with the tails. The
+  six placements of the schedule fixture's cadence give the same candidate bytes and the same
+  `requested_trigger`, which stays `requires_binding`: a schedule is never claimed bound.
 - The unnamed-destination floor keeps an output the request asks for without naming it.
   Before it, « Résume mes notes dans un fichier. » compiled READY after the model answer alone:
   one draft, no effect, the transformation ledgered as realized (S98 J02 on 53f8c640, through

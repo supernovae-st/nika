@@ -371,3 +371,101 @@ async fn a_clarification_is_judged_as_the_request_it_replaces() {
         "{out:#?}"
     );
 }
+
+/// The schedule fixture's request with its cadence placed differently: leading (with « every »
+/// or « each », with or without a comma), inside its clause, or ending the sentence.
+const CADENCE_PLACEMENTS: &[&str] = &[
+    "Every weekday at 8, read ./tickets.json, keep only the rows whose status is open and write them to ./open.json",
+    "Each weekday at 8, read ./tickets.json, keep only the rows whose status is open and write them to ./open.json",
+    "Each weekday at 8 read ./tickets.json, keep only the rows whose status is open and write them to ./open.json",
+    "Read ./tickets.json every weekday at 8, keep only the rows whose status is open and write them to ./open.json",
+    "Read ./tickets.json each weekday at 8, keep only the rows whose status is open and write them to ./open.json",
+    "Read ./tickets.json, keep only the rows whose status is open and write them to ./open.json every weekday at 8",
+];
+
+/// The trigger a READY outcome states beside its candidate, as `(kind, cron, status)`.
+fn requested(out: &CompileOutcome) -> Option<(String, String, String)> {
+    let doc = nika_compile::outcome_document(out)["requested_trigger"].clone();
+    doc.is_object().then_some(())?;
+    let field = |k: &str| doc[k].as_str().unwrap_or_default().to_owned();
+    Some((field("kind"), field("cron"), field("status")))
+}
+
+/// A recurrence is never a one-shot READY claim, wherever the request places it: the same
+/// candidate bytes, and the same schedule stated beside them as requiring a binding (the
+/// program never runs itself; R4 112).
+#[test]
+fn a_cadence_is_the_same_trigger_wherever_the_request_places_it() {
+    let baseline = compile(&CompileRequest::create(CADENCE_PLACEMENTS[0])).unwrap();
+    assert_eq!(baseline.status, CompileStatus::Ready, "{baseline:#?}");
+    let schedule = Some((
+        "schedule".to_owned(),
+        "0 8 * * 1-5".to_owned(),
+        "requires_binding".to_owned(),
+    ));
+    assert_eq!(requested(&baseline), schedule);
+    for intent in &CADENCE_PLACEMENTS[1..] {
+        let out = compile(&CompileRequest::create(*intent)).unwrap();
+        assert_eq!(out.status, CompileStatus::Ready, "{intent}: {out:#?}");
+        assert_eq!(out.candidate, baseline.candidate, "{intent}");
+        assert_eq!(requested(&out), schedule, "{intent}");
+    }
+}
+
+/// A nonleading cadence in French, and a cadence beside a prohibition: the trigger stays, the
+/// ban stays, and neither swallows the other.
+#[test]
+fn a_nonleading_cadence_and_a_ban_beside_a_trigger_are_both_kept() {
+    for (intent, trigger) in [
+        (
+            "Lis ./tickets.json chaque matin à 8h et écris les lignes ouvertes dans ./open.json.",
+            "chaque matin à 8h",
+        ),
+        (
+            "Read ./report.csv each morning at 7 and write a summary to ./summary.md.",
+            "each morning at 7",
+        ),
+    ] {
+        let reading = lexicon::read(&lexicon::fold_apostrophes(intent));
+        assert_eq!(reading.plan.trigger.as_deref(), Some(trigger), "{intent}");
+    }
+    let intent = "Each weekday at 8, read ./tickets.json, keep only the rows whose status is open and write them to ./open.json, but never email them.";
+    let reading = lexicon::read(intent);
+    assert_eq!(reading.plan.trigger.as_deref(), Some("each weekday at 8"));
+    assert!(
+        reading
+            .plan
+            .effects
+            .iter()
+            .any(|e| e.verb == EffectVerb::Send && e.policy == EffectPolicy::Forbidden),
+        "{:?}",
+        reading.plan.effects
+    );
+    // The ban of an effect nothing requests adds nothing to the program: the same bytes and the
+    // same schedule as the request without it.
+    let out = compile(&CompileRequest::create(intent)).unwrap();
+    let without = compile(&CompileRequest::create(CADENCE_PLACEMENTS[1])).unwrap();
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert_eq!(out.candidate, without.candidate);
+    assert_eq!(requested(&out), requested(&without));
+}
+
+/// A cadence inside a ban, a grouping or quoted content is no trigger, and « each » over no
+/// cadence word opens no head.
+#[test]
+fn a_cadence_inside_a_ban_a_grouping_or_quotes_is_no_trigger() {
+    for intent in [
+        "Read ./tickets.json; never email them each weekday at 8.",
+        // A clause that opens on a ban keeps its cadence as the ban's scope, as a negated
+        // sentence does, wherever the clause stands.
+        "Read ./tickets.json, but never email them each weekday at 8, and write them to ./open.json.",
+        "Lis ./tickets.json, mais ne les envoie jamais chaque lundi, et écris-les dans ./open.json.",
+        "Each row whose status is open, write it to ./open.json.",
+        "Read ./sales.csv, sum the sales of each month and write them to ./totals.csv.",
+        "Write 'see you each Monday' to ./a.txt and read ./b.txt.",
+        "Écris « à chaque lundi » dans ./a.txt puis lis ./b.txt.",
+    ] {
+        let reading = lexicon::read(&lexicon::fold_apostrophes(intent));
+        assert_eq!(reading.plan.trigger, None, "{intent}");
+    }
+}

@@ -170,6 +170,9 @@ pub(crate) const ARTICLES: &[&str] = &[
     "sua", "el", "los", "las", "unos", "unas", "al", "cada", "todo", "todos", "todas", "este",
     "esta", "estos", "estas", "mi", "mis", "nuestro", "nuestra", "su", "sus",
 ];
+/// The prefixes that open a head only over cadence words (« Each weekday at 8, … »): « Each
+/// row whose status is open, … » states no trigger, and « for each » is the distribution.
+pub(super) const CADENCE_HEAD_PREFIXES: &[&str] = &["each "];
 pub(super) const TRIGGER_PREFIXES: &[&str] = &[
     "pour la ",
     "pour le ",

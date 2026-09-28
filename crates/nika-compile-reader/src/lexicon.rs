@@ -32,7 +32,7 @@ use super::plan::{
 };
 use super::{gates, hot, objects};
 pub(crate) use cadence::quoted;
-use cadence::{cut_head, cut_tail, quoted_at, record_recurrence, settle_tails};
+use cadence::{cut_clause_tail, cut_head, cut_tail, quoted_at, record_recurrence, settle_tails};
 pub use cues::settle_retrieval;
 pub(crate) use cues::{ARTICLES, OBJECT_CONNECTORS};
 use cues::{
@@ -793,6 +793,15 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
     read_clause(&lower, clause, reading, &mut state.money_sentences);
 }
 
+/// Whether a body opens on a prohibition (« never … », « ne … », « nunca … »): a cadence in it is
+/// the ban's scope, never a trigger.
+fn opens_negated(lower: &str) -> bool {
+    FORBIDDEN_MARKERS.iter().any(|m| lower.starts_with(m))
+        || ["ne ", "n'", "non ", "nunca "]
+            .iter()
+            .any(|m| lower.starts_with(m))
+}
+
 /// Deterministically read one intent (already folded by [`fold_apostrophes`]).
 #[allow(clippy::too_many_lines)] // one sentence walk; each policy family is one visible arm
 #[must_use]
@@ -831,11 +840,7 @@ pub fn read(intent: &str) -> Reading {
         if body_lower.is_empty() {
             continue;
         }
-        let negated_sentence = FORBIDDEN_MARKERS.iter().any(|m| body_lower.starts_with(m))
-            || body_lower.starts_with("ne ")
-            || body_lower.starts_with("n'")
-            || body_lower.starts_with("non ")
-            || body_lower.starts_with("nunca ");
+        let negated_sentence = opens_negated(&body_lower);
         // A sentence-final cadence (« … chaque lundi », « … every Monday ») is cut off as a
         // head is, then settled against the heads once every sentence is read.
         let body = if negated_sentence {
@@ -850,6 +855,12 @@ pub fn read(intent: &str) -> Reading {
         };
         reading.clauses += clauses.len();
         for clause in clauses {
+            // A clause's own final cadence is cut as the sentence's is, never in a ban.
+            let clause = if negated_sentence {
+                clause
+            } else {
+                cut_clause_tail(clause, &mut state.tails)
+            };
             reading.seen.push(clause.to_owned());
             read_policy_or_clause(clause, &mut reading, &mut state);
         }

@@ -6,7 +6,9 @@
 //! it records (the plan's trigger, or a read step after « à partir de »). A recurrence stated
 //! without its cadence (« régulièrement », « from time to time ») is a trigger too, whether it
 //! leads the sentence or sits inside a clause. Beside `lexicon.rs` at the 1,500-line file cap.
-use super::cues::{CADENCE_WORDS, CLOCK_SUFFIXES, HEAD_FILLERS, TRIGGER_PREFIXES};
+use super::cues::{
+    CADENCE_HEAD_PREFIXES, CADENCE_WORDS, CLOCK_SUFFIXES, HEAD_FILLERS, TRIGGER_PREFIXES,
+};
 use super::{Reading, normalize, number_word};
 use crate::plan::{Op, Step};
 use crate::{hot, words};
@@ -20,6 +22,13 @@ use crate::{hot, words};
 /// end (an event, a supplied document: « Dès qu'un ticket arrive, … », « Pour chaque fichier
 /// de ./x, … »); none at all is no head.
 fn head_bounds(body_lower: &str, prefix: &str) -> Option<(usize, usize)> {
+    cadence_bounds(body_lower, prefix)
+        .or_else(|| body_lower.find(',').map(|comma| (comma, comma + 1)))
+}
+
+/// The cadence part of a head (`head_bounds` without its comma fallback): `None` when no cadence
+/// word or clock token follows the prefix.
+fn cadence_bounds(body_lower: &str, prefix: &str) -> Option<(usize, usize)> {
     let tail = body_lower.get(prefix.len()..).unwrap_or_default();
     let mut at = prefix.len();
     let mut end = None;
@@ -43,14 +52,10 @@ fn head_bounds(body_lower: &str, prefix: &str) -> Option<(usize, usize)> {
             break;
         }
     }
-    match end {
-        Some(end) => {
-            let rest = body_lower.get(end..).unwrap_or_default();
-            let skipped = rest.len() - rest.trim_start_matches([' ', ',']).len();
-            Some((end, end + skipped))
-        }
-        None => body_lower.find(',').map(|comma| (comma, comma + 1)),
-    }
+    let end = end?;
+    let rest = body_lower.get(end..).unwrap_or_default();
+    let skipped = rest.len() - rest.trim_start_matches([' ', ',']).len();
+    Some((end, end + skipped))
 }
 
 /// A clock token: `9`, `9:30`, `9h`, `9h30`, `18h`, `9am`, `9pm`.
@@ -73,6 +78,14 @@ pub(super) fn cut_head<'a>(
     text: &str,
     reading: &mut Reading,
 ) -> (&'a str, String) {
+    if let Some(prefix) = CADENCE_HEAD_PREFIXES.iter().find(|p| text.starts_with(*p))
+        && let Some((head_end, rest_start)) = cadence_bounds(text, prefix)
+    {
+        if reading.plan.trigger.is_none() {
+            reading.plan.trigger = text.get(..head_end).map(str::to_owned);
+        }
+        return rest(sentence, text, rest_start);
+    }
     let Some(prefix) = TRIGGER_PREFIXES.iter().find(|p| text.starts_with(*p)) else {
         return recurrence_head(sentence, text, reading);
     };
@@ -176,6 +189,17 @@ pub(super) fn cut_tail<'a>(body: &'a str, body_lower: &str, tails: &mut Vec<Stri
         }
         _ => body,
     }
+}
+
+/// A clause's own final cadence (« Read ./tickets.json every weekday at 8, keep … »), cut from
+/// its clause as [`cut_tail`] cuts a sentence's, under the same guards, and settled with the
+/// tails. A clause that opens on a prohibition keeps it: the cadence is the ban's scope.
+pub(super) fn cut_clause_tail<'a>(clause: &'a str, tails: &mut Vec<String>) -> &'a str {
+    let lower = normalize(clause);
+    if lower.len() != clause.len() || super::opens_negated(&lower) {
+        return clause;
+    }
+    cut_tail(clause, &lower, tails)
 }
 
 /// Where a sentence-final cadence runs in a clause body, as `(start, end)` byte offsets of the
