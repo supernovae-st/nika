@@ -417,3 +417,105 @@ fn other_statuses_changed_endpoints_and_unsent_attempts_are_never_answered() {
     assert_eq!(snap.unknown_calls, 0);
     assert_eq!(snap.unknown_attempts[0].note, "not dispatched");
 }
+
+/// Endpoints an unknown-cost choice never binds: forms the URL parser would
+/// rewrite (backslash, case, an explicit default port, a raw Unicode host, a
+/// space, no path) and parts a route must not carry (userinfo, query,
+/// fragment); plain HTTP and an `@` in the path stay refused as before.
+const NONCANONICAL: [&str; 11] = [
+    "https://api.deepseek.com\\v1\\chat\\completions",
+    "https://API.deepseek.com/v1/chat/completions",
+    "https://api.deepseek.com:443/v1/chat/completions",
+    "https://dëepseek.example/v1/chat/completions",
+    "https://api.deepseek.com/v1/chat completions",
+    "https://api.deepseek.com",
+    "https://user:pw@api.deepseek.com/v1/chat/completions",
+    "https://api.deepseek.com/v1/chat/completions?k=v",
+    "https://api.deepseek.com/v1/chat/completions#f",
+    "http://api.deepseek.com/v1/chat/completions",
+    "https://api.deepseek.com/v1/@chat/completions",
+];
+
+fn choice_at(endpoint: &str) -> Result<UnknownCostChoice, ProviderError> {
+    UnknownCostChoice::new(
+        "candidate-a".into(),
+        "invocation-a".into(),
+        "deepseek".into(),
+        "deepseek-v4-pro".into(),
+        endpoint.into(),
+        2,
+        8192,
+        Duration::from_secs(10),
+    )
+}
+
+#[test]
+fn a_choice_binds_only_a_canonical_endpoint() {
+    for endpoint in NONCANONICAL {
+        assert!(choice_at(endpoint).is_err(), "{endpoint}");
+    }
+    let exact = choice_at(URL).expect("canonical");
+    assert_eq!(exact.endpoint(), URL, "the exact endpoint is kept whole");
+    assert_eq!(
+        exact.origin().as_deref(),
+        Some("https://api.deepseek.com:443")
+    );
+    let gateway = "https://gateway.example/Tenant-A/v1/chat/completions";
+    assert_eq!(
+        choice_at(gateway).expect("a canonical path").endpoint(),
+        gateway
+    );
+}
+
+/// Counts every request that reaches the transport and answers none.
+struct Counted(std::sync::atomic::AtomicUsize);
+impl nika_kernel::http::HttpPostDyn for Counted {
+    fn supports_single_attempt(&self) -> bool {
+        true
+    }
+    async fn post(
+        &self,
+        _: nika_kernel::http::HttpRequest,
+    ) -> Result<nika_kernel::http::HttpResponse, nika_kernel::http::HttpError> {
+        self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        Err(nika_kernel::http::HttpError::Connection {
+            reason: "counted".into(),
+        })
+    }
+    async fn send_streaming(
+        &self,
+        _: nika_kernel::http::HttpRequest,
+    ) -> Result<nika_kernel::http::HttpStreamResponse, nika_kernel::http::HttpError> {
+        self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        Err(nika_kernel::http::HttpError::Connection {
+            reason: "counted".into(),
+        })
+    }
+}
+
+/// A control, before and after the canonical law: a Run observer's route to a
+/// noncanonical endpoint crosses no transport.
+#[tokio::test]
+async fn a_noncanonical_route_reaches_no_transport() {
+    use nika_kernel::ai::provider::{InferRequest, Message, ProviderInferDyn, Role};
+    for endpoint in &NONCANONICAL[..6] {
+        let http = std::sync::Arc::new(Counted(std::sync::atomic::AtomicUsize::new(0)));
+        let config = crate::ProvidersConfig::new()
+            .with_key("deepseek", nika_kernel::secret::Secret::new("fixture"))
+            .with_base_url("deepseek", *endpoint);
+        let registry = crate::ProviderRegistry::new(http.clone(), config)
+            .with_inference_admission(InferenceAdmission::observe_run());
+        let mut request = InferRequest::new(
+            "deepseek/deepseek-v4-pro",
+            vec![Message::text(Role::User, "hello")],
+        );
+        request.max_tokens = Some(64);
+        let answered = match registry.resolve("deepseek/deepseek-v4-pro") {
+            Ok(provider) => provider.infer(request).await.is_ok(),
+            Err(_) => false,
+        };
+        assert!(!answered, "{endpoint}");
+        let sent = http.0.load(std::sync::atomic::Ordering::SeqCst);
+        assert_eq!(sent, 0, "{endpoint}: a request crossed the transport");
+    }
+}

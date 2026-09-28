@@ -153,9 +153,12 @@ pub struct CostRoute {
 }
 impl CostRoute {
     /// Keyless route observation using the same configuration as the caller.
-    /// Unknown-cost transport currently supports HTTPS OpenAI-compatible text only.
+    /// Unknown-cost transport currently supports HTTPS OpenAI-compatible text only,
+    /// on an endpoint in its canonical form ([`crate::canonical_endpoint`]): one
+    /// the URL parser would rewrite, or one with userinfo, a query or a fragment,
+    /// is refused before any review, naming at most its origin.
     /// # Errors
-    /// Unsupported adapter, malformed model or missing endpoint.
+    /// Unsupported adapter, malformed model, missing or noncanonical endpoint.
     pub fn observe(model: &str, config: ProvidersConfig) -> Result<Self, String> {
         let (provider, name) = model
             .split_once('/')
@@ -176,39 +179,26 @@ impl CostRoute {
         if !endpoint.starts_with("https://") || name.is_empty() {
             return Err("unknown-cost admission requires an exact HTTPS route and model".into());
         }
+        if !crate::canonical_endpoint(endpoint) {
+            let origin = crate::route_origin(endpoint).unwrap_or_else(|| "this provider".into());
+            return Err(format!(
+                "unknown-cost admission requires the endpoint configured for {origin} in its canonical form (as the URL parser writes it, with a path and no userinfo, query or fragment): nothing was reviewed or sent"
+            ));
+        }
         Ok(Self {
             provider: provider.into(),
             model: profile.resolve_model(name).into(),
             endpoint: endpoint.into(),
         })
     }
-    /// Scheme, host and effective port of the endpoint (443 or 80 when implicit):
-    /// where the request goes, never userinfo, path, query or fragment. The exact
-    /// endpoint stays bound through the review's private witness.
+    /// Scheme, host and effective port of the endpoint, from the URL parser
+    /// ([`crate::route_origin`]): where the request goes, never userinfo, path,
+    /// query or fragment, and `unknown origin` when it has none to project (a
+    /// credential is refused, never stripped). The exact endpoint stays bound
+    /// through the review's private witness.
     #[must_use]
     pub fn origin(&self) -> String {
-        let (scheme, rest) = self
-            .endpoint
-            .split_once("://")
-            .unwrap_or(("", &self.endpoint));
-        let authority = rest.split(['/', '?', '#']).next().unwrap_or(rest);
-        let host = authority
-            .rsplit_once('@')
-            .map_or(authority, |(_, host)| host);
-        let explicit = match host.rfind(']') {
-            Some(bracket) => host[bracket..].contains(':'),
-            None => host.contains(':'),
-        };
-        let default = match scheme {
-            "https" => Some(443),
-            "http" => Some(80),
-            _ => None,
-        };
-        match (explicit, default) {
-            (false, Some(port)) => format!("{scheme}://{host}:{port}"),
-            _ if scheme.is_empty() => host.to_owned(),
-            _ => format!("{scheme}://{host}"),
-        }
+        crate::route_origin(&self.endpoint).unwrap_or_else(|| "unknown origin".into())
     }
     /// Whether numeric USD catalog admission cannot qualify this exact route.
     #[must_use]
@@ -500,11 +490,15 @@ impl CostReview {
         )
     }
     /// Exact review identity and evidence for a details surface, not a credential.
+    /// The route is named by its origin, never its path.
     #[must_use]
     pub fn details(&self) -> String {
         format!(
-            "candidate {} · invocation {} · endpoint {} · host {:?}",
-            self.candidate, self.invocation, self.route.endpoint, self.evidence
+            "candidate {} · invocation {} · origin {} · host {:?}",
+            self.candidate,
+            self.invocation,
+            self.route.origin(),
+            self.evidence
         )
     }
     /// Consume the review after the host receives explicit confirmation and
@@ -662,6 +656,9 @@ mod tests {
     }
     const SENTINEL: &str = "C6-SECRET-PATH-TOKEN";
 
+    /// The origin is the URL parser's (`route_origin`): a canonical route keeps
+    /// the exact origin it always showed, a credential is refused rather than
+    /// stripped, and a backslash never carries a path into it.
     #[test]
     fn the_origin_keeps_scheme_host_and_effective_port_only() {
         let at = |endpoint: &str| CostRoute {
@@ -680,7 +677,7 @@ mod tests {
             ),
             (
                 "https://user:C6-SECRET-PATH-TOKEN@host.example/v1",
-                "https://host.example:443",
+                "unknown origin",
             ),
             (
                 "https://host.example/v1?key=C6-SECRET-PATH-TOKEN#frag",
@@ -688,11 +685,112 @@ mod tests {
             ),
             ("http://[::1]:8080/v1", "http://[::1]:8080"),
             ("https://[::1]/v1", "https://[::1]:443"),
+            (
+                "https://127.0.0.1:18443\\C6-SECRET-PATH-TOKEN\\v1",
+                "https://127.0.0.1:18443",
+            ),
+            (
+                "https://Host.Example/C6-SECRET-PATH-TOKEN",
+                "https://host.example:443",
+            ),
         ] {
             let seen = at(endpoint).origin();
             assert_eq!(seen, origin, "{endpoint}");
             assert!(!seen.contains(SENTINEL));
         }
+    }
+
+    /// Endpoints the URL parser would rewrite or that carry what a route must
+    /// not: backslash, userinfo, query, fragment, case, an explicit default
+    /// port, a raw Unicode host, a space and no path.
+    const NONCANONICAL: [&str; 9] = [
+        "https://127.0.0.1:18443\\C6-SECRET-PATH-TOKEN\\v1",
+        "https://user:C6-SECRET-PATH-TOKEN@gateway.example/v1",
+        "https://gateway.example/v1?key=C6-SECRET-PATH-TOKEN",
+        "https://gateway.example/v1#C6-SECRET-PATH-TOKEN",
+        "https://Gateway.Example/C6-SECRET-PATH-TOKEN/v1",
+        "https://gateway.example:443/C6-SECRET-PATH-TOKEN/v1",
+        "https://gätéway.example/C6-SECRET-PATH-TOKEN/v1",
+        "https://gateway.example/C6 SECRET PATH TOKEN/v1",
+        "https://gateway.example",
+    ];
+
+    #[test]
+    fn a_noncanonical_endpoint_is_refused_before_any_review() {
+        for endpoint in NONCANONICAL {
+            let config = ProvidersConfig::new().with_base_url("deepseek", endpoint);
+            let refused =
+                CostRoute::observe("deepseek/deepseek-v4-pro", config.clone()).expect_err(endpoint);
+            assert!(
+                !refused.contains("SECRET") && !refused.contains("/v1"),
+                "{endpoint}: {refused}"
+            );
+            assert!(
+                unknown_cost_route("deepseek/deepseek-v4-pro", config).is_err(),
+                "{endpoint}"
+            );
+            let route = CostRoute {
+                provider: "deepseek".into(),
+                model: "deepseek-v4-pro".into(),
+                endpoint: endpoint.into(),
+            };
+            let review = CostReview::new(
+                "c".into(),
+                "i".into(),
+                route,
+                CostHostEvidence::unmanaged_interactive_local(),
+                None,
+                None,
+            );
+            assert!(review.is_err(), "{endpoint}: no review, so no request");
+        }
+        let canonical = ProvidersConfig::new()
+            .with_base_url("deepseek", format!("https://gateway.example/{SENTINEL}/v1"));
+        let route = CostRoute::observe("deepseek/deepseek-v4-pro", canonical).expect("canonical");
+        assert_eq!(route.origin(), "https://gateway.example:443");
+        assert!(
+            route.endpoint.contains(SENTINEL),
+            "the exact route stays in memory"
+        );
+    }
+
+    #[test]
+    fn review_and_challenge_screens_name_the_origin_never_the_path() {
+        let config = ProvidersConfig::new()
+            .with_base_url("deepseek", format!("https://gateway.example/{SENTINEL}/v1"));
+        let route = CostRoute::observe("deepseek/deepseek-v4-pro", config).expect("route");
+        let review = CostReview::new(
+            "c".into(),
+            "i".into(),
+            route,
+            CostHostEvidence::unmanaged_interactive_local(),
+            None,
+            None,
+        )
+        .expect("review");
+        let details = review.details();
+        assert!(
+            details.contains("origin https://gateway.example:443 ·"),
+            "{details}"
+        );
+        assert!(!details.contains(SENTINEL), "{details}");
+        let pending = PendingCostReview::new(review, "s".into(), "i".into());
+        let challenge = pending.challenge();
+        for screen in [challenge.display(), challenge.details()] {
+            assert!(!screen.contains(SENTINEL), "{screen}");
+        }
+        assert!(
+            challenge
+                .display()
+                .contains(" at https://gateway.example\n")
+        );
+        assert!(
+            challenge
+                .details()
+                .contains("Origin: https://gateway.example:443\n")
+        );
+        let ipc = serde_json::to_string(challenge).expect("challenge");
+        assert!(ipc.contains(SENTINEL), "the host IPC keeps the exact route");
     }
     #[test]
     fn the_evidence_view_names_each_layer() {

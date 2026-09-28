@@ -352,13 +352,16 @@ host can therefore teach its own cap's remedy beside that refusal only, never
 beside an unrelated shape, lease or witness refusal.
 
 `CostChallenge::display` is the first screen of a fresh Run decision: the
-provider/model and the endpoint's origin, the review's own unknown-USD, request,
-output-token, time, default and hard-cap sentences, the native catalog line
-(never an invoice, never a converted price) and `yes / no / details`.
-`CostChallenge::details` projects the same challenge whole: nonce, full
-endpoint, source and input digests, candidate, invocation, native price and the
-host/cap evidence record. Both read `&self`; neither changes the challenge, its
-nonce or any authority.
+provider/model and the endpoint's origin (the URL parser's, written without its
+scheme's default port), the review's own unknown-USD, request, output-token,
+time, default and hard-cap sentences, the native catalog line (never an invoice,
+never a converted price) and `yes / no / details`. `CostChallenge::details`
+projects the same challenge: nonce, the route's origin with its effective port
+(`CostRoute::origin`, never the path), source and input digests, candidate,
+invocation, native price and the host/cap evidence record, whose review line
+also names the origin (`CostReview::details`). Both read `&self`; neither
+changes the challenge, its nonce or any authority. The serialized challenge
+itself, the host's IPC with its own lane, keeps the exact route.
 
 `CostReview::for_session` applies the Session preparation bounds: at most seven
 requests, 32768 output tokens and 180 seconds per request. The displayed review
@@ -519,10 +522,25 @@ not the whole tail, and values copied by design, are their producer's. No
 journal, trace or session writer emits `@2` yet: the cost journal learns to judge
 and derive it first, and each writer moves in its own later change.
 
+### Canonical unknown-cost route (E35)
+
+An unknown-cost route binds only a canonical endpoint. `CostRoute::observe`
+refuses one that is not (`canonical_endpoint`: a form the URL parser would
+rewrite, such as a backslash, case, an explicit default port, a raw Unicode host,
+a space or no path, and any userinfo, query or fragment) before a review exists,
+naming at most its origin; `UnknownCostChoice::new` refuses it too, and still
+refuses an `@` anywhere, so no endpoint it refused before is accepted now. No
+review, choice or account can then name it, so nothing is sent.
+`CostRoute::origin` is `route_origin` (`unknown origin` when there is none), so
+the first screen, the details and the served review document name the origin the
+transport dials, and a backslash path never reaches them. Tariff selection is
+unchanged: `BillingRoute::new`, `InferenceTariff::new` and the snapshot estimate
+keep the exact endpoint, and a default catalog route is canonical already.
+
 The runtime's trace writers call `durable_calls`, `durable_pricing` and
-`route_label` (E32). Admission, review, retry, wire, the cost journal and
-Session keep their current projections, including `CostRoute::origin` and the
-`@1` cost observation, until later slices replace them. Exact in-memory identity
+`route_label` (E32). Retry, wire, the cost journal and Session keep their
+current projections, including the `@1` cost observation, until later slices
+replace them. Exact in-memory identity
 is unchanged: pricing, route checks, consent and witnesses keep the full
 endpoint. `InferenceCall` and `InferenceRoute` keep their serde. The origin-only
 display follows the root decisions on the E29 tradeoffs: same-origin aggregation

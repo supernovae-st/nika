@@ -66,16 +66,18 @@ impl CostChallenge {
             self.native_price,
         )
     }
-    /// The complete evidence of this same challenge. Reading it answers
-    /// nothing: the nonce, the bounds and the reply channel stay unchanged.
+    /// The complete evidence of this same challenge, the route named by its
+    /// origin with its effective port ([`CostRoute::origin`]), never its path.
+    /// Reading it answers nothing: the nonce, the bounds and the reply channel
+    /// stay unchanged.
     #[must_use]
     pub fn details(&self) -> String {
         format!(
-            "Run cost decision details · challenge {} · reading them approves nothing\nRoute: {}/{}\nEndpoint: {}\nSource SHA-256: {}\nInput SHA-256: {}\nCandidate: {}\nInvocation: {}\nNative currency: {}\nHost and cap evidence: {}\n{REVIEW_CHOICE}",
+            "Run cost decision details · challenge {} · reading them approves nothing\nRoute: {}/{}\nOrigin: {}\nSource SHA-256: {}\nInput SHA-256: {}\nCandidate: {}\nInvocation: {}\nNative currency: {}\nHost and cap evidence: {}\n{REVIEW_CHOICE}",
             self.nonce,
             self.route.provider,
             self.route.model,
-            self.route.endpoint,
+            self.route.origin(),
             self.source_sha256,
             self.inputs_sha256,
             self.candidate,
@@ -99,19 +101,17 @@ fn question_body(question: &str) -> &str {
         .map_or(question, str::trim_end)
 }
 
-/// Scheme and host of an endpoint, without path, query or credentials: where
-/// the request goes, at a glance. `details` keeps the endpoint whole.
+/// Where the request goes, at a glance: the URL parser's origin of the endpoint
+/// ([`crate::route_origin`]) written without its scheme's default port, or
+/// `unknown origin` when it has none to project (a credential is refused, never
+/// stripped). `details` names the same origin with its effective port.
 fn origin(endpoint: &str) -> String {
-    let (scheme, rest) = endpoint.split_once("://").unwrap_or(("", endpoint));
-    let authority = rest.split(['/', '?', '#']).next().unwrap_or(rest);
-    let host = authority
-        .rsplit_once('@')
-        .map_or(authority, |(_, host)| host);
-    if scheme.is_empty() {
-        host.to_owned()
-    } else {
-        format!("{scheme}://{host}")
-    }
+    crate::route_origin(endpoint)
+        .and_then(|origin| url::Url::parse(&origin).ok())
+        .map_or_else(
+            || "unknown origin".into(),
+            |url| url.origin().ascii_serialization(),
+        )
 }
 
 /// A single strict response document. Duplicate keys/frames are refused by serde.

@@ -87,9 +87,11 @@ impl UnknownCostChoice {
     /// Bind an explicit choice to one candidate, invocation and full request
     /// route. Every request has finite output/time bounds; no transport retry,
     /// and one request in flight unless [`Self::with_max_in_flight`] widens it.
-    /// Endpoint bytes are never shortened.
+    /// The endpoint must be canonical ([`crate::canonical_endpoint`]): its bytes
+    /// are exactly what the transport dials and are never shortened or rewritten.
     /// # Errors
-    /// Empty identity, credentials/query/fragment, zero or unrepresentable bounds.
+    /// Empty identity, a noncanonical endpoint (credentials, query, fragment, a
+    /// form the URL parser would rewrite, an `@`), zero or unrepresentable bounds.
     #[allow(
         clippy::too_many_arguments,
         reason = "the immutable choice requires independent identity and finite bound axes"
@@ -109,9 +111,8 @@ impl UnknownCostChoice {
         if [&candidate, &invocation, &provider, &model]
             .iter()
             .any(|s| s.trim().is_empty())
-            || !endpoint.starts_with("https://")
-            || endpoint.contains(['?', '#', '@'])
-            || endpoint.chars().any(char::is_whitespace)
+            || !crate::canonical_endpoint(&endpoint)
+            || endpoint.contains('@')
             || max_requests == 0
             || max_output_tokens == 0
             || timeout_ms == 0

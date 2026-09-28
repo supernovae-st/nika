@@ -340,23 +340,20 @@ fn the_e29_projection_table_holds_under_the_url_parser() {
     }
 }
 
-/// Causal control: the old owner's string split (`CostRoute::origin`, still the
-/// public review projection until E31 wires this module) keeps a backslash path
-/// inside the origin; the new owner does not. When E31 delegates
-/// `CostRoute::origin` to `route_origin`, this control flips with that commit.
+/// Causal control, flipped as planned (E30 to E35 P2): the review's origin
+/// (`CostRoute::origin`) was a string split that kept a backslash path inside
+/// the origin; it now is `route_origin`, the URL parser's origin, and the path
+/// is gone. The endpoint itself stays non-canonical, so no review binds it.
 #[test]
-fn old_owner_string_origin_keeps_a_backslash_path_the_new_owner_drops() {
+fn the_review_origin_is_the_parsed_origin_and_drops_a_backslash_path() {
     let endpoint = format!("https://127.0.0.1:63010\\{S}/v1/chat/completions");
-    let old = crate::admission::CostRoute {
+    let route = crate::admission::CostRoute {
         provider: "deepseek".into(),
         model: "deepseek-chat".into(),
         endpoint: endpoint.clone(),
     };
-    assert!(
-        old.origin().contains(S),
-        "old owner control: {}",
-        old.origin()
-    );
+    assert_eq!(route.origin(), "https://127.0.0.1:63010");
+    assert!(!route.origin().contains(S), "{}", route.origin());
     assert_eq!(
         route_origin(&endpoint).as_deref(),
         Some("https://127.0.0.1:63010")
