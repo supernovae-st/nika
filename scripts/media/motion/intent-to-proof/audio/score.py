@@ -280,7 +280,6 @@ def reverb_ir(rt60=2.4, pre=0.018):
 
 
 # ── the score ──────────────────────────────────────────────────────────
-D, F, A, C5 = 587.33, 698.46, 880.0, 1046.5
 SCALE = [587.33, 698.46, 783.99, 880.0, 1046.5, 1174.66, 1396.9, 1567.98]
 CHORDS = {
     "Dm": [146.83, 174.61, 220.0, 293.66],
@@ -295,7 +294,8 @@ BARS = ["Dm", "Dm", "Dm", "Bb", "F", "C", "Dm", "Bb", "F", "C", "Dm", "F", "C", 
 
 
 def main(tl_path, out_path):
-    tl = json.load(open(tl_path))
+    with open(tl_path) as fh:
+        tl = json.load(fh)
     dur = tl["duration"]
     T = tl["T"]
     beat = 60 / tl["bpm"]

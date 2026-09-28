@@ -21,5 +21,6 @@ for ch in sorted(set(chars)):
     pen = SVGPathPen(gs)
     gs[name].draw(pen)
     data["glyphs"][ch] = {"d": pen.getCommands(), "adv": gs[name].width}
-json.dump(data, open(out, "w"))
+with open(out, "w") as fh:
+    json.dump(data, fh)
 print(out, len(data["glyphs"]), "glyphs")
