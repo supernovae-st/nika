@@ -10,7 +10,8 @@
 //! requirement outside the bytes). The view never certifies that the
 //! reader read everything: a clause the compiler did not read is not here,
 //! and the footer says so. A missing ledger renders « unavailable », never
-//! an invented coverage.
+//! an invented coverage; an entry the view cannot read is disclosed, never
+//! counted as done.
 //!
 //! Owned here, beside the ledger it projects (moved from `nika-session`
 //! 2026-09-28, whose `nika_session::meaning` re-exports this module). Pure:
@@ -95,7 +96,7 @@ pub fn clauses(out: &CompileOutcome) -> Option<Vec<Clause>> {
 
 /// The clauses of a ledger as the wire carries it (an array of duties:
 /// `kind · state · evidence · realized_by · note`); a duty of an unknown
-/// state is left out rather than guessed.
+/// state is left out rather than guessed (the views disclose it).
 #[must_use]
 pub fn clauses_of(ledger: &Value) -> Vec<Clause> {
     ledger
@@ -186,12 +187,31 @@ pub fn render(out: &CompileOutcome) -> Option<String> {
     Some(render_ledger(ledger, out.candidate.as_deref()))
 }
 
-/// The Meaning view of a ledger and the candidate its carriers name.
+/// How many of a ledger's entries the view cannot read (an unknown, missing
+/// or mistyped state, or no duty at all); `None` when the ledger itself is
+/// not a list of duties.
+fn unread(ledger: &Value) -> Option<usize> {
+    ledger
+        .as_array()
+        .map(|duties| duties.iter().filter(|d| clause_of(d).is_none()).count())
+}
+
+/// The view's closing words: it counts what it read, never certifies.
+const FOOTER: &str = "\n  this lists what the compiler read; a clause it did not read is not here — if something you asked is missing, say it again in its own words";
+
+/// The Meaning view of a ledger and the candidate its carriers name. An
+/// entry it cannot read is disclosed and never counted: no completeness is
+/// claimed over what was not read.
 #[must_use]
 pub fn render_ledger(ledger: &Value, candidate: Option<&str>) -> String {
-    let clauses = clauses_of(ledger);
     let mut text = "Meaning · your request, clause by clause".to_owned();
-    if clauses.is_empty() {
+    let Some(unread) = unread(ledger) else {
+        text.push_str("\n  ! the compiler's ledger could not be read (it is not a list of duties) — no clause is shown, none is counted");
+        text.push_str(FOOTER);
+        return text;
+    };
+    let clauses = clauses_of(ledger);
+    if clauses.is_empty() && unread == 0 {
         text.push_str("\n  (the compiler recorded no clause for this request)");
     }
     for clause in &clauses {
@@ -221,14 +241,22 @@ pub fn render_ledger(ledger: &Value, candidate: Option<&str>) -> String {
         .iter()
         .filter(|c| c.disposition == Disposition::External)
         .count();
+    if unread > 0 {
+        let _ = write!(
+            text,
+            "\n  ! {unread} ledger entr{} could not be read (an unknown or missing state) — not shown, never counted as done",
+            if unread == 1 { "y" } else { "ies" }
+        );
+    }
     let _ = write!(
         text,
         "\n  {} clause(s) the compiler read · {open} waiting for you · {external} outside the bytes",
         clauses.len()
     );
-    text.push_str(
-        "\n  this lists what the compiler read; a clause it did not read is not here — if something you asked is missing, say it again in its own words",
-    );
+    if unread > 0 {
+        let _ = write!(text, " · {unread} unreadable, not counted");
+    }
+    text.push_str(FOOTER);
     text
 }
 
@@ -283,6 +311,12 @@ pub fn delta(base: &Value, revised: &Value) -> Option<String> {
         for evidence in &kept_rows {
             let _ = write!(text, "\n  = « {evidence} » · kept as it was");
         }
+    }
+    // Entries the view cannot read are not compared: a delta over them claims nothing.
+    if [base, revised].into_iter().any(|l| unread(l) != Some(0)) {
+        text.push_str(
+            "\n  ! some ledger entries could not be read — not compared, never counted as kept",
+        );
     }
     if changed == 0 {
         let _ = write!(
@@ -406,7 +440,10 @@ mod tests {
                 && view.contains("× « ignore"),
             "{view}"
         );
-        assert!(view.contains("1 waiting for you"), "{view}");
+        assert!(
+            view.contains("1 waiting for you · 0 outside the bytes · 1 unreadable, not counted"),
+            "{view}"
+        );
     }
 
     /// A discussion line has no ledger: the view is unavailable, not empty
@@ -555,27 +592,72 @@ mod tests {
     }
 
     /// A ledger that is not an array, and duties of an unknown, missing or
-    /// mistyped state, are left out — never guessed; the view then says it
-    /// read nothing, and a revision between two such ledgers says nothing.
+    /// mistyped state, are left out — never guessed — and disclosed (E8):
+    /// over entries it could not read the view never says the compiler
+    /// recorded no clause or that nothing waits; only a truly empty ledger
+    /// says so. A revision between two clause-less ledgers says nothing; one
+    /// over unreadable entries says they were not compared.
     #[test]
-    fn an_unknown_ledger_state_is_left_out_never_guessed() {
-        for ledger in [
-            serde_json::json!(null),
-            serde_json::json!({"state": "realized"}),
-            serde_json::json!("realized"),
-            serde_json::json!(42),
-            serde_json::json!([]),
-            serde_json::json!([null, 1, "realized", {}, {"state": 5}, {"state": "REALIZED"}, {"state": ""}]),
-        ] {
+    fn an_unknown_ledger_state_is_left_out_and_disclosed_never_guessed() {
+        let json = |v: &str| serde_json::from_str::<Value>(v).expect("json");
+        for ledger in ["null", r#"{"state": "realized"}"#, r#""realized""#, "42"].map(json) {
             assert!(clauses_of(&ledger).is_empty(), "{ledger}");
             let view = render_ledger(&ledger, None);
             assert!(
-                view.contains("(the compiler recorded no clause for this request)")
-                    && view.contains("0 clause(s) the compiler read · 0 waiting for you"),
+                view.contains("could not be read (it is not a list of duties)")
+                    && !view.contains("waiting for you")
+                    && !view.contains("recorded no clause"),
                 "{view}"
             );
-            assert!(delta(&ledger, &serde_json::json!([])).is_none(), "{ledger}");
+            assert!(delta(&ledger, &json("[]")).is_none(), "{ledger}");
         }
+        let unreadable = json(
+            r#"[null, 1, "realized", {}, {"state": 5}, {"state": "REALIZED"}, {"state": ""}]"#,
+        );
+        assert!(clauses_of(&unreadable).is_empty());
+        let view = render_ledger(&unreadable, None);
+        assert!(
+            view.contains("! 7 ledger entries could not be read")
+                && view.contains(
+                    "0 waiting for you · 0 outside the bytes · 7 unreadable, not counted"
+                )
+                && !view.contains("recorded no clause"),
+            "{view}"
+        );
+        assert!(delta(&unreadable, &json("[]")).is_none());
+        let empty = render_ledger(&json("[]"), None);
+        assert!(
+            empty.contains("(the compiler recorded no clause for this request)")
+                && empty.contains("0 waiting for you · 0 outside the bytes\n")
+                && !empty.contains("could not be read"),
+            "{empty}"
+        );
+        // A clause it reads beside an entry it cannot: shown, disclosed, and a
+        // revision over them compares only what was read, saying so.
+        let mixed = json(
+            r#"[{"state": "unresolved", "kind": "input", "evidence": "which file"}, {"state": "pending", "kind": "effect", "evidence": "send it"}]"#,
+        );
+        let view = render_ledger(&mixed, None);
+        assert!(
+            view.contains("? « which file »")
+                && !view.contains("send it")
+                && view.contains("! 1 ledger entry could not be read")
+                && view.contains(
+                    "1 waiting for you · 0 outside the bytes · 1 unreadable, not counted"
+                ),
+            "{view}"
+        );
+        let revised = delta(&mixed, &mixed).expect("a clause on both sides");
+        assert!(
+            revised.contains("not compared, never counted as kept")
+                && revised.contains("nothing changed in what the compiler read"),
+            "{revised}"
+        );
+        let clean = delta(
+            &json(r#"[{"state": "realized", "kind": "effect"}]"#),
+            &json("[]"),
+        );
+        assert!(!clean.expect("a dropped clause").contains("not compared"));
         // A duty's missing words are said by its kind; the carrier's older key
         // still reads; a binding named in the note keeps it outside the bytes.
         let odd = serde_json::json!([
