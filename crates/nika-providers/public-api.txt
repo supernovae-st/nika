@@ -1918,6 +1918,11 @@ pub trait nika_providers::retry::Backoff: core::marker::Send + core::marker::Syn
 pub fn nika_providers::retry::Backoff::sleep(&self, duration: core::time::Duration) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = ()> + core::marker::Send + '_)>>
 impl<C: nika_kernel_core::io::clock::ClockDyn + core::fmt::Debug + 'static> nika_providers::retry::Backoff for nika_providers::retry::ClockBackoff<C>
 pub fn nika_providers::retry::ClockBackoff<C>::sleep(&self, duration: core::time::Duration) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = ()> + core::marker::Send + '_)>>
+pub mod nika_providers::route_identity
+pub fn nika_providers::route_identity::canonical_endpoint(endpoint: &str) -> bool
+pub fn nika_providers::route_identity::durable_calls(calls: &[nika_types::cost::inference::InferenceCall]) -> serde_json::value::Value
+pub fn nika_providers::route_identity::route_label(route: &nika_types::cost::inference::InferenceRoute) -> alloc::string::String
+pub fn nika_providers::route_identity::route_origin(endpoint: &str) -> core::option::Option<alloc::string::String>
 pub mod nika_providers::spend
 pub fn nika_providers::spend::price_failed_spend(spend: core::option::Option<&nika_types::cost::SpendOnFailure>) -> (core::option::Option<f64>, core::option::Option<alloc::string::String>, core::option::Option<nika_types::cost::UnpricedReason>)
 pub fn nika_providers::spend::spend_for_calls(calls: &[nika_types::cost::inference::InferenceCall]) -> (core::option::Option<f64>, core::option::Option<nika_types::cost::UnpricedReason>)
@@ -2965,10 +2970,12 @@ impl<C: nika_kernel_core::io::clock::ClockDyn + core::fmt::Debug + 'static> nika
 pub fn nika_providers::retry::ClockBackoff<C>::sleep(&self, duration: core::time::Duration) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = ()> + core::marker::Send + '_)>>
 pub fn nika_providers::access_plan_map(models: &[alloc::string::String], probes: &[nika_providers::probe::ProviderProbe], pin: core::option::Option<&str>) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_types::access::AccessPlan>
 pub fn nika_providers::candidates_for(probes: &[nika_providers::probe::ProviderProbe], provider: &str) -> alloc::vec::Vec<nika_providers::resolve_access::AccessCandidate>
+pub fn nika_providers::canonical_endpoint(endpoint: &str) -> bool
 pub fn nika_providers::canonical_provider(id: &str) -> &str
 pub fn nika_providers::catalog_warning(model: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_providers::classify_http_status(status: u16) -> nika_providers::probe::KeyAuth
 pub fn nika_providers::classify_key_value(prefixes: &[&str], value: &str) -> nika_providers::probe::KeyAuth
+pub fn nika_providers::durable_calls(calls: &[nika_types::cost::inference::InferenceCall]) -> serde_json::value::Value
 pub fn nika_providers::first_ready_harness(probes: &[nika_providers::probe::ProviderProbe]) -> core::option::Option<&str>
 pub fn nika_providers::provider_of(model: &str) -> &str
 pub fn nika_providers::refuse_pin<'m>(models: impl core::iter::traits::collect::IntoIterator<Item = &'m str>, probes: &[nika_providers::probe::ProviderProbe], pin: &str) -> core::option::Option<nika_providers::resolve_access::PinRefusal>
@@ -2977,6 +2984,8 @@ pub fn nika_providers::resolve_access(model: &str, candidates: &[nika_providers:
 pub fn nika_providers::resolve_execution_plan(needs: &[nika_providers::plan::ModelNeed], probes: &[nika_providers::probe::ProviderProbe], pin: core::option::Option<&str>) -> nika_providers::plan::ExecutionAccessPlan
 pub fn nika_providers::resolve_execution_plan_for(needs: &[nika_providers::plan::ModelNeed], probes: &[nika_providers::probe::ProviderProbe], pin: core::option::Option<&str>, verbs: nika_providers::resolve_access::VerbNeeds) -> nika_providers::plan::ExecutionAccessPlan
 pub fn nika_providers::resolve_refusal(model: &str) -> core::option::Option<nika_providers::profile::ResolveRefusal>
+pub fn nika_providers::route_label(route: &nika_types::cost::inference::InferenceRoute) -> alloc::string::String
+pub fn nika_providers::route_origin(endpoint: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_providers::seed() -> alloc::vec::Vec<nika_providers::profile::Profile>
 pub fn nika_providers::server_backed_local(provider: &str) -> bool
 pub fn nika_providers::wired_facet(wired: usize, local: usize) -> alloc::string::String

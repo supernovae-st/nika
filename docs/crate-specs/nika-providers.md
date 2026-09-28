@@ -342,6 +342,46 @@ named by the lane's model prefix, runs on the API access class: the lane whose
 key the executing process itself reads. A host keeps its own words for that
 credential custody (Serve says `HOST_SERVER_MEMORY`).
 
+## Route identity (owner primitives, E30)
+
+`route_identity` is the one owner projection of a provider endpoint under the
+E29 route-identity law: a durable record or a network document names a route
+`{provider, model, origin}`, and the exact endpoint (path, query, userinfo,
+fragment) stays in process memory, in a host's IPC with its own lane and in
+private witness preimages. Origins come from `url::Url::parse`, the WHATWG parse
+the transport connects with (the `nika_types::net` law against hand-rolled URL
+splitting).
+
+- `route_origin(endpoint)`: `scheme://host:port` with the effective port written
+  out, from the parser's own host serialization (lowercase, punycode, bracketed
+  IPv6, normalized IPv4). `None` when the endpoint does not parse, the scheme is
+  not `https` or `http`, or userinfo is present: a credential is refused, never
+  stripped.
+- `canonical_endpoint(endpoint)`: `https`, a host, no userinfo, query or
+  fragment, and byte-identical to its own serialization. A raw form the parser
+  would rewrite (case, an explicit default port, a Unicode host, a backslash, a
+  space) is refused, never normalized.
+- `route_label(route)`: `{provider}/{model} @ {origin}`, a display and
+  aggregation key. Routes of one origin share it; accounting keeps each call's
+  own record, and nothing admits, prices or consents by a label.
+- `durable_calls(calls)`: one JSON object per `InferenceCall` with
+  `requested_origin`, `route {provider, model, origin}`, the unchanged usage,
+  completeness, response model, request id and estimate, and `pricing` as the
+  parsed provenance with every `endpoint` projected to `origin`. Pricing text that
+  does not parse becomes `null`. Any other string still holding one of the call's
+  endpoint paths, queries or userinfos becomes `null`. The fields are an
+  allowlist: a new `InferenceCall` field stays out until this owner projects it.
+
+The primitives are additive and not yet wired. Admission, review, retry, wire,
+the cost journal, Runtime and Session keep their current projections, including
+`CostRoute::origin`, until the wiring slice replaces them. Exact in-memory
+identity is unchanged: pricing, route checks, consent and witnesses keep the
+full endpoint. `InferenceCall` and `InferenceRoute` keep their serde. The
+origin-only display follows the root decisions on the E29 tradeoffs: same-origin
+aggregation is presentation only (T1); an explicit HTTP default port differs from
+the effective-port display (T8). Legacy journal and inspection projection (T4,
+T7) is a separate, versioned proposal.
+
 ## Opt-in local model listing
 
 `probe::probe_model_listing` sends one bodyless GET through the kernel HTTP seam.
