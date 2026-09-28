@@ -385,11 +385,34 @@ fn uncertain_dispatch_blocks_a_new_run_without_automatic_retry() {
     p.expect("observed").unwrap();
     p.expect("nika ›").unwrap();
     assert_eq!(calls(root.path()), 1);
+    let journal = root.path().join(".nika/inference-cost-observations.ndjson");
+    let before = std::fs::read_to_string(&journal).unwrap();
     p.send("run one.nika\r").unwrap();
-    p.expect("uncertain").unwrap();
-    p.expect("billing").unwrap();
+    // Single-word needles; the retained charge itself is machine-read below.
+    p.expect("billed").unwrap();
     p.expect("environment").unwrap();
-    assert_eq!(calls(root.path()), 1);
+    assert_eq!(calls(root.path()), 1, "no second dispatch");
+    assert_eq!(
+        std::fs::read_to_string(&journal).unwrap(),
+        before,
+        "the refused Run prepares nothing and appends nothing"
+    );
+    let rows: Vec<serde_json::Value> = before
+        .lines()
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect();
+    let [prepared, settled] = rows.as_slice() else {
+        panic!("one prepared and one settled row: {rows:?}");
+    };
+    assert_eq!(prepared["phase"], "prepared");
+    assert_eq!(settled["phase"], "settled");
+    assert_eq!(settled["invocation"], prepared["invocation"]);
+    assert_eq!(
+        settled["lease"], prepared["lease"],
+        "settled by its own writer"
+    );
+    assert_eq!(settled["observation"]["state"], "Uncertain");
+    assert_eq!(settled["observation"]["unknown_calls"], 1);
     leave(&mut p);
 }
 #[test]
