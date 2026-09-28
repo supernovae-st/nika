@@ -125,8 +125,9 @@ UNKNOWN, recorded once) and torn-tail append live in `nika_dap::cost_journal`
 and its rows (`prepared` · `settled` · settle-on-drop).
 
 A Run with no unknown-cost route but an exact catalog-declared-free API route
-(C2 · 2026-09-28) gets no question, lease or journal row. `review` takes the
-workflow with the Run's `--model` (the lane its model-less tasks ride), refuses
+(C2 · 2026-09-28) gets no question, lease or journal row. `review_with_model`
+also takes the Run's `--model` (the lane its model-less tasks ride; `review`
+keeps its signature and forwards none), refuses
 any task the route's observation cannot admit through the shared
 `nika_service_execution::run_cost::declared_free_shape` (Check's readiness
 mirror consumes the same judgment), then binds a per-Run

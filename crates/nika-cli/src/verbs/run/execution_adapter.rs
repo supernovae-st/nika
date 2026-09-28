@@ -320,12 +320,13 @@ fn run_admitted_context(
         Ok(setup) => setup,
         Err(code) => return RunVerdict::bare(code),
     };
-    let cost = match unknown_cost::review(
+    let cost = match unknown_cost::review_with_model(
         &world.display_root,
         request.file,
         source,
         format!("{:?}", world.execution_id),
-        (&wf, request.model_override),
+        &wf,
+        request.model_override,
         &plan,
         &inputs.values,
         request.invocation_cost,

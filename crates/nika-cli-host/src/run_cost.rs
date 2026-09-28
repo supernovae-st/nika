@@ -120,7 +120,8 @@ fn clear_exposure(
     Ok((held, writer))
 }
 /// Unsupported hosts and workflow shapes never borrow this approval.
-/// A Run with no unknown-cost route gets only a declared-free observer.
+/// A Run with no unknown-cost route gets only a declared-free observer, whose
+/// model-less tasks ride the workflow's own `model:` here.
 /// # Errors
 /// Unsupported or changed scope, unreadable evidence, decline, or journal failure.
 #[allow(clippy::too_many_arguments)]
@@ -129,7 +130,38 @@ pub fn review(
     file: &str,
     source: &str,
     invocation: String,
-    (wf, model_override): (&nika_schema::raw::RawWorkflow, Option<&str>),
+    wf: &nika_schema::raw::RawWorkflow,
+    plan: &nika_providers::ExecutionAccessPlan,
+    inputs: &std::collections::BTreeMap<String, serde_json::Value>,
+    invocation_default: Option<f64>,
+    channel: impl Into<ReviewChannel>,
+) -> Result<Option<RunCost>, String> {
+    review_with_model(
+        root,
+        file,
+        source,
+        invocation,
+        wf,
+        None,
+        plan,
+        inputs,
+        invocation_default,
+        channel,
+    )
+}
+
+/// [`review`] for a Run whose `--model` (`model_override`) is the lane its
+/// model-less tasks ride.
+/// # Errors
+/// As [`review`].
+#[allow(clippy::too_many_arguments)]
+pub fn review_with_model(
+    root: &Path,
+    file: &str,
+    source: &str,
+    invocation: String,
+    wf: &nika_schema::raw::RawWorkflow,
+    model_override: Option<&str>,
     plan: &nika_providers::ExecutionAccessPlan,
     inputs: &std::collections::BTreeMap<String, serde_json::Value>,
     invocation_default: Option<f64>,

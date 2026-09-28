@@ -171,7 +171,7 @@ fn compound_fixture_child() {
         root.join("one.nika").to_str().unwrap(),
         &source,
         nika_types::id::ExecutionId::generate().to_string(),
-        (&wf, None),
+        &wf,
         &plan,
         &BTreeMap::new(),
         Some(if root.join("zero-ceiling").exists() {
