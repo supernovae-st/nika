@@ -79,8 +79,13 @@ export function mono(R, spans, x, y, { alpha = 1, st = MONO, max = Infinity } = 
     if (col + s.length > max) s = s.slice(0, Math.max(0, max - col - 1)) + '…';
     const style = { ...(sp.b ? { ...st, f: 'MM 500' } : st), color: sp.c || C.mist, alpha, glow: sp.glow || 0 };
     let run = '', runCol = col;
+    // a terminal shows every character: where the mono font would join
+    // two punctuation marks into a ligature (--, ==, ->, …), the run is
+    // drawn one character per cell instead
     const flush = () => {
-      if (run.trim()) text(R, run, x + runCol * adv, y, style);
+      if (!run.trim()) { run = ''; return; }
+      if (/[!-/:-@[-`{-~]{2}/.test(run)) [...run].forEach((ch, i) => ch !== ' ' && text(R, ch, x + (runCol + i) * adv, y, style));
+      else text(R, run, x + runCol * adv, y, style);
       run = '';
     };
     for (const ch of s) {
@@ -99,29 +104,34 @@ export function mono(R, spans, x, y, { alpha = 1, st = MONO, max = Infinity } = 
   }
 }
 
-// Mark tokens inside spans: [{ re, c, glow }] recolours matches.
+// Mark tokens in a line: [{ re, c, glow }] recolours matches. Each regex
+// runs over the whole line, so a match may span the colourer's own spans
+// (a YAML key and its colon); the first mark to claim a character keeps it.
 function applyMarks(spans, marks = []) {
   if (!marks.length) return spans;
-  const out = [];
-  for (const sp of spans) {
-    let parts = [sp];
-    for (const mk of marks) {
-      const next = [];
-      for (const p of parts) {
-        if (p.marked) { next.push(p); continue; }
-        let last = 0, m;
-        const re = new RegExp(mk.re.source, mk.re.flags.includes('g') ? mk.re.flags : `${mk.re.flags}g`);
-        while ((m = re.exec(p.s))) {
-          if (!m[0]) { re.lastIndex++; continue; }
-          if (m.index > last) next.push({ ...p, s: p.s.slice(last, m.index) });
-          next.push({ ...p, s: m[0], c: mk.c, b: true, glow: mk.glow ?? 0.5, marked: true });
-          last = m.index + m[0].length;
-        }
-        if (last < p.s.length) next.push({ ...p, s: p.s.slice(last) });
-      }
-      parts = next;
+  const full = spans.map(sp => sp.s).join('');
+  const owner = new Array(full.length).fill(null);
+  for (const mk of marks) {
+    const re = new RegExp(mk.re.source, mk.re.flags.includes('g') ? mk.re.flags : `${mk.re.flags}g`);
+    let m;
+    while ((m = re.exec(full))) {
+      if (!m[0]) { re.lastIndex++; continue; }
+      const end = m.index + m[0].length;
+      if (owner.slice(m.index, end).every(o => o === null)) owner.fill(mk, m.index, end);
     }
-    out.push(...parts);
+  }
+  const out = [];
+  let pos = 0;
+  for (const sp of spans) {
+    for (let i = 0; i < sp.s.length;) {
+      const mk = owner[pos + i];
+      let j = i + 1;
+      while (j < sp.s.length && owner[pos + j] === mk) j++;
+      const s = sp.s.slice(i, j);
+      out.push(mk ? { ...sp, s, c: mk.c, b: true, glow: mk.glow ?? 0.5 } : { ...sp, s });
+      i = j;
+    }
+    pos += sp.s.length;
   }
   return out;
 }
@@ -268,6 +278,10 @@ export function lineDiff(A, B) {
   return ops;
 }
 
+// 1 until t1 - d, eased to 0 at t1. A window with no end never fades:
+// smooth(Infinity - d, Infinity, t) is NaN, which draws nothing.
+const until = (t1, d, t) => (t1 === undefined || t1 === Infinity ? 1 : 1 - smooth(t1 - d, t1, t));
+
 // Draws a code file. Before `morph.t0` it shows `before`; across
 // [morph.t0, morph.t1] deleted lines fold away and added lines open with a
 // teal flash; after, `after`. `win.a` / `win.b` are 1-based [first, last]
@@ -315,7 +329,7 @@ export function codeCard(R, t, box, { title = '', alpha = 1, k = 1, badge = null
         if (!mk.squiggle) continue;
         const m = o.text.match(mk.re);
         if (!m) continue;
-        const k2 = smooth(mk.t0 ?? 0, (mk.t0 ?? 0) + 0.35, t) * (1 - smooth((mk.t1 ?? Infinity) - 0.2, mk.t1 ?? Infinity, t));
+        const k2 = smooth(mk.t0 ?? 0, (mk.t0 ?? 0) + 0.35, t) * until(mk.t1, 0.2, t);
         squiggle(R, box.x + gutter + 12 + m.index * adv, box.x + gutter + 12 + (m.index + m[0].length) * adv, rowY + 6, mk.c, a * k2, t);
       }
     }
