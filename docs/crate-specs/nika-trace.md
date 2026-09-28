@@ -4,7 +4,7 @@
 |---|---|
 | Status | **DESCENDED 2026-08-11** from `nika-cli` — NOT a fresh admission: a size-cap member split of an already-admitted unit per D-2026-07-09-N1 (one architectural unit · two workspace members · the ADR-110 `nika-cli-host` precedent). `nika-cli` measured 15,040 prod LOC at the vector-24 gate (cap 15,000); the trace-reading plane was the clean seam (every consumer reaches it through `verbs::trace*`, and the compute half — chain walk · anchor wire · recover · store scan — had already descended to `nika-dap` 2026-07-09). |
 | Layer | **L4** — the operator surface's read half: renders + routes, every effect already below. |
-| Design | The **flight-recorder reader** — every surface that READS `.nika/traces/` (the NDJSON journals a run records): `trace show\|replay\|outputs\|peek\|flow` (the fold's render), `trace ls\|rm` (store management · ADR-100), `trace verify` (tamper-evidence chain · minisign signature · anchor tiers), `trace anchor` (Rekor v2 · RFC 3161 notary), `trace reproduce`, `trace export` (OTel), the `evidence` pack, the `receipt` explainer, the learned-truth `forecast` behind `explain --forecast`, the run facts (`run_view::RunFacts`) behind the native session's result, gate and `/proof` views (moved in 2026-09-24 · §2), and the bin's `trace` dispatch arm (`dispatch.rs` — the replay loop + door routing descended verbatim from `main.rs`, which keeps a one-line arm). `nika-cli` re-exports every public item at its historical `verbs::` path — call sites, the 32 integration suites and the clap tree read unchanged. |
+| Design | The **flight-recorder reader** — every surface that READS `.nika/traces/` (the NDJSON journals a run records): `trace show\|replay\|outputs\|peek\|flow` (the fold's render), `trace ls\|rm` (store management · ADR-100), `trace verify` (tamper-evidence chain · minisign signature · anchor tiers), `trace anchor` (Rekor v2 · RFC 3161 notary), `trace reproduce`, `trace export` (OTel), the `evidence` pack, the `receipt` explainer, the learned-truth `forecast` behind `explain --forecast`, the run facts (`run_view::RunFacts`) behind the native session's result, gate and `/proof` views (moved in 2026-09-24 · §2), the read-only `lineage` view of which journals continued a paused run (derived from DAP's `store::survey` · §5), and the bin's `trace` dispatch arm (`dispatch.rs` — the replay loop + door routing descended verbatim from `main.rs`, which keeps a one-line arm). `nika-cli` re-exports every public item at its historical `verbs::` path — call sites, the 32 integration suites and the clap tree read unchanged. |
 | Name | `nika-trace` — the plane it reads, named after the verb it serves. Descent precedent: `nika-cli-host` (2026-07-31). |
 | LOC | ~6087 LOC src (`scripts/crate-metrics.sh --loc nika-trace` · ±15% band per vector 6) — ≈3.3k of it prod (the counter's cfg(test) scope); the descent lifted `nika-cli` from 15,040 to 11,851 prod. |
 | Deps | `nika-dap` (the forensics compute), `nika-cli-host` (VerbOutput/exit · retention config), `nika-display` (Theme · RunView · frame), `nika-event`, `nika-types`, `clap`, `serde`, `serde_json`. dev: `uuid`. |
@@ -104,3 +104,44 @@ closed-vocabulary extension for the next engine MINOR after 0.121.
 - Paged tables complete only through the `nika-display` fold, which enforces
   the `items_cancelled` law (see that crate's spec).
 - Neither word is a billing verdict or proof about physical requests.
+
+## 5 · The lineage view (C7c, 2026-09-28)
+
+`lineage::fold(survey, paused)` and `lineage::lineage_of(dir, paused)` answer
+one question for the session and trace readers: which journals of ONE trace
+directory continued a paused run (the `resumed_from` link, #1462).
+
+The facts come from `nika_dap::store::survey`: reading, recovery, identity
+and every skip or doubt stay in DAP, the compute. This module only folds
+them, the way `run_view` folds one journal. The view is not runtime
+admission, cryptographic verification or continuation authority, and it
+never verifies a chain, seal or signature.
+
+The verdicts:
+
+- `NoneObserved`: a complete survey in which no journal names the paused run.
+  It records what one read of one directory held. It is never an
+  authorization.
+- `Chain { links, head }`: one linear chain whose links all agree. The head
+  is one of:
+  - settled;
+  - paused again, at its own gate;
+  - running, with its ADR-129 liveness.
+- `Indeterminate(reasons)`, with every reason accumulated:
+  - unsurveyed entries or listing errors;
+  - an unidentified paused journal, or one no longer paused;
+  - a torn suffix on a journal the lineage depends on;
+  - any journal whose link is unknown or ambiguous;
+  - a duplicate identity;
+  - a fork (siblings are never ranked by time or name);
+  - a cycle;
+  - a disagreeing continuation;
+  - a chain longer than `MAX_LINKS` (64), where the walk terminates.
+
+Limits stated by the view itself: a continuation before its first frame or
+after the survey, a pruned or removed journal, a copied or tampered journal
+and an unverified resume are all out of sight.
+
+Neither atomicity nor exactly-once is claimed. The engine's resume admission
+(the approval ticket's single-use claim, per claim store and TTL) still
+decides a race, within its own scope.

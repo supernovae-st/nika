@@ -8,9 +8,16 @@
 //! One-voice: each file parses through the SAME tolerant reader
 //! `--resume` and `trace show` fold through ([`recover_events`] — zero
 //! parallel parsers); this module only FOLDS the recovered events into
-//! retention facts. Fail-open is the law here (ADR-100): a file that
+//! retention facts. Fail-open is the law of [`scan`] (ADR-100): a file that
 //! will not read or parse is SKIPPED — never counted, never collected,
 //! never an error that blocks a run.
+//!
+//! [`survey`] is the same fold without fail-open, for readers that must
+//! not mistake silence for absence (the lineage view): every `*.ndjson`
+//! entry it cannot fold, every listing error and every doubt about a
+//! folded journal (a torn suffix, a missing or conflicting identity) is
+//! said; [`scan`] is its fail-open projection. A survey is syntactic: it
+//! verifies no chain, no seal and no signature.
 //!
 //! Descended from `nika-cli`'s `verbs/trace/store` (2026-07-09 · the W0
 //! trace descent); the CLI keeps its display vocabulary (the age cell)
@@ -23,7 +30,7 @@ use nika_event::{Event, EventKind};
 
 use crate::liveness::Liveness;
 
-use crate::recover::recover_events;
+use crate::recover::{RecoveredTrace, recover_events};
 
 /// Where run journals live, relative to the run's CWD (the workspace
 /// root by convention — the editor extension watches exactly this
@@ -110,6 +117,13 @@ pub struct TraceMeta {
     /// journal's trace id, read from the opening frame's `resumed_from`
     /// field. `None` on a fresh run (or a journal older than the link).
     pub resumed_from: Option<String>,
+    /// The journal's own run identity ([`crate::resume::trace_run_id`]):
+    /// what a continuation names as its `resumed_from`. `None` when no
+    /// opening frame names an execution.
+    pub run_id: Option<String>,
+    /// The project the journal was recorded for: the opening frame's
+    /// `project_root_fingerprint`, when recorded.
+    pub project: Option<String>,
 }
 
 impl TraceMeta {
@@ -136,6 +150,8 @@ impl TraceMeta {
             modified,
             liveness: None,
             resumed_from: None,
+            run_id: None,
+            project: None,
         }
     }
 
@@ -153,6 +169,14 @@ impl TraceMeta {
         self
     }
 
+    /// Attach the journal's own identity: its run and its project.
+    #[must_use]
+    pub fn with_identity(mut self, run_id: Option<String>, project: Option<String>) -> Self {
+        self.run_id = run_id;
+        self.project = project;
+        self
+    }
+
     /// The machine state word: the settlement's word for a run
     /// that settled, `running` for a live writer (or one this host cannot
     /// judge), `dead` for a writer that died — the evidence is incomplete,
@@ -167,51 +191,186 @@ impl TraceMeta {
     }
 }
 
+/// Why a `*.ndjson` entry could not be folded at all: an entry [`scan`]
+/// skips, said by [`survey`] instead of dropped.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum SkipWhy {
+    /// Its metadata or bytes could not be read (non-UTF-8 content reads
+    /// `InvalidData`).
+    Unreadable(std::io::ErrorKind),
+    /// Not a regular file (a directory named `*.ndjson`).
+    NotAFile,
+    /// The file name is not UTF-8.
+    NameNotUtf8,
+    /// The ONE reader refused it — no readable opening event (its words).
+    NoOpening(String),
+}
+
+/// One `*.ndjson` entry a [`survey`] could not fold.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Skipped {
+    /// The entry.
+    pub path: PathBuf,
+    /// Why it was not folded.
+    pub why: SkipWhy,
+}
+
+impl Skipped {
+    /// Construct (INV-019).
+    #[must_use]
+    pub const fn new(path: PathBuf, why: SkipWhy) -> Self {
+        Self { path, why }
+    }
+}
+
+/// Why a folded journal's facts may be incomplete: the journal stays in
+/// [`Survey::traces`], with the doubt beside it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum DoubtWhy {
+    /// The reader stopped at a torn or corrupt line: every later frame (a
+    /// terminal among them) is lost — the reader's own note.
+    TornSuffix(String),
+    /// No `workflow_started` frame: identity and continuation link unknown.
+    NoOpeningFrame,
+    /// The opening frame names no execution: no run identity.
+    NoRunIdentity,
+    /// The frames carry more than one execution id.
+    ConflictingIdentity,
+}
+
+/// One folded journal whose facts may be incomplete.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Doubt {
+    /// The journal (also in [`Survey::traces`]).
+    pub path: PathBuf,
+    /// Why its facts may be incomplete.
+    pub why: DoubtWhy,
+}
+
+impl Doubt {
+    /// Construct (INV-019).
+    #[must_use]
+    pub const fn new(path: PathBuf, why: DoubtWhy) -> Self {
+        Self { path, why }
+    }
+}
+
+/// A trace directory read without fail-open, in directory order (a survey
+/// never ranks journals): [`scan`]'s fold with every failure kept.
+#[derive(Debug, Clone, Default)]
+#[non_exhaustive]
+pub struct Survey {
+    /// Every journal the reader folded (recovered prefixes included).
+    pub traces: Vec<TraceMeta>,
+    /// The `*.ndjson` entries that could not be folded at all.
+    pub skipped: Vec<Skipped>,
+    /// The folded journals whose facts may be incomplete.
+    pub doubts: Vec<Doubt>,
+    /// The directory's own read errors: opening it, then each failed step
+    /// of its listing.
+    pub dir_errors: Vec<std::io::ErrorKind>,
+}
+
+impl Survey {
+    /// An empty survey (INV-019) — what a listed, empty directory reads.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Nothing this reader could see is unaccounted: the directory listed
+    /// and every `*.ndjson` entry folded (a doubt is said, not missing).
+    #[must_use]
+    pub fn complete(&self) -> bool {
+        self.dir_errors.is_empty() && self.skipped.is_empty()
+    }
+}
+
 /// Scan a trace directory into retention facts, newest first.
 ///
-/// Fail-open per entry (ADR-100): an unreadable file · a non-`.ndjson`
-/// name · a parse failure on the FIRST line — each skips that entry and
-/// continues. A missing directory scans empty. Never an error.
+/// The fail-open projection of [`survey`] (ADR-100): an unreadable file ·
+/// a non-`.ndjson` name · a parse failure on the FIRST line — each skips
+/// that entry; a torn journal keeps its recovered-prefix facts; a missing
+/// directory scans empty. Never an error.
 #[must_use]
 pub fn scan(dir: &Path) -> Vec<TraceMeta> {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return Vec::new();
-    };
-    let mut traces: Vec<TraceMeta> = entries
-        .flatten()
-        .filter_map(|entry| read_meta(&entry.path()))
-        .collect();
+    let mut traces = survey(dir).traces;
     // Newest first · name tie-break — one deterministic order for every
     // consumer (ls renders it · the policy derives its own sorts).
     traces.sort_by(|a, b| b.modified.cmp(&a.modified).then(a.name.cmp(&b.name)));
     traces
 }
 
-/// Fold ONE file into its retention facts — `None` skips it (fail-open).
-fn read_meta(path: &Path) -> Option<TraceMeta> {
-    if path.extension().and_then(|e| e.to_str()) != Some("ndjson") {
-        return None;
+/// Survey a trace directory: every `*.ndjson` entry folded through the ONE
+/// reader or said why not, every listing error kept. One pass, no retry.
+#[must_use]
+pub fn survey(dir: &Path) -> Survey {
+    match std::fs::read_dir(dir) {
+        Ok(entries) => survey_entries(entries.map(|entry| entry.map(|e| e.path()))),
+        Err(error) => Survey {
+            dir_errors: vec![error.kind()],
+            ..Survey::default()
+        },
     }
-    let name = path.file_name()?.to_str()?.to_owned();
-    let meta = std::fs::metadata(path).ok()?;
+}
+
+/// The per-entry fold behind [`survey`] (its listing-error seam).
+fn survey_entries(entries: impl Iterator<Item = std::io::Result<PathBuf>>) -> Survey {
+    let mut survey = Survey::default();
+    for entry in entries {
+        let path = match entry {
+            Ok(path) => path,
+            Err(error) => {
+                survey.dir_errors.push(error.kind());
+                continue;
+            }
+        };
+        if path.extension().is_none_or(|ext| ext != "ndjson") {
+            continue;
+        }
+        match read_meta(&path) {
+            Ok((meta, doubts)) => {
+                let doubts = doubts.into_iter().map(|why| Doubt::new(path.clone(), why));
+                survey.doubts.extend(doubts);
+                survey.traces.push(meta);
+            }
+            Err(why) => survey.skipped.push(Skipped::new(path, why)),
+        }
+    }
+    survey
+}
+
+/// Fold ONE `*.ndjson` entry into its retention facts and its doubts, or
+/// say why it cannot be folded.
+fn read_meta(path: &Path) -> Result<(TraceMeta, Vec<DoubtWhy>), SkipWhy> {
+    let unreadable = |error: std::io::Error| SkipWhy::Unreadable(error.kind());
+    let name = path.file_name().and_then(|n| n.to_str());
+    let name = name.ok_or(SkipWhy::NameNotUtf8)?.to_owned();
+    let meta = std::fs::metadata(path).map_err(unreadable)?;
     if !meta.is_file() {
-        return None;
+        return Err(SkipWhy::NotAFile);
     }
-    let modified = meta.modified().ok()?;
-    let raw = std::fs::read_to_string(path).ok()?;
+    let modified = meta.modified().map_err(unreadable)?;
+    let raw = std::fs::read_to_string(path).map_err(unreadable)?;
     // The ONE tolerant reader (`--resume` · `trace show` · here): a torn
-    // tail keeps its valid prefix; a file with no readable first line is
-    // not a trace we can reason about — skipped, never collected.
-    let recovered = recover_events(&raw, &name).ok()?;
+    // tail keeps its valid prefix (and its note becomes a doubt); a file
+    // with no readable first line is not a trace we can reason about.
+    let recovered =
+        recover_events(&raw, &name).map_err(|error| SkipWhy::NoOpening(error.to_string()))?;
     let (workflow, state, paused_task) = fold_facts(&recovered.events);
-    // #1462 · the continuation link the opening frame carries (a resumed
-    // leg names the trace it continued; a fresh run names none).
-    let resumed_from = recovered
+    // #1462 · the continuation link and the identity the opening frame
+    // carries (a resumed leg names the trace it continued).
+    let started = recovered
         .events
         .iter()
-        .find(|e| e.kind == EventKind::WorkflowStarted)
-        .and_then(|e| str_field(e, "resumed_from"))
-        .map(str::to_owned);
+        .find(|e| e.kind == EventKind::WorkflowStarted);
+    let field = |key: &str| started.and_then(|e| str_field(e, key)).map(str::to_owned);
+    let run_id = crate::resume::trace_run_id(&recovered.events);
+    let doubts = doubts(&recovered, started.is_some(), run_id.is_some());
     let mut facts = TraceMeta::new(
         path.to_path_buf(),
         name,
@@ -221,12 +380,37 @@ fn read_meta(path: &Path) -> Option<TraceMeta> {
         meta.len(),
         modified,
     )
-    .with_resumed_from(resumed_from);
+    .with_resumed_from(field("resumed_from"))
+    .with_identity(run_id, field("project_root_fingerprint"));
     // A running trace asks its lease (ADR-129): alive · dead · unknown.
     if state == TraceState::Running {
         facts = facts.with_liveness(crate::liveness::probe(path));
     }
-    Some(facts)
+    Ok((facts, doubts))
+}
+
+/// What a recovered journal cannot vouch for: a torn suffix, a missing
+/// opening frame or run identity, more than one execution id.
+fn doubts(recovered: &RecoveredTrace, opened: bool, identified: bool) -> Vec<DoubtWhy> {
+    let mut doubts: Vec<DoubtWhy> = recovered
+        .truncated_note
+        .clone()
+        .into_iter()
+        .map(DoubtWhy::TornSuffix)
+        .collect();
+    if !opened {
+        doubts.push(DoubtWhy::NoOpeningFrame);
+    } else if !identified {
+        doubts.push(DoubtWhy::NoRunIdentity);
+    }
+    let mut executions = recovered.events.iter().filter_map(|e| e.execution);
+    if executions
+        .next()
+        .is_some_and(|first| executions.any(|other| other != first))
+    {
+        doubts.push(DoubtWhy::ConflictingIdentity);
+    }
+    doubts
 }
 
 /// Fold recovered events into (workflow name · terminal state · the
@@ -441,6 +625,9 @@ mod locate_tests {
         );
     }
 }
+
+#[cfg(test)]
+mod survey_tests;
 
 #[cfg(test)]
 pub(crate) mod tests {

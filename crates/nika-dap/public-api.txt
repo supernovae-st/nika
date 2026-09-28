@@ -4491,6 +4491,108 @@ pub const nika_dap::stats::BANDS_MIN_N: usize
 pub fn nika_dap::stats::conformal_upper(sorted: &[f64], num: u32, den: u32) -> core::option::Option<nika_dap::stats::ConformalUpper>
 pub fn nika_dap::stats::quantile_h7(sorted: &[f64], q: f64) -> core::option::Option<f64>
 pub mod nika_dap::store
+#[non_exhaustive] pub enum nika_dap::store::DoubtWhy
+pub nika_dap::store::DoubtWhy::ConflictingIdentity
+pub nika_dap::store::DoubtWhy::NoOpeningFrame
+pub nika_dap::store::DoubtWhy::NoRunIdentity
+pub nika_dap::store::DoubtWhy::TornSuffix(alloc::string::String)
+impl core::clone::Clone for nika_dap::store::DoubtWhy
+pub fn nika_dap::store::DoubtWhy::clone(&self) -> nika_dap::store::DoubtWhy
+impl core::cmp::Eq for nika_dap::store::DoubtWhy
+impl core::cmp::PartialEq for nika_dap::store::DoubtWhy
+pub fn nika_dap::store::DoubtWhy::eq(&self, other: &nika_dap::store::DoubtWhy) -> bool
+impl core::fmt::Debug for nika_dap::store::DoubtWhy
+pub fn nika_dap::store::DoubtWhy::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_dap::store::DoubtWhy
+impl<D> owo_colors::OwoColorize for nika_dap::store::DoubtWhy
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::store::DoubtWhy where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::store::DoubtWhy::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::store::DoubtWhy where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::store::DoubtWhy::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::store::DoubtWhy where U: core::convert::From<T>
+pub fn nika_dap::store::DoubtWhy::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::store::DoubtWhy where U: core::convert::Into<T>
+pub type nika_dap::store::DoubtWhy::Error = core::convert::Infallible
+pub fn nika_dap::store::DoubtWhy::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::store::DoubtWhy where U: core::convert::TryFrom<T>
+pub type nika_dap::store::DoubtWhy::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::store::DoubtWhy::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::store::DoubtWhy where T: core::clone::Clone
+pub type nika_dap::store::DoubtWhy::Owned = T
+pub fn nika_dap::store::DoubtWhy::clone_into(&self, target: &mut T)
+pub fn nika_dap::store::DoubtWhy::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::store::DoubtWhy where T: 'static + ?core::marker::Sized
+pub fn nika_dap::store::DoubtWhy::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::store::DoubtWhy where T: ?core::marker::Sized
+pub fn nika_dap::store::DoubtWhy::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::store::DoubtWhy where T: ?core::marker::Sized
+pub fn nika_dap::store::DoubtWhy::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::store::DoubtWhy where T: core::clone::Clone
+pub unsafe fn nika_dap::store::DoubtWhy::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::store::DoubtWhy
+pub fn nika_dap::store::DoubtWhy::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::store::DoubtWhy where T: core::clone::Clone
+pub fn nika_dap::store::DoubtWhy::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::store::DoubtWhy where T: 'static
+pub fn nika_dap::store::DoubtWhy::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::store::DoubtWhy where T: ?core::marker::Sized
+pub fn nika_dap::store::DoubtWhy::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::store::DoubtWhy::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::store::DoubtWhy
+impl<T> tracing::instrument::WithSubscriber for nika_dap::store::DoubtWhy
+impl<T> typenum::type_operators::Same for nika_dap::store::DoubtWhy
+pub type nika_dap::store::DoubtWhy::Output = T
+#[non_exhaustive] pub enum nika_dap::store::SkipWhy
+pub nika_dap::store::SkipWhy::NameNotUtf8
+pub nika_dap::store::SkipWhy::NoOpening(alloc::string::String)
+pub nika_dap::store::SkipWhy::NotAFile
+pub nika_dap::store::SkipWhy::Unreadable(core::io::error::ErrorKind)
+impl core::clone::Clone for nika_dap::store::SkipWhy
+pub fn nika_dap::store::SkipWhy::clone(&self) -> nika_dap::store::SkipWhy
+impl core::cmp::Eq for nika_dap::store::SkipWhy
+impl core::cmp::PartialEq for nika_dap::store::SkipWhy
+pub fn nika_dap::store::SkipWhy::eq(&self, other: &nika_dap::store::SkipWhy) -> bool
+impl core::fmt::Debug for nika_dap::store::SkipWhy
+pub fn nika_dap::store::SkipWhy::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_dap::store::SkipWhy
+impl<D> owo_colors::OwoColorize for nika_dap::store::SkipWhy
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::store::SkipWhy where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::store::SkipWhy::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::store::SkipWhy where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::store::SkipWhy::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::store::SkipWhy where U: core::convert::From<T>
+pub fn nika_dap::store::SkipWhy::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::store::SkipWhy where U: core::convert::Into<T>
+pub type nika_dap::store::SkipWhy::Error = core::convert::Infallible
+pub fn nika_dap::store::SkipWhy::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::store::SkipWhy where U: core::convert::TryFrom<T>
+pub type nika_dap::store::SkipWhy::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::store::SkipWhy::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::store::SkipWhy where T: core::clone::Clone
+pub type nika_dap::store::SkipWhy::Owned = T
+pub fn nika_dap::store::SkipWhy::clone_into(&self, target: &mut T)
+pub fn nika_dap::store::SkipWhy::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::store::SkipWhy where T: 'static + ?core::marker::Sized
+pub fn nika_dap::store::SkipWhy::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::store::SkipWhy where T: ?core::marker::Sized
+pub fn nika_dap::store::SkipWhy::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::store::SkipWhy where T: ?core::marker::Sized
+pub fn nika_dap::store::SkipWhy::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::store::SkipWhy where T: core::clone::Clone
+pub unsafe fn nika_dap::store::SkipWhy::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::store::SkipWhy
+pub fn nika_dap::store::SkipWhy::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::store::SkipWhy where T: core::clone::Clone
+pub fn nika_dap::store::SkipWhy::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::store::SkipWhy where T: 'static
+pub fn nika_dap::store::SkipWhy::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::store::SkipWhy where T: ?core::marker::Sized
+pub fn nika_dap::store::SkipWhy::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::store::SkipWhy::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::store::SkipWhy
+impl<T> tracing::instrument::WithSubscriber for nika_dap::store::SkipWhy
+impl<T> typenum::type_operators::Same for nika_dap::store::SkipWhy
+pub type nika_dap::store::SkipWhy::Output = T
 #[non_exhaustive] pub enum nika_dap::store::TraceState
 pub nika_dap::store::TraceState::Cancelled
 pub nika_dap::store::TraceState::Failed
@@ -4549,6 +4651,159 @@ impl<T> tracing::instrument::Instrument for nika_dap::store::TraceState
 impl<T> tracing::instrument::WithSubscriber for nika_dap::store::TraceState
 impl<T> typenum::type_operators::Same for nika_dap::store::TraceState
 pub type nika_dap::store::TraceState::Output = T
+#[non_exhaustive] pub struct nika_dap::store::Doubt
+pub nika_dap::store::Doubt::path: std::path::PathBuf
+pub nika_dap::store::Doubt::why: nika_dap::store::DoubtWhy
+impl nika_dap::store::Doubt
+pub const fn nika_dap::store::Doubt::new(path: std::path::PathBuf, why: nika_dap::store::DoubtWhy) -> Self
+impl core::clone::Clone for nika_dap::store::Doubt
+pub fn nika_dap::store::Doubt::clone(&self) -> nika_dap::store::Doubt
+impl core::cmp::Eq for nika_dap::store::Doubt
+impl core::cmp::PartialEq for nika_dap::store::Doubt
+pub fn nika_dap::store::Doubt::eq(&self, other: &nika_dap::store::Doubt) -> bool
+impl core::fmt::Debug for nika_dap::store::Doubt
+pub fn nika_dap::store::Doubt::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_dap::store::Doubt
+impl<D> owo_colors::OwoColorize for nika_dap::store::Doubt
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::store::Doubt where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::store::Doubt::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::store::Doubt where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::store::Doubt::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::store::Doubt where U: core::convert::From<T>
+pub fn nika_dap::store::Doubt::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::store::Doubt where U: core::convert::Into<T>
+pub type nika_dap::store::Doubt::Error = core::convert::Infallible
+pub fn nika_dap::store::Doubt::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::store::Doubt where U: core::convert::TryFrom<T>
+pub type nika_dap::store::Doubt::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::store::Doubt::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::store::Doubt where T: core::clone::Clone
+pub type nika_dap::store::Doubt::Owned = T
+pub fn nika_dap::store::Doubt::clone_into(&self, target: &mut T)
+pub fn nika_dap::store::Doubt::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::store::Doubt where T: 'static + ?core::marker::Sized
+pub fn nika_dap::store::Doubt::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::store::Doubt where T: ?core::marker::Sized
+pub fn nika_dap::store::Doubt::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::store::Doubt where T: ?core::marker::Sized
+pub fn nika_dap::store::Doubt::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::store::Doubt where T: core::clone::Clone
+pub unsafe fn nika_dap::store::Doubt::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::store::Doubt
+pub fn nika_dap::store::Doubt::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::store::Doubt where T: core::clone::Clone
+pub fn nika_dap::store::Doubt::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::store::Doubt where T: 'static
+pub fn nika_dap::store::Doubt::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::store::Doubt where T: ?core::marker::Sized
+pub fn nika_dap::store::Doubt::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::store::Doubt::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::store::Doubt
+impl<T> tracing::instrument::WithSubscriber for nika_dap::store::Doubt
+impl<T> typenum::type_operators::Same for nika_dap::store::Doubt
+pub type nika_dap::store::Doubt::Output = T
+#[non_exhaustive] pub struct nika_dap::store::Skipped
+pub nika_dap::store::Skipped::path: std::path::PathBuf
+pub nika_dap::store::Skipped::why: nika_dap::store::SkipWhy
+impl nika_dap::store::Skipped
+pub const fn nika_dap::store::Skipped::new(path: std::path::PathBuf, why: nika_dap::store::SkipWhy) -> Self
+impl core::clone::Clone for nika_dap::store::Skipped
+pub fn nika_dap::store::Skipped::clone(&self) -> nika_dap::store::Skipped
+impl core::cmp::Eq for nika_dap::store::Skipped
+impl core::cmp::PartialEq for nika_dap::store::Skipped
+pub fn nika_dap::store::Skipped::eq(&self, other: &nika_dap::store::Skipped) -> bool
+impl core::fmt::Debug for nika_dap::store::Skipped
+pub fn nika_dap::store::Skipped::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_dap::store::Skipped
+impl<D> owo_colors::OwoColorize for nika_dap::store::Skipped
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::store::Skipped where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::store::Skipped::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::store::Skipped where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::store::Skipped::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::store::Skipped where U: core::convert::From<T>
+pub fn nika_dap::store::Skipped::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::store::Skipped where U: core::convert::Into<T>
+pub type nika_dap::store::Skipped::Error = core::convert::Infallible
+pub fn nika_dap::store::Skipped::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::store::Skipped where U: core::convert::TryFrom<T>
+pub type nika_dap::store::Skipped::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::store::Skipped::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::store::Skipped where T: core::clone::Clone
+pub type nika_dap::store::Skipped::Owned = T
+pub fn nika_dap::store::Skipped::clone_into(&self, target: &mut T)
+pub fn nika_dap::store::Skipped::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::store::Skipped where T: 'static + ?core::marker::Sized
+pub fn nika_dap::store::Skipped::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::store::Skipped where T: ?core::marker::Sized
+pub fn nika_dap::store::Skipped::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::store::Skipped where T: ?core::marker::Sized
+pub fn nika_dap::store::Skipped::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::store::Skipped where T: core::clone::Clone
+pub unsafe fn nika_dap::store::Skipped::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::store::Skipped
+pub fn nika_dap::store::Skipped::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::store::Skipped where T: core::clone::Clone
+pub fn nika_dap::store::Skipped::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::store::Skipped where T: 'static
+pub fn nika_dap::store::Skipped::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::store::Skipped where T: ?core::marker::Sized
+pub fn nika_dap::store::Skipped::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::store::Skipped::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::store::Skipped
+impl<T> tracing::instrument::WithSubscriber for nika_dap::store::Skipped
+impl<T> typenum::type_operators::Same for nika_dap::store::Skipped
+pub type nika_dap::store::Skipped::Output = T
+#[non_exhaustive] pub struct nika_dap::store::Survey
+pub nika_dap::store::Survey::dir_errors: alloc::vec::Vec<core::io::error::ErrorKind>
+pub nika_dap::store::Survey::doubts: alloc::vec::Vec<nika_dap::store::Doubt>
+pub nika_dap::store::Survey::skipped: alloc::vec::Vec<nika_dap::store::Skipped>
+pub nika_dap::store::Survey::traces: alloc::vec::Vec<nika_dap::store::TraceMeta>
+impl nika_dap::store::Survey
+pub fn nika_dap::store::Survey::complete(&self) -> bool
+pub fn nika_dap::store::Survey::new() -> Self
+impl core::clone::Clone for nika_dap::store::Survey
+pub fn nika_dap::store::Survey::clone(&self) -> nika_dap::store::Survey
+impl core::default::Default for nika_dap::store::Survey
+pub fn nika_dap::store::Survey::default() -> nika_dap::store::Survey
+impl core::fmt::Debug for nika_dap::store::Survey
+pub fn nika_dap::store::Survey::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_dap::store::Survey
+impl<T, U> core::convert::Into<U> for nika_dap::store::Survey where U: core::convert::From<T>
+pub fn nika_dap::store::Survey::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::store::Survey where U: core::convert::Into<T>
+pub type nika_dap::store::Survey::Error = core::convert::Infallible
+pub fn nika_dap::store::Survey::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::store::Survey where U: core::convert::TryFrom<T>
+pub type nika_dap::store::Survey::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::store::Survey::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::store::Survey where T: core::clone::Clone
+pub type nika_dap::store::Survey::Owned = T
+pub fn nika_dap::store::Survey::clone_into(&self, target: &mut T)
+pub fn nika_dap::store::Survey::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::store::Survey where T: 'static + ?core::marker::Sized
+pub fn nika_dap::store::Survey::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::store::Survey where T: ?core::marker::Sized
+pub fn nika_dap::store::Survey::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::store::Survey where T: ?core::marker::Sized
+pub fn nika_dap::store::Survey::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::store::Survey where T: core::clone::Clone
+pub unsafe fn nika_dap::store::Survey::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::store::Survey
+pub fn nika_dap::store::Survey::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::store::Survey where T: core::clone::Clone
+pub fn nika_dap::store::Survey::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::store::Survey where T: 'static
+pub fn nika_dap::store::Survey::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::store::Survey where T: ?core::marker::Sized
+pub fn nika_dap::store::Survey::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::store::Survey::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::store::Survey
+impl<T> tracing::instrument::WithSubscriber for nika_dap::store::Survey
+impl<T> typenum::type_operators::Same for nika_dap::store::Survey
+pub type nika_dap::store::Survey::Output = T
+impl<T> zvariant::optional::NoneValue for nika_dap::store::Survey where T: core::default::Default
+pub type nika_dap::store::Survey::NoneType = T
+pub fn nika_dap::store::Survey::null_value() -> T
 #[non_exhaustive] pub struct nika_dap::store::TraceMeta
 pub nika_dap::store::TraceMeta::bytes: u64
 pub nika_dap::store::TraceMeta::liveness: core::option::Option<nika_dap::liveness::Liveness>
@@ -4556,12 +4811,15 @@ pub nika_dap::store::TraceMeta::modified: std::time::SystemTime
 pub nika_dap::store::TraceMeta::name: alloc::string::String
 pub nika_dap::store::TraceMeta::path: std::path::PathBuf
 pub nika_dap::store::TraceMeta::paused_task: core::option::Option<alloc::string::String>
+pub nika_dap::store::TraceMeta::project: core::option::Option<alloc::string::String>
 pub nika_dap::store::TraceMeta::resumed_from: core::option::Option<alloc::string::String>
+pub nika_dap::store::TraceMeta::run_id: core::option::Option<alloc::string::String>
 pub nika_dap::store::TraceMeta::state: nika_dap::store::TraceState
 pub nika_dap::store::TraceMeta::workflow: alloc::string::String
 impl nika_dap::store::TraceMeta
 pub fn nika_dap::store::TraceMeta::new(path: std::path::PathBuf, name: alloc::string::String, workflow: alloc::string::String, state: nika_dap::store::TraceState, paused_task: core::option::Option<alloc::string::String>, bytes: u64, modified: std::time::SystemTime) -> Self
 pub const fn nika_dap::store::TraceMeta::state_word(&self) -> &'static str
+pub fn nika_dap::store::TraceMeta::with_identity(self, run_id: core::option::Option<alloc::string::String>, project: core::option::Option<alloc::string::String>) -> Self
 pub const fn nika_dap::store::TraceMeta::with_liveness(self, liveness: nika_dap::liveness::Liveness) -> Self
 pub fn nika_dap::store::TraceMeta::with_resumed_from(self, resumed_from: core::option::Option<alloc::string::String>) -> Self
 impl core::clone::Clone for nika_dap::store::TraceMeta
@@ -4611,5 +4869,6 @@ pub fn nika_dap::store::parse_older_than(raw: &str) -> core::result::Result<core
 pub fn nika_dap::store::resolve_handle(dir: &std::path::Path, handle: &str) -> core::option::Option<std::path::PathBuf>
 pub fn nika_dap::store::scan(dir: &std::path::Path) -> alloc::vec::Vec<nika_dap::store::TraceMeta>
 pub fn nika_dap::store::scan_foreign(path: &std::path::Path) -> core::option::Option<nika_dap::store::TraceMeta>
+pub fn nika_dap::store::survey(dir: &std::path::Path) -> nika_dap::store::Survey
 pub fn nika_dap::escape_tty(s: &str) -> alloc::string::String
 pub fn nika_dap::run_stdio() -> u8

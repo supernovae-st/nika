@@ -62,7 +62,7 @@ pub mod chain      { CHAIN_GENESIS · Verdict · walk }
 pub mod stats      { Prior (#[non_exhaustive]) · BANDS_MIN_N · quantile_h7 · ConformalUpper · conformal_upper }
 pub mod otel       { project (journal + chain Verdict → one OTLP/JSON line) }
 pub mod reproduce  { Verdict · Row · Report · compare · workflow_of }
-pub mod store      { TRACE_DIR · TraceState · TraceMeta · scan · fold_facts · locate_trace }
+pub mod store      { TRACE_DIR · TraceState · TraceMeta (· with_identity) · scan · survey · Survey · Skipped · SkipWhy · Doubt · DoubtWhy · fold_facts · locate_trace }
 pub mod retention  { RetentionConfig · Reason · GcReport · plan · newest_per_workflow · collect }
 pub mod journal    { TraceFileSink (· settle_sealed · interrupt) · JsonSink · Tee · seal_journal }   // the WRITE half (descended 2026-07-22)
 pub mod resume     { ResumeRequest · PlanFold · fold_plan · apply_from · parse_answers · summary_line }   // ADR-099 (descended 2026-07-22)
@@ -315,6 +315,49 @@ the fold against a real parsed workflow and typed settlements.
 `seal::workflow_hash(workflow)` (descent M) is the hash such a run's seal is
 taken under, the per-task Merkle root of the admitted workflow (the CLI's
 `seal_hash`).
+
+## 8. The non-suppressing survey (C7c, 2026-09-28)
+
+`store::survey(dir)` is the store fold without fail-open. It is for readers
+that must not mistake silence for absence. It keeps:
+
+- every journal the ONE reader folds (`traces`, recovered prefixes included);
+- every `*.ndjson` entry it cannot fold (`skipped`, with a `SkipWhy`):
+  unreadable (the I/O kind), not a file, a name that is not UTF-8, or the
+  reader's own refusal (`NoOpening`, in its words);
+- every doubt about a folded journal (`doubts`, with a `DoubtWhy`):
+  - a torn suffix (the reader's `truncated_note`, which the historical fold
+    dropped: every later frame, a terminal among them, may be lost);
+  - no `workflow_started` frame;
+  - an opening frame that names no execution;
+  - frames that carry more than one execution id;
+- the directory's own read errors, its opening and each failed step of its
+  listing (`dir_errors`).
+
+A valid `run_settled` envelope is not a doubt: the reader skips it by its
+own rule. `TraceMeta` gains the journal's identity facts, `run_id` (the
+`resume::trace_run_id` a continuation names as its `resumed_from`) and
+`project` (the opening frame's `project_root_fingerprint`), attached with
+`with_identity`.
+
+`scan` becomes the survey's fail-open projection: the same entries, the
+same facts and the same order as before. A torn journal keeps its
+recovered-prefix facts in `scan`; the survey adds the doubt beside it.
+There is still one reader and no second parser.
+
+A survey is syntactic. It verifies no chain, seal or signature, and it
+cannot see a journal that retention or `trace rm` removed, one not yet
+written, or one written after it read the directory.
+
+Placement:
+
+- DAP owns journal reading and recovery, the identity facts and the survey:
+  the compute.
+- The lineage VIEW, which journals continued a paused run, is a read-only
+  fold over the survey. It lives in `nika-trace` (`nika_trace::lineage`),
+  beside `run_view`, for the session and trace readers. It is not runtime
+  admission, cryptographic verification or continuation authority.
+- The approval claim's scope is unchanged (`nika-runtime` · `approval`).
 
 ## 4. Gates at admission (2026-07-09)
 

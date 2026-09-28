@@ -656,6 +656,182 @@ impl<T> typenum::type_operators::Same for nika_trace::forecast::WorkflowIdentity
 pub type nika_trace::forecast::WorkflowIdentity::Output = T
 pub const nika_trace::forecast::AUTO_FORECAST_MIN_RUNS: usize
 pub fn nika_trace::forecast::compute(id: &nika_trace::forecast::WorkflowIdentity, gathered: &nika_trace::forecast::gather::Gathered) -> nika_trace::forecast::ForecastReport
+pub mod nika_trace::lineage
+#[non_exhaustive] pub enum nika_trace::lineage::Head
+pub nika_trace::lineage::Head::Paused
+pub nika_trace::lineage::Head::Paused::task: core::option::Option<alloc::string::String>
+pub nika_trace::lineage::Head::Paused::trace: std::path::PathBuf
+pub nika_trace::lineage::Head::Running(core::option::Option<nika_dap::liveness::Liveness>)
+pub nika_trace::lineage::Head::Settled(nika_dap::store::TraceState)
+impl core::clone::Clone for nika_trace::lineage::Head
+pub fn nika_trace::lineage::Head::clone(&self) -> nika_trace::lineage::Head
+impl core::cmp::Eq for nika_trace::lineage::Head
+impl core::cmp::PartialEq for nika_trace::lineage::Head
+pub fn nika_trace::lineage::Head::eq(&self, other: &nika_trace::lineage::Head) -> bool
+impl core::fmt::Debug for nika_trace::lineage::Head
+pub fn nika_trace::lineage::Head::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_trace::lineage::Head
+impl<D> owo_colors::OwoColorize for nika_trace::lineage::Head
+impl<Q, K> equivalent::Equivalent<K> for nika_trace::lineage::Head where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_trace::lineage::Head::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_trace::lineage::Head where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_trace::lineage::Head::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_trace::lineage::Head where U: core::convert::From<T>
+pub fn nika_trace::lineage::Head::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_trace::lineage::Head where U: core::convert::Into<T>
+pub type nika_trace::lineage::Head::Error = core::convert::Infallible
+pub fn nika_trace::lineage::Head::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_trace::lineage::Head where U: core::convert::TryFrom<T>
+pub type nika_trace::lineage::Head::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_trace::lineage::Head::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_trace::lineage::Head where T: core::clone::Clone
+pub type nika_trace::lineage::Head::Owned = T
+pub fn nika_trace::lineage::Head::clone_into(&self, target: &mut T)
+pub fn nika_trace::lineage::Head::to_owned(&self) -> T
+impl<T> core::any::Any for nika_trace::lineage::Head where T: 'static + ?core::marker::Sized
+pub fn nika_trace::lineage::Head::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_trace::lineage::Head where T: ?core::marker::Sized
+pub fn nika_trace::lineage::Head::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_trace::lineage::Head where T: ?core::marker::Sized
+pub fn nika_trace::lineage::Head::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_trace::lineage::Head where T: core::clone::Clone
+pub unsafe fn nika_trace::lineage::Head::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_trace::lineage::Head
+pub fn nika_trace::lineage::Head::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_trace::lineage::Head where T: core::clone::Clone
+pub fn nika_trace::lineage::Head::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_trace::lineage::Head where T: 'static
+pub fn nika_trace::lineage::Head::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_trace::lineage::Head where T: ?core::marker::Sized
+pub fn nika_trace::lineage::Head::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_trace::lineage::Head::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_trace::lineage::Head
+impl<T> tracing::instrument::WithSubscriber for nika_trace::lineage::Head
+impl<T> typenum::type_operators::Same for nika_trace::lineage::Head
+pub type nika_trace::lineage::Head::Output = T
+#[non_exhaustive] pub enum nika_trace::lineage::Lineage
+pub nika_trace::lineage::Lineage::Chain
+pub nika_trace::lineage::Lineage::Chain::head: nika_trace::lineage::Head
+pub nika_trace::lineage::Lineage::Chain::links: alloc::vec::Vec<std::path::PathBuf>
+pub nika_trace::lineage::Lineage::Indeterminate(alloc::vec::Vec<nika_trace::lineage::Undecided>)
+pub nika_trace::lineage::Lineage::NoneObserved
+impl core::clone::Clone for nika_trace::lineage::Lineage
+pub fn nika_trace::lineage::Lineage::clone(&self) -> nika_trace::lineage::Lineage
+impl core::cmp::Eq for nika_trace::lineage::Lineage
+impl core::cmp::PartialEq for nika_trace::lineage::Lineage
+pub fn nika_trace::lineage::Lineage::eq(&self, other: &nika_trace::lineage::Lineage) -> bool
+impl core::fmt::Debug for nika_trace::lineage::Lineage
+pub fn nika_trace::lineage::Lineage::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_trace::lineage::Lineage
+impl<D> owo_colors::OwoColorize for nika_trace::lineage::Lineage
+impl<Q, K> equivalent::Equivalent<K> for nika_trace::lineage::Lineage where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_trace::lineage::Lineage::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_trace::lineage::Lineage where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_trace::lineage::Lineage::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_trace::lineage::Lineage where U: core::convert::From<T>
+pub fn nika_trace::lineage::Lineage::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_trace::lineage::Lineage where U: core::convert::Into<T>
+pub type nika_trace::lineage::Lineage::Error = core::convert::Infallible
+pub fn nika_trace::lineage::Lineage::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_trace::lineage::Lineage where U: core::convert::TryFrom<T>
+pub type nika_trace::lineage::Lineage::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_trace::lineage::Lineage::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_trace::lineage::Lineage where T: core::clone::Clone
+pub type nika_trace::lineage::Lineage::Owned = T
+pub fn nika_trace::lineage::Lineage::clone_into(&self, target: &mut T)
+pub fn nika_trace::lineage::Lineage::to_owned(&self) -> T
+impl<T> core::any::Any for nika_trace::lineage::Lineage where T: 'static + ?core::marker::Sized
+pub fn nika_trace::lineage::Lineage::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_trace::lineage::Lineage where T: ?core::marker::Sized
+pub fn nika_trace::lineage::Lineage::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_trace::lineage::Lineage where T: ?core::marker::Sized
+pub fn nika_trace::lineage::Lineage::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_trace::lineage::Lineage where T: core::clone::Clone
+pub unsafe fn nika_trace::lineage::Lineage::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_trace::lineage::Lineage
+pub fn nika_trace::lineage::Lineage::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_trace::lineage::Lineage where T: core::clone::Clone
+pub fn nika_trace::lineage::Lineage::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_trace::lineage::Lineage where T: 'static
+pub fn nika_trace::lineage::Lineage::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_trace::lineage::Lineage where T: ?core::marker::Sized
+pub fn nika_trace::lineage::Lineage::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_trace::lineage::Lineage::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_trace::lineage::Lineage
+impl<T> tracing::instrument::WithSubscriber for nika_trace::lineage::Lineage
+impl<T> typenum::type_operators::Same for nika_trace::lineage::Lineage
+pub type nika_trace::lineage::Lineage::Output = T
+#[non_exhaustive] pub enum nika_trace::lineage::Undecided
+pub nika_trace::lineage::Undecided::Cycle
+pub nika_trace::lineage::Undecided::Cycle::run_id: alloc::string::String
+pub nika_trace::lineage::Undecided::Disagreement
+pub nika_trace::lineage::Undecided::Disagreement::field: &'static str
+pub nika_trace::lineage::Undecided::Disagreement::path: std::path::PathBuf
+pub nika_trace::lineage::Undecided::Doubtful
+pub nika_trace::lineage::Undecided::Doubtful::path: std::path::PathBuf
+pub nika_trace::lineage::Undecided::Doubtful::why: nika_dap::store::DoubtWhy
+pub nika_trace::lineage::Undecided::Duplicate
+pub nika_trace::lineage::Undecided::Duplicate::paths: alloc::vec::Vec<std::path::PathBuf>
+pub nika_trace::lineage::Undecided::Duplicate::run_id: alloc::string::String
+pub nika_trace::lineage::Undecided::Fork
+pub nika_trace::lineage::Undecided::Fork::run_id: alloc::string::String
+pub nika_trace::lineage::Undecided::Fork::successors: alloc::vec::Vec<(std::path::PathBuf, nika_dap::store::TraceState)>
+pub nika_trace::lineage::Undecided::NotPaused
+pub nika_trace::lineage::Undecided::NotPaused::state: nika_dap::store::TraceState
+pub nika_trace::lineage::Undecided::PausedUnidentified
+pub nika_trace::lineage::Undecided::TooLong
+pub nika_trace::lineage::Undecided::Unsurveyed
+pub nika_trace::lineage::Undecided::Unsurveyed::dir_errors: alloc::vec::Vec<core::io::error::ErrorKind>
+pub nika_trace::lineage::Undecided::Unsurveyed::skipped: alloc::vec::Vec<nika_dap::store::Skipped>
+impl core::clone::Clone for nika_trace::lineage::Undecided
+pub fn nika_trace::lineage::Undecided::clone(&self) -> nika_trace::lineage::Undecided
+impl core::cmp::Eq for nika_trace::lineage::Undecided
+impl core::cmp::PartialEq for nika_trace::lineage::Undecided
+pub fn nika_trace::lineage::Undecided::eq(&self, other: &nika_trace::lineage::Undecided) -> bool
+impl core::fmt::Debug for nika_trace::lineage::Undecided
+pub fn nika_trace::lineage::Undecided::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_trace::lineage::Undecided
+impl<D> owo_colors::OwoColorize for nika_trace::lineage::Undecided
+impl<Q, K> equivalent::Equivalent<K> for nika_trace::lineage::Undecided where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_trace::lineage::Undecided::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_trace::lineage::Undecided where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_trace::lineage::Undecided::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_trace::lineage::Undecided where U: core::convert::From<T>
+pub fn nika_trace::lineage::Undecided::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_trace::lineage::Undecided where U: core::convert::Into<T>
+pub type nika_trace::lineage::Undecided::Error = core::convert::Infallible
+pub fn nika_trace::lineage::Undecided::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_trace::lineage::Undecided where U: core::convert::TryFrom<T>
+pub type nika_trace::lineage::Undecided::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_trace::lineage::Undecided::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_trace::lineage::Undecided where T: core::clone::Clone
+pub type nika_trace::lineage::Undecided::Owned = T
+pub fn nika_trace::lineage::Undecided::clone_into(&self, target: &mut T)
+pub fn nika_trace::lineage::Undecided::to_owned(&self) -> T
+impl<T> core::any::Any for nika_trace::lineage::Undecided where T: 'static + ?core::marker::Sized
+pub fn nika_trace::lineage::Undecided::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_trace::lineage::Undecided where T: ?core::marker::Sized
+pub fn nika_trace::lineage::Undecided::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_trace::lineage::Undecided where T: ?core::marker::Sized
+pub fn nika_trace::lineage::Undecided::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_trace::lineage::Undecided where T: core::clone::Clone
+pub unsafe fn nika_trace::lineage::Undecided::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_trace::lineage::Undecided
+pub fn nika_trace::lineage::Undecided::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_trace::lineage::Undecided where T: core::clone::Clone
+pub fn nika_trace::lineage::Undecided::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_trace::lineage::Undecided where T: 'static
+pub fn nika_trace::lineage::Undecided::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_trace::lineage::Undecided where T: ?core::marker::Sized
+pub fn nika_trace::lineage::Undecided::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_trace::lineage::Undecided::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_trace::lineage::Undecided
+impl<T> tracing::instrument::WithSubscriber for nika_trace::lineage::Undecided
+impl<T> typenum::type_operators::Same for nika_trace::lineage::Undecided
+pub type nika_trace::lineage::Undecided::Output = T
+pub const nika_trace::lineage::MAX_LINKS: usize
+pub fn nika_trace::lineage::fold(survey: &nika_dap::store::Survey, paused: &std::path::Path) -> nika_trace::lineage::Lineage
+pub fn nika_trace::lineage::lineage_of(dir: &std::path::Path, paused: &std::path::Path) -> nika_trace::lineage::Lineage
 pub mod nika_trace::receipt
 pub enum nika_trace::receipt::ReceiptAction
 pub nika_trace::receipt::ReceiptAction::Explain
