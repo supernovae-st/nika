@@ -106,6 +106,57 @@ for (const f of process.argv.slice(1)) {
 rm -rf "$RECOVER_TMP"
 nika explain --color never NIKA-EXEC-001 >"$RAW/explain-exec-001.txt" 2>&1
 
+# ── editor-diagnostics ──────────────────────────────────────────────────
+# What the editor shows is what `nika lsp` publishes. The diagnostics are
+# captured for the broken fixture, for the same file once the `asses`
+# typo is fixed (one keystroke), and for the fixed fixture. Only the
+# diagnostics are kept: the session itself carries this machine's paths.
+LSP_TMP="$(mktemp -d)"
+sed 's/tasks\.asses\./tasks.assess./' "$FIX/broken-pr-review.nika" >"$LSP_TMP/typo-fixed.nika"
+node - "$FIX/broken-pr-review.nika" "$RAW/lsp-broken.json" \
+  "$LSP_TMP/typo-fixed.nika" "$RAW/lsp-typo-fixed.json" \
+  "$FIX/fixed-pr-review.nika" "$RAW/lsp-fixed.json" <<'NODE'
+const { spawn } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+function diagnose(file) {
+  return new Promise((resolve, reject) => {
+    const abs = path.resolve(file), uri = `file://${abs}`;
+    const lsp = spawn('nika', ['lsp'], { stdio: ['pipe', 'pipe', 'ignore'] });
+    const send = m => { const s = JSON.stringify(m); lsp.stdin.write(`Content-Length: ${Buffer.byteLength(s)}\r\n\r\n${s}`); };
+    const timer = setTimeout(() => { lsp.kill(); reject(new Error(`nika lsp published nothing for ${file}`)); }, 15000);
+    let buf = Buffer.alloc(0);
+    lsp.stdout.on('data', d => {
+      buf = Buffer.concat([buf, d]);
+      for (;;) {
+        const h = buf.indexOf('\r\n\r\n');
+        if (h < 0) return;
+        const len = Number(buf.slice(0, h).toString().match(/Content-Length: (\d+)/i)[1]);
+        if (buf.length < h + 4 + len) return;
+        const msg = JSON.parse(buf.slice(h + 4, h + 4 + len).toString());
+        buf = buf.slice(h + 4 + len);
+        if (msg.method === 'textDocument/publishDiagnostics' && msg.params.uri === uri) {
+          clearTimeout(timer);
+          send({ jsonrpc: '2.0', id: 2, method: 'shutdown' });
+          send({ jsonrpc: '2.0', method: 'exit' });
+          resolve(msg.params.diagnostics);
+        }
+      }
+    });
+    send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { processId: null, rootUri: `file://${path.dirname(abs)}`, capabilities: {} } });
+    send({ jsonrpc: '2.0', method: 'initialized', params: {} });
+    send({ jsonrpc: '2.0', method: 'textDocument/didOpen', params: { textDocument: { uri, languageId: 'nika', version: 1, text: fs.readFileSync(abs, 'utf8') } } });
+  });
+}
+(async () => {
+  const args = process.argv.slice(2);
+  for (let i = 0; i < args.length; i += 2) {
+    fs.writeFileSync(args[i + 1], `${JSON.stringify(await diagnose(args[i]), null, 1)}\n`);
+  }
+})().catch(e => { console.error(e.message); process.exit(1); });
+NODE
+rm -rf "$LSP_TMP"
+
 # ── bundle for the motion renderer ──────────────────────────────────────
 node - <<'NODE'
 const fs = require('fs');
