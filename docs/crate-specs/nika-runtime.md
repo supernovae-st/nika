@@ -537,6 +537,22 @@ observation as the JSON text field `inference_admission` on the terminal frame
 `scoped_to_declared_free`: its subtotal is never the whole Run's. A run killed
 before its terminal frame leaves no receipt; that lifecycle stays open.
 
+Task terminal frames write their per-dispatch evidence through the provider
+route-identity owner (E32). `inference_calls` is the JSON text of
+`nika_providers::durable_calls` over the task's call records. `pricing_route`,
+present when every call shares one pricing text, is
+`nika_providers::durable_pricing` of it; the field is omitted when that pricing
+is withheld whole, and the call elements say why. Neither holds an endpoint
+path, query or userinfo. The run ledger's attribution key for an inference call
+is `nika_providers::route_label`, `{provider}/{model} @ {origin}`, so the
+terminal `cost_by_source`, the settlement's `spend.by_source` and the
+`nika:inspect` cost view name origins. Routes of one origin sum under one key:
+the key is presentation, each call is still debited by its own known estimate,
+and the totals and counters are unchanged. The exact endpoints stay in memory
+for pricing and identity. `inference_admission` keeps the `@1` observation, and
+`workflow_started` carries no route-identity declaration, until the cost
+observation and the journal follow the law.
+
 `resolve_model_expr` (C4 · 2026-09-28; its body descended to
 `nika-check-analyzer`'s `rendered` module in B9, re-exported here at the same
 path) exports the run-start cap gate's own

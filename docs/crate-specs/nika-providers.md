@@ -342,7 +342,7 @@ named by the lane's model prefix, runs on the API access class: the lane whose
 key the executing process itself reads. A host keeps its own words for that
 credential custody (Serve says `HOST_SERVER_MEMORY`).
 
-## Route identity (owner primitives, E30)
+## Route identity (owner primitives E30, trace projection E32)
 
 `route_identity` is the one owner projection of a provider endpoint under the
 E29 route-identity law: a durable record or a network document names a route
@@ -364,23 +364,62 @@ splitting).
 - `route_label(route)`: `{provider}/{model} @ {origin}`, a display and
   aggregation key. Routes of one origin share it; accounting keeps each call's
   own record, and nothing admits, prices or consents by a label.
-- `durable_calls(calls)`: one JSON object per `InferenceCall` with
-  `requested_origin`, `route {provider, model, origin}`, the unchanged usage,
-  completeness, response model, request id and estimate, and `pricing` as the
-  parsed provenance with every `endpoint` projected to `origin`. Pricing text that
-  does not parse becomes `null`. Any other string still holding one of the call's
-  endpoint paths, queries or userinfos becomes `null`. The fields are an
-  allowlist: a new `InferenceCall` field stays out until this owner projects it.
+- `durable_calls(calls)`: one JSON object per `InferenceCall` with exactly
+  `requested_origin`, `route {provider, model, origin}`, `usage`,
+  `usage_complete`, `estimated_usd`, `estimate_known`, `request_id`,
+  `response_model`, `pricing` and `withheld`. `estimate_known` is
+  `known_estimate().is_some()`: the ledger's own verdict, a known call being
+  debited under its label and any other counted unpriced, never as zero. The
+  fields are an allowlist: a new `InferenceCall` field stays out until this owner
+  projects it.
+- `durable_pricing(pricing, calls)`: the durable object of one pricing
+  provenance text, or `null` when the text is not JSON or not one of the four
+  kinds a producer writes. The kinds are read from `kind` and `table_schema`:
+  - a catalog tariff or `unknown` observation (`nika/inference-admission@1.1`);
+  - a vendored snapshot estimate (`nika_catalog::PRICING_SCHEMA`);
+  - an operator-declared tariff.
 
-The primitives are additive and not yet wired. Admission, review, retry, wire,
-the cost journal, Runtime and Session keep their current projections, including
-`CostRoute::origin`, until the wiring slice replaces them. Exact in-memory
-identity is unchanged: pricing, route checks, consent and witnesses keep the
-full endpoint. `InferenceCall` and `InferenceRoute` keep their serde. The
-origin-only display follows the root decisions on the E29 tradeoffs: same-origin
-aggregation is presentation only (T1); an explicit HTTP default port differs from
-the effective-port display (T8). Legacy journal and inspection projection (T4,
-T7) is a separate, versioned proposal.
+  Each keeps its own keys as written, names its `route` by origin and carries
+  its own `withheld`.
+
+**Bounded schema.** Only named free text is judged: a declared tariff's
+`billing_provider`, `provenance` and `version`, and a call's `request_id` and
+`response_model`. Such a value becomes `null` with an `endpoint_material` entry
+when it holds endpoint material. Endpoint material is an endpoint's tail after
+its authority, as written or as parsed, or its userinfo. It counts in any form
+the E29 oracle scans: raw, with `/` written as `\`, percent-encoded byte by byte
+in either case, or `\u`-escaped. Everything else is copied as its producer wrote
+it and never read: money, meters, states, the selected provider and model, and
+catalog constants.
+
+Diagnostics stay closed. A key outside a kind's frozen set is dropped and
+counted at its parent (`unrecognized_key`). An unknown kind, or a route that is
+not an object, withholds the whole pricing object (`unrecognized_kind`), and
+unparsable text does too (`unreadable`). A `withheld` entry names a schema
+pointer only, never a key, a value or any input text.
+
+**What this claims.** The projected records hold no endpoint path, query,
+fragment or userinfo in the scanned forms, except inside values copied by
+design, whose content is their producer's. A lone path segment that is not the
+whole tail is not judged. This is not a claim that no other field of a trace, a
+journal or a document holds endpoint material.
+
+**Replay.** A projected call keeps its usage, its recorded rates or table pins
+and its estimate, so the numbers survive. Exact tariff applicability needs the
+endpoint; it is not re-verifiable from durable data
+(`applicability_not_reverifiable`). An origin never prices, admits or consents,
+and no repricer exists.
+
+The runtime's trace writers call `durable_calls`, `durable_pricing` and
+`route_label` (E32). Admission, review, retry, wire, the cost journal and
+Session keep their current projections, including `CostRoute::origin` and the
+`@1` cost observation, until later slices replace them. Exact in-memory identity
+is unchanged: pricing, route checks, consent and witnesses keep the full
+endpoint. `InferenceCall` and `InferenceRoute` keep their serde. The origin-only
+display follows the root decisions on the E29 tradeoffs: same-origin aggregation
+is presentation only (T1), and an explicit HTTP default port differs from the
+effective-port display (T8). Legacy journal and inspection projection (T4, T7)
+is a separate, versioned proposal.
 
 ## Opt-in local model listing
 

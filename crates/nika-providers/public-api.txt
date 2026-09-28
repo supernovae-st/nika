@@ -1921,6 +1921,7 @@ pub fn nika_providers::retry::ClockBackoff<C>::sleep(&self, duration: core::time
 pub mod nika_providers::route_identity
 pub fn nika_providers::route_identity::canonical_endpoint(endpoint: &str) -> bool
 pub fn nika_providers::route_identity::durable_calls(calls: &[nika_types::cost::inference::InferenceCall]) -> serde_json::value::Value
+pub fn nika_providers::route_identity::durable_pricing(pricing: &str, calls: &[nika_types::cost::inference::InferenceCall]) -> serde_json::value::Value
 pub fn nika_providers::route_identity::route_label(route: &nika_types::cost::inference::InferenceRoute) -> alloc::string::String
 pub fn nika_providers::route_identity::route_origin(endpoint: &str) -> core::option::Option<alloc::string::String>
 pub mod nika_providers::spend
@@ -2976,6 +2977,7 @@ pub fn nika_providers::catalog_warning(model: &str) -> core::option::Option<allo
 pub fn nika_providers::classify_http_status(status: u16) -> nika_providers::probe::KeyAuth
 pub fn nika_providers::classify_key_value(prefixes: &[&str], value: &str) -> nika_providers::probe::KeyAuth
 pub fn nika_providers::durable_calls(calls: &[nika_types::cost::inference::InferenceCall]) -> serde_json::value::Value
+pub fn nika_providers::durable_pricing(pricing: &str, calls: &[nika_types::cost::inference::InferenceCall]) -> serde_json::value::Value
 pub fn nika_providers::first_ready_harness(probes: &[nika_providers::probe::ProviderProbe]) -> core::option::Option<&str>
 pub fn nika_providers::provider_of(model: &str) -> &str
 pub fn nika_providers::refuse_pin<'m>(models: impl core::iter::traits::collect::IntoIterator<Item = &'m str>, probes: &[nika_providers::probe::ProviderProbe], pin: &str) -> core::option::Option<nika_providers::resolve_access::PinRefusal>

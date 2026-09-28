@@ -295,8 +295,8 @@ pub struct Spend {
     /// settlement says WHICH prices billed this run).
     #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub pricing_as_of: Option<String>,
-    /// Spend per attribution key (`provider/model` · tool id), micro-USD
-    /// rounded.
+    /// Spend per attribution key (an inference route's `provider/model @
+    /// origin` label · a tool id), micro-USD rounded.
     #[cfg_attr(
         feature = "serde",
         serde(skip_serializing_if = "BTreeMap::is_empty", default)
