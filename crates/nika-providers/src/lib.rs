@@ -81,4 +81,6 @@ pub use resolve_access::{
     first_ready_harness, provider_of, refuse_pin, refuse_pin_for_verbs, resolve_access,
 };
 pub use retry::{Backoff, ClockBackoff, MAX_RETRIES, MAX_RETRY_AFTER, TransportReport};
-pub use route_identity::{canonical_endpoint, durable_calls, route_label, route_origin};
+pub use route_identity::{
+    canonical_endpoint, durable_calls, durable_pricing, route_label, route_origin,
+};
