@@ -186,8 +186,10 @@ npm run readability -- --clip dag-execution    # reading time, pushed-in text in
 ```
 
 A change to shared code (`clips/kit.mjs`, `src/clip.mjs`, `src/engine/`)
-changes the clips drawn with it: re-render them in the same change.
-`validate-media.sh` compares each clip's GIF with its own clip file.
+changes the clips drawn with it: re-render them in the same change. Each
+render records the clip file it was drawn from (its sha256, in
+`media/clip-sources.json`), and `validate-media.sh` fails any clip whose
+file has changed since.
 
 ## Verification
 

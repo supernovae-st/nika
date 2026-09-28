@@ -92,6 +92,8 @@ media/
   raw/       *.txt + *.json    — captured CLI and language-server output
                                (the source of truth)
   nika-hero.gif                — the nika-hero clip at the path other repos hotlink
+  clip-sources.json            — the clip file each clip's media were rendered
+                               from (sha256, written by the renderer)
 ```
 
 ## Regenerate

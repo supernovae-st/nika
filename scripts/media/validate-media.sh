@@ -5,6 +5,8 @@
 #    exactly as the asset claims.
 # 2. Every required export exists.
 # 3. README GIFs stay under the 8 MB budget; posters under 1 MB.
+# 4. No export predates what it is drawn from: an HTML scene's GIF by commit
+#    time, a clip's media by the source recorded in media/clip-sources.json.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -92,6 +94,7 @@ required=(
   media/videos/nika-hero.webm
   media/posters/nika-hero.png
   media/nika-hero.gif
+  media/clip-sources.json
   media/gifs/workflow-gallery.optimized.gif
   media/videos/workflow-gallery.mp4
   media/videos/workflow-gallery.webm
@@ -151,6 +154,8 @@ fi
 # the WHOLE text, every markup class: the editor scene draws its code in
 # `.buf`, not `.yaml`, and a class-scoped scan let it lie for weeks.
 if python3 - <<'PY'; then
+import hashlib
+import json
 import pathlib
 import re
 import subprocess
@@ -265,20 +270,19 @@ for p in sorted(pathlib.Path("scripts/media/motion").glob("*.html")):
     if gif_t is not None and gif_t < scene_t:
         print(f" x {gif.name}: older than its scene {p.name} — re-render owed")
         bad = 1
-# A clip (motion/intent-to-proof/clips/<name>.mjs) renders the GIF of the
-# same name: the GIF must not predate its clip. Code the clips share (the
-# kit, the engine) changes renders too; whoever changes it re-renders the
-# clips it touches, since a byte-identical re-render records no commit.
+# A clip (motion/intent-to-proof/clips/<name>.mjs) renders the media of the
+# same name, and the renderer records the sha256 of the clip file it drew
+# them from in media/clip-sources.json. Judged by content, not commit time:
+# a re-render that changes no pixel commits no media, but it still records
+# the source it was drawn from. Code the clips share (the kit, the engine)
+# changes renders too; whoever changes it re-renders the clips it touches.
+record = pathlib.Path("media/clip-sources.json")
+drawn = json.loads(record.read_text(encoding="utf-8")) if record.exists() else {}
 for p in sorted(pathlib.Path("scripts/media/motion/intent-to-proof/clips").glob("*.mjs")):
     if p.stem == "kit":
         continue
-    src_t = last_commit(str(p))
-    gif = pathlib.Path("media/gifs") / (p.stem + ".optimized.gif")
-    if src_t is None or not gif.exists() or dirty(str(gif)):
-        continue
-    gif_t = last_commit(str(gif))
-    if gif_t is not None and gif_t < src_t:
-        print(f" x {gif.name}: older than its clip {p.name} — re-render owed")
+    if drawn.get(p.stem) != "sha256:" + hashlib.sha256(p.read_bytes()).hexdigest():
+        print(f" x {p.stem}: its media were not rendered from {p.name} as it reads now — re-render owed")
         bad = 1
 sys.exit(bad)
 PY

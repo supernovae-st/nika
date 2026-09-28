@@ -13,6 +13,7 @@
 // Every frame is a pure function of time, so N workers render disjoint
 // frame ranges and the segments are concatenated losslessly.
 import { spawn, execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -239,8 +240,9 @@ function exportsFromMaster() {
 // carry the smooth ramp back into 8 bits.
 // ── feature clips (clips/*.mjs) ──────────────────────────────────────────
 // Same outputs and names as the scenes they replace: an MP4 and a WebM for
-// docs and the website, a GIF for READMEs (1280 px, 16 fps, 8 MB budget) and
-// a 1600×900 poster, all under media/.
+// docs and the website, a GIF for READMEs (960 px, 12 fps, 8 MB budget) and
+// a 1600×900 poster, all under media/. Each render also records the clip
+// file it was drawn from in media/clip-sources.json.
 async function clipStills(name, times, scale) {
   const clip = await loadClip(name);
   const surf = initClip(scale);
@@ -252,6 +254,7 @@ async function clipStills(name, times, scale) {
 }
 
 async function renderClip(name) {
+  const source = fs.readFileSync(path.join(HERE, 'clips', `${name}.mjs`));
   const clip = await loadClip(name);
   const workers = +opt('workers', os.cpus().length);
   const fps = 30, scale = 1600 / 1920;
@@ -272,6 +275,12 @@ async function renderClip(name) {
   if (clip.meta.alsoGif) fs.copyFileSync(media(`gifs/${name}.optimized.gif`), media(clip.meta.alsoGif));
   // a clip can also own a social card: its settled poster frame
   if (clip.meta.social) ff(['-ss', String(clip.meta.poster), '-i', joined, '-frames:v', '1', media(`social/${clip.meta.social}`)]);
+  // what these media were drawn from, by content: validate-media.sh holds
+  // the clip file to it, and a re-render that changes no pixel still says so
+  const record = media('clip-sources.json');
+  const drawn = fs.existsSync(record) ? JSON.parse(fs.readFileSync(record, 'utf8')) : {};
+  drawn[name] = `sha256:${createHash('sha256').update(source).digest('hex')}`;
+  fs.writeFileSync(record, `${JSON.stringify(Object.fromEntries(Object.entries(drawn).sort()), null, 2)}\n`);
   for (const f of [`videos/${name}.mp4`, `videos/${name}.webm`, `gifs/${name}.optimized.gif`, `posters/${name}.png`]) {
     console.log(`${f} ${(fs.statSync(media(f)).size / 1e6).toFixed(2)} MB`);
   }
