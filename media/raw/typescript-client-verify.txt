@@ -1,0 +1,12 @@
+OK — 6 events · chain intact · head ac0bc63f871270d5a0688cc34714d7d51e5065a2294aa42181d1dfe05e713e78
+  internally consistent (tamper-evident, not tamper-proof) — compare the head
+  against the one the run printed to close the loop
+SEALED — the run_sealed signature verifies · key a4a6795dd3a4ba38 (~/.nika/keys/run-signing.pub)
+ANCHORED — no sidecar (`nika trace anchor` notarizes the head outside the journal)
+REPLAYED — not attempted (pass --replay <fresh.ndjson> — verify never re-executes)
+COST-REPLAY — the pinned pricing table is this engine's (nika/model-pricing@1.3 · as_of 2026-07-28 · sha256_16 d5aa8fd06062f49e)
+  the budget verdict re-judged from the journaled dollars (re-pricing from the
+  token split is the v2 owe — the journal carries no input/output usage split)
+  re-summed $0.000000 across 0 priced frame(s)
+  totals: nothing metered — the journal says `unpriced` (no total_cost_usd, never a zero)
+  budget: spent $0.000000 of $0.000000 — within, agrees with the run's PASS

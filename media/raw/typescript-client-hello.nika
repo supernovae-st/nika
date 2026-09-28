@@ -1,0 +1,10 @@
+nika: hello
+model: mock/echo
+permits: {}
+tasks:
+  greeting:
+    infer:
+      prompt: "Say hello from the Nika SDK."
+      max_tokens: 32
+outputs:
+  greeting: ${{ tasks.greeting.output }}
