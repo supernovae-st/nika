@@ -34,12 +34,14 @@ mod money_restatement_tests;
 use std::sync::Arc;
 use std::time::Duration;
 
-use nika_cli_host::compile::knowledge::{PACK_BUILDER, pack_sha256};
-use nika_event::source_id::sha256_hex;
 use nika_onboard::compile::{
-    AuthoringKnowledge, AuthoringPolicy, AuthoringReceipt, Cognition, CompileError, CompileOutcome,
-    CompileQuestion, CompileRequest, CompileStatus, DiagnosticKind, NativeMode, QuestionType,
-    Strategy, compile, compile_with_cognition, revise_intent,
+    AuthoringPolicy, AuthoringReceipt, Cognition, CompileError, CompileOutcome, CompileQuestion,
+    CompileRequest, CompileStatus, DiagnosticKind, NativeMode, QuestionType, compile,
+    compile_with_cognition, revise_intent,
+};
+// The records a compile outcome carries live beside the snapshot door (C7 · D1).
+use nika_onboard::knowledge::pin::{
+    carried_record, composed_record, observed_in, presented_knowledge, stamp,
 };
 use serde_json::{Value, json};
 
@@ -49,8 +51,9 @@ use crate::reasoner::SessionReasoner;
 mod context;
 pub(crate) mod decision;
 mod harness;
-pub use context::{AuthoringContext, AuthoringContextError, KnowledgePin};
+pub use context::{AuthoringContext, AuthoringContextError};
 pub use decision::{DECISION_ENV, DECISION_SCHEMA, DecisionSetup, MAX_DECISION_CALLS};
+pub use nika_onboard::knowledge::pin::KnowledgePin;
 
 /// The compiler's question for a whole replacement request (its own key).
 const CLARIFICATION_KEY: &str = "intent.clarification";
@@ -914,136 +917,13 @@ fn compile_attached(
         (Attach::Carried(record, _), _, _) => record.map(carried_record),
         _ => None,
     };
-    stamp(&mut out, context, knowledge.as_ref());
+    stamp(
+        &mut out,
+        context.strategy().word(),
+        context.source(),
+        knowledge.as_ref(),
+    );
     Ok(observed_in(out, observed.as_ref()))
-}
-
-/// The outcome with the session's record of what it observed and presented, in brief
-/// (`decision.session.observed`): each named path, its state, its kind and how many columns or
-/// keys it holds (the names themselves ride the request, not the receipt).
-fn observed_in(mut out: CompileOutcome, world: Option<&Value>) -> CompileOutcome {
-    let presented = out.provenance.authoring.as_ref().is_some_and(|receipt| {
-        receipt
-            .context
-            .iter()
-            .any(|call| call["call"].as_str().is_some_and(reads_knowledge))
-    });
-    let (Some(world), Some(record)) = (world, out.provenance.decision.as_mut()) else {
-        return out;
-    };
-    let rows: Vec<Value> = world["observed"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .map(|row| {
-            json!({
-                "path": row["path"],
-                "state": row["state"],
-                "kind": row["kind"],
-                "columns": row["columns"].as_array().map_or(0, Vec::len),
-            })
-        })
-        .collect();
-    record["session"]["observed"] =
-        json!({ "attached": true, "presented": presented, "under": "project root", "rows": rows });
-    out
-}
-
-/// The session's record of the pack it attached to one call: the pinned
-/// identity, the builder, the pack's digest, every reference (kind · id ·
-/// bytes · sha256), whether the compiler's native door presented it to the
-/// seat (its own record names the same pack digest) and, when it did, the
-/// instruction digest of every call that carried it.
-fn composed_record(pin: &KnowledgePin, pack: &AuthoringKnowledge, out: &CompileOutcome) -> Value {
-    let digest = pack
-        .identity
-        .pointer("/door/pack_sha256")
-        .and_then(Value::as_str)
-        .map_or_else(|| pack_sha256(pack), str::to_owned);
-    let presented = out
-        .provenance
-        .decision
-        .as_ref()
-        .and_then(|d| d.pointer("/native/knowledge/identity/door/pack_sha256"))
-        .and_then(Value::as_str)
-        == Some(digest.as_str());
-    let calls: Vec<Value> = out
-        .provenance
-        .authoring
-        .as_ref()
-        .filter(|_| presented)
-        .map(|receipt| {
-            receipt
-                .context
-                .iter()
-                .filter(|call| {
-                    call.get("call")
-                        .and_then(Value::as_str)
-                        .is_some_and(reads_knowledge)
-                })
-                .map(|call| json!({"call": call["call"], "instruction_sha256": call["instruction_sha256"]}))
-                .collect()
-        })
-        .unwrap_or_default();
-    let why = (!presented).then(|| match out.provenance.strategy {
-        Some(strategy) if strategy != Strategy::Native => format!(
-            "the request settled on the {} path; only the native door reads knowledge",
-            strategy.word()
-        ),
-        _ => "the native door did not present the pack to the seat".to_owned(),
-    });
-    // What authored with the pack — the round's receipt in brief — kept with the record, so a
-    // candidate an answer round replays (zero calls) still names its model, host and usage.
-    let seat = out
-        .provenance
-        .authoring
-        .as_ref()
-        .filter(|_| presented)
-        .map(|receipt| {
-            json!({
-                "model": receipt.model,
-                "calls": receipt.calls,
-                "input_tokens": receipt.input_tokens,
-                "output_tokens": receipt.output_tokens,
-                "elapsed_ms": receipt.elapsed_ms,
-                "backend": receipt.backend,
-            })
-        });
-    json!({
-        "identity": pin.record(),
-        "pack_builder": PACK_BUILDER,
-        "pack_sha256": digest,
-        "references": pack.references.iter().map(|r| json!({
-            "kind": r.kind,
-            "id": r.id,
-            "bytes": r.text.len(),
-            "sha256": sha256_hex(r.text.as_bytes()),
-        })).collect::<Vec<_>>(),
-        "repairs": pack.repairs.len(),
-        "presented": presented,
-        "why": why,
-        "calls": calls,
-        "seat": seat,
-        "carried": false,
-    })
-}
-
-/// The calls of the native door — the only ones whose instruction carries the
-/// pack: the native candidate, the sketch and its fills, and their repairs.
-fn reads_knowledge(call: &str) -> bool {
-    ["native", "sketch", "fill"]
-        .iter()
-        .any(|door| call == *door || call.starts_with(&format!("{door}-")))
-}
-
-/// The record of the round that authored a replayed candidate, carried: this
-/// call presented nothing and called nobody.
-fn carried_record(record: &Value) -> Value {
-    let mut carried = record.clone();
-    if let Some(map) = carried.as_object_mut() {
-        map.insert("carried".to_owned(), Value::Bool(true));
-    }
-    carried
 }
 
 /// The plan an answer round's outcome re-anchored to a changed source (its observation or
@@ -1058,37 +938,6 @@ fn reanchored(recorded: Option<&Value>, out: &CompileOutcome) -> Option<Value> {
         .iter()
         .any(|k| recorded.get(*k).is_some() || plan.get(*k).is_some());
     (moved && !approval).then(|| plan.clone())
-}
-
-/// The session's knowledge record in an outcome when the native door
-/// presented the pack (what an answer round carries).
-fn presented_knowledge(out: &CompileOutcome) -> Option<Value> {
-    let record = out
-        .provenance
-        .decision
-        .as_ref()?
-        .pointer("/session/authoring/knowledge")?;
-    (record.get("presented") == Some(&Value::Bool(true))).then(|| record.clone())
-}
-
-/// Stamp the session's record beside the compiler's (`decision.session`), as a
-/// host transport stamps its backend into the receipt: the strategy and its
-/// source, the knowledge attached (or none).
-fn stamp(out: &mut CompileOutcome, context: &AuthoringContext, knowledge: Option<&Value>) {
-    let mut record = json!({"authoring": {
-        "strategy": context.strategy().word(),
-        "source": context.source(),
-        "knowledge": knowledge,
-    }});
-    let mut decision = out.provenance.decision.take().unwrap_or_else(|| json!({}));
-    // The decision seat's receipt, stamped by the seated call, stays beside it.
-    if let Some(seat) = decision.pointer("/session/decision_seat").cloned() {
-        record["decision_seat"] = seat;
-    }
-    if let Some(map) = decision.as_object_mut() {
-        map.insert("session".to_owned(), record);
-    }
-    out.provenance.decision = Some(decision);
 }
 
 /// One request on the provider seat the human chose: the provider plane's
@@ -1158,6 +1007,7 @@ fn seated(
 #[allow(clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use nika_onboard::compile::Strategy;
 
     #[test]
     fn host_diagnostics_never_include_userinfo_or_query_values() {
@@ -1399,22 +1249,8 @@ mod tests {
         assert_eq!(round.effective_intent(), "the whole request");
     }
 
-    #[test]
-    fn only_the_native_doors_calls_read_knowledge() {
-        for call in [
-            "native",
-            "native-repair",
-            "sketch",
-            "sketch-repair",
-            "fill",
-            "fill-repair",
-        ] {
-            assert!(reads_knowledge(call), "{call}");
-        }
-        for call in ["plan", "repair", "transform", "natives"] {
-            assert!(!reads_knowledge(call), "{call}");
-        }
-    }
+    // `reads_knowledge` descended with the records it serves (C7 · D1): its test lives in
+    // `nika_onboard::knowledge::pin`.
 
     #[test]
     fn a_deterministic_seat_never_contacts_a_model() {

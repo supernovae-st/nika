@@ -21,7 +21,8 @@ use nika_cli_host::compile::config::{
 };
 use nika_cli_host::compile::knowledge::{KnowledgeError, Snapshot};
 use nika_onboard::compile::{AuthoringKnowledge, NativeMode};
-use serde_json::{Value, json};
+// The pin owns its identity beside the snapshot door (C7 · D1); the policy stays here.
+use nika_onboard::knowledge::pin::{KnowledgePin, short};
 
 use super::DecisionSetup;
 
@@ -67,61 +68,6 @@ pub enum AuthoringContextError {
         /// Why it cannot be built.
         why: String,
     },
-}
-
-/// The identity a session pinned for its knowledge snapshot when it opened.
-#[derive(Clone, Debug, PartialEq, Eq)]
-#[non_exhaustive]
-pub struct KnowledgePin {
-    /// The snapshot directory.
-    pub dir: PathBuf,
-    /// A corpus whose examples are never recalled.
-    pub exclude_corpus: Option<String>,
-    /// The snapshot's version, as its manifest names it.
-    pub version: Option<String>,
-    /// The digest the manifest declares (the exporter's, never recomputed).
-    pub digest: Option<String>,
-    /// The sha256 of the manifest's bytes as read (computed): the pin's integrity, with the rows.
-    pub manifest_sha256: String,
-    /// The digest of the row files as the door read them (computed).
-    pub rows_sha256: String,
-}
-
-impl KnowledgePin {
-    /// The pin's identity record (what a receipt names).
-    #[must_use]
-    pub fn record(&self) -> Value {
-        json!({
-            "version": self.version,
-            "digest": self.digest,
-            "digest_is": "declared by the manifest, not recomputed",
-            "manifest_sha256": self.manifest_sha256,
-            "rows_sha256": self.rows_sha256,
-            "dir": self.dir.display().to_string(),
-            "exclude_corpus": self.exclude_corpus,
-        })
-    }
-
-    /// The pin as a snapshot on disk states it now.
-    fn of(snapshot: &Snapshot) -> (Option<&str>, Option<&str>, &str, String) {
-        (
-            snapshot.version(),
-            snapshot.digest(),
-            snapshot.manifest_sha256(),
-            snapshot.rows_sha256(),
-        )
-    }
-
-    /// The identity in words: version · declared digest · manifest · rows (cut at twelve).
-    fn words(version: Option<&str>, digest: Option<&str>, manifest: &str, rows: &str) -> String {
-        format!(
-            "{} (declared digest {} · manifest {} · rows {})",
-            version.unwrap_or("unversioned"),
-            short(digest.unwrap_or("none")),
-            short(manifest),
-            short(rows)
-        )
-    }
 }
 
 /// The session's authoring configuration: the strategy the one policy carries, the knowledge
@@ -243,17 +189,7 @@ impl AuthoringContext {
             Some(KnowledgeSource::Snapshot {
                 dir,
                 exclude_corpus,
-            }) => {
-                let snapshot = Snapshot::open(&dir)?;
-                Some(KnowledgePin {
-                    version: snapshot.version().map(str::to_owned),
-                    digest: snapshot.digest().map(str::to_owned),
-                    manifest_sha256: snapshot.manifest_sha256().to_owned(),
-                    rows_sha256: snapshot.rows_sha256(),
-                    dir,
-                    exclude_corpus,
-                })
-            }
+            }) => Some(KnowledgePin::open(dir, exclude_corpus)?),
             Some(KnowledgeSource::Pack { file }) => {
                 return Err(AuthoringContextError::PackForOneRequest { file });
             }
@@ -356,9 +292,4 @@ impl AuthoringContext {
         }
         Ok(Some(snapshot.pack(intent, pin.exclude_corpus.as_deref())?))
     }
-}
-
-/// The first twelve characters of a digest.
-fn short(digest: &str) -> String {
-    digest.chars().take(12).collect()
 }

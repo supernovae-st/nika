@@ -33,6 +33,9 @@ use crate::compile::{AuthoringKnowledge, KnowledgeReference};
 use nika_event::source_id::sha256_hex;
 use serde_json::{Value, json};
 
+/// The pinned snapshot identity and the records a session stamps on an outcome (C7 · D1).
+pub mod pin;
+
 /// The snapshot identity as an answer may carry it: every hash, count and selection, no host
 /// path (the snapshot directory, the files root).
 pub fn redact_host_paths(identity: &mut serde_json::Value) {

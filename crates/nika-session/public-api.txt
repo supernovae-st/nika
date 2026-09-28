@@ -120,6 +120,7 @@ pub mod nika_session::authoring
 pub use nika_session::authoring::DECISION_ENV
 pub use nika_session::authoring::DECISION_SCHEMA
 pub use nika_session::authoring::DecisionSetup
+pub use nika_session::authoring::KnowledgePin
 pub use nika_session::authoring::MAX_DECISION_CALLS
 #[non_exhaustive] pub enum nika_session::authoring::AuthoringContextError
 pub nika_session::authoring::AuthoringContextError::Changed
@@ -342,7 +343,7 @@ pub fn nika_session::authoring::AuthoringContext::compose(&self, intent: &str) -
 pub fn nika_session::authoring::AuthoringContext::decision(&self) -> core::option::Option<&nika_cli_host::compile::typesafe::session::DecisionSetup>
 pub fn nika_session::authoring::AuthoringContext::from_env() -> Self
 pub fn nika_session::authoring::AuthoringContext::from_settings(explicit: &nika_onboard::compile_config::AuthoringSettings, env: &nika_onboard::compile_config::AuthoringSettings) -> Self
-pub fn nika_session::authoring::AuthoringContext::knowledge(&self) -> core::option::Option<&nika_session::authoring::KnowledgePin>
+pub fn nika_session::authoring::AuthoringContext::knowledge(&self) -> core::option::Option<&nika_onboard::knowledge::pin::KnowledgePin>
 pub fn nika_session::authoring::AuthoringContext::line(&self) -> alloc::string::String
 pub fn nika_session::authoring::AuthoringContext::project_root(&self) -> core::option::Option<&std::path::Path>
 pub fn nika_session::authoring::AuthoringContext::refusal(&self) -> core::option::Option<&nika_session::authoring::AuthoringContextError>
@@ -460,61 +461,6 @@ impl<T> tracing::instrument::Instrument for nika_session::authoring::AuthoringRo
 impl<T> tracing::instrument::WithSubscriber for nika_session::authoring::AuthoringRound
 impl<T> typenum::type_operators::Same for nika_session::authoring::AuthoringRound
 pub type nika_session::authoring::AuthoringRound::Output = T
-#[non_exhaustive] pub struct nika_session::authoring::KnowledgePin
-pub nika_session::authoring::KnowledgePin::digest: core::option::Option<alloc::string::String>
-pub nika_session::authoring::KnowledgePin::dir: std::path::PathBuf
-pub nika_session::authoring::KnowledgePin::exclude_corpus: core::option::Option<alloc::string::String>
-pub nika_session::authoring::KnowledgePin::manifest_sha256: alloc::string::String
-pub nika_session::authoring::KnowledgePin::rows_sha256: alloc::string::String
-pub nika_session::authoring::KnowledgePin::version: core::option::Option<alloc::string::String>
-impl nika_session::authoring::KnowledgePin
-pub fn nika_session::authoring::KnowledgePin::record(&self) -> serde_json::value::Value
-impl core::clone::Clone for nika_session::authoring::KnowledgePin
-pub fn nika_session::authoring::KnowledgePin::clone(&self) -> nika_session::authoring::KnowledgePin
-impl core::cmp::Eq for nika_session::authoring::KnowledgePin
-impl core::cmp::PartialEq for nika_session::authoring::KnowledgePin
-pub fn nika_session::authoring::KnowledgePin::eq(&self, other: &nika_session::authoring::KnowledgePin) -> bool
-impl core::fmt::Debug for nika_session::authoring::KnowledgePin
-pub fn nika_session::authoring::KnowledgePin::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::StructuralPartialEq for nika_session::authoring::KnowledgePin
-impl<D> owo_colors::OwoColorize for nika_session::authoring::KnowledgePin
-impl<Q, K> equivalent::Equivalent<K> for nika_session::authoring::KnowledgePin where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_session::authoring::KnowledgePin::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_session::authoring::KnowledgePin where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_session::authoring::KnowledgePin::equivalent(&self, key: &K) -> bool
-impl<T, U> core::convert::Into<U> for nika_session::authoring::KnowledgePin where U: core::convert::From<T>
-pub fn nika_session::authoring::KnowledgePin::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_session::authoring::KnowledgePin where U: core::convert::Into<T>
-pub type nika_session::authoring::KnowledgePin::Error = core::convert::Infallible
-pub fn nika_session::authoring::KnowledgePin::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_session::authoring::KnowledgePin where U: core::convert::TryFrom<T>
-pub type nika_session::authoring::KnowledgePin::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_session::authoring::KnowledgePin::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_session::authoring::KnowledgePin where T: core::clone::Clone
-pub type nika_session::authoring::KnowledgePin::Owned = T
-pub fn nika_session::authoring::KnowledgePin::clone_into(&self, target: &mut T)
-pub fn nika_session::authoring::KnowledgePin::to_owned(&self) -> T
-impl<T> core::any::Any for nika_session::authoring::KnowledgePin where T: 'static + ?core::marker::Sized
-pub fn nika_session::authoring::KnowledgePin::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_session::authoring::KnowledgePin where T: ?core::marker::Sized
-pub fn nika_session::authoring::KnowledgePin::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_session::authoring::KnowledgePin where T: ?core::marker::Sized
-pub fn nika_session::authoring::KnowledgePin::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_session::authoring::KnowledgePin where T: core::clone::Clone
-pub unsafe fn nika_session::authoring::KnowledgePin::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_session::authoring::KnowledgePin
-pub fn nika_session::authoring::KnowledgePin::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_session::authoring::KnowledgePin where T: core::clone::Clone
-pub fn nika_session::authoring::KnowledgePin::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> nika_error::traits::AsAny for nika_session::authoring::KnowledgePin where T: 'static
-pub fn nika_session::authoring::KnowledgePin::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session::authoring::KnowledgePin where T: ?core::marker::Sized
-pub fn nika_session::authoring::KnowledgePin::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-pub fn nika_session::authoring::KnowledgePin::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-impl<T> tracing::instrument::Instrument for nika_session::authoring::KnowledgePin
-impl<T> tracing::instrument::WithSubscriber for nika_session::authoring::KnowledgePin
-impl<T> typenum::type_operators::Same for nika_session::authoring::KnowledgePin
-pub type nika_session::authoring::KnowledgePin::Output = T
 pub const nika_session::authoring::AUTHORING_CALLS_PER_COMPILE: u32
 pub const nika_session::authoring::AUTHORING_INITIAL_TOKENS: u32
 pub const nika_session::authoring::AUTHORING_MAX_TOKENS: u32

@@ -469,6 +469,72 @@ pub const nika_onboard::founding::RECIPE_NAMES: [&str; 5]
 pub fn nika_onboard::founding::agents_md() -> &'static str
 pub fn nika_onboard::founding::scripted_run(dir: &str, force: bool, recipe: core::option::Option<&str>, example: core::option::Option<&str>, canvas: core::option::Option<nika_onboard::founding::CanvasTheme>, wires: &[&str], audit: &nika_onboard::Audit<'_>, wire: &nika_onboard::Wire<'_>) -> nika_onboard::Outcome
 pub mod nika_onboard::knowledge
+pub mod nika_onboard::knowledge::pin
+#[non_exhaustive] pub struct nika_onboard::knowledge::pin::KnowledgePin
+pub nika_onboard::knowledge::pin::KnowledgePin::digest: core::option::Option<alloc::string::String>
+pub nika_onboard::knowledge::pin::KnowledgePin::dir: std::path::PathBuf
+pub nika_onboard::knowledge::pin::KnowledgePin::exclude_corpus: core::option::Option<alloc::string::String>
+pub nika_onboard::knowledge::pin::KnowledgePin::manifest_sha256: alloc::string::String
+pub nika_onboard::knowledge::pin::KnowledgePin::rows_sha256: alloc::string::String
+pub nika_onboard::knowledge::pin::KnowledgePin::version: core::option::Option<alloc::string::String>
+impl nika_onboard::knowledge::pin::KnowledgePin
+pub fn nika_onboard::knowledge::pin::KnowledgePin::of(snapshot: &nika_onboard::knowledge::Snapshot) -> (core::option::Option<&str>, core::option::Option<&str>, &str, alloc::string::String)
+pub fn nika_onboard::knowledge::pin::KnowledgePin::open(dir: std::path::PathBuf, exclude_corpus: core::option::Option<alloc::string::String>) -> core::result::Result<Self, nika_onboard::knowledge::KnowledgeError>
+pub fn nika_onboard::knowledge::pin::KnowledgePin::record(&self) -> serde_json::value::Value
+pub fn nika_onboard::knowledge::pin::KnowledgePin::words(version: core::option::Option<&str>, digest: core::option::Option<&str>, manifest: &str, rows: &str) -> alloc::string::String
+impl core::clone::Clone for nika_onboard::knowledge::pin::KnowledgePin
+pub fn nika_onboard::knowledge::pin::KnowledgePin::clone(&self) -> nika_onboard::knowledge::pin::KnowledgePin
+impl core::cmp::Eq for nika_onboard::knowledge::pin::KnowledgePin
+impl core::cmp::PartialEq for nika_onboard::knowledge::pin::KnowledgePin
+pub fn nika_onboard::knowledge::pin::KnowledgePin::eq(&self, other: &nika_onboard::knowledge::pin::KnowledgePin) -> bool
+impl core::fmt::Debug for nika_onboard::knowledge::pin::KnowledgePin
+pub fn nika_onboard::knowledge::pin::KnowledgePin::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_onboard::knowledge::pin::KnowledgePin
+impl<D> owo_colors::OwoColorize for nika_onboard::knowledge::pin::KnowledgePin
+impl<Q, K> equivalent::Equivalent<K> for nika_onboard::knowledge::pin::KnowledgePin where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::knowledge::pin::KnowledgePin::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_onboard::knowledge::pin::KnowledgePin where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::knowledge::pin::KnowledgePin::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_onboard::knowledge::pin::KnowledgePin where U: core::convert::From<T>
+pub fn nika_onboard::knowledge::pin::KnowledgePin::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::knowledge::pin::KnowledgePin where U: core::convert::Into<T>
+pub type nika_onboard::knowledge::pin::KnowledgePin::Error = core::convert::Infallible
+pub fn nika_onboard::knowledge::pin::KnowledgePin::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::knowledge::pin::KnowledgePin where U: core::convert::TryFrom<T>
+pub type nika_onboard::knowledge::pin::KnowledgePin::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::knowledge::pin::KnowledgePin::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_onboard::knowledge::pin::KnowledgePin where T: core::clone::Clone
+pub type nika_onboard::knowledge::pin::KnowledgePin::Owned = T
+pub fn nika_onboard::knowledge::pin::KnowledgePin::clone_into(&self, target: &mut T)
+pub fn nika_onboard::knowledge::pin::KnowledgePin::to_owned(&self) -> T
+impl<T> core::any::Any for nika_onboard::knowledge::pin::KnowledgePin where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::knowledge::pin::KnowledgePin::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::knowledge::pin::KnowledgePin where T: ?core::marker::Sized
+pub fn nika_onboard::knowledge::pin::KnowledgePin::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::knowledge::pin::KnowledgePin where T: ?core::marker::Sized
+pub fn nika_onboard::knowledge::pin::KnowledgePin::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_onboard::knowledge::pin::KnowledgePin where T: core::clone::Clone
+pub unsafe fn nika_onboard::knowledge::pin::KnowledgePin::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_onboard::knowledge::pin::KnowledgePin
+pub fn nika_onboard::knowledge::pin::KnowledgePin::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_onboard::knowledge::pin::KnowledgePin where T: core::clone::Clone
+pub fn nika_onboard::knowledge::pin::KnowledgePin::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_onboard::knowledge::pin::KnowledgePin where T: 'static
+pub fn nika_onboard::knowledge::pin::KnowledgePin::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::knowledge::pin::KnowledgePin where T: ?core::marker::Sized
+pub fn nika_onboard::knowledge::pin::KnowledgePin::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::knowledge::pin::KnowledgePin::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::knowledge::pin::KnowledgePin
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::knowledge::pin::KnowledgePin
+impl<T> typenum::type_operators::Same for nika_onboard::knowledge::pin::KnowledgePin
+pub type nika_onboard::knowledge::pin::KnowledgePin::Output = T
+pub fn nika_onboard::knowledge::pin::carried_record(record: &serde_json::value::Value) -> serde_json::value::Value
+pub fn nika_onboard::knowledge::pin::composed_record(pin: &nika_onboard::knowledge::pin::KnowledgePin, pack: &nika_compile::types::AuthoringKnowledge, out: &nika_compile::types::CompileOutcome) -> serde_json::value::Value
+pub fn nika_onboard::knowledge::pin::observed_in(out: nika_compile::types::CompileOutcome, world: core::option::Option<&serde_json::value::Value>) -> nika_compile::types::CompileOutcome
+pub fn nika_onboard::knowledge::pin::presented_knowledge(out: &nika_compile::types::CompileOutcome) -> core::option::Option<serde_json::value::Value>
+pub fn nika_onboard::knowledge::pin::reads_knowledge(call: &str) -> bool
+pub fn nika_onboard::knowledge::pin::short(digest: &str) -> alloc::string::String
+pub fn nika_onboard::knowledge::pin::stamp(out: &mut nika_compile::types::CompileOutcome, strategy: &str, source: &str, knowledge: core::option::Option<&serde_json::value::Value>)
 #[non_exhaustive] pub enum nika_onboard::knowledge::KnowledgeError
 pub nika_onboard::knowledge::KnowledgeError::NotAPack
 pub nika_onboard::knowledge::KnowledgeError::NotAPack::file: std::path::PathBuf
