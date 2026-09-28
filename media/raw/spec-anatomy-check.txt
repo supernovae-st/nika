@@ -1,0 +1,30 @@
+nika check · ship-notes.nika
+ ✔ PLAN     4 waves · 4 tasks · max parallelism 1
+      wave 1 log (exec · git)
+      wave 2 draft (infer · mock/echo)
+      wave 3 polish (agent · mock/echo)
+      wave 4 publish (invoke · nika:fetch)
+ ✔ MODELS   1 model resolves in this binary · this machine's paths on the ACCESS line
+ ✔ ACCESS   mock/echo → mock (mock · local · observed) · mock · never dials · nothing to judge
+ ✔ COST     $0.0000 – $0.0000 worst-case output ceiling · prompts, exec + mcp unpriced · prices 2026-09-23
+   draft  mock/echo  ≤600 tk  $0.0000
+   polish  mock/echo  ≤4096 tk  $0.0000
+ ○ ENERGY   unpriced — no sourced Wh figure for any task model · never 0 Wh (NEP-0018)
+ ⚠ SECRETS  1 sanctioned secret flow by declaration · review consent before the run · model echo untracked
+ ⚠ SECRETS  sanctioned · secret `token` → api.github.com · egress.to nika:fetch · host pinned
+ ✔ TYPES    deep references fit the shapes tasks declare · builtin output has none
+ ✔ TOOLS    every named nika: tool is canonical · globs + mcp: not checked
+ ✔ ARGS     every builtin invoke arg key is declared + required args present
+ ✔ SCHEMA   no known-unsatisfiable form in an authored schema: · $ref opaque
+ ✔ GATES    no task proven dead · status literals in vocabulary
+ ✔ WRITES   no two unordered tasks write the same static path · computed paths at run · engine writes .nika/traces
+ ✔ EXEC     no literal argv the exec floor refuses at run · a templated argv is the RUN's verdict
+ ✔ RETRY    no `retry:` on a keyless mutating `nika:fetch` · a templated method/headers is the RUN's verdict
+ ✔ ORDER    no exec: sits downstream of a net-effecting task · unauthored content never reaches a shell
+ ✔ PERMITS  literal + const: args fit the boundary · computed programs, paths + symlinks are the RUN's verdict · exec outside the fs bounds
+ ✔ TRIFECTA no lethal trifecta over the declared permits: without a human gate
+ ⚠ JOURNEY regulated · 0 sources · 2 destinations · 2 model endpoints
+ ⚠ JOURNEY secret `token` flows to api.github.com · review consent before the run
+ ✔ RUN      no named entropy source under entropy: none · agent globs unjudged
+ ⚠ audited · 4 tasks · 4 waves · permits exec:git tools:nika:fetch,nika:write write:./out/notes.md http:api.github.com · est out ≤$0.0000 · 0 hints · 1 sanctioned secret flow · risk supervised
+ layers · valid ✔ · access ready ✔ · capacity fit ✔ · run ready ✔

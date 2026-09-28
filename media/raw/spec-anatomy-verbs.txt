@@ -1,0 +1,9 @@
+verbs:
+  count: 4
+  immutable: true
+  reference: spec/02-verbs.md
+  items:
+    - { name: infer,  semantic: "LLM generation · structured output · vision · thinking" }
+    - { name: exec,   semantic: "Shell command · blocklist · streaming" }
+    - { name: invoke, semantic: "MCP tool call OR builtin (incl. nika:fetch)" }
+    - { name: agent,  semantic: "Multi-turn agentic loop · tool calling · guardrails" }
