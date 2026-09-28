@@ -334,7 +334,8 @@ const until = (t1, d, t) => (t1 === undefined || t1 === Infinity ? 1 : 1 - smoot
 // fold: [[first, last]] hides a block behind one "⋯ n lines" row (single
 // version only). highlights: [{ line, t0, t1?, c, running?, icon? }] light
 // a row: a bar behind it and, in the gutter, a check (a pulse and a
-// spinner while running; icon: 'none' marks a row without a verdict).
+// spinner while running; icon: 'recover' for a task that ended on its
+// fallback; icon: 'none' marks a row without a verdict).
 export function codeCard(R, t, box, { title = '', alpha = 1, k = 1, badge = null, before, after = null, win = {}, reveal = null, morph = null, marks = [], lh = LH, st = MONO, fold = [], highlights = [] } = {}) {
   const [fa, ta] = win.a ?? [1, Infinity], [fb, tb] = win.b ?? win.a ?? [1, Infinity];
   panel(R, box, { title, alpha, k, badge });
@@ -399,6 +400,18 @@ export function codeCard(R, t, box, { title = '', alpha = 1, k = 1, badge = null
         const icon = hl.icon ?? (hl.running ? 'spin' : 'check');
         if (icon === 'check') check(R, gx, gy, st.size * 0.6, E.snap(seg(t, hl.t0, hl.t0 + 0.3)), { color: hl.c, w: 1.8, alpha: a * hk, glow: 0.7 });
         else if (icon === 'spin') arc(R, gx, gy, st.size * 0.3, (t - hl.t0) * 7, (t - hl.t0) * 7 + Math.PI * 1.4, { color: hl.c, w: 1.8, alpha: a * hk, glow: 0.7 });
+        else if (icon === 'recover') {
+          // a loop back: the task ended on its fallback, not its own result
+          const r = st.size * 0.3, a0 = -Math.PI * 0.25, a1 = Math.PI * 1.3;
+          const k = E.snap(seg(t, hl.t0, hl.t0 + 0.4));
+          const S = { color: hl.c, w: 1.8, alpha: a * hk, glow: 0.7 };
+          arc(R, gx, gy, r, a0, a0 + (a1 - a0) * k, S);
+          if (k > 0.98) {
+            const ex = gx + r * Math.cos(a1), ey = gy + r * Math.sin(a1);
+            const tx = -Math.sin(a1), ty = Math.cos(a1), nx = Math.cos(a1), ny = Math.sin(a1);
+            poly(R, [[ex + nx * 3, ey + ny * 3], [ex + tx * 3.5, ey + ty * 3.5], [ex - nx * 3, ey - ny * 3]], S);
+          }
+        }
       }
       const lineMarks = marks.filter(mk => mk.line === lineNo && (!mk.version || mk.version === (mp < 0.5 ? 'before' : 'after')) && t >= (mk.t0 ?? 0) && t <= (mk.t1 ?? Infinity));
       mono(R, yamlSpans(o.text, lineMarks.filter(mk => mk.re && !mk.squiggle)), box.x + gutter + 12, rowY, { alpha: a, st, max });
