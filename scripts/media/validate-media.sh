@@ -3,7 +3,8 @@
 #
 # 1. Every workflow shown in a media asset passes (or fails) `nika check`
 #    exactly as the asset claims.
-# 2. Every required export exists.
+# 2. Every required export exists, including the four exports of every
+#    clip in motion/intent-to-proof/clips/.
 # 3. README GIFs stay under the 8 MB budget; posters under 1 MB.
 # 4. No export predates what it is drawn from: an HTML scene's GIF by commit
 #    time, a clip's media by the source recorded in media/clip-sources.json.
@@ -32,9 +33,16 @@ else
   say "✔ permits-escape fixture fails check (as shown)"
 fi
 
+if nika check "$FIX/release-notes-draft.nika" >/dev/null 2>&1; then
+  say "✖ release-notes-draft fixture PASSES check — the agent-plugin asset lies"
+  fail=1
+else
+  say "✔ release-notes-draft fixture fails check (as shown)"
+fi
+
 for wf in "$FIX/fixed-pr-review.nika" "$FIX/meeting-actions.nika" \
   "$FIX/permits-fits.nika" "$FIX/recover-fallback.nika" \
-  "$FIX/invoice-payments.nika" \
+  "$FIX/invoice-payments.nika" "$FIX/release-notes.nika" "$FIX/ship-notes.nika" \
   "crates/nika-pack/pack/examples/pr-review-fanout.nika"; do
   if nika check "$wf" >/dev/null 2>&1; then
     say "✔ $(basename "$wf") clean (as shown)"
@@ -53,52 +61,16 @@ required=(
   scripts/media/motion/intent-to-impact/README.md
   media/brand/nika-logomark.svg
   media/gifs/intent-dag-proof.optimized.gif
-  media/gifs/full-loop.optimized.gif
-  media/videos/full-loop.mp4
-  media/videos/full-loop.webm
-  media/posters/full-loop.png
-  media/gifs/static-check-fix.optimized.gif
-  media/gifs/chat-to-workflow.optimized.gif
-  media/gifs/dag-execution.optimized.gif
-  media/gifs/editor-diagnostics.optimized.gif
-  media/gifs/permits-audit.optimized.gif
-  media/gifs/on-error-recover.optimized.gif
-  media/videos/static-check-fix.mp4
-  media/videos/chat-to-workflow.mp4
-  media/videos/dag-execution.mp4
-  media/videos/permits-audit.mp4
-  media/videos/on-error-recover.mp4
-  media/videos/static-check-fix.webm
-  media/videos/chat-to-workflow.webm
-  media/videos/dag-execution.webm
-  media/videos/editor-diagnostics.mp4
-  media/videos/editor-diagnostics.webm
-  media/videos/permits-audit.webm
-  media/videos/on-error-recover.webm
   media/videos/intent-dag-proof.mp4
   media/videos/intent-dag-proof.webm
   media/posters/intent-dag-proof.png
-  media/posters/static-check-fix.png
-  media/posters/chat-to-workflow.png
-  media/posters/dag-execution.png
-  media/posters/editor-diagnostics.png
-  media/posters/permits-audit.png
-  media/posters/on-error-recover.png
   media/storyboards/intent-dag-proof.png
   media/raw/transcripts.json
   scripts/media/motion/intent-dag-proof.storyboard.md
   media/videos/intent-to-proof.mp4
   media/gifs/intent-to-proof.optimized.gif
-  media/gifs/nika-hero.optimized.gif
-  media/videos/nika-hero.mp4
-  media/videos/nika-hero.webm
-  media/posters/nika-hero.png
   media/nika-hero.gif
   media/clip-sources.json
-  media/gifs/workflow-gallery.optimized.gif
-  media/videos/workflow-gallery.mp4
-  media/videos/workflow-gallery.webm
-  media/posters/workflow-gallery.png
   media/social/github-social-preview-1280x640.png
   media/social/og-card-1600x900.png
   media/social/check-before-run-1600x900.png
@@ -107,6 +79,15 @@ required=(
   media/storyboards/intent-to-proof.png
   scripts/media/motion/intent-to-proof/README.md
 )
+# Every clip (motion/intent-to-proof/clips/<name>.mjs) ships four exports:
+# the README GIF, the MP4 and WebM, and the poster. The list follows the
+# clips, so a new clip cannot forget one.
+for clip_file in scripts/media/motion/intent-to-proof/clips/*.mjs; do
+  clip="$(basename "$clip_file" .mjs)"
+  [ "$clip" = kit ] && continue
+  required+=("media/gifs/$clip.optimized.gif" "media/videos/$clip.mp4"
+    "media/videos/$clip.webm" "media/posters/$clip.png")
+done
 for f in "${required[@]}"; do
   if [ -f "$f" ]; then say "✔ $f"; else
     say "✖ missing $f"
