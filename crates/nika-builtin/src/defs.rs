@@ -394,7 +394,15 @@ fn media_defs() -> Vec<ToolDef> {
             "chart",
             "Render a DETERMINISTIC chart artifact from rows + a semantic spec (bar | line | area_band | scatter | heatmap) — byte-identical SVG saved at `out`, sha256 in outputs (the trace-chain receipt) · optional Vega-Lite sibling via compile_to. Pure compute + one permit-gated write: no network, no clock, re-runs are idempotent.",
             serde_json::json!({
-                "data": s("rows · array of flat objects (strings + numbers) · or { path: <json file> }"),
+                "data": {
+                    "description": "rows · array of flat objects (strings + numbers) · or { path: <json file> }",
+                    "anyOf": [
+                        { "type": "array", "items": {
+                            "type": "object", "additionalProperties": { "type": ["string", "number"] }
+                        } },
+                        { "type": "object", "properties": { "path": { "type": "string" } }, "required": ["path"] }
+                    ]
+                },
                 "semantics": { "type": "object", "description": "field → usd | duration_ms | tokens | count | delta | percent | timestamp | category (drives formatting + palettes · delta ⇒ diverging anchored 0)" },
                 "chart": { "type": "object", "description": "{ type, x, y, y_lo?, y_hi? (area_band bounds), y2? (actual overlay), color? (series split · heatmap value), title?, width?, height? } — x/y/… are field names" },
                 "out": s("artifact path ending .svg (fs-permit gated · parents created · idempotent)"),
@@ -429,7 +437,10 @@ fn media_defs() -> Vec<ToolDef> {
                 "prompt": s("the creative brief the provider renders"),
                 "mode": s("generate (default · text→image) | edit (source image(s) + instruction)"),
                 "image": s("mode:edit · one source image PATH (read · permit-gated fs.read)"),
-                "images": s("mode:edit · source image PATHS (multi-ref · capped per provider)"),
+                "images": {
+                    "type": "array", "items": { "type": "string", "pattern": "\\S" },
+                    "description": "mode:edit · source image PATHS (multi-ref · capped per provider)"
+                },
                 "mask": s("mode:edit · optional pixel-mask PATH (openai/local only · refused elsewhere)"),
                 "n": { "type": "integer", "description": "variant count 1..=10 (gemini runs n sequential calls)" },
                 "aspect_ratio": s("1:1 | 16:9 | 9:16 | 4:3 | 3:4 | 3:2 | 2:3 | 21:9"),
@@ -468,6 +479,90 @@ fn media_defs() -> Vec<ToolDef> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn chart_discovery_admits_runtime_data_shapes() {
+        let tools = tools_json();
+        let chart = tools["tools"]
+            .as_array()
+            .expect("tools")
+            .iter()
+            .find(|tool| tool["name"] == "nika:chart")
+            .expect("chart");
+        let schema = jsonschema::validator_for(&chart["parameters"]).expect("schema");
+        let rows = serde_json::json!([{"team":"A","count":3},{"team":"B","count":5}]);
+        let fs = nika_kernel_mock::MockFs::new().with_file("rows.json", rows.to_string());
+        for data in [rows, serde_json::json!({"path":"rows.json"})] {
+            let args = serde_json::json!({"data":data,"chart":{"type":"bar","x":"team","y":"count"},"out":"chart.svg"});
+            assert!(
+                crate::chart::render(&fs, args.as_object().expect("args"))
+                    .await
+                    .is_ok()
+            );
+            assert!(
+                schema.is_valid(&args),
+                "discovery rejected runtime chart input: {args}"
+            );
+        }
+        for data in [
+            serde_json::json!("rows.json"),
+            serde_json::json!([true]),
+            serde_json::json!([{"count":null}]),
+            serde_json::json!({"path":5}),
+        ] {
+            let args = serde_json::json!({"data":data,"chart":{"type":"bar","x":"team","y":"count"},"out":"chart.svg"});
+            assert!(
+                !schema.is_valid(&args),
+                "discovery admitted invalid chart input: {args}"
+            );
+            assert!(
+                crate::chart::render(&fs, args.as_object().expect("args"))
+                    .await
+                    .is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn image_discovery_admits_runtime_reference_arrays() {
+        let tools = tools_json();
+        let image = tools["tools"]
+            .as_array()
+            .expect("tools")
+            .iter()
+            .find(|tool| tool["name"] == "nika:image_generate")
+            .expect("image");
+        let schema = jsonschema::validator_for(&image["parameters"]).expect("schema");
+        for images in [
+            serde_json::json!(["a.png"]),
+            serde_json::json!(["a.png", "b.png"]),
+        ] {
+            let args = serde_json::json!({"provider":"mock","mode":"edit","prompt":"merge the references","output_dir":"out","images":images});
+            let parsed = crate::image::args::parse(args.as_object().expect("args"))
+                .expect("runtime arguments");
+            assert_eq!(
+                parsed.input_paths.len(),
+                images.as_array().expect("images").len()
+            );
+            assert!(
+                schema.is_valid(&args),
+                "discovery rejected runtime reference array: {args}"
+            );
+        }
+        for images in [
+            serde_json::json!("a.png"),
+            serde_json::json!(null),
+            serde_json::json!([5]),
+            serde_json::json!([" "]),
+        ] {
+            let args = serde_json::json!({"provider":"mock","mode":"edit","prompt":"merge the references","output_dir":"out","images":images});
+            assert!(
+                !schema.is_valid(&args),
+                "discovery admitted invalid reference array: {args}"
+            );
+            assert!(crate::image::args::parse(args.as_object().expect("args")).is_err());
+        }
+    }
 
     #[tokio::test]
     async fn write_discovery_admits_the_values_the_writer_accepts() {
