@@ -345,8 +345,9 @@ deterministic path, as does a single-output pipeline whose parsed rule retains
 every recorded typed stage in the recorded order: a part is found only in the
 step of the part recorded before it or in a later step (R4 F5), so an inventory
 holding every stage in another order is refused.
-The operations the request states are witnessed (R4 A3). Each plan rule whose text
-is an exact excerpt of the request is a part, read once by the one grammar over
+The operations the request states are witnessed (R4 A3). Each plan rule, step
+detail and step evidence whose text is an exact excerpt of the request anchors a
+part, read once by the one grammar over
 the binding's columns: the widest readable excerpt stands for excerpts inside it,
 and an unreadable excerpt counts only where no readable one overlaps it. A rule
 holds the parts when their operations (each filter clause, an « or » of clauses
@@ -354,9 +355,12 @@ as one, each count with its grouping, each sort with its key and direction, each
 cut with its size) appear in its lowered sequence in request order with those
 parameters. A proposal that does not hold them yields to a reading that does
 (the step's detail, its evidence, or the parts' excerpts joined in request order).
-Without one, the missing operations remain unresolved. This is containment of
-the stated operations; extra operations are not excluded by this witness.
-It does not prove arbitrary model-generated computations semantically correct.
+When every part is read, the lowered rule must also contain no extra operation
+shaping the rows. A summary computed beside the rows in its own task is judged
+only when stated. Without a fitting reading, missing or extra row operations
+remain unresolved. With an unread part, extras are not judged and that part
+stays unverified. This does not prove arbitrary model-generated computations
+semantically correct.
 
 The lexical reader supplies hypotheses for effects it cannot settle: an indirect negation
 does not become a ban, and an undecided effect is not an obligation to execute. Native
@@ -409,7 +413,9 @@ the fields it reads), anchored on the part's excerpt, in place of the compute
 step's generic filter duty. `compute` realizes one only when its expression is
 the bound rule's lowering byte for byte and the rule holds the operation at its
 place; `compute_summary` realizes the summary stage's count only when it runs the
-summary law. A task id, record flag or plan annotation realizes no typed duty.
+summary law. When every part is read, each extra row operation is an unresolved
+duty on the step evidence, with the fields it reads. A task id, record flag or
+plan annotation realizes no typed duty.
 Words the grammar cannot read state no typed duty: their excerpt stays a
 transformation duty carried by the task, noted unverified; an answered program's
 filter duty is noted unverified too. `plan.obligations` is unchanged, and no
