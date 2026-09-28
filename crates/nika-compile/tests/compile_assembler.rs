@@ -695,7 +695,9 @@ fn a_per_item_request_with_placeholder_outputs_is_refused_not_lowered() {
 const TILL: &str = "Compute the day's sales total from ./till.csv (columns ticket,time,amount_cents): the number of tickets and the sum of amount_cents. Send that summary in one POST to http://127.0.0.1:18471/hooks/till with the JSON body {tickets, total_cents} and write the same object to ./out/till.json.";
 const TILL_PLAIN: &str = "Compute the day's sales total from ./till.csv (columns ticket,time,amount_cents): the number of tickets and the sum of amount_cents. Send that summary in one POST to http://127.0.0.1:18471/hooks/till with the JSON body of the summary and write the same object to ./out/till.json.";
 const TILL_CASHIER: &str = "Compute the day's sales total from ./till.csv (columns ticket,time,amount_cents): the number of tickets and the sum of amount_cents. Send that summary in one POST to http://127.0.0.1:18471/hooks/till with the JSON body {tickets, cashier} and write the same object to ./out/till.json.";
-fn till_record(body: &str) -> Value {
+/// The recorded plan of a till request: the sum is named after words the request states (a
+/// replay re-derives a seat's typed computation, so its output names are the request's).
+fn till_record(body: &str, total: &str) -> Value {
     let compute = "the number of tickets and the sum of amount_cents";
     json!({"operations":[
         {"op":"read","detail":"./till.csv","evidence":"Compute the day's sales total from ./till.csv (columns ticket,time,amount_cents)","categories":[]},
@@ -708,13 +710,17 @@ fn till_record(body: &str) -> Value {
       "rules":[{"text":compute,"clauses":[],"junction":"and","summary":false,
                 "shape":{"group_by":null,
                          "aggregations":[{"field":null,"op":"count","name":"tickets","round":null},
-                                         {"field":"amount_cents","op":"sum","name":"total_cents","round":null}],
+                                         {"field":"amount_cents","op":"sum","name":total,"round":null}],
                          "sort_by":null,"descending":false,"columns":[],"derived":[]}}]})
 }
 
 #[test]
 fn a_body_whose_keys_the_request_states_is_those_keys_over_produced_values() {
-    let out = replay(TILL, &till_record("{tickets, total_cents}"), &[]);
+    let out = replay(
+        TILL,
+        &till_record("{tickets, total_cents}", "total_cents"),
+        &[],
+    );
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     let doc = document(&out);
     assert!(doc.get("inputs").is_none(), "{doc:#}");
@@ -736,7 +742,7 @@ fn a_body_whose_keys_the_request_states_is_those_keys_over_produced_values() {
         "${{ tasks.compute.output.total_cents }}"
     );
     // No stated keys: the payload names the action, its target and every fact, as before.
-    let out = replay(TILL_PLAIN, &till_record("of the summary"), &[]);
+    let out = replay(TILL_PLAIN, &till_record("of the summary", "total"), &[]);
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     let expression = document(&out)["tasks"]["send_payload"]["invoke"]["args"]["expression"]
         .as_str()
@@ -747,7 +753,11 @@ fn a_body_whose_keys_the_request_states_is_those_keys_over_produced_values() {
         "{expression}"
     );
     // A key nothing produces is asked, never filled with an invented value.
-    let out = replay(TILL_CASHIER, &till_record("{tickets, cashier}"), &[]);
+    let out = replay(
+        TILL_CASHIER,
+        &till_record("{tickets, cashier}", "total"),
+        &[],
+    );
     assert!(out.candidate.is_none(), "{out:#?}");
     assert!(keys(&out).contains(&"intent.clarification"), "{out:#?}");
     assert!(

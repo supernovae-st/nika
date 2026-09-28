@@ -58,9 +58,9 @@ pub fn admit_hot(
     crate::doors::admit_hot(intent, reading, hot).map_err(AdmissionError::new)
 }
 
-/// The assembler's entry and its unfed-plan law.
+/// The assembler's entry, its unfed-plan law and its contradiction refusal.
 pub mod assemble {
-    pub use crate::assemble::{assemble, unfed};
+    pub use crate::assemble::{assemble, refuse_contradiction, unfed};
 }
 
 /// The bounded support clauses: resolution and assembly.

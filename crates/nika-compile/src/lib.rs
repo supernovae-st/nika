@@ -70,6 +70,7 @@
 
 mod approval;
 mod assemble;
+mod binding;
 mod bindings;
 mod doors;
 mod edit;

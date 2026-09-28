@@ -464,30 +464,40 @@ fn state_trigger(
 /// The one review task every gated effect waits for when the request states one approval.
 pub(super) const SHARED_REVIEW: &str = "approval_review";
 
-/// Refusals and human-only regions come first: nothing below them is assembled.
-fn refused(plan: &Plan, out: &mut CompileOutcome) -> bool {
-    if let Some(conflict) = plan
+/// An effect the request both asks for and prohibits stays the human's (R4 S0): the refusal
+/// states the effect and both clauses, and asks for a replacement request that resolves it —
+/// no candidate, and no seat ever reads it to choose a side. Returns whether it refused.
+pub fn refuse_contradiction(plan: &Plan, out: &mut CompileOutcome) -> bool {
+    let Some(conflict) = plan
         .effects
         .iter()
         .find(|e| e.policy == EffectPolicy::Conflict)
-    {
-        out.status = super::CompileStatus::Refused;
-        super::finding(
-            out,
-            DiagnosticKind::RequiresHuman,
-            "intent",
-            format!(
-                "Contradictory instructions for `{}`: it is both requested and prohibited ({}). The contradiction stays visible; no workflow resolves it.",
-                conflict.verb.word(),
-                conflict.evidence
-            ),
-        );
-        super::question(
-            out,
-            "intent.clarification",
-            "Supply a complete replacement request that resolves the contradiction, including every operation still wanted.",
-            QuestionType::Text,
-        );
+    else {
+        return false;
+    };
+    out.status = super::CompileStatus::Refused;
+    super::finding(
+        out,
+        DiagnosticKind::RequiresHuman,
+        "intent",
+        format!(
+            "Contradictory instructions for `{}`: it is both requested and prohibited ({}). The contradiction stays visible; no workflow resolves it.",
+            conflict.verb.word(),
+            conflict.evidence
+        ),
+    );
+    super::question(
+        out,
+        "intent.clarification",
+        "Supply a complete replacement request that resolves the contradiction, including every operation still wanted.",
+        QuestionType::Text,
+    );
+    true
+}
+
+/// Refusals and human-only regions come first: nothing below them is assembled.
+fn refused(plan: &Plan, out: &mut CompileOutcome) -> bool {
+    if refuse_contradiction(plan, out) {
         return true;
     }
     if !plan.unknowns.is_empty() {

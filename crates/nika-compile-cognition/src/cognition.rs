@@ -137,7 +137,16 @@ async fn revise<P: ProviderInferDyn>(
         return Ok(out);
     }
     let reading = lexicon::read(&folded);
-    native::author(
+    // A change whose words both ask for an effect and prohibit it stays the human's (R4 S0): no
+    // seat revises the base to choose a side.
+    if nika_compile::surface::assemble::refuse_contradiction(&reading.plan, &mut out) {
+        record_route(
+            &mut out,
+            &["edit: the change contradicts itself".to_owned()],
+        );
+        return Ok(out);
+    }
+    Box::pin(native::author(
         &folded,
         &reading,
         policy,
@@ -148,7 +157,7 @@ async fn revise<P: ProviderInferDyn>(
                 .to_owned(),
         ],
         out,
-    )
+    ))
     .await
 }
 
@@ -280,6 +289,20 @@ async fn route_create<P: ProviderInferDyn>(
     reading: Reading,
     mut out: CompileOutcome,
 ) -> Result<CompileOutcome, CompileError> {
+    // An effect the request's own words both ask for and prohibit stays the human's (R4 S0):
+    // no seat reads it to choose a side, whatever the strategy. The outcome is the deterministic
+    // door's own refusal, the one every door states, of the request as read: a clarification
+    // that replaced the original is the request (the door never falls back to the original).
+    if reading
+        .plan
+        .effects
+        .iter()
+        .any(|e| e.policy == crate::plan::EffectPolicy::Conflict)
+    {
+        let mut read_as = assembly_request.clone();
+        read_as.input = Input::Create(intent.to_owned());
+        return super::compile(&read_as);
+    }
     let mut route = Vec::new();
     // The deterministic door judges the reading with its stated rules promoted: a rule
     // carries its own constraint, and the words inside it are its literals. The reading
@@ -300,7 +323,8 @@ async fn route_create<P: ProviderInferDyn>(
         }
         if policy.native == NativeMode::Sketch {
             route.push("native: sketch".to_owned());
-            return sketch::author(
+            // Boxed: the seat doors are rare and large; they must not grow every compile future.
+            return Box::pin(sketch::author(
                 intent,
                 &reading,
                 policy,
@@ -308,11 +332,11 @@ async fn route_create<P: ProviderInferDyn>(
                 assembly_request,
                 route,
                 out,
-            )
+            ))
             .await;
         }
         route.push("native: only".to_owned());
-        return native::author(
+        return Box::pin(native::author(
             intent,
             &reading,
             policy,
@@ -320,7 +344,7 @@ async fn route_create<P: ProviderInferDyn>(
             assembly_request,
             route,
             out,
-        )
+        ))
         .await;
     }
     let mut admitted = reading.clone();
@@ -329,10 +353,7 @@ async fn route_create<P: ProviderInferDyn>(
         Ok(()) => {
             route.push("hot".to_owned());
             record_route(&mut out, &route);
-            let hot = settle(Strategy::Hot, &admitted.plan, intent, assembly_request, out)?;
-            let seat = (request, cognition.provider, assembly_request);
-            // Boxed: the seat door is rare and large; it must not grow every compile future.
-            return Box::pin(contradiction_to_seat(intent, &reading, seat, route, hot)).await;
+            return settle(Strategy::Hot, &admitted.plan, intent, assembly_request, out);
         }
         Err(why) => route.push(format!("hot rejected: {}", why.reasons().join("; "))),
     }
@@ -467,7 +488,7 @@ async fn author_create<P: ProviderInferDyn>(
                 .is_some_and(|pack| !pack.references.is_empty())
         {
             route.push("native: informed generation".to_owned());
-            return native::author(
+            return Box::pin(native::author(
                 intent,
                 &reading,
                 policy,
@@ -475,7 +496,7 @@ async fn author_create<P: ProviderInferDyn>(
                 assembly_request,
                 route,
                 out,
-            )
+            ))
             .await;
         }
         route.push(format!("cold: {} sample(s)", policy.samples.clamp(1, 5)));
@@ -500,10 +521,10 @@ async fn author_create<P: ProviderInferDyn>(
         {
             return Ok(cold);
         }
-        if policy.native == NativeMode::Escalate && native::escalates(&cold, &reading) {
+        if policy.native == NativeMode::Escalate && native::escalates(&cold) {
             let mut route = route;
             route.push("native: escalated".to_owned());
-            return native::author(
+            return Box::pin(native::author(
                 intent,
                 &reading,
                 policy,
@@ -511,7 +532,7 @@ async fn author_create<P: ProviderInferDyn>(
                 assembly_request,
                 route,
                 cold,
-            )
+            ))
             .await;
         }
         return Ok(cold);
@@ -520,32 +541,6 @@ async fn author_create<P: ProviderInferDyn>(
     record_route(&mut out, &route);
     unresolved(&reading, &mut out);
     Ok(out)
-}
-
-/// A deterministic outcome with no candidate whose only obstacle is the reader's contradiction
-/// for one effect (asked and banned by the request's own words; a merged excerpt is no excerpt,
-/// so the plan does not even anchor) is a reading, not a verdict: with an authorized seat and
-/// escalation, the native door reads the request whole, and what it realizes of that effect is
-/// stated to the review (never a grant). Every other outcome — and every other refusal — stands.
-async fn contradiction_to_seat<P: ProviderInferDyn>(
-    intent: &str,
-    reading: &Reading,
-    (request, provider, assembly): (&CompileRequest, Option<&P>, &CompileRequest),
-    mut route: Vec<String>,
-    hot: CompileOutcome,
-) -> Result<CompileOutcome, CompileError> {
-    let (Some(policy), Some(provider)) = (&request.authoring, provider) else {
-        return Ok(hot);
-    };
-    if hot.candidate.is_some()
-        || policy.native != NativeMode::Escalate
-        || !policy_bounded(policy, intent)
-        || !native::words_contradict_only(&hot, reading)
-    {
-        return Ok(hot);
-    }
-    route.push("native: escalated".to_owned());
-    native::author(intent, reading, policy, provider, assembly, route, hot).await
 }
 
 const POLICY_BOUNDS: &str = "Authoring requires an explicit model, 1..32768 output tokens, a timeout up to 600 seconds, and an intent no larger than 32768 bytes.";

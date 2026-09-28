@@ -144,6 +144,31 @@ uncertain effect is stated in review. Literal-targeted bans retain their own sco
 including relative paths and referenced constant destinations. These readings grant
 no permissions: Check, exact-byte review, consent and runtime admission still apply.
 
+A recorded plan is data the caller hands back: where one enters (`doors::replay` after
+anchoring, and `PendingTransform::load` before a continuation), every recorded rule must be
+re-derived from its words by the law that created it (`binding.rs`, R4 S0; the E14
+near-misses of rounds 1 to 5). A rule whose words the closed grammar reads must equal that
+reading under the request's column hint, the observed columns or none: every clause, junction,
+flag and shape key, so a record that changed a value, comparator, field, junction, clause,
+aggregate, key, direction or limit, or dropped a key, is refused and the rule named. A line
+filter must be what `line_filter` reads. A verified program may stand only where the grammar
+reads no typed rule. A seat's typed computation must be the fixpoint of its admitting law
+(`nika_compile_fidelity::predicate::rederives`). No field of the record selects a weaker law,
+and a rule nothing re-derives is refused by name. **Open, not closed by this law:** a seat's
+typed computation is bound to the law that admitted it, not to what its words mean. That law
+grounds a value, a number or a limit in the clause that states it (a schedule's hour is
+another clause's), a field among the request's columns, and a comparator, an aggregate, a
+junction or a direction nowhere, so another element it admits can replace the recorded one
+unseen (pinned by `compile_rule_binding`). No meaning closure is claimed.
+
+An effect the request's own words both ask for and prohibit (the reader's `Conflict`) stays
+the human's (R4 S0): `surface::assemble::refuse_contradiction` refuses it with both clauses
+quoted as excerpts of the request, a `RequiresHuman` finding and one `intent.clarification`
+question, no candidate and no unrelated model, endpoint or path question. It is the one
+refusal every door states; no seat reads the contradiction to choose a side. This covers the
+contradictions the reader recognizes (a request and a ban of the same effect, object or
+destination, and a ban of every write), not every semantic incompatibility a request can hold.
+
 With attached authoring references, Escalate tries complete HOT and finite WARM judgments
 first, then gives the first open generation the native language card, original request,
 answers, observed world and selected references. It avoids a preliminary private-plan

@@ -179,6 +179,19 @@ pub fn replay(
         );
         return Ok(());
     }
+    // Every recorded rule is re-derived from its words by the law that created it.
+    let observed = super::observed::for_intent(super::observed::world(request), intent);
+    if let Some(why) = super::binding::unbound(&plan, intent, observed) {
+        super::finding(
+            out,
+            DiagnosticKind::Unknown,
+            "recorded_plan",
+            format!(
+                "The recorded plan cannot be replayed: {why}. Compile the intent again without it."
+            ),
+        );
+        return Ok(());
+    }
     if !plan.unknowns.is_empty() {
         super::finding(
             out,

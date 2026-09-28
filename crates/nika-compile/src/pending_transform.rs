@@ -27,6 +27,9 @@ pub enum PendingTransformError {
     ChangedField,
     #[error("a pending operation cannot already carry an executable rule")]
     PrematureRule,
+    /// A recorded rule its words do not re-derive (named with what differs).
+    #[error("{0}")]
+    UnboundRule(String),
     #[error(transparent)]
     Decode(#[from] serde_json::Error),
     /// The existing plan decoder's refusal, preserved at this typed continuation boundary.
@@ -59,11 +62,32 @@ pub struct PendingTransform {
     verified_rule: Option<String>,
 }
 
+/// The identity a pending or verified transform binds: the plan's record in its historical
+/// canonical form, where a single clause carries no junction. « and » or « or » over one clause
+/// is that clause, and the serializer before the saved-plan strictness never wrote it: records
+/// written before and after it keep one identity in both directions (E14 F7), and any change
+/// that means something still changes the identity.
 fn plan_hash(plan: &Plan) -> String {
-    crate::surface::sha256(&plan.to_json().to_string())
+    let mut record = plan.to_json();
+    if let Some(rules) = record.get_mut("rules").and_then(Value::as_array_mut) {
+        rules.iter_mut().for_each(historical_form);
+    }
+    crate::surface::sha256(&record.to_string())
 }
 fn rule_hash(rule: &crate::rules::Rule) -> String {
-    crate::surface::sha256(&rule.to_json().to_string())
+    let mut record = rule.to_json();
+    historical_form(&mut record);
+    crate::surface::sha256(&record.to_string())
+}
+/// A rule record without the junction of its single clause.
+fn historical_form(rule: &mut Value) {
+    let single = rule
+        .get("clauses")
+        .and_then(Value::as_array)
+        .is_some_and(|clauses| clauses.len() == 1);
+    if single && let Some(fields) = rule.as_object_mut() {
+        fields.remove("junction");
+    }
 }
 fn same_path(a: &str, b: &str) -> bool {
     a.strip_prefix("./").unwrap_or(a) == b.strip_prefix("./").unwrap_or(b)
@@ -141,6 +165,10 @@ impl PendingTransform {
             .ok_or(PendingTransformError::MissingRecord)?;
         let state: Self = serde_json::from_value(raw.clone())?;
         let plan = Plan::from_json(record).map_err(PendingTransformError::InvalidPlan)?;
+        let observed = crate::observed::for_intent(crate::observed::world(request), intent);
+        if let Some(why) = crate::binding::unbound(&plan, intent, observed) {
+            return Err(PendingTransformError::UnboundRule(why));
+        }
         let path = state
             .source
             .get("path")

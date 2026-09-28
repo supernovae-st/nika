@@ -17,7 +17,9 @@ consumer paths. Provider choice and admission context remain host-owned and expl
 
 `cognition` owns the orchestration ladder; its children own proposal decoding, native
 answers/judgment/repairs, sketch filling, verified transforms and knowledge references.
-`compose`, `predicate` and `decide` move with their complete tests. The deterministic
+`compose`, `predicate` and `decide` move with their complete tests; `predicate` keeps the
+seat's wire decoding of a typed computation, whose law descended to `nika-compile-fidelity`
+(`predicate::typed_rule`, shared with the replay, 2026-09-28). The deterministic
 native record application and replay stay in core and are shared by accepted candidates
 and answer rounds. Candidate, fidelity and sketch laws come from `nika-compile-fidelity`
 (ADR-141); no Reader implementation is duplicated.
@@ -34,6 +36,19 @@ nothing else changed (the workflow's name aside) — recorded as `superseded` an
 diagnostic, or it stays a pending gap the human disposes of before READY. An omitted path
 plus a seat's gap is never, by itself, a removal the requester asked for; a change that names
 the old path (« n'écris plus dans a.txt ») still refuses a candidate that drops it.
+
+A request whose words both ask for an effect and prohibit it never reaches a seat (R4 S0,
+superseding the earlier « the seat arbitrates » reading). `route_create` answers every
+strategy (Escalate, Only, Sketch) with the deterministic door's refusal of the request as
+read: a clarification that replaced the original is that request, never the original. A
+revision in words whose change contradicts itself is refused before `native::author` revises
+the base, and `native::escalates` never escalates a refused outcome.
+
+A field answer's regeneration (`transform::pending::resume`) is claimed only once the replay of
+its verified record kept it: the Applied finding and `transform_regeneration.accepted: true`
+ride that record. A replay that refuses it keeps its own findings; the outcome carries no
+candidate and no verified record, states `accepted: false` with the refusal as its `why`, and
+the provider call stays spent and counted (E14 FRESH-1 saw `accepted: true` beside a refusal).
 
 An observed world states names; it does not answer a choice the request leaves open. The
 judge refuses a question for a column, field, key or value an observed file states, except

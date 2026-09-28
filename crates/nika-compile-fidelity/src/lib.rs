@@ -31,6 +31,7 @@
 
 pub mod candidate;
 pub mod fidelity;
+pub mod predicate;
 pub mod sketch;
 
 // The reader's plan, HOT vocabulary and lexicon at their historical module paths

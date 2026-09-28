@@ -84,7 +84,9 @@ impl Aggregation {
         };
         match self.round {
             Some(n) => {
-                let factor = 10_u64.pow(n);
+                let Some(factor) = 10_u64.checked_pow(n) else {
+                    return "error(\"recorded rounding precision overflows\")".to_owned();
+                };
                 format!("(({core} * {factor} | round) / {factor})")
             }
             None => core,
@@ -105,10 +107,20 @@ impl Aggregation {
             .map(str::trim)
             .filter(|f| !f.is_empty())
             .map(str::to_owned);
-        let round = value
-            .get("round")
-            .and_then(Value::as_u64)
-            .and_then(|n| u32::try_from(n).ok());
+        let round = match value.get("round") {
+            None | Some(Value::Null) => None,
+            Some(value) => {
+                let n = u32::try_from(value.as_u64()?).ok()?;
+                // Keep the same domain as semantic generation; no precision escalation.
+                if n > 6 {
+                    return None;
+                }
+                Some(n)
+            }
+        };
+        if op != AggOp::Count && field.is_none() {
+            return None;
+        }
         Some(Self {
             field,
             op,
@@ -177,6 +189,7 @@ impl Term {
         value
             .get("number")
             .and_then(Value::as_str)
+            .filter(|n| super::rule_tokens::recorded_number(n))
             .map(|n| Self::Number(n.to_owned()))
     }
 }

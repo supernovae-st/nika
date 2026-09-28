@@ -14,6 +14,8 @@ use serde_json::{Value, json};
 
 use super::rules;
 
+mod record;
+
 /// Closed operation vocabulary. Names are private; the assembler owns their structure.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 #[non_exhaustive]
@@ -499,41 +501,41 @@ impl Plan {
         plan.constraints = words(record, "plan", "constraints")?;
         plan.unknowns = words(record, "plan", "unknowns")?;
         plan.trigger = optional_text(record, "plan", "trigger")?;
-        if let Some(rules) = object.get("rules").and_then(Value::as_array) {
-            plan.rules = rules.iter().filter_map(rules::Rule::from_json).collect();
+        for (k, item) in record::optional_array(record, "rules")?.iter().enumerate() {
+            let rule = rules::Rule::from_json(item)
+                .ok_or_else(|| format!("`rules[{k}]` is not a complete recorded rule"))?;
+            record::faithful(item, &rule.to_json(), &format!("rules[{k}]"))?;
+            plan.rules.push(rule);
         }
-        if let Some(slots) = object.get("slots").and_then(Value::as_array) {
-            for (k, item) in slots.iter().enumerate() {
-                let field = |name: &str| {
-                    item.get(name)
-                        .and_then(Value::as_str)
-                        .map(str::to_owned)
-                        .ok_or_else(|| format!("`slots[{k}].{name}` is missing"))
-                };
-                let numeric = item
-                    .get("numeric")
-                    .and_then(Value::as_bool)
-                    .unwrap_or(false);
-                plan.slots
-                    .push(Slot::new(field("key")?, field("label")?, numeric));
-            }
+        for (k, item) in record::optional_array(record, "slots")?.iter().enumerate() {
+            let field = |name: &str| {
+                item.get(name)
+                    .and_then(Value::as_str)
+                    .map(str::to_owned)
+                    .ok_or_else(|| format!("`slots[{k}].{name}` is missing"))
+            };
+            let numeric = match item.get("numeric") {
+                Some(Value::Bool(value)) => *value,
+                None => return Err(format!("`slots[{k}].numeric` is missing")),
+                Some(_) => return Err(format!("`slots[{k}].numeric` is not a boolean")),
+            };
+            plan.slots
+                .push(Slot::new(field("key")?, field("label")?, numeric));
         }
+        record::slots(&plan)?;
+        record::owned_fields(record, &plan.to_json())?;
         Ok(plan)
     }
-    /// Every evidence excerpt must be a verbatim substring of the intent.
+    /// Every evidence excerpt must be a verbatim substring of the intent, and every rule is
+    /// anchored by its words or, a verified program, by the step it realizes.
     #[must_use]
     pub fn anchored(&self, intent: &str) -> bool {
-        self.steps
-            .iter()
-            .all(|s| !s.evidence.trim().is_empty() && intent.contains(&s.evidence))
-            && self
-                .effects
-                .iter()
-                .all(|e| !e.evidence.trim().is_empty() && intent.contains(&e.evidence))
-            && self
-                .obligations
-                .iter()
-                .all(|o| !o.evidence.trim().is_empty() && intent.contains(&o.evidence))
+        let excerpt = |evidence: &str| !evidence.trim().is_empty() && intent.contains(evidence);
+        let steps = &self.steps;
+        self.rules.iter().all(|r| r.record_anchored(intent, steps))
+            && steps.iter().all(|s| excerpt(&s.evidence))
+            && self.effects.iter().all(|e| excerpt(&e.evidence))
+            && self.obligations.iter().all(|o| excerpt(&o.evidence))
     }
 }
 

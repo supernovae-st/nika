@@ -6,6 +6,7 @@ pub use nika_compile::text
 pub mod nika_compile::surface
 pub mod nika_compile::surface::assemble
 pub fn nika_compile::surface::assemble::assemble(plan: &nika_compile_reader::plan::Plan, intent: &str, request: &nika_compile::CompileRequest, out: &mut nika_compile::CompileOutcome) -> core::result::Result<(), nika_compile::CompileError>
+pub fn nika_compile::surface::assemble::refuse_contradiction(plan: &nika_compile_reader::plan::Plan, out: &mut nika_compile::CompileOutcome) -> bool
 pub fn nika_compile::surface::assemble::unfed(plan: &nika_compile_reader::plan::Plan, intent: &str, out: &mut nika_compile::CompileOutcome) -> bool
 pub mod nika_compile::surface::observed
 pub fn nika_compile::surface::observed::columns(world: core::option::Option<&serde_json::value::Value>, path: &str) -> core::option::Option<alloc::vec::Vec<alloc::string::String>>
@@ -23,6 +24,7 @@ pub nika_compile::surface::pending_transform::PendingTransformError::InvalidPlan
 pub nika_compile::surface::pending_transform::PendingTransformError::MissingRecord
 pub nika_compile::surface::pending_transform::PendingTransformError::MissingSourcePath
 pub nika_compile::surface::pending_transform::PendingTransformError::PrematureRule
+pub nika_compile::surface::pending_transform::PendingTransformError::UnboundRule(alloc::string::String)
 impl core::convert::From<serde_json::error::Error> for nika_compile::surface::pending_transform::PendingTransformError
 pub fn nika_compile::surface::pending_transform::PendingTransformError::from(source: serde_json::error::Error) -> Self
 impl core::error::Error for nika_compile::surface::pending_transform::PendingTransformError

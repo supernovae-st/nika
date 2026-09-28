@@ -29,6 +29,28 @@ module paths:
 use nika_compile_fidelity::{fidelity, sketch};
 ```
 
+The typed computation law (`predicate::typed_rule`) descended here from
+`nika-compile-cognition` on 2026-09-28 (R4 S0 B3), verbatim: the part-by-part validation of
+a seat's typed computation against the request and its deterministic lowering. Creation and
+replay must run one law — a seat's computation is admitted by it, and a recorded rule is
+re-derived by it when a record comes back — and the replay door in `nika-compile` cannot
+reach cognition. The seat's wire stays decoded in cognition, strictly and once; the meaning
+crosses as the same JSON, read here with the same field rules (listed keys only, a missing or
+null optional read as empty, required fields present). No struct is exposed and no manifest
+changed; the walk kept its length (272 lines, the same fn-length ceiling, relocated).
+`predicate::rederives` is the replay's fixpoint of that law: a recorded seat-typed rule read
+back as its meaning (the inverse of the lowering: a slot by its recorded label, a truth value
+by a word of the request that spells it) must validate and lower to exactly the recorded
+rule, every slot it asks recorded. It binds the rule to the law, not to its meaning (the law
+grounds a comparator, an aggregate, a junction or a direction nowhere): that hole is open.
+A literal of the computation (a compared value, a number, a derived number, a limit) must be
+stated in the reader's own clause that holds its evidence (`clause_scope`: the request's
+sentences cut by `lexicon::split_clauses`, never the seat's citation boundary): a number the
+request states only in another clause, such as a schedule's hour, is not admitted and the rule
+is asked (option 2, measured: with the seat's citation as the scope one legitimate positive
+broke, a threshold stated in the same clause just outside the citation; with the clause, none).
+Output names stay words of the whole request and fields stay among its columns.
+
 The fidelity move preserves the existing onboarding facade entry points. Direct Rust
 imports of `nika_compile_reader::{candidate, fidelity, sketch}` must instead name
 `nika_compile_fidelity`; these reader paths are removed. Nothing of this crate is

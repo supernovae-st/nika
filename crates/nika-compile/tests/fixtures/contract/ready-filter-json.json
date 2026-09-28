@@ -482,6 +482,7 @@
             "status"
           ],
           "jq": "[.records[] | select(.status == \"open\")]",
+          "junction": "and",
           "lines": false,
           "program": null,
           "shape": {
@@ -566,6 +567,7 @@
               "status"
             ],
             "jq": "[.records[] | select(.status == \"open\")]",
+            "junction": "and",
             "lines": false,
             "program": null,
             "shape": {

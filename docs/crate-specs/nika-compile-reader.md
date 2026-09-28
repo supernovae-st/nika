@@ -101,6 +101,27 @@ while `nika-compile` stood at its wall; they ascended to `nika-compile-fidelity`
   A definite or possessive file (« dans le fichier », « in my file ») stays a locative. A
   plural one (« dans des fichiers ») is not read: a compiled workflow writes one named file per
   request, and that case is unchanged.
+- A ban of every write names the write effect (R4 S0, the 2026-09-27 A07 audit case « write
+  'hello' to ./a.txt but do not write anything », which a seat resolved into a write).
+  `effects::universal_write` reads a write head and one universal object (« anything »,
+  « rien », « any file », « quoi que ce soit »; « nothing » in the positive form « write
+  nothing »), in either order (« ne rien écrire »), after at most the negation particles, with
+  nothing after them but a terminal qualifier (« at all », « to disk », « du tout »). Beside a
+  requested write, `push_effect` merges it into the `Conflict` effect whose evidence keeps both
+  clauses as exact excerpts. A ban scoped to what the content says (« nothing about
+  salaries »), to the rest of the shape (« nothing else ») or to another literal file is no
+  universal ban, and a ban alone stays `Forbidden`.
+- Quoted content is what the workflow writes, reads or matches, never an instruction to it.
+  `cadence::quoted_at` extends the sentence-final guard to single-quoted literals: a straight
+  quote opens at the start or after a space or an opening bracket and closes before a space,
+  a punctuation mark or the end, so an apostrophe inside a word (« don't », « n'écris »)
+  neither opens nor closes. A listed policy marker inside quotes (ban, gate, stop,
+  indecision, revision, deduplication) is skipped by `earliest`, as is a shaped final or named
+  gate, and a connector, a full stop or a semicolon inside quotes cuts no clause and no
+  sentence: « write 'do not write anything' to ./a.txt » and « Read ./rules.txt, which says
+  'never email anyone', and email … » read as their neighbours with neutral quoted words. A
+  newline still ends a sentence, and the same words outside the quotes still govern. The
+  waiver shapes and the few indecision phrases read by substring are not yet quote-aware.
 - Every public type is `#[non_exhaustive]` (the forward-compatibility ratchet of the
   boundary); the composer builds plan elements through `Step::new`, `Effect::new`,
   `Obligation::new`, `Binding::new`, `Clause::new`, `Aggregation::new` and `Derived::new`
@@ -108,7 +129,37 @@ while `nika-compile` stood at its wall; they ascended to `nika-compile-fidelity`
   after the split (`cardinality::{Bound, Measure}`, `shape::{LiteralLookup, Shape}`,
   `structure::Law`) are not yet `#[non_exhaustive]`: that ratchet is owed, not claimed.
 - `provenance.plan` (the recorded plan a sidecar replays with zero provider calls) is the
-  reader's `Plan::to_json` / `Plan::from_json` pair, byte-identical.
+  reader's `Plan::to_json` / `Plan::from_json` pair. A canonical record replays every
+  provided owned field without loss or coercion. Present malformed `rules` or `slots`,
+  a defective element beside a valid one, and nested values that would otherwise be
+  dropped or defaulted refuse the entire plan. Historical absent optional fields may
+  still default; transport metadata such as `strategy` remains its caller's to read.
+  The rule record always includes its junction, including for one clause. Its computed
+  observational fields must agree with the decoded rule if they are present.
+  Recorded aggregation rounding stays within the generated 0..=6 precision domain,
+  and a non-count aggregation must name a source column. Numeric operands have closed
+  numeric syntax and must match whole numeric tokens in the request, including sign.
+  A program cannot override typed clauses or shape stages; produced names are unique.
+  Slots require declared `const.<identifier>` keys and an explicit numeric flag.
+  Required original rule fields (value kind, summary, shape, multi-clause junction)
+  cannot default; absent lines/program remain compatible with their historical windows.
+  A closed-grammar rule is anchored by its own words: the request states them, runs of
+  whitespace and typographic quotes aside (a seat that unwraps a line or drops a double
+  space names the same words; E14 seat r2), never a changed letter (« inactive » for
+  « active » is other words, unlike the evidence path's near-miss citation).
+  A verified program's text is the detail of the compute step it realizes (the seat's words
+  for it, or a detail a stated rule joined with « ; »): it is anchored through that step,
+  whose evidence stays an excerpt (E14 F7: demanding the program's text verbatim refused
+  every paraphrased or joined continuation after its paid regeneration).
+  This replay check does not establish full clause-to-intent fidelity, arbitrary program
+  correctness, runtime permission, or business-result correctness. The single-clause
+  junction is serialized but means nothing (« and » or « or » over one clause is that
+  clause), so the identity a pending or verified transform binds (`plan_sha256`,
+  `verified_rule`, in `nika-compile`) keeps the historical canonical form without it:
+  the records the fcf290a7b compiler wrote (`nika-compile/tests/fixtures/historical`)
+  replay as they did there, and a record written here carries the identity that compiler
+  computes. A change that means something still changes the identity, and a changed
+  identity never authorizes a changed context.
 - The 12 ADR-003 gates were passed by `nika-onboard` at its admission; this member inherits
   them as the third member of the same unit (the ADR-115 and ADR-137 precedent). Mutation
   and property attestations for the reader are owed as pending evidence, tracked with the

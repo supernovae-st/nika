@@ -4,7 +4,7 @@
 use super::{
     AuthoringPolicy, CompileOutcome, DiagnosticKind, PendingTransform, ProviderInferDyn, Refusal,
 };
-use crate::{CompileError, CompileRequest};
+use crate::{CompileError, CompileRequest, CompileStatus};
 use serde_json::json;
 
 pub(crate) async fn resume<P: ProviderInferDyn>(
@@ -62,17 +62,9 @@ pub(crate) async fn resume<P: ProviderInferDyn>(
             // Assembly consumes the verified field receipt; it never executes the workflow.
             out.provenance.plan = None;
             crate::replay(intent, &verified, &assembly_request, &mut out)?;
-            if let Some(record) = out.provenance.plan.as_mut() {
-                record["verified_transform"] = verified["verified_transform"].clone();
-            }
-            crate::finding(
-                &mut out,
-                DiagnosticKind::Applied,
-                "authoring_transform",
-                "The field answer regenerated a program through one bounded provider call and the existing transform verifier.",
-            );
+            let regeneration = kept_or_refused(&mut out, &verified);
             let mut decision = out.provenance.decision.take().unwrap_or_else(|| json!({}));
-            decision["transform_regeneration"] = json!({"accepted":true});
+            decision["transform_regeneration"] = regeneration;
             out.provenance.decision = Some(decision);
         }
         Err(Refusal(why)) => {
@@ -89,4 +81,48 @@ pub(crate) async fn resume<P: ProviderInferDyn>(
         }
     }
     Ok(out)
+}
+
+/// The regeneration's verdict once the replay of its verified record ran: the program is
+/// accepted only when the replay kept that record. A replay that refused it keeps its own
+/// findings; nothing claims the program, restores the record, or pretends the spent call away.
+fn kept_or_refused(out: &mut CompileOutcome, verified: &serde_json::Value) -> serde_json::Value {
+    let refused = out
+        .diagnostics
+        .iter()
+        .find(|d| matches!(d.target.as_str(), "pending_transform" | "recorded_plan"))
+        .map(|d| d.message.clone())
+        .or_else(|| {
+            let kept = out.provenance.plan.is_some();
+            (!kept).then(|| "the replay kept no verified record".to_owned())
+        });
+    match refused {
+        None => {
+            if let Some(record) = out.provenance.plan.as_mut() {
+                record["verified_transform"] = verified["verified_transform"].clone();
+            }
+            crate::finding(
+                out,
+                DiagnosticKind::Applied,
+                "authoring_transform",
+                "The field answer regenerated a program through one bounded provider call and the existing transform verifier.",
+            );
+            json!({"accepted":true})
+        }
+        Some(why) => {
+            out.status = CompileStatus::Incomplete;
+            out.candidate = None;
+            out.check_preview = None;
+            out.provenance.plan = None;
+            crate::finding(
+                out,
+                DiagnosticKind::Unknown,
+                "authoring_transform",
+                format!(
+                    "The regenerated program was verified, but its replay refused it ({why}); the provider call is spent. Compile the request afresh."
+                ),
+            );
+            json!({"accepted":false,"why":why})
+        }
+    }
 }

@@ -117,6 +117,73 @@ pub(super) fn negation_reaches(after: &str, columns: &[String]) -> bool {
     first_effect_word(after, columns).is_none_or(|(at, _)| at <= 1)
 }
 
+/// The objects that name every write at once. A negated write head with one of them, and at
+/// most a terminal qualifier after it, bans the write effect itself: « do not write anything »,
+/// « n'écris rien », « ne rien écrire ». An object that restricts them (« anything about
+/// salaries », « anything else ») is a content or a shape instruction, never a ban of the write.
+const EVERY_WRITE: &[&str] = &[
+    "anything",
+    "rien",
+    "any file",
+    "any files",
+    "aucun fichier",
+    "quoi que ce soit",
+];
+
+/// The only words a ban of every write may end with.
+const BAN_QUALIFIERS: &[&str] = &[
+    "at all",
+    "to disk",
+    "anywhere",
+    "to any file",
+    "du tout",
+    "nulle part",
+    "sur le disque",
+];
+
+/// The particles a negation may carry before its verb (« never ever write », « ne jamais rien
+/// écrire »).
+const BAN_PARTICLES: &[&str] = &["ever", "jamais", "plus", "pas"];
+
+/// Whether the words after a negation (`negated`) ban every write, or (not `negated`) whether a
+/// clause says « write nothing »: a write head and one object of [`EVERY_WRITE`] (« nothing »
+/// in the positive form), in either order (« ne rien écrire »), and nothing after them but a
+/// terminal qualifier. A quoted object (« write 'nothing' ») is content, never a ban.
+pub(super) fn universal_write(after: &str, negated: bool) -> bool {
+    if after.contains(['"', '`', '«', '“']) || after.contains(" '") || after.starts_with('\'') {
+        return false;
+    }
+    let words: Vec<&str> = after
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|w| !w.is_empty())
+        .collect();
+    let mut rest = words.as_slice();
+    while let Some((first, tail)) = rest.split_first()
+        && BAN_PARTICLES.contains(first)
+    {
+        rest = tail;
+    }
+    let every: &[&str] = if negated { EVERY_WRITE } else { &["nothing"] };
+    // The object of every write at the head of `words`: how many words it spans.
+    let object = |words: &[&str]| {
+        every.iter().find_map(|phrase| {
+            let wanted: Vec<&str> = phrase.split(' ').collect();
+            (words.len() >= wanted.len() && words[..wanted.len()] == wanted[..])
+                .then_some(wanted.len())
+        })
+    };
+    let after_both = match rest {
+        [head, tail @ ..] if super::heads::writes_to_path(head) => object(tail).map(|n| &tail[n..]),
+        _ if negated => object(rest).and_then(|n| match &rest[n..] {
+            [head, tail @ ..] if super::heads::writes_to_path(head) => Some(tail),
+            _ => None,
+        }),
+        _ => None,
+    };
+    after_both
+        .is_some_and(|tail| tail.is_empty() || BAN_QUALIFIERS.contains(&tail.join(" ").as_str()))
+}
+
 /// Whether a directly negated clause bans an object of its own rather than the requested
 /// effect of the same verb: it names an object after its effect word, shares no literal (URL,
 /// address, path) with the request, and does not refer back to it (« it », a repeated noun).

@@ -1128,10 +1128,11 @@ pub(super) fn merge(
         }
         if op == Op::Compute
             && let Some(computation) = step.computation.as_ref().filter(|c| c.present)
-            && let Some((rule, slots)) = crate::predicate::typed_rule(
+            && let Ok(meaning) = serde_json::to_value(computation)
+            && let Some((rule, slots)) = nika_compile_fidelity::predicate::typed_rule(
                 intent,
                 &evidence,
-                computation,
+                &meaning,
                 &proposal.unknowns,
                 &reading.columns,
             )

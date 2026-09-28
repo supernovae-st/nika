@@ -421,6 +421,7 @@ pub fn nika_compile_reader::lexicon::fold_apostrophes(intent: &str) -> alloc::st
 pub fn nika_compile_reader::lexicon::read(intent: &str) -> nika_compile_reader::lexicon::Reading
 pub fn nika_compile_reader::lexicon::settle_retrieval(detail_lower: &str, options: &[nika_compile_reader::plan::Op]) -> core::option::Option<nika_compile_reader::plan::Op>
 pub fn nika_compile_reader::lexicon::slug(phrase: &str) -> alloc::string::String
+pub fn nika_compile_reader::lexicon::split_clauses(sentence: &str) -> alloc::vec::Vec<&str>
 pub fn nika_compile_reader::lexicon::split_sentences(intent: &str) -> alloc::vec::Vec<&str>
 pub mod nika_compile_reader::objects
 #[non_exhaustive] pub struct nika_compile_reader::objects::Facet

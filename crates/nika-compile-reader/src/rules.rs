@@ -25,6 +25,7 @@ use super::rule_cues::{
 
 mod fields;
 mod lines;
+mod record;
 pub use lines::{by_construction_tail, line_filter};
 
 /// Whether a constraint only says the rows keep their order (« garde l'ordre », « keep the
@@ -415,11 +416,14 @@ impl Clause {
         let comparator = Comparator::from_word(value.get("comparator")?.as_str()?)?;
         let literal = value.get("value")?.as_str()?.to_owned();
         let operand = match value.get("value_kind").and_then(Value::as_str) {
-            Some("number") => Operand::Number(literal),
+            Some("number") if super::rule_tokens::recorded_number(&literal) => {
+                Operand::Number(literal)
+            }
             Some("bool") => Operand::Bool(literal == "true"),
             Some("column") => Operand::Column(literal),
             Some("slot") => Operand::Slot(literal),
-            _ => Operand::Text(literal),
+            Some(_) => Operand::Text(literal), // faithful reports an unknown present kind
+            None => return None,
         };
         if field.is_empty() {
             return None;
@@ -558,7 +562,7 @@ impl Rule {
             .iter()
             .map(Clause::from_json)
             .collect::<Option<Vec<_>>>()?;
-        let shape = Shape::from_json(value.get("shape"))?;
+        let shape = Shape::from_json(Some(value.get("shape")?))?;
         let program = value.get("program").filter(|p| !p.is_null()).map(|p| {
             Some(Program {
                 jq: p.get("jq")?.as_str()?.to_owned(),
@@ -580,14 +584,13 @@ impl Rule {
         }
         let junction = match value.get("junction").and_then(Value::as_str) {
             Some("or") => Junction::Or,
-            _ => Junction::And,
+            Some(_) => Junction::And, // faithful rejects unknown present values
+            None if clauses.len() == 1 => Junction::And, // the original single-clause format
+            None => return None,
         };
-        let summary = value
-            .get("summary")
-            .and_then(Value::as_bool)
-            .unwrap_or(false);
+        let summary = value.get("summary")?.as_bool().unwrap_or(false);
         let lines = value.get("lines").and_then(Value::as_bool).unwrap_or(false);
-        Some(Self {
+        let rule = Self {
             text,
             clauses,
             junction,
@@ -595,7 +598,8 @@ impl Rule {
             shape,
             lines,
             program,
-        })
+        };
+        record::valid(&rule).then_some(rule)
     }
     /// Whether the text also asked for the count and totals the summary stage computes.
     #[must_use]
@@ -766,6 +770,7 @@ impl Rule {
             "jq": self.jq(),
             "synthesized": true,
             "summary": self.summary,
+            "junction": self.junction.word(),
             "shape": self.shape.to_json(),
             "lines": self.lines,
             "program": self.program.as_ref().map(|p| json!({"jq": p.jq, "columns": p.columns})),
@@ -775,8 +780,6 @@ impl Rule {
             record["field"] = clause["field"].clone();
             record["comparator"] = clause["comparator"].clone();
             record["value"] = clause["value"].clone();
-        } else {
-            record["junction"] = json!(self.junction.word());
         }
         record
     }

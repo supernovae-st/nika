@@ -241,6 +241,41 @@ pub(crate) fn quoted(before: &str) -> bool {
     count('"') % 2 == 1 || count('`') % 2 == 1 || count('«') > count('»') || count('“') > count('”')
 }
 
+/// Whether a byte position of the text lies inside quoted content: the quotes [`quoted`]
+/// counts, or a single-quoted literal (« write 'hello' »). A straight single quote opens at
+/// the start or after a space or an opening bracket, before a non-space, and closes after a
+/// non-space, before a space, a punctuation mark or the end; an apostrophe inside a word
+/// (« don't », « n'écris », « l'envoie ») neither opens nor closes. What lies inside quotes
+/// is what the workflow writes, reads or matches, never an instruction to it.
+pub(crate) fn quoted_at(text: &str, pos: usize) -> bool {
+    let Some(before) = text.get(..pos) else {
+        return false;
+    };
+    if quoted(before) {
+        return true;
+    }
+    let mut open = false;
+    let mut prev: Option<char> = None;
+    let mut chars = text.char_indices().peekable();
+    while let Some((at, c)) = chars.next() {
+        if at >= pos {
+            break;
+        }
+        if c == '\'' {
+            let next = chars.peek().map(|(_, n)| *n);
+            if open {
+                open = !(prev.is_some_and(|p| !p.is_whitespace())
+                    && next.is_none_or(|n| !n.is_alphanumeric()));
+            } else {
+                open = prev.is_none_or(|p| p.is_whitespace() || matches!(p, '(' | '[' | ':'))
+                    && next.is_some_and(|n| !n.is_whitespace());
+            }
+        }
+        prev = Some(c);
+    }
+    open
+}
+
 /// Settle the sentence-final cadences once every sentence is read. The widest becomes the
 /// plan's trigger when no head recorded one, or when the head is a recurrence stated without
 /// its cadence (« Régulièrement, … chaque lundi »: the cadence completes it); a head that

@@ -1,0 +1,98 @@
+{
+  "bindings": [
+    {
+      "literal": "./out/shared.json",
+      "role": "path"
+    },
+    {
+      "literal": "./data/people.json",
+      "role": "path"
+    },
+    {
+      "literal": "./out/shared.json",
+      "role": "path"
+    }
+  ],
+  "constraints": [],
+  "effects": [
+    {
+      "evidence": "write them to ./out/shared.json",
+      "policy": "automatic",
+      "policy_literal": null,
+      "target": "./out/shared.json",
+      "verb": "write"
+    }
+  ],
+  "obligations": [],
+  "observed_world": {
+    "observed": [
+      {
+        "columns": [
+          "id",
+          "address"
+        ],
+        "common_columns": [
+          "id",
+          "address"
+        ],
+        "complete": false,
+        "path": "./data/people.json",
+        "peek_sha256": "e14-synthetic-observation",
+        "state": "observed"
+      }
+    ]
+  },
+  "operations": [
+    {
+      "categories": [],
+      "detail": "./data/people.json (name, email)",
+      "evidence": "Read ./data/people.json (name, email)",
+      "op": "read"
+    },
+    {
+      "categories": [],
+      "detail": "people who share an email domain with at least one other person",
+      "evidence": "keep the people whose email domain appears more than once",
+      "op": "compute"
+    }
+  ],
+  "pending_transform": {
+    "attempts": 0,
+    "detail": "people who share an email domain with at least one other person",
+    "evidence": "keep the people whose email domain appears more than once",
+    "fields": [
+      {
+        "answer": null,
+        "name": "email"
+      }
+    ],
+    "intent": "Read ./data/people.json (name, email), keep the people whose email domain appears more than once, and write them to ./out/shared.json",
+    "intent_sha256": "aee6d03e542cea715efa07c5359a5ee31dc426a601fad2525c70e78641ac752d",
+    "offered": [
+      "id",
+      "address"
+    ],
+    "plan_sha256": "1f6b39155b690c7121e16b081b3ff231c598ff03d62abd0bfa24e0e76a890af5",
+    "schema": "nika/pending-transform@1",
+    "source": {
+      "columns": [
+        "id",
+        "address"
+      ],
+      "common_columns": [
+        "id",
+        "address"
+      ],
+      "complete": false,
+      "path": "./data/people.json",
+      "peek_sha256": "e14-synthetic-observation",
+      "state": "observed"
+    },
+    "verified_rule": null
+  },
+  "rules": [],
+  "slots": [],
+  "strategy": "cold",
+  "trigger": null,
+  "unknowns": []
+}

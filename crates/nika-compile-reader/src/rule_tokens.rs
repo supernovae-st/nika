@@ -217,6 +217,11 @@ pub(crate) fn number(word: &str) -> Option<String> {
     Some(format!("{sign}{canonical}"))
 }
 
+/// A recorded numeric operand is closed numeric syntax, never a jq expression or infinity.
+pub(crate) fn recorded_number(text: &str) -> bool {
+    number(text).as_deref() == Some(text) && text.parse::<f64>().is_ok_and(f64::is_finite)
+}
+
 fn push_word(word: &str, out: &mut Vec<Token>) {
     let word = word.trim_matches(is_punctuation);
     if word.is_empty() {

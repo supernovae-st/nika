@@ -41,13 +41,11 @@ fn schema() -> Value {
 /// Whether a cold outcome calls for the native strategy: a question that hands the human a
 /// machine's problem (a rewrite, a jq expression, a glob), or a dead end (no candidate and
 /// nothing to answer). A cold outcome waiting on business values is not a failure.
-pub(super) fn escalates(out: &CompileOutcome, reading: &Reading) -> bool {
-    // A refusal is the floor (a bypassed approval, a literal-only policy): no door reopens it.
-    // A contradiction the reader found between the request's own words for one effect is a
-    // reading, not a refusal: the seat reads the request whole, and what it realizes of that
-    // effect is stated to the review.
+pub(super) fn escalates(out: &CompileOutcome) -> bool {
+    // A refusal is the floor (a bypassed approval, a literal-only policy, an effect the words
+    // both ask for and prohibit, which stays the human's): no door reopens it.
     if out.status == CompileStatus::Refused {
-        return words_contradict_only(out, reading);
+        return false;
     }
     // A seat that failed, timed out or was cut at its cap is not asked again through another
     // door: the provider finding stands, and the calls stay bounded.
@@ -65,25 +63,6 @@ pub(super) fn escalates(out: &CompileOutcome, reading: &Reading) -> bool {
         )
     });
     machine || (out.candidate.is_none() && out.questions.is_empty())
-}
-
-/// Whether an outcome's only obstacle is the reader's contradiction for an effect (asked and
-/// banned by the request's own words): no hard refusal, no approval-bypass floor.
-pub(super) fn words_contradict_only(out: &CompileOutcome, reading: &Reading) -> bool {
-    reading
-        .plan
-        .effects
-        .iter()
-        .any(|e| e.policy == crate::plan::EffectPolicy::Conflict)
-        && !reading
-            .plan
-            .unknowns
-            .iter()
-            .any(|u| u.contains("approval-bypass"))
-        && !out
-            .diagnostics
-            .iter()
-            .any(|d| d.kind == DiagnosticKind::Refused)
 }
 
 /// The floor the reader states before any seat writes: a request that reuses, skips or
@@ -1181,7 +1160,7 @@ mod tests {
     fn a_refusal_or_a_provider_failure_never_escalates_and_a_machine_question_does() {
         let mut refused = outcome();
         refused.status = CompileStatus::Refused;
-        assert!(!escalates(&refused, &crate::lexicon::read("")));
+        assert!(!escalates(&refused));
         let mut failed = outcome();
         crate::finding(
             &mut failed,
@@ -1189,7 +1168,7 @@ mod tests {
             "authoring_provider",
             "timed out",
         );
-        assert!(!escalates(&failed, &crate::lexicon::read("")));
+        assert!(!escalates(&failed));
         let mut machine = outcome();
         crate::question(
             &mut machine,
@@ -1197,7 +1176,7 @@ mod tests {
             "which jq?",
             QuestionType::Text,
         );
-        assert!(escalates(&machine, &crate::lexicon::read("")));
+        assert!(escalates(&machine));
         let mut business = outcome();
         crate::question(
             &mut business,
@@ -1205,12 +1184,14 @@ mod tests {
             "where?",
             QuestionType::Text,
         );
-        assert!(!escalates(&business, &crate::lexicon::read("")));
-        assert!(escalates(&outcome(), &crate::lexicon::read("")));
+        assert!(!escalates(&business));
+        assert!(escalates(&outcome()));
     }
 
     #[test]
-    fn a_refusal_resting_only_on_the_words_contradicting_one_effect_escalates() {
+    fn a_refusal_resting_on_the_words_contradicting_one_effect_never_escalates() {
+        // R4 S0: an effect the request's own words both ask for and prohibit stays the human's;
+        // no seat reads the request to choose a side.
         let contradiction = crate::lexicon::read(
             "Lis ./note.txt et envoie-la à https://hooks.example.test/in; ne l'envoie jamais à https://hooks.example.test/in.",
         );
@@ -1223,27 +1204,7 @@ mod tests {
         );
         let mut refused = outcome();
         refused.status = CompileStatus::Refused;
-        assert!(escalates(&refused, &contradiction));
-        // A hard refusal beside it, or the approval-bypass floor, is never reopened.
-        let mut hard = refused.clone();
-        crate::finding(
-            &mut hard,
-            DiagnosticKind::Refused,
-            "intent",
-            "literal-only policy",
-        );
-        assert!(!escalates(&hard, &contradiction));
-        let mut bypass = contradiction.clone();
-        bypass
-            .plan
-            .unknowns
-            .push("approval-bypass wording".to_owned());
-        assert!(!escalates(&refused, &bypass));
-        // Without a contradiction, a refusal stays the floor.
-        assert!(!escalates(
-            &refused,
-            &crate::lexicon::read("Lis ./note.txt.")
-        ));
+        assert!(!escalates(&refused));
     }
 
     #[test]
