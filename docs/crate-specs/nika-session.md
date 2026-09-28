@@ -60,7 +60,10 @@ before a declaration proposal, naming the need to restate a supported period
 and explicit daily/weekly time; there is no implicit 08:00 or Monday.
 
 The existing activation questions still require timezone, missed-run policy
-and positive per-occurrence ceiling. The full `TZ=...` expression is validated
+and positive per-occurrence ceiling. The zone answer is judged by `nika-cadence`
+itself when it is given (a name its bundled IANA base lacks, or `/Europe/Paris`,
+is refused at once and the question keeps waiting), never by a second shape
+rule. The full `TZ=...` expression is validated
 by `nika-cadence`, shown with its field meanings, zero interval phase and local
 clock/DST semantics, and recorded unchanged only after explicit declaration
 consent. The canonical overlap/after-skip defaults are unchanged. A recognized

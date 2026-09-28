@@ -89,7 +89,7 @@ impl Activation {
         )
     }
 
-    /// Bind the current key to a line; the shape refusal names the fix.
+    /// Bind the current key to a line; the refusal names the fix.
     pub(super) fn answer(&mut self, line: &str) -> Result<(), String> {
         let key = self
             .current()
@@ -97,13 +97,12 @@ impl Activation {
         let value = line.trim();
         let bound = match key {
             TIMEZONE => {
-                let ok = value.contains('/')
-                    && value
-                        .chars()
-                        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '/' | '_' | '-' | '+'));
-                if !ok {
+                // The schedule grammar is the one judge of a zone, asked now rather than
+                // after two more answers (`/Europe/Paris` has a path's shape, no zone's).
+                let probe = format!("TZ={value} 0 0 * * *");
+                if nika_cadence::registry::Cadence::parse(&probe).is_err() {
                     return Err(format!(
-                        "`{value}` is not a time zone name — the form is `Area/City`, e.g. Europe/Paris, America/Montreal"
+                        "`{value}` is not a time zone the schedule knows — answer an IANA name (`Area/City`), e.g. Europe/Paris, America/Montreal"
                     ));
                 }
                 value.to_owned()

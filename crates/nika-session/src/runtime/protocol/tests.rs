@@ -486,6 +486,46 @@ fn a_command_shaped_line_never_answers_an_activation() {
     assert_eq!(key, "project.missed");
 }
 
+/// E8 (1): the schedule grammar judges the zone when it is answered, not after two more
+/// answers — `/Europe/Paris` (a path's shape: the path rule rightly keeps it no command) and
+/// names no zone database knows are refused at once, the activation kept; a zone the grammar
+/// reads answers it, `UTC` included (one judge, no second shape rule).
+#[test]
+fn a_zone_the_schedule_grammar_refuses_is_refused_when_answered() {
+    let dir = tree();
+    let mut s = super::super::tests::saved_daily_copy(dir.path());
+    let TurnOutcome::Question { key, .. } = s.turn("activate") else {
+        panic!("activate asks first");
+    };
+    assert_eq!(key, "project.timezone");
+    let state = semantic(&s);
+    for line in [
+        "/Europe/Paris",
+        "Mars/Olympus_Mons",
+        "Europe/Pariss",
+        "Paris",
+        "Europe/ Paris",
+    ] {
+        let out = s.turn(line);
+        assert!(
+            matches!(&out, TurnOutcome::Refusal(r) if r.text.contains("Area/City")),
+            "{line}: {out:?}"
+        );
+        assert_eq!(s.pending_activation(), Some("project.timezone"), "{line}");
+        assert_eq!(semantic(&s), state, "{line}");
+    }
+    for zone in ["Europe/Paris", "UTC"] {
+        let dir = tree();
+        let mut s = super::super::tests::saved_daily_copy(dir.path());
+        let _ = s.turn("activate");
+        let out = s.turn(zone);
+        assert!(
+            matches!(&out, TurnOutcome::Question { key, .. } if key == "project.missed"),
+            "{zone}: {out:?}"
+        );
+    }
+}
+
 /// E5 FB1 at an activation: `/why` and `why` beside the schedule's question explain the
 /// activation (not « nothing waits »), the question keeps waiting, nothing is written.
 #[test]
