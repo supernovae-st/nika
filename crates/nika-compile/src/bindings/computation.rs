@@ -162,18 +162,33 @@ fn contains_stages(actual: &Value, required: &Value) -> bool {
     }
 }
 
+/// Every recorded part is a typed stage of the candidate, found in the candidate's steps in the
+/// order the plan records the parts (R4 F5): a part never sits in a step before the step of
+/// the part stated before it. An inventory that holds every stage in another order is refused.
 fn records_all_stages(candidate: &rules::Rule, parts: &[&rules::Rule]) -> bool {
-    let actual = candidate.to_json();
+    let record = candidate.to_json();
+    let later = record["then"].as_array().cloned().unwrap_or_default();
+    let steps: Vec<Value> = std::iter::once(record).chain(later).collect();
+    let mut at = 0;
     parts.iter().all(|rule| {
         let required = rule.to_json();
-        ["clauses", "shape", "program"]
-            .iter()
-            .all(|key| contains_stages(&actual[*key], &required[*key]))
-            && (required["shape"]["sort_by"].is_null()
-                || actual["shape"]["descending"] == required["shape"]["descending"])
-            && (required["clauses"]
-                .as_array()
-                .is_none_or(|clauses| clauses.len() < 2)
-                || actual["junction"] == required["junction"])
+        let holds = |actual: &Value| {
+            ["clauses", "shape", "program"]
+                .iter()
+                .all(|key| contains_stages(&actual[*key], &required[*key]))
+                && (required["shape"]["sort_by"].is_null()
+                    || actual["shape"]["descending"] == required["shape"]["descending"])
+                && (required["clauses"]
+                    .as_array()
+                    .is_none_or(|clauses| clauses.len() < 2)
+                    || actual["junction"] == required["junction"])
+        };
+        match steps.iter().skip(at).position(holds) {
+            Some(found) => {
+                at += found;
+                true
+            }
+            None => false,
+        }
     })
 }

@@ -150,3 +150,50 @@ fn a_filter_only_plan_recorded_for_a_fused_count_is_refused_then_recompiled() {
         "[.records[] | select(.status == \"paid\")] | {\"count\": length}"
     );
 }
+
+/// The order the request states is the order the emitted program runs (R4 F5): a top-N then a
+/// filter, and a filter then a top-N, are two different programs, with or without « then ».
+#[test]
+fn a_filter_and_a_top_n_run_in_the_order_the_request_states() {
+    let top2 = "sort_by((.amount_usd | num) | dkey) | reverse | dtie(2; (.amount_usd | num) | dkey; .; \"`amount_usd`\") | .[:2]";
+    let paid = "select(.status == \"paid\")";
+    let intent = |clauses: &str, write: &str| {
+        format!("read ./data/input.csv, {clauses}, {write} to ./out/result.json")
+    };
+    for (clauses, write, rule) in [
+        (
+            "keep the rows where status is paid, keep the 2 rows with the highest amount_usd",
+            "write them",
+            format!("[.records[] | {paid}] | {top2}"),
+        ),
+        (
+            "keep the rows where status is paid, then keep the 2 rows with the highest amount_usd",
+            "write them",
+            format!("[.records[] | {paid}] | {top2}"),
+        ),
+        (
+            "keep the 2 rows with the highest amount_usd, keep the rows where status is paid",
+            "write them",
+            format!(".records | {top2} | map({paid})"),
+        ),
+        (
+            "keep the 2 rows with the highest amount_usd, then keep the rows where status is paid",
+            "write them",
+            format!(".records | {top2} | map({paid})"),
+        ),
+        (
+            "keep the rows where status is paid, keep the 2 rows with the highest amount_usd, keep the rows where amount_usd is over 50",
+            "write them",
+            format!(
+                "[.records[] | {paid}] | {top2} | map(select(((.amount_usd | num) | dkey) > (\"50\" | dkey)))"
+            ),
+        ),
+        (
+            "keep the 2 rows with the highest amount_usd, count them",
+            "write the count",
+            format!(".records | {top2} | {{\"count\": length}}"),
+        ),
+    ] {
+        assert_eq!(ready_rule(&intent(clauses, write)), rule, "{clauses}");
+    }
+}

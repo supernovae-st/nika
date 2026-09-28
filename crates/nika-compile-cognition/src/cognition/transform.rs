@@ -1084,4 +1084,65 @@ mod tests {
         let rows = run(filter_only, &csv_records(DISCRIMINATING)).unwrap();
         assert!(rows.is_array() && rows != json!({ "count": 5 }), "{rows}");
     }
+
+    /// A filter and a top-N run in the order the request states them (R4 F5), by the runtime's
+    /// own jq on the emitted bytes. The discriminating rows separate the orders: the top two by
+    /// amount are 100 (paid) and 50 (open), so the paid rows among them are 100 alone, while the
+    /// top two paid rows are 100 and 20. Expected rows were stated before any run.
+    #[test]
+    fn a_filter_and_a_top_n_emit_programs_in_the_stated_order() {
+        let row = |(id, amount, status): (&str, &str, &str)| json!({"id": id, "amount_usd": amount, "status": status});
+        let rows =
+            |picked: &[(&str, &str, &str)]| Value::Array(picked.iter().copied().map(row).collect());
+        let intent = |clauses: &str, write: &str| {
+            format!("read ./data/input.csv, {clauses}, {write} to ./out/result.json")
+        };
+        let (c100, d20, a20, b10) = (
+            ("C", "100", "paid"),
+            ("D", "20", "paid"),
+            ("A", "20", "paid"),
+            ("B", "10", "paid"),
+        );
+        let cases: [(&str, &str, [Value; 3]); 5] = [
+            (
+                "keep the rows where status is paid, keep the 2 rows with the highest amount_usd",
+                "write them",
+                [rows(&[a20, b10]), rows(&[c100, d20]), rows(&[])],
+            ),
+            (
+                "keep the 2 rows with the highest amount_usd, keep the rows where status is paid",
+                "write them",
+                [rows(&[a20, b10]), rows(&[c100]), rows(&[])],
+            ),
+            (
+                "keep the 2 rows with the highest amount_usd, then keep the rows where status is paid",
+                "write them",
+                [rows(&[a20, b10]), rows(&[c100]), rows(&[])],
+            ),
+            (
+                "keep the rows where status is paid, keep the 2 rows with the highest amount_usd, keep the rows where amount_usd is over 50",
+                "write them",
+                [rows(&[]), rows(&[c100]), rows(&[])],
+            ),
+            (
+                "keep the 2 rows with the highest amount_usd, count them",
+                "write the count",
+                [
+                    json!({"count": 2}),
+                    json!({"count": 2}),
+                    json!({"count": 2}),
+                ],
+            ),
+        ];
+        for (clauses, write, expected) in cases {
+            let program = emitted_compute(&intent(clauses, write));
+            for (fixture, want) in [FRIENDLY, DISCRIMINATING, NONE_PAID].iter().zip(expected) {
+                assert_eq!(
+                    run(&program, &csv_records(fixture)).unwrap(),
+                    want,
+                    "{clauses}"
+                );
+            }
+        }
+    }
 }

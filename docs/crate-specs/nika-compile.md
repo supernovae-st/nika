@@ -338,8 +338,10 @@ several files leave that binding unresolved instead of reparsing their joined
 descriptions into one partial rule. The normal authoring escalation can generate
 the complete native task graph. A typed rule for the whole detail retains its
 deterministic path, as does a single-output pipeline whose parsed rule retains
-every recorded typed stage. This structural boundary does not prove arbitrary
-model-generated computations semantically correct.
+every recorded typed stage in the recorded order: a part is found only in the
+step of the part recorded before it or in a later step (R4 F5), so an inventory
+holding every stage in another order is refused. This structural boundary does
+not prove arbitrary model-generated computations semantically correct.
 
 The lexical reader supplies hypotheses for effects it cannot settle: an indirect negation
 does not become a ban, and an undecided effect is not an obligation to execute. Native

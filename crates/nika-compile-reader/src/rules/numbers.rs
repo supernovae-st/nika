@@ -98,35 +98,36 @@ fn equality(clause: &Clause) -> bool {
 
 impl Rule {
     /// The source fields the rule reads as numbers, first use first: numeric comparisons, sums,
-    /// averages, minima, maxima and the key of a ranking that keeps a count.
+    /// averages, minima, maxima and the key of a ranking that keeps a count, in every step.
     #[must_use]
     pub fn number_fields(&self) -> Vec<String> {
-        let shape = &self.shape;
-        let compared = self.clauses.iter().filter(|c| {
-            c.comparator.textual().is_none()
-                && (matches!(c.value, Operand::Number(_)) || c.comparator.numeric())
-        });
-        let columns = compared.flat_map(|c| {
-            let other = if let Operand::Column(o) = &c.value {
-                Some(o)
-            } else {
-                None
-            };
-            std::iter::once(&c.field).chain(other)
-        });
-        let totals = shape.aggregations.iter().filter(|a| a.op != AggOp::Count);
-        let ranked = shape
-            .sort_by
-            .iter()
-            .map(|(f, _)| f)
-            .filter(|f| shape.limit.is_some() && !shape.produced().contains(&f.as_str()));
         let mut out: Vec<String> = Vec::new();
-        for name in columns
-            .chain(totals.filter_map(|a| a.field.as_ref()))
-            .chain(ranked)
-        {
-            if self.program.is_none() && name != "." && !out.contains(name) {
-                out.push(name.clone());
+        for (clauses, shape) in self.steps() {
+            let compared = clauses.iter().filter(|c| {
+                c.comparator.textual().is_none()
+                    && (matches!(c.value, Operand::Number(_)) || c.comparator.numeric())
+            });
+            let columns = compared.flat_map(|c| {
+                let other = if let Operand::Column(o) = &c.value {
+                    Some(o)
+                } else {
+                    None
+                };
+                std::iter::once(&c.field).chain(other)
+            });
+            let totals = shape.aggregations.iter().filter(|a| a.op != AggOp::Count);
+            let ranked = shape
+                .sort_by
+                .iter()
+                .map(|(f, _)| f)
+                .filter(|f| shape.limit.is_some() && !shape.produced().contains(&f.as_str()));
+            for name in columns
+                .chain(totals.filter_map(|a| a.field.as_ref()))
+                .chain(ranked)
+            {
+                if self.program.is_none() && name != "." && !out.contains(name) {
+                    out.push(name.clone());
+                }
             }
         }
         out
@@ -164,7 +165,10 @@ impl Rule {
             Operand::Text(text) if equality(c) => Some((c.field.clone(), text.clone())),
             _ => None,
         };
-        self.clauses.iter().filter_map(stated).collect()
+        self.steps()
+            .flat_map(|(clauses, _)| clauses)
+            .filter_map(stated)
+            .collect()
     }
 
     /// The same rule where the text equality of `field` with `literal` also matches exactly each
@@ -174,7 +178,8 @@ impl Rule {
         let text = Operand::Text(literal.to_owned());
         let mut rule = self.clone();
         let mut found = false;
-        for clause in &mut rule.clauses {
+        let then = rule.then.iter_mut().flat_map(|step| &mut step.clauses);
+        for clause in rule.clauses.iter_mut().chain(then) {
             if equality(clause) && clause.field == field && clause.value == text {
                 found = true;
                 for spelling in spellings.iter().filter(|s| *s != literal) {

@@ -310,6 +310,7 @@ pub fn line_filter(text: &str) -> Option<Rule> {
         lines: true,
         program: None,
         numbers: super::numbers::Numbers::new(),
+        then: Vec::new(),
     })
 }
 

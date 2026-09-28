@@ -312,6 +312,57 @@ pub struct Rule {
     program: Option<Program>,
     /// The number policies the compiler stated from what it observed (R4 A5), by field.
     numbers: numbers::Numbers,
+    /// The steps that run after the filter and the shape, in the order the request states.
+    then: Vec<Then>,
+}
+
+/// One step a rule runs on the rows the step before it wrote, in the order the request states
+/// it (R4 F5, V9 A10): its filter, then its stages, under the rule's one lowering.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Then {
+    pub clauses: Vec<Clause>,
+    pub junction: Junction,
+    pub shape: Shape,
+}
+
+impl Then {
+    /// One ordered step: the filter it applies and the stages after it.
+    #[must_use]
+    pub fn new(clauses: Vec<Clause>, junction: Junction, shape: Shape) -> Self {
+        Self {
+            clauses,
+            junction,
+            shape,
+        }
+    }
+    fn to_json(&self) -> Value {
+        let clauses: Vec<Value> = self.clauses.iter().map(Clause::to_json).collect();
+        json!({"clauses": clauses, "junction": self.junction.word(), "shape": self.shape.to_json()})
+    }
+    fn from_json(value: &Value) -> Option<Self> {
+        let clauses = value.get("clauses")?.as_array()?;
+        let clauses = clauses
+            .iter()
+            .map(Clause::from_json)
+            .collect::<Option<_>>()?;
+        let junction = match value.get("junction")?.as_str()? {
+            "and" => Junction::And,
+            "or" => Junction::Or,
+            _ => return None,
+        };
+        let shape = Shape::from_json(Some(value.get("shape")?))?;
+        Some(Self::new(clauses, junction, shape))
+    }
+}
+
+/// The filter a list of clauses states, joined by one junction.
+fn predicate(clauses: &[Clause], junction: Junction, numbers: &numbers::Numbers) -> String {
+    clauses
+        .iter()
+        .map(|clause| clause.jq(numbers))
+        .collect::<Vec<_>>()
+        .join(&format!(" {} ", junction.word()))
 }
 
 /// A verified program and the columns it reads.
@@ -501,6 +552,7 @@ impl Rule {
             lines: false,
             program: None,
             numbers: numbers::Numbers::new(),
+            then: Vec::new(),
         }
     }
     /// A rule whose computation is a verified program the seat wrote: no typed stage, the
@@ -519,6 +571,7 @@ impl Rule {
                 columns,
             }),
             numbers: numbers::Numbers::new(),
+            then: Vec::new(),
         }
     }
     /// The verified program the rule carries, when a seat wrote it.
@@ -529,12 +582,30 @@ impl Rule {
     /// The columns the computation writes, in order, when it fixes them.
     #[must_use]
     pub fn output_columns(&self) -> Option<Vec<String>> {
-        self.shape.output_columns()
+        self.last_shape().output_columns()
     }
     /// The output keys the computation renames (source name, stated name).
     #[must_use]
     pub fn renames(&self) -> &[(String, String)] {
-        &self.shape.renames
+        &self.last_shape().renames
+    }
+    /// The steps that run after the filter and the shape, in the order the request states
+    /// them (R4 F5): each on the rows the step before it wrote.
+    #[must_use]
+    pub fn then(&self) -> &[Then] {
+        &self.then
+    }
+    /// Every step, the rule's own filter and shape first.
+    pub(crate) fn steps(&self) -> impl Iterator<Item = (&[Clause], &Shape)> {
+        let then = self.then.iter().map(|s| (s.clauses.as_slice(), &s.shape));
+        std::iter::once((self.clauses.as_slice(), &self.shape)).chain(then)
+    }
+    /// The shape of the last step that shapes the rows: what the computation writes.
+    fn last_shape(&self) -> &Shape {
+        let mut shaped = self.then.iter().rev().map(|s| &s.shape);
+        shaped
+            .find(|s| **s != Shape::default())
+            .unwrap_or(&self.shape)
     }
     /// A ranking (« the top-selling », « les plus vendus », « die meistverkauften ») sorted
     /// descending without the count of rows to keep: the count is asked, never assumed.
@@ -578,7 +649,8 @@ impl Rule {
             && s.aggregations.is_empty()
             && s.sort_by.is_none()
             && s.limit.is_none()
-            && s.columns.is_empty();
+            && s.columns.is_empty()
+            && self.then.is_empty();
         only_distinct.then(|| Self {
             lines: true,
             ..self.clone()
@@ -587,13 +659,13 @@ impl Rule {
     /// The names of the totals, when the computation is totals over every row.
     #[must_use]
     pub fn totals_names(&self) -> Vec<String> {
-        self.shape.totals_names()
+        self.last_shape().totals_names()
     }
     /// Whether the computation keeps or drops rows (a row filter), as opposed to a pure
     /// aggregation, sort or projection over every row.
     #[must_use]
     pub fn filters(&self) -> bool {
-        !self.clauses.is_empty()
+        self.steps().any(|(clauses, _)| !clauses.is_empty())
     }
     /// The excerpt the rule was read from.
     #[must_use]
@@ -604,7 +676,7 @@ impl Rule {
     /// projection, a limit, a rename or a join): a plain rule only keeps or drops rows.
     #[must_use]
     pub fn shaped(&self) -> bool {
-        self.shape != Shape::default() || self.program.is_some()
+        self.shape != Shape::default() || self.program.is_some() || !self.then.is_empty()
     }
     /// The inverse of [`Rule::to_json`], for a recorded plan replayed on an answer round.
     pub(crate) fn from_json(value: &Value) -> Option<Self> {
@@ -642,11 +714,20 @@ impl Rule {
             None if clauses.len() == 1 => Junction::And, // the original single-clause format
             None => return None,
         };
+        let then = match value.get("then") {
+            Some(steps) => steps
+                .as_array()?
+                .iter()
+                .map(Then::from_json)
+                .collect::<Option<_>>()?,
+            None => Vec::new(),
+        };
         let summary = value.get("summary")?.as_bool().unwrap_or(false);
         let lines = value.get("lines").and_then(Value::as_bool).unwrap_or(false);
         // An empty rule is the identity a conversion states, re-read by its binding law; a flag
         // over no clause and no stage is no complete rule.
         let empty = clauses.is_empty() && shape == Shape::default() && program.is_none();
+        let empty = empty && then.is_empty();
         if empty && (summary || lines) {
             return None;
         }
@@ -659,6 +740,7 @@ impl Rule {
             lines,
             program,
             numbers: numbers::Numbers::new(),
+            then,
         };
         record::valid(&rule).then_some(rule)
     }
@@ -683,45 +765,42 @@ impl Rule {
         if let Some(key) = &self.shape.join_on {
             push(key);
         }
-        for key in &self.shape.distinct_by {
-            push(key);
-        }
-        for clause in &self.clauses {
-            if clause.field != "." {
-                push(&clause.field);
+        for (clauses, shape) in self.steps() {
+            for key in &shape.distinct_by {
+                push(key);
             }
-            if let Operand::Column(other) = &clause.value {
-                push(other);
+            for clause in clauses {
+                if clause.field != "." {
+                    push(&clause.field);
+                }
+                if let Operand::Column(other) = &clause.value {
+                    push(other);
+                }
             }
-        }
-        let shape = &self.shape;
-        let produced = shape.produced();
-        if let Some(group) = &shape.group_by {
-            push(group);
-        }
-        for aggregation in &shape.aggregations {
-            if let Some(field) = &aggregation.field {
+            let produced = shape.produced();
+            if let Some(group) = &shape.group_by {
+                push(group);
+            }
+            for aggregation in &shape.aggregations {
+                if let Some(field) = &aggregation.field {
+                    push(field);
+                }
+            }
+            if let Some((field, _)) = &shape.sort_by
+                && !produced.contains(&field.as_str())
+            {
                 push(field);
             }
-        }
-        if let Some((field, _)) = &shape.sort_by
-            && !produced.contains(&field.as_str())
-        {
-            push(field);
-        }
-        if produced.is_empty() {
-            for column in &shape.columns {
-                push(column);
+            if produced.is_empty() {
+                for column in &shape.columns {
+                    push(column);
+                }
             }
         }
         out
     }
     fn predicate(&self) -> String {
-        self.clauses
-            .iter()
-            .map(|clause| clause.jq(&self.numbers))
-            .collect::<Vec<_>>()
-            .join(&format!(" {} ", self.junction.word()))
+        predicate(&self.clauses, self.junction, &self.numbers)
     }
     /// The computation over the parsed records: the join of the sources when the rule joins,
     /// the filter, then the shape's stages in their fixed order; over the lines of a text
@@ -746,6 +825,13 @@ impl Rule {
             format!("[.records[] | select({})]", self.predicate())
         };
         let mut jq = self.shape.lower(filtered, &self.numbers);
+        for step in &self.then {
+            if !step.clauses.is_empty() {
+                let kept = predicate(&step.clauses, step.junction, &self.numbers);
+                jq = format!("{jq} | map(select({kept}))");
+            }
+            jq = step.shape.lower(jq, &self.numbers);
+        }
         if self.lines {
             jq.push_str(" | join(\"\\n\") | if length > 0 then . + \"\\n\" else . end");
         }
@@ -760,8 +846,8 @@ impl Rule {
     /// The slugs of the slots the clauses compare to, in clause order.
     #[must_use]
     pub fn slots(&self) -> Vec<String> {
-        self.clauses
-            .iter()
+        self.steps()
+            .flat_map(|(clauses, _)| clauses)
             .filter_map(|c| match &c.value {
                 Operand::Slot(slug) => Some(slug.clone()),
                 _ => None,
@@ -842,6 +928,9 @@ impl Rule {
             record["field"] = clause["field"].clone();
             record["comparator"] = clause["comparator"].clone();
             record["value"] = clause["value"].clone();
+        }
+        if !self.then.is_empty() {
+            record["then"] = self.then.iter().map(Then::to_json).collect();
         }
         if !self.numbers.is_empty() {
             record["numbers"] = self
@@ -1242,7 +1331,71 @@ fn segments(text: &str) -> impl Iterator<Item = &str> {
         .filter(|s| !s.is_empty())
 }
 
-/// The rule the text states, or `None` when any part is outside the grammar.
+/// What one segment states: clauses and their junction, the stage its lead or its whole words
+/// state, and whether a count-or-total request trails its clauses.
+#[derive(Default)]
+struct Segment {
+    clauses: Vec<Clause>,
+    junction: Option<Junction>,
+    stage: Option<Shape>,
+    summary: bool,
+}
+
+/// One segment read whole, or `None` when any part is outside the grammar: clauses joined by
+/// one junction, the stage the first clause's lead states running after them, or a whole
+/// segment stating a stage (an aggregate, a count per column, a sort, a top-N, a projection, a
+/// removal of duplicates, a join).
+fn read_segment(
+    tokens: &[Token],
+    segment: &str,
+    columns: &[String],
+    read_before: bool,
+) -> Option<Segment> {
+    let mut read = Segment::default();
+    let mut at = 0;
+    loop {
+        let Some((clause, next, lead)) = parse_clause(tokens, at, columns) else {
+            if at == 0
+                && let Some(stage) = super::stages::stated(segment, columns)
+            {
+                read.stage = Some(stage);
+                return Some(read);
+            }
+            // After a clause, a count-or-total request is the summary stage's work.
+            let trailing = (at > 0 || read_before) && read.junction != Some(Junction::Or);
+            read.summary = trailing && summary_residual(tokens, at, columns);
+            return read.summary.then_some(read);
+        };
+        // The stage the first clause's lead states runs after every clause of its segment.
+        if let Lead::Stage(stage) = lead {
+            if at != 0 {
+                return None;
+            }
+            read.stage = Some(*stage);
+        }
+        // The same clause twice (a promoted constraint beside the seat's paraphrase of it) is
+        // one clause.
+        if !read.clauses.contains(&clause) {
+            read.clauses.push(clause);
+        }
+        let Some(token) = tokens.get(next) else {
+            return Some(read);
+        };
+        let joined = junction_of(token)?;
+        if read.junction.is_some_and(|j| j != joined) {
+            return None;
+        }
+        read.junction = Some(joined);
+        at = next + 1;
+        if at >= tokens.len() {
+            return None;
+        }
+    }
+}
+
+/// The rule the text states, or `None` when any part is outside the grammar. Its segments keep
+/// the order the request states (R4 F5): each one's clauses and stage go where
+/// `stages::place_clauses` and `stages::place_stage` put them, in one step or a later one.
 #[must_use]
 pub fn synthesize(text: &str, columns: &[String]) -> Option<Rule> {
     let text = text.trim();
@@ -1250,90 +1403,46 @@ pub fn synthesize(text: &str, columns: &[String]) -> Option<Rule> {
     if let Some(rule) = line_filter(text) {
         return Some(rule);
     }
-    let mut clauses = Vec::new();
-    let mut junction: Option<Junction> = None;
+    let mut steps = vec![super::stages::Step::default()];
     let mut summary = false;
-    let mut shape = Shape::default();
-    let mut composed = false;
     for segment in segments(text) {
         let tokens = tokenize(segment);
         if tokens.is_empty() {
             continue;
         }
-        // A stage a lead stated ends what one filter and one shape can keep in order (R4 F1).
-        if composed {
+        // Clauses joined by « or » admit no later segment: their junctions would mix.
+        if steps.iter().any(|s| s.junction == Some(Junction::Or)) {
             return None;
         }
-        if !clauses.is_empty() {
-            if junction == Some(Junction::Or) {
-                return None;
-            }
-            junction = Some(Junction::And);
+        let read_before = steps.iter().any(|s| !s.clauses.is_empty());
+        let read = read_segment(&tokens, segment, columns, read_before)?;
+        summary |= read.summary;
+        if !read.clauses.is_empty() {
+            super::stages::place_clauses(&mut steps, read.clauses, read.junction)?;
         }
-        let mut at = 0;
-        let mut after_filter = None;
-        loop {
-            let Some((clause, next, lead)) = parse_clause(&tokens, at, columns) else {
-                // A whole segment stating a stage (an aggregate over a column, a count per
-                // column, a sort, a top-N, a projection, a removal of duplicates, a join) is
-                // the shape's work: the filter (if any) runs first, the stages follow.
-                if at == 0
-                    && let Some(stage) = super::stages::stated(segment, columns)
-                {
-                    shape = shape.merge(stage)?;
-                    break;
-                }
-                // After a clause, a count-or-total request is the summary stage's work.
-                let trailing = (at > 0 || !clauses.is_empty()) && junction != Some(Junction::Or);
-                if trailing && summary_residual(&tokens, at, columns) {
-                    summary = true;
-                    break;
-                }
-                return None;
-            };
-            // The stage the first clause's lead states runs after every clause of its segment,
-            // over rows no earlier stage shaped (« count the rows where status is paid »).
-            if let Lead::Stage(stage) = lead {
-                if at != 0 || shape != Shape::default() {
-                    return None;
-                }
-                after_filter = Some(stage);
-            }
-            // The same clause twice (a promoted constraint beside the seat's paraphrase
-            // of it) is one clause.
-            if !clauses.contains(&clause) {
-                clauses.push(clause);
-            }
-            let Some(token) = tokens.get(next) else {
-                break;
-            };
-            let joined = junction_of(token)?;
-            if junction.is_some_and(|j| j != joined) {
-                return None;
-            }
-            junction = Some(joined);
-            at = next + 1;
-            if at >= tokens.len() {
-                return None;
-            }
-        }
-        if let Some(stage) = after_filter {
-            shape = shape.merge(*stage)?;
-            composed = true;
+        if let Some(stage) = read.stage {
+            super::stages::place_stage(&mut steps, stage)?;
         }
     }
-    if clauses.is_empty() && shape == Shape::default() {
+    let mut steps = steps.into_iter();
+    let first = steps.next()?;
+    let and = |junction: Option<Junction>| junction.unwrap_or(Junction::And);
+    let then: Vec<Then> = steps
+        .map(|s| Then::new(s.clauses, and(s.junction), s.shape))
+        .collect();
+    if first.clauses.is_empty() && first.shape == Shape::default() && then.is_empty() {
         return None;
     }
     Some(Rule {
         text: text.to_owned(),
-        clauses,
-        junction: junction.unwrap_or(Junction::And),
+        clauses: first.clauses,
+        junction: and(first.junction),
         summary,
-        shape,
+        shape: first.shape,
         lines: false,
         program: None,
         numbers: numbers::Numbers::new(),
+        then,
     })
 }
 

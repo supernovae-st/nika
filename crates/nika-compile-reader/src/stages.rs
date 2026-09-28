@@ -15,6 +15,7 @@
 use super::aggregate::{self, AggOp, Aggregation, COLUMN_WORDS, ROW_WORDS, Shape};
 use super::rule_cues::{COPULAS, NEGATIONS, RELATIVES};
 use super::rule_tokens::{fold, hinted, section};
+use super::rules::{Clause, Junction, Operand};
 use std::sync::LazyLock;
 
 /// The closed word tables of the stages, one `[name]` section each, words in their order
@@ -313,6 +314,147 @@ pub(crate) fn operation_word(folded: &str) -> bool {
 /// determiner): after the clause's own verb, the lead holds only these up to the rows' noun.
 pub(crate) fn lead_word(folded: &str) -> bool {
     KEEP_LEADS.contains(&folded) || ONLY_WORDS.contains(&folded) || DETERMINERS.contains(&folded)
+}
+
+/// One step a reading builds (R4 F5): a filter, then stages in the fixed per-step lowering
+/// order; the first becomes the rule's own filter and shape, every later one a `Then`.
+#[derive(Default)]
+pub(crate) struct Step {
+    pub(crate) clauses: Vec<Clause>,
+    pub(crate) junction: Option<Junction>,
+    pub(crate) shape: Shape,
+}
+
+/// The ranks of a shape's stages in `Shape::lower`'s fixed order.
+fn ranks(s: &Shape) -> Vec<u8> {
+    [
+        (s.join_on.is_some(), 0),
+        (!s.distinct_by.is_empty(), 1),
+        (s.group_by.is_some() || !s.aggregations.is_empty(), 2),
+        (!s.derived.is_empty(), 3),
+        (s.sort_by.is_some(), 4),
+        (s.limit.is_some(), 5),
+        (!s.columns.is_empty(), 6),
+        (!s.renames.is_empty(), 7),
+        (s.distinct, 8),
+    ]
+    .into_iter()
+    .filter_map(|(present, rank)| present.then_some(rank))
+    .collect()
+}
+
+/// The source columns a stage reads.
+fn stage_reads(s: &Shape) -> Vec<&str> {
+    let sort = s.sort_by.iter().map(|(field, _)| field.as_str());
+    let fields = s.aggregations.iter().filter_map(|a| a.field.as_deref());
+    let keys = s.distinct_by.iter().chain(&s.columns).map(String::as_str);
+    s.group_by
+        .as_deref()
+        .into_iter()
+        .chain(sort)
+        .chain(fields)
+        .chain(keys)
+        .collect()
+}
+
+/// Whether a later step can read `reads` from the rows `s` wrote: source rows after a filter,
+/// a sort, a cut or duplicates removed; the kept columns after a projection; the key alone
+/// after a grouping (a produced value is no column the guard can check); nothing after
+/// totals, a rename or a derived value (R4 F5).
+fn rows_read(s: &Shape, reads: &[&str]) -> bool {
+    let closed = s.is_totals() || !s.renames.is_empty() || !s.derived.is_empty();
+    let kept = |r: &&str| {
+        s.group_by.as_deref().is_none_or(|key| key == *r)
+            && (s.columns.is_empty() || s.columns.iter().any(|c| c == r))
+    };
+    !closed && reads.iter().all(kept)
+}
+
+/// Where a segment's clauses go (R4 F5). They join the last step when a row filter reading
+/// `reads` keeps the same rows before its stages as after them: after a join (which always
+/// runs first), a stable sort with no cut, whole-row duplicates removed, a projection keeping
+/// the read columns, or a grouping on the one read key. Otherwise they open a step on the rows
+/// the last step wrote, or the text is not read (`None`): never a filter moved before a cut, a
+/// total or a grouping it does not commute with.
+pub(crate) fn place_clauses(
+    steps: &mut Vec<Step>,
+    clauses: Vec<Clause>,
+    junction: Option<Junction>,
+) -> Option<()> {
+    let reads: Vec<&str> = clauses
+        .iter()
+        .flat_map(|c| {
+            let other = match &c.value {
+                Operand::Column(other) => Some(other.as_str()),
+                _ => None,
+            };
+            std::iter::once(c.field.as_str()).chain(other)
+        })
+        .filter(|f| *f != ".")
+        .collect();
+    let last = steps.last_mut()?;
+    let s = &last.shape;
+    let readable = rows_read(s, &reads);
+    let before = s.limit.is_none() && s.distinct_by.is_empty() && s.derived.is_empty();
+    if !(before && readable) {
+        if !readable {
+            return None;
+        }
+        steps.push(Step {
+            clauses,
+            junction,
+            shape: Shape::default(),
+        });
+        return Some(());
+    }
+    let or = |j: Option<Junction>| j == Some(Junction::Or);
+    if !last.clauses.is_empty() && (or(junction) || or(last.junction)) {
+        return None;
+    }
+    if last.clauses.is_empty() {
+        last.junction = junction;
+    }
+    for clause in clauses {
+        if !last.clauses.contains(&clause) {
+            last.clauses.push(clause);
+        }
+    }
+    Some(())
+}
+
+/// Where a stage goes (R4 F5). It joins the last step when `Shape::lower` runs it after every
+/// stage already there over names still readable, or when a sort or a cut follows a projection
+/// keeping its key (a projection is row-wise); otherwise it opens a step on the rows the last
+/// step wrote. The same stage twice, or a join after the first step, is not read (`None`).
+pub(crate) fn place_stage(steps: &mut Vec<Step>, stage: Shape) -> Option<()> {
+    let last = steps.last_mut()?;
+    let (before, after) = (ranks(&last.shape), ranks(&stage));
+    if before.iter().any(|r| after.contains(r)) {
+        return None;
+    }
+    let reads = stage_reads(&stage);
+    let s = &last.shape;
+    let produced = s.produced();
+    let readable = !s.is_totals()
+        && (s.group_by.is_none() || reads.iter().all(|r| produced.contains(r)))
+        && (s.columns.is_empty() || reads.iter().all(|r| s.columns.iter().any(|c| c == r)));
+    let in_order = before.iter().max() < after.iter().min();
+    let row_wise = after.iter().all(|r| matches!(r, 4 | 5)) && before.iter().all(|r| *r == 6);
+    if readable
+        && (in_order || row_wise)
+        && let Some(merged) = s.clone().merge(stage.clone())
+    {
+        last.shape = merged;
+        return Some(());
+    }
+    if stage.join_on.is_some() || !rows_read(s, &reads) {
+        return None;
+    }
+    steps.push(Step {
+        shape: stage,
+        ..Step::default()
+    });
+    Some(())
 }
 
 fn direction(folded: &str) -> Option<bool> {

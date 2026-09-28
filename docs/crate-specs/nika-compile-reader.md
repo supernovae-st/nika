@@ -268,15 +268,40 @@ while `nika-compile` stood at its wall; they ascended to `nika-compile-fidelity`
     the first function word that is not one (a modifier: « the paid rows where … », « les
     lignes payées dont … »), leaves the clause unread. HOT is never READY on it: the clause
     goes to cognition, or stays unresolved, never to a narrower filter.
-  - A composed stage runs only over rows no earlier stage shaped, and it ends what this
-    reading keeps: a later segment leaves the rule unread, since an order across stages is
-    not representable in one filter and one shape (R4 F5 is the next tranche).
+  - The stage a lead states runs after the clauses of its own segment, and the segments
+    around it keep their stated order (the next entry).
   - The fused rule is an ordinary rule record (clauses and a shape). A plan recorded with
     the old filter-only reading is refused on replay as not what its words say; a fresh
     compile recovers.
   - Known limits: an adjective with no determiner before the rows' noun (« paid orders
     where … ») still reads as the clause's verb; « how many … where … » and a sort or a top-N
     stated before the relative clause are outside the closed forms and go to cognition.
+- **Stages run in the order the request states (R4 F5, V9 A10).** A rule is a list of
+  steps: its own filter and shape, then `Rule::then`, each `Then` a filter and a shape over
+  the rows the step before it wrote. `Rule::jq` lowers every step through the one lowering
+  (`Shape::lower`, and `map(select(…))` for a later step's filter), and every number any step
+  reads falls under the one number law (`number_fields`, `with_number_policy`).
+  - `synthesize` keeps the segments in the stated order. `stages::place_clauses` and
+    `stages::place_stage` put a segment's clauses or stage into the last step only when the
+    fixed per-step order (join, distinct by, grouping and aggregates, derived, sort, limit,
+    projection, renames, distinct) reproduces the stated order, or when a stated commutation
+    holds: a filter after a stable sort with no cut, after whole-row duplicates removed,
+    after a projection keeping every column it reads, or after a grouping when it reads the
+    group key alone; a sort or a cut after a projection keeping its key. Otherwise a later
+    step opens on the rows the last step wrote.
+  - « keep the 2 rows with the highest amount ; keep the rows where status is paid » ranks,
+    then filters the two kept rows; the reverse order filters, then ranks, in one step; « keep
+    the 2 … ; count them » counts the two rows.
+  - Nothing a later step cannot read is composed, and nothing is reordered without its
+    precondition: a filter after totals, a rename, a derived value or a produced name (a
+    HAVING), a filter on a source column after a grouping on another key, the same stage
+    twice, a join after the first step, « or » clauses followed by another segment, or steps
+    over the lines of a text file leave the text unread: HOT is never READY on it, cognition
+    takes it. A source-field filter stated after an aggregation is never read as its scope.
+  - The rule record gains the optional key `then` (a list of `{clauses, junction, shape}`),
+    written only when a rule has a later step: every other record keeps its bytes, a binary
+    before this one refuses the key instead of replaying part of the reading, and `fields`
+    lists what any step reads.
 - The 12 ADR-003 gates were passed by `nika-onboard` at its admission; this member inherits
   them as the third member of the same unit (the ADR-115 and ADR-137 precedent). Mutation
   and property attestations for the reader are owed as pending evidence, tracked with the

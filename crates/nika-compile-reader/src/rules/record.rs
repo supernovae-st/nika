@@ -14,23 +14,27 @@ pub(super) fn valid(rule: &Rule) -> bool {
         return rule.clauses.is_empty()
             && rule.shape == Shape::default()
             && !rule.lines
-            && !rule.summary;
+            && !rule.summary
+            && rule.then.is_empty();
     }
-    let mut names = std::collections::BTreeSet::new();
-    if !rule
-        .shape
-        .aggregations
-        .iter()
-        .map(|a| a.name.as_str())
-        .chain(rule.shape.derived.iter().map(|d| d.name.as_str()))
-        .all(|name| !name.is_empty() && names.insert(name))
-    {
+    // An ordered step never joins (a join runs first) and a line filter has no step (R4 F5).
+    if rule.then.iter().any(|s| s.shape.join_on.is_some()) || rule.lines && !rule.then.is_empty() {
         return false;
     }
-    rule.clauses.iter().all(|clause| match &clause.value {
-        Operand::Number(number) => crate::rule_tokens::recorded_number(number),
-        Operand::Slot(slug) => slot_slug(slug),
-        _ => true,
+    rule.steps().all(|(clauses, shape)| {
+        let mut names = std::collections::BTreeSet::new();
+        let unique = shape
+            .aggregations
+            .iter()
+            .map(|a| a.name.as_str())
+            .chain(shape.derived.iter().map(|d| d.name.as_str()))
+            .all(|name| !name.is_empty() && names.insert(name));
+        unique
+            && clauses.iter().all(|clause| match &clause.value {
+                Operand::Number(number) => crate::rule_tokens::recorded_number(number),
+                Operand::Slot(slug) => slot_slug(slug),
+                _ => true,
+            })
     })
 }
 
@@ -68,17 +72,18 @@ impl Rule {
         let words = fold(&self.text);
         !words.is_empty()
             && fold(intent).contains(&words)
-            && self.clauses.iter().all(|clause| match &clause.value {
-                Operand::Number(number) => numeric(number),
-                _ => true,
-            })
-            && self.shape.derived.iter().all(|derived| {
-                [&derived.left, &derived.right]
-                    .into_iter()
-                    .all(|term| match term {
-                        Term::Number(number) => numeric(number),
-                        Term::Name(_) => true,
-                    })
+            && self.steps().all(|(clauses, shape)| {
+                clauses.iter().all(|clause| match &clause.value {
+                    Operand::Number(number) => numeric(number),
+                    _ => true,
+                }) && shape.derived.iter().all(|derived| {
+                    [&derived.left, &derived.right]
+                        .into_iter()
+                        .all(|term| match term {
+                            Term::Number(number) => numeric(number),
+                            Term::Name(_) => true,
+                        })
+                })
             })
     }
 }
