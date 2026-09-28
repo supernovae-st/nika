@@ -186,6 +186,9 @@ rm -rf "$LSP_TMP"
 bash scripts/media/capture/agent-plugin.sh
 bash scripts/media/capture/spec-anatomy.sh
 bash scripts/media/capture/trace-proof.sh
+bash scripts/media/capture/first-session.sh
+bash scripts/media/capture/cost-ceiling.sh
+bash scripts/media/capture/approval-gate.sh
 # pr-check-comment replays nika-action's own comment renderer. Without a
 # checkout of that repository, keep the committed snapshot, as the
 # nika-hero run does without an Ollama server.
