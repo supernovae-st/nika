@@ -131,6 +131,9 @@ pub struct RunFacts {
     pub(crate) permits: Vec<PermitFact>,
     pub(crate) approvals: Vec<Approval>,
     pub(crate) pause: Option<Pause>,
+    /// The gate the FIRST pause asks, as a host answering it reads the frame ([`Self::pause_gate`]);
+    /// the result and proof views keep reading the last pause, `pause`.
+    pub(crate) gate: Option<Pause>,
     pub(crate) seal: Option<Seal>,
     /// Frames read (lines that parsed as events).
     pub(crate) events: usize,
@@ -151,6 +154,24 @@ fn fields(frame: &Value) -> BTreeMap<String, Value> {
     map
 }
 
+/// A pause frame's gate: the first value of each key (never a later duplicate), a task that is
+/// text and not empty, the pause's defaults for the message and the mode.
+fn first_gate(frame: &Value) -> Option<Pause> {
+    let field = |key: &str| -> Option<String> {
+        let row = frame
+            .get("fields")?
+            .as_array()?
+            .iter()
+            .find(|r| r.get("key").and_then(Value::as_str) == Some(key))?;
+        row.get("value")?.as_str().map(str::to_owned)
+    };
+    Some(Pause {
+        task: field("task").filter(|t| !t.is_empty())?,
+        message: field("message").unwrap_or_else(|| "the run awaits your answer".to_owned()),
+        mode: field("mode").unwrap_or_else(|| "text".to_owned()),
+    })
+}
+
 fn text(map: &BTreeMap<String, Value>, key: &str) -> Option<String> {
     map.get(key).and_then(Value::as_str).map(str::to_owned)
 }
@@ -169,6 +190,7 @@ impl RunFacts {
             trace: trace.to_path_buf(),
             ..Self::default()
         };
+        let mut paused = false;
         for line in raw.lines() {
             let Ok(frame) = serde_json::from_str::<Value>(line) else {
                 continue;
@@ -178,8 +200,24 @@ impl RunFacts {
             };
             facts.events += 1;
             facts.absorb(kind, &fields(&frame));
+            if kind == "workflow_paused" && !paused {
+                paused = true;
+                facts.gate = first_gate(&frame);
+            }
         }
         (facts.events > 0).then_some(facts)
+    }
+
+    /// The gate a paused run asks a host to answer (C9): the task, message and mode of its FIRST
+    /// `workflow_paused` frame, each the first value its fields give that key, with the pause's
+    /// defaults (« the run awaits your answer » · `text`). `None` when the journal records no
+    /// pause, or when that first pause names no task (absent, not text, or empty): a later pause
+    /// never stands in for it. The gate VIEW ([`Self::gate`]) keeps its own inputs.
+    #[must_use]
+    pub fn pause_gate(&self) -> Option<(&str, &str, &str)> {
+        self.gate
+            .as_ref()
+            .map(|g| (g.task.as_str(), g.message.as_str(), g.mode.as_str()))
     }
 
     fn task_mut(&mut self, id: &str) -> &mut TaskFact {
@@ -1155,5 +1193,65 @@ mod tests {
         let view = facts.result(root.path(), Path::new("summary.nika"));
         assert!(view.contains("permission, not delivery proof"), "{view}");
         assert!(!view.contains("\n  sent ·"), "{view}");
+    }
+
+    /// A journal of these frames, one per line, in a scratch directory.
+    fn journal(test: &str, frames: &[&str]) -> (Scratch, PathBuf) {
+        let root = tempdir(test);
+        let path = root.path().join("run.ndjson");
+        std::fs::write(&path, frames.join("\n") + "\n").expect("journal");
+        (root, path)
+    }
+
+    fn paused(fields: &str) -> String {
+        format!("{{\"kind\":\"workflow_paused\",\"fields\":[{fields}]}}")
+    }
+
+    /// C9 · the gate a host answers is the FIRST pause's, each key's first value; the result and
+    /// proof views keep the last pause they always read.
+    #[test]
+    fn the_gate_is_the_first_pause_while_the_views_keep_the_last() {
+        let first = paused(
+            r#"{"key":"task","value":"approve"},{"key":"message","value":"ship it?"},{"key":"mode","value":"confirm"},{"key":"task","value":"later"}"#,
+        );
+        let second = paused(r#"{"key":"task","value":"again"},{"key":"message","value":"sure?"}"#);
+        let (_root, path) = journal("gate-two", &[first.as_str(), second.as_str()]);
+        let facts = RunFacts::read(&path).expect("frames");
+        assert_eq!(facts.pause_gate(), Some(("approve", "ship it?", "confirm")));
+        assert_eq!(
+            facts.pause.as_ref().map(|p| p.task.as_str()),
+            Some("again"),
+            "the views read the last pause"
+        );
+    }
+
+    /// C9 · a first pause gives its defaults; one naming no task (absent, not text, empty) asks no
+    /// gate, and a later pause never stands in for it; a journal that never paused asks none.
+    #[test]
+    fn a_first_pause_without_a_task_asks_no_gate() {
+        let bare = paused(r#"{"key":"task","value":"ask"}"#);
+        let (_bare, path) = journal("gate-defaults", &[bare.as_str()]);
+        assert_eq!(
+            RunFacts::read(&path).expect("frames").pause_gate(),
+            Some(("ask", "the run awaits your answer", "text"))
+        );
+        let later = paused(r#"{"key":"task","value":"later"}"#);
+        for first in [
+            paused(r#"{"key":"message","value":"no task"}"#),
+            paused(r#"{"key":"task","value":""}"#),
+            paused(r#"{"key":"task","value":7}"#),
+        ] {
+            let (_none, path) = journal("gate-none", &[first.as_str(), later.as_str()]);
+            assert_eq!(
+                RunFacts::read(&path).expect("frames").pause_gate(),
+                None,
+                "{first}"
+            );
+        }
+        let (_run, path) = journal(
+            "gate-unpaused",
+            &[r#"{"kind":"workflow_started","fields":[]}"#],
+        );
+        assert_eq!(RunFacts::read(&path).expect("frames").pause_gate(), None);
     }
 }

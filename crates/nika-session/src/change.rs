@@ -221,36 +221,19 @@ pub struct PendingGate {
 }
 
 impl PendingGate {
-    /// The gate a paused trace carries, when it carries one.
+    /// The gate a paused trace carries, when it carries one: its first pause, as the trace's own
+    /// reader records it ([`crate::run_view::RunFacts::pause_gate`]).
     #[must_use]
     pub fn from_trace(workflow: &Path, trace: &Path) -> Option<Self> {
-        let text = std::fs::read_to_string(trace).ok()?;
-        for line in text.lines() {
-            let Ok(v) = serde_json::from_str::<serde_json::Value>(line) else {
-                continue;
-            };
-            if v.get("kind").and_then(|k| k.as_str()) != Some("workflow_paused") {
-                continue;
-            }
-            let field = |key: &str| -> Option<String> {
-                v.get("fields")?
-                    .as_array()?
-                    .iter()
-                    .find(|r| r.get("key").and_then(|k| k.as_str()) == Some(key))?
-                    .get("value")?
-                    .as_str()
-                    .map(str::to_owned)
-            };
-            return Some(Self {
-                workflow: workflow.to_path_buf(),
-                trace: trace.to_path_buf(),
-                task: field("task")?,
-                message: field("message")
-                    .unwrap_or_else(|| "the run awaits your answer".to_owned()),
-                mode: field("mode").unwrap_or_else(|| "text".to_owned()),
-            });
-        }
-        None
+        let facts = crate::run_view::RunFacts::read(trace)?;
+        let (task, message, mode) = facts.pause_gate()?;
+        Some(Self {
+            workflow: workflow.to_path_buf(),
+            trace: trace.to_path_buf(),
+            task: task.to_owned(),
+            message: message.to_owned(),
+            mode: mode.to_owned(),
+        })
     }
 
     /// The question as the session asks it.
@@ -598,6 +581,29 @@ impl ProjectChangeSet {
             .filter(|c| c.is_workflow())
             .map(ProjectChange::path)
             .collect()
+    }
+
+    /// The project files the set's workflows read when they run, from the check facade's own
+    /// permits for their exact bytes (typed, never the preview's words).
+    pub(crate) fn project_reads(&self) -> Vec<String> {
+        let mut reads: Vec<String> = Vec::new();
+        for change in self.changes.iter().filter(|c| c.is_workflow()) {
+            let logical = change.path().display().to_string();
+            let audit = audit_source(
+                change.content(),
+                &logical,
+                None,
+                None,
+                AuditOptions::default(),
+            );
+            let needed = audit.ok().and_then(|a| a.report.permits.needed.fs);
+            for path in needed.map(|fs| fs.read).unwrap_or_default() {
+                if !reads.contains(&path) {
+                    reads.push(path);
+                }
+            }
+        }
+        reads
     }
 }
 

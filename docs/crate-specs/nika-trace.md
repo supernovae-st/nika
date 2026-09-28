@@ -65,6 +65,15 @@ Two reasons, one mechanism (the same two as every descent):
   copied, because the session's own observation test still reads its copy.
   Their temporary directories use `std::env::temp_dir()` like this member's
   other suites, not a new `tempfile` dev-dependency.
+- **A fifth door, the pause's gate (C9, 2026-09-28).** `RunFacts::pause_gate`
+  says the gate a host answers: the task, message and mode of the journal's
+  FIRST `workflow_paused` frame, each the first value its fields give that key,
+  with the pause's defaults (« the run awaits your answer » · `text`); `None`
+  when the journal never paused or that first pause names no task (absent, not
+  text, or empty — a later pause never stands in for it). It is a separate
+  owned fact beside `pause`, which the result and proof views keep reading as
+  the last pause. `nika-session`'s `PendingGate::from_trace` reads it instead of
+  parsing the journal a second time.
 
 ## 3 · Cost door (P4, 2026-09-28)
 

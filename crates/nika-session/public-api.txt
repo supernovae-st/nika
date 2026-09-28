@@ -4,6 +4,7 @@ pub use nika_session::AttemptReceipt
 pub use nika_session::CapEvidence
 pub use nika_session::CostHostEvidence
 pub use nika_session::InferenceReceipt
+pub use nika_session::Reading
 pub use nika_session::meaning
 pub mod nika_session::activity
 #[non_exhaustive] pub enum nika_session::activity::Phase
@@ -122,6 +123,9 @@ pub use nika_session::authoring::DECISION_SCHEMA
 pub use nika_session::authoring::DecisionSetup
 pub use nika_session::authoring::KnowledgePin
 pub use nika_session::authoring::MAX_DECISION_CALLS
+pub use nika_session::authoring::Reading
+pub use nika_session::authoring::literal_for
+pub use nika_session::authoring::reasons
 #[non_exhaustive] pub enum nika_session::authoring::AuthoringContextError
 pub nika_session::authoring::AuthoringContextError::Changed
 pub nika_session::authoring::AuthoringContextError::Changed::found: alloc::string::String
@@ -298,45 +302,6 @@ impl<T> tracing::instrument::Instrument for nika_session::authoring::AuthoringSe
 impl<T> tracing::instrument::WithSubscriber for nika_session::authoring::AuthoringSeat
 impl<T> typenum::type_operators::Same for nika_session::authoring::AuthoringSeat
 pub type nika_session::authoring::AuthoringSeat::Output = T
-#[non_exhaustive] pub enum nika_session::authoring::Reading
-pub nika_session::authoring::Reading::BudgetExhausted(nika_compile::types::CompileOutcome)
-pub nika_session::authoring::Reading::NotWork(nika_compile::types::CompileOutcome)
-pub nika_session::authoring::Reading::ProviderFailed(nika_compile::types::CompileOutcome)
-pub nika_session::authoring::Reading::Questions(nika_compile::types::CompileOutcome)
-pub nika_session::authoring::Reading::Ready(nika_compile::types::CompileOutcome)
-pub nika_session::authoring::Reading::Refused(nika_compile::types::CompileOutcome)
-pub nika_session::authoring::Reading::Unsettled(nika_compile::types::CompileOutcome)
-impl nika_session::authoring::Reading
-pub fn nika_session::authoring::Reading::of(out: nika_compile::types::CompileOutcome) -> Self
-pub fn nika_session::authoring::Reading::outcome(&self) -> &nika_compile::types::CompileOutcome
-impl core::fmt::Debug for nika_session::authoring::Reading
-pub fn nika_session::authoring::Reading::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl<D> owo_colors::OwoColorize for nika_session::authoring::Reading
-impl<T, U> core::convert::Into<U> for nika_session::authoring::Reading where U: core::convert::From<T>
-pub fn nika_session::authoring::Reading::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_session::authoring::Reading where U: core::convert::Into<T>
-pub type nika_session::authoring::Reading::Error = core::convert::Infallible
-pub fn nika_session::authoring::Reading::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_session::authoring::Reading where U: core::convert::TryFrom<T>
-pub type nika_session::authoring::Reading::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_session::authoring::Reading::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> core::any::Any for nika_session::authoring::Reading where T: 'static + ?core::marker::Sized
-pub fn nika_session::authoring::Reading::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_session::authoring::Reading where T: ?core::marker::Sized
-pub fn nika_session::authoring::Reading::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_session::authoring::Reading where T: ?core::marker::Sized
-pub fn nika_session::authoring::Reading::borrow_mut(&mut self) -> &mut T
-impl<T> core::convert::From<T> for nika_session::authoring::Reading
-pub fn nika_session::authoring::Reading::from(t: T) -> T
-impl<T> nika_error::traits::AsAny for nika_session::authoring::Reading where T: 'static
-pub fn nika_session::authoring::Reading::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session::authoring::Reading where T: ?core::marker::Sized
-pub fn nika_session::authoring::Reading::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-pub fn nika_session::authoring::Reading::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-impl<T> tracing::instrument::Instrument for nika_session::authoring::Reading
-impl<T> tracing::instrument::WithSubscriber for nika_session::authoring::Reading
-impl<T> typenum::type_operators::Same for nika_session::authoring::Reading
-pub type nika_session::authoring::Reading::Output = T
 #[non_exhaustive] pub struct nika_session::authoring::AuthoringContext
 impl nika_session::authoring::AuthoringContext
 pub fn nika_session::authoring::AuthoringContext::compose(&self, intent: &str) -> core::result::Result<core::option::Option<nika_compile::types::AuthoringKnowledge>, nika_session::authoring::AuthoringContextError>
@@ -477,9 +442,7 @@ pub fn nika_session::authoring::is_greeting(input: &str) -> bool
 pub fn nika_session::authoring::is_meaning(line: &str) -> bool
 pub fn nika_session::authoring::is_what_happened(line: &str) -> bool
 pub fn nika_session::authoring::is_why(line: &str) -> bool
-pub fn nika_session::authoring::literal_for(question: &nika_compile::types::CompileQuestion, line: &str) -> alloc::string::String
 pub fn nika_session::authoring::openai_base_overridden() -> bool
-pub fn nika_session::authoring::reasons(out: &nika_compile::types::CompileOutcome) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_session::authoring::session_policy(model: &str, harness: bool, strategy: nika_compile::types::NativeMode) -> nika_compile::types::AuthoringPolicy
 pub fn nika_session::authoring::stronger_model(model: &str) -> core::option::Option<&'static str>
 pub fn nika_session::authoring::stronger_model_under(model: &str, openai_base_overridden: bool) -> core::option::Option<&'static str>
@@ -4141,45 +4104,6 @@ impl<T> tracing::instrument::Instrument for nika_session::change::ProjectChange
 impl<T> tracing::instrument::WithSubscriber for nika_session::change::ProjectChange
 impl<T> typenum::type_operators::Same for nika_session::change::ProjectChange
 pub type nika_session::change::ProjectChange::Output = T
-#[non_exhaustive] pub enum nika_session::Reading
-pub nika_session::Reading::BudgetExhausted(nika_compile::types::CompileOutcome)
-pub nika_session::Reading::NotWork(nika_compile::types::CompileOutcome)
-pub nika_session::Reading::ProviderFailed(nika_compile::types::CompileOutcome)
-pub nika_session::Reading::Questions(nika_compile::types::CompileOutcome)
-pub nika_session::Reading::Ready(nika_compile::types::CompileOutcome)
-pub nika_session::Reading::Refused(nika_compile::types::CompileOutcome)
-pub nika_session::Reading::Unsettled(nika_compile::types::CompileOutcome)
-impl nika_session::authoring::Reading
-pub fn nika_session::authoring::Reading::of(out: nika_compile::types::CompileOutcome) -> Self
-pub fn nika_session::authoring::Reading::outcome(&self) -> &nika_compile::types::CompileOutcome
-impl core::fmt::Debug for nika_session::authoring::Reading
-pub fn nika_session::authoring::Reading::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl<D> owo_colors::OwoColorize for nika_session::authoring::Reading
-impl<T, U> core::convert::Into<U> for nika_session::authoring::Reading where U: core::convert::From<T>
-pub fn nika_session::authoring::Reading::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_session::authoring::Reading where U: core::convert::Into<T>
-pub type nika_session::authoring::Reading::Error = core::convert::Infallible
-pub fn nika_session::authoring::Reading::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_session::authoring::Reading where U: core::convert::TryFrom<T>
-pub type nika_session::authoring::Reading::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_session::authoring::Reading::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> core::any::Any for nika_session::authoring::Reading where T: 'static + ?core::marker::Sized
-pub fn nika_session::authoring::Reading::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_session::authoring::Reading where T: ?core::marker::Sized
-pub fn nika_session::authoring::Reading::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_session::authoring::Reading where T: ?core::marker::Sized
-pub fn nika_session::authoring::Reading::borrow_mut(&mut self) -> &mut T
-impl<T> core::convert::From<T> for nika_session::authoring::Reading
-pub fn nika_session::authoring::Reading::from(t: T) -> T
-impl<T> nika_error::traits::AsAny for nika_session::authoring::Reading where T: 'static
-pub fn nika_session::authoring::Reading::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session::authoring::Reading where T: ?core::marker::Sized
-pub fn nika_session::authoring::Reading::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-pub fn nika_session::authoring::Reading::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-impl<T> tracing::instrument::Instrument for nika_session::authoring::Reading
-impl<T> tracing::instrument::WithSubscriber for nika_session::authoring::Reading
-impl<T> typenum::type_operators::Same for nika_session::authoring::Reading
-pub type nika_session::authoring::Reading::Output = T
 #[non_exhaustive] pub enum nika_session::ReasonError
 pub nika_session::ReasonError::NoIntelligence
 pub nika_session::ReasonError::Provider(alloc::string::String)

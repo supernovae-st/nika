@@ -877,6 +877,7 @@ pub mod nika_trace::run_view
 #[non_exhaustive] pub struct nika_trace::run_view::RunFacts
 impl nika_trace::run_view::RunFacts
 pub fn nika_trace::run_view::RunFacts::gate(&self, workflow: &std::path::Path, message: &str, mode: &str, gated: &[alloc::string::String]) -> alloc::string::String
+pub fn nika_trace::run_view::RunFacts::pause_gate(&self) -> core::option::Option<(&str, &str, &str)>
 pub fn nika_trace::run_view::RunFacts::proof(&self, root: &std::path::Path) -> alloc::string::String
 pub fn nika_trace::run_view::RunFacts::read(trace: &std::path::Path) -> core::option::Option<Self>
 pub fn nika_trace::run_view::RunFacts::result(&self, root: &std::path::Path, workflow: &std::path::Path) -> alloc::string::String

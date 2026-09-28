@@ -10,6 +10,7 @@ pub use nika_onboard::compile::AuthoringCognition
 pub use nika_onboard::compile::AuthoringKnowledge
 pub use nika_onboard::compile::AuthoringPolicy
 pub use nika_onboard::compile::AuthoringReceipt
+pub use nika_onboard::compile::Basis
 pub use nika_onboard::compile::COMPILE_WIRE_VERSION
 pub use nika_onboard::compile::ChoiceOffer
 pub use nika_onboard::compile::Cognition
@@ -37,6 +38,7 @@ pub use nika_onboard::compile::TriggerKind
 pub use nika_onboard::compile::TriggerRequirement
 pub use nika_onboard::compile::TriggerStatus
 pub use nika_onboard::compile::authority
+pub use nika_onboard::compile::basis
 pub use nika_onboard::compile::compile
 pub use nika_onboard::compile::compile_with_cognition
 pub use nika_onboard::compile::compile_with_provider
@@ -172,6 +174,49 @@ pub fn nika_onboard::compile::meaning::clauses_of(ledger: &serde_json::value::Va
 pub fn nika_onboard::compile::meaning::delta(base: &serde_json::value::Value, revised: &serde_json::value::Value) -> core::option::Option<alloc::string::String>
 pub fn nika_onboard::compile::meaning::render(out: &nika_compile::types::CompileOutcome) -> core::option::Option<alloc::string::String>
 pub fn nika_onboard::compile::meaning::render_ledger(ledger: &serde_json::value::Value, candidate: core::option::Option<&str>) -> alloc::string::String
+pub mod nika_onboard::compile::reading
+#[non_exhaustive] pub enum nika_onboard::compile::reading::Reading
+pub nika_onboard::compile::reading::Reading::BudgetExhausted(nika_compile::types::CompileOutcome)
+pub nika_onboard::compile::reading::Reading::NotWork(nika_compile::types::CompileOutcome)
+pub nika_onboard::compile::reading::Reading::ProviderFailed(nika_compile::types::CompileOutcome)
+pub nika_onboard::compile::reading::Reading::Questions(nika_compile::types::CompileOutcome)
+pub nika_onboard::compile::reading::Reading::Ready(nika_compile::types::CompileOutcome)
+pub nika_onboard::compile::reading::Reading::Refused(nika_compile::types::CompileOutcome)
+pub nika_onboard::compile::reading::Reading::Unsettled(nika_compile::types::CompileOutcome)
+impl nika_onboard::compile::reading::Reading
+pub fn nika_onboard::compile::reading::Reading::of(out: nika_compile::types::CompileOutcome) -> Self
+pub fn nika_onboard::compile::reading::Reading::outcome(&self) -> &nika_compile::types::CompileOutcome
+impl core::fmt::Debug for nika_onboard::compile::reading::Reading
+pub fn nika_onboard::compile::reading::Reading::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_onboard::compile::reading::Reading
+impl<T, U> core::convert::Into<U> for nika_onboard::compile::reading::Reading where U: core::convert::From<T>
+pub fn nika_onboard::compile::reading::Reading::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::reading::Reading where U: core::convert::Into<T>
+pub type nika_onboard::compile::reading::Reading::Error = core::convert::Infallible
+pub fn nika_onboard::compile::reading::Reading::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::reading::Reading where U: core::convert::TryFrom<T>
+pub type nika_onboard::compile::reading::Reading::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::compile::reading::Reading::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_onboard::compile::reading::Reading where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::compile::reading::Reading::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::compile::reading::Reading where T: ?core::marker::Sized
+pub fn nika_onboard::compile::reading::Reading::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::compile::reading::Reading where T: ?core::marker::Sized
+pub fn nika_onboard::compile::reading::Reading::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_onboard::compile::reading::Reading
+pub fn nika_onboard::compile::reading::Reading::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_onboard::compile::reading::Reading where T: 'static
+pub fn nika_onboard::compile::reading::Reading::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::compile::reading::Reading where T: ?core::marker::Sized
+pub fn nika_onboard::compile::reading::Reading::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::compile::reading::Reading::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::compile::reading::Reading
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::reading::Reading
+impl<T> typenum::type_operators::Same for nika_onboard::compile::reading::Reading
+pub type nika_onboard::compile::reading::Reading::Output = T
+pub const nika_onboard::compile::reading::CLARIFICATION_KEY: &str
+pub fn nika_onboard::compile::reading::literal_for(question: &nika_compile::types::CompileQuestion, line: &str) -> alloc::string::String
+pub fn nika_onboard::compile::reading::reasons(out: &nika_compile::types::CompileOutcome) -> alloc::vec::Vec<alloc::string::String>
 pub mod nika_onboard::compile::round
 #[non_exhaustive] pub enum nika_onboard::compile::round::RoundReading
 pub nika_onboard::compile::round::RoundReading::Unreadable

@@ -36,8 +36,7 @@ use std::time::Duration;
 
 use nika_onboard::compile::{
     AuthoringPolicy, AuthoringReceipt, Cognition, CompileError, CompileOutcome, CompileQuestion,
-    CompileRequest, CompileStatus, DiagnosticKind, NativeMode, QuestionType, compile,
-    compile_with_cognition, revise_intent,
+    CompileRequest, DiagnosticKind, NativeMode, compile, compile_with_cognition, revise_intent,
 };
 // The records a compile outcome carries live beside the snapshot door (C7 · D1).
 use nika_onboard::knowledge::pin::{
@@ -53,10 +52,10 @@ pub(crate) mod decision;
 mod harness;
 pub use context::{AuthoringContext, AuthoringContextError};
 pub use decision::{DECISION_ENV, DECISION_SCHEMA, DecisionSetup, MAX_DECISION_CALLS};
+// What an outcome means and the literal a line is live beside the compile unit (C7).
+use nika_onboard::compile::reading::CLARIFICATION_KEY;
+pub use nika_onboard::compile::reading::{Reading, literal_for, reasons};
 pub use nika_onboard::knowledge::pin::KnowledgePin;
-
-/// The compiler's question for a whole replacement request (its own key).
-const CLARIFICATION_KEY: &str = "intent.clarification";
 
 /// The stronger authoring model of a provider, when the catalog holds one
 /// the preflight proved — the escalation the product law permits (quality
@@ -533,30 +532,6 @@ impl AuthoringRound {
     }
 }
 
-/// The human's line as the JSON literal the question's shape takes: a
-/// `Literal` question takes the line verbatim when it already is JSON (`5` ·
-/// `true` · `["a"]`), else as a string (`./notes` is a path, not a parse
-/// error); a `Text` question and a `Choice` take the line verbatim when it
-/// already is a JSON string (a value in quotes — `"exports/rapport final.txt"`
-/// — is that value, never its quotes; `"montant"` is the shape the compiler
-/// asks of a choice), else as one string.
-#[must_use]
-pub fn literal_for(question: &CompileQuestion, line: &str) -> String {
-    let line = line.trim();
-    let already = match question.answer_type {
-        QuestionType::Literal => serde_json::from_str::<Value>(line).is_ok(),
-        QuestionType::Choice | QuestionType::Text => {
-            matches!(serde_json::from_str::<Value>(line), Ok(Value::String(_)))
-        }
-        _ => false,
-    };
-    if already {
-        line.to_owned()
-    } else {
-        Value::String(line.to_owned()).to_string()
-    }
-}
-
 /// The few words that abandon an authoring round (a `no` is an ANSWER —
 /// « should each filename be a heading? » — never an abandonment).
 #[must_use]
@@ -673,106 +648,6 @@ pub fn is_greeting(input: &str) -> bool {
             | "bye"
             | "au revoir"
     )
-}
-
-/// What one compile outcome means for the conversation — a closed
-/// reading of the compiler's own typed fields, never of its prose.
-#[derive(Debug)]
-#[non_exhaustive]
-pub enum Reading {
-    /// A candidate exists and every mandatory question is answered.
-    Ready(CompileOutcome),
-    /// Mandatory questions remain: the next line answers the first.
-    Questions(CompileOutcome),
-    /// Work was read but not settled under this seat's policy (the
-    /// compiler says so): a wider policy may settle it, or the human
-    /// rephrases. How the compiler tried is its own business.
-    Unsettled(CompileOutcome),
-    /// Nothing recognizable as work: no route, no plan, no question.
-    NotWork(CompileOutcome),
-    /// The authoring budget (time) ran out before a trusted candidate;
-    /// not a verdict on the request.
-    BudgetExhausted(CompileOutcome),
-    /// The authorized authoring call failed at the provider; nothing was
-    /// substituted.
-    ProviderFailed(CompileOutcome),
-    /// The compiler refused the request under its own policy.
-    Refused(CompileOutcome),
-}
-
-impl Reading {
-    /// Classify an outcome by its typed fields.
-    #[must_use]
-    pub fn of(out: CompileOutcome) -> Self {
-        if out.status == CompileStatus::Refused {
-            return Self::Refused(out);
-        }
-        if out.status == CompileStatus::Ready && out.candidate.is_some() {
-            return Self::Ready(out);
-        }
-        // `intent.clarification` is the compiler asking for a whole new
-        // request: not a hole a line fills but a reading a seat may settle —
-        // or the human rephrases. Every other mandatory key is a hole.
-        if out
-            .questions
-            .iter()
-            .any(|q| q.mandatory && q.key != CLARIFICATION_KEY)
-        {
-            return Self::Questions(out);
-        }
-        let provider_findings: Vec<&str> = out
-            .diagnostics
-            .iter()
-            .filter(|d| d.target == "authoring_provider")
-            .map(|d| d.message.as_str())
-            .collect();
-        if provider_findings.iter().any(|m| m.contains("timed out")) {
-            return Self::BudgetExhausted(out);
-        }
-        if !provider_findings.is_empty() {
-            return Self::ProviderFailed(out);
-        }
-        let routed = out
-            .provenance
-            .decision
-            .as_ref()
-            .and_then(|d| d.get("route"))
-            .is_some();
-        if routed || out.provenance.plan.is_some() {
-            return Self::Unsettled(out);
-        }
-        Self::NotWork(out)
-    }
-
-    /// The outcome behind the reading.
-    #[must_use]
-    pub fn outcome(&self) -> &CompileOutcome {
-        match self {
-            Self::Ready(o)
-            | Self::Questions(o)
-            | Self::Unsettled(o)
-            | Self::NotWork(o)
-            | Self::BudgetExhausted(o)
-            | Self::ProviderFailed(o)
-            | Self::Refused(o) => o,
-        }
-    }
-}
-
-/// The compiler's own reasons in an outcome (unknown · missed · refused),
-/// for the human — never parsed back into state.
-#[must_use]
-pub fn reasons(out: &CompileOutcome) -> Vec<String> {
-    out.diagnostics
-        .iter()
-        .filter(|d| {
-            matches!(
-                d.kind,
-                DiagnosticKind::Unknown | DiagnosticKind::Missed | DiagnosticKind::Refused
-            )
-        })
-        .map(|d| d.message.clone())
-        .collect()
 }
 
 /// Compile one request deterministically: exact skeletons, the support
@@ -1007,7 +882,7 @@ fn seated(
 #[allow(clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
-    use nika_onboard::compile::Strategy;
+    use nika_onboard::compile::{CompileStatus, Strategy};
 
     #[test]
     fn host_diagnostics_never_include_userinfo_or_query_values() {
@@ -1062,10 +937,6 @@ mod tests {
         }
     }
 
-    fn read(intent: &str) -> Reading {
-        Reading::of(compile_deterministic(&CompileRequest::create(intent)).expect("compiles"))
-    }
-
     #[test]
     fn the_seat_follows_the_reasoner_the_human_chose() {
         let api = ProviderReasoner {
@@ -1102,37 +973,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn the_reading_is_the_compilers_typed_fields() {
-        assert!(matches!(
-            read("hello there, how are you today?"),
-            Reading::NotWork(_)
-        ));
-        assert!(matches!(
-            read("Read ./notes/brief.md and write it to ./out/copy.md"),
-            Reading::Ready(_)
-        ));
-        match read(
-            "Read ./notes/brief.md, draft a 3-bullet summary of it and write the summary to ./out/summary.md",
-        ) {
-            Reading::Questions(out) => {
-                assert_eq!(out.questions[0].key, "model");
-                assert!(
-                    out.provenance.plan.is_some(),
-                    "the HOT plan is recorded for replay"
-                );
-            }
-            other => panic!("a draft needs its model, asked: {other:?}"),
-        }
-        assert!(matches!(
-            read("Read ./a.md and do something clever with it, then write ./b.md"),
-            Reading::Unsettled(_)
-        ));
-        match read("chain") {
-            Reading::Questions(out) => assert_eq!(out.questions[0].key, "tasks.think.infer.prompt"),
-            other => panic!("a skeleton with holes asks: {other:?}"),
-        }
-    }
+    // The reading and a line's literal descended with their tests to
+    // `nika_onboard::compile::reading` (C7); the session re-exports them.
 
     #[test]
     fn an_answer_round_replays_the_same_plan_with_zero_calls() {
@@ -1172,27 +1014,6 @@ mod tests {
             round.continuation.is_none(),
             "unsettled work is read again, never replayed"
         );
-    }
-
-    /// The compiler's own questions of each shape: a skeleton's prompt
-    /// hole is text, a skeleton's constant hole is a literal.
-    fn question_of(skeleton: &str, shape: QuestionType) -> CompileQuestion {
-        let out = compile_deterministic(&CompileRequest::create(skeleton)).expect("compiles");
-        let question = out.questions.into_iter().next().expect("one hole");
-        assert_eq!(question.answer_type, shape, "{skeleton}");
-        question
-    }
-
-    #[test]
-    fn a_line_is_typed_to_the_questions_shape() {
-        let text = question_of("chain", QuestionType::Text);
-        let literal = question_of("bounded-batch", QuestionType::Literal);
-        assert_eq!(literal_for(&text, "mock/echo"), "\"mock/echo\"");
-        assert_eq!(literal_for(&text, " 5 "), "\"5\"");
-        assert_eq!(literal_for(&literal, "5"), "5");
-        assert_eq!(literal_for(&literal, "true"), "true");
-        assert_eq!(literal_for(&literal, "./notes"), "\"./notes\"");
-        assert_eq!(literal_for(&literal, "[\"a\"]"), "[\"a\"]");
     }
 
     #[test]

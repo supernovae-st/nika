@@ -17,7 +17,7 @@ use nika_onboard::compile::{CompileOutcome, TriggerRequirement};
 
 use crate::authoring::{AuthoringRound, AuthoringSeat};
 use crate::broker::ContextBroker;
-use crate::change::{Applied, PendingGate, ProjectChangeSet, RunRequest, check_on_disk};
+use crate::change::{PendingGate, ProjectChangeSet, RunRequest};
 use crate::guard::KnownWorld;
 use crate::intelligence::{
     IntelligenceCensus, IntelligenceKind, ResolvedSessionIntelligence, UserIntelligencePreference,
@@ -36,8 +36,10 @@ mod durable;
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod durable_tests;
+mod fresh;
 mod history;
 mod inference;
+mod landed;
 mod money_gate;
 // The lexical money reader grants no authority; admission stays here.
 use nika_onboard::compile::money as money_parse;
@@ -245,6 +247,8 @@ pub struct SessionRuntime {
     home: Option<PathBuf>,
     factory: Option<ReasonerFactory>,
     pending: Option<ProjectChangeSet>,
+    /// The source basis the compiler recorded for the pending proposal, judged at its yes (F4).
+    basis: Option<fresh::ProposalBasis>,
     /// The proposal pending when an earlier session closed: evidence, never authority.
     restored_draft: Option<draft::Restored>,
     money: money_gate::MoneyState,
@@ -346,6 +350,7 @@ impl SessionRuntime {
             home: None,
             factory: None,
             pending: None,
+            basis: None,
             restored_draft: None,
             money: money_gate::MoneyState::default(),
             unknown_cost: unknown_cost::UnknownCostState::default(),
@@ -994,6 +999,11 @@ impl SessionRuntime {
             // never a word list, never a consent.
             return self.consent_money_route(set, &id, answer);
         }
+        // The sources the proposal was built on are judged again before anything lands (F4).
+        let basis = match self.basis_at_yes(&set, &id) {
+            Ok(note) => note,
+            Err(withdrawn) => return withdrawn,
+        };
         let applied = match set.apply_attempt() {
             Ok(applied) => applied,
             // No write returned success; the failing target may have changed.
@@ -1013,104 +1023,7 @@ impl SessionRuntime {
                 return TurnOutcome::Refusal(Refusal::new(class, text));
             }
         };
-        self.report_landed(set, &applied, id)
-    }
-
-    /// After a yes lands the set: mark decided, check every workflow,
-    /// re-observe, remember, and request a run only when that check is
-    /// clean. Empty-write and mid-set Io stay on `consent` so a refusal
-    /// never becomes `already_consumed`.
-    fn report_landed(
-        &mut self,
-        set: ProjectChangeSet,
-        applied: &Applied,
-        id: ProposalId,
-    ) -> TurnOutcome {
-        self.save_proposal_money(&set, &id);
-        let evidence = self.evidence_applied(&set, &id, applied);
-        self.decided = Some(id);
-        let written: Vec<String> = applied
-            .written
-            .iter()
-            .map(|p| format!("`{}`", p.display()))
-            .collect();
-        let mut report = format!("applied · wrote {}{evidence}", written.join(" · "));
-        let mut all_clean = true;
-        for wf in set.workflows() {
-            let audit = check_on_disk(&set.root, &wf);
-            all_clean &= audit.clean;
-            let _ = write!(
-                report,
-                "\n  check · `{}` · {}",
-                wf.display(),
-                if audit.clean {
-                    "clean ✔"
-                } else {
-                    "findings ✖"
-                }
-            );
-            for f in &audit.findings {
-                let _ = write!(report, "\n    · {f}");
-            }
-            if let Some(line) =
-                crate::change::compact_hints(&audit.hints, &wf.display().to_string())
-            {
-                let _ = write!(report, "\n    · {line}");
-            }
-        }
-        self.snapshot = ProjectSnapshot::observe(&self.snapshot.cwd);
-        self.remember("(consent)", &report);
-        // The workflow just accepted is the one « run it » names next —
-        // an explicit line, never this consent — and the schedule its
-        // request asked for is what « activate » declares.
-        let landed_workflow = set.workflows().into_iter().next();
-        if let Some(first) = landed_workflow.clone() {
-            // Run evidence belongs to the previous saved bytes. A new Save is not a Run,
-            // including when it replaces the workflow at the same path.
-            self.last_run = None;
-            self.last_workflow = Some(first);
-            self.last_check_clean = Some(all_clean);
-            self.last_trigger = self.pending_trigger.take();
-        }
-        let project_only = landed_workflow.is_none()
-            && set
-                .changes
-                .iter()
-                .any(|c| c.path() == std::path::Path::new("nika.yaml"));
-        match set.run {
-            Some(run) if all_clean => {
-                self.last_workflow = Some(run.workflow.clone());
-                TurnOutcome::RunRequested { report, run }
-            }
-            Some(_) => {
-                report.push_str(
-                    "\n  the run was not started: findings stop it — repair them, then ask to run",
-                );
-                TurnOutcome::Facts(report)
-            }
-            None if project_only => {
-                report.push_str(
-                    "\nDeclared in `nika.yaml` · not active: a firer must run on this machine\n  `nika serve` fires it while it runs · `nika arm --emit launchd --write` installs the OS unit · `nika arm` lists what is declared and proves what fired",
-                );
-                TurnOutcome::Facts(report)
-            }
-            None if all_clean => {
-                report.push_str(
-                    "\nSaved · checked · not active · nothing has run\n  say « run it » to run it once (a ceiling is announced first)",
-                );
-                if let Some(t) = &self.last_trigger
-                    && t.status == nika_onboard::compile::TriggerStatus::RequiresBinding
-                {
-                    let _ = write!(
-                        report,
-                        "\n  say « activate » to declare « {} » in `nika.yaml` (Nika asks the time zone, the missed policy and the ceiling first) · saving activated nothing",
-                        t.source_hint.as_deref().unwrap_or("the schedule")
-                    );
-                }
-                TurnOutcome::Facts(report)
-            }
-            None => TurnOutcome::Facts(report),
-        }
+        self.report_landed(set, &applied, id, basis.as_deref())
     }
 
     /// The proposal waiting for a consent, when one is (its identity: the

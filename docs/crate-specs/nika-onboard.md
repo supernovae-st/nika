@@ -87,6 +87,26 @@ over unread entries says they were not compared. It moved here from
 Its tests and their three recorded outcomes live beside it
 (`src/compile/meaning/`).
 
+## The conversational reading of an outcome (read by Session)
+
+`compile::reading` says what one compile outcome means for a conversation
+(`Reading`: ready, questions, unsettled, not work, budget exhausted, provider
+failed, refused) from the compiler's typed fields — its status, candidate,
+questions, route and plan — and, for a provider failure, from that
+diagnostic's own words (a timeout is recognized by its text): it never parses
+the compiler's prose back into state. `reasons` lists the compiler's unknown,
+missed and refused diagnostics for a human, and `literal_for` is the JSON
+literal a human line is at one question's shape. It descended from
+`nika-session` on 2026-09-28 (C7 · descent 1) with its tests;
+`nika_session::authoring` re-exports all three at their old paths. `Reading` is
+`#[non_exhaustive]`: the session refuses a reading it does not know yet, never
+proposes it. Pure: nothing here calls, reads or decides for a host.
+
+`compile::{Basis, basis}` re-export the compiler's source basis law (C9 · F4,
+`nika_compile::basis`) at the path a host reads the compile unit from: a host
+judges a candidate's recorded source facts against a fresh observation of the
+same sources where a proposal is consented to.
+
 ## The knowledge pin and its records (read by Session)
 
 `knowledge::pin` owns the identity a session pins for its knowledge snapshot

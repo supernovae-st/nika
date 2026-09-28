@@ -29,12 +29,12 @@ pub mod briefs;
 /// ADR-138 · ADR-140).
 pub mod compile {
     pub use nika_compile::{
-        AuthoringCognition, AuthoringKnowledge, AuthoringPolicy, AuthoringReceipt,
+        AuthoringCognition, AuthoringKnowledge, AuthoringPolicy, AuthoringReceipt, Basis,
         COMPILE_WIRE_VERSION, ChoiceOffer, CompileDiagnostic, CompileError, CompileOutcome,
         CompilePreview, CompileProvenance, CompileQuestion, CompileRequest, CompileStatus,
         DiagnosticKind, Hit, HitKind, HotPolicy, KnowledgeReference, MaterializeError, NativeMode,
         PreviewScope, QuestionType, RepresentationError, Strategy, TriggerKind, TriggerRequirement,
-        TriggerStatus, compile, fold, intent_sha256, materialize_ready, money, observation,
+        TriggerStatus, basis, compile, fold, intent_sha256, materialize_ready, money, observation,
         outcome_document, retrieve, retrieve_by_ops, revise_intent, stated_destinations,
         stated_sources, text,
     };
@@ -44,6 +44,9 @@ pub mod compile {
     /// The Meaning view of an outcome's obligation ledger — what survived of the request,
     /// clause by clause — owned beside the ledger it reads (the session re-exports it).
     pub mod meaning;
+    /// What one outcome means for a conversation, and the literal a line is at one of its
+    /// questions (the session re-exports it).
+    pub mod reading;
     /// The authoring round a host keeps across a close (C7): the request, the settled
     /// answers and the question that waited, as evidence — never authority.
     pub mod round;

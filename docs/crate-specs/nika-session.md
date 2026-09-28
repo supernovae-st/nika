@@ -30,8 +30,11 @@ crate already hosts. What stays here is the session's side of the
 boundary: when a view is shown, which trace is under the root, the gate's
 question and the tasks a yes lets happen (read from the workflow's bytes),
 and the observation line that stands alone when no journal can be read.
-The seam is four read-only doors, `RunFacts::{read, result, gate, proof}`;
-the facts' fields stay private to `nika-trace`. A private
+The seam is five read-only doors, `RunFacts::{read, result, gate, proof,
+pause_gate}`; the facts' fields stay private to `nika-trace`. A paused run's
+gate (`change::PendingGate::from_trace`) is read through `pause_gate`: the
+first pause's task, message and mode, as the session always read them, since
+C9 (2026-09-28) no longer parsed a second time here. A private
 `use nika_trace::run_view` in `lib.rs` keeps the session's one path,
 `crate::run_view`. The paused/resumed trace fixtures moved with their
 tests; `tests/fixtures/traces/copy.ndjson` stays here too, because the
@@ -52,6 +55,32 @@ holds a waiting proposal, and a revision's delta rides beside the revised
 proposal. The owner's « unavailable » line names no protocol; the session adds
 its own way on (the review above and `/show`). The three recorded outcomes its
 tests read moved with them.
+
+## Source basis at the yes (C9 · F4)
+
+A proposal is consented to as the program its recorded source facts justified.
+`runtime/fresh.rs` binds what the compile outcome recorded of its sources (its
+decision record and the request it read) to the proposal's identity and exact
+bytes where it is proposed (`propose`, which a revision's proposal goes
+through too); a money-only amendment names the same bytes anew and keeps it.
+At the yes, before any write, consent record or money effect, the session
+observes exactly the recorded sources again through the host's one bounded
+observer and the compiler judges them (`nika_onboard::compile::basis`, the
+grounding law that admitted them). A moved basis (a column renamed or removed,
+a source gone or unreadable, a key some sampled records now lack, a number
+field no longer all numbers) or one that cannot be judged withdraws the
+proposal: nothing lands, the reason names the changed dependency, the goal
+stays and the request said again grounds itself on the project as it is. New,
+removed or reordered rows, another column order and a new peek hash hold it,
+and the report says the facts were judged. A proposal no compile bound (a kept
+draft proposed again) takes its basis from a zero-call deterministic compile
+of its request only when that gives its exact bytes; otherwise it is withdrawn
+when its workflow reads project files (the check facade's own permits), and
+lands with its freshness said unjudged when it reads none. A decision that
+records no source fact is said so when its workflow reads files, never
+presented as fresh. The run's own guards (`compute_admit`, the number policy)
+stay the check at use: the observation is bounded, and nothing is atomic
+between the yes and the run.
 
 ## Exact schedule activation
 

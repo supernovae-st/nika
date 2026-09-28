@@ -25,7 +25,7 @@ use crate::review;
 use crate::turn::{RouteRecord, RoutingMethod, SessionPhase, TurnAct, TurnDecision};
 
 /// The seat of the readings the session settles without a model: zero calls, the project observed.
-const DETERMINISTIC: AuthoringSeat = AuthoringSeat::Deterministic { why: None };
+pub(super) const DETERMINISTIC: AuthoringSeat = AuthoringSeat::Deterministic { why: None };
 
 impl SessionRuntime {
     /// The authoring question the next line answers, when one is open.
@@ -82,7 +82,7 @@ impl SessionRuntime {
     /// The session's authoring context rooted at its own project, never the process's working
     /// directory: every round observes the files it names there, never through a link outside it
     /// (R4 S1). A seated round roots the session's context with it; a deterministic one reads it.
-    fn project_context(&self) -> AuthoringContext {
+    pub(super) fn project_context(&self) -> AuthoringContext {
         let root = self.snapshot.root.clone();
         self.authoring_context.clone().with_project_root(root)
     }
@@ -579,6 +579,14 @@ impl SessionRuntime {
                     reasons(&out).join(" · ")
                 ),
             )),
+            // A reading this session does not know yet is refused, never proposed.
+            other => TurnOutcome::Refusal(Refusal::new(
+                RefusalClass::AuthoringRefused,
+                format!(
+                    "the compiler refused this request — {}",
+                    reasons(other.outcome()).join(" · ")
+                ),
+            )),
         }
     }
 
@@ -589,6 +597,8 @@ impl SessionRuntime {
             Ok(set) => {
                 let bytes = self.draft_preview(&set);
                 let id = ProposalId::of(&bytes);
+                // What the candidate records of its sources is bound before any yes (F4).
+                self.bind_basis(&id, &set, goal, out);
                 let preview = self.draft_review(&set, out, &bytes);
                 self.authoring = None;
                 self.intent.unresolved.clear();
