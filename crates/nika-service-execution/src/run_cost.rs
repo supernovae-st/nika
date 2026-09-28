@@ -176,6 +176,36 @@ pub fn project_file_path(
     Ok(path.into())
 }
 
+/// Check's mirror of the Run's monetary admission (descended from the host's
+/// `run_cost::readiness`, C6): `None` when a Run of `wf` under `plan` needs no
+/// fresh choice, otherwise why it is not run ready. An unknown-cost route is
+/// never ready (it needs a fresh finite-call choice); a declared-free route is
+/// ready only in a shape its observation admits. It admits nothing itself.
+#[must_use]
+pub fn readiness(
+    wf: &RawWorkflow,
+    plan: &nika_providers::ExecutionAccessPlan,
+    config: &nika_providers::ProvidersConfig,
+) -> Option<String> {
+    let routes = match unknown_routes(plan, config) {
+        Ok(routes) => routes,
+        Err(why) => return Some(format!("Run monetary admission is unresolved: {why}")),
+    };
+    if routes.is_empty() {
+        // Check mirrors the Run's refusal of what a declared-free observation
+        // cannot admit: never run ready, never a known zero.
+        return declared_free_shape(wf, plan, config, None)
+            .err()
+            .map(|refusal| format!("Run cannot observe its declared-free route: {refusal}"));
+    }
+    Some(match request_bound(wf, plan, routes.len()) {
+        Ok(bound) => format!(
+            "USD cost is unknown: Run requires a fresh finite-call choice for at most {bound} requests, including schema re-asks; Check has not admitted spend or effects"
+        ),
+        Err(why) => format!("USD cost is unknown; Run cannot obtain a bounded choice: {why}"),
+    })
+}
+
 /// A task that uses an exact catalog-declared-free route in a shape its
 /// provider observation cannot admit. That observation takes bounded text only
 /// (no tools, thinking, vision or memory; a literal output bound the tariff

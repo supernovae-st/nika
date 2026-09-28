@@ -809,6 +809,120 @@ async fn a_configured_run_keeps_its_root_and_hands_its_account_to_children() -> 
     Ok(())
 }
 
+/// C6 · Run readiness (moved from the host with its law): an unbounded unknown
+/// route, a wrong endpoint, no model and a declared-free shape, judged here.
+const READINESS_MODEL: &str = "openai/gpt-oss-120b";
+const READINESS_SOURCE: &str = "nika: bounded\nmodel: openai/gpt-oss-120b\ntasks:\n  draft:\n    infer: { prompt: text, max_tokens: 32, schema: { type: string } }\n";
+
+fn readiness_plan() -> nika_providers::ExecutionAccessPlan {
+    use nika_providers::probe::{ExecutionLocus, ProviderProbe, ProviderReadiness};
+    nika_providers::resolve_execution_plan(
+        &[nika_providers::ModelNeed::new(READINESS_MODEL, true, false)],
+        &[ProviderProbe::new(
+            "openai",
+            true,
+            true,
+            "OPENAI_API_KEY",
+            false,
+            ProviderReadiness::new(
+                true,
+                true,
+                None,
+                None,
+                true,
+                ExecutionLocus::Cloud,
+                nika_types::access::AccessClass::Api,
+            ),
+            "https://api.scaleway.ai/example-project/v1",
+        )],
+        Some("api"),
+    )
+}
+
+fn readiness_parsed(source: &str) -> RawWorkflow {
+    nika_schema::parse(
+        source,
+        nika_schema::FileId::new(0),
+        nika_schema::ParseMode::Strict,
+    )
+    .unwrap()
+}
+
+#[test]
+fn unbounded_unknown_and_wrong_endpoint_stay_unready() {
+    let wf = readiness_parsed(&READINESS_SOURCE.replace(", max_tokens: 32", ""));
+    let config = nika_providers::ProvidersConfig::new()
+        .with_base_url("openai", "https://api.scaleway.ai/example-project/v1");
+    let blocker = run_cost::readiness(&wf, &readiness_plan(), &config).unwrap();
+    assert!(blocker.contains("cannot obtain a bounded choice"));
+    let config =
+        nika_providers::ProvidersConfig::new().with_base_url("openai", "http://localhost:12345/v1");
+    assert!(
+        run_cost::readiness(
+            &readiness_parsed(READINESS_SOURCE),
+            &readiness_plan(),
+            &config
+        )
+        .is_some()
+    );
+}
+
+#[test]
+fn no_model_plan_has_no_monetary_blocker() {
+    let plan = nika_providers::resolve_execution_plan(&[], &[], None);
+    let wf = readiness_parsed(
+        "nika: local\npermits: { tools: ['nika:assert'] }\ntasks:\n  ok:\n    invoke: { tool: 'nika:assert', args: { condition: true } }\n",
+    );
+    assert_eq!(
+        run_cost::readiness(&wf, &plan, &nika_providers::ProvidersConfig::new()),
+        None
+    );
+}
+
+/// C2 · Check mirrors the Run: bounded text on an exact declared-free route
+/// is run ready; the same route with vision is not, and says which task.
+#[test]
+fn a_declared_free_route_is_ready_for_text_and_names_an_unsupported_shape() {
+    use nika_providers::probe::{ExecutionLocus, ProviderProbe, ProviderReadiness};
+    let free = "openrouter/qwen/qwen3.8-27b:free";
+    let plan = nika_providers::resolve_execution_plan(
+        &[nika_providers::ModelNeed::new(free, true, false)],
+        &[ProviderProbe::new(
+            "openrouter",
+            true,
+            true,
+            "OPENROUTER_API_KEY",
+            false,
+            ProviderReadiness::new(
+                true,
+                true,
+                None,
+                None,
+                true,
+                ExecutionLocus::Cloud,
+                nika_types::access::AccessClass::Api,
+            ),
+            "https://openrouter.ai/api/v1/chat/completions",
+        )],
+        Some("api"),
+    );
+    let text = format!(
+        "nika: free\nmodel: {free}\npermits: {{}}\ntasks:\n  draft:\n    infer: {{ prompt: text, max_tokens: 64 }}\n"
+    );
+    let config = nika_providers::ProvidersConfig::new();
+    assert_eq!(
+        run_cost::readiness(&readiness_parsed(&text), &plan, &config),
+        None
+    );
+    let vision = text.replace(
+        "max_tokens: 64",
+        "max_tokens: 64, vision: [{ source: file, path: './image.png' }]",
+    );
+    let blocker = run_cost::readiness(&readiness_parsed(&vision), &plan, &config).unwrap();
+    assert!(blocker.contains("task `draft`"), "{blocker}");
+    assert!(blocker.contains("with vision"), "{blocker}");
+}
+
 /// A probe source planning can be caught reading: one codex seat row.
 fn codex_rows() -> Vec<nika_providers::probe::ProviderProbe> {
     vec![codex_probe()]

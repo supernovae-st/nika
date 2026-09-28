@@ -283,3 +283,8 @@ unchanged: the runtime judges them with its own composition probes.
 `collect_access_probes_env`) still probes eagerly, so a model-free fire still
 spawns the harness CLIs there (E16 side observation). This change removes one
 of the two spawn sites; it does not claim no-spawn parity.
+
+`run_cost::readiness` owns the monetary readiness observation used by Check.
+It shares the route, declared-free shape and finite-request laws with Run;
+unknown-cost work still needs a fresh choice. The observation admits no effects
+and obtains no spending authority. The Host adapter supplies its provider configuration.
