@@ -217,6 +217,15 @@ export function poly(R, pts, st = {}, p = 1, p0 = 0) {
   }
   const s0 = total * clamp(p0), s1 = total * clamp(p);
   const ctx = R.ctx;
+  // a whole shape can be filled (under its stroke); a partial one cannot
+  if (st.fill && p >= 1 && p0 <= 0) {
+    ctx.beginPath();
+    pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+    ctx.closePath();
+    ctx.globalAlpha = a * (st.fillAlpha ?? 1);
+    ctx.fillStyle = st.fill;
+    ctx.fill();
+  }
   strokeStyle(ctx, st, a);
   ctx.beginPath();
   let acc = 0, started = false;
