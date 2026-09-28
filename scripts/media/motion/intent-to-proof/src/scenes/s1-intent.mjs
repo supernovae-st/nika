@@ -55,8 +55,8 @@ function visibleWord(B, zoom, q) {
   const W = wordGlyphs(B);
   const dot = W.find(g => g.ch === '.');
   const [dx0, dy0, dx1, dy1] = dot.b;
-  const ix = (dx1 - dx0) * 0.14, iy = (dy1 - dy0) * 0.14;
-  if (x0 > dx0 + ix && x1 < dx1 - ix && y0 > dy0 + iy && y1 < dy1 - iy) return null;
+  const insetX = (dx1 - dx0) * 0.14, insetY = (dy1 - dy0) * 0.14;
+  if (x0 > dx0 + insetX && x1 < dx1 - insetX && y0 > dy0 + insetY && y1 < dy1 - insetY) return null;
   const mx = (x1 - x0) * 0.1, my = (y1 - y0) * 0.1;
   const vis = W.filter(g => g.b[2] > x0 - mx && g.b[0] < x1 + mx && g.b[3] > y0 - my && g.b[1] < y1 + my);
   const key = vis.map(g => g.ch + g.b[0].toFixed(0)).join('|');

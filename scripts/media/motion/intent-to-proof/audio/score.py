@@ -589,8 +589,8 @@ def main(tl_path, out_path):
     mix = dry.x + bedx + w * 0.9 + wetx * 0.35
     # gentle bus glue: RMS envelope compressor (ratio ~2:1 above -18 dBFS)
     rms = np.sqrt(signal.sosfilt(signal.butter(1, 8, fs=SR, output="sos"), np.mean(mix ** 2, axis=1)) + 1e-12)
-    thr = 10 ** (-18 / 20)
-    gain = np.where(rms > thr, (thr / rms) ** 0.5, 1.0)
+    threshold = 10 ** (-18 / 20)
+    gain = np.where(rms > threshold, (threshold / rms) ** 0.5, 1.0)
     mix *= gain[:, None]
     mix = mix[: n(dur)]
     # master high-pass: nothing below 32 Hz (rumble, not music)

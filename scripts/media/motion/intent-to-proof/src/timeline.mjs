@@ -15,7 +15,7 @@ const b = n => n * BEAT; // beats → seconds
 export const T = {
   // S1 · INTENT ─ bars 1–2
   open: 0,
-  lines: [b(0.25), b(0.75), b(1.25), b(1.75)], // four sentences land on 8ths, a 16th after the ignition
+  lines: [b(0.25), b(0.75), b(1.25), b(1.75)], // four sentences land on eighth notes, a sixteenth after the ignition
   act: b(2.6), // session classifies the message: NEW WORK
   readA: b(3.5), // intent reader sweep
   readB: b(4.5),
