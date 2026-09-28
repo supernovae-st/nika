@@ -129,9 +129,25 @@ A `for_each` task's terminal frame (`task_completed` · `task_failed`)
 additionally carries **`items`** inline (additive · reference engine 0.118): ONE
 JSON array text · one row per item in input order · `index` · `item` (the
 item's identity, bounded) · `status` ∈ `ok` · `recovered` · `failed` ·
-`never_started` · `code` and `message` when an error was recorded. Failures
+`cancelled` · `never_started` · `code` and `message` when an error was recorded. Failures
 2..N reach the journal with their own codes; the items a stopped batch
 never started are named as such.
+
+`cancelled` means an iteration began execution but was abandoned without a
+recorded terminal outcome. `never_started` is reserved for iterations whose
+execution never began. A producer MUST retain an already recorded `ok`,
+`recovered` or `failed` outcome when another iteration stops the batch. It MUST
+NOT relabel pending started iterations as `never_started` to fill the table.
+These are execution-observation states, not evidence that a provider accepted
+a request, that no physical request was sent, or that an external effect was
+rolled back. Cost evidence remains a separate observation.
+
+The `cancelled` item status and its paged count below extend the reference
+engine's 0.121 vocabulary at the next engine MINOR. They do not introduce a
+workflow syntax version or a new trace envelope version. An older reader may
+preserve an unfamiliar inline row as uninterpreted data, or report a table as
+unrecorded; it MUST NOT reinterpret `cancelled` as `never_started`, success or
+zero spend. A chain verdict alone does not prove support for the item vocabulary.
 
 The workflow terminal frames (`workflow_completed` · `workflow_failed` ·
 `workflow_cancelled`) additionally carry the run's **summary** (additive ·
@@ -160,6 +176,7 @@ The terminal then omits inline `items` and closes the page set with:
 | `items_ok` | Rows whose status is `ok` or `recovered` |
 | `items_recovered` | Recovered rows, a subset of `items_ok` |
 | `items_failed` | Failed rows |
+| `items_cancelled` | Started rows abandoned without a recorded terminal outcome |
 | `items_never_started` | Rows that never started |
 
 A reader folds pages by task and observation leg, preserving input order.
@@ -169,6 +186,14 @@ reordered or malformed pages must not become a complete table. A new task
 start clears pending pages for that task; pages cannot leak into a resumed
 observation. The chain walk still judges the original physical frames;
 materializing a table never rewrites or rehashes those frames.
+
+New producers include `items_cancelled`, including zero, in every paged
+terminal. A reader MAY accept its absence in a historical terminal only when
+the collected rows contain no `cancelled` status. A missing count beside a
+cancelled row, an unknown status, or a mismatch in any status count MUST leave
+the table incomplete. `items_ok + items_failed + items_cancelled +
+items_never_started` equals `items_total`; `items_recovered` remains a subset
+of `items_ok` and is not added a second time.
 
 The implementation chooses when to page. Every encoded page still obeys
 the journal's line bound in [15 §the verifier is a fortress](./15-proof.md),

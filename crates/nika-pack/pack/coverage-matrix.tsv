@@ -215,3 +215,9 @@ stdlib	(positive)	positive-check	conformance/tests/stdlib/builtins/044-fetch-res
 stdlib	(positive)	positive-check	conformance/tests/stdlib/builtins/045-fetch-response-status-upper-bound/input.yaml
 stdlib	NIKA-BUILTIN	check-reject	conformance/tests/stdlib/builtins/046-fetch-response-wildcard-refused/input.yaml
 stdlib	NIKA-BUILTIN	check-reject	conformance/tests/stdlib/builtins/047-fetch-response-scalar-accept-refused/input.yaml
+dag	(item-cancellation)	trace-projection	conformance/tests/runtime/trace/011-cancelled-item-inline
+dag	(item-cancellation)	trace-projection	conformance/tests/runtime/trace/012-cancelled-item-paged
+dag	(item-cancellation)	trace-projection	conformance/tests/runtime/trace/013-historical-count-absence
+dag	(item-cancellation)	trace-projection	conformance/tests/runtime/trace/014-cancelled-count-absent
+dag	(item-cancellation)	trace-projection	conformance/tests/runtime/trace/015-cancelled-count-mismatch
+dag	(item-cancellation)	trace-projection	conformance/tests/runtime/trace/016-unknown-item-status
