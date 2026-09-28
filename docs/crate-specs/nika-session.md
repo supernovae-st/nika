@@ -145,6 +145,12 @@ ceiling before transport; a failed or empty answer remains a failed reading,
 not a fallback classification. Hermetic wire tests prove these limits and
 zero-call monetary refusals; they do not establish real-model routing quality.
 
+A persisted explicit `none` choice has no conversational reasoner, even when
+the host installs a factory for changing that choice later. It stays on the
+protocol fallback: a typed model answer can reach review without calling that
+factory again. An injected classifier retains its route, and a real classifier's
+failed or unknown answer still binds nothing. Reaching review grants no consent.
+
 ## Monetary admission
 
 Session reads explicit monetary intent before the compiler, classifier or

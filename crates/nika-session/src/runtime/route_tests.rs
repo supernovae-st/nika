@@ -89,6 +89,61 @@ fn session_with(classifier: Box<dyn TurnClassifier>) -> (tempfile::TempDir, Sess
     (dir, s)
 }
 
+/// The real host installs a factory even for the persisted "none" choice.
+/// That choice is a protocol fallback, never a failed model classification.
+#[test]
+fn a_none_factory_is_not_called_to_classify_a_typed_model_answer() {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+    let dir = tree();
+    std::fs::create_dir_all(dir.path().join("notes")).expect("notes");
+    std::fs::write(dir.path().join("notes/brief.md"), "brief\n").expect("brief");
+    let calls = Arc::new(AtomicUsize::new(0));
+    let counted = Arc::clone(&calls);
+    let pref = crate::intelligence::UserIntelligencePreference::new(IntelligenceKind::None, None);
+    let mut session = SessionRuntime::open_with(
+        dir.path(),
+        crate::intelligence::IntelligenceCensus {
+            seats: vec![],
+            api_keys: vec![],
+            locals: vec![],
+        },
+        &pref,
+        None,
+        Box::new(move |_| {
+            counted.fetch_add(1, Ordering::SeqCst);
+            Box::new(NoReasoner)
+        }),
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 1, "initial host composition");
+    assert!(matches!(
+        session.turn("Read ./notes/brief.md, draft a 3-bullet summary of it and write the summary to ./out/summary.md"),
+        TurnOutcome::Question { .. }
+    ));
+    let answer = session.turn("mock/echo");
+    assert!(
+        matches!(answer, TurnOutcome::Proposal { ref preview, .. } if preview.contains("infer · mock/echo")),
+        "{answer:?}"
+    );
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        1,
+        "no conversational seat requested"
+    );
+    assert!(
+        !dir.path().join("compiled-workflow.nika").exists(),
+        "review is not consent"
+    );
+    assert!(
+        session
+            .routes
+            .iter()
+            .any(|r| r.method == RoutingMethod::Protocol)
+    );
+}
+
 #[test]
 fn a_cancel_label_discards_the_proposal_without_granting_any_effect() {
     let (dir, mut s) = session_with(Box::new(Scripted(BTreeMap::from([(

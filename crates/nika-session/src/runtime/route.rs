@@ -75,8 +75,8 @@ impl SessionRuntime {
         // conversation's reasoner came from (a fresh one: the route never
         // consumes the conversation's own turn), so its route is observable.
         // A door's classifier names no route: without money it keeps its path.
-        let routes =
-            !blocked && self.classifier.is_none() && self.intelligence.ready && self.chosen;
+        let reads = self.reads_answers();
+        let routes = !blocked && self.classifier.is_none() && reads;
         let fresh = self
             .factory
             .as_ref()
@@ -107,7 +107,7 @@ impl SessionRuntime {
                 Some(a) => classifier.classify_with_admission(&context, raw, a),
                 None => classifier.classify(&context, raw),
             }
-        } else if self.intelligence.ready && self.chosen {
+        } else if reads {
             self.activity(&crate::activity::Activity::now(
                 crate::activity::Phase::Understanding,
                 "reading your line",
