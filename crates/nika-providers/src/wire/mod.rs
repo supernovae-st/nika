@@ -18,6 +18,7 @@ pub(crate) mod openai_compat;
 #[cfg(test)]
 mod openai_compat_usage_tests;
 mod openai_schema;
+pub(crate) mod reasoning;
 #[cfg(test)]
 mod refusal_tests;
 

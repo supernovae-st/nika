@@ -95,6 +95,11 @@ where
         c.requested_endpoint = requested_endpoint;
     }
     crate::dispatch_journal::sent(call.as_ref());
+    // What the body carried, read back from the bytes this dispatch sends (R4 B16).
+    let wire = http_req
+        .body
+        .as_deref()
+        .map(nika_kernel::ai::provider::ReasoningWire::of_body);
     let resp = http.post(http_req).await.map_err(|e| map_http_err(&e))?;
     *route = crate::retry::BillingRoute::new(
         rp.profile.id.into(),
@@ -120,7 +125,8 @@ where
             &rp.wire_model,
         ));
     }
-    let response = parse_response(rp, &resp.body, &names)?;
+    let mut response = parse_response(rp, &resp.body, &names)?;
+    response.reasoning_wire = wire;
     crate::retry::record(call, route.as_ref(), Some(&response), declared.as_ref());
     if let Some(a) = &mut attempt
         && let Err(refused) = a.settle(&response)
@@ -209,6 +215,7 @@ fn build_request(
         obj.remove("max_completion_tokens");
         obj.insert(tariff.output_token_param.into(), json!(max));
     }
+    super::reasoning::apply(&mut body, &req, rp.profile.id, &rp.wire_model, &rp.base_url)?;
     super::json_mode::bounded_reasoning(&mut body, &req, rp.profile.id, &rp.wire_model);
     let bytes = serde_json::to_vec(&body).map_err(|e| ProviderError::Other {
         reason: format!("request serialization failed: {e}"),

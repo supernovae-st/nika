@@ -129,6 +129,7 @@ fn build_request(
     req: &InferRequest,
     stream: bool,
 ) -> Result<HttpRequest, ProviderError> {
+    super::reasoning::unsupported(req, rp.profile.id, &rp.wire_model)?;
     let key = rp.key.as_ref().ok_or_else(|| ProviderError::AuthFailed {
         reason: "gemini requires an API key".to_owned(),
     })?;

@@ -488,7 +488,7 @@ where
                 wire::openai_compat::infer_routed(self, request, route, call).await
             }
             WireFormat::Gemini => wire::gemini::infer_routed(self, request, route, call).await,
-            WireFormat::Mock => Ok(wire::mock::infer(self, &request)),
+            WireFormat::Mock => wire::mock::answer(self, &request),
         }
     }
 
@@ -501,7 +501,7 @@ where
             WireFormat::Anthropic => wire::anthropic::infer_stream(self, request).await,
             WireFormat::OpenAiCompat => wire::openai_compat::infer_stream(self, request).await,
             WireFormat::Gemini => wire::gemini::infer_stream(self, request).await,
-            WireFormat::Mock => Ok(wire::mock::infer_stream(self, &request)),
+            WireFormat::Mock => wire::mock::answer_stream(self, &request),
         }
     }
 }

@@ -123,6 +123,7 @@ fn build_request(
     stream: bool,
     names: &ToolNameMap,
 ) -> Result<HttpRequest, ProviderError> {
+    super::reasoning::unsupported(req, rp.profile.id, &rp.wire_model)?;
     let key = rp.key.as_ref().ok_or_else(|| ProviderError::AuthFailed {
         reason: "anthropic requires an API key".to_owned(),
     })?;
