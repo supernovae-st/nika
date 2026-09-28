@@ -712,18 +712,18 @@ function jobSteps(R, t, a) {
     const top = CARD.y + HEAD_H + 14 + i * JOB_LH;
     const al = a * smooth(T.job + 0.25 + i * 0.05, T.job + 0.45 + i * 0.05, t);
     if (al <= 0.004) return;
-    const y = top + 22, ix = BODY_X + 8, iy = y - 6;
+    const y = top + 22, dotX = BODY_X + 8, dotY = y - 6;
     const skip = s.end === 'skip' && t >= s.t0, running = !skip && t >= s.t0 && t < s.t1, done = !skip && t >= s.t1;
     if (skip) {
-      circle(R, ix, iy, 7, { color: C.dim, w: 1.3, alpha: al });
-      line(R, ix - 4.5, iy + 4.5, ix + 4.5, iy - 4.5, { color: C.dim, w: 1.3, alpha: al });
-    } else if (running) arc(R, ix, iy, 7, (t - s.t0) * 8, (t - s.t0) * 8 + Math.PI * 1.4, { color: C.amber, w: 1.8, alpha: al, glow: 0.7 });
+      circle(R, dotX, dotY, 7, { color: C.dim, w: 1.3, alpha: al });
+      line(R, dotX - 4.5, dotY + 4.5, dotX + 4.5, dotY - 4.5, { color: C.dim, w: 1.3, alpha: al });
+    } else if (running) arc(R, dotX, dotY, 7, (t - s.t0) * 8, (t - s.t0) * 8 + Math.PI * 1.4, { color: C.amber, w: 1.8, alpha: al, glow: 0.7 });
     else if (done) {
-      circle(R, ix, iy, 8, { fill: C.teal, fillAlpha: 0.14, color: C.teal, w: 1.3, alpha: al });
-      check(R, ix, iy + 0.5, 8, E.snap(seg(t, s.t1, s.t1 + 0.25)), { color: C.teal, w: 1.8, alpha: al, glow: 0.6 });
-    } else circle(R, ix, iy, 7, { color: C.faint, w: 1.3, alpha: al });
+      circle(R, dotX, dotY, 8, { fill: C.teal, fillAlpha: 0.14, color: C.teal, w: 1.3, alpha: al });
+      check(R, dotX, dotY + 0.5, 8, E.snap(seg(t, s.t1, s.t1 + 0.25)), { color: C.teal, w: 1.8, alpha: al, glow: 0.6 });
+    } else circle(R, dotX, dotY, 7, { color: C.faint, w: 1.3, alpha: al });
     const col = skip ? C.dim : running ? C.amber : done ? C.ink : C.mist;
-    text(R, s.name, ix + 22, y, { f: 'Geist 500', size: 17, color: col, alpha: al, glow: running ? 0.25 : 0 });
+    text(R, s.name, dotX + 22, y, { f: 'Geist 500', size: 17, color: col, alpha: al, glow: running ? 0.25 : 0 });
     if (skip) text(R, 'skipped · mode: check', CARD.x + CARD.w - PAD_X, y, { f: 'Geist 400', size: 15, color: C.dim, alpha: al, align: 'right' });
   });
 }
