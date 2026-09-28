@@ -27,12 +27,14 @@
 mod ast;
 mod error;
 mod lexer;
+mod lookalike;
 mod parser;
 mod refs;
 mod template;
 
 pub use ast::{Expr, Literal, NamespaceRef, RelOp};
 pub use error::ExprError;
+pub use lookalike::single_brace_reference_heads;
 pub use parser::parse_expression;
 pub use refs::{bare_task_refs, expr_refs, is_boolean_shaped, task_output_paths, with_alias_paths};
 pub use template::{TemplateIsland, scan_templates};

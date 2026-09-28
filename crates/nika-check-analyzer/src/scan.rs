@@ -25,6 +25,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use nika_schema::error::SchemaError;
 use nika_schema::expression::{
     ExprError, NamespaceRef, expr_refs, is_boolean_shaped, scan_templates,
+    single_brace_reference_heads,
 };
 use nika_schema::raw::{ForEachValue, RawAction, RawTask, RawWorkflow};
 use nika_schema::source::{Span, Spanned};
@@ -452,6 +453,11 @@ fn check_single_island(
     errors: &mut Vec<SchemaError>,
 ) {
     let trimmed = value.value.trim();
+    // The specific opener diagnostic in scan_string teaches both reference
+    // and intentional-literal repairs. Do not emit the generic shape error too.
+    if !single_brace_reference_heads(trimmed).is_empty() {
+        return;
+    }
     // On a template scan error · return (scan_string reports it).
     let Ok(islands) = scan_templates(trimmed) else {
         return;
@@ -517,6 +523,16 @@ fn scan_string(
     index: &WorkflowIndex<'_>,
     errors: &mut Vec<SchemaError>,
 ) {
+    for head in single_brace_reference_heads(&value.value) {
+        errors.push(SchemaError::ExpressionViolation {
+            reason: format!(
+                "single-brace opener before `{head}` is not interpolation — \
+                 for a reference use `${{{{ ... }}}}` with two braces, preserving the whole expression; \
+                 for intended literal text use a quoted CEL string island, e.g. `${{{{ '${{ item.name }}' }}}}`"
+            ),
+            span: Some(value.span),
+        });
+    }
     match scan_templates(&value.value) {
         Ok(islands) => {
             for island in islands {

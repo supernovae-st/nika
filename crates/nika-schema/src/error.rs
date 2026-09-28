@@ -400,7 +400,8 @@ pub enum SchemaError {
 
     /// A CLOSED `${{ … }}` island whose CEL is outside the `cel-subset/0.1`
     /// grammar — a chained relation, an unknown function, arithmetic, a
-    /// stray token. Spec `05-errors.md` `NIKA-VAR-005` (« static expression
+    /// stray token, or a single-brace dotted reference lookalike. Spec
+    /// `05-errors.md` `NIKA-VAR-005` (« static expression
     /// violation »). Distinct from [`Self::TemplateSyntax`] (`NIKA-VAR-008`),
     /// which is reserved for the unclosed-`${{` opener.
     #[error("expression error — {reason}")]

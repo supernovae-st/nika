@@ -78,7 +78,9 @@
 use std::collections::BTreeSet;
 
 use nika_cap::BuiltinEffect;
-use nika_schema::expression::{NamespaceRef, expr_refs, scan_templates};
+use nika_schema::expression::{
+    NamespaceRef, expr_refs, parse_expression, scan_templates, single_brace_reference_heads,
+};
 use nika_schema::raw::{
     ForEachValue, RawAction, RawCommand, RawInvokeAction, RawWorkflow, VisionInput,
 };
@@ -147,13 +149,29 @@ impl UsedNames {
         }
     }
 
-    /// Every namespace ref of one `${{ }}`-bearing text (a broken island yields nothing).
+    /// Real references and typo heads both withhold contradictory deletion advice.
+    /// Typo heads never enter the scheduling or evaluation graph.
     fn eat(&mut self, text: &str) {
-        let Ok(islands) = scan_templates(text) else {
-            return;
-        };
-        for island in &islands {
-            for r in expr_refs(&island.expr) {
+        let expressions = scan_templates(text)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|island| island.expr)
+            .chain(
+                single_brace_reference_heads(text)
+                    .into_iter()
+                    .filter_map(|head| {
+                        // The typo law admits Unicode White_Space; CEL's lexer
+                        // admits ASCII whitespace. Normalize only this lexical
+                        // head for deletion advice, never for evaluation.
+                        let head: String = head
+                            .chars()
+                            .map(|ch| if ch.is_whitespace() { ' ' } else { ch })
+                            .collect();
+                        parse_expression(&head).ok()
+                    }),
+            );
+        for expression in expressions {
+            for r in expr_refs(&expression) {
                 match r {
                     NamespaceRef::Inputs(name) => {
                         self.inputs.insert(name);
@@ -637,6 +655,43 @@ mod tests {
     }
 
     // ─── namespace declarations (vars · env · secrets) ───────────────
+
+    #[test]
+    fn typo_repair_precedes_deleting_the_referenced_declaration() {
+        let advice = drifted(
+            "nika: typo\nconst: { seed: hello, unused: spare }\ntasks:\n  t:\n    infer: { prompt: '${ const.seed }' }\n",
+        );
+        assert!(
+            !advice.iter().any(|row| row.contains("`const.seed`")),
+            "{advice:?}"
+        );
+        assert!(
+            advice.iter().any(|row| row.contains("`const.unused`")),
+            "{advice:?}"
+        );
+    }
+
+    #[test]
+    fn quoted_lookalike_is_not_a_declaration_use() {
+        let advice = drifted(
+            "nika: literal\nconst: { seed: hello }\ntasks:\n  t:\n    infer: { prompt: \"${{ '${ const.seed }' }}\" }\n",
+        );
+        assert!(
+            advice.iter().any(|row| row.contains("`const.seed`")),
+            "{advice:?}"
+        );
+    }
+
+    #[test]
+    fn unicode_whitespace_typo_still_withholds_deletion_advice() {
+        let advice = drifted(
+            "nika: typo\nconst: { seed: hello }\ntasks:\n  t:\n    infer: { prompt: '${ const\u{00a0}.seed }' }\n",
+        );
+        assert!(
+            !advice.iter().any(|row| row.contains("`const.seed`")),
+            "{advice:?}"
+        );
+    }
 
     #[test]
     fn unused_var_env_and_secret_are_hinted() {

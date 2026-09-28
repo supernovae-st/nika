@@ -652,8 +652,18 @@ pub const EXEC_BODY_HELP: &str = exec_body_help!();
 /// earn an entry.
 #[must_use]
 pub fn spec_contract_help(code: &str) -> Option<&'static str> {
+    static EXPRESSION_HELP: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
+        format!(
+            "{}\n\nA single-brace dotted Nika reference such as `${{ const.seed }}` is refused. \
+             For a reference use `${{{{ const.seed }}}}`. For intended literal text use \
+             a quoted CEL string island, e.g. `${{{{ '${{ item.name }}' }}}}`. \
+             Code blocks may instead come from `const:` or a file read with `nika:read`. \
+             Choose the repair according to intent; it cannot be applied automatically.",
+            nika_tmpl::callable::CALLABLE_HELP
+        )
+    });
     match code {
-        "NIKA-VAR-005" => Some(nika_tmpl::callable::CALLABLE_HELP),
+        "NIKA-VAR-005" => Some(EXPRESSION_HELP.as_str()),
         "NIKA-PARSE-019" => Some(concat!(
             "  The field's YAML shape is wrong. `tasks:` is a map keyed by task id.\n\n",
             exec_body_help!(),
@@ -763,6 +773,21 @@ mod tests {
             "x.endsWith(s)",
         ] {
             assert!(help.contains(callable), "missing {callable}: {help}");
+        }
+    }
+
+    #[test]
+    fn var_005_explain_preserves_reference_and_literal_intents() {
+        let help = spec_contract_help("NIKA-VAR-005").expect("expression lesson");
+        for lesson in [
+            "${ const.seed }",
+            "${{ const.seed }}",
+            "${{ '${ item.name }' }}",
+            "const:",
+            "nika:read",
+            "cannot be applied automatically",
+        ] {
+            assert!(help.contains(lesson), "missing {lesson}: {help}");
         }
     }
 
