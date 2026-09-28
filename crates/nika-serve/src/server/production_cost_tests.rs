@@ -137,6 +137,17 @@ fn a_catalog_priced_native_default_stays_admitted() {
     assert_eq!(observed, Ok(false));
 }
 
+/// C6 defect 2 (B12): a refused job's record carries its message through the
+/// one shared bound, which keeps the review route the refusal names.
+#[test]
+fn the_unreviewed_refusal_keeps_its_review_route_in_the_job_record() {
+    let bounded = crate::server::bound_message(super::UNREVIEWED);
+    assert!(
+        bounded.contains("admits POST /v1/cost-reviews, then one job"),
+        "{bounded}"
+    );
+}
+
 /// C4 parity on the resident: an exact declared-free route binds the same
 /// per-Run observer `nika run` binds, never unknown-cost authority.
 #[test]

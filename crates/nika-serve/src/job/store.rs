@@ -34,6 +34,7 @@ use super::{
     ServerIncarnation,
 };
 use crate::ResidentClock;
+use crate::server::bound_message;
 
 const JOBS_DIR: &str = "jobs";
 const INITIALIZED_FILE: &str = "initialized.json";
@@ -1470,22 +1471,4 @@ fn bound_token(raw: &str, max: usize) -> String {
         .filter(char::is_ascii_graphic)
         .take(max)
         .collect()
-}
-
-fn bound_message(raw: &str) -> String {
-    let mut out = String::new();
-    for token in raw.split_whitespace() {
-        if token.starts_with('/') || token.contains(":\\") {
-            continue;
-        }
-        if !out.is_empty() {
-            out.push(' ');
-        }
-        out.push_str(token);
-        if out.len() >= 240 {
-            out.truncate(240);
-            break;
-        }
-    }
-    out
 }
