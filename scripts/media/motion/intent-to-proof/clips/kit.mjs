@@ -365,8 +365,10 @@ export function codeCard(R, t, box, { title = '', alpha = 1, k = 1, badge = null
       }
       continue;
     }
-    // row height: deleted rows fold, added rows open
-    const hk = o.op === '=' ? 1 : o.op === '-' ? 1 - mp : mp;
+    // row height: deleted rows fold, added rows open, and a kept row
+    // outside the new window folds away while one entering it opens
+    const wa = inA ? 1 : 0, wb = inB ? 1 : 0;
+    const hk = o.op === '=' ? wa + (wb - wa) * mp : o.op === '-' ? (1 - mp) * wa : mp * wb;
     if (hk <= 0.001) continue;
     const rowY = y + lh * 0.5 * (hk - 1);
     const shown = o.op === '-' ? 1 - smooth(0, 0.6, mp) : o.op === '+' ? smooth(0.35, 1, mp) : 1;
