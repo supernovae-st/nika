@@ -7,7 +7,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { C, E, clamp, lerp, seg, smooth } from '../src/engine/core.mjs';
-import { text, rrect, rect, line, circle, poly, check, cross, measure, ROOT } from '../src/engine/render.mjs';
+import { text, rrect, rect, line, circle, arc, poly, check, cross, measure, ROOT } from '../src/engine/render.mjs';
 import { beatTitle } from '../src/scenes/shared.mjs';
 
 export const REPO = path.resolve(ROOT, '../../../..');
@@ -287,7 +287,11 @@ const until = (t1, d, t) => (t1 === undefined || t1 === Infinity ? 1 : 1 - smoot
 // teal flash; after, `after`. `win.a` / `win.b` are 1-based [first, last]
 // line windows of each version. marks: [{ line, re, c, t0, t1, squiggle,
 // version }] recolour or underline a token on a line of the version shown.
-export function codeCard(R, t, box, { title = '', alpha = 1, k = 1, badge = null, before, after = null, win = {}, reveal = null, morph = null, marks = [], lh = LH, st = MONO } = {}) {
+// fold: [[first, last]] hides a block behind one "⋯ n lines" row (single
+// version only). highlights: [{ line, t0, t1?, c, running? }] light a row:
+// a bar behind it and a check in the gutter (a pulse and a spinner while
+// running).
+export function codeCard(R, t, box, { title = '', alpha = 1, k = 1, badge = null, before, after = null, win = {}, reveal = null, morph = null, marks = [], lh = LH, st = MONO, fold = [], highlights = [] } = {}) {
   const [fa, ta] = win.a ?? [1, Infinity], [fb, tb] = win.b ?? win.a ?? [1, Infinity];
   panel(R, box, { title, alpha, k, badge });
   if (k < 1 || alpha <= 0) return;
@@ -306,6 +310,16 @@ export function codeCard(R, t, box, { title = '', alpha = 1, k = 1, badge = null
     const na = o.a !== undefined ? o.a + 1 : null, nb = o.b !== undefined ? o.b + 1 : null;
     const inA = na !== null && na >= fa && na <= ta, inB = nb !== null && nb >= fb && nb <= tb;
     if (!inA && !inB) continue;
+    const fr = !after && fold.find(([f0, f1]) => na >= f0 && na <= f1);
+    if (fr) {
+      if (na === fr[0]) {
+        const rv0 = reveal ? smooth(reveal.t0 + na * reveal.every, reveal.t0 + na * reveal.every + 0.12, t) : 1;
+        const ind = (before[na - 1].match(/^\s*/) || [''])[0].length;
+        mono(R, [{ s: `⋯ ${fr[1] - fr[0] + 1} lines folded`, c: C.dim }], box.x + gutter + 12 + ind * adv, y, { alpha: alpha * rv0 * 0.9, st });
+        y += lh;
+      }
+      continue;
+    }
     // row height: deleted rows fold, added rows open
     const hk = o.op === '=' ? 1 : o.op === '-' ? 1 - mp : mp;
     if (hk <= 0.001) continue;
@@ -323,6 +337,16 @@ export function codeCard(R, t, box, { title = '', alpha = 1, k = 1, badge = null
         text(R, o.op, box.x + gutter - 2, rowY, { f: 'MM 500', size: st.size - 2, color: o.op === '+' ? C.teal : C.red, alpha: a * flash });
       }
       const lineNo = o.op === '-' || (mp < 0.5 && o.op === '=') ? na : nb;
+      for (const hl of highlights) {
+        if (hl.line !== lineNo || t < hl.t0 || t > (hl.t1 ?? Infinity)) continue;
+        const hk = smooth(hl.t0, hl.t0 + 0.2, t) * until(hl.t1, 0.2, t);
+        const pulse = hl.running ? 0.55 + 0.45 * Math.sin((t - hl.t0) * 7) : 1;
+        rect(R, box.x + 6, rowY - lh + 7, box.w - 12, lh, { fill: hl.c, alpha: a * 0.12 * hk * pulse });
+        rect(R, box.x + 6, rowY - lh + 7, 3, lh, { fill: hl.c, alpha: a * hk, glow: 0.8 });
+        const gx = box.x + gutter + 2, gy = rowY - st.size * 0.34;
+        if (!hl.running) check(R, gx, gy, st.size * 0.6, E.snap(seg(t, hl.t0, hl.t0 + 0.3)), { color: hl.c, w: 1.8, alpha: a * hk, glow: 0.7 });
+        else arc(R, gx, gy, st.size * 0.3, (t - hl.t0) * 7, (t - hl.t0) * 7 + Math.PI * 1.4, { color: hl.c, w: 1.8, alpha: a * hk, glow: 0.7 });
+      }
       const lineMarks = marks.filter(mk => mk.line === lineNo && (!mk.version || mk.version === (mp < 0.5 ? 'before' : 'after')) && t >= (mk.t0 ?? 0) && t <= (mk.t1 ?? Infinity));
       mono(R, yamlSpans(o.text, lineMarks.filter(mk => mk.re && !mk.squiggle)), box.x + gutter + 12, rowY, { alpha: a, st, max });
       for (const mk of lineMarks) {

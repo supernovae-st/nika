@@ -40,11 +40,6 @@ git -C "$WORK" -c user.email=demo@nika.sh -c user.name=maintainer commit -q --al
 git -C "$WORK" -c user.email=demo@nika.sh -c user.name=maintainer commit -q --allow-empty -m "fix: atomic writes on check repairs"
 
 cp "$ROOT/scripts/media/fixtures/broken-release-notes.nika" "$WORK/release-notes.nika"
-# The hero story reads the meeting-actions pair (offline mock run · the
-# transcript path mirrors the fixture's const so the demo needs zero flags).
-cp "$ROOT/scripts/media/fixtures/meeting-actions.nika" "$WORK/meeting-actions.nika"
-mkdir -p "$WORK/scripts/media/fixtures"
-cp "$ROOT/scripts/media/fixtures/sample-transcript.txt" "$WORK/scripts/media/fixtures/sample-transcript.txt"
 cp "$TAPE" "$WORK/$NAME.tape"
 
 (cd "$WORK" && vhs "$NAME.tape")
@@ -56,10 +51,3 @@ else
   cp "$WORK/$NAME.gif" "$OUT"
 fi
 echo "→ $OUT ($(du -h "$OUT" | cut -f1))"
-
-# The hero also installs at its hotlinked home (README + homebrew-tap +
-# the city READMEs embed media/nika-hero.gif by URL — the name is the API).
-if [ "$NAME" = "nika-hero" ]; then
-  cp "$OUT" "$ROOT/media/nika-hero.gif"
-  echo "→ $ROOT/media/nika-hero.gif (hotlinked home)"
-fi

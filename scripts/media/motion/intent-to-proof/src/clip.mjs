@@ -5,7 +5,7 @@ import { createSurfaces, makeR, compositeGlow, loadFonts } from './engine/render
 import { background, vignette } from './hud.mjs';
 
 export const CLIPS = [
-  'static-check-fix', 'chat-to-workflow', 'dag-execution', 'permits-audit',
+  'nika-hero', 'static-check-fix', 'chat-to-workflow', 'dag-execution', 'permits-audit',
   'on-error-recover', 'editor-diagnostics', 'workflow-gallery',
 ];
 

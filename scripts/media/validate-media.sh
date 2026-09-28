@@ -91,6 +91,11 @@ required=(
   scripts/media/motion/intent-dag-proof.storyboard.md
   media/videos/intent-to-proof.mp4
   media/gifs/intent-to-proof.optimized.gif
+  media/gifs/nika-hero.optimized.gif
+  media/videos/nika-hero.mp4
+  media/videos/nika-hero.webm
+  media/posters/nika-hero.png
+  media/nika-hero.gif
   media/posters/intent-to-proof.png
   media/storyboards/intent-to-proof.png
   scripts/media/motion/intent-to-proof/README.md
@@ -101,6 +106,16 @@ for f in "${required[@]}"; do
     fail=1
   fi
 done
+
+# Other repositories embed media/nika-hero.gif by URL (the name is the
+# API); it is the nika-hero clip's GIF, copied by the renderer, never a
+# second painting that can drift.
+if cmp -s media/nika-hero.gif media/gifs/nika-hero.optimized.gif; then
+  say "✔ hotlinked media/nika-hero.gif is the nika-hero clip"
+else
+  say "✖ media/nika-hero.gif differs from media/gifs/nika-hero.optimized.gif"
+  fail=1
+fi
 
 # Product-film claims are tested as an illustration, not as a live workflow.
 if node --test scripts/media/motion/intent-to-impact/commerce-model.test.js; then
@@ -268,7 +283,7 @@ fi
 
 # ── budgets ─────────────────────────────────────────────────────────────
 max_gif=$((8 * 1024 * 1024))
-for gif in media/gifs/*.gif; do
+for gif in media/gifs/*.gif media/nika-hero.gif; do
   size=$(wc -c <"$gif")
   if [ "$size" -gt "$max_gif" ]; then
     say "✖ GIF over 8MB: $gif ($((size / 1024 / 1024))MB)"

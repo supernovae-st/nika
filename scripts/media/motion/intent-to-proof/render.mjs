@@ -266,6 +266,8 @@ async function renderClip(name) {
   ff(['-i', joined, '-filter_complex', 'fps=16,scale=1280:-2:flags=lanczos,split[x][y];[y]palettegen=max_colors=160:stats_mode=diff[p];[x][p]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle',
     '-loop', '0', media(`gifs/${name}.optimized.gif`)]);
   ff(['-ss', String(clip.meta.poster), '-i', joined, '-frames:v', '1', media(`posters/${name}.png`)]);
+  // a clip can also keep a legacy path other repositories hotlink
+  if (clip.meta.alsoGif) fs.copyFileSync(media(`gifs/${name}.optimized.gif`), media(clip.meta.alsoGif));
   // a clip can also own a social card: its settled poster frame
   if (clip.meta.social) ff(['-ss', String(clip.meta.poster), '-i', joined, '-frames:v', '1', media(`social/${clip.meta.social}`)]);
   for (const f of [`videos/${name}.mp4`, `videos/${name}.webm`, `gifs/${name}.optimized.gif`, `posters/${name}.png`]) {

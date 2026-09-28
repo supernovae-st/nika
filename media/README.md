@@ -63,7 +63,7 @@ media/
   storyboards/*.png            — six-beat visual QA contact sheets
   social/    og-card + github-social-preview — share cards (scene: motion/og-card.html)
   raw/       *.txt + *.json    — captured CLI transcripts (the source of truth)
-  nika-hero.gif                — real terminal capture (check + run)
+  nika-hero.gif                — the nika-hero clip at the path other repos hotlink
 ```
 
 ## Regenerate
