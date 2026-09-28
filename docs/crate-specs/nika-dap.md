@@ -149,6 +149,17 @@ first writer:
 - `settled` is never Open, because the host closes the account before it
   settles.
 
+Owner (E33, 2026-09-28). The first two rules now live beside the serializer,
+in nika-providers:
+- `admission::observation_consistent` returns the account's state and whether
+  any attempt moved it;
+- `admission::observation_readable` decides whether a row reads at all;
+- `admission::observation_route` and `admission::observation_request_ids` give
+  what a reconciliation copies.
+
+The journal keeps the two phase rules, every transition, lease, digest and
+window, and it names the same reasons in the same words.
+
 Any other admitted row is a `Conflict` named by digest and reason. The
 transition law's own reasons come first, so a foreign or late row keeps its
 reason. A conflict changes no standing: a contradicted settlement leaves its

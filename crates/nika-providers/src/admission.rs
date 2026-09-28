@@ -7,6 +7,7 @@ use nika_types::cost::Cost;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 mod declared;
+mod observation;
 mod review;
 pub use review::{
     CapEvidence, CostChallenge, CostHostEvidence, CostResponse, CostReview, CostRoute,
@@ -17,8 +18,13 @@ pub use review::{
 mod scope;
 mod unknown;
 pub use declared::{DeclaredTariff, TariffUnit};
+pub use observation::{
+    observation_consistent, observation_readable, observation_request_ids, observation_route,
+};
 pub use unknown::{HardMonetaryCap, UnknownAttemptReceipt, UnknownCostChoice, UnknownCostPolicy};
 
+#[cfg(test)]
+mod observation_tests;
 #[cfg(test)]
 mod scope_tests;
 #[cfg(test)]

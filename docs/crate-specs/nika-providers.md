@@ -287,6 +287,26 @@ account, and `amend` refuses, so an observation never becomes an allowance.
 Its receipt reads `unbudgeted`; its observation carries `"unbudgeted": true`
 and a null limit. Every other receipt and observation keeps its exact shape.
 
+The observation has a reading law, and it lives beside its serializer, in
+`admission::observation` (E33, moved from nika-dap's cost journal, where it was
+written against this serializer). The functions:
+- `observation_readable`: whether a written observation reads at all. It checks
+  the schema, a known subtotal that parses, an unknown-call count, and one of the
+  three states.
+- `observation_consistent`: whether a readable observation is one its account
+  could have written, and if so its state and whether any attempt moved it. An
+  observation fails if any of the following holds; each failure has a fixed
+  reason, the one the journal has always used:
+  - it lacks either attempt list;
+  - an attempt cannot have been written by its account;
+  - the known subtotal is negative;
+  - the known subtotal differs from its attempts' sum;
+  - the unknown-call count differs from its sent attempts.
+- `observation_route` and `observation_request_ids`: the route the unknown-cost
+  choice names and every provider request id the attempts record, read by field.
+
+The cost journal keeps its own phase rules, transitions, leases and digests.
+
 Bounded nonstreaming response parsing refuses duplicate decoded object keys before
 usage validation or model binding, including equal duplicates and nested/escaped
 keys. Such ambiguity retains the sent reservation as unknown charge. Unbounded
