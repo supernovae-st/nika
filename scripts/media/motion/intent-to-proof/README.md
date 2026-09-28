@@ -56,6 +56,36 @@ beat position. The renderer reads it, and `soundCues()` hands the same numbers
 to `audio/score.py` through `.cache/timeline.json`. Nothing is timed twice, so
 the edit and the music cannot drift.
 
+## Creative rules
+
+The edit follows the creative laws of [/brag](https://github.com/latent-spaces/brag),
+a launch-video skill for coding agents, applied inside this film's own
+pipeline:
+
+- **The hook is the request.** The sentence types from the first frames. The
+  reader sweep and the fracture wait until its last clause has been readable.
+- **Readable, not flashed.** A line meant to be read stays settled for about
+  0.3 s per word, and a label of one to three words for 0.8 s. Each of the four
+  principles holds as the title of its whole scene. `npm run readability`
+  samples every text draw at 30 fps and checks each must-read line (22 px and
+  up) against that floor. Rolling counters and words in flight are reported as
+  transient or motion, not as reads.
+- **No muddy crossfades.** Where two busy layouts meet, the old one leaves
+  before the new one arrives.
+- **Sound in one piece.** Pitched effects sit in the score's key (D minor
+  pentatonic). The one deliberate exception is the amber unknown, a clash until
+  the answer resolves it. Ticks have rounded attacks and no bare broadband
+  click, and repeated small sounds sit under the bed.
+- **Clear to a stranger.** The end card carries the name, the promise, the four
+  roles and where to get it.
+- **A chosen thumbnail.** The settled payoff frame (€228.00, PROOF, VERIFIED)
+  is the poster. It replaces frame 0 of the X cut and the web cut, because
+  platforms take frame 0 as the idle image. `share-copy.txt` is the caption.
+
+The film keeps its brief's 30 seconds and 15 bars, longer than the 15–25 s
+/brag suggests. A few secondary labels therefore settle for somewhat less than
+their floor; the audit lists them.
+
 ## Structure
 
 ```
@@ -68,7 +98,8 @@ src/scenes/s1…s11       intent → observe → propose → plan → prove/ask 
                         → ready/consent → run → result+proof → reveal → title
 audio/score.py          procedural score + sound design (reads the same timeline)
 captured/               transcripts from the real binary, plan data, hashes
-tools/                  static font cuts, glyph outlines, hash refresh
+tools/                  static font cuts, glyph outlines, hash refresh, reading-time audit
+share-copy.txt          the caption to post with the film
 ```
 
 Glow is a property of individual elements, never a global filter. Every
@@ -90,17 +121,19 @@ npm ci
 npm run fonts                      # static cuts + glyph outlines → .cache/
 npm run stills -- 2.3,12.8,25.5    # QA stills → .cache/stills/
 npm run preview                    # 960×540 · 30 fps · with sound, ~1 min on 4 cores
+npm run readability                # reading time of every must-read line (~15 s)
 npm run master                     # 3840×2160 · 60 fps master + 1920×1080 · 60 fps X cut
+npm run exports                    # web cut, poster, contact sheet, thumbnail, caption
 ```
 
 The master renders about 5,900 motion-blur subframes on four worker processes
 into lossless segments. It then encodes:
 
 - `.cache/dist/intent-to-proof-4k60.mp4`: H.264 High, CRF 13.
-- `.cache/dist/intent-to-proof-x-1080p60.mp4`: the X upload, capped at 24 Mb/s.
+- `.cache/dist/intent-to-proof-x-1080p60.mp4`: the X upload, capped at 24 Mb/s, with the poster as frame 0.
 
 Both carry AAC audio normalized by ffmpeg `loudnorm` (target −14 LUFS,
-−1.5 dBTP; the encoded files measure about −13.8 LUFS and −1.4 dBTP).
+−1.5 dBTP; the encoded files measure about −13.9 LUFS and −1.4 dBTP).
 Before encoding, a final grade removes 8-bit banding from the dark
 gradients: it debands in 16-bit precision, then dithers back to 8 bits
 with an ordered pattern and a static luma grain.
@@ -109,7 +142,8 @@ The committed exports are the web cut `media/videos/intent-to-proof.mp4`
 (1600×900 at 30 fps like the other films, under 8 MB), the poster
 `media/posters/intent-to-proof.png`, and the contact sheet
 `media/storyboards/intent-to-proof.png`. Refresh them with
-`npm run exports` after a master.
+`npm run exports` after a master. The same step writes the upload thumbnail
+`.cache/dist/intent-to-proof-poster.jpg` and `.cache/dist/share-copy.txt`.
 
 If you change the fixture program or `captured/plan.json`, run
 `python3 tools/hashes.py`. `src/facts.mjs` refuses to render with stale hashes.
@@ -126,6 +160,7 @@ If you change the fixture program or `captured/plan.json`, run
   ```
 
 - The film MP4 must be exactly 30.000 s (`validate-media.sh`).
+- Reading time: `npm run readability` (add `--strict` to fail on a miss).
 - Sound was verified analytically, not by ear, in this build environment:
   - a spectrogram and short-term loudness curve read against the section and cue times;
   - octave-band balance against a pink reference;

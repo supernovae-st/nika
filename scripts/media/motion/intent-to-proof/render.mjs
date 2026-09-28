@@ -6,7 +6,7 @@
 //   node render.mjs sheet 2.0 3.2 12 [--scale 0.4]       contact sheet of a range
 //   node render.mjs video --scale 0.5 --fps 30 [--mb]    parallel preview MP4
 //   node render.mjs master [--resume]                    4K60 master + X cut (--resume keeps finished segments)
-//   node render.mjs exports                              web cut, poster, storyboard, hero, QA stills
+//   node render.mjs exports                              web cut, poster, storyboard, hero, share copy, QA stills
 //
 // Every frame is a pure function of time, so N workers render disjoint
 // frame ranges and the segments are concatenated losslessly.
@@ -157,17 +157,21 @@ function audio() {
   return wav;
 }
 
-// Loudness-normalized AAC mux.
-function mux(videoIn, wav, out, vf, venc) {
-  execFileSync('ffmpeg', ['-y', '-hide_banner', '-loglevel', 'error', '-i', videoIn, '-i', wav,
-    ...(vf ? ['-vf', vf] : []), ...venc,
+// Loudness-normalized AAC mux. With a poster still, frame 0 becomes that
+// still: platforms take frame 0 as the idle thumbnail, and replacing it
+// (not adding a frame) keeps the frame count and the sync.
+function mux(videoIn, wav, out, vf, venc, poster = null) {
+  const video = poster
+    ? ['-i', poster, '-filter_complex', `[0:v]${vf}[v];[2:v]${vf}[p];[v][p]overlay=0:0:enable='eq(n,0)'[o]`, '-map', '[o]']
+    : [...(vf ? ['-vf', vf] : []), '-map', '0:v:0'];
+  execFileSync('ffmpeg', ['-y', '-hide_banner', '-loglevel', 'error', '-i', videoIn, '-i', wav, ...video, ...venc,
     '-af', 'loudnorm=I=-14:TP=-1.5:LRA=11', '-ar', '48000', '-c:a', 'aac', '-b:a', '256k',
-    '-map', '0:v:0', '-map', '1:a:0', '-t', String(DURATION), '-movflags', '+faststart', out], { stdio: 'inherit' });
+    '-map', '1:a:0', '-t', String(DURATION), '-movflags', '+faststart', out], { stdio: 'inherit' });
   console.log('wrote', out);
 }
 
 // Frames chosen for the poster, the hero thumbnail and the QA stills.
-const POSTER_T = 25.9; // €228.00 + PROOF: the payoff, readable alone
+const POSTER_T = 25.9; // €228.00 + PROOF + VERIFIED: the payoff, settled and readable alone
 const HERO_T = 13.62; // the detector ring sweeping the plan
 const QA_T = [0.3, 1.8, 2.45, 3.3, 4.02, 4.6, 5.9, 7.9, 9.6, 11.2, 13.62, 15.3, 16.12, 17.8, 19.2, 20.1, 21.6, 22.1, 23.6, 24.05, 25.9, 27.6, 29.2];
 
@@ -178,18 +182,28 @@ function exportsFromMaster() {
   if (!fs.existsSync(master)) throw new Error('render the master first: npm run master');
   const ff = a => execFileSync('ffmpeg', ['-y', '-hide_banner', '-loglevel', 'error', ...a], { stdio: 'inherit' });
   const media = p => path.join(REPO, 'media', p);
+  const poster = path.join(dist, 'poster-3840x2160.png');
+  ff(['-ss', String(POSTER_T), '-i', master, '-frames:v', '1', poster]);
   // web cut for README/docs: 1600×900 at 30 fps like the other films, under
-  // 8 MB, same sound. Downscaled in 16 bits and finished again, so the
-  // master's dither averages into a smooth ramp instead of new steps.
-  ff(['-i', master, '-vf', `fps=30,format=yuv444p16le,scale=1600:900:flags=lanczos,${finish(24)}`, '-c:v', 'libx264', '-preset', 'slow', '-crf', '23', '-x264-params', 'aq-mode=3',
-    '-pix_fmt', 'yuv420p', '-profile:v', 'high', '-c:a', 'aac', '-b:a', '128k', '-t', String(DURATION), '-movflags', '+faststart', media('videos/intent-to-proof.mp4')]);
+  // 8 MB, the poster as frame 0. Downscaled in 16 bits and finished again,
+  // so the master's dither averages into a smooth ramp instead of new
+  // steps. Its sound comes straight from the score (one AAC generation),
+  // with 2 dB of true-peak headroom for the 128k encode.
+  const web = `format=yuv444p16le,scale=1600:900:flags=lanczos,${finish(24)}`;
+  const wav = path.join(CACHE, 'audio', 'score.wav');
+  ff(['-i', master, '-i', poster, '-i', wav, '-filter_complex', `[0:v]fps=30,${web}[v];[1:v]${web}[p];[v][p]overlay=0:0:enable='eq(n,0)'[o]`,
+    '-map', '[o]', '-map', '2:a:0', '-c:v', 'libx264', '-preset', 'slow', '-crf', '23', '-x264-params', 'aq-mode=3',
+    '-pix_fmt', 'yuv420p', '-profile:v', 'high', '-af', 'loudnorm=I=-14:TP=-2:LRA=11', '-ar', '48000', '-c:a', 'aac', '-b:a', '128k',
+    '-t', String(DURATION), '-movflags', '+faststart', media('videos/intent-to-proof.mp4')]);
   // poster (1600×900, the README budget is 1 MB) and the storyboard contact sheet
   ff(['-ss', String(POSTER_T), '-i', master, '-frames:v', '1', '-vf', 'scale=1600:900:flags=lanczos', media('posters/intent-to-proof.png')]);
   ff(['-i', master, '-vf', 'fps=12/30,scale=480:270:flags=lanczos,tile=4x3', '-frames:v', '1', media('storyboards/intent-to-proof.png')]);
   // hero thumbnail + QA stills (not committed)
   mkdir(path.join(dist, 'stills'));
   ff(['-ss', String(HERO_T), '-i', master, '-frames:v', '1', '-vf', 'scale=1920:1080:flags=lanczos', path.join(dist, 'hero-1920x1080.png')]);
-  ff(['-ss', String(POSTER_T), '-i', master, '-frames:v', '1', path.join(dist, 'poster-3840x2160.png')]);
+  // the thumbnail to upload where a platform accepts one, and the caption
+  ff(['-i', poster, '-vf', 'scale=1920:1080:flags=lanczos', '-q:v', '2', path.join(dist, 'intent-to-proof-poster.jpg')]);
+  fs.copyFileSync(path.join(HERE, 'share-copy.txt'), path.join(dist, 'share-copy.txt'));
   for (const t of QA_T) ff(['-ss', String(t), '-i', master, '-frames:v', '1', '-vf', 'scale=1920:1080:flags=lanczos', path.join(dist, 'stills', `t${t.toFixed(2)}.png`)]);
   for (const f of ['videos/intent-to-proof.mp4', 'posters/intent-to-proof.png', 'storyboards/intent-to-proof.png']) {
     console.log(f, (fs.statSync(media(f)).size / 1e6).toFixed(2), 'MB');
@@ -224,10 +238,13 @@ async function main() {
     const wav = audio();
     const dist = path.join(CACHE, 'dist');
     mkdir(dist);
+    // the master stays pure; the X cut carries the poster as frame 0
     mux(joined, wav, path.join(dist, 'intent-to-proof-4k60.mp4'), finish(64),
       ['-c:v', 'libx264', '-preset', 'slow', '-crf', '13', '-pix_fmt', 'yuv420p', '-profile:v', 'high', '-level', '5.2', '-tune', 'grain', '-x264-params', 'aq-mode=3']);
+    const still = path.join(CACHE, 'poster-master.png');
+    execFileSync('ffmpeg', ['-y', '-hide_banner', '-loglevel', 'error', '-ss', String(POSTER_T), '-i', joined, '-frames:v', '1', still]);
     mux(joined, wav, path.join(dist, 'intent-to-proof-x-1080p60.mp4'), `format=yuv444p16le,scale=1920:1080:flags=lanczos,${finish(32)}`,
-      ['-c:v', 'libx264', '-preset', 'slow', '-crf', '16', '-maxrate', '24M', '-bufsize', '48M', '-pix_fmt', 'yuv420p', '-profile:v', 'high', '-level', '4.2', '-x264-params', 'aq-mode=3']);
+      ['-c:v', 'libx264', '-preset', 'slow', '-crf', '16', '-maxrate', '24M', '-bufsize', '48M', '-pix_fmt', 'yuv420p', '-profile:v', 'high', '-level', '4.2', '-x264-params', 'aq-mode=3'], still);
     return;
   }
   if (cmd === 'exports') return exportsFromMaster();

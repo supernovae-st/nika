@@ -164,11 +164,25 @@ def hat(amp=1.0, open_=False):
     return x * amp * 0.5
 
 
-def tick(freq=4200, amp=1.0, dur=0.05):
+# D minor pentatonic, the score's key: every pitched effect snaps into it
+KEY_PCS = (2, 5, 7, 9, 0)  # D F G A C
+
+
+def key_hz(freq):
+    m = 69 + 12 * np.log2(freq / 440.0)
+    best = min((round(m) + d for d in range(-3, 4)), key=lambda k: (k % 12 not in KEY_PCS, abs(k - m)))
+    return 440.0 * 2 ** ((best - 69) / 12)
+
+
+def tick(freq=4200, amp=1.0, dur=0.06):
+    # a soft, pitched "tink" in key: rounded 1.5 ms attack, no bare
+    # broadband click, so repeated ticks sit under the music
     t = tt(dur)
-    x = np.sin(2 * np.pi * freq * t) * np.exp(-t / 0.008)
-    x += hp(noise(dur), 3000) * np.exp(-t / 0.002) * 0.3
-    return x * amp
+    atk = 0.5 - 0.5 * np.cos(np.pi * np.clip(t / 0.0015, 0, 1))
+    rel = np.clip((dur - t) / 0.004, 0, 1)  # taper the tail: a short dur must not end on a click
+    x = np.sin(2 * np.pi * key_hz(freq) * t) * np.exp(-t / 0.012)
+    x += lp(hp(noise(dur), 2500), 7000) * np.exp(-t / 0.003) * 0.12
+    return x * atk * rel * amp
 
 
 def pluck(freq, amp=1.0, dur=0.9, bright=1.0):
@@ -359,7 +373,8 @@ def main(tl_path, out_path):
             x = np.sin(2 * np.pi * 2793.8 * tt(2.0)) * env_ad(2.0, 0.3, 1.2, 3) * 0.05
             wet.add(t0 + 0.05, x, 1, 0.4)
         elif k == "word_tick":
-            dry.add(t0, tick(3600 + 180 * (i % 5), 0.12), 1, -0.3 + 0.12 * (i % 6))
+            dry.add(t0, tick(3600 + 180 * (i % 5), 0.085), 1, -0.3 + 0.12 * (i % 6))
+            wet.add(t0, tick(3600 + 180 * (i % 5), 0.03), 1, -0.3 + 0.12 * (i % 6))
         elif k == "chirp":
             wet.add(t0, bell(1567.98, 0.12, 1.0), 1, 0.3)
             dry.add(t0, tick(5200, 0.2), 1, 0.3)
@@ -436,8 +451,10 @@ def main(tl_path, out_path):
             x += bp(noise(d), 1500, 4000) * env_asr(d, d * 0.9, 0.05) * 0.08
             dry.add(t0, x, 1, 0)
         elif k == "check":
-            dry.add(t0, tick(2600 + 260 * i, 0.32, 0.04), 1, -0.6 + 0.13 * i)
-            wet.add(t0, bell(1760 + 110 * i, 0.03, 0.5), 1, -0.6 + 0.13 * i)
+            # ten in a row: they count, they must not sparkle
+            dry.add(t0, tick(2600 + 260 * i, 0.17), 1, -0.6 + 0.13 * i)
+            wet.add(t0, tick(2600 + 260 * i, 0.06), 1, -0.6 + 0.13 * i)
+            wet.add(t0, lp(bell(key_hz(1760 + 110 * i), 0.03, 0.5), 5000), 1, -0.6 + 0.13 * i)
         elif k == "check_amber":
             x = (tri(311.13, 0.5) + 0.7 * tri(329.63, 0.5)) * env_ad(0.5, 0.004, 0.22, 3) * 0.14
             dry.add(t0, lp(x, 2400), 1, 0)
@@ -472,10 +489,11 @@ def main(tl_path, out_path):
             x += whoosh(d, False, 0.25)
             dry.add(t0, x, 1, 0)
         elif k == "type_click":
-            c = hp(noise(0.012), 2000) * env_ad(0.012, 0.0003, 0.004, 1)
-            dry.add(t0, c * 0.3, 1, rng.uniform(-0.5, 0.5))
+            c = lp(hp(noise(0.014), 1800), 7000) * env_ad(0.014, 0.0006, 0.004, 1)
+            dry.add(t0, c * 0.2, 1, rng.uniform(-0.5, 0.5))
         elif k == "check_soft":
-            dry.add(t0, tick(3200 + 200 * i, 0.22, 0.04), 1, 0.4)
+            dry.add(t0, tick(3200 + 200 * i, 0.15), 1, 0.4)
+            wet.add(t0, tick(3200 + 200 * i, 0.05), 1, 0.4)
         elif k == "phase_lock":
             d = ev["dur"]
             t_ = tt(d + 0.8)
@@ -529,8 +547,8 @@ def main(tl_path, out_path):
                 wet.add(t0 + j * 0.022, bell(f * 2, 0.07, 2.4), 1, -0.5 + 0.25 * j)
             wet.add(t0, pad([293.66, 369.99, 440.0, 587.33], 1.8, 0.2, a=0.05, r=1.2, cutoff=(1800, 4200)), 1, 0)
         elif k == "receipt_tick":
-            dry.add(t0, tick(3000 + 300 * i, 0.2, 0.04), 1, 0.5)
-            wet.add(t0, pluck(SCALE[i % 6] * 2, 0.06, 0.5), 1, 0.5)
+            dry.add(t0, tick(3000 + 300 * i, 0.14), 1, 0.5)
+            wet.add(t0, lp(pluck(SCALE[i % 6] * 2, 0.06, 0.5), 6000), 1, 0.5)
         elif k == "seal":
             dry.add(t0, impact(0.5, 1.8, 80, 36))
             wet.add(t0, bell(587.33 * 2, 0.14, 2.0), 1, 0)

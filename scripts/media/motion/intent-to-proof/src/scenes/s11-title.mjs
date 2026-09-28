@@ -84,10 +84,24 @@ export function draw(R, t) {
     if (k > 0) text(R, wd, x, 640 + 10 * (1 - k), { ...st, color: i === 3 ? C.ice : C.mist, alpha: k * end, blur: (1 - k) * 6, glow: i === 3 ? 0.4 : 0 });
     x += measure(wd + ' ', st);
   });
-  // rule + url
-  const uk = smooth(t0 + 0.9, t0 + 1.3, t);
+  // the thesis, one colour per role, then where to get it
+  const th = { f: 'MGW 500', size: 15, tracking: 3.5 };
+  const gap = 46;
+  const widths = THESIS.map(([who, verb]) => measure(`${who} ${verb}`, th));
+  let tx = 960 - (widths.reduce((s, w) => s + w, 0) + gap * (THESIS.length - 1)) / 2;
+  THESIS.forEach(([who, verb, col], i) => {
+    const k = smooth(t0 + 0.55 + i * 0.06, t0 + 0.75 + i * 0.06, t) * end;
+    if (k > 0) {
+      text(R, who, tx, 706, { ...th, color: C.mist, alpha: k });
+      text(R, verb, tx + measure(`${who} `, th), 706, { ...th, color: col, alpha: k, glow: 0.25 });
+      if (i > 0) circle(R, tx - gap / 2, 701, 1.6, { fill: C.dim, alpha: k });
+    }
+    tx += widths[i] + gap;
+  });
+  const uk = smooth(t0 + 0.7, t0 + 0.95, t);
   if (uk > 0) {
-    line(R, 960 - 90 * uk, 700, 960 + 90 * uk, 700, { color: C.faint, w: 1, alpha: uk * end });
-    text(R, 'nika.sh', 960, 736, { f: 'MM 400', size: 15, tracking: 2, color: C.dim, alpha: uk * end, align: 'center' });
+    line(R, 960 - 90 * uk, 738, 960 + 90 * uk, 738, { color: C.faint, w: 1, alpha: uk * end });
+    text(R, 'nika.sh', 960, 776, { f: 'MM 500', size: 20, tracking: 1.5, color: C.ice, alpha: uk * end * 0.95, align: 'center', glow: 0.2 });
   }
 }
+const THESIS = [['INTELLIGENCE', 'PROPOSES', C.cyan], ['RUST', 'PROVES', C.teal], ['HUMANS', 'AUTHORIZE', C.human], ['NIKA', 'EXECUTES', C.ice]];

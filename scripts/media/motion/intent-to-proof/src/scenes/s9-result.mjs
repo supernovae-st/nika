@@ -30,7 +30,7 @@ function handoff(R, t) {
 }
 
 export function draw(R, t) {
-  const a0 = smooth(T.result - 0.1, T.result + 0.1, t);
+  const a0 = smooth(T.result - 0.02, T.result + 0.12, t);
   if (a0 <= 0) return;
   const ctx = R.ctx;
   ctx.save();

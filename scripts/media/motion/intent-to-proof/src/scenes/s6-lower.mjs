@@ -231,7 +231,7 @@ const RINGS = [
 ];
 const CX = 960, CY = 572;
 function closure(R, t) {
-  const on = smooth(T.closure, T.closure + 0.35, t) * (1 - smooth(T.ready - 0.05, T.ready + 0.3, t));
+  const on = smooth(T.closure, T.closure + 0.35, t) * (1 - smooth(T.ready - 0.12, T.ready + 0.1, t));
   if (on <= 0) return;
   const p = seg(t, T.closure + 0.05, T.lock);
   const locked = smooth(T.lock, T.lock + 0.12, t);

@@ -15,12 +15,12 @@ const b = n => n * BEAT; // beats → seconds
 export const T = {
   // S1 · INTENT ─ bars 1–2
   open: 0,
-  lines: [b(0.5), b(1), b(1.5), b(2)], // four sentences land on 8ths
+  lines: [b(0.25), b(0.75), b(1.25), b(1.75)], // four sentences land on 8ths, a 16th after the ignition
   act: b(2.6), // session classifies the message: NEW WORK
-  readA: b(3), // intent reader sweep
-  readB: b(4),
-  fracture: b(4), // bar 2 downbeat: words lift off the sentence
-  atoms: [b(5), b(5.25), b(5.5), b(5.75), b(6), b(6.25)], // six obligations land on 16ths
+  readA: b(3.5), // intent reader sweep
+  readB: b(4.5),
+  fracture: b(4.5), // words lift off once the last clause has been readable
+  atoms: [b(5.25), b(5.375), b(5.5), b(5.625), b(5.75), b(5.875)], // six obligations strum in on 32nds, then hold
   chain: b(6.5),
   dive: b(7.1), // zoom into "invoices"
 
@@ -37,7 +37,7 @@ export const T = {
   foundry: b(13),
   reflex: b(14.5),
   clm: b(15),
-  tagPropose: b(15.5),
+  tagPropose: b(15),
   jev: b(16.5), // closed choice resolves to A
   block: b(16.5),
 
@@ -65,16 +65,15 @@ export const T = {
   check: b(34),
   checkRows: Array.from({ length: 7 }, (_, i) => b(34.25 + i * 0.25)),
   closure: b(36),
-  lock: b(38),
-  represented: b(38),
+  lock: b(37.5),
 
   // S7 · READY → REVIEW → CONSENT ─ bar 11
-  ready: b(39),
+  ready: b(39.25), // after 6/6 has held
   stamp: b(40),
   question: b(41),
   discuss: b(41.5),
   preview: b(41.75),
-  approve: b(42.75),
+  approve: b(42.5),
   consent: b(44), // bar 12 downbeat: the gate opens
 
   // S8 · RUN ─ bars 12–13
@@ -84,9 +83,9 @@ export const T = {
 
   // S9 · RESULT + PROOF → REVEAL → TITLE ─ bars 13–15
   result: b(48.5),
-  receipt: b(49.5),
-  receiptRows: Array.from({ length: 5 }, (_, i) => b(49.75 + i * 0.25)), // sixteenths, then the seal
-  seal: b(51.5),
+  receipt: b(49.25),
+  receiptRows: Array.from({ length: 5 }, (_, i) => b(49.5 + i * 0.25)), // sixteenths, then the seal
+  seal: b(50.75), // right after the last receipt row
   reveal: b(52), // bar 14 downbeat
   wide: b(53.5), // the pullback lands: the whole map in view
   principles: [b(53.5), b(54), b(54.5), b(55)], // each lands as the pulse crosses its region

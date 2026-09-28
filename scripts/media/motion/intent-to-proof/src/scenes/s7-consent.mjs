@@ -47,11 +47,12 @@ export function draw(R, t) {
 
 // The principle stays put while the world moves: it hands over in place.
 function principle(R, t) {
-  const ha = win(t, T.consent - 0.15, T.consent + 0.75, 0.2, 0.2);
+  // staggered with "Nika executes.": out before it arrives in the same place
+  const ha = win(t, T.approve - 0.1, T.waves[0] - 0.12, 0.2, 0.18);
   if (ha > 0) {
-    const k = E.snap(seg(t, T.consent - 0.15, T.consent + 0.35));
+    const k = E.snap(seg(t, T.approve - 0.1, T.approve + 0.4));
     text(R, 'Humans', 150, 930 + 12 * (1 - k), { f: 'Geist 600', size: 64, tracking: -1.8, color: C.ink, alpha: ha, glow: 0.2 });
-    text(R, 'authorize.', 150 + measure('Humans ', { f: 'Geist 600', size: 64, tracking: -1.8 }), 930 + 12 * (1 - k), { f: 'Geist 600', size: 64, tracking: -1.8, color: C.human, alpha: ha * smooth(T.consent - 0.05, T.consent + 0.15, t), glow: 0.35 });
+    text(R, 'authorize.', 150 + measure('Humans ', { f: 'Geist 600', size: 64, tracking: -1.8 }), 930 + 12 * (1 - k), { f: 'Geist 600', size: 64, tracking: -1.8, color: C.human, alpha: ha * smooth(T.approve, T.approve + 0.2, t), glow: 0.35 });
     text(R, 'NO SCORE, JUDGEMENT OR MODEL CONFIDENCE CAN OPEN THIS GATE', 152, 962, { f: 'MGW 500', size: 10.5, tracking: 3, color: C.human, alpha: ha * 0.85 });
   }
 }

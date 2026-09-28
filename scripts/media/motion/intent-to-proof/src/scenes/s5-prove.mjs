@@ -139,7 +139,7 @@ export function draw(R, t) {
 
   // proof counter
   const n = T.checks.filter(c => t >= c).length;
-  const ca = alpha * smooth(T.pass - 0.1, T.pass + 0.1, t) * (1 - smooth(T.verified + 0.1, T.verified + 0.4, t));
+  const ca = inA * smooth(T.pass - 0.1, T.pass + 0.1, t) * (1 - smooth(T.lower + 0.3, T.lower + 0.55, t)); // 10/10 holds into the tunnel
   if (ca > 0) {
     const shown = n > UNITS && currencyResolved(t) < 0.5 ? n - 1 : n;
     text(R, 'PROVEN', 150, 190, { f: 'MGW 500', size: 10, tracking: 3, color: C.dim, alpha: ca });
@@ -153,13 +153,13 @@ export function draw(R, t) {
 
   askLoop(R, t, cam, alpha);
 
-  // verdict
-  const v = win(t, T.verified, T.lower + 0.3, 0.12, 0.22);
+  // the principle: the title of the whole proving pass; the verdict joins it
+  const v = win(t, T.pass - 0.1, T.lower + 0.3, 0.2, 0.22);
   if (v > 0) {
-    const k = E.snap(seg(t, T.verified, T.verified + 0.4));
+    const k = E.snap(seg(t, T.pass - 0.1, T.pass + 0.4));
     text(R, 'Rust', 150, 930 + 12 * (1 - k), { f: 'Geist 600', size: 64, tracking: -1.8, color: C.ink, alpha: v, glow: 0.2 });
-    text(R, 'proves.', 150 + measure('Rust ', { f: 'Geist 600', size: 64, tracking: -1.8 }), 930 + 12 * (1 - k), { f: 'Geist 600', size: 64, tracking: -1.8, color: C.teal, alpha: v * smooth(T.verified + 0.08, T.verified + 0.3, t), glow: 0.4 });
-    text(R, 'VERIFIED · 10/10 · 0 MATERIAL UNKNOWNS', 152, 962, { f: 'MGW 500', size: 10.5, tracking: 3, color: C.teal, alpha: v * 0.9 });
+    text(R, 'proves.', 150 + measure('Rust ', { f: 'Geist 600', size: 64, tracking: -1.8 }), 930 + 12 * (1 - k), { f: 'Geist 600', size: 64, tracking: -1.8, color: C.teal, alpha: v * smooth(T.pass, T.pass + 0.2, t), glow: 0.4 });
+    text(R, 'VERIFIED · 10/10 · 0 MATERIAL UNKNOWNS', 152, 962, { f: 'MGW 500', size: 10.5, tracking: 3, color: C.teal, alpha: v * 0.9 * smooth(T.verified, T.verified + 0.15, t) });
   }
 }
 

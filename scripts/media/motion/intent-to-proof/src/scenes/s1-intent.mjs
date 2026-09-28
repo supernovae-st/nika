@@ -368,12 +368,8 @@ export function draw(R, t) {
     poly(R, [[cx - hw, y - 5], [cx - hw, y], [cx + hw, y], [cx + hw, y - 5]], { color: C.human, w: 1, alpha: 0.4 * recede });
     line(R, cx, y, cx, y + 26 * p, { color: C.human, w: 1, alpha: 0.4 * recede });
   }
-  // the count, as a title: one message, six obligations
-  const nLanded = T.atoms.filter(ta => t >= ta).length;
-  if (nLanded > 0) {
-    const label = `${nLanded} obligation${nLanded > 1 ? 's' : ''}`;
-    beatTitle({ ...R, fade: recede }, t, T.atoms[0], T.dive + 0.25, label, 'EXTRACTED FROM ONE MESSAGE · NOT YET GROUNDED');
-  }
+  // the title: one message, six obligations (fixed, so it reads while the chips strum in)
+  if (t >= T.fracture + 0.25) beatTitle({ ...R, fade: recede }, t, T.fracture + 0.25, T.dive + 0.25, '6 obligations', 'EXTRACTED FROM ONE MESSAGE · NOT YET GROUNDED');
 
   // ── the dive: "invoices" becomes a window into the observed world ────
   diveWindow(R, t);

@@ -35,7 +35,7 @@ export function env(t) {
 
 export function draw(R, t) {
   const d = drop(t);
-  const out = 1 - smooth(T.effect + 0.12, T.result + 0.22, t);
+  const out = 1 - smooth(T.effect + 0.08, T.result + 0.02, t);
   if (out <= 0 || d <= 0) return;
   const oy = lerp(700, 0, d); // the machine rises into frame
   const ctx = R.ctx;
