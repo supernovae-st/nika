@@ -667,11 +667,11 @@ fn why_beside_a_gate_explains_it_and_holds_it() {
     };
     assert!(
         text.contains("paused at `approve`") && text.contains("write_final · writes a file"),
-        "the gated task is named from the bytes: {text}"
+        "the explanation must name the gate and its pending effect"
     );
     assert!(
         text.contains("nothing after the gate has happened yet"),
-        "{text}"
+        "the explanation must distinguish pending effects from completed effects"
     );
     assert!(s.waiting_gate().is_some(), "the gate still waits");
     assert!(matches!(s.turn("/why"), TurnOutcome::Aside(_)));
