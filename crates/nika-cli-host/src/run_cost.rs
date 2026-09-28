@@ -169,7 +169,7 @@ pub fn review_with_model(
     let config = nika_runtime::compose::config_from_env();
     let mut unknown = readiness::unknown_routes(plan, &config)?;
     if unknown.is_empty() {
-        return declared_free(wf, plan, &config, model_override, &invocation);
+        return declared_free(wf, plan, &config, model_override, inputs);
     }
     // Record what earlier Runs left before any refusal of this host or shape:
     // a host that cannot ask still leaves a killed Run's UNKNOWN on record.
@@ -242,33 +242,52 @@ pub fn review_with_model(
     Ok(Some(choice))
 }
 
-/// Exact declared-free text routes (E4): a per-Run observer, with no review,
-/// lease or journal, bound before any effect. A shape it cannot admit refuses
-/// here; a plan without such a route keeps today's composition.
+/// Exact declared-free text routes (E4) and `model:` values rendered at run
+/// time (C4): a per-Run observer, with no review, lease or journal, bound
+/// before any effect. A shape or route the Run would refuse as a literal
+/// refuses here once inputs decide it; any other plan keeps its composition.
 fn declared_free(
     wf: &nika_schema::raw::RawWorkflow,
     plan: &nika_providers::ExecutionAccessPlan,
     config: &nika_providers::ProvidersConfig,
     model_override: Option<&str>,
-    invocation: &str,
+    inputs: &std::collections::BTreeMap<String, serde_json::Value>,
 ) -> Result<Option<RunCost>, String> {
-    let free =
-        nika_service_execution::run_cost::declared_free_shape(wf, plan, config, model_override)
-            .map_err(|refusal| format!("Run refused before any provider call: {refusal}"))?;
-    if !free {
-        return Ok(None);
-    }
-    let account = InferenceAdmission::observe_declared_free();
+    use nika_service_execution::run_cost::{declared_free_shape, run_time_models};
+    let refused =
+        |why: &dyn std::fmt::Display| format!("Run refused before any provider call: {why}");
+    let free = declared_free_shape(wf, plan, config, model_override).map_err(|r| refused(&r))?;
+    let dynamic = run_time_models(wf, plan, config, inputs).map_err(|r| refused(&r))?;
+    Ok((free || dynamic).then(|| run_observer(wf)))
+}
+
+/// The fresh observer an answered leg binds, as a manual `--resume` does: never
+/// unknown-cost authority. Its first leg judged the inputs; any doubt binds.
+#[must_use]
+pub fn leg_observer(
+    wf: &nika_schema::raw::RawWorkflow,
+    plan: &nika_providers::ExecutionAccessPlan,
+    model_override: Option<&str>,
+) -> Option<nika_runtime::RuntimeConfig> {
+    use nika_service_execution::run_cost::{declared_free_shape, run_time_models};
+    let config = nika_runtime::compose::config_from_env();
+    let defaults_only = std::collections::BTreeMap::new();
+    let observe = declared_free_shape(wf, plan, &config, model_override).unwrap_or(true)
+        || run_time_models(wf, plan, &config, &defaults_only).unwrap_or(true);
+    observe.then(|| run_observer(wf).config)
+}
+
+fn run_observer(wf: &nika_schema::raw::RawWorkflow) -> RunCost {
+    let account = InferenceAdmission::observe_run();
     // A host config replaces compose's default: keep the run's jitter seed.
     let run = wf.run.as_ref().map(|run| &run.value);
-    let config = nika_runtime::RuntimeConfig::new(None, RunSeams::of(run).jitter_seed)
-        .with_inference_admission(&account, "declared-free observation", invocation)
-        .map_err(|e| e.to_string())?;
-    Ok(Some(RunCost {
+    let mut config = nika_runtime::RuntimeConfig::new(None, RunSeams::of(run).jitter_seed);
+    config.inference_admission = Some(account.clone());
+    RunCost {
         account,
         config,
         journal: None,
-    }))
+    }
 }
 
 fn witness(
@@ -511,7 +530,7 @@ mod tests {
             &free_plan(),
             &config,
             None,
-            "run-1",
+            &std::collections::BTreeMap::new(),
         )
     }
     /// C2 · an exact declared-free text Run gets its own scoped observer and
@@ -548,9 +567,73 @@ mod tests {
         .unwrap();
         let config = nika_providers::ProvidersConfig::new();
         assert!(
-            declared_free(&wf, &none, &config, None, "run-1")
-                .unwrap()
-                .is_none()
+            declared_free(
+                &wf,
+                &none,
+                &config,
+                None,
+                &std::collections::BTreeMap::new()
+            )
+            .unwrap()
+            .is_none()
+        );
+    }
+    /// C4 · a `model:` rendered at run time binds the Run observer even with no
+    /// declared-free lane in the plan, and a value its inputs already decide is
+    /// refused before any effect as that literal would be. An answered leg
+    /// binds the same fresh observer; a literal plan keeps its composition.
+    #[test]
+    fn a_run_time_model_binds_the_observer_and_its_decided_value_is_judged() {
+        let wf = |infer: &str| {
+            nika_schema::parse(
+                &format!(
+                    "nika: dynamic\ninputs:\n  m: {{ type: string, required: true }}\npermits: {{}}\ntasks:\n  draft:\n    infer: {{ prompt: text, model: \"${{{{ inputs.m }}}}\", max_tokens: 64{infer} }}\n"
+                ),
+                nika_schema::FileId::new(0),
+                nika_schema::ParseMode::Strict,
+            )
+            .unwrap()
+        };
+        let none = nika_providers::resolve_execution_plan(&[], &[], None);
+        let config = nika_providers::ProvidersConfig::new();
+        let run = |wf: &nika_schema::raw::RawWorkflow, model: &str| {
+            let inputs = [("m".to_owned(), serde_json::Value::from(model))].into();
+            declared_free(wf, &none, &config, None, &inputs)
+        };
+        let paid = run(&wf(""), "deepseek/deepseek-v4-pro")
+            .unwrap()
+            .expect("observer");
+        assert!(paid.account.observes_declared_free_only() && paid.journal.is_none());
+        assert!(paid.config.inference_admission.is_some());
+        let vision = wf(", vision: [{ source: file, path: './image.png' }]");
+        let refused = run(&vision, FREE).err().expect("free vision");
+        assert!(
+            refused.starts_with("Run refused before any provider call"),
+            "{refused}"
+        );
+        assert!(refused.contains("task `draft`") && refused.contains("with vision"));
+        let unknown = run(&wf(""), "mistral/mistral-small-latest")
+            .err()
+            .expect("unknown");
+        assert!(unknown.contains("USD cost is unknown"), "{unknown}");
+        assert!(
+            leg_observer(&vision, &none, None).is_some(),
+            "a leg never runs unobserved"
+        );
+        let literal = free_wf("", "");
+        assert!(
+            leg_observer(&literal, &free_plan(), None).is_some(),
+            "C2 lane"
+        );
+        let paid_only = nika_schema::parse(
+            "nika: paid\nmodel: deepseek/deepseek-v4-pro\npermits: {}\ntasks:\n  a:\n    infer: { prompt: text, max_tokens: 64 }\n",
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .unwrap();
+        assert!(
+            leg_observer(&paid_only, &none, None).is_none(),
+            "today's composition"
         );
     }
     /// The host config replaces compose's default, so it carries the run's

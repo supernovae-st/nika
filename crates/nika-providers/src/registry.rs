@@ -27,6 +27,7 @@ use nika_kernel::ai::provider::{
 };
 use nika_kernel::http::{HttpError, HttpPostDyn, HttpRequest, HttpResponse, HttpStreamResponse};
 use nika_kernel::secret::Secret;
+use nika_types::access::AccessClass;
 
 use crate::profile::{Profile, WireFormat, seed};
 use crate::retry::{self, Backoff, TransportReport};
@@ -305,6 +306,9 @@ where
             .as_ref()
             .filter(|account| account.tracks_route(profile.id, &wire_model, &base_url))
             .cloned();
+        if admission.is_none() {
+            self.refuse_unreviewed(model, profile.id)?;
+        }
         let http = if admission.is_some() {
             self.admission_http.as_ref().map(Arc::clone).or(http)
         } else {
@@ -320,6 +324,25 @@ where
             backoff: Arc::clone(&self.backoff),
             admission,
         })
+    }
+
+    /// A Run's observer judges the route actually rendered: one its review
+    /// calls unknown-cost was never chosen, so no byte may leave for it.
+    fn refuse_unreviewed(&self, model: &str, provider: &str) -> Result<(), ProviderError> {
+        let Some(account) = self.admission.as_ref().filter(|a| a.refuses_unknown_cost()) else {
+            return Ok(());
+        };
+        if crate::profile::access_class_for(provider) != AccessClass::Api
+            || matches!(
+                crate::admission::unknown_cost_route(model, self.config.clone()),
+                Ok(None)
+            )
+        {
+            return Ok(());
+        }
+        Err(account.refuse(&format!(
+            "model `{model}` has an unknown USD cost and no fresh choice covers a route rendered at run time: refused before any provider call (a literal `model:` gets the review)"
+        )))
     }
 }
 

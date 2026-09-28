@@ -12,7 +12,7 @@ pub use review::{
     CapEvidence, CostChallenge, CostHostEvidence, CostResponse, CostReview, CostRoute,
     PendingCostReview, RUN_REVIEW_MAX_OUTPUT_TOKENS, RUN_REVIEW_TIMEOUT,
     SESSION_REVIEW_MAX_OUTPUT_TOKENS, SESSION_REVIEW_MAX_REQUESTS, SESSION_REVIEW_TIMEOUT,
-    monetary_default, native_catalog_price_known,
+    monetary_default, native_catalog_price_known, unknown_cost_route,
 };
 mod scope;
 mod unknown;

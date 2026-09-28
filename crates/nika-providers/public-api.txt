@@ -446,6 +446,7 @@ pub fn nika_providers::admission::InferenceAdmission::for_scope(&self, candidate
 pub fn nika_providers::admission::InferenceAdmission::new_unknown(choice: nika_providers::admission::UnknownCostChoice, policy: nika_providers::admission::UnknownCostPolicy) -> core::result::Result<Self, nika_kernel_ai::provider::ProviderError>
 impl nika_providers::admission::InferenceAdmission
 pub fn nika_providers::admission::InferenceAdmission::observe_declared_free() -> Self
+pub fn nika_providers::admission::InferenceAdmission::observe_run() -> Self
 pub fn nika_providers::admission::InferenceAdmission::observes_declared_free_only(&self) -> bool
 impl core::clone::Clone for nika_providers::admission::InferenceAdmission
 pub fn nika_providers::admission::InferenceAdmission::clone(&self) -> nika_providers::admission::InferenceAdmission
@@ -682,6 +683,7 @@ pub const nika_providers::admission::SESSION_REVIEW_MAX_REQUESTS: u32
 pub const nika_providers::admission::SESSION_REVIEW_TIMEOUT: core::time::Duration
 pub fn nika_providers::admission::monetary_default(amount: core::option::Option<f64>) -> core::result::Result<core::option::Option<nika_types::cost::Cost>, alloc::string::String>
 pub fn nika_providers::admission::native_catalog_price_known(model: &str, config: nika_providers::registry::ProvidersConfig) -> bool
+pub fn nika_providers::admission::unknown_cost_route(model: &str, config: nika_providers::registry::ProvidersConfig) -> core::result::Result<core::option::Option<nika_providers::admission::CostRoute>, alloc::string::String>
 pub mod nika_providers::census
 pub struct nika_providers::census::AccessCensus
 pub nika_providers::census::AccessCensus::best: core::option::Option<nika_providers::census::AccessPath>
@@ -2343,6 +2345,7 @@ pub fn nika_providers::admission::InferenceAdmission::for_scope(&self, candidate
 pub fn nika_providers::admission::InferenceAdmission::new_unknown(choice: nika_providers::admission::UnknownCostChoice, policy: nika_providers::admission::UnknownCostPolicy) -> core::result::Result<Self, nika_kernel_ai::provider::ProviderError>
 impl nika_providers::admission::InferenceAdmission
 pub fn nika_providers::admission::InferenceAdmission::observe_declared_free() -> Self
+pub fn nika_providers::admission::InferenceAdmission::observe_run() -> Self
 pub fn nika_providers::admission::InferenceAdmission::observes_declared_free_only(&self) -> bool
 impl core::clone::Clone for nika_providers::admission::InferenceAdmission
 pub fn nika_providers::admission::InferenceAdmission::clone(&self) -> nika_providers::admission::InferenceAdmission

@@ -39,10 +39,12 @@ use nika_runtime::child::{
     ChildCall, ChildOutcome, ChildRunRefusal, ChildRunSummary, ChildRunner, MAX_RUN_DEPTH,
 };
 use nika_runtime::compose::{
-    ComposeError, ProdRuntime, RuntimeCapabilities, fs_boundary_of_permits,
-    net_boundary_of_permits, production_runtime, service_runtime,
+    ComposeError, ProdRuntime, RuntimeCapabilities, StderrEmitter, fs_boundary_of_permits,
+    net_boundary_of_permits, production_runtime_with_emitter,
 };
-use nika_runtime::{EventSink, InputOrigin, RunOutcome, RunSeams, RuntimeError, Stamper};
+use nika_runtime::{
+    EventSink, InputOrigin, RunOutcome, RunSeams, RuntimeConfig, RuntimeError, Stamper,
+};
 
 pub mod access;
 pub mod run_cost;
@@ -155,6 +157,8 @@ pub struct ServiceExecutionDriver {
     surface: DriverSurface,
     child_access_pin: Option<String>,
     access_probes: Vec<nika_providers::probe::ProviderProbe>,
+    /// The Run's inference account a child composes with: the parent's own.
+    child_account: Option<nika_providers::InferenceAdmission>,
 }
 
 impl std::fmt::Debug for ServiceExecutionDriver {
@@ -182,6 +186,7 @@ impl Clone for ServiceExecutionDriver {
             surface: self.surface,
             child_access_pin: self.child_access_pin.clone(),
             access_probes: self.access_probes.clone(),
+            child_account: self.child_account.clone(),
         }
     }
 }
@@ -236,6 +241,7 @@ impl ServiceExecutionDriver {
             surface,
             child_access_pin: None,
             access_probes: access::access_probes_env(),
+            child_account: None,
         })
     }
 
@@ -330,24 +336,14 @@ impl ServiceExecutionDriver {
     ) -> Result<AuthorizedRuntime, ComposeError> {
         let caps = nika_runtime::compose::capabilities_of(&self.workflow);
         let run = self.workflow.run.as_ref().map(|run| &run.value);
-        let runtime = match config {
-            Some(config) => nika_runtime::compose::production_runtime_with_emitter(
-                default_model,
-                caps,
-                run,
-                match self.surface {
-                    DriverSurface::Service => nika_runtime::compose::StderrEmitter::metadata_only(),
-                    DriverSurface::Local => nika_runtime::compose::StderrEmitter::default(),
-                },
-                self.display_root.clone(),
-                Some(config),
-            )?,
-            None => self.base_runtime(default_model, caps, run)?,
-        };
+        // Children of this Run compose with its account: one Run, one account.
+        let mut runner = self.clone();
+        runner.child_account = config.as_ref().and_then(|c| c.inference_admission.clone());
+        let runtime = self.base_runtime(default_model, caps, run, config)?;
         let raw_sha = sha256_hex(self.root_source.as_bytes());
         let lf_sha = sha256_hex(lf_normal_form(&self.root_source).as_bytes());
         let runtime = runtime
-            .with_child_runner(Arc::new(self.clone()))
+            .with_child_runner(Arc::new(runner.clone()))
             .with_child_closures(admitted_closure_digests(
                 &self.workflow,
                 &self.snapshot,
@@ -364,22 +360,28 @@ impl ServiceExecutionDriver {
             runtime,
             self.workflow.clone(),
             self.report.clone(),
-            self.clone(),
+            runner,
         ))
     }
 
+    /// `service_runtime` or `production_runtime`, with a host config when one
+    /// is bound: the same emitter and sandbox root either way, so an account
+    /// never moves where effects land.
     fn base_runtime(
         &self,
         default_model: &str,
         caps: RuntimeCapabilities,
         run: Option<&nika_schema::types::RunDecl>,
+        config: Option<RuntimeConfig>,
     ) -> Result<ProdRuntime, ComposeError> {
-        match self.surface {
-            DriverSurface::Service => {
-                service_runtime(default_model, caps, run, self.display_root.clone())
-            }
-            DriverSurface::Local => production_runtime(default_model, caps, run),
-        }
+        let (emitter, root) = match self.surface {
+            DriverSurface::Service => (StderrEmitter::metadata_only(), self.display_root.clone()),
+            DriverSurface::Local => (
+                StderrEmitter::default(),
+                std::env::current_dir().unwrap_or_default(),
+            ),
+        };
+        production_runtime_with_emitter(default_model, caps, run, emitter, root, config)
     }
 
     /// The frozen access plan for one execution attempt of the admitted
@@ -1187,8 +1189,15 @@ impl ChildRunner for ServiceExecutionDriver {
                 .model
                 .as_ref()
                 .map_or("", |model| model.value.as_str());
+            let run = workflow.run.as_ref().map(|run| &run.value);
+            // The parent Run's account, never a fresh one: its uncertainty stays.
+            let account = self.child_account.clone().map(|account| {
+                let mut config = RuntimeConfig::new(None, RunSeams::of(run).jitter_seed);
+                config.inference_admission = Some(account);
+                config
+            });
             let runtime = self
-                .base_runtime(model, caps, workflow.run.as_ref().map(|run| &run.value))
+                .base_runtime(model, caps, run, account)
                 .map_err(|error| refusal("NIKA-COMP-001", format!("child runtime: {error}")))?
                 .with_var_overrides(call.args.clone().into_iter().collect())
                 .with_max_cost_usd(call.remaining_budget_usd)

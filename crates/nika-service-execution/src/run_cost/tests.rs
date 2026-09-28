@@ -404,3 +404,118 @@ fn a_declared_free_lane_beside_an_unknown_cost_lane_is_refused_before_review() {
         Err(RunShapeError::Route)
     );
 }
+
+fn run_time(source: &str, overrides: &[(&str, &str)]) -> Result<bool, RunTimeModelRefusal> {
+    let overrides = overrides
+        .iter()
+        .map(|&(k, v)| (k.to_owned(), serde_json::Value::from(v)))
+        .collect();
+    run_time_models(
+        &parsed(source),
+        &nika_providers::resolve_execution_plan(&[], &[], None),
+        &nika_providers::ProvidersConfig::new(),
+        &overrides,
+    )
+}
+
+const DYNAMIC: &str = "nika: dynamic\ninputs:\n  m: { type: string, required: true }\npermits: {}\ntasks:\n  first:\n    infer: { prompt: text, model: \"${{ inputs.m }}\", max_tokens: 64, vision: [{ source: file, path: './image.png' }] }\n";
+const VISION: &str = ", vision: [{ source: file, path: './image.png' }]";
+
+/// C4 · E13 F1: a `model:` its inputs decide is judged before any effect
+/// exactly as that literal would be: the same shape and route classes.
+#[test]
+fn a_run_time_model_is_judged_at_the_value_its_inputs_decide() {
+    let refusal = run_time(DYNAMIC, &[("m", FREE)]).expect_err("free vision");
+    assert!(
+        matches!(&refusal, RunTimeModelRefusal::FreeShape(s)
+            if (s.task.as_str(), s.model.as_str(), s.shape) == ("first", FREE, "vision")),
+        "{refusal:?}"
+    );
+    assert!(
+        refusal.to_string().contains("declared-free route"),
+        "{refusal}"
+    );
+    for model in [
+        "deepseek/deepseek-v4-pro",
+        "anthropic/claude-sonnet-4-5-20250929",
+        "mock/echo",
+        "ollama/llama3.2",
+    ] {
+        assert_eq!(
+            run_time(DYNAMIC, &[("m", model)]),
+            Ok(true),
+            "{model} keeps its policy"
+        );
+    }
+    for model in [
+        "mistral/mistral-small-latest",
+        "openrouter/google/gemma-4-26b-a4b-it:free",
+        "openrouter/vendor/unseen:free",
+    ] {
+        assert_eq!(
+            run_time(DYNAMIC, &[("m", model)]),
+            Err(RunTimeModelRefusal::UnknownCost {
+                task: "first".into(),
+                model: model.into()
+            }),
+            "{model}: the review would not admit it as a literal"
+        );
+    }
+    let text = DYNAMIC.replace(VISION, "");
+    assert_eq!(
+        run_time(&text, &[("m", FREE)]),
+        Ok(true),
+        "bounded text is observed"
+    );
+    assert_eq!(
+        run_time(ONE, &[]),
+        Ok(false),
+        "literal models are the plan's"
+    );
+    let nested =
+        "nika: root\npermits: {}\ntasks:\n  sub:\n    invoke: { workflow: ./child.nika }\n";
+    assert_eq!(
+        run_time(nested, &[]),
+        Ok(true),
+        "no root plan sees a child's routes: they are judged at its dispatch"
+    );
+}
+
+/// Defaults, const and a `with:` alias decide as the runtime's walk does; a
+/// value only the run decides stays dynamic for the dispatch observer.
+#[test]
+fn defaults_const_and_upstream_values_follow_the_runtime_walk() {
+    let defaulted = DYNAMIC.replace("required: true", &format!("default: \"{FREE}\""));
+    assert!(matches!(
+        run_time(&defaulted, &[]),
+        Err(RunTimeModelRefusal::FreeShape(_))
+    ));
+    assert_eq!(
+        run_time(&defaulted, &[("m", "deepseek/deepseek-v4-pro")]),
+        Ok(true),
+        "the operator's value wins over the default"
+    );
+    let constant = DYNAMIC
+        .replace(
+            "inputs:\n  m: { type: string, required: true }\n",
+            &format!("const:\n  m: \"{FREE}\"\n"),
+        )
+        .replace("inputs.m", "const.m");
+    assert!(matches!(
+        run_time(&constant, &[]),
+        Err(RunTimeModelRefusal::FreeShape(_))
+    ));
+    let upstream = format!(
+        "nika: upstream\npermits: {{}}\ntasks:\n  pick:\n    infer: {{ prompt: name one, model: mock/echo, max_tokens: 16 }}\n  first:\n    with: {{ m: \"${{{{ tasks.pick.output }}}}\" }}\n    infer: {{ prompt: text, model: \"${{{{ with.m }}}}\", max_tokens: 64{VISION} }}\n"
+    );
+    assert_eq!(
+        run_time(&upstream, &[]),
+        Ok(true),
+        "undecidable before any effect"
+    );
+    let agent = DYNAMIC
+        .replace("    infer:", "    agent:")
+        .replace(&format!("max_tokens: 64{VISION}"), "max_tokens_total: 64");
+    let refusal = run_time(&agent, &[("m", FREE)]).expect_err("agent loop");
+    assert!(refusal.to_string().contains("an agent loop"), "{refusal}");
+}

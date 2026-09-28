@@ -168,6 +168,24 @@ pub fn native_catalog_price_known(model: &str, config: ProvidersConfig) -> bool 
         })
 }
 
+/// The Run's monetary class of one API route: one predicate for a literal
+/// route the Run reviews before it starts and a route rendered at run time.
+/// `Ok(None)`: a qualified admission tariff or a native catalog price admits
+/// it. `Ok(Some(route))`: its USD cost is unknown, so only a fresh choice may.
+/// # Errors
+/// Neither an unknown-cost route nor a native price can judge the model.
+pub fn unknown_cost_route(
+    model: &str,
+    config: ProvidersConfig,
+) -> Result<Option<CostRoute>, String> {
+    match CostRoute::observe(model, config.clone()) {
+        Ok(route) if route.needs_unknown_choice() => Ok(Some(route)),
+        Ok(_) => Ok(None),
+        Err(_) if native_catalog_price_known(model, config) => Ok(None),
+        Err(why) => Err(why),
+    }
+}
+
 /// The per-request output ceiling of a Run review (and of any review not built for a Session).
 pub const RUN_REVIEW_MAX_OUTPUT_TOKENS: u32 = 8192;
 /// The per-request deadline of a Run review (and of any review not built for a Session).

@@ -424,7 +424,8 @@ fn answered_leg(
         inputs,
         setup,
         max_cost_usd,
-        None, // a resumed leg never inherits unknown-cost authority
+        // A resumed leg never inherits unknown-cost authority: only a fresh observer.
+        nika_cli_host::run_cost::leg_observer(wf, &plan, model_override),
         (no_trace_file, output_json),
         &world,
     ) {

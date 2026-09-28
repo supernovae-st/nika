@@ -155,6 +155,25 @@ budget; the trace's terminal frame carries its receipt, and `finish` only
 closes it. A plan that mixes such a route with an unknown-cost one stays on the
 unknown-cost review, which refuses it before any question.
 
+Since C4 (2026-09-28), a `model:` rendered at run time is admitted as the route
+it renders to. `readiness::unknown_routes` reads the provider predicate
+`admission::unknown_cost_route`, which the registry applies to rendered routes.
+With no unknown-cost route in the plan, the Run binds `InferenceAdmission::observe_run()`
+whenever a static declared-free lane exists, any infer/agent task's own
+`model:` is an expression, or it invokes a nested workflow, whose routes no
+root plan sees; its children share that one account. Before that, `run_time_models` judges every value its
+inputs, defaults or const already decide, exactly as the literal would be judged.
+An unsupported free shape or an unknown-cost route is refused before any effect
+(exit 3).
+- Values decided later: undecidable values are refused at dispatch by the
+  observer, before provider bytes and after earlier effects.
+- Unknown-cost routes: a dynamic unknown-cost route has no review door; that
+  gap is recorded as open, not supported.
+- Answered legs: an inline answered leg binds `leg_observer`, the same fresh
+  observer a manual `--resume` gets, never unknown-cost authority.
+- Bookkeeping: the observer still has no lease or journal, and the budget
+  preflight and cap are unchanged.
+
 `lines::fresh_terminal` is the fresh-input boundary of both local spending doors:
 the plain session before its `continue once? ›` prompt, and `ReviewChannel::Terminal`
 before each answer (again after `details`). It flushes the question, then switches

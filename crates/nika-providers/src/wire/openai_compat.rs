@@ -116,8 +116,15 @@ where
     }
     let response = parse_response(rp, &resp.body, &names)?;
     crate::retry::record(call, route.as_ref(), Some(&response), declared.as_ref());
-    if let Some(a) = &mut attempt {
-        a.settle(&response)?;
+    if let Some(a) = &mut attempt
+        && let Err(refused) = a.settle(&response)
+    {
+        // The account now holds this charge as unknown: the dispatch keeps
+        // its usage evidence but never a price beside that uncertainty.
+        if let Some(c) = call {
+            c.estimated_usd = None;
+        }
+        return Err(refused);
     }
     Ok(response)
 }

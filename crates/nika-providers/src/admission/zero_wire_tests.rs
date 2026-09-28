@@ -210,6 +210,54 @@ async fn exact_zero_is_sent_and_settled_but_contradictions_never_become_free() {
     }
 }
 
+/// E13 F2: usage above the requested output bound or the tariff's context is
+/// complete and names the model, yet the settlement refuses it. The dispatch
+/// observation must then agree with the account: evidence kept, never priced.
+#[tokio::test]
+async fn a_refused_settlement_leaves_no_priced_call_beside_the_unknown_charge() {
+    for (input, output) in [(100_u64, 600_u64), (300_000, 20)] {
+        let mut body = response();
+        body["usage"]["prompt_tokens"] = json!(input);
+        body["usage"]["completion_tokens"] = json!(output);
+        body["usage"]["total_tokens"] = json!(input + output);
+        let transport = Arc::new(ZeroHttp {
+            calls: AtomicUsize::new(0),
+            body,
+        });
+        let account = InferenceAdmission::observe_declared_free()
+            .for_scope("candidate", "invocation")
+            .expect("scope");
+        let model = format!("openrouter/{MODEL}");
+        let provider = ProviderRegistry::new(
+            transport.clone(),
+            ProvidersConfig::new().with_key("openrouter", Secret::new("fixture")),
+        )
+        .with_inference_admission(account.clone())
+        .resolve(&model)
+        .expect("resolve");
+        let mut request = InferRequest::new(&model, vec![Message::text(Role::User, "ready?")]);
+        request.max_tokens = Some(512);
+        let (_, report) = provider
+            .infer_reported(request)
+            .await
+            .expect_err("settlement refuses the bound");
+        assert_eq!(transport.calls.load(Ordering::SeqCst), 1);
+        let [call] = report.inference_calls.as_slice() else {
+            panic!("one dispatch observation: {report:?}");
+        };
+        assert!(call.usage_complete, "the usage evidence is kept");
+        assert_eq!(call.usage.as_ref().map(|u| u.output_tokens), Some(output));
+        assert_eq!(
+            call.estimated_usd, None,
+            "{input}/{output}: never a priced zero"
+        );
+        let receipt = account.snapshot().expect("receipt");
+        assert_eq!(receipt.state, AdmissionState::Uncertain);
+        assert_eq!(receipt.unknown_calls, 1);
+        assert_eq!(receipt.attempts[0].estimated, None);
+    }
+}
+
 #[tokio::test]
 async fn free_observation_preserves_mixed_routes_and_rejects_unqualified_free_shapes() {
     let http = Arc::new(ZeroHttp {

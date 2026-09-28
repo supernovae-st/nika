@@ -118,3 +118,97 @@ async fn mixed_routes_keep_separate_http_retry_contracts() {
         Some(nika_types::cost::Cost::zero())
     );
 }
+
+/// C4: a Run whose `model:` is rendered at run time keeps every route its own
+/// review admits, observes the declared-free one, and refuses before any byte
+/// a route that same review would call unknown-cost (one predicate).
+#[tokio::test]
+async fn a_run_observer_judges_the_rendered_route_with_the_review_predicate() {
+    let http = Arc::new(ThinkingHttp(AtomicUsize::new(0), true));
+    let config = ProvidersConfig::new()
+        .with_key("openrouter", Secret::new("fixture"))
+        .with_key("deepseek", Secret::new("fixture"))
+        .with_key("anthropic", Secret::new("fixture"))
+        .with_key("mistral", Secret::new("fixture"));
+    let account = InferenceAdmission::observe_run();
+    assert!(
+        account.observes_declared_free_only(),
+        "transport and cap stay the host's"
+    );
+    let registry = ProviderRegistry::new(
+        Arc::new(ThinkingHttp(AtomicUsize::new(0), false)),
+        config.clone(),
+    )
+    .with_inference_admission_http(account.clone(), http.clone());
+    for (model, observed) in [
+        ("openrouter/qwen/qwen3.8-27b:free", true),
+        ("deepseek/deepseek-v4-pro", false),
+        ("anthropic/claude-sonnet-4-5-20250929", false),
+        ("ollama/llama3.2", false),
+        ("mock/echo", false),
+    ] {
+        let resolved = registry
+            .resolve(model)
+            .unwrap_or_else(|e| panic!("{model}: {e}"));
+        assert_eq!(resolved.admission.is_some(), observed, "{model}");
+    }
+    let unknown = [
+        "mistral/mistral-small-latest",
+        "openrouter/google/gemma-4-26b-a4b-it:free",
+        "openrouter/vendor/unseen:free",
+        "anthropic/claude-unpriced-fixture",
+    ];
+    for model in unknown {
+        assert!(
+            !matches!(super::unknown_cost_route(model, config.clone()), Ok(None)),
+            "the review itself would not admit {model}"
+        );
+        let refused = registry.resolve(model).err().expect(model).to_string();
+        assert!(
+            refused.contains(model) && refused.contains("unknown USD cost"),
+            "{refused}"
+        );
+    }
+    let moved = config
+        .clone()
+        .with_base_url("deepseek", "https://gateway.invalid/v1/chat/completions");
+    let moved =
+        ProviderRegistry::new(http.clone(), moved).with_inference_admission(account.clone());
+    assert!(
+        moved.resolve("deepseek/deepseek-v4-pro").is_err(),
+        "an overridden endpoint has no tariff"
+    );
+    // The observed free route still refuses an unqualified shape before any byte.
+    let free = registry
+        .resolve("openrouter/qwen/qwen3.8-27b:free")
+        .expect("free");
+    let image = nika_kernel::ai::provider::ContentBlock::Image {
+        source: "https://example.invalid/a.png".into(),
+        detail: None,
+    };
+    let mut request = InferRequest::new(
+        "openrouter/qwen/qwen3.8-27b:free",
+        vec![Message::new(Role::User, vec![image])],
+    );
+    request.max_tokens = Some(512);
+    assert!(free.infer(request).await.is_err());
+    assert_eq!(
+        http.0.load(Ordering::SeqCst),
+        0,
+        "no refused route reached the wire"
+    );
+    let receipt = account.snapshot().expect("receipt");
+    assert_eq!(
+        receipt.state,
+        super::AdmissionState::Open,
+        "a refusal before bytes is no charge"
+    );
+    assert!(receipt.attempts.is_empty());
+    assert!(receipt.refusal.is_some());
+    // The library observer keeps its documented pass-through for other routes.
+    let library = ProviderRegistry::new(http.clone(), config)
+        .with_inference_admission(InferenceAdmission::observe_declared_free());
+    for model in unknown {
+        assert!(library.resolve(model).is_ok(), "{model}");
+    }
+}

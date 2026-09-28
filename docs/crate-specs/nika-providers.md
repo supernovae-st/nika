@@ -302,6 +302,24 @@ Runtime `cost_choice` path is a narrow compatibility export. Moving ownership
 does not change any finite bound, default override, hard-cap refusal, exact route
 or candidate binding, observation format, or the separate subscription plane.
 
+`admission::unknown_cost_route(model, config)` (C4 · 2026-09-28) is the one
+predicate of a Run's monetary class for one API route: `Ok(None)` when a
+qualified admission tariff or a native catalog price admits it, `Ok(Some(route))`
+when its USD cost is unknown (only a fresh choice may admit it), `Err` when
+nothing can judge it. The host's static review and a route rendered at run time
+use it alike, so they cannot drift. `InferenceAdmission::observe_run()` is
+`observe_declared_free()` for a Run whose `model:` may be rendered at run time:
+`ProviderRegistry::resolve` judges the rendered model's exact route, observes a
+declared-free one as before, and refuses before any byte an API route that
+predicate does not admit, since no fresh choice covers a run-time route. The
+refusal is recorded on the receipt and the account stays Open (nothing was
+sent). Local, mock, native catalog-priced and positive-tariff routes keep their
+host policy and transport; `observe_declared_free()` keeps its pass-through for
+library hosts. When a bounded attempt's settlement refuses complete usage
+(output over the requested bound, input over the tariff context, identity or
+incompleteness), its per-dispatch `InferenceCall` drops `estimated_usd` and keeps
+the usage evidence: no frame prices a charge the account holds unknown (E13 F2).
+
 `CostChallenge::display` is the first screen of a fresh Run decision: the
 provider/model and the endpoint's origin, the review's own unknown-USD, request,
 output-token, time, default and hard-cap sentences, the native catalog line

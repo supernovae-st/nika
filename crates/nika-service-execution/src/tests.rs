@@ -729,3 +729,75 @@ async fn the_options_plan_is_executed_as_resolved() -> TestResult<()> {
     assert!(result.settlement().is_none());
     Ok(())
 }
+
+/// C4 · a host account never moves where effects land (the configured local
+/// composition keeps `production_runtime`'s root), and a nested child of the
+/// configured Run composes with that same account: its terminal frame carries
+/// the shared receipt, where the unconfigured Run's child carries none.
+#[tokio::test]
+async fn a_configured_run_keeps_its_root_and_hands_its_account_to_children() -> TestResult<()> {
+    let root = "nika: root\nmodel: mock/echo\ntasks:\n  say:\n    infer: { prompt: parent }\n  call:\n    invoke: { workflow: ./child.nika }\n";
+    let child = "nika: child\nmodel: mock/echo\ntasks:\n  say:\n    infer: { prompt: child }\n";
+    let directory = tempfile::tempdir()?;
+    std::fs::write(directory.path().join("root.nika"), root)?;
+    std::fs::write(directory.path().join("child.nika"), child)?;
+    let project = OwnedDir::open(directory.path())?;
+    let service = nika_execution::ExecutionService::default();
+    let admitted = service.admit_with_model_override(&project, Path::new("root.nika"), None)?;
+    let session = service.begin(admitted);
+    let trace = RecordedChildTrace::default();
+    let driver = ServiceExecutionDriver::for_local_interface(session.context(), directory.path())
+        .ok_or("admitted context lost its root")?
+        .with_child_trace_factory(Arc::new(trace.clone()));
+    let mut config = RuntimeConfig::new(None, 0);
+    config.inference_admission = Some(nika_providers::InferenceAdmission::observe_run());
+    let mut roots = Vec::new();
+    for configured in [false, true] {
+        let plan = access::resolve_plan_over(
+            driver.workflow(),
+            driver.report(),
+            Some("mock/echo"),
+            Some("mock"),
+            &[],
+        );
+        let composed = if configured {
+            driver.compose_with_config("mock/echo", config.clone())?
+        } else {
+            driver.compose("mock/echo")?
+        };
+        let runtime = composed
+            .with_access_probes(Vec::new())
+            .with_access_plan(plan)?;
+        let mut stamper = RunSeams::of(None).stamper();
+        let mut events = RecordedEvents::default();
+        let result = runtime.run(stamper.as_mut(), &mut events).await?;
+        assert_eq!(result.settlement.state, RunState::Succeeded);
+        let started = events
+            .0
+            .iter()
+            .find(|event| event.kind == EventKind::WorkflowStarted)
+            .ok_or("a boot frame")?;
+        roots.push(
+            started
+                .str_field("project_root_fingerprint")
+                .map(str::to_owned),
+        );
+    }
+    assert!(roots[0].is_some());
+    assert_eq!(
+        roots[0], roots[1],
+        "an account never moves the project root"
+    );
+    let child_events = trace.0.lock().expect("trace lock");
+    let stamped: Vec<bool> = child_events
+        .iter()
+        .filter(|event| event.is_terminal())
+        .map(|event| event.str_field("inference_admission").is_some())
+        .collect();
+    assert_eq!(
+        stamped,
+        [false, true],
+        "only the configured Run's child shares it"
+    );
+    Ok(())
+}

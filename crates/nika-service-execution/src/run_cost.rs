@@ -212,18 +212,7 @@ pub fn declared_free_shape(
     let free: std::collections::BTreeMap<&str, u32> = plan
         .admitted()
         .filter(|(_, lane)| lane.plan.chosen == nika_types::access::AccessClass::Api)
-        .filter_map(|(model, _)| {
-            let route =
-                nika_providers::admission::CostRoute::observe(model, config.clone()).ok()?;
-            nika_providers::InferenceAdmission::qualify(
-                &route.provider,
-                &route.model,
-                &route.endpoint,
-            )
-            .ok()
-            .filter(|tariff| tariff.is_declared_free())
-            .map(|tariff| (model, tariff.max_output_tokens))
-        })
+        .filter_map(|(model, _)| Some((model, declared_free_max(model, config)?)))
         .collect();
     let fallback = model_override.or(wf.model.as_ref().map(|m| m.value.as_str()));
     for task in &wf.tasks {
@@ -248,6 +237,102 @@ pub fn declared_free_shape(
         }
     }
     Ok(!free.is_empty())
+}
+
+/// The output bound of `model`'s exact catalog-declared-free tariff, if any.
+fn declared_free_max(model: &str, config: &nika_providers::ProvidersConfig) -> Option<u32> {
+    let route = nika_providers::admission::CostRoute::observe(model, config.clone()).ok()?;
+    nika_providers::InferenceAdmission::qualify(&route.provider, &route.model, &route.endpoint)
+        .ok()
+        .filter(|tariff| tariff.is_declared_free())
+        .map(|tariff| tariff.max_output_tokens)
+}
+
+/// Why a Run refuses, before any effect, a task `model:` expression whose
+/// value its inputs, declared defaults or const already decide.
+#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
+#[non_exhaustive]
+pub enum RunTimeModelRefusal {
+    /// The value is a declared-free route in a shape its observation cannot admit.
+    #[error(transparent)]
+    FreeShape(FreeShapeRefusal),
+    /// The value is an API route the Run's review calls unknown-cost.
+    #[error(
+        "task `{task}` resolves its model to {model} before any effect; that route's USD cost is unknown, and a fresh unknown-cost choice binds only a literal `model:`"
+    )]
+    UnknownCost {
+        /// The task.
+        task: String,
+        /// The resolved route.
+        model: String,
+    },
+}
+
+/// Judge each infer/agent task whose own `model:` is an expression at the
+/// value the runtime's resolved-id walk gives it before any effect (`overrides`
+/// over declared defaults, const, `with:`), exactly as that literal would be
+/// judged: a declared-free route in a shape its observation cannot admit, or
+/// an API route with an unknown USD cost, refuses. A value only the run decides
+/// (an upstream output, an item) is left to the Run observer at dispatch:
+/// refused before provider bytes, after earlier effects. A seated or local
+/// value never reaches the registry. `Ok(true)`: such a task exists, or a
+/// nested `workflow:` whose routes no root plan sees, so the Run binds that
+/// observer (its children share it); that enforcement is at dispatch only.
+/// # Errors
+/// The first decided value the Run would refuse.
+pub fn run_time_models(
+    wf: &RawWorkflow,
+    plan: &nika_providers::ExecutionAccessPlan,
+    config: &nika_providers::ProvidersConfig,
+    overrides: &std::collections::BTreeMap<String, serde_json::Value>,
+) -> Result<bool, RunTimeModelRefusal> {
+    let mut dynamic = false;
+    for task in &wf.tasks {
+        let (declared, infer) = match &task.value.action {
+            RawAction::Infer(a) => (a.model.as_ref(), Some(a)),
+            RawAction::Agent(a) => (a.model.as_ref(), None),
+            RawAction::Invoke(a) => {
+                dynamic |= a.tool().is_none();
+                continue;
+            }
+            _ => continue,
+        };
+        let Some(expr) = declared.filter(|m| m.value.contains("${{")) else {
+            continue;
+        };
+        dynamic = true;
+        let Some(model) =
+            nika_runtime::resolve_model_expr(&expr.value, wf, overrides, Some(&task.value))
+                .filter(|m| {
+                    nika_providers::resolve_refusal(m).is_none() && plan.seat_for(m).is_none()
+                })
+                .filter(|m| {
+                    let provider = m.split_once('/').map_or(m.as_str(), |(p, _)| p);
+                    nika_providers::profile::access_class_for(nika_providers::canonical_provider(
+                        provider,
+                    )) == nika_types::access::AccessClass::Api
+                })
+        else {
+            continue;
+        };
+        let task = task.value.id.value.clone();
+        if let Some(max) = declared_free_max(&model, config) {
+            let shape = infer.map_or(Some("an agent loop"), |a| free_infer_shape(a, max));
+            if let Some(shape) = shape {
+                return Err(RunTimeModelRefusal::FreeShape(FreeShapeRefusal {
+                    task,
+                    model,
+                    shape,
+                }));
+            }
+        } else if !matches!(
+            nika_providers::admission::unknown_cost_route(&model, config.clone()),
+            Ok(None)
+        ) {
+            return Err(RunTimeModelRefusal::UnknownCost { task, model });
+        }
+    }
+    Ok(dynamic)
 }
 
 /// What one infer asks that a declared-free observation cannot admit: the

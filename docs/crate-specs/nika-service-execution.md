@@ -173,6 +173,21 @@ any effect, so an unsupported shape is never run-ready and never a known zero.
 The provider wire guard still refuses what it alone can see (the rendered body
 over 1 MiB).
 
+`run_time_models(workflow, access_plan, providers_config, overrides)` (C4 ·
+2026-09-28) covers the `model:` values a plan never sees. Each infer/agent task
+whose own `model:` is an expression is judged at the value
+`nika_runtime::resolve_model_expr` gives it before any effect (`--var` or
+`--inputs-json` over the declared default, const, a `with:` alias), exactly as
+that literal would be. A declared-free route in a shape its observation cannot
+admit refuses as `RunTimeModelRefusal::FreeShape`. An API route whose USD cost
+`unknown_cost_route` calls unknown refuses as `UnknownCost`: a fresh
+unknown-cost choice binds only a literal `model:`. A dynamic finite-call review
+door is an open follow-up. A seated or local value never reaches the registry
+and is not judged. `Ok(true)` means such a task exists, or a nested `workflow:` invoke whose
+routes no root plan sees, and the host binds the Run observer. A value only the run decides (an upstream task output, a loop
+item, CEL beyond the walk) is judged by that observer at dispatch: refused
+before provider bytes, but after the effects of the tasks that ran before it.
+
 The L4 host owns descriptor-rooted input observations, fresh source/route-bound
 consent and the live monetary account. The provider account meters every actual
 request, including schema re-asks, and refuses exhausted or uncertain authority.
@@ -187,3 +202,16 @@ have scope-bound the live account in `RuntimeConfig` before composition; this
 does not grant effects, replace the admitted workflow/report, or replay a
 persisted observation. The driver remains filesystem-blind. No configured
 composition wrapper or Runtime-to-driver dependency is introduced.
+
+Since C4 (2026-09-28), a configured composition uses the same emitter and
+sandbox root as the unconfigured one. The service surface uses its display
+root; the local surface uses `production_runtime`'s launch cwd, where it once
+used the display root. An account therefore never moves where exec effects
+land. A nested `workflow:` child of a configured Run composes with the root's
+own account, a clone of the same handle, never a fresh one. An uncertain charge
+in the parent then still refuses the child's calls on that account, and the
+child's terminal frame carries the shared receipt. This is enforcement at the
+child's dispatch boundary, after the root's earlier effects. It does not judge
+a child's readiness or cost multiplicity before the Run. A child's unknown-cost
+review and a full closure inspection remain open follow-ups: such a refusal
+never certifies the whole workflow.

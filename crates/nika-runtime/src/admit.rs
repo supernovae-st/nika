@@ -352,7 +352,8 @@ fn resolved_infer_models(
         .collect()
 }
 
-fn resolve_model_expr(
+/// A `model:` value as known before any effect (`--var`, a default, const, `with:`), else `None`.
+pub fn resolve_model_expr(
     expr: &str,
     wf: &RawWorkflow,
     overrides: &BTreeMap<String, Value>,

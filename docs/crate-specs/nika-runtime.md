@@ -482,3 +482,11 @@ observation as the JSON text field `inference_admission` on the terminal frame
 (`cost_choice::ObservedSink`, inside the secret scrub). A scoped receipt says
 `scoped_to_declared_free`: its subtotal is never the whole Run's. A run killed
 before its terminal frame leaves no receipt; that lifecycle stays open.
+
+`resolve_model_expr` (C4 · 2026-09-28) exports the run-start cap gate's own
+resolved-id walk: a literal, a concatenation, an operator `--var` over the
+declared default, const, or a task's `with:` alias. A host judges a `model:`
+expression before any effect at the value this resolver gives it; `None` means
+only the run decides it (an upstream output, CEL beyond the walk). Dispatch
+still renders every `model:` through the `${{ }}` seam, and the provider
+registry judges that rendered route under a host-bound Run observer.
