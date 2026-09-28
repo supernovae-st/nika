@@ -129,8 +129,41 @@ while `nika-compile` stood at its wall; they ascended to `nika-compile-fidelity`
   gate, and a connector, a full stop or a semicolon inside quotes cuts no clause and no
   sentence: « write 'do not write anything' to ./a.txt » and « Read ./rules.txt, which says
   'never email anyone', and email … » read as their neighbours with neutral quoted words. A
-  newline still ends a sentence, and the same words outside the quotes still govern. The
-  waiver shapes and the few indecision phrases read by substring are not yet quote-aware.
+  mark after a backslash is content (« "she said \"hi\"" »). A newline inside a quote that
+  closes after it is content; past the last closed quote a newline still ends its sentence,
+  so an unclosed mark never carries one. A rooted path inside quoted prose (« 'delete
+  ./b.txt' ») is no path literal (`paths::located`, the bindings, the clause's own path), and
+  a head inside quotes asks for no element (`hot::cue_coverage`). The laws that read words by
+  substring read only what is stated outside quotes (`cadence::unquoted`, the `quoted_at` law
+  blanking quoted content byte for byte): the waiver (`gates::waiver_polarity`), the approval
+  bound of a ban, the bypass and refund backstops, the indecision phrases and their companion,
+  and the contradiction-marker sentence. A line filter over 'no need to ask me' keeps its
+  filter (it was read as a waiver and dropped, READY-wrong), and a ban whose quoted object says
+  « until I approve » stays a ban. The same words outside the quotes still govern.
+- Constant work stays deterministic (R4 S0, G2). A write whose object is exactly one quoted
+  literal, to a prose destination it names (« write 'hello' to ./a.txt », « écris « bonjour »
+  dans ./a.txt »), states that literal as its content: a `content` binding (the verbatim
+  quoted span, marks included) instead of a draft, so no model and no question.
+  `text::quoted_literal` is the one law of that literal: its characters as written (newlines,
+  Unicode, instructions and template-shaped text included); a backslash before the closing
+  mark or before a backslash is that character; guillemets drop their typographic inner
+  spaces; a single quote closes as `quoted_at` reads it, never inside a word. `Plan::content_of`
+  pairs a write with the one literal its evidence holds, never a guess between two, and the
+  HOT admission asks no producer for it. At a named gate (« ask me before writing 'hello' to
+  ./a.txt ») the gated write reads its quoted object by the same law, and its target keeps
+  the request's spelling; one quote-aware path finder (`objects::stated_path`) serves the
+  clause, the target and the gated object. Anything else keeps its draft or its question: an
+  unquoted object, two literals, a literal with more words (« 'hello' in French »), a
+  transformation of it, or a structured destination (how a text sits in JSON or CSV is not
+  stated).
+- A conversion (`lexicon/convert.rs`: a head, then two structured files of two formats) is the
+  identity over the parsed records, the whole clause its rule's text. A clause whose segments
+  also state a rule or a stage the grammar reads, or whose words compare (`rules::compares`:
+  « …, keeping only the rows whose amount is above the agreed threshold », a value no grammar
+  types), is no plain conversion: the identity swallowed it (READY, every row written). A
+  participle stage (« …, sorted by amount ») is read by no law of the frozen reader and is not
+  covered. The identity is a complete recorded rule (`Rule::from_json`); a flag over no clause
+  and no stage is not.
 - Every public type is `#[non_exhaustive]` (the forward-compatibility ratchet of the
   boundary); the composer builds plan elements through `Step::new`, `Effect::new`,
   `Obligation::new`, `Binding::new`, `Clause::new`, `Aggregation::new` and `Derived::new`

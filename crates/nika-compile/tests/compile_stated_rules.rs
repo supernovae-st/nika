@@ -12,8 +12,17 @@ use nika_compile::{
 };
 use serde_json::Value;
 
+mod common;
+
+/// The fixtures as the CLI observes them (R4 S1: an unobserved key is asked, not read).
+fn world() -> Value {
+    let tickets: &[&str] = &["id", "status", "title"];
+    let sales: &[&str] = &["client", "amount", "montant"];
+    common::observed(&[("./tickets.json", tickets), ("./sales.csv", sales)])
+}
+
 fn ready(intent: &str) -> (CompileOutcome, Value) {
-    let out = compile(&CompileRequest::create(intent)).unwrap();
+    let out = compile(&CompileRequest::create(intent).with_knowledge(world())).unwrap();
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     assert_eq!(out.provenance.strategy, Some(Strategy::Hot), "{out:#?}");
     assert_eq!(

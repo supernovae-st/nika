@@ -345,13 +345,14 @@ pub fn assemble(
     let mut decided = plan.clone();
     super::approval::decide(&mut decided, request, out, &mut recognized);
     let plan = &decided;
+    // The stated ledger rides in the decision record from the first round, a refusal's too
+    // (the contradicted or unsupported clauses it refuses); the realized one replaces it when
+    // the candidate is emitted.
+    let stated = Ledger::extract(plan);
+    record_ledger(out, &stated);
     if refused(plan, out) {
         return Ok(());
     }
-    // The stated ledger rides in the decision record from the first round; the realized
-    // one replaces it when the candidate is emitted.
-    let stated = Ledger::extract(plan);
-    record_ledger(out, &stated);
     if refused_contradiction(&stated, out) {
         return Ok(());
     }

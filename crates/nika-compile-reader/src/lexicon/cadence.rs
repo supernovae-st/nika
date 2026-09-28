@@ -258,11 +258,37 @@ fn names_a_period(phrase: &str) -> bool {
 }
 
 /// Whether text ends inside quotes: an odd count of straight double quotes or backticks, or
-/// more opening than closing guillemets or curly double quotes. The unnamed-destination law
-/// reads its connector through the same guard.
+/// more opening than closing guillemets or curly double quotes; a mark after a backslash is
+/// content (« "she said \"hi\"" »). The unnamed-destination law reads its connector through
+/// the same guard.
 pub(crate) fn quoted(before: &str) -> bool {
-    let count = |c: char| before.matches(c).count();
+    let escaped = |at: usize| before.get(..at).is_some_and(|b| b.ends_with('\\'));
+    let count = |c: char| {
+        before
+            .match_indices(c)
+            .filter(|(at, _)| !escaped(*at))
+            .count()
+    };
     count('"') % 2 == 1 || count('`') % 2 == 1 || count('«') > count('»') || count('“') > count('”')
+}
+
+/// The text with its quoted content blanked, marks included, every character replaced by
+/// spaces of its own byte length so each offset still names the same place: a law that reads
+/// words by substring (a waiver, a bypass, an indecision) reads only what is stated outside
+/// quotes.
+pub(crate) fn unquoted(text: &str) -> String {
+    let mark = |c: char| matches!(c, '"' | '\'' | '`' | '«' | '“');
+    let blank =
+        |at: usize, c: char| quoted_at(text, at) || (mark(c) && quoted_at(text, at + c.len_utf8()));
+    (text.char_indices())
+        .map(|(at, c)| {
+            if blank(at, c) {
+                " ".repeat(c.len_utf8())
+            } else {
+                c.to_string()
+            }
+        })
+        .collect()
 }
 
 /// Whether a byte position of the text lies inside quoted content: the quotes [`quoted`]

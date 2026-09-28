@@ -183,10 +183,9 @@ pub(super) fn emit_writes(d: &mut Doc, writes: &[WriteEffect], out: &mut Compile
         return false;
     }
     for (index, effect) in writes.iter().enumerate() {
-        let Some((name, mut content)) = d
-            .content_fact(&effect.path)
-            .map(|f| (f.name, f.template.clone()))
-        else {
+        let fact = (d.content_fact(&effect.path)).map(|f| (f.name, f.template.clone()));
+        let stated = effect.content.as_ref().map(|_| ("stated", String::new()));
+        let Some((name, mut content)) = stated.or(fact) else {
             super::finding(
                 out,
                 DiagnosticKind::Unknown,
@@ -212,7 +211,7 @@ pub(super) fn emit_writes(d: &mut Doc, writes: &[WriteEffect], out: &mut Compile
                 format!("write_{}", effect.stem),
             )
         };
-        content = written_content(d, effect, name, content);
+        content = written_content(d, effect, &constant, name, content);
         d.root["const"][&constant] = json!(effect.path);
         d.writes.push(json!(effect.path));
         if let Some(format @ (Structured::Csv | Structured::Yaml | Structured::Toml)) =
@@ -277,7 +276,7 @@ fn duplicated_content<'a>(
     for effect in writes {
         // A write naming a facet of the fetched page or a routed category receives its own
         // slice of the produced fact, never the same content as another destination.
-        if effect.facet.is_some() || effect.category.is_some() {
+        if effect.facet.is_some() || effect.category.is_some() || effect.content.is_some() {
             continue;
         }
         let Some(fact) = d.content_fact(&effect.path) else {
@@ -355,8 +354,24 @@ fn payload_expression(d: &Doc, keys: &[String]) -> Result<String, String> {
 /// prose file is the value itself (a structured destination and several totals
 /// keep the object); after a per-record classification a write naming a
 /// category carries the records routed to it, a write of the records carries
-/// every record with its category.
-fn written_content(d: &mut Doc, effect: &WriteEffect, name: &str, mut content: String) -> String {
+/// every record with its category. A literal the request states is its own constant.
+fn written_content(
+    d: &mut Doc,
+    effect: &WriteEffect,
+    constant: &str,
+    name: &str,
+    mut content: String,
+) -> String {
+    if let Some(text) = &effect.content {
+        // Baked in byte for byte: a value, never a template the run renders
+        // (« write '${{ secrets.x }}' » writes those characters).
+        let key = format!(
+            "{}_content",
+            constant.strip_suffix("_path").unwrap_or(constant)
+        );
+        d.root["const"][&key] = json!(text);
+        return format!("${{{{ const.{key} }}}}");
+    }
     if let Some(facet) = effect.facet {
         content = super::network::facet_content(d, facet);
     }

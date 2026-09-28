@@ -27,7 +27,8 @@ const AVGC: &str = "Every weekday at 8, read ./sales.csv, compute the average of
 
 /// The first round: READY, its record and its candidate.
 fn recorded(intent: &str) -> (Value, Option<String>) {
-    let out = compile(&CompileRequest::create(intent)).unwrap();
+    // The CLI observed the E14 fixtures; the record carries that observation to its replays.
+    let out = compile(&CompileRequest::create(intent).with_knowledge(common::e14_world())).unwrap();
     assert_eq!(out.status, CompileStatus::Ready, "{intent}: {out:#?}");
     (out.provenance.plan.unwrap(), out.candidate)
 }

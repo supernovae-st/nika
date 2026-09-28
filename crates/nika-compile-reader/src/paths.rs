@@ -62,9 +62,15 @@ pub(crate) fn located(text: &str) -> Vec<(PathShape, usize, usize)> {
     let offset = |part: &str| part.as_ptr() as usize - text.as_ptr() as usize;
     let mut found = Vec::new();
     for (at, (word, span)) in items.iter().enumerate() {
+        // A rooted path inside quoted prose (« write 'delete ./b.txt' to ./a.txt ») is what the
+        // workflow writes, never a file it opens.
+        let quoted = || crate::lexicon::quoted_at(text, offset(word));
         let Some(shape) = span.clone().or_else(|| token(word)) else {
             continue;
         };
+        if span.is_none() && rooted(trim(word)) && quoted() {
+            continue;
+        }
         let glued = match &shape {
             PathShape::File(file) if span.is_none() && !rooted(file) => name_start(&items, at),
             _ => None,

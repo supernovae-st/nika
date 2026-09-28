@@ -757,8 +757,8 @@ pub fn compile_through(
 }
 
 /// Compile one request through the seat under the session's authoring
-/// context: a deterministic seat compiles deterministically (zero calls; the
-/// context and its knowledge are never read); a provider seat carries the
+/// context: a deterministic seat compiles deterministically (zero calls; its
+/// knowledge is never read, the project it roots is observed); a provider seat carries the
 /// context's strategy on its one policy (the deterministic ladder first, the
 /// compiler's own order) and, when a snapshot is pinned, the pack composed for
 /// `intent` — the request as the compiler reads it (a revision's request with
@@ -814,8 +814,24 @@ fn compile_attached(
     attach: Attach<'_>,
     admission: Option<&nika_providers::InferenceAdmission>,
 ) -> Result<CompileOutcome, AuthoringError> {
+    // The project as it is NOW, for the intent the compiler reads (a fresh request, its
+    // answers' round, a revision's request with its change), on every seat (R4 S1): the files
+    // it names, observed by the shared bounded observer under the root — never outside it.
+    let contextual = match attach {
+        Attach::Compose(intent) | Attach::Carried(_, intent) => intent,
+    };
+    let observed = context
+        .project_root()
+        .filter(|_| !contextual.trim().is_empty())
+        .and_then(|root| nika_cli_host::compile::observe::world(root, contextual));
+    let mut request = request.clone();
+    if let Some(world) = &observed {
+        request = request.with_knowledge(world.clone());
+    }
     let model = match seat {
-        AuthoringSeat::Deterministic { .. } => return compile_deterministic(request),
+        AuthoringSeat::Deterministic { .. } => {
+            return Ok(observed_in(compile(&request)?, observed.as_ref()));
+        }
         AuthoringSeat::Unavailable { why } => return Err(AuthoringError::Seat(why.clone())),
         AuthoringSeat::Provider { model } => model.clone(),
         AuthoringSeat::Harness { seat, model } => {
@@ -830,7 +846,7 @@ fn compile_attached(
     if let Some(why) = context.refusal() {
         return Err(AuthoringError::Context(why.clone()));
     }
-    let mut request = request.clone().with_authoring_policy(session_policy(
+    request = request.with_authoring_policy(session_policy(
         &model,
         matches!(seat, AuthoringSeat::Harness { .. }),
         context.strategy(),
@@ -841,19 +857,6 @@ fn compile_attached(
     };
     if let Some(pack) = &pack {
         request = request.with_authoring_knowledge(pack.clone());
-    }
-    // The project as it is NOW, for the intent the compiler reads (a fresh request, its
-    // answers' round, a revision's request with its change): the files it names, observed by
-    // the shared bounded observer under the session's root — never outside it.
-    let contextual = match attach {
-        Attach::Compose(intent) | Attach::Carried(_, intent) => intent,
-    };
-    let observed = context
-        .project_root()
-        .filter(|_| !contextual.trim().is_empty())
-        .and_then(|root| nika_cli_host::compile::observe::world(root, contextual));
-    if let Some(world) = &observed {
-        request = request.with_knowledge(world.clone());
     }
     let mut out = match seat {
         AuthoringSeat::Harness { seat, model } => {
@@ -867,21 +870,22 @@ fn compile_attached(
         _ => None,
     };
     stamp(&mut out, context, knowledge.as_ref());
-    if let (Some(world), Some(record)) = (&observed, out.provenance.decision.as_mut()) {
-        record["session"]["observed"] = observed_record(world, out.provenance.authoring.as_ref());
-    }
-    Ok(out)
+    Ok(observed_in(out, observed.as_ref()))
 }
 
-/// What the session observed and presented, in brief: each named path, its state, its kind and
-/// how many columns or keys it holds (the names themselves ride the request, not the receipt).
-fn observed_record(world: &Value, receipt: Option<&AuthoringReceipt>) -> Value {
-    let presented = receipt.is_some_and(|receipt| {
+/// The outcome with the session's record of what it observed and presented, in brief
+/// (`decision.session.observed`): each named path, its state, its kind and how many columns or
+/// keys it holds (the names themselves ride the request, not the receipt).
+fn observed_in(mut out: CompileOutcome, world: Option<&Value>) -> CompileOutcome {
+    let presented = out.provenance.authoring.as_ref().is_some_and(|receipt| {
         receipt
             .context
             .iter()
             .any(|call| call["call"].as_str().is_some_and(reads_knowledge))
     });
+    let (Some(world), Some(record)) = (world, out.provenance.decision.as_mut()) else {
+        return out;
+    };
     let rows: Vec<Value> = world["observed"]
         .as_array()
         .into_iter()
@@ -895,7 +899,9 @@ fn observed_record(world: &Value, receipt: Option<&AuthoringReceipt>) -> Value {
             })
         })
         .collect();
-    json!({ "attached": true, "presented": presented, "under": "project root", "rows": rows })
+    record["session"]["observed"] =
+        json!({ "attached": true, "presented": presented, "under": "project root", "rows": rows });
+    out
 }
 
 /// The session's record of the pack it attached to one call: the pinned

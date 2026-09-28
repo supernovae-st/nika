@@ -127,6 +127,25 @@ monetary refusals remain in force; this connection adds neither an account nor
 an exemption from those guards. A proposal still requires fresh review and
 consent, revisions expire the old identity, and authoring grants no Save or Run.
 
+Every authoring round observes the files its request names under the session's
+own project root, with the shared bounded observer (never the process's working
+directory, never through a link outside the root), the deterministic rounds
+included: the initial ladder, an answer or a revision compiled again, and the
+deterministic fallback while money blocks cognition (R4 S1). One observation
+site serves every seat. A round compiled on the session's own seat roots the
+session's context in place, as before; the initial ladder, a request read again
+with its change and the money fallback compile under a rooted copy instead, so
+they never change the session's context nor the identity of the questions it
+asks. The compiler grounds a rule's keys in that observation: a key the file
+holds is ready with no call, a word it does not spell is a closed choice of its
+keys, and an answer given for another revision of the file is asked again; the
+decision records both (`decision.session.observed`, `decision.grounding`).
+`compile_in` observes on a deterministic seat only when its context roots a
+project. `compile_through` (the default context) and the public
+`compile_deterministic` keep their pure contract: with no root nothing is
+observed, a key a request merely names is then asked, and a library caller
+supplies its own world as knowledge.
+
 The hermetic `subscription_authoring` integration suite injects only a fixture
 executable: actual public Session, native Compiler, continuation, knowledge
 consumer evidence and proposal identity remain real. These fixtures are not

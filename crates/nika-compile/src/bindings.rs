@@ -15,9 +15,9 @@ use super::cardinality::parallel_bound;
 use super::paths::{self, PathShape, Structured};
 use super::plan::{Effect, EffectPolicy, EffectVerb, Op, Plan, Step};
 use super::rules;
-use super::shape;
 use super::support::{admit_directory, admit_endpoint, admit_model, admit_policy, answer, reject};
 use super::{CompileOutcome, CompileRequest, DiagnosticKind, QuestionType};
+use super::{shape, text};
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
 
@@ -130,6 +130,9 @@ pub(super) struct WriteEffect {
     /// The facet of the fetched page the write's clause names ("the page title to
     /// ./title.txt"): the write carries the fetch's own mode, never a draft.
     pub facet: Option<super::network::Facet>,
+    /// The exact text the write's clause states as a quoted literal (« write 'hello' to
+    /// ./a.txt »): a constant of the workflow, never drafted.
+    pub content: Option<String>,
 }
 
 /// The settled bindings of one plan.
@@ -437,7 +440,19 @@ pub(super) fn bind(
     // declares an input the run could not supply. A search's query is that item only when
     // the request supplies no material or an event delivers it (`bind_search_query`).
     let search_query = bind_search_query(plan, has_corpus, request, out, recognized);
-    let item = !has_corpus || (plan.has(Op::Search) && matches!(search_query, Need::Absent));
+    // Literals the request writes are material of its own: with no step, no emitted effect
+    // but a stated literal reads an invocation item (« write 'hello' to ./a.txt »).
+    let emitted =
+        |e: &&Effect| !matches!(e.policy, EffectPolicy::Forbidden | EffectPolicy::Conflict);
+    let stated = plan.steps.is_empty()
+        && plan.effects.iter().any(|e| plan.content_of(e).is_some())
+        && plan
+            .effects
+            .iter()
+            .filter(emitted)
+            .all(|e| plan.content_of(e).is_some());
+    let item =
+        (!has_corpus && !stated) || (plan.has(Op::Search) && matches!(search_query, Need::Absent));
     let mut consumed = Vec::new();
     let mut max_parallel = None;
     if fan_out {
@@ -1175,6 +1190,7 @@ fn bind_effects(
                 evidences: vec![effect.evidence.clone()],
                 category,
                 facet,
+                content: plan.content_of(effect).and_then(text::quoted_literal),
             });
             continue;
         }
@@ -1339,6 +1355,7 @@ fn bind_named_outputs(
                 evidences: Vec::new(),
                 category: None,
                 facet: None,
+                content: None,
             }),
             Some(Value::Bool(false)) => super::finding(
                 out,

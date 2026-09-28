@@ -371,8 +371,16 @@ impl Binding {
 }
 
 /// The closed set of binding roles the reader and the composer emit. A recorded plan may
-/// only name one of these: the assembler matches roles by identity.
-const BINDING_ROLES: [&str; 5] = ["url", "email", "path", "timezone", "money_policy"];
+/// only name one of these: the assembler matches roles by identity. A `content` literal is
+/// the quoted text a write carries, verbatim, quotes included.
+const BINDING_ROLES: [&str; 6] = [
+    "url",
+    "email",
+    "path",
+    "timezone",
+    "money_policy",
+    "content",
+];
 
 /// The whole private plan.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -404,6 +412,19 @@ impl Plan {
     #[must_use]
     pub fn step(&self, op: Op) -> Option<&Step> {
         self.steps.iter().find(|s| s.op == op)
+    }
+    /// The quoted literal a write states as its content: the one `content` literal its
+    /// evidence holds, never a guess between two different ones.
+    #[must_use]
+    pub fn content_of(&self, effect: &Effect) -> Option<&str> {
+        let is_stated = |b: &&Binding| b.role == "content" && effect.evidence.contains(&b.literal);
+        let mut stated = self
+            .bindings
+            .iter()
+            .filter(is_stated)
+            .map(|b| b.literal.as_str());
+        let first = stated.next()?;
+        stated.all(|other| other == first).then_some(first)
     }
     #[must_use]
     pub fn retry_bound(&self) -> Option<u32> {

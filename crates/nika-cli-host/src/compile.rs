@@ -207,8 +207,10 @@ pub fn run_with(args: &CompileArgs, authority: &AuthoringAuthority) -> VerbOutpu
         Ok(setup) => setup,
         Err(failure) => return failure,
     };
-    if cognition {
-        request = observed_world(args, request);
+    // Every free-intent door grounds the keys a rule reads in what the host observes (R4 S1):
+    // the deterministic door too, never only a seat; a named skeleton or template reads no file.
+    if !named && let Ok(root) = std::env::current_dir() {
+        request = observed_world(&root, &effective_intent(args, cognition), request);
     }
     // The knowledge door: the source the configuration names, its pack for the intent the
     // compiler reads composed here and stated to the seat beside the card; a source that
@@ -378,15 +380,17 @@ fn effective_intent(args: &CompileArgs, cognition: bool) -> String {
         .unwrap_or(intent)
 }
 
-/// An authoring seat reads the shape of the files the request names (a header, a key set, a
-/// categorical column's values — never a row), observed under the working directory.
-fn observed_world(args: &CompileArgs, request: CompileRequest) -> CompileRequest {
-    match (args.intent.as_deref(), std::env::current_dir()) {
-        (Some(intent), Ok(cwd)) => match observe::world(&cwd, intent) {
-            Some(world) => request.with_knowledge(world),
-            None => request,
-        },
-        _ => request,
+/// The shape of the files the effective request names (a header, a key set, a categorical
+/// column's short repeated values — never a row), observed under the project root `root` only:
+/// a seat authors against it, and the grounding law grounds a rule's keys in it on every door.
+/// This is the host observation; a library or Serve caller supplies its own world as knowledge.
+fn observed_world(root: &Path, intent: &str, request: CompileRequest) -> CompileRequest {
+    if intent.trim().is_empty() {
+        return request;
+    }
+    match observe::world(root, intent) {
+        Some(world) => request.with_knowledge(world),
+        None => request,
     }
 }
 
@@ -555,5 +559,54 @@ mod tests {
         );
         // The exclusion still needs an authoring seat, as every knowledge flag does.
         assert!(Door::try_parse_from(["compile", "x", "--knowledge-exclude", "heldout"]).is_err());
+    }
+
+    /// Every free-intent door carries the host observation of the files its request states (R4
+    /// S1): the bounded, project-confined observer's keys and short repeated values only. An
+    /// absent file and a link out of the project are named states, never keys, and a unique
+    /// secret-like value never leaves its file.
+    #[test]
+    fn a_free_intent_carries_the_observation_of_what_it_states() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        let rows = r#"[{"id":"a","status":"open","token":"sk-live-51H8aZ3xQvYb0987654321abcdefghij"},
+            {"id":"b","status":"open","token":"sk-live-51H8aZ3xQvYb0987654321zyxwvutsrq"}]"#;
+        std::fs::write(root.join("tickets.json"), rows).unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        std::fs::write(outside.path().join("secret.json"), r#"[{"hidden":"v"}]"#).unwrap();
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(outside.path().join("secret.json"), root.join("linked.json"))
+            .unwrap();
+        let intent = "Read ./tickets.json, ./linked.json and ./missing.json, keep only the rows whose status is open and write them to ./open.json";
+        let request = observed_world(root, intent, CompileRequest::create(intent));
+        let world = request.knowledge.expect("the stated files are observed");
+        let text = world.to_string();
+        let row = |path: &str| {
+            let rows = world["observed"].as_array().unwrap();
+            rows.iter().find(|r| r["path"] == path).cloned()
+        };
+        let tickets = row("./tickets.json").unwrap();
+        assert_eq!(tickets["state"], "observed", "{text}");
+        assert_eq!(
+            tickets["columns"],
+            serde_json::json!(["id", "status", "token"])
+        );
+        assert!(tickets["peek_sha256"].is_string(), "{text}");
+        assert!(
+            !text.contains("sk-live"),
+            "no unique value leaves its file: {text}"
+        );
+        assert_eq!(row("./missing.json").unwrap()["state"], "absent", "{text}");
+        #[cfg(unix)]
+        {
+            assert_eq!(row("./linked.json").unwrap()["state"], "outside_project");
+            assert!(
+                !text.contains("hidden"),
+                "nothing is read through the link: {text}"
+            );
+        }
+        // A request that states nothing is observed as nothing.
+        let silent = observed_world(root, "  ", CompileRequest::create("  "));
+        assert!(silent.knowledge.is_none());
     }
 }

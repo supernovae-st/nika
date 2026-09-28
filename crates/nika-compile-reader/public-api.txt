@@ -846,6 +846,7 @@ pub nika_compile_reader::plan::Plan::trigger: core::option::Option<alloc::string
 pub nika_compile_reader::plan::Plan::unknowns: alloc::vec::Vec<alloc::string::String>
 impl nika_compile_reader::plan::Plan
 pub fn nika_compile_reader::plan::Plan::anchored(&self, intent: &str) -> bool
+pub fn nika_compile_reader::plan::Plan::content_of(&self, effect: &nika_compile_reader::plan::Effect) -> core::option::Option<&str>
 pub fn nika_compile_reader::plan::Plan::from_json(record: &serde_json::value::Value) -> core::result::Result<Self, alloc::string::String>
 pub fn nika_compile_reader::plan::Plan::has(&self, op: nika_compile_reader::plan::Op) -> bool
 pub fn nika_compile_reader::plan::Plan::obligation(&self, word: &str) -> bool
@@ -1580,6 +1581,7 @@ pub fn nika_compile_reader::text::banner_sentence(body: &str) -> core::option::O
 pub fn nika_compile_reader::text::exact_excerpt(intent: &str, evidence: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_compile_reader::text::fold_quote(ch: char) -> char
 pub fn nika_compile_reader::text::is_label(seg: &str) -> bool
+pub fn nika_compile_reader::text::quoted_literal(text: &str) -> core::option::Option<alloc::string::String>
 pub mod nika_compile_reader::trigger_words
 pub const nika_compile_reader::trigger_words::ARRIVAL_WORDS: &[&str]
 pub const nika_compile_reader::trigger_words::AT: &[&str]

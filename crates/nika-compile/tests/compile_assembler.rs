@@ -33,8 +33,17 @@ fn policy() -> AuthoringPolicy {
     AuthoringPolicy::new("mock/authoring", 1024, Duration::from_secs(2))
 }
 
+mod common;
+
+/// The orders sources as the CLI observes them (R4 S1: an unobserved key is asked, not read).
+fn world() -> Value {
+    let keys: &[&str] = &["order_id", "customer", "amount", "amount_eur", "status"];
+    common::observed(&[("./data/orders.csv", keys), ("./data/orders.json", keys)])
+}
+
 async fn compile(intent: &str, plan: &Value, answers: &[(&str, &str)]) -> CompileOutcome {
-    let mut request = CompileRequest::create(intent).with_authoring_policy(policy());
+    let mut request =
+        (CompileRequest::create(intent).with_authoring_policy(policy())).with_knowledge(world());
     for (key, literal) in answers {
         request = request.answer(*key, *literal);
     }
@@ -46,7 +55,8 @@ async fn compile(intent: &str, plan: &Value, answers: &[(&str, &str)]) -> Compil
 /// The answer-round door the CLI control uses: a trusted recorded plan replayed for its
 /// intent, zero provider calls.
 fn replay(intent: &str, record: &Value, answers: &[(&str, &str)]) -> CompileOutcome {
-    let mut request = CompileRequest::create(intent).with_plan(record.clone());
+    let mut request =
+        (CompileRequest::create(intent).with_plan(record.clone())).with_knowledge(world());
     for (key, literal) in answers {
         request = request.answer(*key, *literal);
     }

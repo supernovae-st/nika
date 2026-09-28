@@ -16,13 +16,19 @@
 //!   the recorded one unseen. That hole is open; a rule the grammar reads never falls back to
 //!   this weaker law.
 //! - Any other rule cannot be re-derived here: it is refused by name, never trusted.
+//! - A written literal (a `content` binding) is the one the reader reads as a write's content.
+//! - An identity (no clause, stage, program or flag) is a conversion's: bound only where the
+//!   reader reads its words as that very conversion, never by a seat's law.
 use crate::plan::Plan;
 use crate::rules::{self, Rule};
 use serde_json::Value;
 
-/// The first recorded rule its law does not re-derive, named with what differs, or `None`
-/// when every rule is bound to its words.
+/// The first recorded literal or rule its law does not re-derive, named with what differs, or
+/// `None` when every one is bound to its words.
 pub(crate) fn unbound(plan: &Plan, intent: &str, observed: Option<Vec<String>>) -> Option<String> {
+    if let Some(why) = unread_content(plan, intent) {
+        return Some(why);
+    }
     let mut hints = vec![crate::columns::columns_hint(intent), Vec::new()];
     hints.extend(observed);
     plan.rules
@@ -30,8 +36,32 @@ pub(crate) fn unbound(plan: &Plan, intent: &str, observed: Option<Vec<String>>) 
         .find_map(|rule| unbound_rule(rule, plan, intent, &hints))
 }
 
+/// A written literal is the reader's own: the request's reading states the same literal as a
+/// write's content, so a record never writes text the request only quotes, matches or names
+/// (a record without one is not read again).
+fn unread_content(plan: &Plan, intent: &str) -> Option<String> {
+    let mut stated = plan
+        .bindings
+        .iter()
+        .filter(|b| b.role == "content")
+        .peekable();
+    stated.peek()?;
+    let read = crate::lexicon::read(intent).plan.bindings;
+    let unread = stated.find(|b| !read.contains(b))?;
+    Some(format!(
+        "the recorded content {} is not a literal the request writes",
+        unread.literal
+    ))
+}
+
 fn unbound_rule(rule: &Rule, plan: &Plan, intent: &str, hints: &[Vec<String>]) -> Option<String> {
     let text = rule.text();
+    if !rule.filters() && !rule.shaped() && !rule.summary() && !rule.lines() {
+        let converted = crate::lexicon::read(text).plan.rules.contains(rule);
+        return (!converted).then(|| {
+            format!("the recorded identity for `{text}` is no conversion its words state")
+        });
+    }
     let mut readings: Vec<Rule> = hints
         .iter()
         .filter_map(|hint| rules::synthesize(text, hint))

@@ -120,21 +120,56 @@ fn absent_empty_unknown_and_unreadable_are_not_empty_complete_schemas() {
     assert_eq!(columns(Some(&mixed), "orders.json"), Some(vec![]));
     assert_eq!(columns(Some(&mixed), "other.json"), None);
 }
+/// With nothing observed, a key the request only names is inferred (R4 S1): it is asked for,
+/// never lowered; the request's own column list, or an answer, grounds it as asserted.
 #[test]
-fn parameterized_authoring_without_observation_keeps_its_existing_rule() {
-    let req = CompileRequest::create("Read ./future.json and keep status equal to delivered");
-    let mut out = crate::initial();
+fn an_unobserved_key_is_asked_unless_the_request_declares_it_or_an_answer_names_it() {
     let rule = filter("status");
-    let bound = ground_rule(
+    let named = CompileRequest::create("Read ./future.json and keep status equal to delivered");
+    let mut out = crate::initial();
+    let asked = ground_rule(
         rule.clone(),
         "future.json",
-        &req,
+        &named,
         &mut out,
         &mut BTreeSet::new(),
-    )
-    .unwrap();
-    assert_eq!(bound.jq(), rule.jq());
+    );
+    assert!(asked.is_none());
+    assert_eq!(out.questions[0].key, "const.rule_field_1");
+    assert_eq!(out.questions[0].answer_type, crate::QuestionType::Text);
+    let grounding = &out.provenance.decision.as_ref().unwrap()["grounding"][0];
+    assert_eq!(grounding["grade"], "inferred");
+    assert_eq!(grounding["admissible"], false);
+    let declared = CompileRequest::create(
+        "Read ./future.json (columns id, status) and keep status equal to delivered",
+    );
+    let mut out = crate::initial();
+    let kept = ground_rule(
+        rule.clone(),
+        "future.json",
+        &declared,
+        &mut out,
+        &mut BTreeSet::new(),
+    );
+    assert_eq!(kept.unwrap().jq(), rule.jq());
     assert!(out.questions.is_empty());
+    assert_eq!(
+        out.provenance.decision.as_ref().unwrap()["grounding"][0]["grade"],
+        "user_asserted"
+    );
+    let answered = named.answer("const.rule_field_1", "\"state\"");
+    let mut out = crate::initial();
+    let rebound = ground_rule(
+        rule,
+        "future.json",
+        &answered,
+        &mut out,
+        &mut BTreeSet::new(),
+    );
+    assert_eq!(rebound.unwrap().source_fields(), ["state"]);
+    let grounding = &out.provenance.decision.as_ref().unwrap()["grounding"][0];
+    assert_eq!(grounding["bound_by"], "answer");
+    assert_eq!(grounding["grade"], "user_asserted");
 }
 #[test]
 fn replay_retains_the_observed_choices_and_fresh_observations_take_precedence() {

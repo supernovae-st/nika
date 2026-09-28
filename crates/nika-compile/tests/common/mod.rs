@@ -126,3 +126,32 @@ pub(crate) fn candidates(doc: &Value) -> Vec<Value> {
 pub(crate) fn route(doc: &Value) -> String {
     doc["provenance"]["decision"]["route"].to_string()
 }
+
+/// What the CLI host observes of the stated files (the shape `nika-cli-host`'s observation
+/// emits, R4 S1): a CSV's header, a JSON file's keys in every sampled record; a bounded sample,
+/// never a complete schema. A request whose source nobody observed grounds no key by its words.
+pub(crate) fn observed(files: &[(&str, &[&str])]) -> Value {
+    let rows: Vec<Value> = files
+        .iter()
+        .map(|(path, keys)| {
+            let csv = std::path::Path::new(path)
+                .extension()
+                .is_some_and(|e| e.eq_ignore_ascii_case("csv"));
+            let mut row = json!({"path": path, "state": "observed", "complete": false,
+                "kind": if csv { "csv" } else { "json" }, "columns": keys});
+            if !csv {
+                row["common_columns"] = json!(keys);
+            }
+            row
+        })
+        .collect();
+    json!({ "observed": rows })
+}
+
+/// The E14 near-miss fixtures, as the CLI observed them.
+pub(crate) fn e14_world() -> Value {
+    observed(&[
+        ("./tickets.json", &["id", "status", "amount", "score"]),
+        ("./sales.csv", &["client", "amount", "montant", "status"]),
+    ])
+}

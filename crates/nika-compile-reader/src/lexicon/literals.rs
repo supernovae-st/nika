@@ -9,9 +9,11 @@ use super::super::plan::{Binding, Plan};
 use super::cues::{ATTEMPT_NOUNS, BOUND_WORDS, CATEGORY_MARKERS, NUMBER_WORDS};
 use super::normalize;
 
-/// Every literal token of the intent, as a binding of its role, in order of appearance.
+/// Every literal token of the intent, as a binding of its role, in order of appearance; a
+/// token inside quoted content is what the workflow writes or matches, never a literal of it.
 pub(super) fn collect_bindings(intent: &str, plan: &mut Plan) {
-    for word in intent.split_whitespace() {
+    let offset = |word: &str| word.as_ptr() as usize - intent.as_ptr() as usize;
+    for word in (intent.split_whitespace()).filter(|w| !super::quoted_at(intent, offset(w))) {
         let token = word.trim_end_matches(['.', ',', ';', ')', ']', ':']);
         if token.starts_with("http://") || token.starts_with("https://") {
             plan.bindings.push(Binding {

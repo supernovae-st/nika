@@ -167,13 +167,18 @@ fn a_grouping_a_quotation_or_an_adjective_is_unchanged() {
         "Résume les ventes de chaque mois de ./ventes.csv dans ./out/resume.md",
         "Résume ./notes.md dans ./out/resume.md pour chaque mois",
         "Résume les tickets de ./tickets.json par jour dans ./out/resume.md",
-        "Écris \"réunion chaque lundi\" dans ./out/note.txt",
         "Fais-moi un rapport hebdomadaire des trucs importants",
     ] {
         let out = with_model(intent);
         assert_eq!(out.status, CompileStatus::Ready, "{intent}: {out:#?}");
         assert!(out.requested_trigger.is_none(), "{intent}: {out:#?}");
     }
+    // The quoted text is written as it is (G2): no model, and no trigger either.
+    let intent = "Écris \"réunion chaque lundi\" dans ./out/note.txt";
+    let out = compile(&CompileRequest::create(intent)).unwrap();
+    assert_eq!(out.status, CompileStatus::Ready, "{intent}: {out:#?}");
+    assert!(out.requested_trigger.is_none(), "{intent}: {out:#?}");
+    assert!(out.questions.is_empty(), "{intent}: {out:#?}");
 }
 
 fn native() -> AuthoringPolicy {

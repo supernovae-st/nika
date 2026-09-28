@@ -31,8 +31,8 @@ use super::plan::{
     Binding, Effect, EffectPolicy, EffectVerb, Obligation, ObligationKind, Op, Plan, Step,
 };
 use super::{gates, hot, objects};
-pub(crate) use cadence::quoted;
-use cadence::{cut_clause_tail, cut_head, cut_tail, quoted_at, record_recurrence, settle_tails};
+use cadence::{cut_clause_tail, cut_head, cut_tail, record_recurrence, settle_tails};
+pub(crate) use cadence::{quoted, quoted_at, unquoted};
 pub use cues::settle_retrieval;
 pub(crate) use cues::{ARTICLES, OBJECT_CONNECTORS};
 use cues::{
@@ -151,6 +151,12 @@ fn written_object(
     let (Some(object), Some(object_lower)) = (detail.get(..pos), detail_lower.get(..pos)) else {
         return;
     };
+    // « write 'hello' to ./a.txt »: one quoted literal is the content, copied, never drafted
+    // nor a reference back; a structured destination still asks how it holds a text.
+    if Structured::of(path).is_none() && crate::text::quoted_literal(object).is_some() {
+        let literal = object.trim().to_owned();
+        return reading.plan.bindings.push(Binding::new("content", literal));
+    }
     let refers_back = {
         let earlier = reading
             .seen
@@ -189,6 +195,23 @@ fn written_object(
             detail: object.trim().to_owned(),
             categories: Vec::new(),
         });
+    }
+}
+
+/// What a gated write writes when it is a quoted literal (« ask me before writing 'hello' to
+/// ./a.txt »): its words after the verb, read by the write's own law.
+fn gated_literal(own: &str, clause: &str, reading: &mut Reading) {
+    let Some((_, detail)) = own.trim().split_once(char::is_whitespace) else {
+        return;
+    };
+    let (lower, path) = (normalize(detail), objects::stated_path(detail));
+    let at = |p: &str| p.as_ptr() as usize - detail.as_ptr() as usize;
+    let object =
+        path.and_then(|p| objects::destination_at(&lower, at(p)).and_then(|to| detail.get(..to)));
+    if let (Some(path), Some(object)) = (path, object)
+        && crate::text::quoted_literal(object).is_some()
+    {
+        written_object(detail, &lower, path, clause, reading);
     }
 }
 
@@ -234,6 +257,12 @@ pub fn split_sentences(intent: &str) -> Vec<&str> {
     let mut out = Vec::new();
     let mut start = 0;
     let bytes = intent.as_bytes();
+    // A newline inside a quote that closes after it is content (« write 'one <newline> two' to
+    // ./a.txt »); past the last closed quote, an unclosed mark never carries a newline.
+    let outside = |p: &usize| intent.is_char_boundary(*p) && !quoted_at(intent, *p);
+    let closed = (intent.contains('\n'))
+        .then(|| (0..=intent.len()).rev().find(outside))
+        .flatten();
     for (index, byte) in bytes.iter().enumerate() {
         let terminal = match byte {
             b'.' | b'!' | b'?' => {
@@ -241,7 +270,7 @@ pub fn split_sentences(intent: &str) -> Vec<&str> {
                     && !quoted_at(intent, index)
             }
             b';' => !quoted_at(intent, index),
-            b'\n' => true,
+            b'\n' => closed.is_none_or(|c| index > c) || !quoted_at(intent, index),
             _ => false,
         };
         if terminal {
@@ -525,8 +554,10 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
     if text.is_empty() {
         return;
     }
-    if (text.contains("pose-moi la question") || text.contains("ask me the question"))
-        && !text.contains("pas encore décidé")
+    // The phrases read by substring read only what the clause states outside quotes.
+    let open = unquoted(text);
+    if (open.contains("pose-moi la question") || open.contains("ask me the question"))
+        && !open.contains("pas encore décidé")
     {
         // The companion of an explicit indecision: context, accounted for, never an operation.
         reading.plan.constraints.push(clause.to_owned());
@@ -563,8 +594,8 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
         );
         return;
     }
-    if (text.contains("pas encore décidé")
-        || text.contains("not decided")
+    if (open.contains("pas encore décidé")
+        || open.contains("not decided")
         || text.starts_with("maybe "))
         && let Some(verb) = effect_words(text, &reading.columns).first().copied()
     {
@@ -711,11 +742,21 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
         read_prefix(prefix_before(text, pos), clause, reading, state);
         reading.policy_clauses.push(clause.to_owned());
         let after = text.get(end..).unwrap_or_default();
-        let target = objects::destination_target(after);
+        // The gated effect's words as the request spells them: its path, what it writes.
+        let from = text.as_ptr() as usize - lower.as_ptr() as usize + end;
+        let own = (clause.len() == lower.len())
+            .then(|| clause.get(from..))
+            .flatten();
+        let target = objects::destination_target(own.unwrap_or(after));
         let verbs = effect_words(after, &reading.columns);
         if verbs.is_empty() {
             gating::gate_last_automatic(reading, state, gating::names_sending(text));
         } else {
+            if verbs.contains(&EffectVerb::Write)
+                && let Some(own) = own
+            {
+                gated_literal(own, clause, reading);
+            }
             for verb in verbs {
                 let literal = (verb.moves_money() && literals::money_literal(clause))
                     .then(|| clause.to_owned());
@@ -826,10 +867,11 @@ pub fn read(intent: &str) -> Reading {
                 literal: sentence.to_owned(),
             });
         }
-        if text.contains("contradiction")
-            || text.contains("contradictory")
-            || text.contains("these two instructions")
-            || text.contains("ces deux consignes")
+        let open = unquoted(text);
+        if open.contains("contradiction")
+            || open.contains("contradictory")
+            || open.contains("these two instructions")
+            || open.contains("ces deux consignes")
         {
             state.conflict_marker = true;
             reading.plan.constraints.push(sentence.to_owned());
@@ -1059,11 +1101,7 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, money: &mut [
     let detail_lower = strip_filler(text.get(consumed_head..).unwrap_or_default());
     let consumed = lower.len() - detail_lower.len();
     let mut detail = remainder(original, lower, consumed).to_owned();
-    let path = detail
-        .split_whitespace()
-        .map(|w| w.trim_end_matches(['.', ',', ';', ')', ':']))
-        .find(|w| (w.starts_with("./") || (w.starts_with('/') && w.contains('.'))) && w.len() > 2)
-        .map(str::to_owned);
+    let path = objects::stated_path(&detail).map(str::to_owned);
     let mut detail_lower = detail_lower;
     let lowered_path: String;
     if let Some(path) = &path

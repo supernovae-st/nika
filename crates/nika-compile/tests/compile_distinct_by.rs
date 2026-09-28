@@ -35,7 +35,9 @@ fn radio_proposal(keys: &[&str]) -> Value {
 #[tokio::test]
 async fn duplicates_by_two_stated_keys_are_a_computation_the_compiler_writes() {
     let provider = Provider::new(radio_proposal(&["titre", "artiste"]));
-    let req = CompileRequest::create(RADIO).with_authoring_policy(policy());
+    let seen: &[&str] = &["titre", "artiste", "heure"];
+    let req = (CompileRequest::create(RADIO).with_authoring_policy(policy()))
+        .with_knowledge(common::observed(&[("./radio/diffusions.json", seen)]));
     let out = compile_with_provider(&req, &provider).await.unwrap();
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     assert!(keys(&out).is_empty(), "{out:#?}");
@@ -67,7 +69,9 @@ async fn duplicates_by_two_stated_keys_are_a_computation_the_compiler_writes() {
 #[tokio::test]
 async fn a_key_the_request_never_names_is_no_rule() {
     let provider = Provider::new(radio_proposal(&["titre", "album"]));
-    let req = CompileRequest::create(RADIO).with_authoring_policy(policy());
+    let seen: &[&str] = &["titre", "artiste", "heure"];
+    let req = (CompileRequest::create(RADIO).with_authoring_policy(policy()))
+        .with_knowledge(common::observed(&[("./radio/diffusions.json", seen)]));
     let out = compile_with_provider(&req, &provider).await.unwrap();
     assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
     let candidate = out.candidate.as_deref().unwrap_or_default();

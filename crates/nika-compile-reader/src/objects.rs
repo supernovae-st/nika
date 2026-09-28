@@ -368,14 +368,21 @@ fn file_phrase_span(text: &str) -> Option<(usize, usize)> {
     None
 }
 
+/// The first local path a text names outside quoted content (a `./` path or a rooted file,
+/// trailing punctuation dropped): a path inside quotes is what the workflow writes or matches.
+pub(crate) fn stated_path(text: &str) -> Option<&str> {
+    let offset = |w: &str| w.as_ptr() as usize - text.as_ptr() as usize;
+    (text.split_whitespace())
+        .filter(|w| !crate::lexicon::quoted_at(text, offset(w)))
+        .map(|w| w.trim_end_matches(['.', ',', ';', ')', ':']))
+        .find(|w| (w.starts_with("./") || (w.starts_with('/') && w.contains('.'))) && w.len() > 2)
+}
+
 /// The target an effect phrase names: its destination path when a connector introduces one
 /// (`writing it to ./final.md` → `./final.md`), else the phrase itself.
 pub(crate) fn destination_target(text: &str) -> &str {
-    let path = text
-        .split_whitespace()
-        .map(|w| w.trim_end_matches(['.', ',', ';', ')', ':']))
-        .find(|w| (w.starts_with("./") || (w.starts_with('/') && w.contains('.'))) && w.len() > 2);
-    match path.and_then(|p| text.find(p).map(|at| (p, at))) {
+    let at = |p: &str| p.as_ptr() as usize - text.as_ptr() as usize;
+    match stated_path(text).map(|p| (p, at(p))) {
         Some((p, at)) if destination_at(text, at).is_some() || text.trim_start().starts_with(p) => {
             p
         }

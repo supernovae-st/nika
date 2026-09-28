@@ -185,7 +185,7 @@ impl AuthoringContext {
         self.decision.as_ref()
     }
 
-    /// This project root: a seated compile observes the files its request names under it (the
+    /// This project root: every compile observes the files its request names under it (the
     /// shared bounded observer — headers, keys, short categorical values, never a row), never
     /// through a link that leads outside it. Without a root nothing is observed.
     #[must_use]
@@ -194,17 +194,10 @@ impl AuthoringContext {
         self
     }
 
-    /// The project root a seated compile observes under, when one is set.
+    /// The project root every compile observes under, when one is set.
     #[must_use]
     pub fn project_root(&self) -> Option<&std::path::Path> {
         self.project.as_deref()
-    }
-
-    /// Set the project root in place (the session's own root, at each seated compile).
-    pub(crate) fn set_project_root(&mut self, root: &std::path::Path) {
-        if self.project.as_deref() != Some(root) {
-            self.project = Some(root.to_path_buf());
-        }
     }
 
     /// A host's typed values over the environment's (either may name nothing), resolved by the

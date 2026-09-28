@@ -275,8 +275,11 @@ pub(crate) fn hot(
                 ],
             );
             record_retrieval(out, intent, None);
+            // A contradiction is the human's whatever else the reading could not settle (R4
+            // S0): stated with both clauses beside every unresolved one, never left to a model.
+            let contradicted = super::assemble::refuse_contradiction(&reading.plan, out);
             unresolved(&reading, out);
-            if reading.unresolved.is_empty() && reading.ambiguous.is_empty() {
+            if !contradicted && reading.unresolved.is_empty() && reading.ambiguous.is_empty() {
                 super::finding(
                     out,
                     DiagnosticKind::Unknown,

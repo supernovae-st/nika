@@ -16,13 +16,16 @@ use nika_onboard::compile::{CompileOutcome, CompileQuestion, CompileRequest, rev
 use super::{SessionRuntime, TurnOutcome, ceiling_in, named_files};
 use crate::activity::{Activity, Phase};
 use crate::authoring::{
-    AuthoringContext, AuthoringError, AuthoringRound, AuthoringSeat, Reading,
-    compile_deterministic, compile_in, is_cancel, is_greeting, reasons,
+    AuthoringContext, AuthoringError, AuthoringRound, AuthoringSeat, Reading, compile_in,
+    is_cancel, is_greeting, reasons,
 };
 use crate::change::{RunRequest, check_on_disk};
 use crate::outcome::{ProposalId, Refusal, RefusalClass};
 use crate::review;
 use crate::turn::{RouteRecord, RoutingMethod, SessionPhase, TurnAct, TurnDecision};
+
+/// The seat of the readings the session settles without a model: zero calls, the project observed.
+const DETERMINISTIC: AuthoringSeat = AuthoringSeat::Deterministic { why: None };
 
 impl SessionRuntime {
     /// The authoring question the next line answers, when one is open.
@@ -64,14 +67,10 @@ impl SessionRuntime {
         request: &CompileRequest,
         intent: &str,
     ) -> Result<CompileOutcome, AuthoringError> {
+        let context = self.project_context();
         if self.money_blocks_cognition() {
-            return compile_deterministic(request);
+            return compile_in(&DETERMINISTIC, &context, request, intent);
         }
-        // The session's own project root, never the process's working directory.
-        let context = self
-            .authoring_context
-            .clone()
-            .with_project_root(self.snapshot.root.clone());
         self.seated(&self.seat, |account| match account {
             Some(a) => crate::authoring::compile_in_with_admission(
                 &self.seat, &context, request, intent, a,
@@ -80,11 +79,12 @@ impl SessionRuntime {
         })
     }
 
-    /// Every seated round observes the files its request names under the session's own
-    /// project root (never the process's working directory, never through a link outside it).
-    fn observe_project(&mut self) {
+    /// The session's authoring context rooted at its own project, never the process's working
+    /// directory: every round observes the files it names there, never through a link outside it
+    /// (R4 S1). A seated round roots the session's context with it; a deterministic one reads it.
+    fn project_context(&self) -> AuthoringContext {
         let root = self.snapshot.root.clone();
-        self.authoring_context.set_project_root(&root);
+        self.authoring_context.clone().with_project_root(root)
     }
 
     /// A free-text line as work to build: the deterministic ladder first
@@ -98,7 +98,8 @@ impl SessionRuntime {
             return None;
         }
         let round = AuthoringRound::new(intent);
-        let out = match compile_deterministic(&round.request()) {
+        let context = self.project_context();
+        let out = match compile_in(&DETERMINISTIC, &context, &round.request(), intent) {
             Ok(out) => out,
             Err(e) => return Some(self.machinery(&e)),
         };
@@ -186,7 +187,7 @@ impl SessionRuntime {
         if self.money_blocks_cognition() {
             return self.cognition_money_refusal();
         }
-        self.observe_project();
+        self.authoring_context = self.project_context();
         self.activity(&Activity::now(Phase::Authoring, self.authoring_note()));
         match self.compile_round(&round, &self.seat) {
             Ok(out) => match Reading::of(out) {
@@ -669,7 +670,8 @@ impl SessionRuntime {
     /// first); the deterministic seat settles what it reads.
     pub(super) fn compile_again(&mut self, round: AuthoringRound) -> TurnOutcome {
         if self.money_blocks_cognition() {
-            return match compile_deterministic(&round.request()) {
+            let (context, contextual) = (self.project_context(), round.effective_intent());
+            return match compile_in(&DETERMINISTIC, &context, &round.request(), &contextual) {
                 Ok(out) => self.settle(round, Reading::of(out)),
                 Err(e) => self.machinery(&e),
             };
@@ -678,7 +680,7 @@ impl SessionRuntime {
         if self.seat.has_model() && round.edit.is_none() {
             return self.compile_under_seat(round);
         }
-        self.observe_project();
+        self.authoring_context = self.project_context();
         match self.compile_round(&round, &self.seat) {
             Ok(out) => {
                 let reading = Reading::of(out);

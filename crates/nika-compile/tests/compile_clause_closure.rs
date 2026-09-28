@@ -30,6 +30,11 @@ const CONTRADICTIONS: &[&str] = &[
     "Écris 'bonjour' dans ./a.txt, mais ne rien écrire.",
 ];
 
+/// A request over the E14 fixtures as the CLI observes them (R4 S1: an unobserved key is asked).
+fn observing(intent: &str) -> CompileRequest {
+    CompileRequest::create(intent).with_knowledge(common::e14_world())
+}
+
 /// The write effects the reader states for a request, with their policies.
 fn writes(intent: &str) -> Vec<EffectPolicy> {
     lexicon::read(&lexicon::fold_apostrophes(intent))
@@ -396,7 +401,7 @@ fn requested(out: &CompileOutcome) -> Option<(String, String, String)> {
 /// program never runs itself; R4 112).
 #[test]
 fn a_cadence_is_the_same_trigger_wherever_the_request_places_it() {
-    let baseline = compile(&CompileRequest::create(CADENCE_PLACEMENTS[0])).unwrap();
+    let baseline = compile(&observing(CADENCE_PLACEMENTS[0])).unwrap();
     assert_eq!(baseline.status, CompileStatus::Ready, "{baseline:#?}");
     let schedule = Some((
         "schedule".to_owned(),
@@ -405,7 +410,7 @@ fn a_cadence_is_the_same_trigger_wherever_the_request_places_it() {
     ));
     assert_eq!(requested(&baseline), schedule);
     for intent in &CADENCE_PLACEMENTS[1..] {
-        let out = compile(&CompileRequest::create(*intent)).unwrap();
+        let out = compile(&observing(intent)).unwrap();
         assert_eq!(out.status, CompileStatus::Ready, "{intent}: {out:#?}");
         assert_eq!(out.candidate, baseline.candidate, "{intent}");
         assert_eq!(requested(&out), schedule, "{intent}");
@@ -443,8 +448,8 @@ fn a_nonleading_cadence_and_a_ban_beside_a_trigger_are_both_kept() {
     );
     // The ban of an effect nothing requests adds nothing to the program: the same bytes and the
     // same schedule as the request without it.
-    let out = compile(&CompileRequest::create(intent)).unwrap();
-    let without = compile(&CompileRequest::create(CADENCE_PLACEMENTS[1])).unwrap();
+    let out = compile(&observing(intent)).unwrap();
+    let without = compile(&observing(CADENCE_PLACEMENTS[1])).unwrap();
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     assert_eq!(out.candidate, without.candidate);
     assert_eq!(requested(&out), requested(&without));

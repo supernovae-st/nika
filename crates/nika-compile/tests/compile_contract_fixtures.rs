@@ -15,6 +15,13 @@ use nika_compile::{CompileRequest, compile, outcome_document};
 use serde_json::{Value, json};
 use std::path::PathBuf;
 
+/// The tickets source as the CLI observes it: a READY rule reads only keys its source shows
+/// (R4 S1), and a caller that observed nothing is asked for them.
+fn tickets() -> Value {
+    json!({"observed": [{"path": "./tickets.json", "state": "observed", "complete": false,
+        "kind": "json", "columns": ["id", "status"], "common_columns": ["id", "status"]}]})
+}
+
 struct Case {
     name: &'static str,
     state: &'static str,
@@ -29,6 +36,7 @@ const CASES: &[Case] = &[
             CompileRequest::create(
                 "Read ./tickets.json, keep only the rows whose status is open and write them to ./open.json",
             )
+            .with_knowledge(tickets())
         },
     },
     Case {
@@ -83,6 +91,7 @@ const CASES: &[Case] = &[
             CompileRequest::create(
                 "Every weekday at 8, read ./tickets.json, keep only the rows whose status is open and write them to ./open.json",
             )
+            .with_knowledge(tickets())
         },
     },
     Case {
@@ -110,6 +119,7 @@ const CASES: &[Case] = &[
             CompileRequest::create(
                 "Every weekday at 8, read ./tickets.json, keep only the rows whose status is open and write them to ./open.json",
             )
+            .with_knowledge(tickets())
             .answer("trigger.timezone", r#""Europe/Paris""#)
             .answer("trigger.missed", r#""rattraper-une-fois""#)
             .answer("trigger.overlap", r#""sauter""#)

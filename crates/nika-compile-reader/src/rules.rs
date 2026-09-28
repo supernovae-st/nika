@@ -181,6 +181,16 @@ pub fn numeric_cue(phrase: &str) -> Option<Comparator> {
     cue_in(NUMERIC_CUES, phrase)
 }
 
+/// Whether a text states a numeric comparison anywhere, typed or not (« above the agreed
+/// threshold » compares to a value the grammar cannot type).
+pub(crate) fn compares(text: &str) -> bool {
+    let tokens = tokenize(text);
+    (0..tokens.len()).any(|at| {
+        (1..=CUE_WIDTH)
+            .any(|width| phrase(&tokens, at, width).is_some_and(|p| numeric_cue(&p).is_some()))
+    })
+}
+
 fn equality_cue(phrase: &str) -> Option<Comparator> {
     cue_in(EQUALITY_CUES, phrase)
 }
@@ -579,9 +589,6 @@ impl Rule {
             Some(program) => Some(program?),
             None => None,
         };
-        if clauses.is_empty() && shape == Shape::default() && program.is_none() {
-            return None;
-        }
         let junction = match value.get("junction").and_then(Value::as_str) {
             Some("or") => Junction::Or,
             Some(_) => Junction::And, // faithful rejects unknown present values
@@ -590,6 +597,12 @@ impl Rule {
         };
         let summary = value.get("summary")?.as_bool().unwrap_or(false);
         let lines = value.get("lines").and_then(Value::as_bool).unwrap_or(false);
+        // An empty rule is the identity a conversion states, re-read by its binding law; a flag
+        // over no clause and no stage is no complete rule.
+        let empty = clauses.is_empty() && shape == Shape::default() && program.is_none();
+        if empty && (summary || lines) {
+            return None;
+        }
         let rule = Self {
             text,
             clauses,

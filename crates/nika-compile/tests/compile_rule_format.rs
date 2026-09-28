@@ -29,7 +29,9 @@ fn podio_proposal() -> Value {
 #[tokio::test]
 async fn a_format_the_rule_states_is_carried_by_the_compute_task() {
     let provider = Provider::new(podio_proposal());
-    let req = CompileRequest::create(PODIO).with_authoring_policy(policy());
+    let seen: &[&str] = &["corredor", "dorsal", "tiempo_seg"];
+    let req = (CompileRequest::create(PODIO).with_authoring_policy(policy()))
+        .with_knowledge(common::observed(&[("./carrera/resultados.csv", seen)]));
     let out = compile_with_provider(&req, &provider).await.unwrap();
     assert!(
         !out.diagnostics
@@ -64,7 +66,9 @@ fn rail_proposal() -> Value {
 #[tokio::test]
 async fn a_single_digit_in_a_drafts_paraphrase_is_not_an_invented_literal() {
     let provider = Provider::new(rail_proposal());
-    let req = CompileRequest::create(RAIL).with_authoring_policy(policy());
+    let seen: &[&str] = &["id", "line", "minutes", "cause"];
+    let req = (CompileRequest::create(RAIL).with_authoring_policy(policy()))
+        .with_knowledge(common::observed(&[("./rail/incidents.json", seen)]));
     let out = compile_with_provider(&req, &provider).await.unwrap();
     assert!(
         !out.diagnostics

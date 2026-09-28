@@ -16,4 +16,8 @@
   typed computation is bound to the law that admitted it, not yet to its
   meaning: its values and numbers must be stated in their own clause (a
   schedule's hour is no threshold), but another comparator, aggregate
-  or listed field can still pass.
+  or listed field can still pass. A conversion's identity is recorded
+  and replays on its answer round (« convert ./a.csv into ./a.json and
+  write a summary of it … » could never apply its model answer), bound
+  to that very conversion: a record that replaces a filter by the
+  identity is refused.

@@ -312,7 +312,7 @@ fn source_like(path: &str) -> bool {
 /// of the reading (a step of that operation, an effect of that verb, an obligation, a recorded
 /// ambiguity), or lie inside a clause the reader already reports as unresolved, or inside a
 /// rule the closed grammar parsed (there, `open` in `whose status is open` is a value the
-/// predicate compares, never a verb).
+/// predicate compares, never a verb), or inside quoted content the workflow writes or matches.
 fn cue_coverage(lower: &str, reading: &Reading, why: &mut Vec<String>) {
     let reported: Vec<String> = reading
         .unresolved
@@ -334,7 +334,7 @@ fn cue_coverage(lower: &str, reading: &Reading, why: &mut Vec<String>) {
         let Some((phrase, head)) = lexicon::head_of_exact(&lower[index..]) else {
             continue;
         };
-        if seen.contains(&phrase) {
+        if seen.contains(&phrase) || lexicon::quoted_at(lower, index) {
             continue;
         }
         let inside_reported = reported.iter().any(|clause| {
@@ -626,13 +626,15 @@ pub fn unrecheckable_revision(plan: &Plan, why: &mut Vec<String>) {
 /// A write effect that names content ("write a brief of under 150 words … to ./out/x.md",
 /// "escreve em ./out/x.md a lista dos produtos …") needs a step that produces it; with
 /// nothing drafted, extracted or computed, the content would be invented by the assembler.
-/// The target path and the words that only link the write to it never count as content.
+/// The target path and the words that only link the write to it never count as content, and
+/// a stated literal is the content itself (« write 'hello' to ./a.txt »).
 fn write_without_producer(plan: &Plan, why: &mut Vec<String>) {
     let produces = plan.has(Op::Draft) || plan.has(Op::Extract) || plan.has(Op::Compute);
     if produces {
         return;
     }
-    for effect in plan.effects.iter().filter(|e| e.verb == EffectVerb::Write) {
+    let unstated = |e: &&Effect| e.verb == EffectVerb::Write && plan.content_of(e).is_none();
+    for effect in plan.effects.iter().filter(unstated) {
         let evidence = effect.evidence.to_lowercase();
         let Some(after_head) = WRITE_HEADS
             .iter()

@@ -114,6 +114,32 @@ material. An observed field choice is grounded in that source; a partial sample
 is not a complete schema. A missing field asks a closed clarification rather than
 silently selecting another key or returning an empty result.
 
+Every source key a typed rule reads over one file is grounded by one law
+(`observed/grounding.rs`, R4 S1) on creation and replay alike, and the decision
+records exactly what it decided (`decision.grounding`: rule, key, source, revision,
+grade, whether every sampled record holds it, what binds it, admissibility, an open
+obligation). Grades: `declared` (a CSV/TSV header names the column), `observed_complete`
+(a host that read the whole artifact), `observed_partial` (a bounded sample shows the key:
+presence, never absence, and the revision is the peek's hash, never the unread tail),
+`user_asserted` (the request's own column list, or an answer given in the context it was
+asked), `inferred` (anything else). A key is admissible only above `inferred` and bound by the
+request's own words, an answer or an approval: with nothing observed, a key the request merely
+names is asked for its exact spelling, never lowered, unless the request lists its columns. A
+word the observed keys do not hold is a closed choice over every observed key (the partial ones
+included); no synonym, spelling or similarity maps it. An answer counts only against the
+revision it was asked for: a replay whose fresh observation differs from the recorded one
+refuses it as stale and asks again. A key some sampled records lack is grounded, but what the
+rule does with those records (missing or null values compare, sort and total differently) is an
+operator law the request must state: the rule stays pending with that obligation named, never
+a default. The world is an input, never a CLI exception: a host supplies what it observed
+(`nika compile` observes the files every free-intent request states, under its working
+directory, on the deterministic door as on the authoring one; named skeletons read none), and
+a library or Serve caller supplies its own as `knowledge`; with neither, the law above asks.
+Not covered: nested paths, joins and folders of several files, the keys of a native-authored
+candidate's own jq, and every value or operator meaning (units, types, dates, null comparisons:
+a key present with a null value is grounded, and a numeric comparison over the null fails the
+run: S2 and S3).
+
 A pending transformation preserves intent, plan and observed source identity,
 field choices and bounded attempt lineage across answer rounds. Record replay
 rejects changed or malformed context as `PendingTransformError`, rendered through
@@ -154,7 +180,13 @@ aggregate, key, direction or limit, or dropped a key, is refused and the rule na
 filter must be what `line_filter` reads. A verified program may stand only where the grammar
 reads no typed rule. A seat's typed computation must be the fixpoint of its admitting law
 (`nika_compile_fidelity::predicate::rederives`). No field of the record selects a weaker law,
-and a rule nothing re-derives is refused by name. **Open, not closed by this law:** a seat's
+and a rule nothing re-derives is refused by name. A recorded written literal (a `content`
+binding) must be one the reader itself reads from the request as a write's content
+(`binding::unread_content`, the reader's own literal law re-run only when a record carries
+one): a record never writes text the request only quotes, matches or names. An identity
+(no clause, stage, program or flag) is a conversion's and is bound only where the reader reads
+its words as that very conversion, never by the seat's law: a conversion replays on its
+answer round, and a record that replaced a filter by the identity (every row kept) is refused. **Open, not closed by this law:** a seat's
 typed computation is bound to the law that admitted it, not to what its words mean. That law
 grounds a value, a number or a limit in the clause that states it (a schedule's hour is
 another clause's), a field among the request's columns, and a comparator, an aggregate, a
@@ -165,9 +197,23 @@ An effect the request's own words both ask for and prohibit (the reader's `Confl
 the human's (R4 S0): `surface::assemble::refuse_contradiction` refuses it with both clauses
 quoted as excerpts of the request, a `RequiresHuman` finding and one `intent.clarification`
 question, no candidate and no unrelated model, endpoint or path question. It is the one
-refusal every door states; no seat reads the contradiction to choose a side. This covers the
+refusal every door states; no seat reads the contradiction to choose a side. The deterministic
+door states it also when its reading holds a clause it cannot settle: beside every unresolved
+clause, never with an authoring model offered to resolve it. A refusal's decision record
+carries the stated ledger (`decision.ledger`): the contradicted effect, the unsupported work and
+every clause beside them, typed with their states, not only the plan and the sentence. This covers the
 contradictions the reader recognizes (a request and a ban of the same effect, object or
 destination, and a ban of every write), not every semantic incompatibility a request can hold.
+
+Constant work stays deterministic (R4 S0, G2). A write the reader states with a quoted literal
+as its content (`Plan::content_of`) is lowered to the existing `nika:write`: the literal's
+exact text (`text::quoted_literal`) is baked into the candidate as a constant
+(`const.output_content`, `const.<stem>_content`), a value the run never renders as a template,
+and reaches the write through `with.content`. No draft, no `infer`, no model question; with no
+step and only stated literals, no invocation item is declared. A gated write reviews that
+exact content and waits alone, after whatever the workflow read or computed; a banned or
+contradicted write is never emitted. A structured destination, an unquoted object, two
+literals or a transformation of one keeps its question.
 
 With attached authoring references, Escalate tries complete HOT and finite WARM judgments
 first, then gives the first open generation the native language card, original request,

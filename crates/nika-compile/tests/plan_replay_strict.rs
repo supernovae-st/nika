@@ -6,11 +6,19 @@
 use nika_compile::{CompileRequest, CompileStatus, compile};
 use serde_json::{Value, json};
 
+mod common;
+
+/// The request's source as the CLI observes it (R4 S1: an unobserved key is asked, not read).
+fn create(intent: &str) -> CompileRequest {
+    let keys: &[&str] = &["id", "status", "amount"];
+    CompileRequest::create(intent).with_knowledge(common::observed(&[("./tickets.json", keys)]))
+}
+
 const INTENT: &str =
     "Read ./tickets.json, keep only the rows whose status is open and write them to ./open.json";
 
 fn saved() -> (Value, String) {
-    let out = compile(&CompileRequest::create(INTENT)).expect("initial compilation");
+    let out = compile(&create(INTENT)).expect("initial compilation");
     assert_eq!(out.status, CompileStatus::Ready);
     (
         out.provenance.plan.expect("recorded semantic plan"),
@@ -77,7 +85,7 @@ fn without_observations(record: &mut Value) {
 #[test]
 fn saved_numeric_operands_are_numbers_from_the_stated_rule() {
     let intent = "Read ./tickets.json, keep only the rows whose amount is strictly greater than 50 and write them to ./open.json";
-    let out = compile(&CompileRequest::create(intent)).expect("compile numeric filter");
+    let out = compile(&create(intent)).expect("compile numeric filter");
     assert_eq!(out.status, CompileStatus::Ready);
     let record = out.provenance.plan.expect("plan");
     for literal in ["50 or true", "nan", "1", "500", "-50", "1e999", "50 | ."] {

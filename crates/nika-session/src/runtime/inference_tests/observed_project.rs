@@ -10,7 +10,8 @@ use crate::authoring::{
     AUTHORING_TIMEOUT, AuthoringContext, AuthoringRound, AuthoringSeat, compile_in_with_admission,
     session_policy,
 };
-use nika_onboard::compile::{CompileRequest, NativeMode, revise_intent};
+use crate::runtime::tests::ready;
+use nika_onboard::compile::{CompileRequest, CompileStatus, NativeMode, revise_intent};
 use nika_providers::InferenceAdmission;
 
 const SALES: &str = "Lis ventes.csv, garde les lignes dont statut vaut paye, écris-les dans paiements.csv avec le même en-tête et écris leur montant total sous forme de nombre dans paiements-total.txt.";
@@ -243,4 +244,139 @@ fn a_hot_copy_observes_the_source_without_claiming_model_presentation() {
     assert_eq!(observed["attached"], true);
     assert_eq!(observed["presented"], false);
     assert_eq!(observed["rows"][0]["state"], "observed");
+}
+
+/// A request over a CSV the test writes: its key named by the request, or not.
+const TICKETS: &str =
+    "Read ./tickets.csv, keep only the rows whose status is open and write them to ./open.csv";
+const TICKETS_WORD: &str =
+    "Read ./tickets.csv, keep only the rows whose state is open and write them to ./open.csv";
+
+fn tickets(root: &Path, extra: &str) {
+    std::fs::write(
+        root.join("tickets.csv"),
+        format!("id,status,amount\n1,open,10\n2,closed,20\n3,open,30\n{extra}"),
+    )
+    .expect("fixture");
+}
+
+/// A deterministic seat observes the project too (R4 S1): the key the request words and the
+/// file's header declares is grounded — READY, zero calls, the observation recorded — while the
+/// pure deterministic compile, with no root, has no world and asks the exact key.
+#[test]
+fn the_deterministic_seat_observes_the_named_source_and_grounds_its_key() {
+    let dir = tempfile::tempdir().unwrap();
+    tickets(dir.path(), "");
+    let seat = AuthoringSeat::Deterministic { why: None };
+    let request = CompileRequest::create(TICKETS);
+    let out = crate::authoring::compile_in(&seat, &context(dir.path()), &request, TICKETS)
+        .expect("compiles");
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    let decision = out.provenance.decision.as_ref().expect("decision");
+    let entry = &decision["grounding"][0];
+    assert_eq!(entry["field"], "status", "{decision:#}");
+    assert_eq!(entry["grade"], "declared", "{decision:#}");
+    assert!(
+        entry["revision"].as_str().is_some_and(|r| r.len() == 64),
+        "the revision is the peek's hash: {decision:#}"
+    );
+    assert!(decision["session"]["observed"].is_object(), "{decision:#}");
+    let pure = crate::authoring::compile_deterministic(&request).expect("compiles");
+    assert_ne!(pure.status, CompileStatus::Ready, "{pure:#?}");
+    assert!(
+        pure.questions.iter().any(|q| q.key == "const.rule_field_1"),
+        "{pure:#?}"
+    );
+}
+
+fn deterministic_session(root: &Path) -> SessionRuntime {
+    SessionRuntime::open(
+        root,
+        ready(crate::intelligence::IntelligenceKind::None, DataLocus::None),
+        Box::new(crate::reasoner::NoReasoner),
+    )
+}
+
+/// The Session's deterministic ladder observes the project (R4 S1): a word the file does not
+/// spell is asked over its observed keys; answered on the same file, the work is proposed; the
+/// same answer after the file changed maps another revision and is asked again.
+#[test]
+fn a_deterministic_session_asks_over_the_observed_keys_and_refuses_a_stale_answer() {
+    for changed in [false, true] {
+        let dir = tempfile::tempdir().unwrap();
+        tickets(dir.path(), "");
+        let mut s = deterministic_session(dir.path());
+        let TurnOutcome::Question { key, question } = s.turn(TICKETS_WORD) else {
+            panic!("the word the file does not spell is asked");
+        };
+        assert_eq!(key, "const.rule_field_1", "{question}");
+        assert!(
+            ["id", "status", "amount"]
+                .iter()
+                .all(|k| question.contains(k)),
+            "the observed keys are offered: {question}"
+        );
+        if changed {
+            tickets(dir.path(), "4,open,40\n");
+        }
+        let outcome = s.turn("status");
+        if changed {
+            assert!(
+                matches!(outcome, TurnOutcome::Question { ref key, .. } if key == "const.rule_field_1"),
+                "a stale answer is asked again: {outcome:?}"
+            );
+        } else {
+            assert!(
+                matches!(outcome, TurnOutcome::Proposal { .. }),
+                "{outcome:?}"
+            );
+        }
+        assert!(
+            !dir.path().join("open.csv").exists(),
+            "nothing is written before consent"
+        );
+    }
+}
+
+/// When money blocks cognition, the deterministic compiles the Session falls back to observe the
+/// project too (R4 S1): a request read again and a round compiled again ground the key the file
+/// declares, with no call.
+#[test]
+fn a_money_blocked_deterministic_round_still_observes_the_project() {
+    let dir = tempfile::tempdir().unwrap();
+    tickets(dir.path(), "");
+    let mut s = deterministic_session(dir.path());
+    s.money.reconfirm = true;
+    assert!(s.money_blocks_cognition());
+    let out = s
+        .compile_request(&CompileRequest::create(TICKETS), TICKETS)
+        .expect("compiles");
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    let grounding = &out.provenance.decision.as_ref().expect("decision")["grounding"][0];
+    assert_eq!(grounding["grade"], "declared", "{grounding}");
+    let outcome = s.compile_again(AuthoringRound::new(TICKETS));
+    assert!(
+        matches!(outcome, TurnOutcome::Proposal { .. }),
+        "{outcome:?}"
+    );
+}
+
+/// A seated Session round roots the session's own context at its project (R4 S1): the host's
+/// context names no root, yet the first generation is told the project for the files the request
+/// names, and the session's context keeps that root.
+#[test]
+fn a_seated_session_round_is_told_the_project_under_its_own_root() {
+    let peer = Peer::start(vec![(200, response(&native()))]);
+    let _transport = test_transport::install(&peer.url);
+    let dir = tempfile::tempdir().unwrap();
+    let mut s = open(dir.path());
+    assert_eq!(s.authoring_context().project_root(), None);
+    let out = s.turn(&format!("{WORK} budget 2 USD."));
+    assert!(matches!(out, TurnOutcome::Proposal { .. }), "{out:?}");
+    let first = first_request(&peer);
+    assert!(first.contains("observed_world"), "{first}");
+    assert_eq!(
+        s.authoring_context().project_root(),
+        Some(s.snapshot.root.as_path())
+    );
 }

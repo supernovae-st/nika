@@ -340,6 +340,19 @@
       "cognition": "deterministicOnly",
       "compiler_version": "0.121.0",
       "decision": {
+        "grounding": [
+          {
+            "admissible": true,
+            "bound_by": "request",
+            "field": "status",
+            "grade": "observed_partial",
+            "in_every_sampled_record": true,
+            "open": null,
+            "revision": "observed",
+            "rule": "keep only the rows whose status is open",
+            "source": "./tickets.json"
+          }
+        ],
         "intent_sha256": "39931fc2ff06e46a46963f34699435afe7c5e79a5548f24d09e25e3cb48e3346",
         "ledger": [
           {
@@ -550,6 +563,24 @@
           }
         ],
         "obligations": [],
+        "observed_world": {
+          "observed": [
+            {
+              "columns": [
+                "id",
+                "status"
+              ],
+              "common_columns": [
+                "id",
+                "status"
+              ],
+              "complete": false,
+              "kind": "json",
+              "path": "./tickets.json",
+              "state": "observed"
+            }
+          ]
+        },
         "operations": [
           {
             "categories": [],
