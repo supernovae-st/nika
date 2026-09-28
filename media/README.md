@@ -61,6 +61,7 @@ from captured output:
 | `first-session` | the Session from one sentence to a checked file, `yes`, `run it` and `/proof`, with no AI model |
 | `cost-ceiling` | a workflow priced before any call, capped by one `max_tokens` line, and refused by a budget below its ceiling |
 | `approval-gate` | a `nika:prompt` gate asking at a terminal, pausing in CI with exit 4, and resumed by the line it prints |
+| `typescript-client` | a Node app running a checked workflow through the TypeScript package, its typed result, and the receipt the engine verifies |
 
 How they are made and checked is in
 [the film README](../scripts/media/motion/intent-to-proof/README.md#feature-clips).
@@ -75,8 +76,11 @@ How they are made and checked is in
   says so. A clip whose story takes several commands owns its capture
   script in `scripts/media/capture/`; the pr-check-comment capture replays
   nika-action's own renderer from a checkout of that repository
-  (`NIKA_ACTION`). The Session and the approval gate are driven through a
-  pseudo-terminal, as a person would type them.
+  (`NIKA_ACTION`), and the typescript-client capture runs the TypeScript
+  package's quick start from a built nika-client checkout
+  (`NIKA_CLIENT_DIR`), on the engine that package bundles. The Session and
+  the approval gate are driven through a pseudo-terminal, as a person
+  would type them.
 - **Every complete runnable workflow shown passes `nika check`**, except the
   deliberately broken fixtures (`broken-pr-review` in static-check-fix and
   editor-diagnostics, `permits-escape` in permits-audit), whose failure is
