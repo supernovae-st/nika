@@ -12,7 +12,14 @@ BOOTSTRAP="$HERE/../../dev/bootstrap.sh"
 SCRATCH="$(mktemp -d)"
 trap 'rm -rf "$SCRATCH"' EXIT
 mkdir -p "$SCRATCH/home" "$SCRATCH/bin"
-GIT_BIN="$(command -v git)"
+# The parent may be a role-guarded lane. A PATH wrapper is not the Git
+# executable: symlinking that wrapper into env -i can recurse back into itself.
+# Ask the current Git once for its own installation, before isolating the fixture.
+GIT_BIN="$(git --exec-path)/git"
+[ -x "$GIT_BIN" ] || {
+  echo "Git installation has no executable: $GIT_BIN" >&2
+  exit 2
+}
 ln -s "$GIT_BIN" "$SCRATCH/bin/git"
 TEST_PATH="$SCRATCH/bin:/usr/bin:/bin"
 
