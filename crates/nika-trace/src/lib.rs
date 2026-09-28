@@ -37,6 +37,7 @@ pub(crate) use nika_cli_host::text;
 pub(crate) use nika_dap::{anchor, seal};
 pub use nika_display as display;
 
+pub mod cost;
 pub mod dispatch;
 pub mod evidence;
 pub mod forecast;

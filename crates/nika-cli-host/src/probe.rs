@@ -674,6 +674,17 @@ pub fn home_dir() -> Option<PathBuf> {
         .map(PathBuf::from)
 }
 
+/// The OS account running this process: its uid, and its login name when
+/// the account database names one. Read from the OS, never from a flag or
+/// the environment (a reconciliation's principal: attributable, not
+/// authenticated).
+#[must_use]
+pub fn operator_account() -> (u32, Option<String>) {
+    let uid = nix::unistd::Uid::current();
+    let name = nix::unistd::User::from_uid(uid).ok().flatten();
+    (uid.as_raw(), name.map(|user| user.name))
+}
+
 /// Fill the pricing probe from the vendored snapshot — zero network,
 /// counts DERIVED at read time (the born-stale law).
 fn pricing_probe() -> PricingProbe {

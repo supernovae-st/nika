@@ -295,7 +295,7 @@ enum Command {
     #[command(hide = true, display_order = 31)]
     Trace {
         #[command(subcommand)]
-        action: verbs::trace::TraceAction,
+        action: nika_trace::trace::action::TraceCommand,
     },
     /// The hook's judge (hidden — the wired `guard-run.sh` shim calls it,
     /// agents never type it): read a host hook payload (`--stdin`) or one
@@ -871,7 +871,7 @@ fn dispatch_verb(
             0
         }
         Command::Trace { action } => {
-            nika_trace::dispatch::trace_verb(action, plain_theme, color.choice(), link_when)
+            nika_trace::dispatch::trace_command(action, plain_theme, color.choice(), link_when)
         }
         Command::Guard(args) => guard_verb(&args, plain_theme),
         // The language server OWNS stdout (JSON-RPC) — it must not go through

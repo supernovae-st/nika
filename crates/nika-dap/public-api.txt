@@ -2104,6 +2104,9 @@ impl<T> tracing::instrument::Instrument for nika_dap::cost_journal::Claims<V>
 impl<T> tracing::instrument::WithSubscriber for nika_dap::cost_journal::Claims<V>
 impl<T> typenum::type_operators::Same for nika_dap::cost_journal::Claims<V>
 pub type nika_dap::cost_journal::Claims<V>::Output = T
+impl<T> zvariant::optional::NoneValue for nika_dap::cost_journal::Claims<V> where T: core::default::Default
+pub type nika_dap::cost_journal::Claims<V>::NoneType = T
+pub fn nika_dap::cost_journal::Claims<V>::null_value() -> T
 pub struct nika_dap::cost_journal::Cleared
 impl nika_dap::cost_journal::Cleared
 pub fn nika_dap::cost_journal::Cleared::journal(&self) -> core::io::error::Result<nika_dap::cost_journal::JournalWitness>
@@ -2355,6 +2358,9 @@ impl<T> tracing::instrument::Instrument for nika_dap::cost_journal::Reviews<H>
 impl<T> tracing::instrument::WithSubscriber for nika_dap::cost_journal::Reviews<H>
 impl<T> typenum::type_operators::Same for nika_dap::cost_journal::Reviews<H>
 pub type nika_dap::cost_journal::Reviews<H>::Output = T
+impl<T> zvariant::optional::NoneValue for nika_dap::cost_journal::Reviews<H> where T: core::default::Default
+pub type nika_dap::cost_journal::Reviews<H>::NoneType = T
+pub fn nika_dap::cost_journal::Reviews<H>::null_value() -> T
 pub struct nika_dap::cost_journal::RunJournal
 impl nika_dap::cost_journal::RunJournal
 pub fn nika_dap::cost_journal::RunJournal::new(cleared: nika_dap::cost_journal::Cleared, invocation: alloc::string::String, account: alloc::boxed::Box<dyn nika_dap::cost_journal::RunAccount>) -> Self

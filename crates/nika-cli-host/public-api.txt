@@ -2047,7 +2047,6 @@ pub fn nika_cli_host::lines::PerCallLines<F>::read_u16(&mut self, endian: endi::
 pub fn nika_cli_host::lines::PerCallLines<F>::read_u32(&mut self, endian: endi::endian::Endian) -> core::result::Result<u32, core::io::error::Error>
 pub fn nika_cli_host::lines::PerCallLines<F>::read_u64(&mut self, endian: endi::endian::Endian) -> core::result::Result<u64, core::io::error::Error>
 pub fn nika_cli_host::lines::PerCallLines<F>::read_u8(&mut self, endian: endi::endian::Endian) -> core::result::Result<u8, core::io::error::Error>
-impl<R> byteorder::io::ReadBytesExt for nika_cli_host::lines::PerCallLines<F> where R: alloc::io::read::Read + ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_cli_host::lines::PerCallLines<F> where U: core::convert::From<T>
 pub fn nika_cli_host::lines::PerCallLines<F>::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_cli_host::lines::PerCallLines<F> where U: core::convert::Into<T>
@@ -3549,6 +3548,7 @@ pub fn nika_cli_host::probe::capability_receipts(probe: &nika_cli_host::probe::P
 pub fn nika_cli_host::probe::collect(ping: bool) -> nika_cli_host::probe::Probe
 pub fn nika_cli_host::probe::environment_json(probe: &nika_cli_host::probe::Probe) -> serde_json::value::Value
 pub fn nika_cli_host::probe::home_dir() -> core::option::Option<std::path::PathBuf>
+pub fn nika_cli_host::probe::operator_account() -> (u32, core::option::Option<alloc::string::String>)
 pub fn nika_cli_host::probe::print_seat_escape<'a, W: core::io::write::Write>(witnesses: impl core::iter::traits::collect::IntoIterator<Item = &'a str>, prefix: &str, out: &mut W)
 pub fn nika_cli_host::probe::sandbox_probe() -> nika_cli_host::probe::SandboxProbe
 pub fn nika_cli_host::probe::seat_escape_tail() -> core::option::Option<alloc::string::String>

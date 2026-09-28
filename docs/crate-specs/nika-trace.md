@@ -65,3 +65,28 @@ Two reasons, one mechanism (the same two as every descent):
   copied, because the session's own observation test still reads its copy.
   Their temporary directories use `std::env::temp_dir()` like this member's
   other suites, not a new `tempfile` dev-dependency.
+
+## 3 · Cost door (P4, 2026-09-28)
+
+`nika trace cost` is the operator's door onto the cost journal. The law and
+the documents belong to `nika_dap::cost_journal::reconcile`; this member only
+supplies what the host has (the launch directory, the OS account from
+`nika_cli_host::probe::operator_account`, the clock, a fresh execution id) and
+renders.
+- `nika trace cost [--json]` inspects. Its document is
+  `cost_inspect_version: 1`, and it names any UNKNOWN it recorded.
+- `nika trace cost reconcile <INVOCATION> --project <BINDING> --prior <SHA256> --resolution billed|not-billed|still-unknown --reference <TEXT> [--evidence operator-attestation] [--json]`
+  appends one resolution. Its document is `cost_reconcile_version: 1`. There
+  is no prompt, and no class other than the operator's own, unverified
+  attestation parses.
+- Exit codes: `0` printed or appended; `2` the request refused; `3` the
+  environment refused (busy lease, unreadable journal).
+- JSON always goes to stdout, including a refusal (`{"refused": {kind,
+  message, …}}`). The suggested command shell-quotes the invocation, because an
+  earlier engine recorded `ExecutionId { uuid: … }`.
+
+The door hangs off a new `#[non_exhaustive]` `TraceCommand`: `Cost` plus
+`Legacy(TraceAction)`, flattened. `TraceAction` keeps its exact variants, so
+its constructors and any exhaustive match compile unchanged, and every old
+`trace` command line parses to the same variant (unit-pinned). The bin changes
+only its field type and dispatch call, and `trace_verb` is untouched.

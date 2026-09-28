@@ -133,8 +133,10 @@ timeout boundary (spec 03 · catchable · never retryable).
 7. **`Refusal`** (nika-dap `cost_journal/reconcile.rs`) — the cost-journal
    inspection/reconciliation API's typed refusal (born typed 2026-09-28).
    It is never evaluated as a workflow task diagnostic. `Display` and its
-   stable `kind` slug belong at the operator boundary; the CLI cost door
-   has not yet been integrated into this carrier. Its public slugs are
+   stable `kind` slug are rendered by `nika trace cost` in its versioned
+   inspect/reconcile documents. Environment refusals exit 3, other refusals
+   exit 2; inspecting an absent journal returns an empty report and exit 0.
+   Its public slugs are
    `busy`, `no_journal`, `other_project`, `unknown_run`, `inspect_first`,
    `not_reconcilable`, `stale`, `invalid` and `io`. Exempted
    `transport-surface` by the RecoverError / PackError / DecodeRefusal

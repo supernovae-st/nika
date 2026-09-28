@@ -1,7 +1,228 @@
 pub mod nika_trace
 pub use nika_trace::VerbOutput
 pub use nika_trace::display
+pub mod nika_trace::cost
+#[non_exhaustive] pub enum nika_trace::cost::CostAction
+pub nika_trace::cost::CostAction::Reconcile(nika_trace::cost::ReconcileArgs)
+impl clap_builder::derive::FromArgMatches for nika_trace::cost::CostAction
+pub fn nika_trace::cost::CostAction::from_arg_matches(__clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn nika_trace::cost::CostAction::from_arg_matches_mut(__clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn nika_trace::cost::CostAction::update_from_arg_matches(&mut self, __clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+pub fn nika_trace::cost::CostAction::update_from_arg_matches_mut<'b>(&mut self, __clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+impl clap_builder::derive::Subcommand for nika_trace::cost::CostAction
+pub fn nika_trace::cost::CostAction::augment_subcommands<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn nika_trace::cost::CostAction::augment_subcommands_for_update<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn nika_trace::cost::CostAction::has_subcommand(__clap_name: &str) -> bool
+impl core::fmt::Debug for nika_trace::cost::CostAction
+pub fn nika_trace::cost::CostAction::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_trace::cost::CostAction
+impl<T, U> core::convert::Into<U> for nika_trace::cost::CostAction where U: core::convert::From<T>
+pub fn nika_trace::cost::CostAction::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_trace::cost::CostAction where U: core::convert::Into<T>
+pub type nika_trace::cost::CostAction::Error = core::convert::Infallible
+pub fn nika_trace::cost::CostAction::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_trace::cost::CostAction where U: core::convert::TryFrom<T>
+pub type nika_trace::cost::CostAction::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_trace::cost::CostAction::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_trace::cost::CostAction where T: 'static + ?core::marker::Sized
+pub fn nika_trace::cost::CostAction::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_trace::cost::CostAction where T: ?core::marker::Sized
+pub fn nika_trace::cost::CostAction::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_trace::cost::CostAction where T: ?core::marker::Sized
+pub fn nika_trace::cost::CostAction::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_trace::cost::CostAction
+pub fn nika_trace::cost::CostAction::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_trace::cost::CostAction where T: 'static
+pub fn nika_trace::cost::CostAction::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_trace::cost::CostAction where T: ?core::marker::Sized
+pub fn nika_trace::cost::CostAction::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_trace::cost::CostAction::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_trace::cost::CostAction
+impl<T> tracing::instrument::WithSubscriber for nika_trace::cost::CostAction
+impl<T> typenum::type_operators::Same for nika_trace::cost::CostAction
+pub type nika_trace::cost::CostAction::Output = T
+#[non_exhaustive] pub enum nika_trace::cost::EvidenceArg
+pub nika_trace::cost::EvidenceArg::OperatorAttestation
+impl clap_builder::derive::ValueEnum for nika_trace::cost::EvidenceArg
+pub fn nika_trace::cost::EvidenceArg::to_possible_value<'a>(&self) -> core::option::Option<clap_builder::builder::possible_value::PossibleValue>
+pub fn nika_trace::cost::EvidenceArg::value_variants<'a>() -> &'a [Self]
+impl core::clone::Clone for nika_trace::cost::EvidenceArg
+pub fn nika_trace::cost::EvidenceArg::clone(&self) -> nika_trace::cost::EvidenceArg
+impl core::fmt::Debug for nika_trace::cost::EvidenceArg
+pub fn nika_trace::cost::EvidenceArg::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_trace::cost::EvidenceArg
+impl<D> owo_colors::OwoColorize for nika_trace::cost::EvidenceArg
+impl<T, U> core::convert::Into<U> for nika_trace::cost::EvidenceArg where U: core::convert::From<T>
+pub fn nika_trace::cost::EvidenceArg::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_trace::cost::EvidenceArg where U: core::convert::Into<T>
+pub type nika_trace::cost::EvidenceArg::Error = core::convert::Infallible
+pub fn nika_trace::cost::EvidenceArg::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_trace::cost::EvidenceArg where U: core::convert::TryFrom<T>
+pub type nika_trace::cost::EvidenceArg::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_trace::cost::EvidenceArg::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_trace::cost::EvidenceArg where T: core::clone::Clone
+pub type nika_trace::cost::EvidenceArg::Owned = T
+pub fn nika_trace::cost::EvidenceArg::clone_into(&self, target: &mut T)
+pub fn nika_trace::cost::EvidenceArg::to_owned(&self) -> T
+impl<T> core::any::Any for nika_trace::cost::EvidenceArg where T: 'static + ?core::marker::Sized
+pub fn nika_trace::cost::EvidenceArg::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_trace::cost::EvidenceArg where T: ?core::marker::Sized
+pub fn nika_trace::cost::EvidenceArg::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_trace::cost::EvidenceArg where T: ?core::marker::Sized
+pub fn nika_trace::cost::EvidenceArg::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_trace::cost::EvidenceArg where T: core::clone::Clone
+pub unsafe fn nika_trace::cost::EvidenceArg::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_trace::cost::EvidenceArg
+pub fn nika_trace::cost::EvidenceArg::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_trace::cost::EvidenceArg where T: core::clone::Clone
+pub fn nika_trace::cost::EvidenceArg::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_trace::cost::EvidenceArg where T: 'static
+pub fn nika_trace::cost::EvidenceArg::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_trace::cost::EvidenceArg where T: core::marker::Copy
+pub fn nika_trace::cost::EvidenceArg::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_trace::cost::EvidenceArg where T: ?core::marker::Sized
+pub fn nika_trace::cost::EvidenceArg::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_trace::cost::EvidenceArg::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_trace::cost::EvidenceArg
+impl<T> tracing::instrument::WithSubscriber for nika_trace::cost::EvidenceArg
+impl<T> typenum::type_operators::Same for nika_trace::cost::EvidenceArg
+pub type nika_trace::cost::EvidenceArg::Output = T
+#[non_exhaustive] pub enum nika_trace::cost::ResolutionArg
+pub nika_trace::cost::ResolutionArg::Billed
+pub nika_trace::cost::ResolutionArg::NotBilled
+pub nika_trace::cost::ResolutionArg::StillUnknown
+impl clap_builder::derive::ValueEnum for nika_trace::cost::ResolutionArg
+pub fn nika_trace::cost::ResolutionArg::to_possible_value<'a>(&self) -> core::option::Option<clap_builder::builder::possible_value::PossibleValue>
+pub fn nika_trace::cost::ResolutionArg::value_variants<'a>() -> &'a [Self]
+impl core::clone::Clone for nika_trace::cost::ResolutionArg
+pub fn nika_trace::cost::ResolutionArg::clone(&self) -> nika_trace::cost::ResolutionArg
+impl core::fmt::Debug for nika_trace::cost::ResolutionArg
+pub fn nika_trace::cost::ResolutionArg::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_trace::cost::ResolutionArg
+impl<D> owo_colors::OwoColorize for nika_trace::cost::ResolutionArg
+impl<T, U> core::convert::Into<U> for nika_trace::cost::ResolutionArg where U: core::convert::From<T>
+pub fn nika_trace::cost::ResolutionArg::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_trace::cost::ResolutionArg where U: core::convert::Into<T>
+pub type nika_trace::cost::ResolutionArg::Error = core::convert::Infallible
+pub fn nika_trace::cost::ResolutionArg::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_trace::cost::ResolutionArg where U: core::convert::TryFrom<T>
+pub type nika_trace::cost::ResolutionArg::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_trace::cost::ResolutionArg::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_trace::cost::ResolutionArg where T: core::clone::Clone
+pub type nika_trace::cost::ResolutionArg::Owned = T
+pub fn nika_trace::cost::ResolutionArg::clone_into(&self, target: &mut T)
+pub fn nika_trace::cost::ResolutionArg::to_owned(&self) -> T
+impl<T> core::any::Any for nika_trace::cost::ResolutionArg where T: 'static + ?core::marker::Sized
+pub fn nika_trace::cost::ResolutionArg::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_trace::cost::ResolutionArg where T: ?core::marker::Sized
+pub fn nika_trace::cost::ResolutionArg::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_trace::cost::ResolutionArg where T: ?core::marker::Sized
+pub fn nika_trace::cost::ResolutionArg::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_trace::cost::ResolutionArg where T: core::clone::Clone
+pub unsafe fn nika_trace::cost::ResolutionArg::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_trace::cost::ResolutionArg
+pub fn nika_trace::cost::ResolutionArg::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_trace::cost::ResolutionArg where T: core::clone::Clone
+pub fn nika_trace::cost::ResolutionArg::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_trace::cost::ResolutionArg where T: 'static
+pub fn nika_trace::cost::ResolutionArg::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_trace::cost::ResolutionArg where T: core::marker::Copy
+pub fn nika_trace::cost::ResolutionArg::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_trace::cost::ResolutionArg where T: ?core::marker::Sized
+pub fn nika_trace::cost::ResolutionArg::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_trace::cost::ResolutionArg::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_trace::cost::ResolutionArg
+impl<T> tracing::instrument::WithSubscriber for nika_trace::cost::ResolutionArg
+impl<T> typenum::type_operators::Same for nika_trace::cost::ResolutionArg
+pub type nika_trace::cost::ResolutionArg::Output = T
+#[non_exhaustive] pub struct nika_trace::cost::CostArgs
+pub nika_trace::cost::CostArgs::action: core::option::Option<nika_trace::cost::CostAction>
+pub nika_trace::cost::CostArgs::json: bool
+impl clap_builder::derive::Args for nika_trace::cost::CostArgs
+pub fn nika_trace::cost::CostArgs::augment_args<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn nika_trace::cost::CostArgs::augment_args_for_update<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn nika_trace::cost::CostArgs::group_id() -> core::option::Option<clap_builder::util::id::Id>
+impl clap_builder::derive::FromArgMatches for nika_trace::cost::CostArgs
+pub fn nika_trace::cost::CostArgs::from_arg_matches(__clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn nika_trace::cost::CostArgs::from_arg_matches_mut(__clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn nika_trace::cost::CostArgs::update_from_arg_matches(&mut self, __clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+pub fn nika_trace::cost::CostArgs::update_from_arg_matches_mut(&mut self, __clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+impl core::fmt::Debug for nika_trace::cost::CostArgs
+pub fn nika_trace::cost::CostArgs::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_trace::cost::CostArgs
+impl<T, U> core::convert::Into<U> for nika_trace::cost::CostArgs where U: core::convert::From<T>
+pub fn nika_trace::cost::CostArgs::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_trace::cost::CostArgs where U: core::convert::Into<T>
+pub type nika_trace::cost::CostArgs::Error = core::convert::Infallible
+pub fn nika_trace::cost::CostArgs::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_trace::cost::CostArgs where U: core::convert::TryFrom<T>
+pub type nika_trace::cost::CostArgs::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_trace::cost::CostArgs::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_trace::cost::CostArgs where T: 'static + ?core::marker::Sized
+pub fn nika_trace::cost::CostArgs::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_trace::cost::CostArgs where T: ?core::marker::Sized
+pub fn nika_trace::cost::CostArgs::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_trace::cost::CostArgs where T: ?core::marker::Sized
+pub fn nika_trace::cost::CostArgs::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_trace::cost::CostArgs
+pub fn nika_trace::cost::CostArgs::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_trace::cost::CostArgs where T: 'static
+pub fn nika_trace::cost::CostArgs::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_trace::cost::CostArgs where T: ?core::marker::Sized
+pub fn nika_trace::cost::CostArgs::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_trace::cost::CostArgs::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_trace::cost::CostArgs
+impl<T> tracing::instrument::WithSubscriber for nika_trace::cost::CostArgs
+impl<T> typenum::type_operators::Same for nika_trace::cost::CostArgs
+pub type nika_trace::cost::CostArgs::Output = T
+#[non_exhaustive] pub struct nika_trace::cost::ReconcileArgs
+pub nika_trace::cost::ReconcileArgs::evidence: nika_trace::cost::EvidenceArg
+pub nika_trace::cost::ReconcileArgs::invocation: alloc::string::String
+pub nika_trace::cost::ReconcileArgs::json: bool
+pub nika_trace::cost::ReconcileArgs::prior: alloc::string::String
+pub nika_trace::cost::ReconcileArgs::project: alloc::string::String
+pub nika_trace::cost::ReconcileArgs::reference: alloc::string::String
+pub nika_trace::cost::ReconcileArgs::resolution: nika_trace::cost::ResolutionArg
+impl clap_builder::derive::Args for nika_trace::cost::ReconcileArgs
+pub fn nika_trace::cost::ReconcileArgs::augment_args<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn nika_trace::cost::ReconcileArgs::augment_args_for_update<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn nika_trace::cost::ReconcileArgs::group_id() -> core::option::Option<clap_builder::util::id::Id>
+impl clap_builder::derive::FromArgMatches for nika_trace::cost::ReconcileArgs
+pub fn nika_trace::cost::ReconcileArgs::from_arg_matches(__clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn nika_trace::cost::ReconcileArgs::from_arg_matches_mut(__clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn nika_trace::cost::ReconcileArgs::update_from_arg_matches(&mut self, __clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+pub fn nika_trace::cost::ReconcileArgs::update_from_arg_matches_mut(&mut self, __clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+impl core::fmt::Debug for nika_trace::cost::ReconcileArgs
+pub fn nika_trace::cost::ReconcileArgs::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_trace::cost::ReconcileArgs
+impl<T, U> core::convert::Into<U> for nika_trace::cost::ReconcileArgs where U: core::convert::From<T>
+pub fn nika_trace::cost::ReconcileArgs::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_trace::cost::ReconcileArgs where U: core::convert::Into<T>
+pub type nika_trace::cost::ReconcileArgs::Error = core::convert::Infallible
+pub fn nika_trace::cost::ReconcileArgs::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_trace::cost::ReconcileArgs where U: core::convert::TryFrom<T>
+pub type nika_trace::cost::ReconcileArgs::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_trace::cost::ReconcileArgs::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_trace::cost::ReconcileArgs where T: 'static + ?core::marker::Sized
+pub fn nika_trace::cost::ReconcileArgs::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_trace::cost::ReconcileArgs where T: ?core::marker::Sized
+pub fn nika_trace::cost::ReconcileArgs::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_trace::cost::ReconcileArgs where T: ?core::marker::Sized
+pub fn nika_trace::cost::ReconcileArgs::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_trace::cost::ReconcileArgs
+pub fn nika_trace::cost::ReconcileArgs::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_trace::cost::ReconcileArgs where T: 'static
+pub fn nika_trace::cost::ReconcileArgs::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_trace::cost::ReconcileArgs where T: ?core::marker::Sized
+pub fn nika_trace::cost::ReconcileArgs::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_trace::cost::ReconcileArgs::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_trace::cost::ReconcileArgs
+impl<T> tracing::instrument::WithSubscriber for nika_trace::cost::ReconcileArgs
+impl<T> typenum::type_operators::Same for nika_trace::cost::ReconcileArgs
+pub type nika_trace::cost::ReconcileArgs::Output = T
+pub fn nika_trace::cost::run(args: nika_trace::cost::CostArgs) -> u8
 pub mod nika_trace::dispatch
+pub fn nika_trace::dispatch::trace_command(command: nika_trace::trace::action::TraceCommand, theme: nika_display::theme::Theme, color: nika_display::format::ColorChoice, link_when: nika_display::format::LinkChoice) -> u8
 pub fn nika_trace::dispatch::trace_verb(action: nika_trace::trace::action::TraceAction, theme: nika_display::theme::Theme, color: nika_display::format::ColorChoice, link_when: nika_display::format::LinkChoice) -> u8
 pub mod nika_trace::evidence
 pub struct nika_trace::evidence::EvidenceArgs
@@ -608,6 +829,44 @@ impl<T> tracing::instrument::Instrument for nika_trace::trace::action::TraceActi
 impl<T> tracing::instrument::WithSubscriber for nika_trace::trace::action::TraceAction
 impl<T> typenum::type_operators::Same for nika_trace::trace::action::TraceAction
 pub type nika_trace::trace::action::TraceAction::Output = T
+#[non_exhaustive] pub enum nika_trace::trace::action::TraceCommand
+pub nika_trace::trace::action::TraceCommand::Cost(nika_trace::cost::CostArgs)
+pub nika_trace::trace::action::TraceCommand::Legacy(nika_trace::trace::action::TraceAction)
+impl clap_builder::derive::FromArgMatches for nika_trace::trace::action::TraceCommand
+pub fn nika_trace::trace::action::TraceCommand::from_arg_matches(__clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn nika_trace::trace::action::TraceCommand::from_arg_matches_mut(__clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn nika_trace::trace::action::TraceCommand::update_from_arg_matches(&mut self, __clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+pub fn nika_trace::trace::action::TraceCommand::update_from_arg_matches_mut<'b>(&mut self, __clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+impl clap_builder::derive::Subcommand for nika_trace::trace::action::TraceCommand
+pub fn nika_trace::trace::action::TraceCommand::augment_subcommands<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn nika_trace::trace::action::TraceCommand::augment_subcommands_for_update<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn nika_trace::trace::action::TraceCommand::has_subcommand(__clap_name: &str) -> bool
+impl<D> owo_colors::OwoColorize for nika_trace::trace::action::TraceCommand
+impl<T, U> core::convert::Into<U> for nika_trace::trace::action::TraceCommand where U: core::convert::From<T>
+pub fn nika_trace::trace::action::TraceCommand::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_trace::trace::action::TraceCommand where U: core::convert::Into<T>
+pub type nika_trace::trace::action::TraceCommand::Error = core::convert::Infallible
+pub fn nika_trace::trace::action::TraceCommand::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_trace::trace::action::TraceCommand where U: core::convert::TryFrom<T>
+pub type nika_trace::trace::action::TraceCommand::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_trace::trace::action::TraceCommand::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_trace::trace::action::TraceCommand where T: 'static + ?core::marker::Sized
+pub fn nika_trace::trace::action::TraceCommand::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_trace::trace::action::TraceCommand where T: ?core::marker::Sized
+pub fn nika_trace::trace::action::TraceCommand::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_trace::trace::action::TraceCommand where T: ?core::marker::Sized
+pub fn nika_trace::trace::action::TraceCommand::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_trace::trace::action::TraceCommand
+pub fn nika_trace::trace::action::TraceCommand::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_trace::trace::action::TraceCommand where T: 'static
+pub fn nika_trace::trace::action::TraceCommand::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_trace::trace::action::TraceCommand where T: ?core::marker::Sized
+pub fn nika_trace::trace::action::TraceCommand::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_trace::trace::action::TraceCommand::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_trace::trace::action::TraceCommand
+impl<T> tracing::instrument::WithSubscriber for nika_trace::trace::action::TraceCommand
+impl<T> typenum::type_operators::Same for nika_trace::trace::action::TraceCommand
+pub type nika_trace::trace::action::TraceCommand::Output = T
 pub struct nika_trace::trace::action::TraceArgs
 pub nika_trace::trace::action::TraceArgs::demo: bool
 pub nika_trace::trace::action::TraceArgs::demo_fail: bool

@@ -298,3 +298,9 @@ The direct-API authoring backend records `cost_basis: unpriced; billing_unverifi
 `redact_authoring_error` re-exports the provider-owned authoring error projection. It preserves local AdmissionDenied with an engine-authored remedy and removes provider text from all other failures. Serve consumes this shared host boundary; the compiler keeps its typed refusal distinction.
 
 Direct API authoring endpoint metadata comes from the exact seated registry: `host` strips user info, path, query and fragment; `base_url_overridden` compares the effective URL with its profile seed when available. `endpoint_basis: operator_configuration` distinguishes this configuration from an authenticated remote identity or an observed model. Session host diagnostics use the same redaction.
+
+`probe::operator_account()` reads the process account from the OS: its uid,
+and its login name when the account database names one. It never reads a
+flag or the environment. This is the principal `nika trace cost reconcile`
+records: attributable, not authenticated, through the existing `nix` user
+feature.

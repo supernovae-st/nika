@@ -65,6 +65,21 @@ fn verify_verb(mut traces: Vec<PathBuf>, opts: &trace_verify::VerifyOptions) -> 
     }
 }
 
+/// `nika trace` with its P4 cost door: `cost` here, every other subcommand
+/// through [`trace_verb`], unchanged.
+#[must_use]
+pub fn trace_command(
+    command: trace::action::TraceCommand,
+    theme: Theme,
+    color: ColorChoice,
+    link_when: LinkChoice,
+) -> u8 {
+    match command {
+        trace::action::TraceCommand::Cost(args) => crate::cost::run(args),
+        trace::action::TraceCommand::Legacy(action) => trace_verb(action, theme, color, link_when),
+    }
+}
+
 /// The `trace` arm — one dispatch per subcommand. `theme` is the bin's
 /// resolved sober-register theme; `color`/`link_when` re-resolve for the
 /// replay/show render (a piped `trace show` keeps its exact bytes).
