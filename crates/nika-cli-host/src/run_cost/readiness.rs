@@ -1,25 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! Shared host route observation; source checks never acquire spending authority.
-use nika_providers::admission::{CostRoute, unknown_cost_route};
 use nika_providers::{ExecutionAccessPlan, ProvidersConfig};
 use nika_schema::raw::RawWorkflow;
-
-pub(super) fn unknown_routes(
-    plan: &ExecutionAccessPlan,
-    config: &ProvidersConfig,
-) -> Result<Vec<(String, CostRoute)>, String> {
-    let mut unknown = Vec::new();
-    for (model, lane) in plan.admitted() {
-        // The one predicate a route rendered at run time is judged by as well.
-        if lane.plan.chosen == nika_types::access::AccessClass::Api
-            && let Some(route) = unknown_cost_route(model, config.clone())?
-        {
-            unknown.push((model.to_owned(), route));
-        }
-    }
-    Ok(unknown)
-}
+// The Run's unknown-cost route law, owned beside its model admission.
+pub(super) use nika_service_execution::run_cost::unknown_routes;
 
 pub(crate) fn readiness(wf: &RawWorkflow, plan: &ExecutionAccessPlan) -> Option<String> {
     readiness_with_config(wf, plan, &nika_runtime::compose::config_from_env())

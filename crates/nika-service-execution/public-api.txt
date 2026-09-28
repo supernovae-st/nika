@@ -10,6 +10,116 @@ pub fn nika_service_execution::access::resolve_plan(wf: &nika_schema::raw::workf
 pub fn nika_service_execution::access::resolve_plan_over(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, model_override: core::option::Option<&str>, pin: core::option::Option<&str>, probes: &[nika_providers::probe::ProviderProbe]) -> nika_providers::plan::ExecutionAccessPlan
 pub fn nika_service_execution::access::verb_needs(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_providers::resolve_access::VerbNeeds
 pub mod nika_service_execution::inputs
+#[non_exhaustive] pub enum nika_service_execution::inputs::BindingFault
+pub nika_service_execution::inputs::BindingFault::EnvNameMissing
+pub nika_service_execution::inputs::BindingFault::EnvUndeclaredInCi
+pub nika_service_execution::inputs::BindingFault::EnvUnset
+pub nika_service_execution::inputs::BindingFault::Malformed
+pub nika_service_execution::inputs::BindingFault::TypeMismatch
+pub nika_service_execution::inputs::BindingFault::UnknownInput
+impl nika_service_execution::inputs::BindingFault
+pub const fn nika_service_execution::inputs::BindingFault::as_str(self) -> &'static str
+impl core::clone::Clone for nika_service_execution::inputs::BindingFault
+pub fn nika_service_execution::inputs::BindingFault::clone(&self) -> nika_service_execution::inputs::BindingFault
+impl core::cmp::Eq for nika_service_execution::inputs::BindingFault
+impl core::cmp::PartialEq for nika_service_execution::inputs::BindingFault
+pub fn nika_service_execution::inputs::BindingFault::eq(&self, other: &nika_service_execution::inputs::BindingFault) -> bool
+impl core::fmt::Debug for nika_service_execution::inputs::BindingFault
+pub fn nika_service_execution::inputs::BindingFault::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_service_execution::inputs::BindingFault
+impl core::marker::StructuralPartialEq for nika_service_execution::inputs::BindingFault
+impl<D> owo_colors::OwoColorize for nika_service_execution::inputs::BindingFault
+impl<Q, K> equivalent::Equivalent<K> for nika_service_execution::inputs::BindingFault where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_service_execution::inputs::BindingFault::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_service_execution::inputs::BindingFault where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_service_execution::inputs::BindingFault::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_service_execution::inputs::BindingFault where U: core::convert::From<T>
+pub fn nika_service_execution::inputs::BindingFault::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_service_execution::inputs::BindingFault where U: core::convert::Into<T>
+pub type nika_service_execution::inputs::BindingFault::Error = core::convert::Infallible
+pub fn nika_service_execution::inputs::BindingFault::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_service_execution::inputs::BindingFault where U: core::convert::TryFrom<T>
+pub type nika_service_execution::inputs::BindingFault::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_service_execution::inputs::BindingFault::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_service_execution::inputs::BindingFault where T: core::clone::Clone
+pub type nika_service_execution::inputs::BindingFault::Owned = T
+pub fn nika_service_execution::inputs::BindingFault::clone_into(&self, target: &mut T)
+pub fn nika_service_execution::inputs::BindingFault::to_owned(&self) -> T
+impl<T> core::any::Any for nika_service_execution::inputs::BindingFault where T: 'static + ?core::marker::Sized
+pub fn nika_service_execution::inputs::BindingFault::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_service_execution::inputs::BindingFault where T: ?core::marker::Sized
+pub fn nika_service_execution::inputs::BindingFault::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_service_execution::inputs::BindingFault where T: ?core::marker::Sized
+pub fn nika_service_execution::inputs::BindingFault::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_service_execution::inputs::BindingFault where T: core::clone::Clone
+pub unsafe fn nika_service_execution::inputs::BindingFault::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_service_execution::inputs::BindingFault
+pub fn nika_service_execution::inputs::BindingFault::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_service_execution::inputs::BindingFault where T: core::clone::Clone
+pub fn nika_service_execution::inputs::BindingFault::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_service_execution::inputs::BindingFault where T: 'static
+pub fn nika_service_execution::inputs::BindingFault::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_service_execution::inputs::BindingFault where T: core::marker::Copy
+pub fn nika_service_execution::inputs::BindingFault::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_service_execution::inputs::BindingFault where T: ?core::marker::Sized
+pub fn nika_service_execution::inputs::BindingFault::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_service_execution::inputs::BindingFault::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_service_execution::inputs::BindingFault
+impl<T> tracing::instrument::WithSubscriber for nika_service_execution::inputs::BindingFault
+impl<T> typenum::type_operators::Same for nika_service_execution::inputs::BindingFault
+pub type nika_service_execution::inputs::BindingFault::Output = T
+#[non_exhaustive] pub struct nika_service_execution::inputs::BindingCheck
+pub nika_service_execution::inputs::BindingCheck::env: core::option::Option<alloc::string::String>
+pub nika_service_execution::inputs::BindingCheck::fault: core::option::Option<nika_service_execution::inputs::BindingFault>
+pub nika_service_execution::inputs::BindingCheck::input: alloc::string::String
+impl nika_service_execution::inputs::BindingCheck
+pub fn nika_service_execution::inputs::BindingCheck::new(input: alloc::string::String, env: core::option::Option<alloc::string::String>, fault: core::option::Option<nika_service_execution::inputs::BindingFault>) -> Self
+impl core::clone::Clone for nika_service_execution::inputs::BindingCheck
+pub fn nika_service_execution::inputs::BindingCheck::clone(&self) -> nika_service_execution::inputs::BindingCheck
+impl core::cmp::Eq for nika_service_execution::inputs::BindingCheck
+impl core::cmp::PartialEq for nika_service_execution::inputs::BindingCheck
+pub fn nika_service_execution::inputs::BindingCheck::eq(&self, other: &nika_service_execution::inputs::BindingCheck) -> bool
+impl core::fmt::Debug for nika_service_execution::inputs::BindingCheck
+pub fn nika_service_execution::inputs::BindingCheck::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_service_execution::inputs::BindingCheck
+impl<D> owo_colors::OwoColorize for nika_service_execution::inputs::BindingCheck
+impl<Q, K> equivalent::Equivalent<K> for nika_service_execution::inputs::BindingCheck where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_service_execution::inputs::BindingCheck::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_service_execution::inputs::BindingCheck where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_service_execution::inputs::BindingCheck::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_service_execution::inputs::BindingCheck where U: core::convert::From<T>
+pub fn nika_service_execution::inputs::BindingCheck::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_service_execution::inputs::BindingCheck where U: core::convert::Into<T>
+pub type nika_service_execution::inputs::BindingCheck::Error = core::convert::Infallible
+pub fn nika_service_execution::inputs::BindingCheck::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_service_execution::inputs::BindingCheck where U: core::convert::TryFrom<T>
+pub type nika_service_execution::inputs::BindingCheck::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_service_execution::inputs::BindingCheck::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_service_execution::inputs::BindingCheck where T: core::clone::Clone
+pub type nika_service_execution::inputs::BindingCheck::Owned = T
+pub fn nika_service_execution::inputs::BindingCheck::clone_into(&self, target: &mut T)
+pub fn nika_service_execution::inputs::BindingCheck::to_owned(&self) -> T
+impl<T> core::any::Any for nika_service_execution::inputs::BindingCheck where T: 'static + ?core::marker::Sized
+pub fn nika_service_execution::inputs::BindingCheck::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_service_execution::inputs::BindingCheck where T: ?core::marker::Sized
+pub fn nika_service_execution::inputs::BindingCheck::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_service_execution::inputs::BindingCheck where T: ?core::marker::Sized
+pub fn nika_service_execution::inputs::BindingCheck::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_service_execution::inputs::BindingCheck where T: core::clone::Clone
+pub unsafe fn nika_service_execution::inputs::BindingCheck::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_service_execution::inputs::BindingCheck
+pub fn nika_service_execution::inputs::BindingCheck::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_service_execution::inputs::BindingCheck where T: core::clone::Clone
+pub fn nika_service_execution::inputs::BindingCheck::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_service_execution::inputs::BindingCheck where T: 'static
+pub fn nika_service_execution::inputs::BindingCheck::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_service_execution::inputs::BindingCheck where T: ?core::marker::Sized
+pub fn nika_service_execution::inputs::BindingCheck::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_service_execution::inputs::BindingCheck::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_service_execution::inputs::BindingCheck
+impl<T> tracing::instrument::WithSubscriber for nika_service_execution::inputs::BindingCheck
+impl<T> typenum::type_operators::Same for nika_service_execution::inputs::BindingCheck
+pub type nika_service_execution::inputs::BindingCheck::Output = T
 pub struct nika_service_execution::inputs::ValidatedInputs
 pub nika_service_execution::inputs::ValidatedInputs::origins: alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_types::origins::InputOrigin>
 pub nika_service_execution::inputs::ValidatedInputs::values: alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
@@ -41,6 +151,7 @@ impl<T> tracing::instrument::Instrument for nika_service_execution::inputs::Vali
 impl<T> tracing::instrument::WithSubscriber for nika_service_execution::inputs::ValidatedInputs
 impl<T> typenum::type_operators::Same for nika_service_execution::inputs::ValidatedInputs
 pub type nika_service_execution::inputs::ValidatedInputs::Output = T
+pub fn nika_service_execution::inputs::check_bindings(pairs: &[alloc::string::String], wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<nika_service_execution::inputs::BindingCheck>
 pub fn nika_service_execution::inputs::parse_var_overrides(pairs: &[alloc::string::String], wf: &nika_schema::raw::workflow::RawWorkflow) -> core::result::Result<nika_service_execution::inputs::ValidatedInputs, alloc::string::String>
 pub mod nika_service_execution::run_cost
 #[non_exhaustive] pub enum nika_service_execution::run_cost::RunShapeError
@@ -234,6 +345,7 @@ pub fn nika_service_execution::run_cost::declared_free_shape(wf: &nika_schema::r
 pub fn nika_service_execution::run_cost::project_file_path(consts: &nika_check_analyzer::static_args::ConstStrings, action: &nika_schema::raw::action::RawInvokeAction) -> core::result::Result<std::path::PathBuf, nika_service_execution::run_cost::RunShapeError>
 pub fn nika_service_execution::run_cost::request_bound(wf: &nika_schema::raw::workflow::RawWorkflow, plan: &nika_providers::plan::ExecutionAccessPlan, unknown_routes: usize) -> core::result::Result<u32, nika_service_execution::run_cost::RunShapeError>
 pub fn nika_service_execution::run_cost::run_time_models(wf: &nika_schema::raw::workflow::RawWorkflow, plan: &nika_providers::plan::ExecutionAccessPlan, config: &nika_providers::registry::ProvidersConfig, overrides: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> core::result::Result<bool, nika_service_execution::run_cost::RunTimeModelRefusal>
+pub fn nika_service_execution::run_cost::unknown_routes(plan: &nika_providers::plan::ExecutionAccessPlan, config: &nika_providers::registry::ProvidersConfig) -> core::result::Result<alloc::vec::Vec<(alloc::string::String, nika_providers::admission::review::CostRoute)>, alloc::string::String>
 #[non_exhaustive] pub enum nika_service_execution::ServiceExecutionStatus
 pub nika_service_execution::ServiceExecutionStatus::Cancelled
 pub nika_service_execution::ServiceExecutionStatus::Failed

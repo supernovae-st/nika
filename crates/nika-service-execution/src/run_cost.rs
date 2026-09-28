@@ -239,6 +239,28 @@ pub fn declared_free_shape(
     Ok(!free.is_empty())
 }
 
+/// The admitted API lanes of `plan` whose USD cost is unknown: the routes
+/// only a fresh unknown-cost choice may admit. One predicate
+/// (`admission::unknown_cost_route`) judges these and a route rendered at
+/// run time alike (descended from the host's Run review, 2026-09-28).
+/// # Errors
+/// A lane neither an unknown-cost route nor a native price can judge.
+pub fn unknown_routes(
+    plan: &nika_providers::ExecutionAccessPlan,
+    config: &nika_providers::ProvidersConfig,
+) -> Result<Vec<(String, nika_providers::admission::CostRoute)>, String> {
+    let mut unknown = Vec::new();
+    for (model, lane) in plan.admitted() {
+        if lane.plan.chosen == nika_types::access::AccessClass::Api
+            && let Some(route) =
+                nika_providers::admission::unknown_cost_route(model, config.clone())?
+        {
+            unknown.push((model.to_owned(), route));
+        }
+    }
+    Ok(unknown)
+}
+
 /// The output bound of `model`'s exact catalog-declared-free tariff, if any.
 fn declared_free_max(model: &str, config: &nika_providers::ProvidersConfig) -> Option<u32> {
     let route = nika_providers::admission::CostRoute::observe(model, config.clone()).ok()?;
