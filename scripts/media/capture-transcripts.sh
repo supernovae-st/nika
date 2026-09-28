@@ -90,8 +90,21 @@ cp "$FIX/recover-fallback.nika" "$RECOVER_TMP/"
   nika run --no-progress --color never recover-fallback.nika \
     >"$ROOT/$RAW/run-recover.txt" 2>&1
   cp out/rates.json "$ROOT/$RAW/recover-rates.json"
+  # The failure the recover absorbed, as the run's trace records it: the
+  # task_recovered event's own fields (its ids, times and chain differ on
+  # every run, so they stay out of the transcript).
+  node -e '
+const fs = require("fs");
+for (const f of process.argv.slice(1)) {
+  for (const l of fs.readFileSync(f, "utf8").split("\n")) {
+    if (!l.trim()) continue;
+    const e = JSON.parse(l);
+    if (e.kind === "task_recovered") console.log(JSON.stringify({ kind: e.kind, fields: e.fields }));
+  }
+}' .nika/traces/*.ndjson >"$ROOT/$RAW/recover-event.json"
 )
 rm -rf "$RECOVER_TMP"
+nika explain --color never NIKA-EXEC-001 >"$RAW/explain-exec-001.txt" 2>&1
 
 # ── bundle for the motion renderer ──────────────────────────────────────
 node - <<'NODE'

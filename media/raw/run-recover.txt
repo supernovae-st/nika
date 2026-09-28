@@ -2,11 +2,11 @@
      permits ✓ declared boundary · exec outside the fs bounds
 
   ✔  cache    invoke · nika:jq  5ms
-  ✔  live     exec · cat · untrusted input from live  10ms · recovered
+  ✔  live     exec · cat · untrusted input from live  8ms · recovered
   ✔  publish  invoke · nika:write · untrusted input from live  1ms
   3 tasks · 3 waves · 0 retries · 1 recovered
   ── 3/3 done · 1 recovered · unmetered · elapsed 0.0s ───────────
     wrote ./out/rates.json (61B)
     wrote .nika/traces
   explore: nika run recover-fallback.nika --json > run.ndjson · nika trace outputs run.ndjson
-    trace: .nika/traces/2026-09-28T13-43-19Z-d4e9.ndjson · 18 events · chain 3857418f6eff40862b17797dcd25bbe949fc83331daa4d6a4a7423e477bd5e51
+    trace: .nika/traces/2026-09-28T15-14-12Z-1e18.ndjson · 18 events · chain 3330e37753a33758b96a4baaf1dc7f4ef664050c039d2178537847671342cb7e
