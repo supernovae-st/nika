@@ -58,6 +58,9 @@ from captured output:
 | `trace-proof` | a run's hash-chained trace verified intact, then one changed byte refused at the next line |
 | `spec-anatomy` | one checked file with all nine envelope keys and the four verbs, labelled in the spec's words |
 | `agent-plugin` | a coding agent's draft refused by the check, its repair, and a rehearsal run of the kept file |
+| `first-session` | the Session from one sentence to a checked file, `yes`, `run it` and `/proof`, with no AI model |
+| `cost-ceiling` | a workflow priced before any call, capped by one `max_tokens` line, and refused by a budget below its ceiling |
+| `approval-gate` | a `nika:prompt` gate asking at a terminal, pausing in CI with exit 4, and resumed by the line it prints |
 
 How they are made and checked is in
 [the film README](../scripts/media/motion/intent-to-proof/README.md#feature-clips).
@@ -72,7 +75,8 @@ How they are made and checked is in
   says so. A clip whose story takes several commands owns its capture
   script in `scripts/media/capture/`; the pr-check-comment capture replays
   nika-action's own renderer from a checkout of that repository
-  (`NIKA_ACTION`).
+  (`NIKA_ACTION`). The Session and the approval gate are driven through a
+  pseudo-terminal, as a person would type them.
 - **Every complete runnable workflow shown passes `nika check`**, except the
   deliberately broken fixtures (`broken-pr-review` in static-check-fix and
   editor-diagnostics, `permits-escape` in permits-audit), whose failure is
