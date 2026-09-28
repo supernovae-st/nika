@@ -463,17 +463,7 @@ pub(super) fn bind(
             .all(|e| plan.content_of(e).is_some());
     let item =
         (!has_corpus && !stated) || (plan.has(Op::Search) && matches!(search_query, Need::Absent));
-    let mut consumed = Vec::new();
-    let mut max_parallel = None;
-    if fan_out {
-        for constraint in &plan.constraints {
-            if let Some(bound) = parallel_bound(constraint) {
-                consumed.push(constraint.clone());
-                max_parallel = Some(bound);
-                break;
-            }
-        }
-    }
+    let (mut consumed, max_parallel) = concurrency(plan, fan_out);
     // The request distributes its draft over the files: the fan-in realizes the order
     // and the headings itself, so those instructions leave the prompts.
     let distributed = shape::per_item(intent, plan);
@@ -514,6 +504,20 @@ pub(super) fn bind(
     bind_effects(plan, distributed, request, out, recognized, &mut b);
     bind_named_outputs(plan, request, out, recognized, &mut b);
     b
+}
+
+/// The first constraint bounding a fan-out's concurrency, consumed by the structure, and its
+/// bound; none without a fan-out.
+fn concurrency(plan: &Plan, fan_out: bool) -> (Vec<String>, Option<u32>) {
+    if !fan_out {
+        return (Vec::new(), None);
+    }
+    plan.constraints
+        .iter()
+        .find_map(|constraint| parallel_bound(constraint).map(|bound| (constraint, bound)))
+        .map_or((Vec::new(), None), |(constraint, bound)| {
+            (vec![constraint.clone()], Some(bound))
+        })
 }
 
 /// Bind the explicit or synthesized computation after its source and slots are known.
