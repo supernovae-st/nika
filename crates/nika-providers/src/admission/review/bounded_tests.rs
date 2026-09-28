@@ -147,6 +147,42 @@ fn a_fan_review_shows_its_breakdown_and_confirms_its_concurrency() {
     assert_eq!(receipt.state, crate::AdmissionState::Open);
     assert_eq!(receipt.unknown_calls, 1);
 }
+/// B12 r5 · the review names the triple it admits, and the confirmed choice
+/// enforces exactly that triple: a host shows the owner's answer.
+#[test]
+fn a_review_names_the_bounds_its_confirmed_choice_enforces() {
+    let session = review().for_session();
+    assert_eq!(
+        session.bounds(),
+        (
+            SESSION_REVIEW_MAX_REQUESTS,
+            SESSION_REVIEW_MAX_OUTPUT_TOKENS,
+            SESSION_REVIEW_TIMEOUT
+        )
+    );
+    let run = review().for_run(6).expect("bound");
+    let (requests, tokens, timeout) = run.bounds();
+    assert_eq!(
+        (requests, tokens, timeout),
+        (6, RUN_REVIEW_MAX_OUTPUT_TOKENS, RUN_REVIEW_TIMEOUT)
+    );
+    let account = run.confirm("candidate", &route()).expect("fresh yes");
+    let receipt = account.snapshot().expect("receipt");
+    let choice = serde_json::to_value(receipt.unknown_cost).expect("choice");
+    let millis = u64::try_from(timeout.as_millis()).expect("millis");
+    assert_eq!(
+        (
+            &choice["max_requests"],
+            &choice["max_output_tokens"],
+            &choice["timeout_ms"]
+        ),
+        (
+            &serde_json::json!(requests),
+            &serde_json::json!(tokens),
+            &serde_json::json!(millis)
+        )
+    );
+}
 #[test]
 fn a_session_review_admits_the_sessions_widened_output_and_a_run_review_does_not() {
     let route = route();

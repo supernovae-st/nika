@@ -316,6 +316,7 @@ pub fn nika_providers::admission::CostResponse::as_any(&self) -> &(dyn core::any
 impl<T> serde_core::de::DeserializeOwned for nika_providers::admission::CostResponse where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub struct nika_providers::admission::CostReview
 impl nika_providers::admission::CostReview
+pub fn nika_providers::admission::CostReview::bounds(&self) -> (u32, u32, core::time::Duration)
 pub fn nika_providers::admission::CostReview::confirm(self, candidate: &str, route: &nika_providers::admission::CostRoute) -> core::result::Result<nika_providers::admission::InferenceAdmission, alloc::string::String>
 pub fn nika_providers::admission::CostReview::details(&self) -> alloc::string::String
 pub fn nika_providers::admission::CostReview::for_run(self, max_requests: u32) -> core::result::Result<Self, alloc::string::String>

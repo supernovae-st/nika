@@ -375,6 +375,17 @@ impl CostReview {
         self.request_timeout
     }
 
+    /// The requests, per-request output tokens and per-request deadline this
+    /// review would admit, together: the triple a host shows, from its owner.
+    #[must_use]
+    pub fn bounds(&self) -> (u32, u32, Duration) {
+        (
+            self.max_requests,
+            self.max_output_tokens,
+            self.request_timeout,
+        )
+    }
+
     /// A Run host derives this upper bound from checked, sequential direct infers.
     /// This builder creates no authority; confirmation still binds one invocation.
     /// # Errors

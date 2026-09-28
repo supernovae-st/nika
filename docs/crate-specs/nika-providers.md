@@ -338,7 +338,10 @@ nonce or any authority.
 
 `CostReview::for_session` applies the Session preparation bounds: at most seven
 requests, 32768 output tokens and 180 seconds per request. The displayed review
-and consuming admission use these same values. `CostReview::new` and
+and consuming admission use these same values. `CostReview::bounds()` answers
+the three together (requests, per-request output tokens, per-request deadline)
+so a host shows the owner's triple, which the confirmed choice enforces as
+`max_requests`, `max_output_tokens` and `timeout_ms`. `CostReview::new` and
 `with_run_requests` retain the Run per-request limits (8192 tokens, 120 seconds);
 unknown outcomes freeze their account and never grant a transport retry (for a
 Run that authored retries, a received 429 or 503 answers its attempt instead:
