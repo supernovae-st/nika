@@ -472,7 +472,9 @@ fn a_fire_never_echoes_an_environment_value() {
     let dir = project("    inputs: {locale: '@env:NIKA_TEST_ARM_PRIVATE'}\n");
     std::fs::write(
         dir.path().join("report.nika"),
-        WORKFLOW.replace("type: string", "type: integer"),
+        WORKFLOW
+            .replace("type: string", "type: integer")
+            .replace("permits:\n", "permits:\n  env: [NIKA_TEST_ARM_PRIVATE]\n"),
     )
     .expect("numeric");
     let out = command(dir.path())

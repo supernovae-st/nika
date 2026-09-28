@@ -588,7 +588,8 @@ fn a_refused_binding_is_attributed_only_to_itself() {
         extra.document["required_inputs"][0]["binding_status"],
         "bound"
     );
-    let unset = scheduled(LOCALE, &["locale=@env:C5_SURELY_UNSET_VAR"], 0.05);
+    let declared = LOCALE.replace("permits:\n", "permits:\n  env: [C5_SURELY_UNSET_VAR]\n");
+    let unset = scheduled(&declared, &["locale=@env:C5_SURELY_UNSET_VAR"], 0.05);
     assert_eq!(
         kinds(&unset),
         [("input_refused", Some("locale"), Some("env_unset"))],
