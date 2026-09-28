@@ -109,7 +109,7 @@ pub struct InferenceReceipt {
 #[derive(Debug)]
 struct State {
     unknown: Option<UnknownCostChoice>,
-    unknown_active: bool,
+    unknown_in_flight: u32,
     unknown_attempts: Vec<UnknownAttemptReceipt>,
     overridden_defaults: [Option<Cost>; 2],
     limit: Cost,
@@ -168,7 +168,7 @@ impl InferenceAdmission {
         Self(
             Arc::new(Mutex::new(State {
                 unknown: None,
-                unknown_active: false,
+                unknown_in_flight: 0,
                 unknown_attempts: Vec::new(),
                 overridden_defaults: [None, None],
                 limit,
@@ -363,6 +363,13 @@ impl Attempt {
         match self {
             Self::Priced(a) => a.settle(response),
             Self::Unknown(a) => a.settle(response),
+        }
+    }
+    /// A received 429/503 settles an unknown-cost attempt as answered; every
+    /// other attempt and status keeps its drop semantics.
+    pub(crate) fn answered(&mut self, status: u16, final_url: &str) {
+        if let Self::Unknown(a) = self {
+            a.answered(status, final_url);
         }
     }
 }

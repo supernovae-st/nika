@@ -202,3 +202,190 @@ fn declaration_rejects_nonfinite_negative_and_wrong_scope() {
     .expect("other");
     assert!(other.with_declared_tariff(tariff).is_err());
 }
+
+fn fan(total: u32, width: u32) -> InferenceAdmission {
+    let wide = UnknownCostChoice::new(
+        "candidate-a".into(),
+        "invocation-a".into(),
+        "deepseek".into(),
+        "deepseek-v4-pro".into(),
+        URL.into(),
+        total,
+        8192,
+        Duration::from_secs(10),
+    )
+    .and_then(|c| c.with_max_in_flight(width))
+    .expect("finite fan choice")
+    .with_authored_retry();
+    InferenceAdmission::new_unknown(wide, policy())
+        .expect("account")
+        .for_scope("candidate-a", "invocation-a")
+        .expect("bind")
+}
+fn take(a: &InferenceAdmission) -> Result<Attempt, ProviderError> {
+    a.reserve("deepseek", "deepseek-v4-pro", URL, 8192)
+}
+#[test]
+fn concurrency_widens_only_explicitly_and_every_slot_is_released_once() {
+    for width in [0, 3] {
+        assert!(choice().with_max_in_flight(width).is_err(), "{width}");
+    }
+    // One in flight and no authored retry stay the historical choice, byte for byte.
+    let historical = serde_json::to_value(choice()).expect("choice");
+    assert!(historical.get("max_in_flight").is_none());
+    assert!(historical.get("authored_retry").is_none());
+    let one = choice().with_max_in_flight(1).expect("sequential");
+    assert_eq!(serde_json::to_value(one).expect("choice"), historical);
+    let two = choice().with_max_in_flight(2).expect("within the total");
+    let two = serde_json::to_value(two.with_authored_retry()).expect("choice");
+    assert_eq!(
+        (&two["max_in_flight"], &two["authored_retry"]),
+        (&2.into(), &true.into())
+    );
+    let a = fan(4, 2);
+    let mut first = take(&a).expect("first");
+    let mut second = take(&a).expect("second in flight");
+    assert!(take(&a).is_err(), "at most two in flight");
+    first.sent().expect("send");
+    first.settle(&complete()).expect("settle");
+    first.answered(429, URL); // a settled attempt is never answered again
+    drop(first);
+    let third = take(&a).expect("the settled slot is free");
+    assert!(
+        take(&a).is_err(),
+        "settle, answer and drop released one slot"
+    );
+    drop(third); // never sent: released, still counted against the total
+    let mut fourth = take(&a).expect("fourth");
+    for call in [&mut second, &mut fourth] {
+        call.sent().expect("send");
+        call.settle(&complete()).expect("settle");
+    }
+    assert!(take(&a).is_err(), "every reservation counts, sent or not");
+    let snap = a.snapshot().expect("snapshot");
+    assert_eq!(snap.unknown_attempts.len(), 4);
+    assert_eq!(snap.unknown_attempts.iter().filter(|x| x.sent).count(), 3);
+    assert_eq!(snap.unknown_attempts[2].note, "not dispatched");
+    assert_eq!(snap.state, AdmissionState::Open);
+}
+proptest::proptest! {
+    #![proptest_config(proptest::test_runner::Config::with_cases(48))]
+    #[test]
+    fn simultaneous_racers_never_exceed_the_total_or_the_in_flight_bound(
+        total in 1u32..=6,
+        width in 1u32..=6,
+        racers in 1usize..=8,
+    ) {
+        let width = width.min(total);
+        let a = fan(total, width);
+        let mut dispatched = 0usize;
+        let gate = std::sync::Barrier::new(racers);
+        for _wave in 0..=total {
+            let held: Vec<Attempt> = std::thread::scope(|s| {
+                let racing: Vec<_> = (0..racers)
+                    .map(|_| s.spawn(|| { gate.wait(); take(&a).ok() }))
+                    .collect();
+                racing.into_iter().filter_map(|r| r.join().expect("racer")).collect()
+            });
+            let left = total as usize - dispatched;
+            proptest::prop_assert_eq!(held.len(), racers.min(width as usize).min(left));
+            dispatched += held.len();
+            for mut call in held {
+                call.sent().expect("send");
+                call.settle(&complete()).expect("settle");
+            }
+        }
+        proptest::prop_assert_eq!(dispatched, total as usize);
+        let snap = a.snapshot().expect("snapshot");
+        proptest::prop_assert_eq!(snap.unknown_attempts.len(), total as usize);
+        proptest::prop_assert_eq!(snap.state, AdmissionState::Open);
+    }
+}
+#[test]
+fn a_sibling_left_uncertain_revokes_pending_and_new_dispatch() {
+    let a = fan(4, 3);
+    let mut left = take(&a).expect("first");
+    let mut answered = take(&a).expect("second");
+    let mut pending = take(&a).expect("third, reserved but not sent");
+    left.sent().expect("send");
+    answered.sent().expect("send");
+    drop(left); // sent without settlement: possibly billed
+    assert!(
+        pending.sent().is_err(),
+        "no dispatch after an Uncertain sibling"
+    );
+    answered
+        .settle(&complete())
+        .expect("a response already in flight is still recorded");
+    drop(pending);
+    assert!(take(&a).is_err(), "free slots and total grant nothing now");
+    let snap = a.snapshot().expect("snapshot");
+    assert_eq!(snap.state, AdmissionState::Uncertain);
+    assert_eq!(snap.unknown_attempts.iter().filter(|x| x.sent).count(), 2);
+    assert_eq!(snap.unknown_calls, 1);
+    assert_eq!(snap.unknown_attempts[2].note, "not dispatched");
+}
+#[test]
+fn a_received_429_or_503_permits_only_an_authored_retry_inside_the_total() {
+    for status in [429, 503] {
+        // Without an authored retry the historical law holds: Uncertain.
+        let historical = account();
+        let mut call = take(&historical).expect("first");
+        call.sent().expect("send");
+        call.answered(status, URL);
+        drop(call);
+        let snap = historical.snapshot().expect("snapshot");
+        assert_eq!(snap.state, AdmissionState::Uncertain, "{status}");
+        assert!(take(&historical).is_err(), "{status}");
+        let a = fan(2, 1);
+        let mut first = take(&a).expect("first");
+        first.sent().expect("send");
+        first.answered(status, URL);
+        drop(first);
+        let snap = a.snapshot().expect("snapshot");
+        assert_eq!(snap.state, AdmissionState::Open, "{status}");
+        assert_eq!(snap.unknown_calls, 1, "answered: usage unknown, never zero");
+        assert_eq!(snap.unknown_attempts[0].estimated, None);
+        assert_eq!(
+            snap.unknown_attempts[0].note,
+            format!("answered HTTP {status}; usage and USD cost unknown")
+        );
+        let mut retry = take(&a).expect("an authored retry inside the total");
+        retry.sent().expect("send");
+        retry.answered(status, URL);
+        drop(retry);
+        assert!(take(&a).is_err(), "the original total bounds every retry");
+        assert_eq!(a.snapshot().expect("snapshot").unknown_calls, 2);
+    }
+}
+#[test]
+fn other_statuses_changed_endpoints_and_unsent_attempts_are_never_answered() {
+    for (status, endpoint) in [
+        (500, URL),
+        (408, URL),
+        (200, URL),
+        (429, "https://api.deepseek.com/v1/chat/completions/"),
+        (503, "https://gateway.test/v1/chat/completions"),
+    ] {
+        let a = fan(2, 1);
+        let mut call = take(&a).expect("first");
+        call.sent().expect("send");
+        call.answered(status, endpoint);
+        drop(call);
+        let snap = a.snapshot().expect("snapshot");
+        assert_eq!(snap.state, AdmissionState::Uncertain, "{status} {endpoint}");
+        assert_eq!(
+            snap.unknown_attempts[0].note,
+            "possibly billed; no automatic retry"
+        );
+        assert!(take(&a).is_err(), "{status} {endpoint}");
+    }
+    let a = fan(2, 1);
+    let mut unsent = take(&a).expect("first");
+    unsent.answered(429, URL);
+    drop(unsent);
+    let snap = a.snapshot().expect("snapshot");
+    assert_eq!(snap.state, AdmissionState::Open);
+    assert_eq!(snap.unknown_calls, 0);
+    assert_eq!(snap.unknown_attempts[0].note, "not dispatched");
+}

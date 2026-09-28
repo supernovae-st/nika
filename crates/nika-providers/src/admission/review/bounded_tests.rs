@@ -51,6 +51,59 @@ fn bound_is_displayed_without_overflow_and_zero_is_refused() {
     );
 }
 
+const SEQUENTIAL_RUN_QUESTION: &str = "USD cost is unknown; a charge is possible on deepseek/unpriced-bounded-fixture.\nAt most 2 requests; each at most 8192 output tokens and 120 seconds (at most 240 seconds of model wait). Any schema re-asks consume this same request bound. No automatic transport retry.\nOverrides only the shown defaults (invocation: none; project: none); no hard cap is overridden.\nContinue once? yes / no";
+#[test]
+fn a_sequential_run_review_keeps_its_historical_question_bytes() {
+    let run = review().for_run(2).expect("bound");
+    assert_eq!(run.question(), SEQUENTIAL_RUN_QUESTION);
+}
+#[test]
+fn a_fan_review_shows_its_breakdown_and_confirms_its_concurrency() {
+    let sequential = review()
+        .for_run(2)
+        .expect("bound")
+        .with_concurrency(1)
+        .expect("one at a time")
+        .with_breakdown(Vec::new())
+        .with_authored_retry(false);
+    assert_eq!(sequential.question(), SEQUENTIAL_RUN_QUESTION);
+    assert_eq!(review().for_session().max_in_flight(), 1);
+    for width in [0, 7] {
+        let widened = review().for_run(6).expect("bound").with_concurrency(width);
+        assert!(widened.is_err(), "{width}");
+    }
+    let line = "`review`: 3 items × 2 attempts = 6 requests, at most 3 at once";
+    let fan = review()
+        .for_run(6)
+        .expect("bound")
+        .with_concurrency(3)
+        .expect("within the total")
+        .with_breakdown(vec![line.into()])
+        .with_authored_retry(true);
+    assert_eq!(fan.max_in_flight(), 3);
+    let question = fan.question();
+    let shown = format!(
+        "No automatic transport retry.\n{line}\nAt most 3 in flight at once; authored retries and schema re-asks consume this same request bound.\nAn authored retry may send again only after a completed response or a received 429 or 503; any other failure stops every further request.\nOverrides only"
+    );
+    assert!(question.contains("At most 6 requests;"), "{question}");
+    assert!(question.contains(&shown), "{question}");
+    let route = route();
+    let account = fan.confirm("candidate", &route).expect("fresh yes");
+    let reserve = || account.reserve(&route.provider, &route.model, &route.endpoint, 32);
+    let held: Vec<_> = (0..3).map(|_| reserve().expect("in flight")).collect();
+    assert!(reserve().is_err(), "a fourth waits for a free slot");
+    drop(held); // never sent: released, still counted
+    let mut answered = reserve().expect("fourth");
+    answered.sent().expect("send");
+    answered.answered(429, &route.endpoint); // the confirmed choice carries the retry law
+    drop(answered);
+    let rest: Vec<_> = (0..2).map(|_| reserve().expect("in the total")).collect();
+    drop(rest);
+    assert!(reserve().is_err(), "the confirmed total is spent");
+    let receipt = account.snapshot().expect("receipt");
+    assert_eq!(receipt.state, crate::AdmissionState::Open);
+    assert_eq!(receipt.unknown_calls, 1);
+}
 #[test]
 fn a_session_review_admits_the_sessions_widened_output_and_a_run_review_does_not() {
     let route = route();

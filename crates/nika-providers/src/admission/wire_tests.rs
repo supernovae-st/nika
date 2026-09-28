@@ -106,17 +106,19 @@ async fn explicit_scaleway_route_records_eur_without_inventing_dollars() {
     );
 }
 
-fn explicit_unknown() -> InferenceAdmission {
+fn explicit_unknown(total: u32, width: u32, retry: bool) -> InferenceAdmission {
     let choice = UnknownCostChoice::new(
         "candidate".into(),
         "invocation".into(),
         "deepseek".into(),
         "deepseek-v4-pro".into(),
         ENDPOINT.into(),
-        2,
+        total,
         8192,
         std::time::Duration::from_secs(10),
     )
+    .and_then(|c| c.with_max_in_flight(width))
+    .map(|c| if retry { c.with_authored_retry() } else { c })
     .expect("choice");
     let policy = UnknownCostPolicy::new(
         true,
@@ -133,15 +135,18 @@ fn explicit_unknown() -> InferenceAdmission {
 }
 
 #[tokio::test]
-async fn unknown_choice_sends_once_preserves_null_and_does_not_retry_errors() {
-    for status in [200, 429, 503] {
+async fn unknown_choice_sends_once_preserves_null_and_retries_only_as_authored() {
+    let cases = [200, 429, 503, 500]
+        .into_iter()
+        .flat_map(|s| [(s, false), (s, true)]);
+    for (status, authored) in cases {
         let mut h = http();
         h.status = status;
         let mut b = body();
         b.as_object_mut().expect("object").remove("usage");
         h.body = b.to_string();
         let transport = Arc::new(h);
-        let account = explicit_unknown();
+        let account = explicit_unknown(2, 1, authored);
         let provider = ProviderRegistry::new(
             transport.clone(),
             ProvidersConfig::new().with_key("deepseek", Secret::new("test")),
@@ -151,15 +156,69 @@ async fn unknown_choice_sends_once_preserves_null_and_does_not_retry_errors() {
         .expect("provider");
         let response = provider.infer_reported(request()).await;
         assert_eq!(response.is_ok(), status == 200);
-        assert_eq!(transport.calls.load(Ordering::SeqCst), 1);
+        assert_eq!(
+            transport.calls.load(Ordering::SeqCst),
+            1,
+            "no transport retry"
+        );
         let receipt = account.snapshot().expect("snapshot");
         assert_eq!(receipt.unknown_calls, 1);
         assert_eq!(receipt.unknown_attempts[0].estimated, None);
-        if status != 200 {
-            assert!(provider.infer_reported(request()).await.is_err());
-            assert_eq!(transport.calls.load(Ordering::SeqCst), 1);
+        if status == 200 {
+            continue;
         }
+        // A received 429/503 from the unchanged endpoint admits an authored
+        // retry inside the original total; a 500, or no authored retry, stays
+        // Uncertain.
+        let answered = authored && matches!(status, 429 | 503);
+        let physical = if answered { 2 } else { 1 };
+        assert!(provider.infer_reported(request()).await.is_err());
+        assert_eq!(transport.calls.load(Ordering::SeqCst), physical, "{status}");
+        assert!(provider.infer_reported(request()).await.is_err());
+        assert_eq!(transport.calls.load(Ordering::SeqCst), physical, "{status}");
+        let receipt = account.snapshot().expect("snapshot");
+        assert_eq!(receipt.unknown_calls, physical);
+        assert_eq!(
+            receipt.state == AdmissionState::Uncertain,
+            !answered,
+            "{status}"
+        );
     }
+}
+
+#[tokio::test]
+async fn concurrent_requests_stop_at_the_in_flight_bound_and_after_a_timer_drop() {
+    let mut h = http();
+    h.hangs = true;
+    let transport = Arc::new(h);
+    let account = explicit_unknown(3, 2, true);
+    let provider = ProviderRegistry::new(
+        transport.clone(),
+        ProvidersConfig::new().with_key("deepseek", Secret::new("test")),
+    )
+    .with_inference_admission(account.clone())
+    .resolve(MODEL)
+    .expect("provider");
+    let wait = std::time::Duration::from_millis(20);
+    let racing = tokio::join!(
+        tokio::time::timeout(wait, provider.infer(request())),
+        tokio::time::timeout(wait, provider.infer(request())),
+        tokio::time::timeout(wait, provider.infer(request())),
+    );
+    let outcomes = [racing.0, racing.1, racing.2];
+    let timed_out = outcomes.iter().filter(|o| o.is_err()).count();
+    let refused = outcomes.iter().filter(|o| matches!(o, Ok(Err(_)))).count();
+    assert_eq!((timed_out, refused), (2, 1), "two in flight, one refused");
+    assert_eq!(transport.calls.load(Ordering::SeqCst), 2);
+    let receipt = account.snapshot().expect("snapshot");
+    assert_eq!(receipt.state, AdmissionState::Uncertain);
+    assert_eq!(receipt.unknown_calls, 2);
+    assert_eq!(receipt.unknown_attempts.len(), 2);
+    assert!(
+        provider.infer(request()).await.is_err(),
+        "no dispatch after"
+    );
+    assert_eq!(transport.calls.load(Ordering::SeqCst), 2);
 }
 
 #[tokio::test]

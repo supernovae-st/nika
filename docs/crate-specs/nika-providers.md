@@ -334,7 +334,42 @@ nonce or any authority.
 requests, 32768 output tokens and 180 seconds per request. The displayed review
 and consuming admission use these same values. `CostReview::new` and
 `with_run_requests` retain the Run per-request limits (8192 tokens, 120 seconds);
-unknown outcomes freeze their account and never grant a transport retry.
+unknown outcomes freeze their account and never grant a transport retry (for a
+Run that authored retries, a received 429 or 503 answers its attempt instead:
+see Dispatch multiplicity).
+
+### Dispatch multiplicity (B12 · 2026-09-28)
+
+A confirmed unknown-cost choice bounds two independent quantities: the original
+total of physical requests (`max_requests`) and the requests in flight at once.
+`UnknownCostChoice::with_max_in_flight(n)` and `CostReview::with_concurrency(n)`
+widen the second past its historical one (`0 < n <= total`, otherwise refused).
+Each reservation takes one of both under the account mutex; the total counts
+every reservation, sent or not, and is never recomputed from a remaining
+snapshot. A reservation's in-flight slot is released exactly once: by complete
+settlement, by an answered status, or by its drop. A sequential choice without
+authored retries serializes byte for byte as before; a widened one adds
+`max_in_flight` to its observation, and one whose Run authored retries adds
+`"authored_retry": true`.
+
+`UnknownCostChoice::with_authored_retry()` (`CostReview::with_authored_retry`)
+records that the Run authored retries inside its total. Only for such a choice
+does a 429 or 503 received from the unchanged reserved endpoint answer its
+attempt: its usage and USD cost stay unknown (it counts in `unknown_calls`,
+never as not billed), and the account keeps its state. An authored retry inside
+the original total may then reserve again, and only while the account is Open.
+Without authored retries the historical law holds and the attempt leaves the
+account Uncertain: Session reviews and single-attempt Runs never re-dispatch
+after an error. Any other status, a changed endpoint, an ambiguous transport
+outcome, a cancelled or timed-out send and an identity contradiction always
+leave the account Uncertain. After that, reserved siblings cannot send, new
+reservations are refused whatever slots are free, and responses already in
+flight are still recorded.
+
+`CostReview::with_breakdown(lines)` adds the host's per-task lines to the
+question, followed by the in-flight bound and, for authored retries, the retry
+rule. A review with neither a breakdown, concurrency nor authored retries keeps
+its historical question bytes.
 
 `ExecutionAccessPlan::admits_api_lane(provider)` (C6, descended from Serve's
 cost-review door) answers whether an admitted lane of that canonical provider,
