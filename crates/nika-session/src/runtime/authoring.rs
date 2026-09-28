@@ -654,9 +654,7 @@ impl SessionRuntime {
                 .current()
                 .and_then(|q| clause_of(&q.label))
                 .unwrap_or_default();
-            let intent = round.intent.replacen(&clause, line.trim(), 1);
-            let mut restated = AuthoringRound::new(intent);
-            restated.restatements = round.restatements.saturating_add(1);
+            let restated = round.restate_clause(&clause, line.trim());
             let asked = self.question_id_of(&round);
             self.questions.close(asked);
             self.remember(line, &format!("(restated « {clause} » in words)"));

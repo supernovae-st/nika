@@ -28,6 +28,9 @@
 //! the references, and whether the native door presented them to the seat.
 
 use std::collections::BTreeMap;
+#[cfg(test)]
+#[path = "authoring/money_restatement_tests.rs"]
+mod money_restatement_tests;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -471,6 +474,32 @@ impl AuthoringRound {
         probe.absorb(reading.outcome());
         matches!(reading, Reading::Questions(_) | Reading::Unsettled(_))
             && probe.current().is_some()
+    }
+
+    /// Read one clause again while retaining only unchanged, previously admitted monetary
+    /// text. Offsets follow the replacement's byte length; new or overlapping text gains no
+    /// admission. Answers and the old plan belong to the old request and are not carried.
+    pub(crate) fn restate_clause(&self, clause: &str, answer: &str) -> Self {
+        let mut next = Self::new(self.intent.replacen(clause, answer, 1));
+        next.restatements = self.restatements.saturating_add(1);
+        if let Some(start) = self.intent.find(clause) {
+            let end = start + clause.len();
+            next.money = self
+                .money
+                .iter()
+                .filter_map(|span| {
+                    if span.end <= start {
+                        Some(span.clone())
+                    } else if span.start >= end {
+                        let after = start + answer.len();
+                        Some(after + (span.start - end)..after + (span.end - end))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+        }
+        next
     }
 
     /// Answer the current question with the human's line, typed to the
