@@ -254,3 +254,9 @@ An empty compatible list, incompatible protocol and failed observation are disti
 from advertised models. JSON exposes `local_model_probes` and `inference_tested:false`;
 human rows state that inference was not tested. No opt-in leaves observations absent.
 The existing `Probe` and render function signatures remain compatible.
+
+The direct-API authoring backend records `cost_basis: unpriced; billing_unverified`. Its usage completeness and requested/observed model evidence are separate observations; this door does not calculate a catalog valuation or certify billing. Harness-provided descriptors retain their own basis.
+
+`redact_authoring_error` re-exports the provider-owned authoring error projection. It preserves local AdmissionDenied with an engine-authored remedy and removes provider text from all other failures. Serve consumes this shared host boundary; the compiler keeps its typed refusal distinction.
+
+Direct API authoring endpoint metadata comes from the exact seated registry: `host` strips user info, path, query and fragment; `base_url_overridden` compares the effective URL with its profile seed when available. `endpoint_basis: operator_configuration` distinguishes this configuration from an authenticated remote identity or an observed model. Session host diagnostics use the same redaction.

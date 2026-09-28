@@ -78,3 +78,11 @@ its output conventions. They describe compiler fidelity and prompt behavior,
 not normative language rules; syncing the canonical Spec pack must not delete
 them. Native-call receipts keep the actual card SHA-256 alongside the distinct
 Spec pin and pack version. A missing card is a build error, never empty text.
+
+### Response identity evidence
+
+The shared authoring `Seat` counts an absent, empty or whitespace-only provider
+model identity as unreported. It never substitutes the requested model. Nonblank
+reported identities remain exact and deduplicated in first-observed order; the raw
+provider response is preserved. This observation is not independent provider or
+invoice verification. CLI, Session and native Serve use this same owner.

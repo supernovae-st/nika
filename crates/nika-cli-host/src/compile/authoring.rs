@@ -77,7 +77,7 @@ fn stamp_backend(
             serde_json::json!({
                 "kind": "direct_api",
                 "provider": args.authoring_model.as_deref().and_then(|m| m.split('/').next()),
-                "cost_basis": "measured_by_tokens_at_catalog_price",
+                "cost_basis": "unpriced; billing_unverified",
             })
         });
         backend["requested_model"] = serde_json::json!(args.authoring_model);
@@ -111,14 +111,14 @@ pub(super) fn compile(
         let invocations = authority.envelope();
         let requests = authority.envelope();
         let harness = harness_seat(args)?.map(|seat| Seat::new(seat, invocations.clone()));
-        let provider = match args.authoring_model.as_deref() {
+        let (provider, backend) = match args.authoring_model.as_deref() {
             Some(model) if harness.is_none() => {
-                let seat = authoring_registry(requests.clone())?
-                    .resolve(model)
-                    .map_err(|e| e.to_string())?;
-                Some(Seat::new(seat, invocations.clone()))
+                let registry = authoring_registry(requests.clone())?;
+                let backend = super::authoring_backend(&registry, model);
+                let seat = registry.resolve(model).map_err(|e| e.to_string())?;
+                (Some(Seat::new(seat, invocations.clone())), Some(backend))
             }
-            _ => None,
+            _ => (None, None),
         };
         let decision_provider = match args.decision_model.as_deref() {
             Some(model) if !model.starts_with("typesafe/") => {
@@ -186,7 +186,8 @@ pub(super) fn compile(
         // A harness is counted in invocations; its own requests are not observable here.
         let wire = harness.is_none().then_some(requests.as_ref());
         let account = authority.record(&invocations, wire);
-        stamp_backend(&mut outcome, args, described, (reported, account));
+        let backend = described.or(backend);
+        stamp_backend(&mut outcome, args, backend, (reported, account));
         Ok(outcome)
     })
 }

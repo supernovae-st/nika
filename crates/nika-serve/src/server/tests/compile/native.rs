@@ -508,7 +508,7 @@ fn assert_first_round(foundry: &Foundry, world: &TestWorld, sent: &Value, docume
     assert_eq!(receipt["backend"]["authority"]["http_requests"]["sent"], 1);
     assert_eq!(
         receipt["backend"]["cost_basis"],
-        "provider_reported_usage; billing_unverified"
+        "unpriced; billing_unverified"
     );
     let identity = &provenance["decision"]["native"]["knowledge"]["identity"];
     let expected = &pack.identity;

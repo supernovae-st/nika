@@ -41,6 +41,7 @@
 
 pub mod admission;
 pub use admission::{AdmissionState, AttemptReceipt, InferenceAdmission, InferenceReceipt};
+pub mod authoring;
 pub mod census;
 #[cfg(test)]
 mod parity_tests;

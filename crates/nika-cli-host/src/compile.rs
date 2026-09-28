@@ -4,7 +4,7 @@
 //! CLI transport and explicit materialization for the stateless Compile core.
 mod authoring;
 mod authority;
-pub use authority::authoring_http;
+pub use authority::{authoring_backend, authoring_host, authoring_http, redact_authoring_error};
 pub mod config;
 #[cfg(feature = "access-harness")]
 mod harness_seat;

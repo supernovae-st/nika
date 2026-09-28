@@ -496,3 +496,7 @@ model identities and the authority's sent/refused counters. Provider-reported
 tokens do not prove invoiced cost. Generation-1 and deterministic replay contact
 no authoring model. This bounded request grant does not implement a USD ledger
 or interrupted-run reconciliation.
+
+Authoring receipt truth: the native Gate retains a local invocation-ceiling refusal as `admission_refused`, with the operator `max_calls` remedy, instead of labeling it a provider failure. `unreported_models` counts responses that omit an identity, independently from the observed-model list. The door records `cost_basis: unpriced; billing_unverified`; token totals never establish a tariff or invoice. An explicit repair preference that conflicts with a narrowed call grant names `limits.repairs` in its refusal and still sends zero requests.
+
+Direct API authoring endpoint metadata comes from the exact seated registry: `host` strips user info, path, query and fragment; `base_url_overridden` compares the effective URL with its profile seed when available. `endpoint_basis: operator_configuration` distinguishes this configuration from an authenticated remote identity or an observed model. Session host diagnostics use the same redaction.

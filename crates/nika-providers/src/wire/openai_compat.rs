@@ -485,7 +485,9 @@ fn parse_response(
         });
     }
 
-    let usage = v.pointer("/usage").map(usage_from).unwrap_or_default();
+    let reported_usage = v.pointer("/usage").and_then(usage_from);
+    let usage_reported = reported_usage.is_some();
+    let usage = reported_usage.unwrap_or_default();
 
     let raw_finish = v
         .pointer("/choices/0/finish_reason")
@@ -499,13 +501,10 @@ fn parse_response(
     {
         resp.stop_reason = StopReason::ContentFilter;
     }
-    // The budget law (R3-F1): an omitting backend gets an UNREPORTED
-    // mark, not a fabricated zero the budgets would trust — and an EMPTY
-    // usage object carries no signal, same class as the omission.
-    resp.usage_reported = v.pointer("/usage").is_some_and(|u| {
-        !u.is_null()
-            && (u.pointer("/prompt_tokens").is_some() || u.pointer("/completion_tokens").is_some())
-    });
+    // Both base counters must be actual unsigned integers. Missing, partial or
+    // malformed usage stays unreported, never a fabricated reported zero.
+    // Complete priced meters remain the separate admission law below.
+    resp.usage_reported = usage_reported;
     if super::admission::complete_usage(rp.profile.id, &v) {
         resp.usage_completeness = nika_kernel::ai::provider::UsageCompleteness::Complete;
     }
@@ -539,17 +538,14 @@ fn parse_response(
 /// under `prompt_tokens_details`; both spellings land in
 /// `cache_read_tokens`, so `usd_for_split` prices the hit portion at the
 /// catalog's cache-read rate instead of the full input rate.
-fn usage_from(u: &Value) -> TokenUsage {
+fn usage_from(u: &Value) -> Option<TokenUsage> {
     let at = |key: &str| u.pointer(key).and_then(Value::as_u64);
-    let mut usage = TokenUsage::new(
-        at("/prompt_tokens").unwrap_or_default(),
-        at("/completion_tokens").unwrap_or_default(),
-    );
+    let mut usage = TokenUsage::new(at("/prompt_tokens")?, at("/completion_tokens")?);
     usage.cache_read_tokens =
         at("/prompt_tokens_details/cached_tokens").or_else(|| at("/prompt_cache_hit_tokens"));
     usage.reasoning_tokens = at("/completion_tokens_details/reasoning_tokens");
     usage.total_tokens = at("/total_tokens");
-    usage
+    Some(usage)
 }
 
 fn map_finish(raw: Option<&str>) -> StopReason {
@@ -664,7 +660,9 @@ impl EventMapper for CompatMapper {
             // cached prompt must not price at the full input rate the
             // day a verb streams. `stream_options.include_usage` is
             // already requested above.
-            out.push(Ok(InferEvent::Usage(usage_from(u))));
+            if let Some(usage) = usage_from(u) {
+                out.push(Ok(InferEvent::Usage(usage)));
+            }
         }
         out
     }

@@ -313,10 +313,16 @@ fn within_limits(envelope: &Envelope, operator: Bounds) -> Result<Bounds, ApiErr
     if !bounded {
         return Err(limit());
     }
-    match &envelope.limits {
-        None => Ok(operator),
-        Some(Object(asked)) => narrow(asked, operator).ok_or_else(limit),
-    }
+    let bounds = match &envelope.limits {
+        None => operator,
+        Some(Object(asked)) => narrow(asked, operator).ok_or_else(limit)?,
+    };
+    bounds.authority().map_err(|_| ApiError::new(
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "compile_limit",
+        "the explicit repair preference requires more requests than max_calls permits; narrow limits.repairs too, or ask the operator to grant sufficient max_calls",
+    ))?;
+    Ok(bounds)
 }
 
 /// The operator's bounds narrowed by the caller's: every value asked must be positive (repairs
@@ -349,7 +355,6 @@ fn narrow(asked: &Limits, operator: Bounds) -> Option<Bounds> {
     if let Some(millis) = asked.deadline_ms {
         bounds.deadline = duration(millis, operator.deadline)?;
     }
-    bounds.authority().ok()?;
     Some(bounds)
 }
 

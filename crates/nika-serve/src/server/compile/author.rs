@@ -247,7 +247,10 @@ async fn author(
     let requests = authority.envelope();
     let http = nika_cli_host::compile::authoring_http().map_err(|_| Refusal::Machinery)?;
     let wire = Wire::new(http, Arc::clone(&requests));
-    let provider = ProviderRegistry::new(Arc::new(wire), seat.providers.clone())
+    let registry = ProviderRegistry::new(Arc::new(wire), seat.providers.clone());
+    let mut backend = nika_cli_host::compile::authoring_backend(&registry, &seat.model);
+    backend["provider"] = serde_json::json!(seat.provider);
+    let provider = registry
         .resolve(&seat.model)
         .map_err(|_| Refusal::Machinery)?;
     let gate = Gate {
@@ -262,15 +265,13 @@ async fn author(
         .await
         .map_err(|_| Refusal::Machinery)?;
     if let Some(receipt) = outcome.provenance.authoring.as_mut() {
-        receipt.backend = Some(serde_json::json!({
-            "kind": "direct_api",
-            "provider": seat.provider,
-            "cost_basis": "provider_reported_usage; billing_unverified",
-            "usage_complete": nika_onboard::compile::authority::usage_complete(&receipt.context),
-            "requested_model": seat.model,
-            "observed_models": gate.provider.observed(),
-            "authority": authority.record(&invocations, Some(&requests)),
-        }));
+        backend["usage_complete"] = serde_json::json!(
+            nika_onboard::compile::authority::usage_complete(&receipt.context)
+        );
+        backend["observed_models"] = serde_json::json!(gate.provider.observed());
+        backend["unreported_models"] = serde_json::json!(gate.provider.unreported());
+        backend["authority"] = authority.record(&invocations, Some(&requests));
+        receipt.backend = Some(backend);
     }
     Ok(outcome)
 }
@@ -366,32 +367,10 @@ impl<P: ProviderInferDyn> ProviderInferDyn for Gate<P> {
         self.provider
             .infer(request)
             .await
-            .map_err(|error| ProviderError::Other {
-                reason: safe_reason(&error),
-            })
-    }
-}
-
-fn safe_reason(error: &ProviderError) -> String {
-    match error {
-        ProviderError::HttpResponse { details } => {
-            format!("the authoring provider answered HTTP {}", details.status())
-        }
-        ProviderError::Api { status, .. } => {
-            format!("the authoring provider answered HTTP {status}")
-        }
-        ProviderError::RateLimited { .. } => "the authoring provider rate-limited the call".to_owned(),
-        ProviderError::AuthFailed { .. } => {
-            "the authoring provider refused the operator's credentials".to_owned()
-        }
-        ProviderError::ModelNotFound { .. } => {
-            "the authoring provider does not serve the seated model".to_owned()
-        }
-        ProviderError::Connection { .. } => {
-            "the connection to the authoring provider failed or was cut; the call may still be billed"
-                .to_owned()
-        }
-        _ => "the authoring provider call failed".to_owned(),
+            .map_err(|error| nika_cli_host::compile::redact_authoring_error(
+                error,
+                "this authoring invocation was refused locally before dispatch; the operator must authorize sufficient max_calls, and a request may only narrow that ceiling",
+            ))
     }
 }
 

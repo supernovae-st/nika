@@ -39,6 +39,7 @@
                         "type": "string"
                       },
                       "cost_basis": {
+                        "description": "No price or invoice is established by this authoring door: unpriced; billing_unverified. Token totals and their completeness are separate observations.",
                         "type": "string"
                       },
                       "requested_model": {
@@ -52,6 +53,11 @@
                       },
                       "usage_complete": {
                         "type": "boolean"
+                      },
+                      "unreported_models": {
+                        "description": "Responses that did not identify their model; never assumed to be the requested model or another invocation's observed model.",
+                        "type": "integer",
+                        "minimum": 0
                       },
                       "authority": {
                         "type": "object",
@@ -113,6 +119,27 @@
                             "additionalProperties": true
                           }
                         }
+                      },
+                      "host": {
+                        "description": "Configured endpoint host and optional port only; no user info, path, query or fragment. This does not authenticate a remote peer.",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "base_url_overridden": {
+                        "description": "Effective configured URL differs from the provider profile seed; null if no seed comparison is available.",
+                        "type": [
+                          "boolean",
+                          "null"
+                        ]
+                      },
+                      "endpoint_basis": {
+                        "description": "These endpoint fields describe operator configuration, independently from observed model identities.",
+                        "type": "string",
+                        "enum": [
+                          "operator_configuration"
+                        ]
                       }
                     }
                   },
@@ -411,7 +438,7 @@
             "description": "Edit only, exactly one of: `text`, a revision in any wording (not only a `Set const.NAME` sentence) that the round reads beside `original_intent`; or `set_constant`, one structured constant the core applies without a provider call"
           },
           "cognition": {
-            "description": "explicitProvider: one fresh round under the operator's seat (refuses `replay_token` and an `intent.clarification` answer) \u00b7 deterministicOnly: a zero-call replay of a round this server kept (requires `replay_token`, refuses `limits`): it repeats the round's exact input, its `answers` may answer the round's questions, and it never carries `intent.clarification` (409 compile_replay_input_changed)",
+            "description": "explicitProvider: one fresh round under the operator's seat (refuses `replay_token` and an `intent.clarification` answer) · deterministicOnly: a zero-call replay of a round this server kept (requires `replay_token`, refuses `limits`): it repeats the round's exact input, its `answers` may answer the round's questions, and it never carries `intent.clarification` (409 compile_replay_input_changed)",
             "enum": [
               "explicitProvider",
               "deterministicOnly"
@@ -428,7 +455,7 @@
           },
           "limits": {
             "additionalProperties": false,
-            "description": "This request's narrowing of the operator's ceilings (explicitProvider only). Each value is optional and must be at most the operator's own ceiling, which is at most the maximum below; above \u2192 422 compile_limit, never clamped. Absent values take the operator's.",
+            "description": "This request's narrowing of the operator's ceilings (explicitProvider only). Each value is optional and must be at most the operator's own ceiling, which is at most the maximum below; above → 422 compile_limit, never clamped. Absent values take the operator's.",
             "properties": {
               "call_timeout_ms": {
                 "description": "The wait for one model invocation; the transport does not resend automatically",
@@ -507,7 +534,7 @@
   "paths": {
     "/v1/compile": {
       "post": {
-        "description": "The HTTP transport of the same Compile core as `nika compile`. Generation 1 (CompileRequest) is the foundation door, exactly as on a default server: deterministic, no provider contacted. Generation 2 (CompileRequestV2) exists only because this server's operator seated ONE native authoring model when building it (advertised by the `compileNativeV2` health capability). `cognition: explicitProvider` opts in to one fresh round under that seat: the operator chose the model, its credential, its endpoint, the knowledge snapshot and the ceilings; a request names none of them and may only narrow the ceilings through `limits` (above one \u2192 422 compile_limit, never clamped). A round permits one physical request by default. The operator can explicitly grant max_calls and a caller may only narrow that ceiling through limits.max_calls. Invocations and physical requests are counted separately in backend.authority, including refusals; no redirect is followed, and provider retries or structured-output fallbacks consume the same physical-request grant. Repairs describe desired work, never permission to send more requests. Requested and provider-reported model identities are recorded separately; token usage is not an invoice. Its deadline is absolute from admission: a round that must already stop never begins, and nothing it produces after it is answered or kept. A fresh round that leaves a native plan the server keeps (its input and plan within 2097152 bytes) answers the header Nika-Compile-Replay; `cognition: deterministicOnly` with that token and the round's exact input replays it with zero calls for as long as this server run keeps it (never renewed, forgotten on restart). A lost first answer leaves no token and a new fresh round spends again: there is no idempotency key and nothing retries. Version negotiation: a server without the capability answers compile_version 2 with 422 compile_version_unsupported; the answer's compile_version is 2 exactly when a provider call happened. Creates no job, run, approval, trace, file or permission. `check_preview` is a REVIEW of the source only: POST /v1/jobs judges a candidate again. A document carrying the seat's own credential is refused whole (500 compile_disclosure_refused).",
+        "description": "The HTTP transport of the same Compile core as `nika compile`. Generation 1 (CompileRequest) is the foundation door, exactly as on a default server: deterministic, no provider contacted. Generation 2 (CompileRequestV2) exists only because this server's operator seated ONE native authoring model when building it (advertised by the `compileNativeV2` health capability). `cognition: explicitProvider` opts in to one fresh round under that seat: the operator chose the model, its credential, its endpoint, the knowledge snapshot and the ceilings; a request names none of them and may only narrow the ceilings through `limits` (above one → 422 compile_limit, never clamped). A round permits one physical request by default. The operator can explicitly grant max_calls and a caller may only narrow that ceiling through limits.max_calls. Invocations and physical requests are counted separately in backend.authority, including refusals; no redirect is followed, and provider retries or structured-output fallbacks consume the same physical-request grant. Repairs describe desired work, never permission to send more requests. Requested and provider-reported model identities are recorded separately; token usage is not an invoice. Its deadline is absolute from admission: a round that must already stop never begins, and nothing it produces after it is answered or kept. A fresh round that leaves a native plan the server keeps (its input and plan within 2097152 bytes) answers the header Nika-Compile-Replay; `cognition: deterministicOnly` with that token and the round's exact input replays it with zero calls for as long as this server run keeps it (never renewed, forgotten on restart). A lost first answer leaves no token and a new fresh round spends again: there is no idempotency key and nothing retries. Version negotiation: a server without the capability answers compile_version 2 with 422 compile_version_unsupported; the answer's compile_version is 2 exactly when a provider call happened. Creates no job, run, approval, trace, file or permission. `check_preview` is a REVIEW of the source only: POST /v1/jobs judges a candidate again. A document carrying the seat's own credential is refused whole (500 compile_disclosure_refused).",
         "requestBody": {
           "content": {
             "application/json": {
@@ -542,7 +569,7 @@
                 }
               }
             },
-            "description": "Authoring outcome \u2014 ready, incomplete and refused are all data. compile_version 2 (CompileOutcomeV2) exactly when a provider call happened; every other answer, replays included, is generation 1 (CompileOutcome)",
+            "description": "Authoring outcome — ready, incomplete and refused are all data. compile_version 2 (CompileOutcomeV2) exactly when a provider call happened; every other answer, replays included, is generation 1 (CompileOutcome)",
             "headers": {
               "Cache-Control": {
                 "description": "no-store on every answer to a generation-2 request, fresh round or replay, whatever its compile_version",
@@ -561,7 +588,7 @@
             }
           },
           "408": {
-            "description": "request_timeout \u2014 the request deadline (body intake, generation 1, replays) \u00b7 compile_deadline_exceeded \u2014 a fresh round's absolute deadline passed: its work stopped or never began, nothing was kept, and a provider call in flight may still be billed"
+            "description": "request_timeout — the request deadline (body intake, generation 1, replays) · compile_deadline_exceeded — a fresh round's absolute deadline passed: its work stopped or never began, nothing was kept, and a provider call in flight may still be billed"
           },
           "409": {
             "content": {
@@ -571,16 +598,16 @@
                 }
               }
             },
-            "description": "compile_replay_unavailable \u2014 this server run keeps no round under that token (unknown, expired, another run) \u00b7 compile_replay_input_changed \u2014 a replay repeats its round's exact input and never replaces the intent \u00b7 compile_context_changed \u2014 the pinned knowledge snapshot no longer reads as pinned; nothing was sent"
+            "description": "compile_replay_unavailable — this server run keeps no round under that token (unknown, expired, another run) · compile_replay_input_changed — a replay repeats its round's exact input and never replaces the intent · compile_context_changed — the pinned knowledge snapshot no longer reads as pinned; nothing was sent"
           },
           "422": {
-            "description": "malformed_compile_request \u00b7 compile_version_unsupported \u00b7 compile_mode_unsupported \u00b7 compile_cognition_unsupported \u00b7 compile_limit \u00b7 compile_new_intent_required \u2014 an intent.clarification on a fresh generation-2 round: send the replacement as a new intent"
+            "description": "malformed_compile_request · compile_version_unsupported · compile_mode_unsupported · compile_cognition_unsupported · compile_limit · compile_new_intent_required — an intent.clarification on a fresh generation-2 round: send the replacement as a new intent"
           },
           "500": {
-            "description": "internal_error \u2014 compiler machinery failure, nothing is echoed \u00b7 compile_disclosure_refused \u2014 the outcome would carry a withheld credential and is refused whole"
+            "description": "internal_error — compiler machinery failure, nothing is echoed · compile_disclosure_refused — the outcome would carry a withheld credential and is refused whole"
           },
           "503": {
-            "description": "compile_busy \u2014 every compile slot is in use \u00b7 compile_replay_capacity \u2014 every kept answer round is in use; nothing was authored or spent \u00b7 stopping \u2014 the server is stopping; the round stopped and nothing was kept"
+            "description": "compile_busy — every compile slot is in use · compile_replay_capacity — every kept answer round is in use; nothing was authored or spent · stopping — the server is stopping; the round stopped and nothing was kept"
           }
         }
       }

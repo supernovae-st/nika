@@ -141,6 +141,15 @@ async fn a_native_server_publishes_generation_two_and_its_live_payloads_validate
     let first = exchange(&server, &request, &answer, &fresh(&json!({}))).await;
     assert_eq!(first.json()["compile_version"], 2);
     for (field, invalid) in [
+        ("/provenance/authoring/backend/host", json!(false)),
+        (
+            "/provenance/authoring/backend/base_url_overridden",
+            json!("yes"),
+        ),
+        (
+            "/provenance/authoring/backend/endpoint_basis",
+            json!("authenticated_peer"),
+        ),
         (
             "/provenance/authoring/backend/usage_complete",
             json!("unknown"),

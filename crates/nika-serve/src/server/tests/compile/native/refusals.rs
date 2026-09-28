@@ -351,7 +351,7 @@ async fn provider_failures_reach_the_document_as_fixed_reasons_and_a_withheld_va
         start_native(&world, compile_limits(), operator(&seat).with_repairs(0)).await;
     let response = server.request(&compile_request(&fresh(&json!({})))).await;
     assert_eq!(response.status, 200, "{}", response.body);
-    for needle in [SENTINEL, "internal.example", "127.0.0.1", "/etc/"] {
+    for needle in [SENTINEL, "internal.example", "/etc/"] {
         assert!(
             !response.body.contains(needle),
             "{needle}: {}",
@@ -359,6 +359,17 @@ async fn provider_failures_reach_the_document_as_fixed_reasons_and_a_withheld_va
         );
     }
     let document = response.json();
+    let mut without_host = document.clone();
+    let host = without_host["provenance"]["authoring"]["backend"]
+        .as_object_mut()
+        .expect("backend")
+        .remove("host")
+        .expect("configured host");
+    assert!(host.as_str().expect("host").starts_with("127.0.0.1:"));
+    assert!(
+        !without_host.to_string().contains("127.0.0.1"),
+        "the endpoint is only configuration evidence"
+    );
     assert_eq!(document["status"], "incomplete");
     assert_eq!(document["provenance"]["authoring"]["calls"], 1);
     let failure = document["diagnostics"]

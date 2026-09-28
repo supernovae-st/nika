@@ -111,8 +111,7 @@ pub fn gateway_host(provider: &str) -> Option<String> {
 /// The host part of a URL (`https://api.scaleway.ai/v1` → `api.scaleway.ai`).
 #[must_use]
 pub fn host_of(url: &str) -> String {
-    let rest = url.split("://").nth(1).unwrap_or(url);
-    rest.split('/').next().unwrap_or(rest).to_owned()
+    nika_cli_host::compile::authoring_host(url).unwrap_or_else(|| "unknown endpoint".to_owned())
 }
 /// The hard output ceiling of one Session authoring call (the compiler's own maximum: a
 /// reasoning seat spends part of it on its reasoning, and a complete candidate needs the rest).
@@ -1083,22 +1082,9 @@ fn seated(
     // The receipt names its backend as the CLI's does, with the host the
     // calls really went to (an overridden base URL is a gateway: said).
     if let Some(receipt) = out.provenance.authoring.as_mut() {
-        let id = model.split('/').next().unwrap_or(model);
-        let host = registry.effective_base_url(id).map(host_of);
-        let seed = registry
-            .profiles()
-            .iter()
-            .find(|p| p.id == nika_providers::canonical_provider(id))
-            .map(|p| host_of(p.base_url));
-        receipt.backend.get_or_insert_with(|| {
-            json!({
-                "kind": "direct_api",
-                "provider": id,
-                "host": host,
-                "base_url_overridden": host.is_some() && host != seed,
-                "cost_basis": "measured_by_tokens_at_catalog_price",
-            })
-        });
+        receipt
+            .backend
+            .get_or_insert_with(|| nika_cli_host::compile::authoring_backend(&registry, model));
     }
     Ok(out)
 }
@@ -1107,6 +1093,16 @@ fn seated(
 #[allow(clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn host_diagnostics_never_include_userinfo_or_query_values() {
+        assert_eq!(
+            host_of(
+                "https://test-user:test-sentinel@gateway.invalid:8443/private?key=test-sentinel#frag"
+            ),
+            "gateway.invalid:8443"
+        );
+    }
 
     /// The stronger model is the provider's strongest, never the same one twice.
     #[test]

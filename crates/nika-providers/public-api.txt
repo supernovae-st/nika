@@ -684,6 +684,8 @@ pub const nika_providers::admission::SESSION_REVIEW_TIMEOUT: core::time::Duratio
 pub fn nika_providers::admission::monetary_default(amount: core::option::Option<f64>) -> core::result::Result<core::option::Option<nika_types::cost::Cost>, alloc::string::String>
 pub fn nika_providers::admission::native_catalog_price_known(model: &str, config: nika_providers::registry::ProvidersConfig) -> bool
 pub fn nika_providers::admission::unknown_cost_route(model: &str, config: nika_providers::registry::ProvidersConfig) -> core::result::Result<core::option::Option<nika_providers::admission::CostRoute>, alloc::string::String>
+pub mod nika_providers::authoring
+pub fn nika_providers::authoring::redact_authoring_error(error: nika_kernel_ai::provider::ProviderError, admission_remedy: &str) -> nika_kernel_ai::provider::ProviderError
 pub mod nika_providers::census
 pub struct nika_providers::census::AccessCensus
 pub nika_providers::census::AccessCensus::best: core::option::Option<nika_providers::census::AccessPath>

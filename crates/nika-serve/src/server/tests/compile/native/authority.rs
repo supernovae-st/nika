@@ -18,6 +18,46 @@ async fn absent_authority_never_buys_a_repair_request() {
     assert_eq!(response.status, 200, "{}", response.body);
     assert_eq!(seat.calls(), 1, "default repairs grant no extra request");
     assert_ne!(response.json()["status"], "ready");
+    let document = response.json();
+    let receipt = &document["provenance"]["authoring"];
+    assert_eq!(receipt["backend"]["usage_complete"], true);
+    assert!(
+        receipt["context"]
+            .as_array()
+            .expect("context")
+            .iter()
+            .any(|entry| { entry["result"]["failure_kind"] == "admission_refused" }),
+        "{document:#}"
+    );
+    assert!(document.to_string().contains("max_calls"));
+    server.stop().await.expect("clean stop");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn unidentified_responses_remain_visible_beside_named_responses() {
+    let world = TestWorld::new();
+    let mut named: Value =
+        serde_json::from_str(&completion(&native_answer("nika: broken\ntasks: {}\n")))
+            .expect("completion");
+    named["model"] = json!("observed-first-response");
+    let seat = Seat::start(vec![
+        Reply::Status(200, named.to_string()),
+        Reply::Text(native_answer(&candidate(RUN_MODEL, false))),
+    ]);
+    let operator = NativeAuthoring::new(SEAT, seat.providers())
+        .with_max_calls(2)
+        .with_repairs(1);
+    let (server, _) = start_native(&world, compile_limits(), operator).await;
+    let response = server.request(&compile_request(&fresh(&json!({})))).await;
+    let document = response.json();
+    assert_eq!(document["status"], "ready", "{document:#}");
+    assert_eq!(seat.calls(), 2);
+    let backend = &document["provenance"]["authoring"]["backend"];
+    assert_eq!(
+        backend["observed_models"],
+        json!(["observed-first-response"])
+    );
+    assert_eq!(backend["unreported_models"], 1);
     server.stop().await.expect("clean stop");
 }
 
@@ -62,6 +102,14 @@ async fn explicit_authority_repairs_and_a_caller_can_narrow_but_never_widen_it()
                 .await;
             assert_eq!(response.status, 422, "{}", response.body);
             assert_eq!(seat.calls(), 0, "bad authority never contacts a provider");
+            if refused == json!({"max_calls": 1}) {
+                assert!(
+                    response.body.contains("limits.repairs"),
+                    "{}",
+                    response.body
+                );
+                assert!(!response.body.contains("exceeds its bound"));
+            }
         }
         let response = server
             .request(&compile_request(&fresh(&json!({"limits": limits}))))

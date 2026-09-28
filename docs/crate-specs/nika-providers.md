@@ -344,3 +344,7 @@ changed endpoints and bounded-size/cardinality violations never establish availa
 The host supplies the no-retry transport and opts in. `ProviderReadiness.model_listing`
 is additive; the existing constructor initializes it absent. `model_available` means
 an advertised model exists, not that a selected model supports inference or authoring.
+
+OpenAI-compatible usage requires both prompt and completion counts to parse as unsigned integers. Missing, partial, negative, fractional or string-valued pairs remain unreported at the single-response door and emit no Usage frame at the stream door. Explicit integer zero remains an observed zero. This base-token observation is separate from `usage_completeness`, whose existing tariff-meter validation remains unchanged.
+
+`authoring::redact_authoring_error` projects provider failures without remote text. Local AdmissionDenied keeps its type and only an engine-authored remedy. The Host compatibility re-export shares this exact projection with CLI, Session and Serve; it adds no call, retry or monetary authority.

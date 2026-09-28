@@ -419,7 +419,7 @@ impl<H: HttpPostDyn + Send + Sync> HttpPostDyn for Wire<H> {
 
 /// A seat under the authority: its invocations counted and refused past it, and the model
 /// identities its responses report, kept apart from the model the operator requested; a
-/// response that reports none is counted, its identity unknown.
+/// response that reports no nonblank identity is counted, its identity unknown.
 pub struct Seat<P> {
     inner: P,
     invocations: Arc<Envelope>,
@@ -439,7 +439,7 @@ impl<P> Seat<P> {
         }
     }
 
-    /// The responses whose model identity is unknown (none reported), never assumed to be the
+    /// The responses whose model identity is unknown (absent or blank), never assumed to be the
     /// model requested.
     #[must_use]
     pub fn unreported(&self) -> u32 {
@@ -475,7 +475,7 @@ impl<P: ProviderInferDyn + Send + Sync> ProviderInferDyn for Seat<P> {
             response.gen_ai.response_model.as_ref(),
             self.observed.lock(),
         ) {
-            (Some(model), Ok(mut observed)) => {
+            (Some(model), Ok(mut observed)) if !model.trim().is_empty() => {
                 if !observed.contains(model) {
                     observed.push(model.clone());
                 }
@@ -758,6 +758,49 @@ mod tests {
             .await;
         assert_eq!(*wire.inner.0.lock().expect("log"), [false, false]);
         assert_eq!(requests.account(), json!({"sent": 2, "refused": 0}));
+    }
+
+    struct ReportedModel(Option<&'static str>);
+
+    impl ProviderInferDyn for ReportedModel {
+        async fn infer(&self, _: InferRequest) -> Result<InferResponse, ProviderError> {
+            let mut response =
+                InferResponse::new(Vec::new(), TokenUsage::new(1, 1), StopReason::EndTurn);
+            response.gen_ai.response_model = self.0.map(str::to_owned);
+            Ok(response)
+        }
+    }
+
+    #[tokio::test]
+    async fn a_blank_reported_model_is_unknown_not_an_observed_identity() {
+        for reported in [None, Some(""), Some(" "), Some("\t\n")] {
+            let seat = Seat::new(ReportedModel(reported), Arc::new(Envelope::new(1, REMEDY)));
+            let response = seat
+                .infer(InferRequest::new("requested-model", Vec::new()))
+                .await
+                .expect("provider answer");
+            assert_eq!(
+                response.gen_ai.response_model.as_deref(),
+                reported,
+                "the provider response remains unchanged"
+            );
+            assert!(
+                seat.observed().is_empty(),
+                "blank is not model evidence: {reported:?}"
+            );
+            assert_eq!(seat.unreported(), 1);
+        }
+        let seat = Seat::new(
+            ReportedModel(Some("actually-served")),
+            Arc::new(Envelope::new(2, REMEDY)),
+        );
+        for _ in 0..2 {
+            seat.infer(InferRequest::new("requested-model", Vec::new()))
+                .await
+                .expect("provider answer");
+        }
+        assert_eq!(seat.observed(), ["actually-served"]);
+        assert_eq!(seat.unreported(), 0);
     }
 
     /// A seat that answers with one reported identity and counts its invocations.
