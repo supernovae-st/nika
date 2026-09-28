@@ -1,0 +1,16 @@
+# The cost-ceiling asset · ACT 2 — the one-line fix: `max_tokens` turns
+# UNBOUNDED into a hard worst-case output ceiling (4096: the cap
+# `nika compile` emits for this reasoning seat). With the ceiling known,
+# `nika run --max-cost-usd` can refuse before the first token.
+nika: weekly-update
+model: anthropic/claude-sonnet-4-6
+permits: {}
+
+tasks:
+  update:
+    infer:
+      prompt: "Write this week's team update."
+      max_tokens: 4096
+
+outputs:
+  update: ${{ tasks.update.output }}

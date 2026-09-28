@@ -1,0 +1,1 @@
+NIKA-1709 · refusing to start: the workflow's unavoidable cost floor $0.061440 exceeds --max-cost-usd $0.050000 (cheapest static path · gates closed · first-try) — raise the budget or trim the workflow (`nika check` shows the envelope)
