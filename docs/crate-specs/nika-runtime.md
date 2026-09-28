@@ -343,6 +343,22 @@ silent).
 - Events: ONE task-level Started/Completed/Failed pair (iterations are
   internal · the note carries `for_each · N items`) — the event
   grammar has no per-iteration id space at v0.1.
+- Call evidence (E33 · 2026-09-28): that one parent frame carries the call
+  records of every iteration the collector read, each record once, in input
+  order, whatever order they completed in.
+  - They ride as `inference_calls` and `cost_unknown_calls`, through the same
+    durable projection as any task's.
+  - The parent's split holds calls only: no meters, `attempts` or single-route
+    `pricing_route` of its own, as for an authored retry's joined attempts.
+    Each call element keeps its own pricing.
+  - A request dropped in flight (a cancelled sibling, or an attempt its
+    `timeout:` cut) returns no transport report, so it has no call record
+    here, and none is invented. The ledger and the observed account keep it
+    (B7).
+  - This is presentation only: the ledger debits at each iteration's dispatch,
+    so no call is charged twice.
+  - Before E33, the parent wrote `usage: None`, and a fan-out's calls reached no
+    frame.
 
 ### 3.8 the unwind cleanup lane (spec 03 §`unwind` · ALWAYS runs · was `on_finally:` until 2026-08-11)
 
