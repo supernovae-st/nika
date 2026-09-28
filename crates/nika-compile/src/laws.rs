@@ -55,9 +55,12 @@ pub(super) fn draft_law() -> String {
 /// The record keyed by the invocation's `record_id` in an object directory.
 pub(super) const SELECT_BY_KEY: &str = ". as $lookup | ($lookup.directory | fromjson)[$lookup.id]";
 
-/// The first record whose field equals the literal identifier or its canonical numeric
-/// spelling in an array directory; the keyed entry in an object directory.
-pub const SELECT_BY_FIELD: &str = ". as $l | ($l.directory | fromjson) | if type == \"array\" then (map(select(type == \"object\" and (.[$l.field] == $l.id or ((.[$l.field] | type) == \"number\" and (.[$l.field] | tostring) == $l.id)))) | .[0]) else .[$l.id] end";
+/// The ONE record whose field equals the literal identifier or its canonical numeric spelling
+/// in an array directory (R4 A7): no match is `null` (the lookup's admit refuses it), copies
+/// equal as JSON values are that one record, and matches that differ stop the run, naming their
+/// count, the field and the identifier — input order is never a reason to pick one. An object
+/// directory yields its keyed entry.
+pub const SELECT_BY_FIELD: &str = r#". as $l | ($l.directory | fromjson) | if type == "array" then (map(select(type == "object" and (.[$l.field] == $l.id or ((.[$l.field] | type) == "number" and (.[$l.field] | tostring) == $l.id)))) | . as $m | if all(.[]; . == $m[0]) then $m[0] else error("\($m | length) records have `\($l.field)` \($l.id) and they differ: no single record can be chosen, and input order is no reason to pick one") end) else .[$l.id] end"#;
 
 /// The header order of a CSV source: its first line, `\r` trimmed, split on commas,
 /// the surrounding double quotes stripped from each cell. A quoted header holding a

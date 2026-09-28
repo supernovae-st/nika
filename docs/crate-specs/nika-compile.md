@@ -191,6 +191,26 @@ observer did not find categorical, stays byte-exact and is not claimed matched. 
 lives in the binding, never in the plan record: a recorded plan replays with the same bytes and
 is expanded again from its fresh observation; a record that carries spellings is refused.
 
+## One record by identifier
+
+A lookup by a literal identifier (« Look up ticket 42 in ./tickets.json », « find ticket 42 » in
+a file the request reads) asks which field of the records holds it, among the fields every
+observed record carries, and selects through `laws::SELECT_BY_FIELD` (R4 A7). The identity
+relation is unchanged: the field equals the identifier as a string, or is a number whose
+canonical text equals it. The law returns the ONE record that relation matches:
+- copies equal as JSON values (key order aside) are that one record;
+- no match yields `null`, which the lookup's admit refuses before any effect;
+- matches that differ — two records with id 42, or a string `"42"` and a number 42 — stop the
+  run at `lookup_record` with a jq error naming their count, the field and the identifier.
+
+Input order is never a reason to pick one: no first or last winner is inferred, and order words
+in the request (« the first », « the latest ») ground no ordering, so a duplicate still stops the
+run. Every effect of the workflow (writes, posts) waits for the record and its admit. The check
+lives in the run, not the compile: the observation is bounded and quotes no value, so it cannot
+certify that a whole file holds one match, and the source may change between the compile and a
+run. An object directory yields its keyed entry, and the per-invocation lookup
+(`SELECT_BY_KEY`, keyed by `inputs.record_id`) is unchanged.
+
 ## Observed fields and pending transformations
 
 Source observation distinguishes absent, unreadable, empty, unknown and observed

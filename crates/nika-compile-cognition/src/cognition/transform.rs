@@ -560,9 +560,14 @@ mod tests {
         );
         let padded = json!({"id": "042", "subject": "a distinct identifier"});
         assert_eq!(select(json!([numeric, padded.clone()]), "042"), padded);
-        assert_eq!(
-            select(json!([{"id": "42", "value": "first"}, {"id": 42}]), "42"),
-            json!({"id": "42", "value": "first"})
+        // The string `"42"` and the number 42 both match « 42 »: two different records, an
+        // ambiguity the law states (R4 A7) — it no longer keeps the first and loses the other.
+        assert!(
+            run(
+                crate::laws::SELECT_BY_FIELD,
+                &json!({"directory": json!([{"id": "42", "value": "first"}, {"id": 42}]).to_string(), "field": "id", "id": "42"}),
+            )
+            .is_err()
         );
         assert_eq!(
             select(json!([{"id": true}, {"id": null}, {}]), "true"),
@@ -575,6 +580,60 @@ mod tests {
         assert_eq!(
             select(json!({"42": {"value": "keyed"}}), "42"),
             json!({"value": "keyed"})
+        );
+    }
+
+    /// One requested record by identifier (R4 A7): exactly one distinct record under the
+    /// identity relation is the record, whatever the input order; JSON-equal copies are that one
+    /// record; two different records refuse, naming the count, the field and the identifier —
+    /// input order is never a reason to pick one; no match is `null` (the admit refuses it).
+    #[test]
+    fn a_literal_lookup_is_one_distinct_record_or_a_refusal() {
+        let select = |rows: Value| {
+            run(
+                crate::laws::SELECT_BY_FIELD,
+                &json!({"directory": rows.to_string(), "field": "id", "id": "42"}),
+            )
+        };
+        let a = json!({"id": "42", "title": "A", "status": "open"});
+        let b = json!({"id": "42", "title": "B", "status": "closed"});
+        let decoy = json!({"id": "142", "title": "decoy"});
+        for rows in [
+            json!([a.clone(), decoy.clone()]),
+            json!([decoy.clone(), a.clone()]),
+            json!([null, "42", 42, ["42"], {"id": null}, {"ID": "42"}, {"id": {"v": "42"}}, a.clone()]),
+            json!([a.clone(), decoy.clone(), a.clone()]),
+            json!([a.clone(), {"status": "open", "title": "A", "id": "42"}]),
+        ] {
+            assert_eq!(select(rows.clone()).unwrap(), a, "{rows}");
+        }
+        for rows in [
+            json!([a.clone(), b.clone()]),
+            json!([b.clone(), a.clone()]),
+            json!([b.clone(), decoy.clone(), a.clone()]),
+            json!([{"id": "42", "title": "A"}, {"id": 42, "title": "A"}]),
+        ] {
+            // The error value renders as a JSON string: its inner quotes arrive escaped.
+            let why = select(rows.clone()).unwrap_err().0;
+            assert!(
+                why.contains("records have `id`")
+                    && why.contains("42")
+                    && why.contains("no single record"),
+                "{rows}: {why}"
+            );
+        }
+        assert!(
+            select(json!([a.clone(), b, a.clone()]))
+                .unwrap_err()
+                .0
+                .contains("3 records")
+        );
+        assert_eq!(select(json!([decoy])).unwrap(), Value::Null);
+        assert_eq!(select(json!([])).unwrap(), Value::Null);
+        // An object directory is looked up by key, unchanged.
+        assert_eq!(
+            select(json!({"42": {"title": "A"}, "7": {"title": "other"}})).unwrap(),
+            json!({"title": "A"})
         );
     }
 
