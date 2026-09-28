@@ -519,3 +519,180 @@ fn defaults_const_and_upstream_values_follow_the_runtime_walk() {
     let refusal = run_time(&agent, &[("m", FREE)]).expect_err("agent loop");
     assert!(refusal.to_string().contains("an agent loop"), "{refusal}");
 }
+
+const LOCALE: &str = "nika: locale-report\ninputs:\n  locale: {type: string, required: true}\n  count: {type: integer, default: 3}\npermits:\n  tools: [nika:write]\n  fs: {write: [./locale.txt]}\ntasks:\n  save:\n    invoke:\n      tool: nika:write\n      args: { path: ./locale.txt, content: '${{ inputs.locale }}' }\n";
+
+fn scheduled(source: &str, bindings: &[&str], ceiling: f64) -> ScheduledProgram {
+    let wf = parsed(source);
+    let report = nika_check::check(&wf);
+    let bindings: Vec<String> = bindings.iter().map(|&b| b.to_owned()).collect();
+    scheduled_program(
+        &wf,
+        &report,
+        &nika_providers::ProvidersConfig::new(),
+        &bindings,
+        ceiling,
+    )
+}
+
+fn kinds(program: &ScheduledProgram) -> Vec<(&str, Option<&str>, Option<&str>)> {
+    program
+        .blockers
+        .iter()
+        .map(|b| (b.kind, b.subject.as_deref(), b.reason))
+        .collect()
+}
+
+/// C5 · R4 71: a required input with no source is unready under the
+/// registered NIKA-1708; a literal or a declared default binds it; the
+/// document names each source and never a value.
+#[test]
+fn a_scheduled_program_names_each_binding_source_and_never_a_value() {
+    let missing = scheduled(LOCALE, &[], 0.05);
+    assert!(!missing.required_inputs_ready);
+    assert_eq!(kinds(&missing), [("input_unbound", Some("locale"), None)]);
+    assert_eq!(missing.blockers[0].code, Some("NIKA-1708"));
+    assert_eq!(
+        missing.document["unbound_inputs"],
+        serde_json::json!(["locale"])
+    );
+    let bound = scheduled(LOCALE, &["locale=fr-secret-literal"], 0.05);
+    assert!(bound.required_inputs_ready && bound.blockers.is_empty());
+    let required = &bound.document["required_inputs"][0];
+    assert_eq!(required["binding_source"], "schedule_literal");
+    assert_eq!(required["binding_status"], "bound");
+    assert_eq!(
+        bound.document["optional_inputs"][0]["binding_source"],
+        "workflow_default"
+    );
+    assert_eq!(bound.document["unbound_inputs"], serde_json::json!([]));
+    assert!(!bound.document.to_string().contains("fr-secret-literal"));
+    assert_eq!(bound.model_cost_ready, Some(true), "no model route");
+    assert_eq!(
+        bound.document["model_summary"]["routes"],
+        serde_json::json!([])
+    );
+}
+
+/// E16-4 · each failing binding is named with its reason; a correctly
+/// bound required input is never blamed for a neighbour.
+#[test]
+fn a_refused_binding_is_attributed_only_to_itself() {
+    let extra = scheduled(LOCALE, &["locale=fr", "extra=1"], 0.05);
+    assert!(!extra.required_inputs_ready);
+    assert_eq!(
+        kinds(&extra),
+        [("input_refused", Some("extra"), Some("unknown_input"))]
+    );
+    assert_eq!(
+        extra.document["required_inputs"][0]["binding_status"],
+        "bound"
+    );
+    let unset = scheduled(LOCALE, &["locale=@env:C5_SURELY_UNSET_VAR"], 0.05);
+    assert_eq!(
+        kinds(&unset),
+        [("input_refused", Some("locale"), Some("env_unset"))],
+        "refused once, never also unbound"
+    );
+    // R4 71: required minus bound — a refused binding binds nothing.
+    assert_eq!(
+        unset.document["unbound_inputs"],
+        serde_json::json!(["locale"])
+    );
+    assert_eq!(unset.document["required_inputs"][0]["reason"], "env_unset");
+    let typed = scheduled(LOCALE, &["locale=fr", "count=not-a-number"], 0.05);
+    assert_eq!(
+        kinds(&typed),
+        [("input_refused", Some("count"), Some("type_mismatch"))]
+    );
+    assert!(!typed.blockers[0].message.contains("not-a-number"));
+}
+
+/// The model and cost law of an unattended fire: values the inputs decide
+/// are judged as literals; routes only a dispatch can judge stay unknown,
+/// never ready; the plafond floors a priced route.
+#[test]
+fn model_and_cost_readiness_never_turns_unknown_into_ready() {
+    let dynamic = "nika: d\ninputs:\n  m: {type: string, required: true}\npermits: {}\ntasks:\n  ask:\n    infer: { prompt: hi, model: \"${{ inputs.m }}\", max_tokens: 64 }\n";
+    let unknown = scheduled(dynamic, &["m=mistral/mistral-small-latest"], 0.05);
+    assert_eq!(unknown.model_cost_ready, Some(false));
+    assert_eq!(
+        kinds(&unknown),
+        [(
+            "unknown_cost_unreviewable",
+            Some("mistral/mistral-small-latest"),
+            None
+        )]
+    );
+    let mock = scheduled(dynamic, &["m=mock/echo"], 0.05);
+    assert_eq!(mock.model_cost_ready, Some(true));
+    assert_eq!(mock.document["model_summary"]["routes"][0]["class"], "mock");
+    let upstream = "nika: u\npermits: {}\ntasks:\n  pick:\n    infer: { prompt: name one, model: mock/echo, max_tokens: 16 }\n  ask:\n    with: { m: \"${{ tasks.pick.output }}\" }\n    infer: { prompt: hi, model: \"${{ with.m }}\", max_tokens: 64 }\n";
+    let undecided = scheduled(upstream, &[], 0.05);
+    assert_eq!(undecided.model_cost_ready, None, "unknown, never ready");
+    assert!(undecided.unknowns[0].contains("task `ask`"));
+    let nested = "nika: n\npermits: {}\ntasks:\n  sub:\n    invoke: { workflow: ./child.nika }\n";
+    let child = scheduled(nested, &[], 0.05);
+    assert_eq!(child.model_cost_ready, None);
+    assert!(child.unknowns.iter().any(|u| u.contains("nested workflow")));
+    let priced = "nika: p\nmodel: deepseek/deepseek-v4-pro\npermits: {}\ntasks:\n  ask:\n    infer: { prompt: hi, max_tokens: 4000 }\n";
+    let floored = scheduled(priced, &[], 0.000_000_1);
+    assert!(
+        floored
+            .blockers
+            .iter()
+            .any(|b| b.kind == "budget_floor" && b.code == Some("NIKA-1709")),
+        "{:?}",
+        floored.blockers
+    );
+    assert_eq!(floored.model_cost_ready, Some(false));
+}
+
+/// The authority an unattended fire needs is listed, never acquired.
+#[test]
+fn authority_requirements_are_listed_and_never_acquired() {
+    let gated = "nika: g\nsecrets:\n  token: { source: env, key: C5_TOKEN }\npermits:\n  tools: [nika:prompt]\ntasks:\n  gate:\n    invoke: { tool: 'nika:prompt', args: { message: 'continue?' } }\n";
+    let program = scheduled(gated, &[], 0.05);
+    let authority = &program.document["authority_summary"];
+    assert_eq!(authority["human_gates"], serde_json::json!(["gate"]));
+    assert_eq!(authority["secrets"][0]["name"], "token");
+    assert_eq!(authority["secrets"][0]["source"], "env");
+    assert_eq!(authority["activation"], "not_acquired");
+    assert_eq!(
+        authority["permits"]["tools"],
+        serde_json::json!(["nika:prompt"])
+    );
+}
+
+/// A decided route is judged as the literal it renders to: a reasoning
+/// seat's `max_tokens` floor refuses it exactly as it refuses a literal
+/// `model:`, and the route row names the task that decided it.
+#[test]
+fn a_decided_route_is_judged_as_its_literal() {
+    let dynamic = "nika: d\ninputs:\n  m: {type: string, required: true}\npermits: {}\ntasks:\n  ask:\n    infer: { prompt: hi, model: \"${{ inputs.m }}\", max_tokens: 64 }\n";
+    let tight = scheduled(dynamic, &["m=deepseek/deepseek-v4-pro"], 0.05);
+    assert_eq!(tight.model_cost_ready, Some(false));
+    assert!(
+        tight
+            .blockers
+            .iter()
+            .any(|b| b.kind == "model_admission_refused" && b.message.contains("max_tokens")),
+        "{:?}",
+        tight.blockers
+    );
+    let roomy = dynamic.replace("max_tokens: 64", "max_tokens: 4000");
+    let judged = scheduled(&roomy, &["m=deepseek/deepseek-v4-pro"], 0.05);
+    assert!(
+        !judged
+            .blockers
+            .iter()
+            .any(|b| b.kind == "model_admission_refused"),
+        "{:?}",
+        judged.blockers
+    );
+    // Key presence is this process's environment, so the keyless case is
+    // proven on the frozen binary under a controlled environment instead.
+    let route = &judged.document["model_summary"]["routes"][0];
+    assert_eq!(route["source"], "run_time");
+    assert_eq!(route["task"], "ask");
+}

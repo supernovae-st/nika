@@ -81,7 +81,12 @@ time — the caller sleeps, never the calculator) · host zone resolution
 - no `HashMap` anywhere (the workspace lint guards a future signature's
   determinism) · no `Vec` in public returns (FCI-014 — accessors hand
   out slices or iterators) · `#[non_exhaustive]` on public-field
-  structs (FCI-016) · wire tag frozen at `nika: v1` (FCI-003) <!-- stale-ok: the PROJECT file (nika.yaml) · the engine still freezes v1 here while spec 01 says nika: <name> · engine work owed -->
+  structs (FCI-016) · the project file's `nika:` is the project's NAME
+  (kebab-case, the workflow's own grammar); the retired schema tag
+  `nika: v1` (any whole `vN`) refuses as an identity fault in both readers
+  (`validate` here, `nika_vocab::project` first), so the same bytes can
+  never silently change meaning; the version lives on the `$schema` line
+  (FCI-003)
 - the day walk happens in the BEAT's zone — a Monday slot is Monday in
   Paris, whatever zone `from` rides · horizon 3,000 days forward (a
   century year is leap only when divisible by 400: from 2096-03-01 the

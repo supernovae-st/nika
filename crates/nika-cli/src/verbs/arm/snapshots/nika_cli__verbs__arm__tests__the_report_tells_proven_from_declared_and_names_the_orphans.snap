@@ -4,14 +4,17 @@ expression: shown
 ---
 2 beats in [PROJET]/nika.yaml
 
-  [idle ] workflows/prouve.nika · TZ=Europe/Paris lundi 9h07
-         ✓ PROUVÉ · fired · 2026-08-18T07:07:04Z · slot 2026-08-18T07:07:00Z · gen c3ba8c25 · état succeeded · 1 saut / 3 tirs · tolérance 3/4
+  [DORMANT] workflows/prouve.nika · TZ=Europe/Paris lundi 9h07
+         · dormant — actif: false · pause estivale · jusqu_au 2099-12-31
+         ✓ PROUVÉ (génération + créneau · ni projet ni hôte) · fired · 2026-08-17T07:07:04Z · slot 2026-08-17T07:07:00Z · gen 5c50c916 · état succeeded · 1 saut / 3 tirs · tolérance 3/4
          par: thibaut — déclaré · non vérifié
 
-  [idle ] workflows/declare.nika · TZ=Europe/Paris 0 3 * * *
+  [DORMANT] workflows/declare.nika · TZ=Europe/Paris 0 3 * * *
+         · dormant — actif: false · en sommeil · jusqu_au 2099-12-31
          · DÉCLARÉ — le registre le dit, la machine ne l'a jamais tiré
 
 orphelins (N4 — rapportés, JAMAIS effacés):
   · ghost — .nika/arm/ghost/
 
+READY · UNREADY · DORMANT judge the current configuration only — never OS activation, acquired authority or the current window.
 nothing was scheduled — `nika arm` READS the file. The machine that fires them is the arming edge.

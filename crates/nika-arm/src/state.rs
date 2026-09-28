@@ -23,7 +23,9 @@ pub use nika_cadence::ledger::{
     RecordOutcome, Unsettled,
 };
 
+mod inspection;
 mod replay;
+pub use inspection::ArmInspection;
 pub use replay::Folded;
 const ARM_DIR: &str = ".nika/arm";
 const BEAT_LOCK: &str = "lock";

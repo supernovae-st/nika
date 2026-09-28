@@ -143,6 +143,44 @@ later edits cannot make execution and the attested generation disagree. Receipt 
 is typed and claim-bound, and a corrupt replay is an ENV refusal in reports and
 `serve`, never `DÉCLARÉ`/never-fired fallback.
 
+The bare report and `arm --json` render one
+`nika_arm::ScheduleReadinessReceipt` per beat (C5 · 2026-09-28). The thin join
+in `verbs/arm/readiness.rs` captures the world a fire admits through
+`ExecutionService`, lets `nika_service_execution::run_cost::scheduled_program`
+judge the program (bindings, required inputs, model and cost under the
+`plafond`) and lets `nika-arm` judge the schedule, the firing evidence and the
+status. Each beat reads `[READY]`, `[UNREADY]` or `[DORMANT]` for its current
+configuration only; the footer states that scope. No word certifies host
+setup, provider availability, cost consent, authority or OS activation.
+Reading never creates a claim, schedules work, repairs projections, or writes
+sidecar state: `ArmState::inspect` verifies one journal snapshot. The proof
+line says `✓ PROUVÉ (génération + créneau · ni projet ni hôte)` only for this
+beat's slot at the current generation and names history, legacy and foreign
+records as such.
+
+`nika arm --json` is `schedule_readiness_version` 2: every version 1 key
+keeps its meaning (`program_ready`, `required_inputs_ready`, `arm_ready`,
+`authority`, `binding_status`, the digests, `generation`, `required_inputs`,
+`firing_evidence.status`) and the receipt adds the R4 89 fields (`status`,
+`status_scope`, the trigger axes, `project_identity`, `timezone`, `next_fire`,
+`unbound_inputs`, `model_summary`, `authority_summary`, `host_assumptions`,
+`blockers[].kind`). Input values are never included. `arm_ready` is false for a
+demonstrated blocker or dormancy and null otherwise; a report grants no
+activation or monetary authority. Fire re-admits the world and inputs. Both
+views render every beat and exit 3 when any beat's firing evidence is refused
+(corrupt, torn, redirected) or unattributed (a record whose slot does not
+derive from the beat's current workflow and cadence: another beat's or
+project's, or its own from before a cadence change, which records cannot
+tell apart); `evidence_refused` and the human footer name those beats
+and say the exit certifies none of the others. On exit 3 the human report is
+printed on stderr under the `nika:` prefix (the binary's `emit` law for every
+ENV outcome), while `--json` stays on stdout. The journal is retained byte
+for byte. Other blockers keep exit 0. Registry parse errors keep the normal
+exit code in a structured envelope. JSON is accepted only for the bare report,
+so combining it with fire, migration, disarm or unit-emission flags refuses
+without effects. The binary-only flag adapter preserves the existing public
+closed `ArmArgs`/`ArmSub` constructors.
+
 ## 3. The `display` module — the render architecture
 
 **One law: render = a pure fold over the event stream.** The runtime emits

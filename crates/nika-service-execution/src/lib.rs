@@ -22,7 +22,7 @@ use std::collections::BTreeMap;
 use std::future::Future;
 use std::path::{Component, Path, PathBuf};
 use std::pin::Pin;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use nika_event::Event;
 use nika_event::settlement::{RunSettlement, RunState};
@@ -157,7 +157,11 @@ pub struct ServiceExecutionDriver {
     child_traces: Arc<dyn ChildTraceFactory>,
     surface: DriverSurface,
     child_access_pin: Option<String>,
-    access_probes: Vec<nika_providers::probe::ProviderProbe>,
+    /// This machine's probe rows, collected at most once per driver family
+    /// (clones and child runners share the cell) and only when a plan can
+    /// read them: a pin, or a static model lane in the root or a child.
+    access_probes: Arc<OnceLock<Vec<nika_providers::probe::ProviderProbe>>>,
+    probe_source: fn() -> Vec<nika_providers::probe::ProviderProbe>,
     /// The Run's inference account a child composes with: the parent's own.
     child_account: Option<nika_providers::InferenceAdmission>,
 }
@@ -186,7 +190,8 @@ impl Clone for ServiceExecutionDriver {
             child_traces: Arc::clone(&self.child_traces),
             surface: self.surface,
             child_access_pin: self.child_access_pin.clone(),
-            access_probes: self.access_probes.clone(),
+            access_probes: Arc::clone(&self.access_probes),
+            probe_source: self.probe_source,
             child_account: self.child_account.clone(),
         }
     }
@@ -241,7 +246,8 @@ impl ServiceExecutionDriver {
             child_traces: Arc::new(SilentChildTraceFactory),
             surface,
             child_access_pin: None,
-            access_probes: access::access_probes_env(),
+            access_probes: Arc::new(OnceLock::new()),
+            probe_source: access::access_probes_env,
             child_account: None,
         })
     }
@@ -396,7 +402,28 @@ impl ServiceExecutionDriver {
         model_override: Option<&str>,
         pin: Option<&str>,
     ) -> ExecutionAccessPlan {
-        self.resolve_access_plan_over(model_override, pin, &self.access_probes)
+        self.lazy_plan(&self.workflow, &self.report, model_override, pin)
+    }
+
+    /// Resolve over this machine's rows only when the plan can read them.
+    /// Without a pin and without a static model lane, the plan is the same
+    /// for any rows (no lane, no seat, no pin refusal), so none are
+    /// collected and no harness CLI is spawned for it.
+    fn lazy_plan(
+        &self,
+        workflow: &RawWorkflow,
+        report: &nika_check::CheckReport,
+        model_override: Option<&str>,
+        pin: Option<&str>,
+    ) -> ExecutionAccessPlan {
+        if pin.is_none() {
+            let bare = access::resolve_plan_over(workflow, report, model_override, None, &[]);
+            if bare.lanes.is_empty() {
+                return bare;
+            }
+        }
+        let rows = self.access_probes.get_or_init(self.probe_source);
+        access::resolve_plan_over(workflow, report, model_override, pin, rows)
     }
 
     /// [`Self::resolve_access_plan`] over INJECTED probe rows (tests).
@@ -525,13 +552,7 @@ impl ServiceExecutionDriver {
         workflow: &RawWorkflow,
         report: &nika_check::CheckReport,
     ) -> ExecutionAccessPlan {
-        access::resolve_plan_over(
-            workflow,
-            report,
-            None,
-            self.child_access_pin.as_deref(),
-            &self.access_probes,
-        )
+        self.lazy_plan(workflow, report, None, self.child_access_pin.as_deref())
     }
 }
 
@@ -722,7 +743,7 @@ impl AuthorizedRuntime {
     /// Attach the access candidates judged by the run gate.
     #[must_use]
     pub fn with_access_probes(mut self, probes: Vec<nika_providers::probe::ProviderProbe>) -> Self {
-        self.child_driver.access_probes.clone_from(&probes);
+        self.child_driver.access_probes = Arc::new(OnceLock::from(probes.clone()));
         self.runtime = self
             .runtime
             .with_child_runner(Arc::new(self.child_driver.clone()));

@@ -7,18 +7,26 @@
 //! library owns the descriptor-rooted `.nika/arm/` state and the one firing
 //! transaction that holds a beat lock from decision through terminal receipt.
 //! Interfaces inject time, waiting, and execution; none may reinterpret the
-//! journal or scan for a trace independently.
+//! journal or scan for a trace independently. The read-only schedule
+//! readiness receipt ([`readiness`]) judges a beat by the same laws without
+//! claiming, firing or repairing anything.
 
 #![forbid(unsafe_code)]
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 
 pub mod fire;
+pub mod readiness;
 pub mod resident;
 pub mod state;
+pub mod unit_io;
 
 pub use fire::{
     CoordinatedRunSeam, ExecutionRunSeam, FireCtx, FireCtxError, FireVerdict, PreparedRun, RunSeam,
     RunShot, RunUpshot, Wait, WaitSeam, fire_beat, labels,
+};
+pub use readiness::{
+    Blocker, ProgramFacts, ProjectBinding, ProofBinding, ReceiptIdentity, ReceiptStatus,
+    STATUS_SCOPE, ScheduleReadinessReceipt,
 };
 pub use resident::{ResidentClaim, ResidentClaimRefusal, claim_for_resident, slot_answered};
 pub use state::{

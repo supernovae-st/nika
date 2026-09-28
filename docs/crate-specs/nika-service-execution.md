@@ -215,3 +215,71 @@ child's dispatch boundary, after the root's earlier effects. It does not judge
 a child's readiness or cost multiplicity before the Run. A child's unknown-cost
 review and a full closure inspection remain open follow-ups: such a refusal
 never certifies the whole workflow.
+
+## Input binding (C5 · 2026-09-28)
+
+`inputs` is the one `--var KEY=VALUE` coercer. It descended verbatim from
+`nika-cli-host::var_inputs` at the 15k crate wall, and the host re-exports
+`ValidatedInputs` and `parse_var_overrides` at their old paths, so the Run, the
+golden test, `arm fire` and schedule readiness bind through this one door.
+Two E16 fixes landed here, once for every door:
+
+- **E16-3** · a value that reached the coercer through `@env:VAR` and does not
+  fit the declared type is withheld: `--var locale=@env:VAR: expects
+  \`integer\` — the value of VAR does not fit (withheld)`. A literal keeps its
+  wording (the operator typed it).
+- **E16-4** · `check_bindings(pairs, workflow)` judges every pair on its own
+  and names the input with its `BindingFault` (`malformed`, `unknown_input`,
+  `env_name_missing`, `env_undeclared_in_ci`, `env_unset`, `type_mismatch`),
+  never the value. A correct binding is never blamed for a neighbour.
+  `BindingFault` and `BindingCheck` are `#[non_exhaustive]`.
+
+## Scheduled program readiness (C5 · 2026-09-28)
+
+`scheduled_program(workflow, report, providers_config, bindings, ceiling_usd)`
+judges an unattended fire read-only (`nika arm fire`: the beat's pairs, its
+`plafond`, no review channel). It returns `ScheduledProgram`
+(`#[non_exhaustive]`): `required_inputs_ready`, `model_cost_ready`
+(`Some(false)` on a blocker, `None` when a route is judged only at dispatch
+or only a harness seat could serve it), value-free `ReadinessBlocker`s and
+the document the receipt carries (`required_inputs`, `optional_inputs`,
+`undeclared_bindings`, `unbound_inputs`, `model_summary`,
+`authority_summary`).
+
+- A refused binding is one `input_refused` blocker with its reason; a
+  required input with no source (literal, declared environment or workflow
+  default) is `input_unbound` under the registered `NIKA-1708`, never also
+  refused. `unbound_inputs` is R4 71's set: required minus bound.
+- The model law reuses the Run's owners: the plan over key presence only
+  (`collect_provider_probes`, no harness spawn), `unknown_routes` (descended
+  from the host Run review: the host re-exports it), `declared_free_shape`,
+  the run-time routes `resolve_model_expr` decides from the bindings, and
+  `budget_floor_refusal_seated` under the plafond (`NIKA-1709`). A task whose
+  model only the run decides, a nested `workflow:` whose routes no root plan
+  sees, and a plan refusal stay unknowns.
+- A model the bindings decide is written into its task as the literal it
+  renders to. Access over the same key-presence rows,
+  `nika_execution::model_admission_findings` (resolution, thinking,
+  capacity: `model_admission_refused`), the unknown-cost and free-shape laws
+  and the budget floor then judge that literal world, exactly as a literal
+  `model:` is judged at capture. Key presence reads this process's
+  environment (a host assumption the receipt states).
+- `authority_summary` lists what an unattended fire needs (permits, secret
+  sources, human gates) and states `activation` and `monetary` as
+  `not_acquired`.
+
+## Probe rows only when a plan reads them (C5 · 2026-09-28)
+
+The driver no longer collects `access_probes_env()` at construction. Its rows
+live in one shared lazy cell (clones and child runners read one snapshot) and
+every plan goes through `lazy_plan`: without a pin, a plan with no static
+model lane is identical for any rows (no lane, no seat, no pin refusal), so no
+row is collected and no harness CLI is spawned for it; a pin, or a static
+model lane in the root or in any child of the captured world, collects exactly
+as before. `with_access_probes` presets the cell. Dynamic run-time routes are
+unchanged: the runtime judges them with its own composition probes.
+
+**Open gap:** `nika-runtime` composition (`compose.rs`,
+`collect_access_probes_env`) still probes eagerly, so a model-free fire still
+spawns the harness CLIs there (E16 side observation). This change removes one
+of the two spawn sites; it does not claim no-spawn parity.

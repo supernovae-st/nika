@@ -60,6 +60,20 @@ same in-process service.
   workflow inputs. `RunUpshot::new` returns the process exit and escaped trace path.
 - `HealOutcome`, `Rotation`, and `Folded` expose read-only accessors; public
   structs are non-exhaustive and carry no constructible public fields.
+- `ArmState::inspect(label, now)` returns a non-exhaustive `ArmInspection` with
+  last firing, folded lifecycle, and tallies from one verified journal snapshot.
+  This observation opens existing paths beneath the held descriptor and never
+  creates, locks, heals or rewrites a projection. Absent evidence yields empty
+  projections; unsafe paths or corrupt evidence refuse. It grants no firing
+  lease and makes no guarantee against a later concurrent change. The existing
+  `last` repair-capable API remains unchanged for its mutation-authorized callers.
+- `unit_io` owns the existing explicit emission environment-path persistence,
+  unit-file writes, and printed load instructions. It preserves the prior CLI
+  filesystem behavior and refusal text, exposes a typed input/host error, and
+  never loads a unit or acquires schedule authority. Parsing, human rendering,
+  and exit-code projection remain in the CLI. Emitted OS files use the existing
+  operator-selected paths; this descent does not claim additional path custody
+  or change the separately descriptor-rooted firing journal.
 
 No default API accepts an arbitrary sidecar path or raw ledger mutation. The
 one production mutation outside firing is the typed `record_disarm`, which takes
@@ -158,3 +172,82 @@ ARM execution share the same admitted closure. Structural ratchets keep ARM free
 of CLI dependency, subprocess/localhost bridging, and latest-trace discovery.
 Resident Serve's once/dry/reload/signal behavior remains owned by its existing
 adapter and is not changed by this extinction pass.
+
+## 8. Schedule readiness receipt (C5 · 2026-09-28)
+
+`readiness::ScheduleReadinessReceipt::assemble(registry, index, now, identity,
+program, evidence)` judges one beat read-only, for R4 71 · 89 · 112. Its three
+inputs have three owners:
+
+- **Schedule** — judged here with the firer's own pure law: `Cadence::parse`
+  (zone from the expression, embedded tzdb, `next_fire`), `v0_unsupported`
+  (a policy every fire refuses is `policy_unsupported`, E16-2),
+  `tick::expiry_passed` (`schedule_expired`), the locus and the webhook form
+  (both unknown: another executor fires them), and `tick_decision` over the
+  same `last` the firer reads (`run_now`).
+- **Program** — `ProgramFacts`, judged by its owner
+  (`nika_service_execution::run_cost::scheduled_program` over the admitted
+  world) and passed in unchanged; a `None` axis is unknown.
+- **Evidence** — one `ArmState::inspect` read, bound to the beat by what the
+  record holds (`ProofBinding`): its slot identity against
+  `SlotId::derive(workflow, cadence, instant)`, its instant against the
+  cadence, its generation against the current `ArmGeneration`. Current
+  generation and slot → `current_generation`; this beat's slot at another
+  generation → `historical_generation` (E16-6); no generation → `legacy`; a
+  slot another workflow derived or an instant the cadence never produces →
+  `unattributed` (E16-1); a refused replay → `refused`. A beat's own record
+  from before a cadence change is also `unattributed` (its slot identity
+  hashed the old cadence, and records carry no declaration to tell it from a
+  foreign one): the report exits 3 until the next fire under the new cadence
+  lands a derivable record. Records carry no
+  project or label, so the proof scope is `generation_and_slot` and
+  `project_authenticity` is `not_proven`: a byte-identical copy from an
+  identical project still reads `current_generation`, never
+  project-verified. No journal format changed.
+
+**Status law.** `DORMANT` when `actif: false`. `READY` only when
+`program_ready`, `trigger_binding_ready`, `required_inputs_ready` and
+`model_cost_ready` are all proven true with no blocker and no unknown;
+otherwise `UNREADY` (false OR unknown). `STATUS_SCOPE` states the scope in
+every receipt: the current configuration, never OS activation, acquired
+authority or the current window. `run_ready_now` is the tick law's `Fire`
+AND `READY`, so an out-of-window skip leaves a READY schedule READY.
+`arm_ready` is `false` on any blocker or dormancy and otherwise `null`, never
+`true`. `trigger_requirement_ready` is `null`: the compile-side
+`requested_trigger` bridge (A3) is open, and an arm entry is never read as a
+semantic trigger requirement. `activation.status` is `not_verified`:
+`nika arm --emit` prints a unit and `--write` writes its file, neither loads
+it, and a resident serve is not observed.
+
+**Identity.** `ReceiptIdentity` carries the existing digests (root
+`workflow_sha256`, world `snapshot_digest`, `generation` over the canonical
+beat and the world) and, apart, `ProjectBinding` (`root_fingerprint` from
+`nika_runtime::project_root_fingerprint`, project file, label). No new digest:
+a workflow, child, input binding, input source, cadence or policy change moves
+the generation, so an older receipt's identity no longer matches.
+
+**Rendering.** `to_json` keeps the version 1 keys with their meaning
+(`program_ready`, `required_inputs_ready`, `arm_ready`, `authority`,
+`binding_status`, the digests, `required_inputs`, `firing_evidence.status`)
+and adds the R4 89 fields (`status`, `project_identity`, `timezone`,
+`next_fire`, `unbound_inputs`, `model_summary`, `authority_summary`,
+`host_assumptions`, `blockers[].kind`). A program key the owner could not
+judge is `null`, never an empty list. `human_lines` renders the same status
+word, blockers and unknowns; the proof line says `✓ PROUVÉ (génération +
+créneau · ni projet ni hôte)` only for the current generation and names
+history, legacy and foreign records as such. The plural helper mirrors the
+CLI's `count` for its two nouns (`saut`, `tir`).
+
+**Codes.** Blockers keep the registered `NIKA-1708` (missing required input)
+and `NIKA-1709` (budget floor) plus stable kind slugs. R4 89's
+`NIKA-SCHEDULE-INPUT-UNBOUND` is illustrative: it maps to
+`kind: input_unbound` with `code: NIKA-1708`; no registry code was invented.
+
+**Tests.** 12 `readiness::tests` over real ledgers (claim plus fenced receipt,
+legacy receipt, torn append): READY needs every axis proven, an unknown model
+cost stays UNREADY, dormancy is never computed, `manqué: rattraper` is a
+schedule blocker, the current, historical, legacy, unattributed and refused
+bindings, bytes unchanged by inspection, the project binding kept apart from
+the generation, one verdict in JSON and human, and a cadence change leaving
+the earlier record unattributed. Disabling the slot-identity or the
+cadence-membership check fails the foreign-evidence test.

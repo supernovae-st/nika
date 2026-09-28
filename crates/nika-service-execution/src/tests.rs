@@ -15,6 +15,13 @@ const GRANTS_SHELL: fn(&Permits) -> bool = Permits::allows_exec;
 
 type TestResult<T> = Result<T, Box<dyn std::error::Error>>; // box-dyn-ok(test-harness): cfg(test) fixtures use heterogeneous setup and execution failures
 
+/// A probe cell already holding `rows`: planning never reads the machine.
+fn preset(
+    rows: Vec<nika_providers::probe::ProviderProbe>,
+) -> Arc<OnceLock<Vec<nika_providers::probe::ProviderProbe>>> {
+    Arc::new(OnceLock::from(rows))
+}
+
 fn admitted_driver(files: &[(&str, &str)]) -> TestResult<ServiceExecutionDriver> {
     admitted_driver_with_override(files, None)
 }
@@ -65,7 +72,7 @@ tasks:
     infer: { prompt: hi }
 "#;
     let mut driver = admitted_driver(&[("root.nika", root)])?;
-    driver.access_probes.clear();
+    driver.access_probes = preset(Vec::new());
     Ok(driver)
 }
 
@@ -126,7 +133,7 @@ async fn execute_derives_an_omitted_plan_from_its_census_and_effective_model() -
 async fn resident_and_local_runs_rejudge_the_effective_model_before_any_event() -> TestResult<()> {
     let root = "nika: root\nmodel: openai/gpt-5.2\npermits: { tools: [\"nika:jq\"] }\ntasks:\n  first:\n    invoke: { tool: \"nika:jq\", args: { input: 7, expression: \".\" } }\n  say:\n    after: { first: success }\n    infer: { prompt: hi, max_tokens: 32 }\n";
     let mut driver = admitted_driver_with_override(&[("root.nika", root)], Some("mock/echo"))?;
-    driver.access_probes.clear();
+    driver.access_probes = preset(Vec::new());
     let result = driver.execute(ServiceExecutionOptions::new()).await?;
     assert_eq!(result.status(), ServiceExecutionStatus::Refused);
     assert!(
@@ -170,7 +177,7 @@ async fn resident_and_local_runs_rejudge_the_effective_model_before_any_event() 
 async fn an_effective_override_supplies_a_missing_envelope_model() -> TestResult<()> {
     let root = "nika: root\ntasks:\n  explicit:\n    infer: { model: mock/echo, prompt: first }\n  missing:\n    after: { explicit: success }\n    infer: { prompt: second }\n";
     let mut driver = admitted_driver(&[("root.nika", root)])?;
-    driver.access_probes.clear();
+    driver.access_probes = preset(Vec::new());
     let plan = driver.resolve_access_plan(None, None);
     assert!(plan.is_admitted());
     assert!(plan.lane("mock/echo").is_some());
@@ -215,7 +222,7 @@ tasks:
     infer: { prompt: second }
 "#;
     let mut driver = admitted_driver(&[("root.nika", root)])?;
-    driver.access_probes.clear();
+    driver.access_probes = preset(Vec::new());
     let plan = driver.resolve_access_plan(Some("mock/echo"), None);
     assert!(plan.lane("mock/echo").is_some());
     assert!(
@@ -379,13 +386,13 @@ fn root_and_child_plans_read_the_same_driver_probe_snapshot() -> TestResult<()> 
     let mut driver = admitted_driver(&[("root.nika", root), ("child.nika", child)])?;
     // Replace the captured facts, not the process environment: the production
     // resolver must read this field rather than probe again. No seat is run.
-    driver.access_probes = vec![codex_probe()];
+    driver.access_probes = preset(vec![codex_probe()]);
     let root_plan = driver.resolve_access_plan(None, None);
     assert_eq!(root_plan.seat.as_deref(), Some("codex"));
     let runtime = driver
         .compose("openai/gpt-4.1")?
         .with_access_plan(root_plan.clone())?;
-    driver.access_probes.clear();
+    driver.access_probes = preset(Vec::new());
     assert!(driver.resolve_access_plan(None, None).seat.is_none());
     let child_driver = &runtime.child_driver;
     let (_, _, workflow, report) = child_driver
@@ -798,6 +805,140 @@ async fn a_configured_run_keeps_its_root_and_hands_its_account_to_children() -> 
         stamped,
         [false, true],
         "only the configured Run's child shares it"
+    );
+    Ok(())
+}
+
+/// A probe source planning can be caught reading: one codex seat row.
+fn codex_rows() -> Vec<nika_providers::probe::ProviderProbe> {
+    vec![codex_probe()]
+}
+
+const MODEL_FREE: &str = "nika: root\npermits: { tools: [\"nika:jq\"] }\ntasks:\n  one:\n    invoke: { tool: \"nika:jq\", args: { input: 1, expression: \".\" } }\n";
+
+/// C5 (d) · a model-free world never collects this machine's rows (no
+/// harness CLI is spawned for its plan): with no pin and no static lane the
+/// plan is the same for ANY rows, so the lazy plan equals the eager one.
+#[test]
+fn a_model_free_world_never_collects_probe_rows() -> TestResult<()> {
+    let mut driver = admitted_driver(&[("root.nika", MODEL_FREE)])?;
+    driver.probe_source = codex_rows;
+    let lazy = driver.resolve_access_plan(None, None);
+    assert!(driver.access_probes.get().is_none(), "no row was collected");
+    assert_eq!(
+        lazy,
+        driver.resolve_access_plan_over(None, None, &codex_rows())
+    );
+    assert_eq!(lazy, driver.resolve_access_plan_over(None, None, &[]));
+    let overridden = driver.resolve_access_plan(Some("mock/echo"), None);
+    assert!(
+        driver.access_probes.get().is_none(),
+        "an override alone adds no lane"
+    );
+    assert_eq!(
+        overridden,
+        driver.resolve_access_plan_over(Some("mock/echo"), None, &codex_rows())
+    );
+    Ok(())
+}
+
+/// A pin or a static model lane reads the rows exactly as the eager driver
+/// did, and one collection serves every later plan.
+#[test]
+fn a_pin_or_a_static_lane_collects_the_rows() -> TestResult<()> {
+    let mut pinned = admitted_driver(&[("root.nika", MODEL_FREE)])?;
+    pinned.probe_source = codex_rows;
+    let plan = pinned.resolve_access_plan(None, Some("codex"));
+    assert_eq!(
+        pinned.access_probes.get().map(Vec::len),
+        Some(1),
+        "a pin reads the rows"
+    );
+    assert_eq!(
+        plan,
+        pinned.resolve_access_plan_over(None, Some("codex"), &codex_rows())
+    );
+    let root = "nika: root\nmodel: openai/gpt-4.1\ntasks:\n  say:\n    infer: { prompt: hi }\n";
+    let mut modeled = admitted_driver(&[("root.nika", root)])?;
+    modeled.probe_source = codex_rows;
+    let plan = modeled.resolve_access_plan(None, None);
+    assert_eq!(
+        plan.seat.as_deref(),
+        Some("codex"),
+        "the static lane read the rows"
+    );
+    assert_eq!(
+        plan,
+        modeled.resolve_access_plan_over(None, None, &codex_rows())
+    );
+    modeled.probe_source = Vec::new;
+    assert_eq!(
+        modeled.resolve_access_plan(None, None),
+        plan,
+        "the collected snapshot serves later plans; the source is not read again"
+    );
+    Ok(())
+}
+
+/// The whole captured world counts: a model-free parent collects nothing,
+/// and its child's static model lane collects the family's rows at the
+/// child's own planning (a resumed leg plans through the same door).
+#[test]
+fn a_model_free_parent_collects_rows_when_its_child_plans_a_static_lane() -> TestResult<()> {
+    let root = "nika: root\ntasks:\n  call:\n    invoke: { workflow: ./child.nika }\n";
+    let child =
+        "nika: child\nmodel: openai/gpt-4.1\ntasks:\n  say:\n    infer: { prompt: child }\n";
+    let mut driver = admitted_driver(&[("root.nika", root), ("child.nika", child)])?;
+    driver.probe_source = codex_rows;
+    let root_plan = driver.resolve_access_plan(None, None);
+    assert!(root_plan.lanes.is_empty());
+    assert!(
+        driver.access_probes.get().is_none(),
+        "the parent alone reads no row"
+    );
+    let runtime = driver.compose("")?.with_access_plan(root_plan)?;
+    let child_driver = &runtime.child_driver;
+    let (_, _, workflow, report) = child_driver
+        .load_child(&child_call())
+        .map_err(|error| std::io::Error::other(error.message))?;
+    let child_plan = child_driver.child_access_plan(&workflow, &report);
+    assert_eq!(
+        child_plan.seat.as_deref(),
+        Some("codex"),
+        "the child's lane read the rows"
+    );
+    assert_eq!(
+        driver.access_probes.get().map(Vec::len),
+        Some(1),
+        "one cell for the driver family"
+    );
+    Ok(())
+}
+
+/// Rows a host attaches preset the child's cell: the source is never read.
+#[test]
+fn attached_rows_preset_the_child_cell_without_collecting() -> TestResult<()> {
+    let root = "nika: root\ntasks:\n  call:\n    invoke: { workflow: ./child.nika }\n";
+    let child =
+        "nika: child\nmodel: openai/gpt-4.1\ntasks:\n  say:\n    infer: { prompt: child }\n";
+    let mut driver = admitted_driver(&[("root.nika", root), ("child.nika", child)])?;
+    driver.probe_source = codex_rows;
+    let runtime = driver
+        .compose("")?
+        .with_access_probes(Vec::new())
+        .with_access_plan(driver.resolve_access_plan(None, None))?;
+    let child_driver = &runtime.child_driver;
+    let (_, _, workflow, report) = child_driver
+        .load_child(&child_call())
+        .map_err(|error| std::io::Error::other(error.message))?;
+    let child_plan = child_driver.child_access_plan(&workflow, &report);
+    assert!(
+        child_plan.seat.is_none(),
+        "the attached (empty) rows, not the source"
+    );
+    assert!(
+        driver.access_probes.get().is_none(),
+        "the parent never collected"
     );
     Ok(())
 }

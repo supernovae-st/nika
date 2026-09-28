@@ -104,7 +104,9 @@ its code. The caps stay finite: 3 · 8 · 4 · 3 · 1 rows, 6 KiB per file and
 ## Literal input binding
 
 `literal_inputs::{read, validate}` owns bounded native API value decoding and
-declared-input validation beside the unchanged `var_inputs` operator binder.
+declared-input validation beside the `var_inputs` operator binder (owned by
+`nika_service_execution::inputs` since C5 · 2026-09-28 and re-exported here at
+the same paths).
 The reader consumes at most 1 MiB + 1 bytes; JSON grammar/depth/numbers belong
 to serde_json, with duplicate map keys rejected at every nesting level. Types
 use canonical `parse_type` / `fits`, required values use the runtime refusal,
@@ -156,7 +158,8 @@ closes it. A plan that mixes such a route with an unknown-cost one stays on the
 unknown-cost review, which refuses it before any question.
 
 Since C4 (2026-09-28), a `model:` rendered at run time is admitted as the route
-it renders to. `readiness::unknown_routes` reads the provider predicate
+it renders to. `readiness::unknown_routes` (descended to
+`nika_service_execution::run_cost` in C5 and re-exported `pub(super)`) reads the provider predicate
 `admission::unknown_cost_route`, which the registry applies to rendered routes.
 With no unknown-cost route in the plan, the Run binds `InferenceAdmission::observe_run()`
 whenever a static declared-free lane exists, any infer/agent task's own

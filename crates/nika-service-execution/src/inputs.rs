@@ -4,10 +4,11 @@
 //! The `--var KEY=VALUE` input seam — parse, key-validate, type-honor
 //! (extracted from `run/mod.rs` 2026-07-11 at the 1500-LOC ratchet, from
 //! `nika-cli` 2026-09-02 and from `nika-cli-host` 2026-09-28 at the 15k
-//! crate wall: run, the golden test and `arm fire` bind through this one
-//! door, and `nika_cli_host::var_inputs` re-exports it): one unit — the
-//! raw pairs in, the validated `BTreeMap<String, Value>` out, the declared
-//! `inputs:` the sole authority (keys · types · #603 required).
+//! crate wall: run, the golden test, `arm fire` and the schedule readiness
+//! bind through this one door, and `nika_cli_host::var_inputs` re-exports
+//! it): one unit — the raw pairs in, the validated `BTreeMap<String, Value>`
+//! out, the declared `inputs:` the sole authority (keys · types · #603
+//! required).
 //!
 //! F-P13 (NEP-0014 law 2): the binding is a LAW, not a convenience —
 //! every bound input carries an enumerated ORIGIN (cli-operator ·

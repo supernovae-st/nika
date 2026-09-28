@@ -13,6 +13,7 @@
 use std::io::IsTerminal;
 use std::path::PathBuf;
 
+mod arm_args;
 mod arms;
 mod init_args;
 mod lazy;
@@ -201,7 +202,7 @@ enum Command {
     /// Read-only — it schedules nothing (the file proposes, the machine
     /// disposes). Exit `0` clean · `2` the registry refuses.
     #[command(hide = true, display_order = 72)]
-    Arm(verbs::arm::args::ArmArgs),
+    Arm(arm_args::ArmOptions),
     /// Resident ARM firer by default (the SAME `fire`, wall clock in place of the OS).
     /// `--bind` + `--workflows` + `--token-file` opens authenticated loopback HTTP.
     /// Exit `0` clean · `1` otherwise.
@@ -840,7 +841,7 @@ fn dispatch_verb(
             forecast,
         } => emit(&explain_dispatch(&code, json, forecast, plain_theme)),
         Command::Key { action } => emit(&verbs::key::run(action)),
-        Command::Arm(a) => emit(&verbs::arm::run(a)),
+        Command::Arm(a) => emit(&arm_args::run(a)),
         Command::Serve(a) => emit(&verbs::serve::run(&a)),
         Command::Sign(args) => emit(&verbs::sign::run(&args)),
         Command::Doctor(args) => doctor_verb(&args, plain_theme),
