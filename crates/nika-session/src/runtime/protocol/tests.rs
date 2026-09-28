@@ -170,7 +170,7 @@ fn a_command_shaped_line_is_refused_before_any_route_reading_or_work() {
         ("/bogus", "unknown command `/bogus`"),
         ("/Help", "did you mean `/help`"),
         ("/stat", "did you mean `/status`"),
-        ("/meening", "did you mean `/meaning`"),
+        ("/meanings", "did you mean `/meaning`"),
         ("/status?", "type `/status` alone"),
         ("/meaning please", "type `/meaning` alone"),
         ("/show", "`/show` does not apply here"),
