@@ -1,0 +1,28 @@
+{
+ "workflow": "flows/pr-risk-review.nika",
+ "engine": "0.121.0",
+ "pushes": {
+  "red": {
+   "check_exit": 2,
+   "inspect_exit": 2
+  },
+  "clean": {
+   "check_exit": 0,
+   "inspect_exit": 0
+  }
+ },
+ "action": {
+  "name": "Nika — plan with receipts",
+  "steps": [
+   "Validate inputs",
+   "Install nika (checksum-verified)",
+   "nika check (static pre-flight · no execution · no secrets)",
+   "nika test (offline mock golden · opt-in lane)",
+   "Render the plan-with-receipts body",
+   "Sticky PR comment (upsert by marker · same-repo PRs)",
+   "Gate on the verdicts"
+  ],
+  "action.yml": "sha256:06e39c5df2071cd1e4d6e29a7f556920f40b1d39f15de98178752c27c7bb04b6",
+  "scripts/render_comment.py": "sha256:35441b527eb06c6b90f1923174a912a9046a47b2d6c577ef3bdae5d1b1919616"
+ }
+}
