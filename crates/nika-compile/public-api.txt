@@ -185,6 +185,11 @@ pub fn nika_compile::observation::jsonl(head: &str) -> alloc::vec::Vec<serde_jso
 pub fn nika_compile::observation::number_text(text: &str) -> bool
 pub fn nika_compile::observation::records(rows: &[serde_json::value::Value]) -> nika_compile::observation::Sample
 pub mod nika_compile::surface
+pub mod nika_compile::surface::admitted
+pub fn nika_compile::surface::admitted::read(request: &nika_compile::CompileRequest) -> core::result::Result<core::option::Option<(nika_compile::CompileRequest, serde_json::value::Value)>, alloc::string::String>
+pub fn nika_compile::surface::admitted::record(request: &nika_compile::CompileRequest, money: serde_json::value::Value, out: &mut nika_compile::CompileOutcome)
+pub fn nika_compile::surface::admitted::refused(why: &str) -> nika_compile::CompileOutcome
+pub fn nika_compile::surface::admitted::replacement(request: &nika_compile::CompileRequest, text: &str) -> core::result::Result<core::option::Option<(alloc::string::String, serde_json::value::Value)>, alloc::string::String>
 pub mod nika_compile::surface::assemble
 pub fn nika_compile::surface::assemble::assemble(plan: &nika_compile_reader::plan::Plan, intent: &str, request: &nika_compile::CompileRequest, out: &mut nika_compile::CompileOutcome) -> core::result::Result<(), nika_compile::CompileError>
 pub fn nika_compile::surface::assemble::refuse_contradiction(plan: &nika_compile_reader::plan::Plan, out: &mut nika_compile::CompileOutcome) -> bool
@@ -1671,6 +1676,7 @@ pub nika_compile::CompileRequest::knowledge: core::option::Option<serde_json::va
 pub nika_compile::CompileRequest::money: alloc::vec::Vec<core::ops::range::Range<usize>>
 pub nika_compile::CompileRequest::original_intent: core::option::Option<alloc::string::String>
 pub nika_compile::CompileRequest::plan: core::option::Option<serde_json::value::Value>
+pub nika_compile::CompileRequest::stated_money: bool
 pub nika_compile::CompileRequest::workflow_id: core::option::Option<alloc::string::String>
 impl nika_compile::CompileRequest
 pub fn nika_compile::CompileRequest::answer(self, key: impl core::convert::Into<alloc::string::String>, literal_json: impl core::convert::Into<alloc::string::String>) -> Self
@@ -1684,6 +1690,7 @@ pub fn nika_compile::CompileRequest::with_hot_policy(self, hot: nika_compile::Ho
 pub fn nika_compile::CompileRequest::with_knowledge(self, snapshot: serde_json::value::Value) -> Self
 pub fn nika_compile::CompileRequest::with_original_intent(self, intent: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_compile::CompileRequest::with_plan(self, plan: serde_json::value::Value) -> Self
+pub fn nika_compile::CompileRequest::with_stated_money(self) -> Self
 pub fn nika_compile::CompileRequest::with_workflow_id(self, id: impl core::convert::Into<alloc::string::String>) -> Self
 impl core::clone::Clone for nika_compile::CompileRequest
 pub fn nika_compile::CompileRequest::clone(&self) -> nika_compile::CompileRequest
@@ -1897,6 +1904,7 @@ impl<T> typenum::type_operators::Same for nika_compile::TriggerRequirement
 pub type nika_compile::TriggerRequirement::Output = T
 pub const nika_compile::COMPILE_WIRE_VERSION: u32
 pub fn nika_compile::basis(decision: core::option::Option<&serde_json::value::Value>, fresh: core::option::Option<&serde_json::value::Value>, intent: &str) -> nika_compile::Basis
+pub fn nika_compile::basis_for(request: &nika_compile::CompileRequest, decision: core::option::Option<&serde_json::value::Value>, fresh: core::option::Option<&serde_json::value::Value>) -> nika_compile::Basis
 pub fn nika_compile::compile(request: &nika_compile::CompileRequest) -> core::result::Result<nika_compile::CompileOutcome, nika_compile::CompileError>
 pub fn nika_compile::finding(out: &mut nika_compile::CompileOutcome, kind: nika_compile::DiagnosticKind, target: &str, message: impl core::convert::Into<alloc::string::String>)
 pub fn nika_compile::finish(source: alloc::string::String, out: &mut nika_compile::CompileOutcome)

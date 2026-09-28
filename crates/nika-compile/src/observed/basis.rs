@@ -69,11 +69,88 @@ enum Verdict {
 /// describes); `intent` is the request whose own column list may assert a key.
 #[must_use]
 pub fn basis(decision: Option<&Value>, fresh: Option<&Value>, intent: &str) -> Basis {
-    let stated = crate::columns::columns_hint(intent);
+    judge(decision, fresh, &stated_keys(intent))
+}
+
+/// Judge against the actual effective request that produced the proposal, including its
+/// question-bound answers. A fresh zero-call compile recovers answered assertions using the
+/// same grounding and replay laws; incoming decision labels never supply an assertion. The
+/// request keeps the observation of its compile round, while `fresh` is the use-time observation.
+/// A host must retain this request beside the exact candidate bytes, after any whole replacement.
+#[must_use]
+pub fn basis_for(
+    request: &crate::CompileRequest,
+    decision: Option<&Value>,
+    fresh: Option<&Value>,
+) -> Basis {
+    judge(decision, fresh, &assertions(request))
+}
+
+/// A request's column list asserts keys for its one named source, never another file.
+fn stated_keys(intent: &str) -> Vec<(String, String)> {
+    let sources = crate::stated_sources(intent);
+    let [source] = sources.as_slice() else {
+        return Vec::new();
+    };
+    crate::columns::columns_hint(intent)
+        .into_iter()
+        .map(|key| (source.clone(), key))
+        .collect()
+}
+
+/// Derive evidence afresh, rather than treating a recorded `user_asserted` grade as evidence.
+fn assertions(request: &crate::CompileRequest) -> Vec<(String, String)> {
+    let Some(request) = effective_request(request) else {
+        return Vec::new();
+    };
+    let words = match &request.input {
+        crate::types::Input::Create(intent) => intent.clone(),
+        crate::types::Input::Edit { .. } => crate::revise_intent(&request).unwrap_or_default(),
+    };
+    let mut supported = stated_keys(&words);
+    if request
+        .answers
+        .keys()
+        .any(|key| key.starts_with("const.rule_field_"))
+        && let Ok(out) = crate::compile(&request)
+    {
+        for entry in keys(out.provenance.decision.as_ref()) {
+            if entry["grade"] == Grade::UserAsserted.word()
+                && entry["bound_by"] == "answer"
+                && let (Some(source), Some(key)) =
+                    (entry["source"].as_str(), entry["field"].as_str())
+            {
+                let pair = (source.to_owned(), key.to_owned());
+                if !supported.contains(&pair) {
+                    supported.push(pair);
+                }
+            }
+        }
+    }
+    supported
+}
+
+/// Fold the complete replacement as the cognition door does. The host discards the previous
+/// round's answers and continuation before capturing a replacement request; a retained plan
+/// still has to pass the compiler's own anchoring and stale-observation laws on replay.
+fn effective_request(request: &crate::CompileRequest) -> Option<crate::CompileRequest> {
+    let mut effective = request.clone();
+    if matches!(request.input, crate::types::Input::Create(_))
+        && let Some(raw) = effective.answers.remove("intent.clarification")
+    {
+        let value =
+            crate::literal_answer(Some(&raw), "intent.clarification", &mut crate::initial())?;
+        let text = value.as_str().filter(|text| !text.trim().is_empty())?;
+        effective.input = crate::types::Input::Create(crate::lexicon::fold_apostrophes(text));
+    }
+    Some(effective)
+}
+
+fn judge(decision: Option<&Value>, fresh: Option<&Value>, supported: &[(String, String)]) -> Basis {
     let verdicts: Vec<Verdict> = unreadable(decision)
         .into_iter()
         .map(Verdict::Unjudged)
-        .chain(keys(decision).map(|entry| key(entry, fresh, &stated)))
+        .chain(keys(decision).map(|entry| key(entry, fresh, supported)))
         .chain(policies(decision).map(|entry| policy(entry, fresh)))
         .collect();
     if verdicts.is_empty() {
@@ -176,27 +253,39 @@ fn unreadable(decision: Option<&Value>) -> Vec<String> {
 }
 
 /// One grounded key, graded again on the fresh row of its source by [`grounding::grade`].
-fn key(entry: &Value, fresh: Option<&Value>, stated: &[String]) -> Verdict {
+fn key(entry: &Value, fresh: Option<&Value>, supported: &[(String, String)]) -> Verdict {
     let (Some(source), Some(key)) = (entry["source"].as_str(), entry["field"].as_str()) else {
         return Verdict::Unjudged("a recorded key names no source or no field".to_owned());
     };
     let Some(row) = grounding::row(fresh, source) else {
         return Verdict::Unjudged(format!("`{source}` was not observed again"));
     };
-    let asserted = entry["grade"] == Grade::UserAsserted.word();
+    let bare = |path: &str| path.strip_prefix("./").unwrap_or(path).to_owned();
+    let stated: Vec<String> = supported
+        .iter()
+        .filter(|(path, _)| bare(path) == bare(source))
+        .map(|(_, key)| key.clone())
+        .collect();
+    let asserted = stated.iter().any(|name| name == key);
     let Some(seen) = grounding::seen(Some(row)) else {
         // A key asserted over a source never observed stays asserted while it is still not
         // observed; a source that was observed and shows no record now has moved.
         let observed_then = entry["revision"].as_str().is_some_and(is_digest);
-        if asserted && !observed_then {
-            return Verdict::Holds;
+        if !observed_then {
+            return if asserted {
+                Verdict::Holds
+            } else {
+                Verdict::Unjudged(format!(
+                    "`{key}` in `{source}` has no observed or request-bound assertion"
+                ))
+            };
         }
         return Verdict::Moved(format!(
             "`{source}` is {} now: `{key}` cannot be read from it",
             state_words(row)
         ));
     };
-    let (grade, everywhere) = grounding::grade(key, Some(&seen), stated);
+    let (grade, everywhere) = grounding::grade(key, Some(&seen), &stated);
     if grade == Grade::Inferred {
         // A bounded sample disproves nothing a request asserted.
         if asserted && !seen.declared && !seen.complete {

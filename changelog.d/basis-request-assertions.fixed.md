@@ -1,0 +1,1 @@
+Source-basis checks now derive an unobserved field assertion from the actual request and its source, not a recorded user_asserted label. The additive basis_for API preserves genuine question answers through the compiler grounding and replay laws, including subsequent answers after a complete replacement. Hosts retain the compile-round request beside the exact proposal bytes.

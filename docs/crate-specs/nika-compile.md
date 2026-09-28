@@ -127,13 +127,10 @@ whether it states money only. Quotes and path tokens are data; only a currency o
 monetary anchor gives a number monetary meaning. It recognizes; it never admits: the
 caller's money gate decides what an amount allows.
 
-A work request states money only in its directives (`money::directives`, R4 A6): a whole
-sentence or comma segment made of money words that states an amount beside an anchor or a
-currency (« Budget: $0 », « budget=0 », « --max-cost-usd 0 »), or a trailing phrase that names
-an anchor, a currency and an amount (« … with a budget of $1 », « hello budget 2 USD »). A word
-inside a business clause (« rows whose budget is 15 », « price under $5 »), an anchor followed
-by a plain word, quoted text and paths are data; malformed, negative, non-finite and
-conflicting amounts refuse. Run, gate and consent lines keep the whole-line reading.
+A work request states money only in its directives (`money::directives`, R4 A6 · B15). A directive is an explicit act about the work's own money, in one of two closed forms:
+- a whole sentence or comma segment made of money words only (« Budget: $0 », « budget=0 », « Le budget est de 2 dollars », « --max-cost-usd 0 »);
+- the phrase that ends a segment and attaches to the work: a connector, its articles and a limit anchor (« … ./out.csv with a budget of $1 », « … avec un plafond de 3 dollars »), or the limit anchor alone (« hello budget 2 USD »), then the amount and its currency and nothing else.
+A phrase attaches to the work when its head, past the determiners, is a path or a file, a pronoun, a greeting or consent word, a skeleton name opening its segment, or a conjunction no relative clause governs. Everything else money-shaped is business data, by its role and never by a word or an observed field. That covers a predicate over records (« rows whose budget is 1500 USD », « rows where cost is under 5 USD », « rows with a budget of 1500 USD »), a business amount (« refund the cost of 50 USD »), a negative value, cost wherever it stands, quoted text and paths. Malformed, negative, non-finite and conflicting directives refuse. The French copula links a directive's words only in a sentence of its own. Run and gate lines keep the whole-line reading.
 
 A caller that admitted directives as its own ceiling names their exact spans
 (`CompileRequest::with_admitted_money`). The deterministic door then reads the request with
@@ -142,8 +139,15 @@ each directive and `decision.intent_sha256` stays the original request's; a diag
 ceiling is the caller's and that the compiler certifies no cap. A span that is no directive of
 the request refuses. A directive with no currency whose anchor names an observed field
 (« budget=0 » over a `budget` column) is not blanked and is asked. A request that names a
-skeleton only once blanked (« hello budget 2 USD ») is read as written. The seat door reads
-the request as written, as before; without an admission (the CLI) nothing changes.
+skeleton only once blanked (« hello budget 2 USD ») is read as written, with its money
+record retained; no seat reads that ceiling as work. A door that meters no seat states its
+operator's money instead (`CompileRequest::with_stated_money`, the CLI): every directive of
+the words the compiler reads is admitted, including a creation's replacement request, never
+the words it replaced. A revision's admitted spans index its exact change text. On a door
+that states money, its change and the original request its base answered are both read;
+records from the latter carry `in: original_intent`. A replacement answer never replaces a
+revision's change. `surface::admitted` exposes the same reading to the seats' door, which
+applies it before every strategy (see `nika-compile-cognition`).
 
 ## Numbers a bound rule reads
 
@@ -407,9 +411,20 @@ Per-call receipts record the output limit, timeout, elapsed time, stop reason an
 
 ## Source basis of a candidate
 
-`basis(decision, fresh, intent)` (`observed/basis.rs`, C9 · F4) judges the source facts a
+`basis_for(request, decision, fresh)` (`observed/basis.rs`, C9 · F4) judges the source facts a
 candidate's decision recorded against a fresh host observation of the same sources, by the
 grounding law that admitted them; `Basis::sources(decision)` names the sources to observe again.
+The host keeps the actual compile-round `CompileRequest` beside the exact proposal bytes,
+including its answers, plan and observation; the fresh observation is a separate input. A
+complete creation replacement is folded with the same literal-answer and apostrophe laws;
+a revision's change is never replaced by such an answer. The host clears old answers and
+continuations when replacing the request, then retains genuine subsequent answer rounds.
+A column declaration asserts a key only for the request's one stated source. Answered
+assertions are re-derived by an effect-free, zero-call replay of the actual request, using
+the existing grounding, plan anchoring and stale-observation laws. Incoming `user_asserted`
+or `bound_by` labels supply no assertion. The legacy `basis(decision, fresh, intent)` accepts
+source-bound column declarations only. This re-derivation judges recorded source dependencies;
+it does not establish that the whole candidate is equivalent to the request.
 A host calls it where a proposal is consented to, so the program consented to is still the one
 those facts justified. The dependencies are every `decision.grounding` key (whatever its
 `grade` or `admissible` labels say: each is graded again, never trusted) and every
@@ -426,7 +441,10 @@ exact source (`./a.csv` and `a.csv` are one path; two rows, no row or another so
 no answer): a dependency the fresh observation does not cover, or a record naming no source or
 field, is `Basis::Unjudged`, never assumed to hold. A decision with no recorded dependency has
 no basis (`Basis::None`), which is not a proof that the candidate reads nothing. The recorded
-wire shapes are read as they are; the law adds no field to them. Not covered: the canonical
+wire shapes are read as they are; the law adds no field to them. A present numeric record
+with no `bound_by` or an unknown discriminator is unjudged, never discarded as an absent
+dependency. Recognized policies not chosen from observed kinds keep their existing treatment;
+this shape check does not prove the truth of a recorded discriminator. Not covered: the canonical
 spellings a text equality matched (`decision.spellings`, a bounded sample law), and anything a
 fresh observation cannot see (the unread tail, values that only appear at run): the use-time
 guards and number policies of the lowered program stay the last check.

@@ -112,7 +112,7 @@ pub use doors::intent_sha256;
 pub use materialize::{MaterializeError, materialize_ready};
 pub use nika_compile_reader::hot::{fold, stated_destinations, stated_sources};
 pub use nika_compile_reader::text;
-pub use observed::basis::{Basis, basis};
+pub use observed::basis::{Basis, basis, basis_for};
 pub use retrieve::{Hit, HitKind, retrieve, retrieve_by_ops};
 pub use types::{
     AuthoringCognition, AuthoringKnowledge, AuthoringPolicy, AuthoringReceipt, ChoiceOffer,

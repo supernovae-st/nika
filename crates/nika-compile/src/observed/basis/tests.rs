@@ -445,3 +445,135 @@ fn an_unknown_or_missing_numeric_discriminator_is_unjudged() {
         Basis::Holds(1)
     );
 }
+
+/// An incoming grade is a claim, never the user's assertion of an unobserved key.
+#[test]
+fn a_user_asserted_label_needs_the_actual_request_and_exact_source() {
+    let recorded = json!({"grounding": [{"source": SOURCE, "field": "amount_usd",
+        "grade": "user_asserted", "bound_by": "request", "revision": "absent"}]});
+    let fresh = unavailable(SOURCE, "absent");
+    assert!(matches!(
+        basis(Some(&recorded), Some(&fresh), REQUEST),
+        Basis::Unjudged(_)
+    ));
+    let stated = format!("{REQUEST} (columns id, amount_usd, status)");
+    assert_eq!(
+        basis(Some(&recorded), Some(&fresh), &stated),
+        Basis::Holds(1)
+    );
+    let other = stated.replace(SOURCE, "./data/other.csv");
+    assert!(matches!(
+        basis(Some(&recorded), Some(&fresh), &other),
+        Basis::Unjudged(_)
+    ));
+    let partial = json!({"observed": [{"path": SOURCE, "state": "observed",
+        "complete": false, "kind": "jsonl", "columns": ["id"], "common_columns": ["id"]}]});
+    assert!(matches!(
+        basis(Some(&recorded), Some(&partial), REQUEST),
+        Basis::Moved(_)
+    ));
+    assert_eq!(
+        basis(Some(&recorded), Some(&partial), &stated),
+        Basis::Holds(1)
+    );
+}
+
+const ANSWER_INTENT: &str =
+    "Read ./orders.json, keep only the rows whose status is open and write them to ./out.json";
+
+/// The actual question and answer round, not a fabricated decision, supplies the assertion.
+fn answered_request() -> (CompileRequest, Value) {
+    let request = CompileRequest::create(ANSWER_INTENT)
+        .with_knowledge(unavailable("./orders.json", "absent"));
+    let first = compile(&request).expect("first round");
+    assert!(
+        first
+            .questions
+            .iter()
+            .any(|q| q.key == "const.rule_field_1")
+    );
+    let request = request
+        .with_plan(first.provenance.plan.expect("question plan"))
+        .answer("const.rule_field_1", "\"status\"");
+    let answered = compile(&request).expect("answer round");
+    assert_eq!(answered.status, CompileStatus::Ready, "{answered:?}");
+    (
+        request,
+        answered.provenance.decision.expect("grounding record"),
+    )
+}
+
+#[test]
+fn real_question_answers_hold_only_the_key_and_source_they_ground() {
+    let (request, recorded) = answered_request();
+    let fresh = unavailable("./orders.json", "absent");
+    assert_eq!(
+        basis_for(&request, Some(&recorded), Some(&fresh)),
+        Basis::Holds(1)
+    );
+    let mut forged = recorded.clone();
+    forged["grounding"][0]["field"] = json!("invented");
+    assert!(matches!(
+        basis_for(&request, Some(&forged), Some(&fresh)),
+        Basis::Unjudged(_)
+    ));
+    forged["grounding"][0]["field"] = json!("status");
+    forged["grounding"][0]["source"] = json!("./other.json");
+    assert!(matches!(
+        basis_for(
+            &request,
+            Some(&forged),
+            Some(&unavailable("./other.json", "absent"))
+        ),
+        Basis::Unjudged(_)
+    ));
+    let mut stale = request.clone();
+    stale.knowledge = Some(unavailable("./orders.json", "empty"));
+    assert!(matches!(
+        basis_for(&stale, Some(&recorded), Some(&fresh)),
+        Basis::Unjudged(_)
+    ));
+    let header = observed(&[("./orders.json", "state\nopen\n")]);
+    assert!(matches!(
+        basis_for(&request, Some(&recorded), Some(&header)),
+        Basis::Moved(_)
+    ));
+}
+
+#[test]
+fn a_replacement_uses_its_own_columns_and_subsequent_question_round() {
+    let original = "Read ./old.json (columns id, status), keep only the rows whose status is open and write them to ./old-out.json";
+    let (answered, recorded) = answered_request();
+    let fresh = unavailable("./orders.json", "absent");
+    let replacement = CompileRequest::create(original)
+        .answer("intent.clarification", json!(ANSWER_INTENT).to_string());
+    assert!(matches!(
+        basis_for(&replacement, Some(&recorded), Some(&fresh)),
+        Basis::Unjudged(_)
+    ));
+    let stated = replacement.clone().answer(
+        "intent.clarification",
+        json!(format!("{ANSWER_INTENT} (columns id, status)")).to_string(),
+    );
+    assert_eq!(
+        basis_for(&stated, Some(&recorded), Some(&fresh)),
+        Basis::Holds(1)
+    );
+    let mut kept = answered;
+    kept.input = crate::types::Input::Create(original.to_owned());
+    kept.answers.insert(
+        "intent.clarification".to_owned(),
+        json!(ANSWER_INTENT).to_string(),
+    );
+    assert_eq!(
+        basis_for(&kept, Some(&recorded), Some(&fresh)),
+        Basis::Holds(1)
+    );
+    for bad in ["null", "42", "[]", "\"\""] {
+        let malformed = kept.clone().answer("intent.clarification", bad);
+        assert!(matches!(
+            basis_for(&malformed, Some(&recorded), Some(&fresh)),
+            Basis::Unjudged(_)
+        ));
+    }
+}
