@@ -137,6 +137,12 @@ nika run hello.nika
 nika trace verify
 ```
 
+<p align="center">
+  <a href="https://github.com/supernovae-st/nika/raw/refs/heads/main/media/videos/full-loop.mp4">
+    <img src="media/gifs/full-loop.optimized.gif" alt="The four commands above as they ran: compile writes hello.nika, check passes every vector, the run is a mock/echo rehearsal, and trace verify reads back the chain the run printed" width="720">
+  </a>
+</p>
+
 `hello` always uses `mock/echo`, including when provider keys are present. It
 proves that the workflow runs, not that a model answered. Run records its trace
 under `.nika/traces/`; creation adds that directory to `.gitignore`.
@@ -198,6 +204,17 @@ local, API and supported harness choices.
   checks record integrity, not the truth of an AI answer.
 
 This is **Intent as Code**: the contract is the plan, not a disposable chat.
+
+<p align="center">
+  <a href="https://github.com/supernovae-st/nika/raw/refs/heads/main/media/videos/static-check-fix.mp4"><img src="media/posters/static-check-fix.png" alt="Check before it runs: a broken workflow's findings, the real fix and the clean re-check" width="32%"></a>
+  <a href="https://github.com/supernovae-st/nika/raw/refs/heads/main/media/videos/permits-audit.mp4"><img src="media/posters/permits-audit.png" alt="The file is the boundary: the permits a workflow declares, the escape the check catches and the widened boundary" width="32%"></a>
+  <a href="https://github.com/supernovae-st/nika/raw/refs/heads/main/media/videos/dag-execution.mp4"><img src="media/posters/dag-execution.png" alt="A workflow is a graph: the tasks and waves of a fan-out workflow, from nika inspect and nika check" width="32%"></a>
+</p>
+
+*Short clips of the three ideas above; each opens as a video. Every program
+and terminal line in them is captured from the real CLI; what a clip
+illustrates is named on it. The [media README](media/README.md#feature-clips)
+lists them all.*
 
 <details>
 <summary><strong>The four building blocks</strong></summary>
