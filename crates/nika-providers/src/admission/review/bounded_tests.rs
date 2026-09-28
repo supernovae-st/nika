@@ -58,6 +58,25 @@ fn a_sequential_run_review_keeps_its_historical_question_bytes() {
     assert_eq!(run.question(), SEQUENTIAL_RUN_QUESTION);
 }
 #[test]
+fn session_and_single_attempt_reviews_keep_the_conservative_uncertain_law() {
+    // Neither authored a task retry, so a received 503 never answers its
+    // attempt: the account is Uncertain and nothing else may be sent.
+    let route = route();
+    for review in [review().for_session(), review().for_run(2).expect("bound")] {
+        let account = review.confirm("candidate", &route).expect("fresh yes");
+        let reserve = || account.reserve(&route.provider, &route.model, &route.endpoint, 32);
+        let mut call = reserve().expect("first");
+        call.sent().expect("send");
+        call.answered(503, &route.endpoint);
+        drop(call);
+        assert!(reserve().is_err());
+        let receipt = account.snapshot().expect("receipt");
+        assert_eq!(receipt.state, crate::AdmissionState::Uncertain);
+        let choice = serde_json::to_value(receipt.unknown_cost).expect("choice");
+        assert!(choice.get("authored_retry").is_none(), "{choice}");
+    }
+}
+#[test]
 fn a_fan_review_shows_its_breakdown_and_confirms_its_concurrency() {
     let sequential = review()
         .for_run(2)
@@ -83,7 +102,7 @@ fn a_fan_review_shows_its_breakdown_and_confirms_its_concurrency() {
     assert_eq!(fan.max_in_flight(), 3);
     let question = fan.question();
     let shown = format!(
-        "No automatic transport retry.\n{line}\nAt most 3 in flight at once; authored retries and schema re-asks consume this same request bound.\nAn authored retry may send again only after a completed response or a received 429 or 503; any other failure stops every further request.\nOverrides only"
+        "No automatic transport retry.\n{line}\nAt most 3 in flight at once; authored retries and schema re-asks consume this same request bound.\nTask retries authored in the workflow (retry.max_attempts) may send a new request only after a completed response or a received 429 or 503; the transport never resends on its own, and any other failure stops every further request.\nOverrides only"
     );
     assert!(question.contains("At most 6 requests;"), "{question}");
     assert!(question.contains(&shown), "{question}");

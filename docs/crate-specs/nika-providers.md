@@ -353,14 +353,21 @@ authored retries serializes byte for byte as before; a widened one adds
 `"authored_retry": true`.
 
 `UnknownCostChoice::with_authored_retry()` (`CostReview::with_authored_retry`)
-records that the Run authored retries inside its total. Only for such a choice
-does a 429 or 503 received from the unchanged reserved endpoint answer its
-attempt: its usage and USD cost stay unknown (it counts in `unknown_calls`,
-never as not billed), and the account keeps its state. An authored retry inside
-the original total may then reserve again, and only while the account is Open.
-Without authored retries the historical law holds and the attempt leaves the
-account Uncertain: Session reviews and single-attempt Runs never re-dispatch
-after an error. Any other status, a changed endpoint, an ambiguous transport
+records that the Run authored retries inside its total. The authorization law
+is explicit: only a typed authored `retry.max_attempts` above one sets it (the
+host's `DispatchBound::authored_retry`). Fan cardinality, the total and schema
+re-asks never set it, and a schema re-ask, being an extra call inside one
+attempt, is never a transport resend. The flag is part of the confirmed choice
+and its observation. The human approves it through the question (the retry
+line), which the CLI challenge and the Serve witness bind. Only for such a
+choice does a 429 or 503 received from the unchanged reserved endpoint answer
+its attempt. Its usage and USD cost stay unknown: it counts in `unknown_calls`
+and is never marked as not billed. The attempt count and the account state are
+kept; in particular, an answer never lifts an Uncertain left by a sibling. An
+authored retry inside the original total may then reserve again, and only while
+the account is Open. Without authored retries the historical law holds and the
+attempt leaves the account Uncertain. Session reviews, and Run reviews with
+single attempts (every legacy V1 review), keep this conservative law explicitly. Any other status, a changed endpoint, an ambiguous transport
 outcome, a cancelled or timed-out send and an identity contradiction always
 leave the account Uncertain. After that, reserved siblings cannot send, new
 reservations are refused whatever slots are free, and responses already in

@@ -326,6 +326,34 @@ fn a_sibling_left_uncertain_revokes_pending_and_new_dispatch() {
     assert_eq!(snap.unknown_attempts[2].note, "not dispatched");
 }
 #[test]
+fn an_answered_status_keeps_an_uncertain_sibling_and_every_count() {
+    let a = fan(4, 3);
+    let mut left = take(&a).expect("first");
+    let mut answered = take(&a).expect("second");
+    left.sent().expect("send");
+    answered.sent().expect("send");
+    drop(left); // possibly billed: the account is Uncertain
+    answered.answered(429, URL);
+    drop(answered);
+    let snap = a.snapshot().expect("snapshot");
+    assert_eq!(
+        snap.state,
+        AdmissionState::Uncertain,
+        "an answer never reopens"
+    );
+    assert_eq!((snap.unknown_attempts.len(), snap.unknown_calls), (2, 2));
+    assert!(
+        snap.unknown_attempts
+            .iter()
+            .all(|x| x.sent && x.estimated.is_none())
+    );
+    assert_eq!(
+        snap.unknown_attempts[1].note,
+        "answered HTTP 429; usage and USD cost unknown"
+    );
+    assert!(take(&a).is_err(), "no retry after an Uncertain sibling");
+}
+#[test]
 fn a_received_429_or_503_permits_only_an_authored_retry_inside_the_total() {
     for status in [429, 503] {
         // Without an authored retry the historical law holds: Uncertain.

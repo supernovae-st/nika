@@ -449,8 +449,10 @@ impl CostReview {
                 self.max_in_flight
             )
         });
+        // A task retry the workflow authored is the runtime's, never a hidden
+        // resend by the transport, which stays at zero.
         let retry = self.authored_retry.then(|| {
-            "An authored retry may send again only after a completed response or a received 429 or 503; any other failure stops every further request.".to_owned()
+            "Task retries authored in the workflow (retry.max_attempts) may send a new request only after a completed response or a received 429 or 503; the transport never resends on its own, and any other failure stops every further request.".to_owned()
         });
         let mut multiplicity = String::new();
         for line in self
