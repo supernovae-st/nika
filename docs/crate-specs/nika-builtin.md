@@ -193,3 +193,14 @@ relative references, with the original request URL as the fallback when a
 transport supplies no final URL. This sanitizes inherited transport credentials;
 it does not rewrite arbitrary response content or query parameters. HTTP
 requests and their authentication remain the transport's responsibility.
+
+### Write argument discovery
+
+The model-facing `nika:write` parameter schema and its CLI/MCP projection
+admit the non-null values the existing writer consumes: strings verbatim,
+structured JSON without a serialization pre-pass, and the opaque bytes
+representation. Null remains a missing-value error; the string `"null"`
+writes that literal text. This repairs the former string-only discovery
+hint without changing file effects, permits, overwrite policy or runtime
+serialization. Parameter validation is still not proof of base64 validity,
+filesystem authority or successful publication.

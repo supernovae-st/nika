@@ -170,7 +170,10 @@ fn file_defs() -> Vec<ToolDef> {
             "Write a FILE · returns the path. path names a file, never a directory — to create a directory, write its first file with create_dirs: true; never write an empty file at a directory's path (a file there blocks the directory and nothing deletes it). create_dirs (default false) creates the missing parent directories; overwrite defaults true.",
             serde_json::json!({
                 "path": s("destination path"),
-                "content": s("the content to write"),
+                "content": {
+                    "not": { "type": "null" },
+                    "description": "value to write — strings are written verbatim; objects, arrays, numbers and booleans become compact JSON. Pass structured output directly, without a tojson pre-pass. An opaque bytes_base64 value is decoded to bytes. Null is refused; use the string \"null\" for that literal text."
+                },
                 "overwrite": { "type": "boolean" },
                 "create_dirs": { "type": "boolean" }
             }),
@@ -465,6 +468,48 @@ fn media_defs() -> Vec<ToolDef> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn write_discovery_admits_the_values_the_writer_accepts() {
+        let payload = tools_json();
+        let write = payload["tools"]
+            .as_array()
+            .expect("tools")
+            .iter()
+            .find(|tool| tool["name"] == "nika:write")
+            .expect("write definition");
+        let validator = jsonschema::validator_for(&write["parameters"]).expect("parameter schema");
+        let fs = nika_kernel_mock::MockFs::new();
+        for content in [
+            serde_json::json!("literal text"),
+            serde_json::json!({"count": 5}),
+            serde_json::json!([{"id": "001"}]),
+            serde_json::json!(0),
+            serde_json::json!(false),
+            serde_json::json!({"bytes_base64": "AP8="}),
+        ] {
+            let args = serde_json::json!({"path": "result.json", "content": content});
+            let written = crate::file::write(&fs, args.as_object().expect("args")).await;
+            assert!(written.is_ok(), "runtime rejected {args}: {written:?}");
+            assert!(
+                validator.is_valid(&args),
+                "discovery rejected valid writer input: {args}"
+            );
+        }
+        let absent = serde_json::json!({"path": "missing.json"});
+        let null = serde_json::json!({"path": "missing.json", "content": null});
+        for args in [absent, null] {
+            assert!(
+                !validator.is_valid(&args),
+                "invalid writer input admitted: {args}"
+            );
+            assert!(
+                crate::file::write(&fs, args.as_object().expect("args"))
+                    .await
+                    .is_err()
+            );
+        }
+    }
 
     #[test]
     fn value_tools_teach_explicit_decoding_without_adding_path_authority() {
