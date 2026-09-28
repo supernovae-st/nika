@@ -1,0 +1,14 @@
+  🦋 nika · invoice-payments · 6 tasks
+     permits ✓ declared boundary · default-deny
+
+  ✔  read_invoices  invoke · nika:read  3ms
+  ✔  keep_valid     invoke · nika:jq  7ms
+  ✔  by_customer    invoke · nika:jq  6ms
+  ✔  totals         invoke · nika:jq  6ms
+  ✔  approval       invoke · nika:prompt  0ms
+  ↷  pay            when: closed (post-gate)
+  6 tasks · 6 waves · 0 retries
+  ── 6/6 done · unmetered · elapsed 0.0s ─────────────────────────
+    wrote .nika/traces
+  explore: nika run invoice-payments.nika --json > run.ndjson · nika trace outputs run.ndjson
+    trace: .nika/traces/2026-09-28T10-23-09Z-72d5.ndjson · 26 events · chain f9cefea1b68e19a74c5257cd845dfaebb0ec549f00cdf485ed8d0356040403e2

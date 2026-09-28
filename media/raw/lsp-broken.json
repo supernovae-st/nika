@@ -1,0 +1,109 @@
+[
+ {
+  "code": "NIKA-DAG-002",
+  "message": "unknown dependency: task `comment` depends on `asses`, which does not exist — did you mean `assess`?",
+  "range": {
+   "end": {
+    "character": 12,
+    "line": 27
+   },
+   "start": {
+    "character": 12,
+    "line": 27
+   }
+  },
+  "severity": 1,
+  "source": "nika"
+ },
+ {
+  "code": "NIKA-VAR-021",
+  "message": "task `assess` a verb field references `tasks.diff` — outside the boundary; hoist it into `with:` and read `${{ with.<name> }}` (`nika check --fix` applies it)",
+  "range": {
+   "end": {
+    "character": 8,
+    "line": 17
+   },
+   "start": {
+    "character": 8,
+    "line": 17
+   }
+  },
+  "severity": 1,
+  "source": "nika"
+ },
+ {
+  "message": "task `diff` escapes the `exec` permit: exec task under a boundary that forbids shells\nfix: add \"git\" to permits.exec",
+  "range": {
+   "end": {
+    "character": 6,
+    "line": 9
+   },
+   "start": {
+    "character": 2,
+    "line": 9
+   }
+  },
+  "severity": 1,
+  "source": "nika"
+ },
+ {
+  "message": "task `comment` escapes the `fs` permit: invoke `nika:write` with a literal path under an absent `permits:` block\nfix: add \"nika:write\" to permits.tools and the path to permits.fs",
+  "range": {
+   "end": {
+    "character": 9,
+    "line": 25
+   },
+   "start": {
+    "character": 2,
+    "line": 25
+   }
+  },
+  "severity": 1,
+  "source": "nika"
+ },
+ {
+  "message": "[cost] assess: declare `max_tokens` on `assess` — the cost report becomes a hard ceiling instead of UNBOUNDED",
+  "range": {
+   "end": {
+    "character": 8,
+    "line": 14
+   },
+   "start": {
+    "character": 2,
+    "line": 14
+   }
+  },
+  "severity": 4,
+  "source": "nika"
+ },
+ {
+  "message": "[strictness] assess: `assess`'s schema admits undeclared keys — close its object nodes with `additionalProperties: false` for a deterministic output shape across providers",
+  "range": {
+   "end": {
+    "character": 8,
+    "line": 14
+   },
+   "start": {
+    "character": 2,
+    "line": 14
+   }
+  },
+  "severity": 4,
+  "source": "nika"
+ },
+ {
+  "message": "[swallowed-exit] diff: `capture: structured` on `diff` makes a non-zero exit DATA, not a failure — the task reports success whatever the command returns, and nothing in this workflow reads `exit_code`. A command that fails here is invisible until something downstream chokes on its empty output. Read the branch (`${{ tasks.diff.output.exit_code }}`, or a `nika:assert` on it), or use a text capture mode so a non-zero exit fails the task as NIKA-EXEC-001",
+  "range": {
+   "end": {
+    "character": 6,
+    "line": 9
+   },
+   "start": {
+    "character": 2,
+    "line": 9
+   }
+  },
+  "severity": 4,
+  "source": "nika"
+ }
+]

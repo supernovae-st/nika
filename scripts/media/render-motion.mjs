@@ -5,10 +5,12 @@
  * zero browser download), captures PNG frames, then assembles MP4 + WebM +
  * optimized GIF + poster with ffmpeg.
  *
- *   node render-motion.mjs static-check-fix            # full export
- *   node render-motion.mjs chat-to-workflow dag-execution
- *   node render-motion.mjs static-check-fix --frame 5600   # one frame → stdout path
- *   node render-motion.mjs static-check-fix --keep-frames
+ *   node render-motion.mjs intent-dag-proof            # full export
+ *   node render-motion.mjs intent-dag-proof --frame 5600   # one frame → stdout path
+ *   node render-motion.mjs intent-dag-proof --keep-frames
+ *
+ * The feature clips are no longer HTML scenes: they render with the film
+ * engine in motion/intent-to-proof (`npm run clip`).
  *
  * Scene contract (set by scene.js): window.__scene {name,duration,fps,width,
  * height,posterAt} + window.__seek(ms) applying the complete state for t.
@@ -45,7 +47,13 @@ const transcripts = fs.existsSync(transcriptsPath)
 const ff = (fargs) => execFileSync("ffmpeg", ["-hide_banner", "-loglevel", "error", ...fargs], { stdio: "inherit" });
 const mb = (p) => (fs.statSync(p).size / 1024 / 1024).toFixed(2);
 
-const browser = await chromium.launch({ channel: "chrome", headless: true });
+// A system Chrome by default; CHROME_PATH points at any other Chromium build
+// (a CI image's, Playwright's) without editing this script.
+const browser = await chromium.launch(
+  process.env.CHROME_PATH
+    ? { executablePath: process.env.CHROME_PATH, headless: true }
+    : { channel: "chrome", headless: true },
+);
 
 for (const scene of scenes) {
   const htmlPath = path.join(HERE, "motion", `${scene}.html`);

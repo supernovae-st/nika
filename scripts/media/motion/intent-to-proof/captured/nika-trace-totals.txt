@@ -1,0 +1,14 @@
+  totals · invoke · nika:jq
+  6ms · 90B
+  def_hash 5bf51303dc0e… · input_hash e4ba0841ac3f…
+
+  [
+    {
+      "amount_cents": 12000,
+      "customer_id": "ACME"
+    },
+    {
+      "amount_cents": 10800,
+      "customer_id": "BRAVO"
+    }
+  ]

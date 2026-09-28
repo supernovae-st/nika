@@ -30,26 +30,30 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg" alt="AGPL-3.0-or-later"></a>
 </p>
 
-## See the idea in one minute
+## See the idea in 30 seconds
 
-“Help more customers finish checkout. Read our feedback and sales data, compare
-three competitors, propose an improvement, then ask me before sharing it.”
+“Read my invoices. Ignore rejected ones. Sum by customer. Pay only after I approve.”
 
-The plan gathers CSV, Markdown and Linear context, processes three competitors
-in parallel, and waits for approval. The result is a saved brief, a GitHub issue,
-Telegram and Slack updates, and an updated Linear issue.
+That sentence becomes six obligations, grounded in fields Nika actually
+observed. Rust proves the plan, and the one unknown, the currency, is asked
+rather than guessed. The plan is lowered into a `.nika` program that passes
+Nika's static check. A person approves that exact revision; one payment runs;
+the result comes back with its proof.
 
 <p align="center">
-  <a href="https://github.com/supernovae-st/nika/raw/refs/heads/main/media/videos/intent-to-impact.mp4">
-    <img src="media/gifs/intent-to-impact.optimized.gif" alt="One intention becomes reviewable YAML, a checked graph, a bounded parallel run and five concrete results after approval" width="960">
+  <a href="https://github.com/supernovae-st/nika/raw/refs/heads/main/media/videos/intent-to-proof.mp4">
+    <img src="media/gifs/intent-to-proof.optimized.gif" alt="A typed request becomes six obligations; Rust proves the plan and asks for the one unknown; a person approves the exact revision; the €228.00 result returns with a verified receipt" width="960">
   </a>
 </p>
 
-[Watch or download the 60-second MP4](https://github.com/supernovae-st/nika/raw/refs/heads/main/media/videos/intent-to-impact.mp4).
+[Watch the full 30-second film with sound (MP4)](https://github.com/supernovae-st/nika/raw/refs/heads/main/media/videos/intent-to-proof.mp4).
 
-*Illustrative product film, not a recording of the CLI. Fictional data and
-integrations are shown; no live messages are sent. The current starting point
-is a terminal and a workflow file, not a visual drag-and-drop editor.*
+*Architecture illustration with fixture data, not a recording of the CLI. The
+program it draws passes the static check, and its check rows, task durations
+and totals come from the real binary. The payment is illustrative, and some
+components carry their target-design names. The
+[film notes](scripts/media/motion/intent-to-proof/README.md) separate what is
+real from what is illustration.*
 
 ## How it works
 
@@ -133,6 +137,12 @@ nika run hello.nika
 nika trace verify
 ```
 
+<p align="center">
+  <a href="https://github.com/supernovae-st/nika/raw/refs/heads/main/media/videos/full-loop.mp4">
+    <img src="media/gifs/full-loop.optimized.gif" alt="The four commands above as they ran: compile writes hello.nika, check passes every vector, the run is a mock/echo rehearsal, and trace verify reads back the chain the run printed" width="720">
+  </a>
+</p>
+
 `hello` always uses `mock/echo`, including when provider keys are present. It
 proves that the workflow runs, not that a model answered. Run records its trace
 under `.nika/traces/`; creation adds that directory to `.gitignore`.
@@ -194,6 +204,17 @@ local, API and supported harness choices.
   checks record integrity, not the truth of an AI answer.
 
 This is **Intent as Code**: the contract is the plan, not a disposable chat.
+
+<p align="center">
+  <a href="https://github.com/supernovae-st/nika/raw/refs/heads/main/media/videos/static-check-fix.mp4"><img src="media/posters/static-check-fix.png" alt="Check before it runs: a broken workflow's findings, the real fix and the clean re-check" width="32%"></a>
+  <a href="https://github.com/supernovae-st/nika/raw/refs/heads/main/media/videos/permits-audit.mp4"><img src="media/posters/permits-audit.png" alt="The file is the boundary: the permits a workflow declares, the escape the check catches and the widened boundary" width="32%"></a>
+  <a href="https://github.com/supernovae-st/nika/raw/refs/heads/main/media/videos/dag-execution.mp4"><img src="media/posters/dag-execution.png" alt="A workflow is a graph: the tasks and waves of a fan-out workflow, from nika inspect and nika check" width="32%"></a>
+</p>
+
+*Short clips of the three ideas above; each opens as a video. The programs
+in them are real files and the terminal lines are captured from the real
+CLI; what a clip illustrates is named on it. The
+[media README](media/README.md#feature-clips) lists them all.*
 
 <details>
 <summary><strong>The four building blocks</strong></summary>

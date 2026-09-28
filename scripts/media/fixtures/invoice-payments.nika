@@ -1,0 +1,78 @@
+# The program drawn in the intent-to-proof film (media/videos/intent-to-proof.mp4).
+# Read invoices, ignore rejected ones, sum by customer, pay only after approval.
+# The currency is the answer to the film's one UNKNOWN: amount_cents names no currency.
+nika: invoice-payments
+
+const:
+  source_path: ./invoices.json
+  endpoint: https://payments.example.invalid/batches
+  currency: EUR
+
+permits:
+  tools: [nika:read, nika:jq, nika:prompt, nika:fetch]
+  fs:
+    read: [./invoices.json]
+  net:
+    http: [payments.example.invalid]
+
+tasks:
+  read_invoices:
+    invoke:
+      tool: nika:read
+      args:
+        path: ${{ const.source_path }}
+
+  keep_valid:
+    with:
+      raw: ${{ tasks.read_invoices.output }}
+    invoke:
+      tool: nika:jq
+      args:
+        input: ${{ with.raw }}
+        expression: 'fromjson | map(select(.status != "rejected"))'
+
+  by_customer:
+    with:
+      rows: ${{ tasks.keep_valid.output }}
+    invoke:
+      tool: nika:jq
+      args:
+        input: ${{ with.rows }}
+        expression: group_by(.customer_id)
+
+  totals:
+    with:
+      groups: ${{ tasks.by_customer.output }}
+    invoke:
+      tool: nika:jq
+      args:
+        input: ${{ with.groups }}
+        expression: 'map({customer_id: .[0].customer_id, amount_cents: (map(.amount_cents) | add)})'
+
+  approval:
+    with:
+      totals: ${{ tasks.totals.output }}
+    invoke:
+      tool: nika:prompt
+      args:
+        message: 'Pay these totals in ${{ const.currency }}? ${{ with.totals }}'
+
+  pay:
+    with:
+      approved: ${{ tasks.approval.output }}
+      totals: ${{ tasks.totals.output }}
+    when: ${{ with.approved == true }}
+    invoke:
+      tool: nika:fetch
+      args:
+        method: POST
+        url: ${{ const.endpoint }}
+        headers:
+          content-type: application/json
+        body:
+          currency: ${{ const.currency }}
+          lines: ${{ with.totals }}
+
+outputs:
+  totals: ${{ tasks.totals.output }}
+  paid: ${{ tasks.pay.status }}

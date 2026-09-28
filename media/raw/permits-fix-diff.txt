@@ -1,5 +1,5 @@
---- scripts/media/fixtures/permits-escape.nika.yaml	2026-08-19 03:11:28
-+++ scripts/media/fixtures/permits-fits.nika.yaml	2026-08-19 03:11:28
+--- scripts/media/fixtures/permits-escape.nika	2026-09-28 09:19:50.927412230 +0000
++++ scripts/media/fixtures/permits-fits.nika	2026-09-28 09:19:50.927412230 +0000
 @@ -1,11 +1,11 @@
 -# The permits-audit asset · ACT 1 — this file DECLARES its blast radius,
 -# then one task quietly reaches beyond it. `nika check` catches the escape

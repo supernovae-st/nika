@@ -1,0 +1,28 @@
+nika check · invoice-payments.nika
+ ✔ PLAN     6 waves · 6 tasks · max parallelism 1
+      wave 1 read_invoices (invoke · nika:read)
+      wave 2 keep_valid (invoke · nika:jq)
+      wave 3 by_customer (invoke · nika:jq)
+      wave 4 totals (invoke · nika:jq)
+      wave 5 approval (invoke · nika:prompt)
+      wave 6 pay (invoke · nika:fetch)
+ ✔ COST     no infer/agent tasks · $0.00 · exec + mcp spend unpriced
+ ✔ SECRETS  no declared secret reaches an effect · model echo untracked
+ ✔ TYPES    deep references fit the shapes tasks declare · builtin output has none
+ ✔ TOOLS    every named nika: tool is canonical · globs + mcp: not checked
+ ✔ ARGS     every builtin invoke arg key is declared + required args present
+ ✔ SCHEMA   no known-unsatisfiable form in an authored schema: · $ref opaque
+ ✔ GATES    no task proven dead · status literals in vocabulary
+ ✔ WRITES   no two unordered tasks write the same static path · computed paths at run · engine writes .nika/traces
+ ✔ EXEC     no literal argv the exec floor refuses at run · a templated argv is the RUN's verdict
+ ✔ RETRY    no `retry:` on a keyless mutating `nika:fetch` · a templated method/headers is the RUN's verdict
+ ✔ ORDER    no exec: sits downstream of a net-effecting task · unauthored content never reaches a shell
+ ✔ PERMITS  literal + const: args fit the boundary · computed programs, paths + symlinks are the RUN's verdict
+ ✔ TRIFECTA no lethal trifecta over the declared permits: without a human gate
+ ✔ JOURNEY internal · 1 source · 1 destination · 0 model endpoints · no secret reaches an external destination
+ ↳ HINT     [documentation-host] task `pay` fetches `payments.example.invalid` — a documentation host (RFC 2606/6761) the transport never dials, so that request fails NIKA-BUILTIN-FETCH-001 once the boundary admits it; point the task at a real host, or own the failure with `on_error: { recover: … }`
+ ↳ HINT     [headless-prompt] `nika:prompt` on `approval` declares no `default:` — unattended (CI, or an agent handing it over) the run pauses at this gate awaiting a human (exit 4 · the resume line taught on the frame); at a terminal it asks directly. Answer it in one pass with `nika run <file> --answer approval=<value>`, or refuse this invocation with `--answer approval=false`. Keep this gate without `default:` when fresh human approval is required; a workflow default answers itself unattended and does not pause for a human
+ ↳ HINT     [inputs] `read_invoices` reads `./invoices.json` which does not exist here — create it (or point its var elsewhere) · the run would fail at that wave
+ ✔ audited · 6 tasks · 6 waves · permits tools:nika:read,nika:jq,nika:prompt,nika:fetch read:./invoices.json http:payments.example.invalid · est out ≤$0.0000 · 3 hints · risk supervised
+ layers · valid ✔ · access ready n/a · nothing dials · capacity fit ✔ · run ready ✔
+ ↳ NEXT     see `nika explain` for coded findings — nothing here is a typed rename, so these are yours to place

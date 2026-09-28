@@ -222,11 +222,11 @@ PATTERNS = [
     {
         "glob": "media/**",
         "class": "generated",
-        "evidence": "media/README.md: 'Never edit exports by hand. Edit the motion scene or fixture, then re-render' — gifs/posters/videos/social render from scripts/media/motion/ scenes + tapes; raw/ transcripts are captured from the real binary",
+        "evidence": "media/README.md: 'Never edit exports by hand. Edit the clip, scene or fixture, then regenerate' — gifs/posters/videos/social render from the films and clips in scripts/media/motion/; raw/ holds output captured from the real binary and its language server",
         "derivation": {
-            "tool": "scripts/media/render-motion.mjs + render-tape.sh + capture-transcripts.sh (scenes: scripts/media/motion/ · fixtures: scripts/media/fixtures/ · tapes: scripts/media/tapes/)",
+            "tool": "scripts/media/motion/intent-to-proof/render.mjs (the README film and the feature clips) + scripts/media/render-product-film.mjs (the product film) + scripts/media/render-motion.mjs (the archived HTML film) + capture-transcripts.sh (sources: scripts/media/motion/ · fixtures: scripts/media/fixtures/)",
             "gate": "scripts/media/validate-media.sh (every shown workflow passes nika check · budgets enforced)",
-            "inputs": ["scripts/media/motion/**", "scripts/media/fixtures/**", "scripts/media/tapes/**", "the real nika binary (captured transcripts)"],
+            "inputs": ["scripts/media/motion/**", "scripts/media/fixtures/**", "the real nika binary (captured transcripts)"],
         },
         "note": "media/README.md excepted in files: (the authored rules for these lanes)",
     },
