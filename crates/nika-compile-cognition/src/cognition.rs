@@ -42,6 +42,7 @@ mod native;
 mod proposal;
 mod receipt;
 use receipt::call_with_schema;
+pub(crate) use receipt::{effort, reasoning_record};
 mod sketch;
 mod transform;
 use proposal::{Proposal, decode, merge};

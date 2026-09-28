@@ -13,10 +13,14 @@
 
 use std::{collections::BTreeMap, future::Future, pin::Pin};
 
+use nika_compile::AuthoringReasoning;
 use nika_kernel::ai::provider::{
     ContentBlock, InferRequest, Message, ProviderInferDyn, ResponseFormat, Role, StopReason,
 };
 use serde_json::{Value, json};
+
+/// The output cap of a bare closed choice, when no reasoning effort is asked of it.
+const CHOICE_MAX_TOKENS: u32 = 256;
 
 /// The reject-all option every closed choice carries.
 pub const NONE_OPTION: &str = "none";
@@ -90,6 +94,9 @@ pub struct ChoiceAnswer {
     pub input_tokens: Option<u64>,
     /// Reported output tokens.
     pub output_tokens: Option<u64>,
+    /// The call's reasoning, each fact apart (configured, transmitted, served, reasoning tokens,
+    /// response model), when the seat observed one (R4 B16).
+    pub reasoning: Option<Value>,
 }
 
 impl ChoiceOption {
@@ -114,6 +121,7 @@ impl ChoiceAnswer {
             model: model.into(),
             input_tokens: None,
             output_tokens: None,
+            reasoning: None,
         }
     }
 }
@@ -140,6 +148,8 @@ pub struct ProviderChoice<'p, P: ProviderInferDyn> {
     provider: &'p P,
     model: String,
     timeout: std::time::Duration,
+    reasoning: Option<AuthoringReasoning>,
+    max_tokens: u32,
 }
 
 impl<'p, P: ProviderInferDyn> ProviderChoice<'p, P> {
@@ -150,7 +160,20 @@ impl<'p, P: ProviderInferDyn> ProviderChoice<'p, P> {
             provider,
             model: model.into(),
             timeout,
+            reasoning: None,
+            max_tokens: CHOICE_MAX_TOKENS,
         }
+    }
+
+    /// Ask the decision call for this reasoning effort under the operator's declared authoring
+    /// output cap (R4 B16): the level is sent only where its route qualifies it, and the cap is
+    /// the authoring calls' own, never the bare choice's 256 tokens a reasoning level could spend
+    /// before it answers. Without it the choice keeps its 256 tokens and its route's default.
+    #[must_use]
+    pub fn with_reasoning(mut self, reasoning: AuthoringReasoning, max_tokens: u32) -> Self {
+        self.reasoning = Some(reasoning);
+        self.max_tokens = max_tokens;
+        self
     }
 }
 
@@ -182,8 +205,14 @@ impl<P: ProviderInferDyn> DecisionSeat for ProviderChoice<'_, P> {
                     Message::text(Role::User, user),
                 ],
             );
-            infer.max_tokens = Some(256);
+            infer.max_tokens = Some(self.max_tokens);
             infer.timeout = Some(self.timeout);
+            if let Some(reasoning) = self.reasoning {
+                infer.reasoning_effort =
+                    Some(crate::cognition::effort(reasoning).ok_or_else(|| {
+                        DecisionError("the reasoning effort has no provider level".to_owned())
+                    })?);
+            }
             infer.response_format = ResponseFormat::JsonSchema(json!({
                 "type": "object", "additionalProperties": false, "required": ["choice"],
                 "properties": {"choice": {"type": "string", "enum": keys}}
@@ -229,6 +258,10 @@ impl<P: ProviderInferDyn> DecisionSeat for ProviderChoice<'_, P> {
                 output_tokens: response
                     .usage_reported
                     .then_some(response.usage.output_tokens),
+                reasoning: Some(crate::cognition::reasoning_record(
+                    self.reasoning,
+                    Some(&response),
+                )),
             })
         })
     }
@@ -264,6 +297,7 @@ pub(super) fn record(
             "question": question.id, "options": question.keys(), "choice": answer.choice,
             "probabilities": answer.probabilities, "confidence": answer.confidence,
             "model": answer.model, "input_tokens": answer.input_tokens, "output_tokens": answer.output_tokens,
+            "reasoning": answer.reasoning,
         }),
         Err(error) => {
             json!({"question": question.id, "options": question.keys(), "error": error.0})
