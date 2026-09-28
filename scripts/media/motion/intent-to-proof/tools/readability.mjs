@@ -3,7 +3,7 @@
 // 1.2 s for a sentence and 0.8 s for a label of one to three words,
 // counted from when the whole line is on screen.
 //
-//   node tools/readability.mjs [--min 22] [--all]
+//   node tools/readability.mjs [--min 22] [--all] [--clip <name>]
 //
 // Samples the main pass at 30 fps and records every text draw: its screen
 // size, alpha and position. A draw is "settled" while its alpha is within
@@ -16,12 +16,16 @@
 // but not for long enough is a miss (✖); --strict makes misses fail.
 import { init, drawFrame } from '../src/film.mjs';
 import { DURATION } from '../src/timeline.mjs';
+import { loadClip, initClip, drawClip } from '../src/clip.mjs';
 
 const args = process.argv.slice(2);
 const opt = (n, d) => (args.includes(`--${n}`) ? args[args.indexOf(`--${n}`) + 1] : d);
 const MIN = +opt('min', 22);
 const FPS = 30;
-const surf = init(0.25);
+const clipName = opt('clip', null);
+const clip = clipName ? await loadClip(clipName) : null;
+const surf = clip ? initClip(0.25) : init(0.25);
+const LENGTH = clip ? clip.meta.duration : DURATION;
 const seen = new Map(); // line → one sample per frame (its largest draw)
 
 let frame = 0;
@@ -39,7 +43,10 @@ surf.audit = (str, x, y, st, a, m) => {
     if (px > last.px) s[s.length - 1] = { f: frame, a, px, sx, sy };
   } else s.push({ f: frame, a, px, sx, sy });
 };
-for (frame = 0; frame < DURATION * FPS; frame++) drawFrame(surf, frame / FPS);
+for (frame = 0; frame < LENGTH * FPS; frame++) {
+  if (clip) drawClip(surf, clip, frame / FPS);
+  else drawFrame(surf, frame / FPS);
+}
 
 const words = s => s.split(/\s+/).filter(w => /[\p{L}\p{N}€]/u.test(w)).length;
 const rows = [];

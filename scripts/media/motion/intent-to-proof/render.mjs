@@ -7,6 +7,8 @@
 //   node render.mjs video --scale 0.5 --fps 30 [--mb]    parallel preview MP4
 //   node render.mjs master [--resume]                    4K60 master + X cut (--resume keeps finished segments)
 //   node render.mjs exports                              web cut, README GIF, poster, storyboard, hero, share copy, QA stills
+//   node render.mjs clip <name…|all>                     feature clips → media/{videos,gifs,posters}
+//   node render.mjs clip-stills <name> 2,8.5 [--scale]   QA stills of one clip
 //
 // Every frame is a pure function of time, so N workers render disjoint
 // frame ranges and the segments are concatenated losslessly.
@@ -17,6 +19,7 @@ import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { createCanvas } from '@napi-rs/canvas';
 import { init, renderFrame } from './src/film.mjs';
+import { CLIPS, loadClip, initClip, renderClipFrame } from './src/clip.mjs';
 import { FPS, DURATION, soundCues, SECTIONS, BPM, T } from './src/timeline.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -86,7 +89,8 @@ async function sheet(a, b, n, scale, cols) {
 async function segment() {
   const f0 = +opt('from'), f1 = +opt('to'), scale = +opt('scale', 1), fps = +opt('fps', FPS);
   const out = opt('out'), mb = !!opt('mb'), lossless = !!opt('lossless');
-  const surf = init(scale);
+  const clip = opt('clip') ? await loadClip(opt('clip')) : null;
+  const surf = clip ? initClip(scale) : init(scale);
   const enc = lossless
     ? ['-c:v', 'libx264', '-preset', 'ultrafast', '-qp', '0', '-pix_fmt', 'yuv444p']
     : ['-c:v', 'libx264', '-preset', 'veryfast', '-crf', '16', '-pix_fmt', 'yuv420p'];
@@ -96,7 +100,7 @@ async function segment() {
   const tStart = performance.now();
   for (let f = f0; f < f1; f++) {
     const t = f / fps;
-    const rgba = renderFrame(surf, t, FPS, mb);
+    const rgba = clip ? renderClipFrame(surf, clip, t) : renderFrame(surf, t, FPS, mb);
     await write(Buffer.from(rgba));
     if ((f - f0) % 30 === 0) {
       const el = (performance.now() - tStart) / 1000;
@@ -108,8 +112,8 @@ async function segment() {
   fs.writeFileSync(`${out}.done`, String(f1 - f0)); // resume marker: this segment is complete
 }
 
-async function video({ scale, fps, mb, workers, lossless, outFile, from = 0, to = DURATION, resume = false }) {
-  const dir = path.join(CACHE, 'segments', `${scale}x_${fps}`);
+async function video({ scale, fps, mb, workers, lossless, outFile, from = 0, to = DURATION, resume = false, clip = null }) {
+  const dir = path.join(CACHE, 'segments', clip ? `clip_${clip}` : `${scale}x_${fps}`);
   if (!resume) fs.rmSync(dir, { recursive: true, force: true });
   mkdir(dir);
   const F0 = Math.round(from * fps), F1 = Math.round(to * fps);
@@ -128,7 +132,7 @@ async function video({ scale, fps, mb, workers, lossless, outFile, from = 0, to 
       const k = next++;
       const [a, b] = jobs[k];
       const out = path.join(dir, `seg_${String(k).padStart(4, '0')}.${ext}`);
-      const p = spawn(process.execPath, [path.join(HERE, 'render.mjs'), 'segment', '--from', a, '--to', b, '--scale', scale, '--fps', fps, '--out', out, ...(mb ? ['--mb'] : []), ...(lossless ? ['--lossless'] : [])], { stdio: ['ignore', 'ignore', 'inherit'] });
+      const p = spawn(process.execPath, [path.join(HERE, 'render.mjs'), 'segment', '--from', a, '--to', b, '--scale', scale, '--fps', fps, '--out', out, ...(mb ? ['--mb'] : []), ...(lossless ? ['--lossless'] : []), ...(clip ? ['--clip', clip] : [])], { stdio: ['ignore', 'ignore', 'inherit'] });
       p.on('close', c => {
         if (c !== 0) return rej(new Error(`segment ${a}-${b} failed`));
         const done = next;
@@ -173,6 +177,7 @@ function mux(videoIn, wav, out, vf, venc, poster = null) {
 // Frames chosen for the poster, the hero thumbnail and the QA stills.
 const POSTER_T = 25.9; // €228.00 + PROOF + VERIFIED: the payoff, settled and readable alone
 const HERO_T = 13.62; // the detector ring sweeping the plan
+const END_T = 29.6; // the end card, every line settled, before the fade
 const QA_T = [0.3, 1.8, 2.45, 3.3, 4.02, 4.6, 5.9, 7.9, 9.6, 11.2, 13.62, 15.3, 16.12, 17.8, 19.2, 20.1, 21.6, 22.1, 23.6, 24.05, 25.9, 27.6, 29.2];
 
 // Committed exports + QA stills, all derived from the 4K master.
@@ -206,6 +211,12 @@ function exportsFromMaster() {
   ff(['-i', fs.existsSync(lossless) ? lossless : master, '-filter_complex',
     `[0:v]fps=12,select='${pick}',setpts=N/12/TB,scale=960:-2:flags=lanczos,split[x][y];[y]palettegen=max_colors=128:stats_mode=diff[p];[x][p]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle`,
     '-loop', '0', media('gifs/intent-to-proof.optimized.gif')]);
+  // social cards from settled frames of the film: the end card (name,
+  // promise, the four roles, nika.sh) is the GitHub social preview, cropped
+  // to 2:1 without losing a line, and the OG card
+  const src = fs.existsSync(lossless) ? lossless : master;
+  ff(['-ss', String(END_T), '-i', src, '-frames:v', '1', '-vf', 'crop=iw:ih*8/9:0:ih/18,scale=1280:640:flags=lanczos', media('social/github-social-preview-1280x640.png')]);
+  ff(['-ss', String(END_T), '-i', src, '-frames:v', '1', '-vf', 'scale=1600:900:flags=lanczos', media('social/og-card-1600x900.png')]);
   // poster (1600×900, the README budget is 1 MB) and the storyboard contact sheet
   ff(['-ss', String(POSTER_T), '-i', master, '-frames:v', '1', '-vf', 'scale=1600:900:flags=lanczos', media('posters/intent-to-proof.png')]);
   ff(['-i', master, '-vf', 'fps=12/30,scale=480:270:flags=lanczos,tile=4x3', '-frames:v', '1', media('storyboards/intent-to-proof.png')]);
@@ -226,6 +237,42 @@ function exportsFromMaster() {
 // one-level steps in 16-bit precision (range in output pixels; contrast above
 // about one level is kept), then an ordered dither and a static luma grain
 // carry the smooth ramp back into 8 bits.
+// ── feature clips (clips/*.mjs) ──────────────────────────────────────────
+// Same outputs and names as the scenes they replace: an MP4 and a WebM for
+// docs and the website, a GIF for READMEs (1280 px, 16 fps, 8 MB budget) and
+// a 1600×900 poster, all under media/.
+async function clipStills(name, times, scale) {
+  const clip = await loadClip(name);
+  const surf = initClip(scale);
+  for (const t of times) {
+    const file = path.join(CACHE, 'clips', name, `t${t.toFixed(2)}.png`);
+    toPNG(surf, renderClipFrame(surf, clip, t), file);
+    console.log(file);
+  }
+}
+
+async function renderClip(name) {
+  const clip = await loadClip(name);
+  const workers = +opt('workers', os.cpus().length);
+  const fps = 30, scale = 1600 / 1920;
+  const lossless = path.join(CACHE, 'clips', `${name}.mkv`);
+  mkdir(path.dirname(lossless));
+  const joined = await video({ scale, fps, mb: false, workers, lossless: true, clip: name, to: clip.meta.duration, outFile: lossless });
+  const ff = a => execFileSync('ffmpeg', ['-y', '-hide_banner', '-loglevel', 'error', ...a], { stdio: 'inherit' });
+  const media = p => path.join(REPO, 'media', p);
+  const grade = `format=yuv444p16le,${finish(24)}`;
+  ff(['-i', joined, '-vf', grade, '-c:v', 'libx264', '-preset', 'slow', '-crf', '20', '-pix_fmt', 'yuv420p', '-an', '-movflags', '+faststart', media(`videos/${name}.mp4`)]);
+  ff(['-i', joined, '-vf', grade, '-c:v', 'libvpx-vp9', '-b:v', '0', '-crf', '38', '-row-mt', '1', '-pix_fmt', 'yuv420p', '-an', media(`videos/${name}.webm`)]);
+  ff(['-i', joined, '-filter_complex', 'fps=16,scale=1280:-2:flags=lanczos,split[x][y];[y]palettegen=max_colors=160:stats_mode=diff[p];[x][p]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle',
+    '-loop', '0', media(`gifs/${name}.optimized.gif`)]);
+  ff(['-ss', String(clip.meta.poster), '-i', joined, '-frames:v', '1', media(`posters/${name}.png`)]);
+  // a clip can also own a social card: its settled poster frame
+  if (clip.meta.social) ff(['-ss', String(clip.meta.poster), '-i', joined, '-frames:v', '1', media(`social/${clip.meta.social}`)]);
+  for (const f of [`videos/${name}.mp4`, `videos/${name}.webm`, `gifs/${name}.optimized.gif`, `posters/${name}.png`]) {
+    console.log(`${f} ${(fs.statSync(media(f)).size / 1e6).toFixed(2)} MB`);
+  }
+}
+
 const finish = range =>
   `format=yuv444p16le,deband=1thr=0.004:2thr=0.004:3thr=0.004:range=${range}:blur=1,scale=sws_dither=a_dither,format=yuv444p,noise=c0s=3:c0f=u`;
 
@@ -259,6 +306,11 @@ async function main() {
     return;
   }
   if (cmd === 'exports') return exportsFromMaster();
+  if (cmd === 'clip-stills') return clipStills(args[1], args[2].split(',').map(Number), +opt('scale', 0.5));
+  if (cmd === 'clip') {
+    for (const name of args[1] === 'all' ? CLIPS : args.slice(1).filter(a => !a.startsWith('--') && CLIPS.includes(a))) await renderClip(name);
+    return;
+  }
   console.log('usage: still <t> | stills <t,t> | sheet <a> <b> <n> | video | master | exports | audio');
 }
 
