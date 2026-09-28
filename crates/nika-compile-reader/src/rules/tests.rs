@@ -453,3 +453,96 @@ fn the_exclusion_leads_are_the_frozen_list() {
     let read: Vec<&str> = EXCLUSION_LEADS.lines().collect();
     assert_eq!(read, frozen.split(' ').collect::<Vec<_>>());
 }
+
+/// A stage the words before the relative clause state runs after the clause (R4 F1): « count
+/// the rows where status is paid » is a filter AND a count, never the filter alone.
+#[test]
+fn a_counted_lead_keeps_its_filter_and_its_count() {
+    let paid = "[.records[] | select(.status == \"paid\")]";
+    for (text, expected) in [
+        (
+            "count the rows where status is paid",
+            format!("{paid} | {{\"count\": length}}"),
+        ),
+        (
+            "count the orders where status is paid",
+            format!("{paid} | {{\"count\": length}}"),
+        ),
+        (
+            "count the rows where status is paid and amount_usd is over 10",
+            "[.records[] | select(.status == \"paid\" and (.amount_usd | tonumber) > 10)] | {\"count\": length}".to_owned(),
+        ),
+        (
+            "count the rows where status is paid or where status is open",
+            "[.records[] | select(.status == \"paid\" or .status == \"open\")] | {\"count\": length}".to_owned(),
+        ),
+        (
+            "compte les lignes dont le statut est payé",
+            "[.records[] | select(.statut == \"payé\")] | {\"count\": length}".to_owned(),
+        ),
+        (
+            "the number of rows whose status is paid",
+            format!("{paid} | {{\"number\": length}}"),
+        ),
+        (
+            "count the rows per client where status is paid",
+            format!(
+                "{paid} | group_by(.client) | map({{\"client\": (.[0] | .client), \"count\": length}})"
+            ),
+        ),
+        (
+            "the total of the amount column where status is paid",
+            format!("{paid} | {{\"total\": (map(.amount | tonumber) | add // 0)}}"),
+        ),
+    ] {
+        assert_eq!(jq(text), Some(expected), "{text}");
+    }
+    let rule = synthesize("count the rows where status is paid", &[]).expect("a rule");
+    assert!(rule.filters() && rule.shaped());
+    assert_eq!(rule.fields(), ["status"]);
+    assert_eq!(rule.totals_names(), ["count"]);
+}
+
+/// Words before the relative clause the grammar cannot account for leave the clause unread
+/// (R4 F1): a stage word it does not read whole over the rows, or a modifier after a determiner,
+/// is never dropped while the filter alone reads READY.
+#[test]
+fn a_lead_the_grammar_cannot_account_for_is_never_dropped() {
+    for text in [
+        "count the paid rows where amount_usd is over 10",
+        "how many rows where status is paid",
+        "sort the rows where status is paid",
+        "sum the amounts where status is paid",
+        "the total amount of the rows where status is paid",
+        "the paid rows where amount_usd > 10",
+        "keep the open tickets whose priority is high",
+        "keep the rows with the highest amount whose status is paid",
+        "les lignes payées dont le montant est plus grand que 10",
+        "count total_eur > 100",
+        // A stage stated after the counted clause, or before it, has no order this rule keeps.
+        "keep the 2 rows with the highest amount ; count the rows where status is paid",
+        "count the rows where status is paid ; keep the rows where amount > 10",
+        "keep the rows where amount > 10 and count the rows where status is paid",
+    ] {
+        assert_eq!(synthesize(text, &[]), None, "{text}");
+    }
+}
+
+/// The clause's own verb, the grammar's words and the records' noun carry nothing a filter
+/// drops: the leads read before keep reading the same filter, byte for byte.
+#[test]
+fn a_plain_lead_reads_the_same_filter() {
+    let paid = Some("[.records[] | select(.status == \"paid\")]".to_owned());
+    for text in [
+        "keep the rows where status is paid",
+        "filter the rows where status is paid",
+        "list the orders whose status is paid",
+        "show me the orders whose status is paid",
+        "give me rows where status is paid",
+        "select the tickets whose status is paid",
+        "les lignes dont le status est paid",
+        "ne garde que les lignes dont le status est paid",
+    ] {
+        assert_eq!(jq(text), paid, "{text}");
+    }
+}

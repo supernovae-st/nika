@@ -248,6 +248,31 @@ while `nika-compile` stood at its wall; they ascended to `nika-compile-fidelity`
   two tests pin every table against that frozen pre-edit list, word for word and in order.
   The assets hold words only, no executable string; their raw lines (523 + 48) are reported
   beside the production count, which they do not enter.
+- **A clause's lead is read, never dropped (R4 F1, V9 A10).** The words before a clause's
+  field (before its relative marker, or before its last word) used to be discarded whole:
+  « count the rows where status is paid » read as the filter alone, and the workflow wrote
+  the rows, READY. `rules::lead_reading` now accounts for every one of them.
+  - A count or an aggregate the stage grammar reads whole over the rows a relative clause
+    keeps (`stages::lead_stage`: « count the rows where … », « the number of rows whose … »,
+    « the total of the amount column where … », « compte les lignes dont … ») runs after every
+    clause of its segment. The rows' own noun (« count the orders where … ») stands for them
+    in a count, as a row word does.
+  - The clause's own verb (the words before the first function word: « filter », « show
+    me »), the function words (`stages::lead_word`, `ARTICLES`) and the rows' noun state
+    nothing the filter drops: those leads read the same filter, byte for byte.
+  - Any other word stating a stage (`stages::operation_word`, `SUMMARY_CORE`), or a word after
+    the first function word that is not one (a modifier: « the paid rows where … », « les
+    lignes payées dont … »), leaves the clause unread. HOT is never READY on it: the clause
+    goes to cognition, or stays unresolved, never to a narrower filter.
+  - A composed stage runs only over rows no earlier stage shaped, and it ends what this
+    reading keeps: a later segment leaves the rule unread, since an order across stages is
+    not representable in one filter and one shape (R4 F5 is the next tranche).
+  - The fused rule is an ordinary rule record (clauses and a shape). A plan recorded with
+    the old filter-only reading is refused on replay as not what its words say; a fresh
+    compile recovers.
+  - Known limits: an adjective with no determiner before the rows' noun (« paid orders
+    where … ») still reads as the clause's verb; « how many … where … » and a sort or a top-N
+    stated before the relative clause are outside the closed forms and go to cognition.
 - The 12 ADR-003 gates were passed by `nika-onboard` at its admission; this member inherits
   them as the third member of the same unit (the ADR-115 and ADR-137 precedent). Mutation
   and property attestations for the reader are owed as pending evidence, tracked with the

@@ -278,6 +278,49 @@ fn count_or_aggregate(words: &[Word], columns: &[String]) -> Option<Shape> {
     })
 }
 
+/// A count or an aggregate the words before a relative clause state over the rows it keeps
+/// (R4 F1): « count the rows where … », « the number of rows whose … », « the total of the
+/// amount column where … », read whole by the same forms. The noun the rows are named by
+/// (« count the orders where … ») stands for them in a count, as a row word does.
+pub(crate) fn lead_stage(text: &str, columns: &[String]) -> Option<Shape> {
+    let mut words = words(text);
+    if let Some(shape) = count_or_aggregate(&words, columns) {
+        return Some(shape);
+    }
+    let noun = words.last_mut()?;
+    if function_word(&noun.folded) || column(noun, &[]).is_none() {
+        return None;
+    }
+    "rows".clone_into(&mut noun.original);
+    "rows".clone_into(&mut noun.folded);
+    count_or_aggregate(&words, columns)
+        .filter(|shape| shape.aggregations.iter().all(|a| a.op == AggOp::Count))
+}
+
+/// A word that states a stage of its own (a count, a sort, a rank, a removal of duplicates, a
+/// join, a rename): never a word the lead of a filter drops (R4 F1).
+pub(crate) fn operation_word(folded: &str) -> bool {
+    [
+        &COUNT_VERBS,
+        &SORT_VERBS,
+        &RANK_HIGH,
+        &RANK_LOW,
+        &REMOVE_VERBS,
+        &DUPLICATE_WORDS,
+        &UNIQUE_WORDS,
+        &JOIN_VERBS,
+        &RENAME_VERBS,
+    ]
+    .iter()
+    .any(|table| table.contains(&folded))
+}
+
+/// A word the lead of a filter carries without stating anything (a keep verb, « only », a
+/// determiner): after the clause's own verb, the lead holds only these up to the rows' noun.
+pub(crate) fn lead_word(folded: &str) -> bool {
+    KEEP_LEADS.contains(&folded) || ONLY_WORDS.contains(&folded) || DETERMINERS.contains(&folded)
+}
+
 fn direction(folded: &str) -> Option<bool> {
     if DESCENDING.contains(&folded) {
         Some(true)

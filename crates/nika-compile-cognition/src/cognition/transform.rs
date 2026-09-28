@@ -984,4 +984,104 @@ mod tests {
             "{why}"
         );
     }
+
+    /// The public DEV fixtures of the fused count (R4 F1), each row `(id, amount_usd, status)`
+    /// as the CSV parse writes it (every cell text); the counts below were stated before any run.
+    const FRIENDLY: &[(&str, &str, &str)] = &[("A", "20", "paid"), ("B", "10", "paid")];
+    const DISCRIMINATING: &[(&str, &str, &str)] = &[
+        ("A", "9", "paid"),
+        ("B", "50", "open"),
+        ("C", "100", "paid"),
+        ("D", "20", "paid"),
+        ("E", "10", "paid"),
+        ("C", "3", "paid"),
+        ("F", "1", "open"),
+    ];
+    const NONE_PAID: &[(&str, &str, &str)] = &[("G", "10", "open"), ("H", "3", "open")];
+
+    fn csv_records(rows: &[(&str, &str, &str)]) -> Value {
+        let rows: Vec<Value> = rows
+            .iter()
+            .map(|(id, amount, status)| json!({"id": id, "amount_usd": amount, "status": status}))
+            .collect();
+        json!({ "records": rows })
+    }
+
+    /// The expression the compile EMITS at `compute` for `intent` over the observed CSV
+    /// `./data/input.csv` (its header only, no sampled value): the READY candidate is parsed and
+    /// its `compute` task read, whatever laws run in front of the rule.
+    fn emitted_compute(intent: &str) -> String {
+        let observed = json!({"observed": [{"path": "./data/input.csv", "state": "observed", "complete": false, "kind": "csv", "columns": ["id", "amount_usd", "status"]}]});
+        let request = nika_compile::CompileRequest::create(intent).with_knowledge(observed);
+        let out = nika_compile::compile(&request).unwrap();
+        assert_eq!(out.status, nika_compile::CompileStatus::Ready, "{out:#?}");
+        let doc: Value = serde_yaml_bw::from_str(out.candidate.as_deref().unwrap()).unwrap();
+        doc["tasks"]["compute"]["invoke"]["args"]["expression"]
+            .as_str()
+            .unwrap_or_else(|| panic!("no compute expression: {doc:#}"))
+            .to_owned()
+    }
+
+    /// « count the rows where … » compiles to a program that counts the rows the clause keeps
+    /// (R4 F1), run by the runtime's own jq on the emitted bytes: one object `{"count": n}`,
+    /// exact for zero matches, two predicates, a threshold, later rows and exact decimals.
+    #[test]
+    fn a_fused_count_emits_a_program_that_counts_the_kept_rows() {
+        let intent = |clause: &str| {
+            format!("read ./data/input.csv, {clause}, write the count to ./out/result.json")
+        };
+        for (clause, counts) in [
+            ("count the rows where status is paid", [2, 5, 0]),
+            ("count the rows where amount_usd is over 10", [1, 3, 0]),
+            (
+                "count the rows where status is paid and amount_usd is over 10",
+                [1, 2, 0],
+            ),
+        ] {
+            let program = emitted_compute(&intent(clause));
+            for (rows, n) in [FRIENDLY, DISCRIMINATING, NONE_PAID].iter().zip(counts) {
+                assert_eq!(
+                    run(&program, &csv_records(rows)).unwrap(),
+                    json!({ "count": n }),
+                    "{clause}"
+                );
+            }
+        }
+        // Rows no compile observed: 250 of them, the paid ones spread and last, counted by an
+        // oracle that never reads the program.
+        let paid = |i: usize| i % 7 == 3 || i >= 240;
+        let many: Vec<(String, String, &str)> = (0..250)
+            .map(|i| {
+                let status = if paid(i) { "paid" } else { "open" };
+                (format!("R{i}"), i.to_string(), status)
+            })
+            .collect();
+        let rows: Vec<(&str, &str, &str)> = many
+            .iter()
+            .map(|(id, amount, status)| (id.as_str(), amount.as_str(), *status))
+            .collect();
+        let program = emitted_compute(&intent("count the rows where status is paid"));
+        assert_eq!(
+            run(&program, &csv_records(&rows)).unwrap(),
+            json!({ "count": (0..250).filter(|i| paid(*i)).count() })
+        );
+        // A threshold stated finer than an f64: counted on the exact values, never collapsed.
+        let fine = [
+            ("A", "1.000000000000000001", "paid"),
+            ("B", "1.000000000000000002", "paid"),
+            ("C", "1.000000000000000003", "paid"),
+        ];
+        let program = emitted_compute(&intent(
+            "count the rows where amount_usd is over 1.000000000000000001",
+        ));
+        assert_eq!(
+            run(&program, &csv_records(&fine)).unwrap(),
+            json!({ "count": 2 })
+        );
+        // The adverse witness: the pre-fix program (the filter alone, faithfully compiled from
+        // an IR without the count) writes rows, never the count a strict reading asks.
+        let filter_only = r#"[.records[] | select(.status == "paid")]"#;
+        let rows = run(filter_only, &csv_records(DISCRIMINATING)).unwrap();
+        assert!(rows.is_array() && rows != json!({ "count": 5 }), "{rows}");
+    }
 }

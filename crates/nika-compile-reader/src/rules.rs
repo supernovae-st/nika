@@ -967,10 +967,14 @@ enum Left {
     Unnamed,
 }
 
-/// The last relative marker in a region: its index and width.
+/// The last relative marker in a region: its index and width. A word inside a wider marker
+/// just found (« cui » of « la cui ») is that marker, never a second one after it.
 fn last_relative(region: &[Token]) -> Option<(usize, usize)> {
-    let mut found = None;
+    let mut found: Option<(usize, usize)> = None;
     for at in 0..region.len() {
+        if found.is_some_and(|(start, width)| at < start + width) {
+            continue;
+        }
         for width in [2, 1] {
             if phrase(region, at, width).is_some_and(|p| RELATIVES.contains(&p.as_str())) {
                 found = Some((at, width));
@@ -1017,12 +1021,23 @@ fn negated_lead(lead: &[Token]) -> bool {
     })
 }
 
-/// The field named left of the comparison. `None` when the lead carries a number, a
-/// symbol, a quote or a negation the grammar did not consume; `Unnamed` when nothing
-/// there names a column.
-fn left_field(tokens: &[Token], from: usize, anchor: &Anchor, columns: &[String]) -> Option<Left> {
+/// What the words before a clause's field state (R4 F1).
+enum Lead {
+    /// Nothing the filter drops: the clause's own verb, the grammar's words, the rows' noun.
+    Plain,
+    /// A count or an aggregate the stage grammar reads whole over the rows the clause keeps.
+    Stage(Box<Shape>),
+}
+
+/// The words left of the comparison: the lead (before a relative marker, or before the last
+/// word when none) and the phrase naming the field, and whether a relative marker split them.
+fn split_region<'a>(
+    tokens: &'a [Token],
+    from: usize,
+    anchor: &Anchor,
+) -> (&'a [Token], &'a [Token], bool) {
     let region = tokens.get(from..anchor.field_end).unwrap_or_default();
-    let (lead, phrase, relative) = match last_relative(region) {
+    match last_relative(region) {
         Some((at, width)) => (
             region.get(..at).unwrap_or_default(),
             region.get(at + width..).unwrap_or_default(),
@@ -1032,10 +1047,51 @@ fn left_field(tokens: &[Token], from: usize, anchor: &Anchor, columns: &[String]
             Some((last, lead)) => (lead, std::slice::from_ref(last), false),
             None => (region, region, false),
         },
-    };
-    if lead.iter().any(|t| t.word().is_none()) || negated_lead(lead) {
+    }
+}
+
+/// How a clause's lead is read (R4 F1): a count or an aggregate the stage grammar reads whole
+/// over the rows a relative clause keeps runs after the filter (« count the rows where … »);
+/// another word stating a stage of its own, or a word that is no function word after the first
+/// one (a modifier: « the paid rows where … », « les lignes payées dont … »), leaves the clause
+/// unread (`None`), never read without it. The clause's own verb (« filter », « show me »), the
+/// grammar's function words and the rows' noun state nothing the filter drops.
+fn lead_reading(lead: &[Token], relative: bool, columns: &[String]) -> Option<Lead> {
+    let words: Vec<&str> = lead.iter().filter_map(Token::word).collect();
+    if words.is_empty() {
+        return Some(Lead::Plain);
+    }
+    if relative {
+        let text = lead
+            .iter()
+            .map(|t| t.original.as_str())
+            .collect::<Vec<_>>()
+            .join(" ");
+        if let Some(stage) = super::stages::lead_stage(&text, columns) {
+            return Some(Lead::Stage(Box::new(stage)));
+        }
+    }
+    if words
+        .iter()
+        .any(|w| super::stages::operation_word(w) || listed(SUMMARY_CORE, w))
+    {
         return None;
     }
+    let function = |w: &&str| super::stages::lead_word(w) || ARTICLES.contains(w);
+    let noun = words.len() - usize::from(relative);
+    let first = words.iter().position(function).unwrap_or(noun);
+    let between = words.get(first..noun).unwrap_or_default();
+    between.iter().all(function).then_some(Lead::Plain)
+}
+
+/// The field named left of the comparison, from the phrase [`split_region`] cut; `Unnamed`
+/// when nothing there names a column.
+fn left_field(
+    phrase: &[Token],
+    relative: bool,
+    anchor: &Anchor,
+    columns: &[String],
+) -> Option<Left> {
     let mut phrase = phrase;
     while let Some((head, rest)) = phrase.split_first()
         && head.word().is_some_and(|w| ARTICLES.contains(&w))
@@ -1137,11 +1193,22 @@ fn residual(tokens: &[Token], from: usize) -> Option<usize> {
     }
 }
 
-/// One clause from `from`: the clause and the index of the token after it.
-fn parse_clause(tokens: &[Token], from: usize, columns: &[String]) -> Option<(Clause, usize)> {
+/// One clause from `from`: the clause, the index of the token after it and what its lead
+/// states. `None` when the lead carries a number, a symbol, a quote, a negation or words the
+/// grammar cannot account for.
+fn parse_clause(
+    tokens: &[Token],
+    from: usize,
+    columns: &[String],
+) -> Option<(Clause, usize, Lead)> {
     let anchor = (from..tokens.len()).find_map(|at| anchor_at(tokens, at))?;
     let (comparator, value_from) = comparator_after(tokens, &anchor)?;
-    let left = left_field(tokens, from, &anchor, columns)?;
+    let (lead, phrase, relative) = split_region(tokens, from, &anchor);
+    if lead.iter().any(|t| t.word().is_none()) || negated_lead(lead) {
+        return None;
+    }
+    let lead = lead_reading(lead, relative, columns)?;
+    let left = left_field(phrase, relative, &anchor, columns)?;
     let (value, mut next) = parse_value(tokens, value_from, comparator, columns)?;
     let numeric_value = matches!(value, Operand::Number(_));
     if numeric_value && unit_after(tokens, next) {
@@ -1164,7 +1231,7 @@ fn parse_clause(tokens: &[Token], from: usize, columns: &[String]) -> Option<(Cl
         return None;
     }
     let next = residual(tokens, next)?;
-    Some((Clause::new(field, comparator, value), next))
+    Some((Clause::new(field, comparator, value), next, lead))
 }
 
 /// Sentences and `;`-joined rules, each of which must parse whole.
@@ -1187,10 +1254,15 @@ pub fn synthesize(text: &str, columns: &[String]) -> Option<Rule> {
     let mut junction: Option<Junction> = None;
     let mut summary = false;
     let mut shape = Shape::default();
+    let mut composed = false;
     for segment in segments(text) {
         let tokens = tokenize(segment);
         if tokens.is_empty() {
             continue;
+        }
+        // A stage a lead stated ends what one filter and one shape can keep in order (R4 F1).
+        if composed {
+            return None;
         }
         if !clauses.is_empty() {
             if junction == Some(Junction::Or) {
@@ -1199,8 +1271,9 @@ pub fn synthesize(text: &str, columns: &[String]) -> Option<Rule> {
             junction = Some(Junction::And);
         }
         let mut at = 0;
+        let mut after_filter = None;
         loop {
-            let Some((clause, next)) = parse_clause(&tokens, at, columns) else {
+            let Some((clause, next, lead)) = parse_clause(&tokens, at, columns) else {
                 // A whole segment stating a stage (an aggregate over a column, a count per
                 // column, a sort, a top-N, a projection, a removal of duplicates, a join) is
                 // the shape's work: the filter (if any) runs first, the stages follow.
@@ -1218,6 +1291,14 @@ pub fn synthesize(text: &str, columns: &[String]) -> Option<Rule> {
                 }
                 return None;
             };
+            // The stage the first clause's lead states runs after every clause of its segment,
+            // over rows no earlier stage shaped (« count the rows where status is paid »).
+            if let Lead::Stage(stage) = lead {
+                if at != 0 || shape != Shape::default() {
+                    return None;
+                }
+                after_filter = Some(stage);
+            }
             // The same clause twice (a promoted constraint beside the seat's paraphrase
             // of it) is one clause.
             if !clauses.contains(&clause) {
@@ -1235,6 +1316,10 @@ pub fn synthesize(text: &str, columns: &[String]) -> Option<Rule> {
             if at >= tokens.len() {
                 return None;
             }
+        }
+        if let Some(stage) = after_filter {
+            shape = shape.merge(*stage)?;
+            composed = true;
         }
     }
     if clauses.is_empty() && shape == Shape::default() {
