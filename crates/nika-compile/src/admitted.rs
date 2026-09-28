@@ -19,47 +19,94 @@ use std::ops::Range;
 use serde_json::{Value, json};
 
 use crate::money::Directives;
-use crate::types::{CompileRequest, Input};
+use crate::types::{CompileRequest, EditChange, Input};
 use crate::{CompileOutcome, CompileStatus, DiagnosticKind, QuestionType};
 
 /// The request its reading sees and the record of what the caller admitted, or `None` when the
-/// caller admitted nothing (or the input is no request in words).
+/// caller admitted nothing (or the input is no request in words). A revision's words are its
+/// change; on a door that states its operator's money, the request its base answered is words
+/// the seat reads too, and states money as well.
 ///
 /// # Errors
 /// The refusal when a span the caller admitted is not one of the request's monetary directives,
 /// or when the money a caller states is malformed or conflicting.
 pub fn read(request: &CompileRequest) -> Result<Option<(CompileRequest, Value)>, String> {
-    let Input::Create(intent) = &request.input else {
+    let Some(intent) = words(request) else {
         return Ok(None);
     };
     if request.money.is_empty() && !request.stated_money {
         return Ok(None);
     }
     let found = crate::money::directives(intent).map_err(str::to_owned)?;
-    let spans: Vec<Range<usize>> = if request.stated_money {
-        found.found.iter().map(|d| d.span.clone()).collect()
+    let spans = if request.stated_money {
+        every(&found)
     } else {
         request.money.clone()
     };
-    let Some((text, records)) = blank(request, intent, &found, &spans)? else {
-        return Ok(None);
-    };
-    // A request that names a skeleton only once its directive is blanked (« hello budget 2 USD »)
-    // is no skeleton request: it is read as written.
-    let bare = text.trim();
-    if matches!(bare, "hello" | "01-hello") || nika_pack::template_names().iter().any(|n| n == bare)
-    {
-        return Ok(None);
-    }
-    let read_sha = crate::intent_sha256(&text);
+    let (text, mut records) =
+        blank(request, intent, &found, &spans)?.unwrap_or_else(|| (intent.clone(), Vec::new()));
     let mut reading = request.clone();
-    reading.input = Input::Create(text);
     reading.money = Vec::new();
     reading.stated_money = false;
-    Ok(Some((
-        reading,
-        json!({"directives": records, "read_intent_sha256": read_sha}),
-    )))
+    if let (Input::Edit { .. }, Some(original), true) = (
+        &request.input,
+        &request.original_intent,
+        request.stated_money,
+    ) {
+        let found = crate::money::directives(original).map_err(str::to_owned)?;
+        if let Some((blanked, stated)) = blank(request, original, &found, &every(&found))? {
+            reading.original_intent = Some(blanked);
+            records.extend(stated.into_iter().map(|mut record| {
+                record["in"] = json!("original_intent");
+                record
+            }));
+        }
+    }
+    if records.is_empty() {
+        return Ok(None);
+    }
+    // A request that names a skeleton only once its directive is blanked (« hello budget 2 USD »)
+    // is no skeleton request: it is read as written, and its money still binds — recorded, and
+    // read by no seat as work (R4 B15 review).
+    let written = matches!(request.input, Input::Create(_)) && crate::money::skeleton(text.trim());
+    if !written {
+        match &mut reading.input {
+            Input::Create(read)
+            | Input::Edit {
+                change: EditChange::Text(read),
+                ..
+            } => *read = text,
+            Input::Edit { .. } => {}
+        }
+    }
+    let read_sha = match &reading.input {
+        Input::Create(read) => crate::intent_sha256(read),
+        Input::Edit { .. } => {
+            crate::intent_sha256(&crate::revise_intent(&reading).unwrap_or_default())
+        }
+    };
+    let mut money = json!({"directives": records, "read_intent_sha256": read_sha});
+    if written {
+        money["read_as_written"] = json!(true);
+    }
+    Ok(Some((reading, money)))
+}
+
+/// The words a request states: a creation's intent, a revision's change in words.
+fn words(request: &CompileRequest) -> Option<&String> {
+    match &request.input {
+        Input::Create(intent)
+        | Input::Edit {
+            change: EditChange::Text(intent),
+            ..
+        } => Some(intent),
+        Input::Edit { .. } => None,
+    }
+}
+
+/// Every directive found: the money a door that meters no seat states.
+fn every(found: &Directives) -> Vec<Range<usize>> {
+    found.found.iter().map(|d| d.span.clone()).collect()
 }
 
 /// A replacement request the operator states on the seats' door (`intent.clarification`), read
@@ -129,9 +176,14 @@ fn blank(
 /// Record what the caller admitted beside the outcome of the reading: the original request's
 /// identity, each directive, and a question where one reads both ways.
 pub fn record(request: &CompileRequest, money: Value, out: &mut CompileOutcome) {
-    let Input::Create(intent) = &request.input else {
-        return;
+    let intent = match &request.input {
+        Input::Create(intent) => intent.clone(),
+        Input::Edit { .. } => match crate::revise_intent(request) {
+            Some(intent) => intent,
+            None => return,
+        },
     };
+    let written = money["read_as_written"] == json!(true);
     for directive in money["directives"].as_array().into_iter().flatten() {
         let words = directive["text"].as_str().unwrap_or_default();
         if let Some(field) = directive["ambiguous_field"].as_str() {
@@ -158,6 +210,15 @@ pub fn record(request: &CompileRequest, money: Value, out: &mut CompileOutcome) 
                     QuestionType::Text,
                 );
             }
+        } else if written {
+            crate::finding(
+                out,
+                DiagnosticKind::Applied,
+                "money",
+                format!(
+                    "`{words}` is the monetary ceiling the caller admitted; without it the request names a skeleton, so it is read as written, never as that skeleton, and no seat reads it as work; the compiler certifies no cap."
+                ),
+            );
         } else {
             crate::finding(
                 out,
@@ -170,7 +231,7 @@ pub fn record(request: &CompileRequest, money: Value, out: &mut CompileOutcome) 
         }
     }
     let mut decision = out.provenance.decision.take().unwrap_or_else(|| json!({}));
-    decision["intent_sha256"] = json!(crate::intent_sha256(intent));
+    decision["intent_sha256"] = json!(crate::intent_sha256(&intent));
     decision["money"] = money;
     out.provenance.decision = Some(decision);
 }

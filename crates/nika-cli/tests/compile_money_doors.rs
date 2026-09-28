@@ -595,6 +595,62 @@ fn a_stated_positive_ceiling_never_dispatches_an_unpriced_seat() {
     assert_eq!(stated(&doc), ["Budget: 2 USD"], "{doc}");
 }
 
+/// A skeleton's name beside a stated zero (primary review of 73291db3d, hypothesis 1): the law
+/// reads the ceiling, the request is read as written and never as that skeleton, and nothing is
+/// prepared, connected or received. On 73291db3d each of these sent one request.
+#[test]
+fn a_skeleton_name_beside_a_stated_zero_sends_nothing() {
+    let recorder = Recorder::start();
+    let room = room();
+    for request in [
+        "hello budget 0 USD",
+        "01-hello budget 0 USD",
+        "chain budget 0 USD",
+    ] {
+        let doc = seated(room.path(), request, &recorder, &[]);
+        assert_eq!(recorder.counts(), (0, 0), "{request}: {doc}");
+        assert_eq!(prepared(&doc), 0, "{request}: {doc}");
+        assert_eq!(stated(&doc), ["budget 0 USD"], "{request}: {doc}");
+        assert!(says(&doc, "no request was sent"), "{request}: {doc}");
+        assert!(doc["provenance"]["skeleton"].is_null(), "{request}: {doc}");
+    }
+}
+
+/// A change a base's constant door cannot settle: the named seat revises the base.
+const CHANGE: &str = "also greet the reader in French";
+
+/// A revision of the room's `workflow.nika` with the local seat named, its base URL the
+/// recorder's.
+fn revised(room: &Path, change: &str, recorder: &Recorder) -> Value {
+    let out = command(room)
+        .env("NIKA_OLLAMA_BASE_URL", recorder.base())
+        .args(["compile", "--base", "workflow.nika", "--change", change])
+        .args(["--output", "revised.nika", "--json"])
+        .args(["--authoring-model", SEAT, "--authoring-timeout", "5"])
+        .output()
+        .expect("revise");
+    document(&out)
+}
+
+/// A revision's change states its operator's money (hypothesis 2): read as money, never as the
+/// change, no seat revises the base under it, and nothing is prepared, connected or received.
+/// The same revision without it reaches the seat; on 73291db3d both sent one request.
+#[test]
+fn a_revision_stating_a_zero_sends_nothing() {
+    let room = room();
+    assert_eq!(compile(room.path(), "hello", &[])["status"], "ready");
+    let control = Recorder::start();
+    let doc = revised(room.path(), CHANGE, &control);
+    let (accepts, bodies) = control.counts();
+    assert!(accepts >= 1 && bodies >= 1, "{accepts}/{bodies}: {doc}");
+    let recorder = Recorder::start();
+    let doc = revised(room.path(), &format!("{CHANGE}, budget 0 USD"), &recorder);
+    assert_eq!(recorder.counts(), (0, 0), "{doc}");
+    assert_eq!(prepared(&doc), 0, "{doc}");
+    assert_eq!(stated(&doc), ["budget 0 USD"], "{doc}");
+    assert!(says(&doc, "no request was sent"), "{doc}");
+}
+
 /// The question keys an outcome asks, in order.
 fn keys(doc: &Value) -> Vec<String> {
     doc["questions"]

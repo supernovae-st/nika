@@ -4,11 +4,13 @@
 //! The money a host admitted or its operator stated, read before every strategy (R4 B15 · F3):
 //! support, HOT, WARM, COLD and native all read the request with its directives blanked, the
 //! seats included, and a ceiling no seat can be held to opens none — an admitted zero on every
-//! door, any stated ceiling on a door that meters no seat. The outcome records each directive
-//! beside the original request's identity, and why a named seat stayed closed.
+//! door, any stated ceiling on a door that meters no seat, a ceiling a request read as written
+//! still carries. The outcome records each directive beside the original request's identity,
+//! and why a named seat stayed closed.
 use nika_compile::surface::admitted;
 use serde_json::{Value, json};
 
+use crate::types::Input;
 use crate::{CompileOutcome, CompileRequest, DiagnosticKind};
 
 /// What the ladder reads of a request's money: the request it reads, the record of its
@@ -44,13 +46,14 @@ pub(super) fn read(request: &CompileRequest) -> Result<Money, Box<CompileOutcome
     })
 }
 
-/// On a door that meters no seat an `intent.clarification` answer replaces the request: its
-/// own directives are read afresh and blanked inside the answer, where the ladder reads it; the
-/// words of the request it replaced state nothing.
+/// On a door that meters no seat an `intent.clarification` answer replaces a creation's request:
+/// its own directives are read afresh and blanked inside the answer, where the ladder reads it;
+/// the words of the request it replaced state nothing. A revision's change is never replaced:
+/// its money is read by [`admitted::read`].
 fn replacement(
     request: &CompileRequest,
 ) -> Option<Result<(CompileRequest, Option<Value>), String>> {
-    if !request.stated_money {
+    if !request.stated_money || !matches!(request.input, Input::Create(_)) {
         return None;
     }
     let raw = request.answers.get("intent.clarification")?;
@@ -75,8 +78,9 @@ fn replacement(
 }
 
 /// Why no seat may be consulted under the money a request states: an admitted zero on every
-/// door, any stated ceiling on a door that meters no seat; `None` when a metering host holds its
-/// seats to a positive ceiling itself.
+/// door, any stated ceiling on a door that meters no seat, a ceiling a request read as written
+/// still carries (a seat would read it as work); `None` when a metering host holds its seats to
+/// a positive ceiling itself.
 fn closed(money: &Value, stated: bool) -> Option<String> {
     let amount = money["directives"]
         .as_array()?
@@ -90,6 +94,10 @@ fn closed(money: &Value, stated: bool) -> Option<String> {
     } else if stated {
         Some(format!(
             "the stated ceiling of {amount} USD cannot bind an unpriced authoring seat on this door: no seat was consulted and no request was sent"
+        ))
+    } else if money["read_as_written"] == json!(true) {
+        Some(format!(
+            "the request is read as written, its ceiling of {amount} USD included, and no seat reads a ceiling as work: no seat was consulted and no request was sent"
         ))
     } else {
         None

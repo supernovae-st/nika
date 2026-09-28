@@ -7,5 +7,7 @@
   2 USD », « Le budget est de 2 dollars. »). The CLI now reads the money its
   operator states, and every seated door reads a request with its admitted
   directives blanked before HOT: a zero ceiling opens no authoring seat, and a
-  positive ceiling on the CLI never dispatches an unpriced seat. A consent line
-  changes money only as a whole money amendment.
+  positive ceiling on the CLI never dispatches an unpriced seat. A skeleton's
+  name beside its ceiling (« hello budget 0 USD », « chain budget 0 USD ») and
+  a revision's `--change` keep their money too. A consent line changes money
+  only as a whole money amendment.

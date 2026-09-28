@@ -48,10 +48,13 @@ Money is read before every strategy (R4 B15). `compile_with_cognition` reads the
 host admitted (`CompileRequest::with_admitted_money`) or its operator stated
 (`with_stated_money`) through `nika_compile::surface::admitted` before support, HOT, WARM, COLD,
 native and sketch: every seat reads the request with those directives blanked, and the outcome
-records each one beside the original request's identity (`decision.money`). On a door that
-states money, an `intent.clarification` replacement is read afresh by the same law; the words it
-replaced state nothing. A ceiling no seat can be held to opens none: an admitted zero on every
-door, any stated ceiling on a door that meters no seat. The generative and the decision seats
+records each one beside the original request's identity (`decision.money`). A revision's change
+is read by the same law; on a door that states money so is the request its base answered, and a
+creation's `intent.clarification` replacement is read afresh, the words it replaced stating
+nothing. A request that names a skeleton only once its directive is blanked is read as written,
+never as that skeleton, its money recorded. A ceiling no seat can be held to opens none: an
+admitted zero on every door, any stated ceiling on a door that meters no seat, any ceiling of a
+request read as written (a seat would read it as work). The generative and the decision seats
 both stay closed, the deterministic outcome stands (a HOT READY stays READY) and an
 `authoring_money` finding says why no request was sent. A host that meters its seats (Session's
 admission account) keeps them open under a positive ceiling it admitted; the compiler certifies

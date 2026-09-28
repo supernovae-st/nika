@@ -64,6 +64,11 @@ fn filler(word: &str) -> bool {
     )
 }
 
+/// A skeleton's exact name (« hello », « 01-hello », a template's): the work named whole.
+pub(crate) fn skeleton(name: &str) -> bool {
+    matches!(name, "hello" | "01-hello") || nika_pack::template_names().iter().any(|n| n == name)
+}
+
 fn data(word: &str) -> bool {
     word.contains('/')
         || word.contains('\\')

@@ -20,7 +20,7 @@ use std::ops::Range;
 
 use super::{
     CONFLICTING, ParsedMoney, anchor, compact_literal, currency, data, filler, outside_quotes,
-    parse, token, without_currency,
+    parse, skeleton, token, without_currency,
 };
 
 /// One monetary directive of a work request.
@@ -172,7 +172,8 @@ fn word(raw: &str) -> Option<Word> {
             ..Word::default()
         });
     }
-    if amount_shaped(lower) {
+    // A skeleton's name is the work, never an amount (« 01-hello »).
+    if amount_shaped(lower) && !skeleton(lower) {
         return Some(Word {
             amount: true,
             ..Word::default()
@@ -365,10 +366,11 @@ fn closed(read: &[Option<Word>], text: &[String], from: usize) -> bool {
 
 /// Whether a trailing phrase opening at `from` attaches to the work rather than to business
 /// data: its head — the word before it, past the determiners — is none, a path or a file, a
-/// pronoun, a greeting or a consent word, or a conjunction no relative clause governs. « …
-/// stars and budget=0.5USD » and « yes but budget 0 dollars » are the work's; « … rows whose
-/// status is open and budget=1500USD » continues the predicate; « … rows with a budget of 1500
-/// USD » restricts the rows.
+/// pronoun, a greeting or a consent word, a skeleton's name opening the segment, or a
+/// conjunction no relative clause governs. « … stars and budget=0.5USD », « yes but budget 0
+/// dollars » and « chain budget 0 USD » are the work's; « … rows whose status is open and
+/// budget=1500USD » continues the predicate; « … rows with a budget of 1500 USD » restricts the
+/// rows.
 fn attached(text: &[String], from: usize) -> bool {
     let lower = |i: usize| token(&text[i]).to_lowercase();
     let Some(head) = (0..from).rev().find(|&i| !determiner(&lower(i))) else {
@@ -401,6 +403,7 @@ fn attached(text: &[String], from: usize) -> bool {
             word.as_str(),
             "and" | "et" | "but" | "mais" | "then" | "puis" | "also" | "aussi"
         ) && !governed())
+        || (skeleton(&word) && (0..head).all(|i| determiner(&lower(i))))
 }
 
 /// The directive a segment holds (its char range, whether it marks a currency, its first

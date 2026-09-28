@@ -78,7 +78,8 @@ absent `nika run` next step are unchanged.
 
 The operator's words carry its money (R4 B15). `build_request` marks the
 request `with_stated_money`: the compile core reads every monetary directive of
-the request (of a replacement request on the seats' door) with the law of
+the request (of a replacement request on the seats' door; of a revision's
+`--change` and of the positional request its `--base` answered) with the law of
 `nika_compile::money`, blanks it from the business reading and records it in
 `decision.money`; a malformed or conflicting one refuses. This door meters no
 authoring seat, so any stated ceiling, zero or positive, keeps

@@ -437,3 +437,40 @@ fn separating_cases_keep_business_money_apart_from_explicit_directives() {
     let wrong = misread(&SEPARATING);
     assert!(wrong.is_empty(), "{wrong:#?}");
 }
+
+/// A skeleton's name opening its segment is the work named whole: the ceiling beside it is the
+/// work's, and the name itself is never an amount (« 01-hello »). Inside a clause the same
+/// word is business data (primary review of 73291db3d, hypothesis 1).
+const SKELETON_HEADS: [(&str, &str, Stated); 5] = [
+    (
+        "K1 template name",
+        "chain budget 0 USD",
+        Stated::Directive("budget 0 USD", 0.0),
+    ),
+    (
+        "K2 numbered skeleton",
+        "01-hello budget 0 USD",
+        Stated::Directive("budget 0 USD", 0.0),
+    ),
+    (
+        "K3 hyphenated template",
+        "agent-loop budget 2 USD",
+        Stated::Directive("budget 2 USD", 2.0),
+    ),
+    (
+        "K4 template word inside a clause",
+        "read ./data/input.csv, keep the rows of the supply chain budget 1500 USD, write them to ./out/result.json",
+        Stated::Data,
+    ),
+    (
+        "K5 template sentence",
+        "Copy ./a.txt to ./out/a.txt. fanout budget 2 USD.",
+        Stated::Directive("budget 2 USD", 2.0),
+    ),
+];
+
+#[test]
+fn a_skeleton_name_heads_its_ceiling_and_is_never_an_amount() {
+    let wrong = misread(&SKELETON_HEADS);
+    assert!(wrong.is_empty(), "{wrong:#?}");
+}
