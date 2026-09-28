@@ -482,6 +482,18 @@ The host supplies the no-retry transport and opts in. `ProviderReadiness.model_l
 is additive; the existing constructor initializes it absent. `model_available` means
 an advertised model exists, not that a selected model supports inference or authoring.
 
+## Local preflight address
+
+`probe::ping_addr` derives the connect-only address that `nika doctor` pings and that
+the B-5 run gate (`local_run_gate`) dials and prints. It uses `url::Url::parse`, the
+WHATWG parse the transport connects with, so the probe dials what the run would hit:
+a validated host (IPv6 in brackets) and the explicit or default `http`/`https` port.
+A backslash, query or fragment after the authority is parsed like a path, query or
+fragment, never read as part of the address, so none of them reaches a refusal.
+Userinfo never does either. Another scheme or an unparseable URL gives `None`:
+nothing is dialed, the doctor lists no ping, and the gate does not apply, so the
+transport's own error stays the answer.
+
 OpenAI-compatible usage requires both prompt and completion counts to parse as unsigned integers. Missing, partial, negative, fractional or string-valued pairs remain unreported at the single-response door and emit no Usage frame at the stream door. Explicit integer zero remains an observed zero. This base-token observation is separate from `usage_completeness`, whose existing tariff-meter validation remains unchanged.
 
 `authoring::redact_authoring_error` projects provider failures without remote text. Local AdmissionDenied keeps its type and only an engine-authored remedy. The Host compatibility re-export shares this exact projection with CLI, Session and Serve; it adds no call, retry or monetary authority.
