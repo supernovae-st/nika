@@ -47,6 +47,7 @@ use nika_runtime::{
 };
 
 pub mod access;
+pub mod inputs;
 pub mod run_cost;
 
 pub use nika_providers::ExecutionAccessPlan;
