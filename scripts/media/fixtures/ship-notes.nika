@@ -1,0 +1,51 @@
+nika: ship-notes
+model: mock/echo
+
+inputs:
+  since: { type: string, default: "origin/main" }
+
+const:
+  out: "./out/notes.md"
+
+secrets:
+  token:
+    source: env
+    key: GITHUB_TOKEN
+    egress: [{ to: "nika:fetch", host: "api.github.com" }]
+
+permits:
+  exec: ["git"]
+  net: { http: ["api.github.com"] }
+  tools: ["nika:fetch", "nika:write"]
+  fs: { write: ["./out/notes.md"] }
+
+run:
+  entropy: { seeded: 7 }
+  clock: virtual
+
+tasks:
+  log:
+    exec: { command: ["git", "log", "${{ inputs.since }}..HEAD"] }
+  draft:
+    with: { log: "${{ tasks.log.output }}" }
+    infer:
+      prompt: "Draft release notes from: ${{ with.log }}"
+      max_tokens: 600
+  polish:
+    with: { draft: "${{ tasks.draft.output }}" }
+    agent:
+      prompt: "Tighten, save to ${{ const.out }}: ${{ with.draft }}"
+      tools: ["nika:write"]
+      max_tokens_total: 4096
+  publish:
+    with: { notes: "${{ tasks.polish.output }}" }
+    invoke:
+      tool: "nika:fetch"
+      args:
+        url: "https://api.github.com/repos/acme/app/issues"
+        method: POST
+        headers: { Authorization: "Bearer ${{ secrets.token }}" }
+        body: { title: "Release notes", body: "${{ with.notes }}" }
+
+outputs:
+  notes: ${{ tasks.polish.output }}

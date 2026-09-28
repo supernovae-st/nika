@@ -156,14 +156,16 @@ The same engine renders the short clips the ecosystem embeds: `nika-hero`
 (the audit-then-run story, also copied to `media/nika-hero.gif`, the path
 other repositories hotlink), `static-check-fix`, `permits-audit`,
 `on-error-recover`, `dag-execution`, `chat-to-workflow`,
-`editor-diagnostics`, `workflow-gallery` and `full-loop`. Each is one file
-in `clips/`, built from `clips/kit.mjs`: code cards that animate a real
-line diff, terminals that stream captured lines, row highlights and a
-camera.
+`editor-diagnostics`, `workflow-gallery`, `full-loop`, `pr-check-comment`,
+`trace-proof`, `spec-anatomy` and `agent-plugin`. Each is one file in
+`clips/`, built from `clips/kit.mjs`: code cards that animate a real line
+diff, terminals that stream captured lines, row highlights and a camera.
 
 - Every program line, CLI line and diagnostic on screen is read from
   `scripts/media/fixtures/` or `media/raw/`, captured from the binary and
-  its language server by `scripts/media/capture-transcripts.sh`. Where a
+  its language server by `scripts/media/capture-transcripts.sh` (a clip
+  whose story takes several commands owns a script in
+  `scripts/media/capture/`, which that script runs). Where a
   clip's story rests on a capture (the escape the check must catch, the
   chain verify must read back), it checks it and refuses to render
   otherwise. What is

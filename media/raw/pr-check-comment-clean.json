@@ -1,0 +1,343 @@
+{
+  "access_plan": [
+    {
+      "access": "ollama",
+      "billing": "local",
+      "candidates": 1,
+      "chosen": "local",
+      "model": "ollama/llama3.1",
+      "outranked": [],
+      "pinned": false,
+      "provider": "ollama",
+      "rejected": [],
+      "resolved": true,
+      "trust": "declared"
+    }
+  ],
+  "analysis": {
+    "blast_radius": [
+      {
+        "blocks": 2,
+        "task": "diff"
+      },
+      {
+        "blocks": 1,
+        "task": "assess"
+      }
+    ],
+    "pinch_points": [
+      "diff",
+      "assess",
+      "comment"
+    ],
+    "width": 1,
+    "width_witness": [
+      "comment"
+    ]
+  },
+  "api_version": "v1",
+  "buildSha": "d71559be5-dirty",
+  "build_sha": "d71559be5-dirty",
+  "capability_escapes": [],
+  "certificate": {
+    "derivation": [
+      {
+        "attempts": 1,
+        "deps": [],
+        "fanout": {
+          "known": 1
+        },
+        "finally_effect": 0,
+        "finally_llm": 0,
+        "finally_spend_micros": 0,
+        "main_effect": 1,
+        "main_llm": 0,
+        "main_spend_micros": 0,
+        "task": "diff"
+      },
+      {
+        "attempts": 1,
+        "deps": [
+          "diff"
+        ],
+        "fanout": {
+          "known": 1
+        },
+        "finally_effect": 0,
+        "finally_llm": 0,
+        "finally_spend_micros": 0,
+        "main_effect": 0,
+        "main_llm": 1,
+        "main_spend_micros": null,
+        "task": "assess"
+      },
+      {
+        "attempts": 1,
+        "deps": [
+          "assess"
+        ],
+        "fanout": {
+          "known": 1
+        },
+        "finally_effect": 0,
+        "finally_llm": 0,
+        "finally_spend_micros": 0,
+        "main_effect": 1,
+        "main_llm": 0,
+        "main_spend_micros": 0,
+        "task": "comment"
+      }
+    ],
+    "effect_calls": {
+      "constant": 2,
+      "terms": []
+    },
+    "effects": {
+      "boundary_declared": true,
+      "escapes": 0,
+      "needed": {
+        "exec": [
+          "git"
+        ],
+        "fs": {
+          "read": [],
+          "write": [
+            "review.md"
+          ]
+        },
+        "tools": [
+          "nika:write"
+        ]
+      }
+    },
+    "llm_calls": {
+      "constant": 1,
+      "terms": []
+    },
+    "span_attempts": 3,
+    "task_attempts": {
+      "constant": 3,
+      "terms": []
+    },
+    "usd_micros": null
+  },
+  "checkReportVersion": 1,
+  "clean": true,
+  "compiled": true,
+  "composition": [],
+  "conformance": [],
+  "consent_findings": [],
+  "cost": {
+    "bounded_total_usd": 0.0,
+    "has_unbounded": true,
+    "min_path_total_usd": 0.0,
+    "tasks": [
+      {
+        "attempts": 1,
+        "gated": false,
+        "iterations": 1,
+        "max_tokens": 400,
+        "min_path_usd": null,
+        "model": "ollama/llama3.1",
+        "task": "assess",
+        "unbounded_reason": "NoPrice",
+        "usd": null
+      }
+    ]
+  },
+  "data_journey": {
+    "classification": "internal",
+    "consents": [],
+    "destinations": [
+      {
+        "kind": "fs.write",
+        "target": "review.md",
+        "tasks": [
+          "comment"
+        ]
+      },
+      {
+        "kind": "exec",
+        "target": "git",
+        "tasks": [
+          "diff"
+        ]
+      }
+    ],
+    "model_endpoints": [
+      {
+        "locus": "local",
+        "model": "ollama/llama3.1",
+        "priced": false,
+        "provider": "ollama",
+        "recognized": true,
+        "retention": "none",
+        "task": "assess",
+        "trains": "no"
+      }
+    ],
+    "secrets_used": [],
+    "sources": [],
+    "trace_retention": [],
+    "writes": [
+      "review.md"
+    ]
+  },
+  "energy": {
+    "counts": {
+      "never_runs": 0,
+      "total": 1,
+      "uncapped": 0,
+      "unpriced": 1,
+      "unpriced_local": 1
+    },
+    "scope_subtotals": [],
+    "tasks": []
+  },
+  "engineVersion": "0.121.0",
+  "engine_version": "0.121.0",
+  "eventFormatVersion": 1,
+  "exec_floor_findings": [],
+  "findings": [],
+  "gate_findings": [],
+  "hints": [
+    {
+      "advice": "`capture: structured` on `diff` makes a non-zero exit DATA, not a failure — the task reports success whatever the command returns, and nothing in this workflow reads `exit_code`. A command that fails here is invisible until something downstream chokes on its empty output. Read the branch (`${{ tasks.diff.output.exit_code }}`, or a `nika:assert` on it), or use a text capture mode so a non-zero exit fails the task as NIKA-EXEC-001",
+      "kind": "swallowed-exit",
+      "task": "diff"
+    }
+  ],
+  "judged": {
+    "children": [],
+    "composition": true,
+    "runtime_admission": false,
+    "skills": true
+  },
+  "lift_findings": [],
+  "machineProtocolVersion": 1,
+  "missing_args": [],
+  "models_resolve": true,
+  "order_findings": [],
+  "paid_ready": true,
+  "permit_taints": [],
+  "permits": {
+    "declared": {
+      "exec": [
+        "git"
+      ],
+      "fs": {
+        "read": [],
+        "write": [
+          "review.md"
+        ]
+      },
+      "tools": [
+        "nika:write"
+      ]
+    },
+    "needed": {
+      "exec": [
+        "git"
+      ],
+      "fs": {
+        "read": [],
+        "write": [
+          "review.md"
+        ]
+      },
+      "tools": [
+        "nika:write"
+      ]
+    },
+    "notes": [],
+    "partial": {
+      "composed": false,
+      "exec": false,
+      "fs": false,
+      "net": false
+    },
+    "source": "declared"
+  },
+  "pricing": {
+    "models": [
+      {
+        "input_per_million": null,
+        "model": "ollama/llama3.1",
+        "output_per_million": null
+      }
+    ],
+    "snapshot": {
+      "as_of": "2026-09-23",
+      "providers": 10,
+      "rules": 716,
+      "source": "https://models.dev/api.json",
+      "source_sha256_16": "acf00fb003caf42c"
+    }
+  },
+  "report_version": 1,
+  "requirements": {
+    "inputs_read": [],
+    "inputs_required": [],
+    "models": [
+      {
+        "model": "ollama/llama3.1",
+        "tasks": [
+          "assess"
+        ]
+      }
+    ],
+    "secrets": []
+  },
+  "retry_safety_findings": [],
+  "risk_grade": "unbounded",
+  "run_decl_findings": [],
+  "schema_findings": [],
+  "schema_lints": [],
+  "secret_egresses": [],
+  "secret_leaks": [],
+  "sink_findings": [],
+  "skills_resolve": true,
+  "slot_findings": [],
+  "snapshotFormatVersion": 1,
+  "specSha": "95ed1acf09c7798314a36fb208c9a5546b6ca658",
+  "spec_sha": "95ed1acf09c7798314a36fb208c9a5546b6ca658",
+  "supportedCapabilities": [
+    "check",
+    "executionSnapshot",
+    "eventStream",
+    "trace",
+    "inputsLiteral",
+    "compile"
+  ],
+  "traceFormatVersion": 2,
+  "trifecta_findings": [],
+  "trifecta_mitigations": [],
+  "unknown_args": [],
+  "unknown_tools": [],
+  "unverifiable_output_refs": [
+    {
+      "reference": "tasks.diff.output.stdout",
+      "site": "assess"
+    }
+  ],
+  "verdicts": {
+    "access_ready": true,
+    "blockers": [],
+    "capacity_fit": true,
+    "run_ready": true,
+    "valid": true
+  },
+  "waves": [
+    [
+      0
+    ],
+    [
+      1
+    ],
+    [
+      2
+    ]
+  ],
+  "workflow_semantic": "0544f8ef4951c07045bd6eb995ea8d825a22d80d08c9c21887a85f6ef2c21e3c",
+  "write_conflicts": []
+}

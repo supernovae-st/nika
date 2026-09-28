@@ -1,0 +1,12 @@
+graph TD
+  log["log · exec"]:::exec
+  draft["draft · infer · mock/echo"]:::infer
+  polish["polish · agent · mock/echo"]:::agent
+  publish["publish · invoke · nika:fetch"]:::invoke
+  draft --> polish
+  log --> draft
+  polish --> publish
+  classDef infer fill:#5b8cff22,stroke:#5b8cff,color:#5b8cff
+  classDef exec fill:#ff7a3c22,stroke:#ff7a3c,color:#ff7a3c
+  classDef invoke fill:#22d3ee22,stroke:#22d3ee,color:#22d3ee
+  classDef agent fill:#b07bff22,stroke:#b07bff,color:#b07bff

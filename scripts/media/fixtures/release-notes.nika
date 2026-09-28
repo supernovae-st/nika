@@ -1,0 +1,30 @@
+nika: release-notes
+model: ollama/llama3.2:3b
+
+permits:
+  tools: ["nika:read", "nika:write"]
+  fs:
+    read: ["./CHANGELOG.md"]
+    write: ["./release-notes.md"]
+
+tasks:
+  changes:
+    invoke:
+      tool: "nika:read"
+      args: { path: "./CHANGELOG.md" }
+  notes:
+    with:
+      log: ${{ tasks.changes.output }}
+    infer:
+      prompt: |
+        Write this week's release notes.
+        ${{ with.log }}
+      max_tokens: 400
+  save:
+    with:
+      notes: ${{ tasks.notes.output }}
+    invoke:
+      tool: "nika:write"
+      args:
+        path: "./release-notes.md"
+        content: "${{ with.notes }}"
