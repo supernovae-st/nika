@@ -253,6 +253,7 @@ impl<T> serde_core::de::DeserializeOwned for nika_providers::admission::CostChal
 #[non_exhaustive] pub struct nika_providers::admission::CostHostEvidence
 impl nika_providers::admission::CostHostEvidence
 pub fn nika_providers::admission::CostHostEvidence::new(allowed: bool, policy: nika_providers::admission::CapEvidence, machine: nika_providers::admission::CapEvidence, occurrence: nika_providers::admission::CapEvidence) -> Self
+pub fn nika_providers::admission::CostHostEvidence::unknown_cost_refusal(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_providers::admission::CostHostEvidence::unmanaged_interactive_local() -> Self
 pub fn nika_providers::admission::CostHostEvidence::view(&self) -> serde_json::value::Value
 impl core::clone::Clone for nika_providers::admission::CostHostEvidence

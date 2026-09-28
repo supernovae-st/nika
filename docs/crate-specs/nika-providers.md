@@ -321,6 +321,12 @@ library hosts. When a bounded attempt's settlement refuses complete usage
 incompleteness), its per-dispatch `InferenceCall` drops `estimated_usd` and keeps
 the usage evidence: no frame prices a charge the account holds unknown (E13 F2).
 
+`CostHostEvidence::unknown_cost_refusal()` (B12 · 2026-09-28) returns the
+refusal the evidence itself gives every unknown-cost choice (a hard cap, a
+denied or unknown layer), in the words `CostReview::new` gives, or `None`. A
+host can therefore teach its own cap's remedy beside that refusal only, never
+beside an unrelated shape, lease or witness refusal.
+
 `CostChallenge::display` is the first screen of a fresh Run decision: the
 provider/model and the endpoint's origin, the review's own unknown-USD, request,
 output-token, time, default and hard-cap sentences, the native catalog line

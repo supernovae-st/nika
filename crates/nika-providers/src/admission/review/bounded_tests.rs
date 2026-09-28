@@ -58,6 +58,30 @@ fn a_sequential_run_review_keeps_its_historical_question_bytes() {
     assert_eq!(run.question(), SEQUENTIAL_RUN_QUESTION);
 }
 #[test]
+fn host_evidence_names_its_own_refusal_before_any_review() {
+    let local = CostHostEvidence::unmanaged_interactive_local();
+    assert_eq!(local.unknown_cost_refusal(), None);
+    assert!(CostHostEvidence::default().unknown_cost_refusal().is_some());
+    let absent = |origin: &str| CapEvidence::NotApplicable {
+        origin: origin.into(),
+    };
+    let machine = CapEvidence::Observed {
+        cap: HardMonetaryCap::Capped(Cost::new(1)),
+        origin: "machine ceiling".into(),
+    };
+    let capped = CostHostEvidence::new(true, absent("policy"), machine, absent("occurrence"));
+    let why = capped.unknown_cost_refusal().expect("a hard cap refuses");
+    let framed = CostReview::new(
+        "candidate".into(),
+        "invocation".into(),
+        route(),
+        capped,
+        None,
+        None,
+    );
+    assert_eq!(framed.expect_err("the same refusal"), why);
+}
+#[test]
 fn session_and_single_attempt_reviews_keep_the_conservative_uncertain_law() {
     // Neither authored a task retry, so a received 503 never answers its
     // attempt: the account is Uncertain and nothing else may be sent.

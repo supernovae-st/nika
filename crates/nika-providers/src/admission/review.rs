@@ -111,6 +111,17 @@ impl CostHostEvidence {
             "occurrence": self.layers[2].view(),
         })
     }
+    /// The refusal this evidence gives every unknown-cost choice (a hard cap,
+    /// a denied or unknown layer) before any review is framed, in the words
+    /// [`CostReview::new`] gives; `None` when a fresh choice may be reviewed.
+    /// A host teaches its own cap's remedy beside this refusal only.
+    #[must_use]
+    pub fn unknown_cost_refusal(&self) -> Option<String> {
+        self.policy(None, None)
+            .validate()
+            .err()
+            .map(|e| e.to_string())
+    }
     fn policy(&self, invocation: Option<Cost>, project: Option<Cost>) -> UnknownCostPolicy {
         UnknownCostPolicy::new(
             self.allowed,
