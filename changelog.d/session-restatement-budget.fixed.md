@@ -1,3 +1,3 @@
-Session retains an already admitted budget when an answer restates a business
-clause. Monetary text before or after the changed words keeps its meaning;
-replacement text never inherits monetary admission.
+- **An admitted budget survives a business-clause restatement.** Monetary
+  text before or after the changed words keeps its admission; replacement
+  text never inherits monetary authority.

@@ -7,7 +7,7 @@
   proposal. Session and `nika compile --answer` carry the refreshed
   question forward; a plan recorded by an earlier version says so and is
   asked again once, never looping.
-- **A number written with an exponent is a number again.** « 1.5e2 »,
+  **A number written with an exponent is a number again.** « 1.5e2 »,
   « 1E+3 » or « -1e3 » in a column a rule compares or ranks were read as
   text, so the compile asked what to do with them, and either answer then
   lost valid rows or stopped a valid run. The one number law, in the
@@ -15,7 +15,7 @@
   grammar with its exponent; a text whose value overflows (« 1e999 »)
   is still no number, and a plus sign in front, a bare or trailing point,
   `NaN` and `Infinity` stay text.
-- **A budget stated with the work is the ceiling, never part of the
+  **A budget stated with the work is the ceiling, never part of the
   work.** With a model chosen, « … write them to ./open.csv. Budget: $0. »
   was refused as « no further cognition admitted »: the budget read as an
   unfinished requirement only a model could build, and the zero ceiling
@@ -34,13 +34,13 @@
   request was refused before its deterministic reading (« unknown-cost
   admission requires an exact HTTPS route », « the explicit zero
   constraint forbids this call »); it is now proposed with no call.
-- **An incomplete `nika compile` says the file it left in place.** A
+  **An incomplete `nika compile` says the file it left in place.** A
   compile that asks a question writes nothing, but the destination it
   was given may still hold an earlier file: `--json` now adds
   `existing_destination` and the text ends « existing destination
   remains at <path>; this compile did not write or remove it ». The file
   is not read, followed, removed or rewritten, `--force` included.
-- Integration preserves compact trailing currency ceilings, validates malformed
+  Integration preserves compact trailing currency ceilings, validates malformed
   attached currency before filename exclusions, and reads joined ceilings and
   explicit old-default references together. Bare currency needs a separate
   segment; an `and`/`et` business range never loses its upper bound to a ceiling.
