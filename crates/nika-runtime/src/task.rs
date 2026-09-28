@@ -595,9 +595,10 @@ where
             .with_task_context(Some(&with_ns), None, None, permits);
         let started = self.clock.now();
         let witness = std::sync::Arc::new(PermitWitness::new());
-        let attempt = self.attempt_loop(task, &scope, types, ledger, &witness, run_start);
+        let attempt = self.attempt_loop((task, wf), &scope, types, ledger, &witness, run_start);
         let ran = nika_builtin::witness::scope_attempt_witness(witness.clone(), attempt).await;
-        self.settle_after_finally((task, wf, &scope), ran, integrity, run_start, started)
+        let seams = (ledger, run_start);
+        self.settle_after_finally((task, wf, &scope), ran, integrity, seams, started)
             .await
     }
 
@@ -633,6 +634,7 @@ where
         let started = self.clock.now();
         let (cap, fail_fast) = Self::fan_out_limits(task, items.len());
         let total = items.len();
+        let began = fan_out::unstarted(total);
         let mut stream = futures_util::stream::iter(
             items
                 .iter()
@@ -640,7 +642,7 @@ where
                 .take_while(|_| !ledger.tripped())
                 .map(|(index, item)| {
                     let locals = IterationLocals { item, index };
-                    self.run_iteration(
+                    let iteration = self.run_iteration(
                         task,
                         wf,
                         records,
@@ -650,14 +652,15 @@ where
                         types,
                         ledger,
                         run_start,
-                    )
+                    );
+                    fan_out::started_on_first_poll(index, began.get(index), iteration)
                 }),
         )
-        .buffered(cap);
+        .buffer_unordered(cap);
 
         let mut acc = fan_out::collect_fan_out(&mut stream, total, fail_fast).await;
         drop(stream);
-        let item_terminals = fan_out::items_json(std::mem::take(&mut acc.items), &items);
+        let item_terminals = fan_out::items_json(std::mem::take(&mut acc.items), &items, &began);
         if acc.outputs.len() < total && ledger.tripped() && acc.first_error.is_none() {
             acc.first_error = Some(fan_out::budget_stop_record(total - acc.outputs.len()));
         }
@@ -686,7 +689,8 @@ where
             result,
         };
         let scope = Self::fan_out_finally_scope(records, (inputs, consts, secrets), permits);
-        self.settle_after_finally((task, wf, &scope), ran, integrity, run_start, started)
+        let seams = (ledger, run_start);
+        self.settle_after_finally((task, wf, &scope), ran, integrity, seams, started)
             .await
     }
 
@@ -770,7 +774,7 @@ where
                 permits,
             );
         let witness = std::sync::Arc::new(PermitWitness::new());
-        let attempt = self.attempt_loop(task, &scope, types, ledger, &witness, run_start);
+        let attempt = self.attempt_loop((task, wf), &scope, types, ledger, &witness, run_start);
         let mut ran = nika_builtin::witness::scope_attempt_witness(witness.clone(), attempt).await;
         // Stamp the lane: without it a 2-iteration fan-out and a retried
         // single lane produce indistinguishable flat streams (review F3).
@@ -783,24 +787,28 @@ where
     }
 
     /// The per-attempt dispatch context (the fn-length law's
-    /// extraction) — the bound `--answer` for THIS task rides it (B5).
+    /// extraction) — the bound `--answer` for THIS task rides it (B5), the
+    /// child budget reads the ledger AT CALL TIME (law 6), the ledger
+    /// takes a dropped attempt's provider requests (B7), and the workflow
+    /// is where a seat only the run decides is judged (B9).
     fn task_ctx<'a>(
         &'a self,
-        task: &'a RawTask,
+        (task, wf): (&'a RawTask, &'a RawWorkflow),
         deadline: Option<std::time::Duration>,
-        child_budget: Option<f64>,
+        ledger: &'a crate::ledger::RunLedger,
         witness: &'a PermitWitness,
         run_start: nika_kernel::tool_executor::ToolRunStart,
     ) -> DispatchCtx<'a> {
-        let mut ctx = DispatchCtx::of_task(task, deadline, child_budget, witness);
+        let mut ctx = DispatchCtx::of_task(task, deadline, ledger.remaining_usd(), witness);
         ctx.gate_answer = self.prompt_answers.get(&task.id.value).cloned();
         ctx.run_start = run_start;
+        ctx.attempt = Some((ledger, wf, task));
         ctx
     }
 
     async fn attempt_loop(
         &self,
-        task: &RawTask,
+        (task, wf): (&RawTask, &RawWorkflow),
         scope: &Scope<'_>,
         types: &BTreeMap<String, nika_types::types::NikaType>,
         ledger: &crate::ledger::RunLedger,
@@ -822,7 +830,7 @@ where
             // F-O1 PR-2 · the re-gate's per-template oracle — computed ONCE, used per attempt.
             let value_taint = crate::integrity::ValueTaint::of_task(task, scope.records());
             // law 6 · the child budget reads the ledger AT CALL TIME (per attempt).
-            let ctx = || self.task_ctx(task, budget, ledger.remaining_usd(), witness, run_start);
+            let ctx = || self.task_ctx((task, wf), budget, ledger, witness, run_start);
             let attempts = async {
                 let mut attempt = 1_u32;
                 // Spend of FAILED attempts — folded onto the terminal frame.
@@ -930,10 +938,10 @@ where
                                 format!("task exceeded its timeout of {} ms", limit.as_millis()),
                                 false, // never retryable (spec 03)
                             ),
-                            // The cancelled in-flight attempt may have
-                            // billed server-side; nothing was reported, so
-                            // nothing can honestly ride (the documented
-                            // timeout-cancellation class).
+                            // The cancelled attempt reported no spend of its
+                            // own; every provider request it sent reached the
+                            // ledger through the dispatch journal, its charge
+                            // unknown unless it returned evidence (B7).
                             cost_usd: None,
                             cost_unpriced: None,
                             // The dropped attempt's binding evidence dies

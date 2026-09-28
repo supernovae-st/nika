@@ -8,4 +8,6 @@
   in answered legs and nested workflows (children share the Run's account).
   Paid, native, local and mock routes keep today's transport and policy. An
   over-bound declared-free reply is no longer priced as a known zero beside
-  its unknown charge.
+  its unknown charge. Its `cost_unpriced` now says `usage_rejected` instead
+  of `missing_catalog_price`: the tariff exists, and the reported usage broke
+  the admitted bound or context, or named another response model.

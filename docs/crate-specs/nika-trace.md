@@ -90,3 +90,17 @@ The door hangs off a new `#[non_exhaustive]` `TraceCommand`: `Cost` plus
 its constructors and any exhaustive match compile unchanged, and every old
 `trace` command line parses to the same variant (unit-pinned). The bin changes
 only its field type and dispatch call, and `trace_verb` is untouched.
+
+## 4 · Fan-out item words (B8, 2026-09-28)
+
+Spec 03/17 add `cancelled` (the iteration began and was abandoned without a
+recorded terminal) beside `never_started` (it never began). This is a
+closed-vocabulary extension for the next engine MINOR after 0.121.
+- `trace outputs --json` and `peek` project each row's status verbatim.
+- The `show` companion tallies `cancelled` on its own line item, apart from
+  `never_started`.
+- A word outside the vocabulary stays uninterpreted data: it is printed, and
+  never tallied as a known outcome.
+- Paged tables complete only through the `nika-display` fold, which enforces
+  the `items_cancelled` law (see that crate's spec).
+- Neither word is a billing verdict or proof about physical requests.

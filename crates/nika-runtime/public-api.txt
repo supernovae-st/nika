@@ -22,7 +22,9 @@ pub use nika_runtime::engine_identity
 pub use nika_runtime::identity
 pub use nika_runtime::input_origins
 pub use nika_runtime::legal
+pub use nika_runtime::resolve_model_expr
 pub use nika_runtime::sandbox_select
+pub use nika_runtime::scope_to_task
 pub use nika_runtime::source_is_runtime_resolvable
 pub mod nika_runtime::approval
 #[non_exhaustive] pub enum nika_runtime::approval::ApprovalDecision
@@ -1194,8 +1196,10 @@ impl<T> typenum::type_operators::Same for nika_runtime::WorkflowPause
 pub type nika_runtime::WorkflowPause::Output = T
 pub fn nika_runtime::access_pin_refusal(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, probes: &[nika_providers::probe::ProviderProbe], access_pin: core::option::Option<&str>, model_override: core::option::Option<&str>) -> core::option::Option<nika_runtime_laws::errors::RuntimeError>
 pub fn nika_runtime::budget_floor_refusal(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, budget: core::option::Option<f64>, model_override: core::option::Option<&str>) -> core::option::Option<nika_runtime_laws::errors::RuntimeError>
+pub fn nika_runtime::budget_floor_refusal_bound(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, budget: core::option::Option<f64>, model_override: core::option::Option<&str>, overrides: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>, seated_on_harness: bool) -> core::option::Option<nika_runtime_laws::errors::RuntimeError>
 pub fn nika_runtime::budget_floor_refusal_seated(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, budget: core::option::Option<f64>, model_override: core::option::Option<&str>, seated_on_harness: bool) -> core::option::Option<nika_runtime_laws::errors::RuntimeError>
 pub fn nika_runtime::capabilities_of(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_runtime::compose::RuntimeCapabilities
+pub fn nika_runtime::effective_workflow(wf: &nika_schema::raw::workflow::RawWorkflow, model_override: core::option::Option<&str>, overrides: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> core::option::Option<nika_schema::raw::workflow::RawWorkflow>
 pub fn nika_runtime::first_modelless_task(wf: &nika_schema::raw::workflow::RawWorkflow) -> core::option::Option<&str>
 pub fn nika_runtime::floor_refusal(floor: f64, budget: f64) -> core::option::Option<alloc::string::String>
 pub fn nika_runtime::modelless_refusal(wf: &nika_schema::raw::workflow::RawWorkflow, plan: &nika_providers::plan::ExecutionAccessPlan) -> core::option::Option<nika_runtime_laws::errors::RuntimeError>
@@ -1203,8 +1207,6 @@ pub fn nika_runtime::plan_refusal(plan: &nika_providers::plan::ExecutionAccessPl
 pub fn nika_runtime::production_runtime(default_model: &str, caps: nika_runtime::compose::RuntimeCapabilities, run: core::option::Option<&nika_vocab::run::RunDecl>) -> core::result::Result<nika_runtime::compose::ProdRuntime, nika_runtime_laws::sandbox_select::ComposeError>
 pub fn nika_runtime::project_root_fingerprint(root: &std::path::Path) -> core::option::Option<alloc::string::String>
 pub fn nika_runtime::required_inputs_refusal(wf: &nika_schema::raw::workflow::RawWorkflow, overrides: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> core::option::Option<nika_runtime_laws::errors::RuntimeError>
-pub fn nika_runtime::resolve_model_expr(expr: &str, wf: &nika_schema::raw::workflow::RawWorkflow, overrides: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>, task: core::option::Option<&nika_schema::raw::task::RawTask>) -> core::option::Option<alloc::string::String>
-pub fn nika_runtime::scope_to_task(wf: nika_schema::raw::workflow::RawWorkflow, target: &str) -> core::result::Result<nika_schema::raw::workflow::RawWorkflow, alloc::string::String>
 pub fn nika_runtime::simulated_runtime(default_model: &str, caps: nika_runtime::compose::RuntimeCapabilities, run: core::option::Option<&nika_vocab::run::RunDecl>) -> core::result::Result<nika_runtime::compose::SimRuntime, nika_kernel_core::io::http::HttpError>
 pub fn nika_runtime::unbounded_breakdown(cost: &nika_check::cost::CostCeiling) -> alloc::string::String
 pub type nika_runtime::ProdRuntime = nika_runtime::Runtime<nika_exec_runner::TokioShell, nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::declared_clock::DeclaredClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::live::LiveInspect>, nika_http::ReqwestHttp, nika_runtime::compose::RegistryProvider<nika_http::ReqwestHttp>, nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::declared_clock::DeclaredClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::live::LiveInspect>, nika_clock::declared_clock::DeclaredClock>

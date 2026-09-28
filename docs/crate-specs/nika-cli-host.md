@@ -129,9 +129,17 @@ host uses the existing event source SHA-256 interface for an ephemeral candidate
 witness over exactly the same source, inputs and project-default observation.
 No dependency on Session or restoration of a persisted decision is permitted.
 
-`run_budget` carries the unchanged normal operator budget preflight beside
-that review, and `run_protocol::emit_diagnostic` preserves its existing stream
-projection. CLI retains thin compatibility exports and still owns dispatch.
+`run_budget` carries the normal operator budget preflight beside that review,
+and `run_protocol::emit_diagnostic` preserves its existing stream projection.
+CLI retains thin compatibility exports and still owns dispatch. Since B11
+(2026-09-28) the preflight is priced over the workflow as the run binds it:
+`preflight_bound` hands `--model` and the invocation's validated input values
+to the runtime's one floor law (`nika_runtime::budget_floor_refusal_bound`), so
+a fan over a bound input is priced at the items given, never at its declared
+default, and the unbounded warning describes that same effective workflow.
+`plan_gate` is the CLI's former cost gate over the frozen plan (the harness
+predicate, then `preflight_bound`), descended here as the same monetary
+adapter. `preflight` keeps its signature and prices no bindings.
 The project default is read through `nika-vocab`; the journal uses `nika-fs`
 `OwnedDir`. Neither move changes default/cap precedence, request/token/time
 bounds, route binding, uncertain-charge stop, or subscription separation.

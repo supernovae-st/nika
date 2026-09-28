@@ -154,7 +154,7 @@ pub(crate) fn emit_completed(
     // Real spend rides next to the tokens it prices · absent = unpriced
     // (mock · local) — the render layer already treats absent as honest.
     // …and WHY it is absent (or partial), when it is — `unknown` is
-    // never masked: `local_model` · `mock_provider` ·
+    // never masked: `local_model` · `mock_provider` · `usage_rejected` ·
     // `missing_catalog_price` · `provider_did_not_report_usage`.
     crate::settle::push_spend_fields(&mut fields, cost_usd, cost_unpriced);
     push_access_fields(&mut fields, model, access, cost_unpriced);

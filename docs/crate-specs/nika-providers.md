@@ -215,7 +215,8 @@ is honest at tag time.
 - Depends on: `nika-kernel` (the facade — `ai::provider` traits/DTOs ·
   `http` traits · `secret::Secret` · the L1 convention, exec-runner
   precedent) · `nika-catalog` (`providers` feature · profile rows) ·
-  dev-only: tokio + proptest (nothing network-bound).
+  `tokio` (the workspace pin, since 2026-09-28, for `task_local` only: the
+  dispatch journal) · dev-only: proptest (nothing network-bound).
 - Unblocks: **s9 `nika-verb-infer`** (the INFER half of the announce floor) ·
   later `verb-agent` shares it (D-N17's whole point).
 - `nika-native` (in-process candle/mistral.rs · L1.5 step 30) stays a
@@ -354,3 +355,43 @@ an advertised model exists, not that a selected model supports inference or auth
 OpenAI-compatible usage requires both prompt and completion counts to parse as unsigned integers. Missing, partial, negative, fractional or string-valued pairs remain unreported at the single-response door and emit no Usage frame at the stream door. Explicit integer zero remains an observed zero. This base-token observation is separate from `usage_completeness`, whose existing tariff-meter validation remains unchanged.
 
 `authoring::redact_authoring_error` projects provider failures without remote text. Local AdmissionDenied keeps its type and only an engine-authored remedy. The Host compatibility re-export shares this exact projection with CLI, Session and Serve; it adds no call, retry or monetary authority.
+
+## Dispatch journal (B7 · 2026-09-28)
+
+`dispatch_journal::DispatchJournal::observe(dispatch, lost)` runs one dispatch
+with its physical requests recorded where the dispatch's own future cannot
+take them down: a `fail_fast` sibling or a `timeout:` drops the future, not the
+request it sent. The registry opens an entry before each wire call (pre-send),
+the wire marks it sent at its send point (nothing awaits before its post), and
+the registry settles it with the returned `InferenceCall` or withdraws it when
+the wire refused first. A dispatch that returns calls nothing; one dropped first
+hands `lost` every sent or returned request, once. A pre-send entry is never
+reported as sent. Outside `observe`, nothing is recorded, so unscoped callers
+are unchanged. The runtime scopes each attempt, and a nested workflow's
+attempts keep their own scope. The scope is a `tokio::task_local`, the only
+production use of this crate's tokio edge.
+
+## Model-spend computation (descended 2026-09-28)
+
+`spend::{spend_for_calls, price_failed_spend, spend_for_model}` turn the
+per-dispatch `InferenceCall` evidence this crate produces into a known USD
+subtotal and the honest-absence reason for the rest. They descended verbatim
+from `nika-runtime`'s `dispatch/spend.rs` at the runtime's 15k wall, beside the
+tariffs and settlement refusals they read. Their bodies descended unchanged;
+the per-call reason was split out afterwards (below). The
+runtime's dispatch seam calls them, and it keeps `failed_usage_split`, which
+builds the runtime's own usage receipt.
+
+The reason a call carries no known estimate (E17-F4, B7) is read from its own
+evidence, never from a fresh catalog lookup:
+- missing or partial meters: `provider_did_not_report_usage`;
+- complete meters while the pricing provenance recorded at dispatch names a
+  USD tariff (catalog or operator-declared): `usage_rejected`. The settlement
+  refused the usage (over the admitted output bound or context, another
+  response model, contradictory meters), and the wire cleared the estimate;
+- otherwise, no USD price for the route (`unknown` provenance, another
+  currency, no safe route): `missing_catalog_price`.
+
+A snapshot-priced route whose usage is rejected before pricing records
+`unknown` provenance and still reads as `missing_catalog_price`. That label
+lives in `retry/billing.rs`, which this change leaves untouched.

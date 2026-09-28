@@ -424,10 +424,14 @@ where
             let mut route = None;
             // Keep this alternate wire future boxed as well: even a mock call
             // carries the largest branch in the async state machine.
+            let entry = crate::dispatch_journal::open();
             let result = Box::pin(wire::openai_compat::infer_tracked(
                 self, request, &mut sent, &mut route, &mut call,
             ))
             .await;
+            if let Some(entry) = entry {
+                entry.settle(call.as_ref());
+            }
             report.record(call);
             report.attempts = u32::from(sent);
             return result
@@ -444,7 +448,11 @@ where
             // carry the largest wire future inline, and a nested run (a
             // workflow invoking a workflow) polls it from a deeper stack than
             // a 2 MiB thread affords (the pre-push gate's child-run test).
+            let entry = crate::dispatch_journal::open();
             let result = Box::pin(self.infer_once(request.clone(), &mut route, &mut call)).await;
+            if let Some(entry) = entry {
+                entry.settle(call.as_ref());
+            }
             report.record(call);
             let err = match result {
                 Ok(mut response) => {

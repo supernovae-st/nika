@@ -43,6 +43,7 @@ pub mod admission;
 pub use admission::{AdmissionState, AttemptReceipt, InferenceAdmission, InferenceReceipt};
 pub mod authoring;
 pub mod census;
+pub mod dispatch_journal;
 #[cfg(test)]
 mod parity_tests;
 pub mod plan;
@@ -53,6 +54,7 @@ pub mod resolve_access;
 pub mod retry;
 #[cfg(test)]
 mod retry_tests;
+pub mod spend;
 mod sse;
 #[cfg(test)]
 mod test_support;

@@ -10,15 +10,25 @@ use nika_check::CheckReport;
 use nika_providers::ExecutionAccessPlan;
 use nika_providers::probe::ProviderProbe;
 use nika_providers::resolve_access::PinRefusal;
-use nika_schema::raw::{ForEachValue, RawAction, RawTask, RawWorkflow};
+use nika_schema::raw::{RawAction, RawTask, RawWorkflow};
 use nika_schema::types::VarDecl;
 use serde_json::Value;
 
 use crate::errors::RuntimeError;
+// The pre-effect model resolver lives beside the static analysis it builds on.
+use nika_check::analyzer::rendered_collections;
+pub use nika_check::analyzer::resolve_model_expr;
+use nika_check::analyzer::resolved_infer_models;
+// The `--task` cone cut is a pure graph walk beside the edges it reads.
+pub use nika_check::analyzer::scope_to_task;
+// The static builtin floor and the unpriced-cloud class read the catalog beside it.
+use nika_check::analyzer::priced_builtin_floor;
+pub(crate) use nika_check::analyzer::unpriced_cloud_seat;
 
 /// The run's launch gates, in order: the report trust check
 /// (audit-before-run) · the required-input preflight below · the budget
-/// floor ([`budget_floor_refusal`]) — all refuse BEFORE the prologue, so a
+/// floor ([`budget_floor_refusal`]) · the MODELS rung over the seats this
+/// run uses · the access plan — all refuse BEFORE the prologue, so a
 /// refused run emits zero events and spends zero tasks.
 pub(crate) fn gates(
     wf: &RawWorkflow,
@@ -32,7 +42,12 @@ pub(crate) fn gates(
     if let Some(err) = required_inputs_refusal(wf, overrides) {
         return Err(err);
     }
-    if let Some(err) = budget_floor_at(wf, report, budget, model_override, overrides, false) {
+    if let Some(err) =
+        budget_floor_refusal_bound(wf, report, budget, model_override, overrides, false)
+    {
+        return Err(err);
+    }
+    if let Some(err) = models_refusal(wf, report, model_override, overrides) {
         return Err(err);
     }
     // One Door · wave 1: a frozen plan IS the access admission — the
@@ -170,7 +185,7 @@ pub fn budget_floor_refusal(
     budget: Option<f64>,
     model_override: Option<&str>,
 ) -> Option<RuntimeError> {
-    budget_floor_at(wf, report, budget, model_override, &BTreeMap::new(), false)
+    budget_floor_refusal_bound(wf, report, budget, model_override, &BTreeMap::new(), false)
 }
 
 /// The same gate for a run SEATED on a harness (`--access codex` and its kin, a subscription
@@ -187,7 +202,7 @@ pub fn budget_floor_refusal_seated(
     model_override: Option<&str>,
     seated_on_harness: bool,
 ) -> Option<RuntimeError> {
-    budget_floor_at(
+    budget_floor_refusal_bound(
         wf,
         report,
         budget,
@@ -197,7 +212,14 @@ pub fn budget_floor_refusal_seated(
     )
 }
 
-fn budget_floor_at(
+/// The ONE budget floor over the workflow as the run binds it (B11): the gate
+/// the run's own launch applies, for a host that holds the invocation's
+/// validated `overrides` (`--var` · `--inputs-json`) before the run starts.
+/// It prices [`effective_workflow`]: `--model`, then the bound fans and
+/// models. [`budget_floor_refusal`] and [`budget_floor_refusal_seated`] are
+/// this gate with no bindings.
+#[must_use]
+pub fn budget_floor_refusal_bound(
     wf: &RawWorkflow,
     report: &CheckReport,
     budget: Option<f64>,
@@ -212,9 +234,9 @@ fn budget_floor_at(
         return Some(err);
     }
     let owned;
-    let effective = match model_override {
-        Some(m) => {
-            owned = nika_check::check(&nika_check::with_model_override(wf, m));
+    let effective = match effective_workflow(wf, model_override, overrides) {
+        Some(seated) => {
+            owned = nika_check::check(&seated);
             &owned
         }
         None => report,
@@ -225,6 +247,142 @@ fn budget_floor_at(
     let floor = effective.cost.min_path_total_usd + priced_builtin_floor(wf);
     let message = floor_refusal(floor, budget)?;
     Some(RuntimeError::BudgetFloor { message })
+}
+
+/// The workflow as this run seats it before any effect (B9): the operator's
+/// `--model` in the envelope (a task's own `model:` keeps winning), then every
+/// fan over an input the invocation binds iterating the bound value (B11 · a
+/// bound value never falls back to the default), then every `model:` its
+/// bindings, a declared default or a const decide, as literals. `None` when
+/// that is the file itself. A seat only the run decides stays an expression,
+/// judged at dispatch. Public so a host's budget warnings describe the same
+/// workflow its floor prices.
+#[must_use]
+pub fn effective_workflow(
+    wf: &RawWorkflow,
+    model_override: Option<&str>,
+    overrides: &BTreeMap<String, Value>,
+) -> Option<RawWorkflow> {
+    let seated = model_override.map(|m| nika_check::with_model_override(wf, m));
+    let bound = rendered_collections(seated.as_ref().unwrap_or(wf), overrides).or(seated);
+    nika_check::analyzer::rendered_models(bound.as_ref().unwrap_or(wf), overrides).or(bound)
+}
+
+/// The MODELS rung `nika check` applies to a literal seat, over every seat
+/// this run uses before any effect, literal or rendered: the ONE resolver's
+/// refusal (through a declared default, as the check's rung reads it), then
+/// the thinking and capacity laws. A report judged over a template never saw
+/// the value a binding gave it, so the run re-derives the rung here and
+/// refuses NIKA-1707 with the rung's own words.
+fn models_refusal(
+    wf: &RawWorkflow,
+    report: &CheckReport,
+    model_override: Option<&str>,
+    overrides: &BTreeMap<String, Value>,
+) -> Option<RuntimeError> {
+    let seated = effective_workflow(wf, model_override, overrides);
+    let owned;
+    let (wf, report) = match &seated {
+        Some(seated) => {
+            owned = nika_check::check(seated);
+            (seated, &owned)
+        }
+        None => (wf, report),
+    };
+    let mut why: Vec<String> = report
+        .requirements
+        .models
+        .iter()
+        .filter_map(|m| {
+            let judged = match nika_check::static_literal_of(wf, &m.model) {
+                Some(default) => default.as_str()?,
+                None if m.model.contains("${{") => return None,
+                None => m.model.as_str(),
+            };
+            let refusal = nika_providers::resolve_refusal(judged)?;
+            Some(format!("`{judged}` · {}", refusal.why))
+        })
+        .collect();
+    why.extend(nika_check::thinking_findings(wf).into_iter().map(|f| f.why));
+    why.extend(nika_check::capacity_findings(wf).into_iter().map(|f| f.why));
+    let why = (!why.is_empty()).then(|| why.join(" · "))?;
+    let detail = format!("the MODELS rung refuses a seat this run uses: {why}");
+    Some(RuntimeError::ReportMismatch { detail })
+}
+
+/// B9 phase C · the pre-send guard for a seat only the run decides (a task
+/// output, an answer, an item), which the launch gates could not judge.
+/// Dispatch calls it with the rendered `seat` before any provider or seat
+/// request. It judges this task as ONE call in the effective workflow (the
+/// envelope with the operator's `--model`, the seat rendered, its loop
+/// multiplicity cleared and its gate open, every other field kept) with the
+/// launch gates' own laws, and returns the refusal's code and words: the
+/// MODELS rung (NIKA-INFER-004 when the finding names it, the reasoning
+/// seat's cap floor, else NIKA-INFER-001), then, under a cap, an unpriced
+/// cloud seat off a harness or a floor above `remaining` (NIKA-1704).
+/// `remaining` is the ledger read at call time, the cap minus KNOWN spend:
+/// a snapshot, never a reservation. Unknown charges make it an upper bound,
+/// so a refusal is certain while a pass proves no fit, and siblings in flight
+/// may still cross together (the ledger's wave-boundary abort owns that).
+pub(crate) fn run_decided_refusal(
+    (wf, task): (&RawWorkflow, &RawTask),
+    (overrides, model_override): (&BTreeMap<String, Value>, Option<&str>),
+    seat: &str,
+    remaining: Option<f64>,
+    on_harness: bool,
+) -> Option<(&'static str, String)> {
+    let expr = match &task.action {
+        RawAction::Infer(action) => action.model.as_ref(),
+        RawAction::Agent(action) => action.model.as_ref(),
+        _ => None,
+    }?;
+    if resolve_model_expr(&expr.value, wf, overrides, Some(task)).is_some() {
+        return None; // a literal, or a seat the launch gates judged
+    }
+    let mut one =
+        model_override.map_or_else(|| wf.clone(), |m| nika_check::with_model_override(wf, m));
+    one.tasks.retain(|t| t.value.id.value == task.id.value);
+    for t in &mut one.tasks {
+        (t.value.for_each, t.value.when) = (None, None);
+        let model = match &mut t.value.action {
+            RawAction::Infer(action) => action.model.as_mut(),
+            RawAction::Agent(action) => action.model.as_mut(),
+            _ => None,
+        };
+        if let Some(model) = model {
+            seat.clone_into(&mut model.value);
+        }
+    }
+    let why: Vec<String> = nika_check::thinking_findings(&one)
+        .into_iter()
+        .map(|f| f.why)
+        .chain(
+            nika_check::capacity_findings(&one)
+                .into_iter()
+                .map(|f| f.why),
+        )
+        .collect();
+    let before = "refused before the provider request";
+    if !why.is_empty() {
+        let floor = why.iter().any(|w| w.contains("NIKA-INFER-004"));
+        let code = if floor {
+            "NIKA-INFER-004"
+        } else {
+            "NIKA-INFER-001"
+        };
+        return Some((code, format!("{before}: {}", why.join(" · "))));
+    }
+    let remaining = remaining?;
+    if !on_harness && unpriced_cloud_seat(seat) {
+        let why = format!("{before}: cloud model `{seat}` is unpriced, so the cap cannot bound it");
+        return Some(("NIKA-1704", why));
+    }
+    let floor = nika_check::check(&one).cost.min_path_total_usd;
+    let why = format!(
+        "{before}: this call's cost floor ${floor:.6} exceeds the ${remaining:.6} left under \
+         --max-cost-usd (a snapshot at call time, never a reservation)"
+    );
+    (floor > remaining).then_some(("NIKA-1704", why))
 }
 
 /// B20 / issue 1297: `--max-cost-usd` cannot bound a cloud seat the
@@ -327,191 +485,6 @@ fn unpriced_cloud_message(unpriced: &[String], budget: f64) -> Option<RuntimeErr
     })
 }
 
-fn resolved_infer_models(
-    wf: &RawWorkflow,
-    model_override: Option<&str>,
-    overrides: &BTreeMap<String, Value>,
-) -> Vec<String> {
-    let envelope = wf.model.as_ref().map(|m| m.value.as_str());
-    let default = model_override
-        .map(str::to_owned)
-        .or_else(|| envelope.and_then(|expr| resolve_model_expr(expr, wf, overrides, None)));
-    wf.tasks
-        .iter()
-        .filter_map(|task| {
-            let declared = match &task.value.action {
-                RawAction::Infer(action) => action.model.as_ref().map(|m| m.value.as_str()),
-                RawAction::Agent(action) => action.model.as_ref().map(|m| m.value.as_str()),
-                _ => return None,
-            };
-            match declared {
-                Some(expr) => resolve_model_expr(expr, wf, overrides, Some(&task.value)),
-                None => default.clone(),
-            }
-        })
-        .collect()
-}
-
-/// A `model:` value as known before any effect (`--var`, a default, const, `with:`), else `None`.
-pub fn resolve_model_expr(
-    expr: &str,
-    wf: &RawWorkflow,
-    overrides: &BTreeMap<String, Value>,
-    task: Option<&RawTask>,
-) -> Option<String> {
-    if !expr.contains("${{") {
-        return Some(expr.to_owned());
-    }
-    if let Some(joined) = concat_model_expr(expr, wf, overrides, task) {
-        return Some(joined);
-    }
-    if let Some((authority, name)) = nika_check::analyzer::bare_static_ref(expr)
-        && authority == "inputs."
-        && let Some(value) = overrides.get(name).and_then(Value::as_str)
-    {
-        return Some(value.to_owned());
-    }
-    if let Some(from_with) = with_alias(expr, wf, overrides, task) {
-        return Some(from_with);
-    }
-    nika_check::static_literal_of(wf, expr)?
-        .as_str()
-        .map(str::to_owned)
-}
-
-/// `${{ inputs.provider }}/${{ inputs.name }}` — both sides resolve, the
-/// slash is the catalog seat spelling (N01 / issue 1319).
-fn concat_model_expr(
-    expr: &str,
-    wf: &RawWorkflow,
-    overrides: &BTreeMap<String, Value>,
-    task: Option<&RawTask>,
-) -> Option<String> {
-    let (left, right) = expr.split_once('/')?;
-    if !left.contains("${{") || !right.contains("${{") {
-        return None;
-    }
-    let left = resolve_model_expr(left, wf, overrides, task)?;
-    let right = resolve_model_expr(right, wf, overrides, task)?;
-    if left.contains("${{") || right.contains("${{") {
-        return None;
-    }
-    Some(format!("{left}/{right}"))
-}
-
-/// `${{ with.model }}` follows the task's `with:` alias (N01).
-fn with_alias(
-    expr: &str,
-    wf: &RawWorkflow,
-    overrides: &BTreeMap<String, Value>,
-    task: Option<&RawTask>,
-) -> Option<String> {
-    let inner = expr.trim().strip_prefix("${{")?.strip_suffix("}}")?.trim();
-    let name = inner.strip_prefix("with.")?;
-    if name.is_empty() || !name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_') {
-        return None;
-    }
-    let task = task?;
-    let (_, bound) = task.with.iter().find(|(k, _)| k.value == name)?;
-    let next = bound.value.as_str()?;
-    resolve_model_expr(next, wf, overrides, None)
-}
-
-/// A recognized third-party cloud seat with no snapshot row. Unknown
-/// providers stay unknown (never promoted to cloud — but NOT spared:
-/// the resolved-id walk's unresolvable arm refuses them under a cap
-/// through [`nika_providers::resolve_refusal`], #1368). Mock and local
-/// are the sparing arms — unpriced, never this class.
-pub(crate) fn unpriced_cloud_seat(model: &str) -> bool {
-    if model == "mock" || model.starts_with("mock/") {
-        return false;
-    }
-    let provider = model.split_once('/').map_or(model, |(p, _)| p);
-    let Some(entry) = nika_catalog::find_provider(provider) else {
-        return false;
-    };
-    let local = entry
-        .tags
-        .iter()
-        .any(|tag| matches!(tag, nika_catalog::Tag::Local))
-        || entry
-            .data_policy
-            .is_some_and(|policy| policy.zdr == "local");
-    if local {
-        return false;
-    }
-    nika_catalog::find_pricing_for(model).is_none()
-}
-
-/// Unavoidable catalog spend of priced `invoke:` tasks (cheapest path:
-/// `when:` closed → $0 · first-try · known `n:` · known `for_each`
-/// length). Templated provider/`n` and expression `for_each` stay off
-/// this floor — the mid-run ledger still owns what statics cannot see.
-fn priced_builtin_floor(wf: &RawWorkflow) -> f64 {
-    wf.tasks.iter().map(|t| invoke_static_floor(&t.value)).sum()
-}
-
-fn invoke_static_floor(task: &RawTask) -> f64 {
-    if task.when.is_some() {
-        return 0.0;
-    }
-    let RawAction::Invoke(inv) = &task.action else {
-        return 0.0;
-    };
-    let Some(tool) = inv.tool() else {
-        return 0.0;
-    };
-    let Some(args) = inv.args.as_ref() else {
-        return 0.0;
-    };
-    let Some(provider) = static_provider(&args.value) else {
-        return 0.0;
-    };
-    let Some(per) = nika_catalog::builtin_provider_floor_usd(&tool.value, provider) else {
-        return 0.0;
-    };
-    per * static_n(&args.value) * static_iterations(task)
-}
-
-fn static_provider(args: &Value) -> Option<&str> {
-    if let Some(provider) = args.get("provider").and_then(Value::as_str) {
-        return static_literal(provider);
-    }
-    let model = args.get("model").and_then(Value::as_str)?;
-    let model = static_literal(model)?;
-    model.contains("grok-imagine").then_some("xai")
-}
-
-fn static_literal(s: &str) -> Option<&str> {
-    (!s.contains("${{")).then_some(s)
-}
-
-fn static_n(args: &Value) -> f64 {
-    #[allow(clippy::cast_precision_loss)] // image `n:` is capped at 10
-    args.get("n")
-        .and_then(Value::as_u64)
-        .map_or(1.0, |n| n.max(1) as f64)
-}
-
-fn static_iterations(task: &RawTask) -> f64 {
-    match task.for_each.as_ref().map(|f| &f.value) {
-        None => 1.0,
-        Some(ForEachValue::List(arr)) => {
-            #[allow(clippy::cast_precision_loss)] // literal list length is a task count
-            {
-                arr.as_array().map_or(1, Vec::len) as f64
-            }
-        }
-        // Unknown count: cheapest path cannot claim a floor (NIKA-1704).
-        Some(ForEachValue::Expression(_)) => 0.0,
-        #[allow(
-            clippy::unreachable,
-            reason = "non_exhaustive future variant — enum and runtime ship together"
-        )]
-        _ => unreachable!("unsupported for_each form"),
-    }
-}
-
 /// The missing-required-input refusal — `Some` run-abort error when a
 /// `required: true` input has neither a declared `default:` nor an
 /// operator override, `None` when every required input is satisfied.
@@ -544,58 +517,6 @@ pub fn required_inputs_refusal(
     Some(RuntimeError::MissingRequiredInputs { missing, declared })
 }
 
-/// `--task` scoping — the ancestor-cone cut behind the regenerate-one-
-/// block move (its gate + re-check live in the run verb; this is the
-/// pure graph walk · descended from the run verb 2026-07-22 — DAG
-/// assembly is the runtime's family, the launch-gate module its home).
-///
-/// Ancestors must run — their outputs feed the target's bindings; nothing
-/// downstream or sibling executes. Document order is preserved (stable
-/// waves) and workflow `outputs:` drop (they may reference tasks outside
-/// the scope — the target's own output IS the point of the run). Unknown
-/// ids fail with the available set (environment class · exit 3 · before
-/// any effect — the same lane as an unknown `--var` key).
-///
-/// # Errors
-///
-/// A human-readable refusal naming the declared task ids.
-pub fn scope_to_task(mut wf: RawWorkflow, target: &str) -> Result<RawWorkflow, String> {
-    use std::collections::{BTreeSet, VecDeque};
-
-    let mut deps_of: std::collections::BTreeMap<String, Vec<String>> =
-        std::collections::BTreeMap::new();
-    for t in &wf.tasks {
-        deps_of.insert(
-            t.value.id.value.as_str().to_owned(),
-            nika_check::analyzer::edges::producer_ids(&t.value),
-        );
-    }
-    if !deps_of.contains_key(target) {
-        let known = deps_of.keys().cloned().collect::<Vec<_>>().join(" · ");
-        return Err(format!(
-            "--task `{target}` names no task in this workflow — tasks: {known}"
-        ));
-    }
-
-    let mut keep: BTreeSet<String> = BTreeSet::new();
-    let mut queue: VecDeque<String> = VecDeque::from([target.to_owned()]);
-    while let Some(id) = queue.pop_front() {
-        if !keep.insert(id.clone()) {
-            continue;
-        }
-        if let Some(deps) = deps_of.get(&id) {
-            for d in deps {
-                queue.push_back(d.clone());
-            }
-        }
-    }
-
-    wf.tasks
-        .retain(|t| keep.contains(t.value.id.value.as_str()));
-    wf.outputs.clear();
-    Ok(wf)
-}
-
 /// `Some(refusal)` when the `--max-cost-usd` floor exceeds the budget —
 /// pure, so the operator-facing gate is unit-testable. A floor AT the
 /// budget passes (spending exactly the budget is not over it). The
@@ -625,9 +546,17 @@ pub fn unbounded_breakdown(cost: &nika_check::CostCeiling) -> String {
     use nika_check::UnboundedReason;
 
     let (mut no_tokens, mut unpriced, mut unknown_iters) = (0_usize, 0_usize, 0_usize);
+    let mut run_time = 0_usize;
     for t in cost.tasks.iter().filter(|t| t.usd.is_none()) {
         match t.unbounded_reason {
             Some(UnboundedReason::NoTokenLimit) => no_tokens += 1,
+            // B9 · a seat only the run decides has no price YET: never
+            // « unpriced », which reads as free.
+            Some(UnboundedReason::NoPrice)
+                if t.model.as_deref().is_none_or(|m| m.contains("${{")) =>
+            {
+                run_time += 1;
+            }
             Some(UnboundedReason::NoPrice) => unpriced += 1,
             // A task with no price AND no ceiling records ONE reason
             // (NoPrice wins in the check ladder); UnknownIterations, an
@@ -636,13 +565,16 @@ pub fn unbounded_breakdown(cost: &nika_check::CostCeiling) -> String {
             _ => unknown_iters += 1,
         }
     }
-    let total = no_tokens + unpriced + unknown_iters;
+    let total = no_tokens + unpriced + run_time + unknown_iters;
     let mut parts = Vec::new();
     if no_tokens > 0 {
         parts.push(format!("{no_tokens} with no `max_tokens`"));
     }
     if unpriced > 0 {
         parts.push(format!("{unpriced} on an unpriced model"));
+    }
+    if run_time > 0 {
+        parts.push(format!("{run_time} on a model decided at run time"));
     }
     if unknown_iters > 0 {
         parts.push(format!("{unknown_iters} with unknown iterations"));

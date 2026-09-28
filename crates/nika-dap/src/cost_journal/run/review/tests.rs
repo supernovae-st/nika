@@ -195,7 +195,10 @@ fn a_jobs_authority_is_claimed_once() {
 #[test]
 fn a_witness_is_the_digest_of_the_nonce_then_the_binding() {
     use sha2::{Digest as _, Sha256};
-    let (nonce, binding) = ([7_u8; 32], r#"[{"view":1},"candidate"]"#);
+    let nonce: [u8; 32] = Sha256::digest(uuid::Uuid::new_v4().as_bytes()).into();
+    let binding = r#"[{"view":1},"candidate"]"#;
+    let mut other_nonce = nonce;
+    other_nonce[0] ^= 1;
     let digest = Sha256::new()
         .chain_update(nonce)
         .chain_update(binding.as_bytes())
@@ -206,6 +209,6 @@ fn a_witness_is_the_digest_of_the_nonce_then_the_binding() {
         hex
     });
     assert_eq!(review_witness(&nonce, binding), expected);
-    assert_ne!(review_witness(&[8; 32], binding), expected);
+    assert_ne!(review_witness(&other_nonce, binding), expected);
     assert_ne!(review_witness(&nonce, "[]"), expected);
 }

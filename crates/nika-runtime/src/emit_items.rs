@@ -35,11 +35,13 @@ pub(crate) fn push(
         );
     }
     fields.push(("items_pages", count(pages.len())));
+    // Spec 17 · every new paged terminal counts `items_cancelled`, zero too.
     for (key, value) in [
         ("items_total", counts.iter().sum()),
         ("items_ok", counts[0] + counts[1]),
         ("items_recovered", counts[1]),
         ("items_failed", counts[2]),
+        ("items_cancelled", counts[4]),
         ("items_never_started", counts[3]),
     ] {
         fields.push((key, count(value)));
@@ -53,12 +55,12 @@ fn count(value: usize) -> FieldValue {
 /// `None` preserves the original inline representation: either it fits, or
 /// a single row cannot be paged. The writer still refuses oversized scalar
 /// payloads, outputs and whole journals; no row is truncated or discarded.
-fn pages(json: &str) -> Option<(Vec<String>, [usize; 4])> {
+fn pages(json: &str) -> Option<(Vec<String>, [usize; 5])> {
     if serde_json::to_string(json).ok()?.len() <= PAGE_BYTES {
         return None;
     }
     let rows: Vec<serde_json::Value> = serde_json::from_str(json).ok()?;
-    let mut counts = [0; 4];
+    let mut counts = [0; 5];
     let mut pages = Vec::new();
     let mut page = String::from("[");
     let mut bytes = 4; // the array brackets, inside a JSON string
@@ -68,6 +70,7 @@ fn pages(json: &str) -> Option<(Vec<String>, [usize; 4])> {
             "recovered" => 1,
             "failed" => 2,
             "never_started" => 3,
+            "cancelled" => 4,
             _ => return None,
         };
         counts[status] += 1;
@@ -102,12 +105,12 @@ mod tests {
     #[test]
     fn large_tables_page_losslessly_and_bound_the_double_encoded_bytes() {
         let rows: Vec<_> = (0..17000).map(|index| serde_json::json!({
-                "index": index, "item": "🦋\n\"\\", "status": (["ok", "recovered", "failed", "never_started"][index % 4]),
+                "index": index, "item": "🦋\n\"\\", "status": (["ok", "recovered", "failed", "never_started", "cancelled"][index % 5]),
         })).collect();
         let json = serde_json::to_string(&rows).expect("rows");
         let (pages, counts) = pages(&json).expect("large table pages");
         assert!(pages.len() > 1);
-        assert_eq!(counts, [4250; 4]);
+        assert_eq!(counts, [3400; 5]);
         let mut restored = Vec::new();
         for page in pages {
             assert!(serde_json::to_string(&page).expect("encoded page").len() <= PAGE_BYTES);
@@ -115,6 +118,40 @@ mod tests {
                 .extend(serde_json::from_str::<Vec<serde_json::Value>>(&page).expect("whole rows"));
         }
         assert_eq!(restored, rows);
+    }
+
+    /// Spec 17 · every new paged terminal counts `items_cancelled`, zero
+    /// included, and the status counts sum to `items_total`.
+    #[test]
+    fn a_paged_terminal_always_counts_cancelled_rows() {
+        for cancelled in [0_usize, 7] {
+            let rows: Vec<_> = (0..3000)
+                .map(|index| {
+                    let status = if index < cancelled { "cancelled" } else { "ok" };
+                    serde_json::json!({"index": index, "item": "x".repeat(40), "status": status})
+                })
+                .collect();
+            let json = serde_json::to_string(&rows).expect("rows");
+            let mut fields = Vec::new();
+            let mut sink = crate::VecSink::new();
+            push(
+                &mut fields,
+                "fan",
+                &json,
+                &mut crate::DeterministicStamper::new(),
+                &mut sink,
+            );
+            let field = |key: &str| {
+                fields
+                    .iter()
+                    .find(|(k, _)| *k == key)
+                    .map(|(_, v)| v.clone())
+            };
+            assert!(field("items").is_none(), "paged, not inline");
+            assert_eq!(field("items_cancelled"), Some(count(cancelled)));
+            assert_eq!(field("items_ok"), Some(count(3000 - cancelled)));
+            assert_eq!(field("items_total"), Some(count(3000)));
+        }
     }
 
     #[test]

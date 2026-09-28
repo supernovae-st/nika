@@ -247,28 +247,19 @@ pub(super) fn admit_source(
     }
 }
 
-/// The cost gate over the run's frozen plan: a run every admitted lane of which sits on a
-/// harness (`--access codex` and its kin) is bounded by the seat's subscription, so the cap
-/// gates the priced builtins only.
+/// The Host's cost gate over the run's frozen plan, priced at the invocation's validated
+/// inputs (B11): the adapter only forwards them; the harness predicate and the floor are the
+/// Host's (`run_budget::plan_gate`).
 fn budget_gate(
     wf: &nika_schema::raw::RawWorkflow,
     report: &nika_check::CheckReport,
     request: &CliExecutionRequest<'_>,
     machine: bool,
     plan: &nika_providers::ExecutionAccessPlan,
+    inputs: &std::collections::BTreeMap<String, serde_json::Value>,
 ) -> Result<(), u8> {
-    let seated_on_harness = plan.admitted().next().is_some()
-        && plan
-            .admitted()
-            .all(|(_, lane)| matches!(lane.plan.chosen, nika_types::access::AccessClass::Harness));
-    budget::preflight(
-        wf,
-        report,
-        request.model_override,
-        request.max_cost_usd,
-        machine,
-        seated_on_harness,
-    )
+    let effective = (request.model_override, inputs);
+    budget::plan_gate(wf, report, effective, request.max_cost_usd, machine, plan)
 }
 
 fn run_admitted_context(
@@ -340,7 +331,9 @@ fn run_admitted_context(
     };
     // Only a fresh unknown-cost choice replaces the Run's budget gate and cap.
     let unknown = matches!(&cost, Some(c) if !c.account.observes_declared_free_only());
-    if !unknown && let Err(code) = budget_gate(&wf, &report, request, machine, &plan) {
+    if !unknown
+        && let Err(code) = budget_gate(&wf, &report, request, machine, &plan, &inputs.values)
+    {
         return RunVerdict::bare(code);
     }
     let setup = match setup.bind_durable(machine) {

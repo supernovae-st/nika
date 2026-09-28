@@ -94,6 +94,7 @@ where
     if let Some(c) = call {
         c.requested_endpoint = requested_endpoint;
     }
+    crate::dispatch_journal::sent(call.as_ref());
     let resp = http.post(http_req).await.map_err(|e| map_http_err(&e))?;
     *route = crate::retry::BillingRoute::new(
         rp.profile.id.into(),

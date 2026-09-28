@@ -27,6 +27,15 @@ reordered or malformed pages yield no complete table. This fold is shared by
 live rendering and trace outputs/replay; it never rewrites physical frames or
 substitutes for the independent chain verifier.
 
+The fold knows five row statuses: `ok`, `recovered`, `failed`,
+`never_started` and `cancelled` (B8 · 2026-09-28 · spec 17, next MINOR after
+0.121). Any other status leaves the table incomplete. `items_cancelled` must
+equal the cancelled rows. Its absence, as in a terminal written before the
+word existed, is accepted only when no collected row is `cancelled`; a
+present non-integer count is a mismatch. Inline tables are not folded here:
+an unfamiliar inline status reaches readers as uninterpreted data, which spec
+17 permits, and is never coerced into a known outcome.
+
 
 ## 1. Purpose
 

@@ -493,10 +493,12 @@ fn zero_invocation_and_unnegotiated_json_refuse_before_transport() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(!stdout.contains("nika/run-cost-challenge@1"), "{stdout}");
     assert!(stdout.contains("price unknown"), "{stdout}");
-    assert!(
-        !root
-            .path()
-            .join(".nika/inference-cost-observations.ndjson")
-            .exists()
+    // C6 locks one stable journal inode before the channel refusal. Creating
+    // that empty inode grants no authority: no prepared or settled row exists.
+    assert_eq!(
+        std::fs::read(root.path().join(".nika/inference-cost-observations.ndjson")).unwrap(),
+        b"",
+        "an unnegotiated channel records no cost authority"
     );
+    assert_eq!(calls(root.path()), 0);
 }

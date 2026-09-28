@@ -3567,7 +3567,9 @@ pub fn nika_cli_host::retention::fmt_bytes(bytes: u64) -> alloc::string::String
 pub fn nika_cli_host::retention::gc_at_run_start(dir: &std::path::Path, no_gc: bool, dry_run: bool) -> core::option::Option<alloc::string::String>
 pub fn nika_cli_host::retention::gc_line(report: &nika_dap::retention::GcReport) -> alloc::string::String
 pub mod nika_cli_host::run_budget
+pub fn nika_cli_host::run_budget::plan_gate(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, effective: (core::option::Option<&str>, &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>), max_cost_usd: core::option::Option<f64>, output_json: bool, plan: &nika_providers::plan::ExecutionAccessPlan) -> core::result::Result<(), u8>
 pub fn nika_cli_host::run_budget::preflight(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, model_override: core::option::Option<&str>, max_cost_usd: core::option::Option<f64>, output_json: bool, seated_on_harness: bool) -> core::result::Result<(), u8>
+pub fn nika_cli_host::run_budget::preflight_bound(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, (model_override, bindings): (core::option::Option<&str>, &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>), max_cost_usd: core::option::Option<f64>, output_json: bool, seated_on_harness: bool) -> core::result::Result<(), u8>
 pub mod nika_cli_host::run_cost
 #[non_exhaustive] pub enum nika_cli_host::run_cost::ReviewChannel
 pub nika_cli_host::run_cost::ReviewChannel::Stdio

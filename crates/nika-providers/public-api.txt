@@ -817,6 +817,41 @@ pub fn nika_providers::census::SeatFact::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::census::SeatFact where T: 'static
 pub fn nika_providers::census::SeatFact::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub fn nika_providers::census::collect_seats() -> alloc::vec::Vec<nika_providers::census::SeatFact>
+pub mod nika_providers::dispatch_journal
+pub struct nika_providers::dispatch_journal::DispatchJournal(_)
+impl nika_providers::dispatch_journal::DispatchJournal
+pub async fn nika_providers::dispatch_journal::DispatchJournal::observe<F, L>(dispatch: F, lost: L) -> <F as core::future::future::Future>::Output where F: core::future::future::Future, L: core::ops::function::FnOnce(alloc::vec::Vec<nika_types::cost::inference::InferenceCall>)
+impl core::clone::Clone for nika_providers::dispatch_journal::DispatchJournal
+pub fn nika_providers::dispatch_journal::DispatchJournal::clone(&self) -> nika_providers::dispatch_journal::DispatchJournal
+impl core::default::Default for nika_providers::dispatch_journal::DispatchJournal
+pub fn nika_providers::dispatch_journal::DispatchJournal::default() -> nika_providers::dispatch_journal::DispatchJournal
+impl core::fmt::Debug for nika_providers::dispatch_journal::DispatchJournal
+pub fn nika_providers::dispatch_journal::DispatchJournal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_providers::dispatch_journal::DispatchJournal
+impl<T, U> core::convert::Into<U> for nika_providers::dispatch_journal::DispatchJournal where U: core::convert::From<T>
+pub fn nika_providers::dispatch_journal::DispatchJournal::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::dispatch_journal::DispatchJournal where U: core::convert::Into<T>
+pub type nika_providers::dispatch_journal::DispatchJournal::Error = core::convert::Infallible
+pub fn nika_providers::dispatch_journal::DispatchJournal::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::dispatch_journal::DispatchJournal where U: core::convert::TryFrom<T>
+pub type nika_providers::dispatch_journal::DispatchJournal::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::dispatch_journal::DispatchJournal::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::dispatch_journal::DispatchJournal where T: core::clone::Clone
+pub type nika_providers::dispatch_journal::DispatchJournal::Owned = T
+pub fn nika_providers::dispatch_journal::DispatchJournal::clone_into(&self, target: &mut T)
+pub fn nika_providers::dispatch_journal::DispatchJournal::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::dispatch_journal::DispatchJournal where T: 'static + ?core::marker::Sized
+pub fn nika_providers::dispatch_journal::DispatchJournal::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::dispatch_journal::DispatchJournal where T: ?core::marker::Sized
+pub fn nika_providers::dispatch_journal::DispatchJournal::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::dispatch_journal::DispatchJournal where T: ?core::marker::Sized
+pub fn nika_providers::dispatch_journal::DispatchJournal::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::dispatch_journal::DispatchJournal where T: core::clone::Clone
+pub unsafe fn nika_providers::dispatch_journal::DispatchJournal::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::dispatch_journal::DispatchJournal
+pub fn nika_providers::dispatch_journal::DispatchJournal::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::dispatch_journal::DispatchJournal where T: 'static
+pub fn nika_providers::dispatch_journal::DispatchJournal::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub mod nika_providers::plan
 #[non_exhaustive] pub enum nika_providers::plan::LaneVerdict
 pub nika_providers::plan::LaneVerdict::Admitted(nika_providers::plan::ResolvedLane)
@@ -1883,6 +1918,10 @@ pub trait nika_providers::retry::Backoff: core::marker::Send + core::marker::Syn
 pub fn nika_providers::retry::Backoff::sleep(&self, duration: core::time::Duration) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = ()> + core::marker::Send + '_)>>
 impl<C: nika_kernel_core::io::clock::ClockDyn + core::fmt::Debug + 'static> nika_providers::retry::Backoff for nika_providers::retry::ClockBackoff<C>
 pub fn nika_providers::retry::ClockBackoff<C>::sleep(&self, duration: core::time::Duration) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = ()> + core::marker::Send + '_)>>
+pub mod nika_providers::spend
+pub fn nika_providers::spend::price_failed_spend(spend: core::option::Option<&nika_types::cost::SpendOnFailure>) -> (core::option::Option<f64>, core::option::Option<alloc::string::String>, core::option::Option<nika_types::cost::UnpricedReason>)
+pub fn nika_providers::spend::spend_for_calls(calls: &[nika_types::cost::inference::InferenceCall]) -> (core::option::Option<f64>, core::option::Option<nika_types::cost::UnpricedReason>)
+pub fn nika_providers::spend::spend_for_model(model: &str, usage: &nika_types::token_usage::TokenUsage) -> (core::option::Option<f64>, core::option::Option<nika_types::cost::UnpricedReason>)
 pub mod nika_providers::wire
 #[non_exhaustive] pub enum nika_providers::AdmissionState
 pub nika_providers::AdmissionState::Closed

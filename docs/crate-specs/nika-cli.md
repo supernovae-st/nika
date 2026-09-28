@@ -43,6 +43,11 @@ buys an additional request.
 
 ### Literal native inputs (#1683)
 
+The run's `--max-cost-usd` preflight prices these bound values, not the declared
+defaults (B11): the adapter forwards the validated values to the host's
+`run_budget::plan_gate`, the cost gate over the frozen plan, which hands them to
+the runtime's one floor law. A fan over a given list is priced at its items.
+
 `nika run <file> --inputs-json -` reads one UTF-8 JSON object from stdin,
 limited to 1 MiB of serialized bytes (including whitespace). The reader takes
 at most the ceiling plus one byte before refusing oversize input; duplicate

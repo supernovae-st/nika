@@ -2,18 +2,21 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! Fold paged item evidence only when its terminal closes a complete set.
-//! Missing, duplicate, reordered or malformed pages never become a table.
+//! Missing, duplicate, reordered or malformed pages never become a table,
+//! nor do unknown statuses or counts that disagree with the rows (spec 17).
 
 use nika_event::Event;
 use serde_json::Value;
 
 use crate::state::{int_field, str_field};
 
+/// Row counts by status: `ok` · `recovered` · `failed` · `never_started` ·
+/// `cancelled`.
 #[derive(Debug, Default)]
 pub(crate) struct Pages {
     next: i64,
     rows: Vec<Value>,
-    counts: [i64; 4],
+    counts: [i64; 5],
     invalid: bool,
 }
 
@@ -51,6 +54,7 @@ impl Pages {
                 Some("recovered") => 1,
                 Some("failed") => 2,
                 Some("never_started") => 3,
+                Some("cancelled") => 4,
                 _ => return false,
             };
             self.counts[class] += 1;
@@ -62,6 +66,18 @@ impl Pages {
 
     pub(crate) fn finish(self, event: &Event) -> Option<String> {
         if self.invalid || self.next == 0 {
+            return None;
+        }
+        // A terminal written before `cancelled` existed carries no count:
+        // its absence holds only while no collected row is cancelled. A
+        // present count must be the integer the rows give.
+        let historical = !event.fields.iter().any(|f| f.key == "items_cancelled");
+        let cancelled = if historical {
+            Some(0)
+        } else {
+            int_field(event, "items_cancelled")
+        };
+        if cancelled != Some(self.counts[4]) {
             return None;
         }
         for (key, expected) in [
@@ -168,6 +184,104 @@ mod tests {
             }
         }
         assert!(pages.finish(&terminal).is_none());
+    }
+
+    /// One page of rows `first..` with the given statuses.
+    fn statuses(index: i64, first: usize, statuses: &[&str]) -> Event {
+        let rows: Vec<Value> = statuses
+            .iter()
+            .enumerate()
+            .map(|(offset, status)| {
+                serde_json::json!({"index": first + offset, "item": "i", "status": status})
+            })
+            .collect();
+        crate::demo::bare_event(EventKind::TaskItems, 0)
+            .with_field(KeyValue::new("page", FieldValue::Int(index)))
+            .with_field(KeyValue::new("task", FieldValue::String("fan".into())))
+            .with_field(KeyValue::new(
+                "items",
+                FieldValue::String(Value::Array(rows).to_string()),
+            ))
+    }
+
+    /// A terminal closing one page of `failed · cancelled · never_started`,
+    /// with `items_cancelled` set to `cancelled` (absent when `None`).
+    fn stopped(cancelled: Option<i64>) -> Event {
+        let mut event = crate::demo::bare_event(EventKind::TaskFailed, 0)
+            .with_field(KeyValue::new("task", FieldValue::String("fan".into())));
+        for (key, value) in [
+            ("items_pages", 1),
+            ("items_total", 3),
+            ("items_ok", 0),
+            ("items_recovered", 0),
+            ("items_failed", 1),
+            ("items_never_started", 1),
+        ] {
+            event = event.with_field(KeyValue::new(key, FieldValue::Int(value)));
+        }
+        match cancelled {
+            Some(n) => event.with_field(KeyValue::new("items_cancelled", FieldValue::Int(n))),
+            None => event,
+        }
+    }
+
+    fn fold(page: &Event, terminal: &Event) -> Option<Vec<Value>> {
+        let mut pages = Pages::default();
+        pages.push(page);
+        let text = pages.finish(terminal)?;
+        Some(serde_json::from_str(&text).expect("rows"))
+    }
+
+    /// Spec 17 (next MINOR after 0.121): a started row abandoned without a
+    /// terminal is `cancelled`, counted apart from `never_started`.
+    #[test]
+    fn a_cancelled_row_completes_only_beside_its_own_count() {
+        let rows = statuses(0, 0, &["failed", "cancelled", "never_started"]);
+        let table = fold(&rows, &stopped(Some(1))).expect("a complete table");
+        let words: Vec<&str> = table.iter().filter_map(|r| r["status"].as_str()).collect();
+        assert_eq!(words, ["failed", "cancelled", "never_started"]);
+        for wrong in [None, Some(0), Some(2)] {
+            assert!(fold(&rows, &stopped(wrong)).is_none(), "{wrong:?}");
+        }
+    }
+
+    /// A historical terminal has no `items_cancelled`: it stays readable
+    /// while no row is cancelled, and a present zero must hold too.
+    #[test]
+    fn a_historical_count_absence_is_accepted_without_cancelled_rows() {
+        let rows = statuses(0, 0, &["failed", "never_started", "never_started"]);
+        let mut terminal = stopped(None);
+        for field in &mut terminal.fields {
+            if field.key == "items_never_started" {
+                field.value = FieldValue::Int(2);
+            }
+        }
+        assert!(fold(&rows, &terminal).is_some(), "historical form");
+        let zero = terminal
+            .clone()
+            .with_field(KeyValue::new("items_cancelled", FieldValue::Int(0)));
+        assert!(fold(&rows, &zero).is_some(), "new form, zero cancelled");
+        let one = terminal
+            .clone()
+            .with_field(KeyValue::new("items_cancelled", FieldValue::Int(1)));
+        assert!(fold(&rows, &one).is_none(), "a count no row supports");
+        let text = terminal.with_field(KeyValue::new(
+            "items_cancelled",
+            FieldValue::String("0".into()),
+        ));
+        assert!(
+            fold(&rows, &text).is_none(),
+            "a present count is an integer"
+        );
+    }
+
+    #[test]
+    fn an_unknown_item_status_never_completes_a_table() {
+        for unknown in ["abandoned", "Cancelled", "never started", ""] {
+            let rows = statuses(0, 0, &["failed", unknown, "never_started"]);
+            assert!(fold(&rows, &stopped(Some(1))).is_none(), "{unknown:?}");
+            assert!(fold(&rows, &stopped(Some(0))).is_none(), "{unknown:?}");
+        }
     }
 
     #[test]

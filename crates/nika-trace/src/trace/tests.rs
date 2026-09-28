@@ -681,6 +681,86 @@ fn a_fan_out_autopsy_prints_the_item_table() {
     );
 }
 
+/// B8 · spec 03/17 (next MINOR after 0.121): a started item abandoned
+/// without a terminal reads `cancelled` on every reader, apart from
+/// `never_started`; an unfamiliar inline word stays uninterpreted data.
+#[test]
+fn a_cancelled_item_keeps_its_own_word_on_every_reader() {
+    use nika_event::EventKind;
+    use nika_types::resource::{KeyValue, Value};
+    let items = r#"[{"index":0,"item":"alpha","status":"failed","code":"NIKA-INFER-001","message":"for_each item [0] alpha: boom"},{"index":1,"item":"beta","status":"cancelled"},{"index":2,"item":"gamma","status":"never_started"},{"index":3,"item":"delta","status":"abandoned"}]"#;
+    let events = vec![
+        demo::bare_event(EventKind::TaskStarted, 0)
+            .with_field(KeyValue::new("task", Value::String("fan".into())))
+            .with_field(KeyValue::new("note", Value::String("infer".into()))),
+        demo::bare_event(EventKind::TaskFailed, 12)
+            .with_field(KeyValue::new("task", Value::String("fan".into())))
+            .with_field(KeyValue::new("items", Value::String(items.into()))),
+    ];
+    let path = stage("peek-fan-cancelled.ndjson", &events);
+    let out = peek(&path.to_string_lossy(), "fan", false, plain());
+    assert_eq!(out.code, exit::OK);
+    assert!(
+        out.text.contains("beta") && out.text.contains("cancelled"),
+        "{}",
+        out.text
+    );
+    assert!(out.text.contains("never started"), "{}", out.text);
+    let (view, events) = load_view_and_events(&path.to_string_lossy()).expect("loads");
+    let json = tasks_json(&view, &events);
+    let rows = json["tasks"][0]["items"].as_array().expect("rows");
+    let words: Vec<&str> = rows.iter().filter_map(|r| r["status"].as_str()).collect();
+    assert_eq!(words, ["failed", "cancelled", "never_started", "abandoned"]);
+    assert!(rows[1].get("code").is_none() && rows[1].get("output").is_none());
+    let summary = item_summary_lines(&view, &path.to_string_lossy(), plain());
+    assert!(
+        summary[0].contains("0 ok · 1 failed · 1 cancelled · 1 never started"),
+        "an unfamiliar word is never tallied as a known outcome: {}",
+        summary[0]
+    );
+}
+
+/// B8 · a paged table closes only beside its `items_cancelled` count: the
+/// machine projection carries the rows, and none without the count.
+#[test]
+fn a_paged_cancelled_table_needs_its_count() {
+    use nika_event::EventKind;
+    use nika_types::resource::{KeyValue, Value};
+    let rows = r#"[{"index":0,"item":"a","status":"failed","code":"NIKA-INFER-001","message":"m"},{"index":1,"item":"b","status":"cancelled"},{"index":2,"item":"c","status":"never_started"}]"#;
+    let task = || KeyValue::new("task", Value::String("fan".into()));
+    for (count, complete) in [(Some(1), true), (None, false), (Some(0), false)] {
+        let mut terminal = demo::bare_event(EventKind::TaskFailed, 2).with_field(task());
+        for (key, value) in [
+            ("items_pages", 1),
+            ("items_total", 3),
+            ("items_ok", 0),
+            ("items_recovered", 0),
+            ("items_failed", 1),
+            ("items_never_started", 1),
+        ] {
+            terminal = terminal.with_field(KeyValue::new(key, Value::Int(value)));
+        }
+        if let Some(n) = count {
+            terminal = terminal.with_field(KeyValue::new("items_cancelled", Value::Int(n)));
+        }
+        let events = vec![
+            demo::bare_event(EventKind::TaskStarted, 0).with_field(task()),
+            demo::bare_event(EventKind::TaskItems, 1)
+                .with_field(task())
+                .with_field(KeyValue::new("page", Value::Int(0)))
+                .with_field(KeyValue::new("items", Value::String(rows.into()))),
+            terminal,
+        ];
+        let path = stage(&format!("paged-cancelled-{count:?}.ndjson"), &events);
+        let (view, events) = load_view_and_events(&path.to_string_lossy()).expect("loads");
+        let items = &tasks_json(&view, &events)["tasks"][0]["items"];
+        assert_eq!(items.is_array(), complete, "{count:?}: {items}");
+        if complete {
+            assert_eq!(items[1]["status"], "cancelled");
+        }
+    }
+}
+
 /// #1444 · a task fed by a recovered fallback says so on `outputs`, on
 /// `peek` and in the JSON · the 3 am reader no longer mistakes it for a
 /// clean success.
