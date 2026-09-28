@@ -26,6 +26,10 @@ const UNCHANGED: &str = "`/help` lists the commands · nothing was sent, nothing
 const QUESTION_WAITS: &str =
     "the question still waits · reply on the next line · `cancel` drops it";
 
+/// `why` when nothing waits and nothing failed.
+const NOTHING_WAITS: &str =
+    "nothing waits for you right now · describe work, ask a fact, or `run …` an accepted workflow";
+
 /// The command a line reads as: `/`, then a first word naming no path (`/tmp/a.csv`,
 /// `/notes.md`, `/Users/me` are paths), its trailing punctuation aside. `None` otherwise.
 pub(super) fn command_word(line: &str) -> Option<&str> {
@@ -191,10 +195,9 @@ impl SessionRuntime {
                 set.effects_fact()
             ));
         }
-        TurnOutcome::Facts(
-            "nothing waits for you right now · describe work, ask a fact, or `run …` an accepted workflow"
-                .to_owned(),
-        )
+        // Nothing waits: the last failure's card answers it, from memory, with no call.
+        self.last_recovery()
+            .unwrap_or_else(|| TurnOutcome::Facts(NOTHING_WAITS.to_owned()))
     }
 }
 

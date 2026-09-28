@@ -526,6 +526,21 @@ fn a_zone_the_schedule_grammar_refuses_is_refused_when_answered() {
     }
 }
 
+/// E8 control: with nothing waiting and no failure to recall, `why` says nothing waits — from
+/// state, nothing routed or read (the recovery card answers it only when there is one).
+#[test]
+fn an_idle_why_with_no_card_says_nothing_waits() {
+    let mut w = world(&[], false);
+    for line in ["why", "/why", "pourquoi\u{202f}?"] {
+        let out = w.s.turn(line);
+        assert!(
+            matches!(&out, TurnOutcome::Facts(t) if t.starts_with("nothing waits for you right now")),
+            "{line}: {out:?}"
+        );
+    }
+    assert_eq!(w.routed() + w.read(), 0);
+}
+
 /// E5 FB1 at an activation: `/why` and `why` beside the schedule's question explain the
 /// activation (not « nothing waits »), the question keeps waiting, nothing is written.
 #[test]
