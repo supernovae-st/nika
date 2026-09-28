@@ -15,6 +15,7 @@
 //! `prepared` row and appends it once, never rewriting the rows it read.
 
 use nika_fs::OwnedDir;
+use nika_providers::admission;
 use nix::fcntl::{Flock, FlockArg};
 use std::collections::BTreeMap;
 use std::io::{Read as _, Seek as _, Write as _};
@@ -756,18 +757,7 @@ fn strict(row: &serde_json::Value) -> std::io::Result<String> {
         }
         _ => (&row["observation"], false),
     };
-    if !phase_ok
-        || observation["schema"] != "nika/inference-cost-observation@1"
-        || observation["known_subtotal_nano_usd"]
-            .as_str()
-            .and_then(|v| v.parse::<i128>().ok())
-            .is_none()
-        || observation["unknown_calls"].as_u64().is_none()
-        || !matches!(
-            observation["state"].as_str(),
-            Some("Open" | "Closed" | "Uncertain")
-        )
-    {
+    if !phase_ok || !admission::observation_readable(observation) {
         return Err(invalid(
             "unreadable cost observation; prior exposure is unknown",
         ));
@@ -776,53 +766,21 @@ fn strict(row: &serde_json::Value) -> std::io::Result<String> {
 }
 
 /// Whether a `prepared` or `settled` row's observation is one its account could
-/// have written, or why not (nika-providers `InferenceReceipt::observation`, the
-/// same serializer since the journal's first writer). The account counts as
-/// unknown exactly the sent attempts it could not price, adds only nonnegative
-/// estimates of sent attempts to its known subtotal, is untouched when the host
-/// writes `prepared` (right after the review confirms the choice) and closed
-/// before it writes `settled`. A derived `unknown` row carries prior history: it
-/// is judged through the exact `prepared` row it names.
+/// have written, or why not (nika-providers `admission::observation_consistent`,
+/// beside `InferenceReceipt::observation`, the same serializer since the
+/// journal's first writer), and whether it fits its phase: the account is
+/// untouched when the host writes `prepared` (right after the review confirms
+/// the choice) and closed before it writes `settled`. A derived `unknown` row
+/// carries prior history: it is judged through the exact `prepared` row it names.
 fn consistent(row: &serde_json::Value) -> Result<(), &'static str> {
     let prepared = match row["phase"].as_str() {
         Some("prepared") => true,
         Some("settled") => false,
         _ => return Ok(()),
     };
-    let observation = &row["observation"];
-    let (Some(priced), Some(unpriced)) = (
-        observation["attempts"].as_array(),
-        observation["unknown_attempts"].as_array(),
-    ) else {
-        return Err("records its account without both attempt lists");
-    };
-    let (mut unknown_calls, mut known) = (0_u64, 0_i128);
-    for attempt in priced.iter().chain(unpriced) {
-        match (attempt["sent"].as_bool(), &attempt["estimated_nano_usd"]) {
-            (Some(true), serde_json::Value::Null) => unknown_calls += 1,
-            (Some(false), serde_json::Value::Null) => {}
-            (Some(true), serde_json::Value::String(nano)) => {
-                let estimate = nano.parse::<i128>().ok().filter(|value| *value >= 0);
-                known = estimate
-                    .and_then(|value| known.checked_add(value))
-                    .ok_or("records an attempt its account cannot write")?;
-            }
-            _ => return Err("records an attempt its account cannot write"),
-        }
-    }
-    let subtotal = observation["known_subtotal_nano_usd"]
-        .as_str()
-        .and_then(|nano| nano.parse::<i128>().ok());
-    match subtotal {
-        Some(nano) if nano < 0 => return Err("reports a negative known subtotal"),
-        Some(nano) if nano == known => {}
-        _ => return Err("reports a known subtotal its attempts do not add up to"),
-    }
-    if observation["unknown_calls"].as_u64() != Some(unknown_calls) {
-        return Err("counts unknown calls its sent attempts do not record");
-    }
-    let open = observation["state"] == "Open";
-    if prepared && !(open && priced.is_empty() && unpriced.is_empty()) {
+    let (state, moved) = admission::observation_consistent(&row["observation"])?;
+    let open = state == admission::AdmissionState::Open;
+    if prepared && (moved || !open) {
         return Err("prepares the Run with an account that already moved");
     }
     if !prepared && open {
@@ -974,18 +932,8 @@ fn facts(head: &serde_json::Value) -> serde_json::Value {
             .unwrap_or(&head["observation"]),
         _ => &head["observation"],
     };
-    let choice = &observation["unknown_cost"];
-    let route = if choice.is_object() {
-        serde_json::json!({"provider": choice["provider"], "model": choice["model"],
-            "endpoint": choice["endpoint"]})
-    } else {
-        serde_json::Value::Null
-    };
-    let attempts = ["attempts", "unknown_attempts"]
-        .iter()
-        .filter_map(|list| observation[*list].as_array())
-        .flatten();
-    let ids: Vec<&str> = attempts.filter_map(|a| a["request_id"].as_str()).collect();
+    let route = admission::observation_route(observation);
+    let ids = admission::observation_request_ids(observation);
     serde_json::json!({"route": route, "provider_request_ids": ids, "window": {
         "basis": "uuidv7-execution-ids",
         "not_before": uuid_time(head["invocation"].as_str()),

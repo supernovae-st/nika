@@ -693,6 +693,10 @@ pub const nika_providers::admission::SESSION_REVIEW_MAX_REQUESTS: u32
 pub const nika_providers::admission::SESSION_REVIEW_TIMEOUT: core::time::Duration
 pub fn nika_providers::admission::monetary_default(amount: core::option::Option<f64>) -> core::result::Result<core::option::Option<nika_types::cost::Cost>, alloc::string::String>
 pub fn nika_providers::admission::native_catalog_price_known(model: &str, config: nika_providers::registry::ProvidersConfig) -> bool
+pub fn nika_providers::admission::observation_consistent(observation: &serde_json::value::Value) -> core::result::Result<(nika_providers::admission::AdmissionState, bool), &'static str>
+pub fn nika_providers::admission::observation_readable(observation: &serde_json::value::Value) -> bool
+pub fn nika_providers::admission::observation_request_ids(observation: &serde_json::value::Value) -> alloc::vec::Vec<&str>
+pub fn nika_providers::admission::observation_route(observation: &serde_json::value::Value) -> serde_json::value::Value
 pub fn nika_providers::admission::unknown_cost_route(model: &str, config: nika_providers::registry::ProvidersConfig) -> core::result::Result<core::option::Option<nika_providers::admission::CostRoute>, alloc::string::String>
 pub mod nika_providers::authoring
 pub fn nika_providers::authoring::redact_authoring_error(error: nika_kernel_ai::provider::ProviderError, admission_remedy: &str) -> nika_kernel_ai::provider::ProviderError
