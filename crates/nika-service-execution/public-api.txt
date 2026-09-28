@@ -257,6 +257,7 @@ pub fn nika_service_execution::inputs::parse_var_overrides(pairs: &[alloc::strin
 pub mod nika_service_execution::run_cost
 #[non_exhaustive] pub enum nika_service_execution::run_cost::RunShapeError
 pub nika_service_execution::run_cost::RunShapeError::Action
+pub nika_service_execution::run_cost::RunShapeError::Cardinality
 pub nika_service_execution::run_cost::RunShapeError::Control
 pub nika_service_execution::run_cost::RunShapeError::DynamicPath
 pub nika_service_execution::run_cost::RunShapeError::InferShape
@@ -434,6 +435,61 @@ impl<T> tracing::instrument::Instrument for nika_service_execution::run_cost::Bo
 impl<T> tracing::instrument::WithSubscriber for nika_service_execution::run_cost::BoundFile
 impl<T> typenum::type_operators::Same for nika_service_execution::run_cost::BoundFile
 pub type nika_service_execution::run_cost::BoundFile::Output = T
+#[non_exhaustive] pub struct nika_service_execution::run_cost::DispatchBound
+impl nika_service_execution::run_cost::DispatchBound
+pub fn nika_service_execution::run_cost::DispatchBound::authored_retry(&self) -> bool
+pub fn nika_service_execution::run_cost::DispatchBound::lines(&self) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_service_execution::run_cost::DispatchBound::max_in_flight(&self) -> u32
+pub fn nika_service_execution::run_cost::DispatchBound::multiplied(&self) -> bool
+pub fn nika_service_execution::run_cost::DispatchBound::requests(&self) -> u32
+pub fn nika_service_execution::run_cost::DispatchBound::review(&self, review: nika_providers::admission::review::CostReview) -> core::result::Result<nika_providers::admission::review::CostReview, alloc::string::String>
+pub fn nika_service_execution::run_cost::DispatchBound::tasks(&self) -> &[nika_service_execution::run_cost::TaskDispatch]
+impl core::clone::Clone for nika_service_execution::run_cost::DispatchBound
+pub fn nika_service_execution::run_cost::DispatchBound::clone(&self) -> nika_service_execution::run_cost::DispatchBound
+impl core::cmp::Eq for nika_service_execution::run_cost::DispatchBound
+impl core::cmp::PartialEq for nika_service_execution::run_cost::DispatchBound
+pub fn nika_service_execution::run_cost::DispatchBound::eq(&self, other: &nika_service_execution::run_cost::DispatchBound) -> bool
+impl core::fmt::Debug for nika_service_execution::run_cost::DispatchBound
+pub fn nika_service_execution::run_cost::DispatchBound::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_service_execution::run_cost::DispatchBound
+impl<D> owo_colors::OwoColorize for nika_service_execution::run_cost::DispatchBound
+impl<Q, K> equivalent::Equivalent<K> for nika_service_execution::run_cost::DispatchBound where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_service_execution::run_cost::DispatchBound::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_service_execution::run_cost::DispatchBound where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_service_execution::run_cost::DispatchBound::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_service_execution::run_cost::DispatchBound where U: core::convert::From<T>
+pub fn nika_service_execution::run_cost::DispatchBound::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_service_execution::run_cost::DispatchBound where U: core::convert::Into<T>
+pub type nika_service_execution::run_cost::DispatchBound::Error = core::convert::Infallible
+pub fn nika_service_execution::run_cost::DispatchBound::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_service_execution::run_cost::DispatchBound where U: core::convert::TryFrom<T>
+pub type nika_service_execution::run_cost::DispatchBound::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_service_execution::run_cost::DispatchBound::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_service_execution::run_cost::DispatchBound where T: core::clone::Clone
+pub type nika_service_execution::run_cost::DispatchBound::Owned = T
+pub fn nika_service_execution::run_cost::DispatchBound::clone_into(&self, target: &mut T)
+pub fn nika_service_execution::run_cost::DispatchBound::to_owned(&self) -> T
+impl<T> core::any::Any for nika_service_execution::run_cost::DispatchBound where T: 'static + ?core::marker::Sized
+pub fn nika_service_execution::run_cost::DispatchBound::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_service_execution::run_cost::DispatchBound where T: ?core::marker::Sized
+pub fn nika_service_execution::run_cost::DispatchBound::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_service_execution::run_cost::DispatchBound where T: ?core::marker::Sized
+pub fn nika_service_execution::run_cost::DispatchBound::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_service_execution::run_cost::DispatchBound where T: core::clone::Clone
+pub unsafe fn nika_service_execution::run_cost::DispatchBound::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_service_execution::run_cost::DispatchBound
+pub fn nika_service_execution::run_cost::DispatchBound::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_service_execution::run_cost::DispatchBound where T: core::clone::Clone
+pub fn nika_service_execution::run_cost::DispatchBound::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_service_execution::run_cost::DispatchBound where T: 'static
+pub fn nika_service_execution::run_cost::DispatchBound::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_service_execution::run_cost::DispatchBound where T: ?core::marker::Sized
+pub fn nika_service_execution::run_cost::DispatchBound::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_service_execution::run_cost::DispatchBound::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_service_execution::run_cost::DispatchBound
+impl<T> tracing::instrument::WithSubscriber for nika_service_execution::run_cost::DispatchBound
+impl<T> typenum::type_operators::Same for nika_service_execution::run_cost::DispatchBound
+pub type nika_service_execution::run_cost::DispatchBound::Output = T
 #[non_exhaustive] pub struct nika_service_execution::run_cost::FreeShapeRefusal
 pub nika_service_execution::run_cost::FreeShapeRefusal::model: alloc::string::String
 pub nika_service_execution::run_cost::FreeShapeRefusal::shape: &'static str
@@ -592,8 +648,63 @@ impl<T> tracing::instrument::Instrument for nika_service_execution::run_cost::Sc
 impl<T> tracing::instrument::WithSubscriber for nika_service_execution::run_cost::ScheduledProgram
 impl<T> typenum::type_operators::Same for nika_service_execution::run_cost::ScheduledProgram
 pub type nika_service_execution::run_cost::ScheduledProgram::Output = T
+#[non_exhaustive] pub struct nika_service_execution::run_cost::TaskDispatch
+impl nika_service_execution::run_cost::TaskDispatch
+pub fn nika_service_execution::run_cost::TaskDispatch::attempts(&self) -> u32
+pub fn nika_service_execution::run_cost::TaskDispatch::calls_per_attempt(&self) -> u32
+pub fn nika_service_execution::run_cost::TaskDispatch::items(&self) -> core::option::Option<u32>
+pub fn nika_service_execution::run_cost::TaskDispatch::max_parallel(&self) -> u32
+pub fn nika_service_execution::run_cost::TaskDispatch::requests(&self) -> u32
+pub fn nika_service_execution::run_cost::TaskDispatch::task(&self) -> &str
+impl core::clone::Clone for nika_service_execution::run_cost::TaskDispatch
+pub fn nika_service_execution::run_cost::TaskDispatch::clone(&self) -> nika_service_execution::run_cost::TaskDispatch
+impl core::cmp::Eq for nika_service_execution::run_cost::TaskDispatch
+impl core::cmp::PartialEq for nika_service_execution::run_cost::TaskDispatch
+pub fn nika_service_execution::run_cost::TaskDispatch::eq(&self, other: &nika_service_execution::run_cost::TaskDispatch) -> bool
+impl core::fmt::Debug for nika_service_execution::run_cost::TaskDispatch
+pub fn nika_service_execution::run_cost::TaskDispatch::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_service_execution::run_cost::TaskDispatch
+impl<D> owo_colors::OwoColorize for nika_service_execution::run_cost::TaskDispatch
+impl<Q, K> equivalent::Equivalent<K> for nika_service_execution::run_cost::TaskDispatch where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_service_execution::run_cost::TaskDispatch::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_service_execution::run_cost::TaskDispatch where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_service_execution::run_cost::TaskDispatch::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_service_execution::run_cost::TaskDispatch where U: core::convert::From<T>
+pub fn nika_service_execution::run_cost::TaskDispatch::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_service_execution::run_cost::TaskDispatch where U: core::convert::Into<T>
+pub type nika_service_execution::run_cost::TaskDispatch::Error = core::convert::Infallible
+pub fn nika_service_execution::run_cost::TaskDispatch::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_service_execution::run_cost::TaskDispatch where U: core::convert::TryFrom<T>
+pub type nika_service_execution::run_cost::TaskDispatch::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_service_execution::run_cost::TaskDispatch::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_service_execution::run_cost::TaskDispatch where T: core::clone::Clone
+pub type nika_service_execution::run_cost::TaskDispatch::Owned = T
+pub fn nika_service_execution::run_cost::TaskDispatch::clone_into(&self, target: &mut T)
+pub fn nika_service_execution::run_cost::TaskDispatch::to_owned(&self) -> T
+impl<T> core::any::Any for nika_service_execution::run_cost::TaskDispatch where T: 'static + ?core::marker::Sized
+pub fn nika_service_execution::run_cost::TaskDispatch::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_service_execution::run_cost::TaskDispatch where T: ?core::marker::Sized
+pub fn nika_service_execution::run_cost::TaskDispatch::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_service_execution::run_cost::TaskDispatch where T: ?core::marker::Sized
+pub fn nika_service_execution::run_cost::TaskDispatch::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_service_execution::run_cost::TaskDispatch where T: core::clone::Clone
+pub unsafe fn nika_service_execution::run_cost::TaskDispatch::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_service_execution::run_cost::TaskDispatch
+pub fn nika_service_execution::run_cost::TaskDispatch::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_service_execution::run_cost::TaskDispatch where T: core::clone::Clone
+pub fn nika_service_execution::run_cost::TaskDispatch::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_service_execution::run_cost::TaskDispatch where T: 'static
+pub fn nika_service_execution::run_cost::TaskDispatch::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_service_execution::run_cost::TaskDispatch where T: ?core::marker::Sized
+pub fn nika_service_execution::run_cost::TaskDispatch::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_service_execution::run_cost::TaskDispatch::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_service_execution::run_cost::TaskDispatch
+impl<T> tracing::instrument::WithSubscriber for nika_service_execution::run_cost::TaskDispatch
+impl<T> typenum::type_operators::Same for nika_service_execution::run_cost::TaskDispatch
+pub type nika_service_execution::run_cost::TaskDispatch::Output = T
 pub fn nika_service_execution::run_cost::bound_files(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<core::result::Result<nika_service_execution::run_cost::BoundFile, nika_service_execution::run_cost::RunShapeError>>
 pub fn nika_service_execution::run_cost::declared_free_shape(wf: &nika_schema::raw::workflow::RawWorkflow, plan: &nika_providers::plan::ExecutionAccessPlan, config: &nika_providers::registry::ProvidersConfig, model_override: core::option::Option<&str>) -> core::result::Result<bool, nika_service_execution::run_cost::FreeShapeRefusal>
+pub fn nika_service_execution::run_cost::dispatch_bound(wf: &nika_schema::raw::workflow::RawWorkflow, plan: &nika_providers::plan::ExecutionAccessPlan, unknown_routes: usize, bindings: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> core::result::Result<nika_service_execution::run_cost::DispatchBound, nika_service_execution::run_cost::RunShapeError>
 pub fn nika_service_execution::run_cost::observer(wf: &nika_schema::raw::workflow::RawWorkflow) -> (nika_providers::admission::InferenceAdmission, nika_runtime::config::RuntimeConfig)
 pub fn nika_service_execution::run_cost::observes(wf: &nika_schema::raw::workflow::RawWorkflow, plan: &nika_providers::plan::ExecutionAccessPlan, config: &nika_providers::registry::ProvidersConfig, model_override: core::option::Option<&str>, inputs: core::option::Option<&alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>>) -> core::result::Result<bool, alloc::string::String>
 pub fn nika_service_execution::run_cost::project_file_path(consts: &nika_check_analyzer::static_args::ConstStrings, action: &nika_schema::raw::action::RawInvokeAction) -> core::result::Result<std::path::PathBuf, nika_service_execution::run_cost::RunShapeError>

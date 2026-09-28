@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Count PRODUCTION lines of a Rust file — src/ minus in-file #[cfg(test)].
+"""Count production Rust lines and raw embedded jq lines.
 
 Reads paths on stdin, prints `<count>\t<path>` per line.
 
@@ -151,15 +151,23 @@ def prod_lines(text: str) -> int:
     return total
 
 
-def main() -> None:
-    for path in sys.stdin.read().split():
+def main() -> int:
+    for path in sys.stdin.read().splitlines():
+        if not path:
+            continue
         try:
             with open(path, encoding="utf-8", errors="replace") as fh:
                 text = fh.read()
-        except OSError:
-            continue
-        print(f"{prod_lines(text)}\t{path}")
+        except OSError as error:
+            print(f"FAIL  cannot count tracked source {path}: {error}", file=sys.stderr)
+            return 2
+        # jq assets are executable production code. Their comments and blanks
+        # count too; Rust-shaped text must never hide any part of a jq program.
+        count = text.count("\n") + int(bool(text) and not text.endswith("\n")) \
+            if path.endswith(".jq") else prod_lines(text)
+        print(f"{count}\t{path}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

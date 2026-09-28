@@ -36,11 +36,12 @@ impl NumberPolicy {
 /// The policies a rule states, by field.
 pub(crate) type Numbers = std::collections::BTreeMap<String, NumberPolicy>;
 
-/// The jq test of the law on the value in `.`.
+/// The jq test of the law on the value in `.`: a text the grammar accepts is a number only when
+/// its value is finite (`1e999` overflows, R4 A6).
 fn law() -> String {
     let text = json!(NUMBER_TEXT);
     format!(
-        "(type == \"number\" and (isinfinite or isnan | not)) or (type == \"string\" and test({text}))"
+        "(type == \"number\" and (isinfinite or isnan | not)) or (type == \"string\" and test({text}) and (tonumber | isinfinite or isnan | not))"
     )
 }
 
@@ -233,7 +234,7 @@ mod tests {
     fn the_law_reads_a_finite_number_or_a_decimal_text_and_names_anything_else() {
         assert_eq!(
             number(".amount", "amount"),
-            r#"(.amount | if (type == "number" and (isinfinite or isnan | not)) or (type == "string" and test("^[ \\t]*-?(0|[1-9][0-9]*)([.][0-9]+)?[ \\t]*$")) then tonumber else error("`amount` is " + (if . == null then "null or missing" else tojson end) + ", not a number") end)"#
+            r#"(.amount | if (type == "number" and (isinfinite or isnan | not)) or (type == "string" and test("^[ \\t]*-?(0|[1-9][0-9]*)([.][0-9]+)?([eE][+-]?[0-9]+)?[ \\t]*$") and (tonumber | isinfinite or isnan | not)) then tonumber else error("`amount` is " + (if . == null then "null or missing" else tojson end) + ", not a number") end)"#
         );
         // A field name reaches jq as a string, never as program text.
         assert!(number(".[\"a\\\"b\"]", "a\"b").contains(r#"error("`a\"b` is ""#));

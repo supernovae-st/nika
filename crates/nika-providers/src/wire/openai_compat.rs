@@ -108,6 +108,11 @@ where
         return Err(account.refuse("transport endpoint changed; charge unknown"));
     }
     if !(200..300).contains(&resp.status) {
+        // A 429/503 received from the unchanged endpoint is answered; every
+        // other status stays with the attempt's drop: Uncertain.
+        if let Some(a) = &mut attempt {
+            a.answered(resp.status, &resp.final_url);
+        }
         return Err(status_error(
             resp.status,
             &resp.body,

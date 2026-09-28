@@ -97,7 +97,8 @@ impl SessionRuntime {
         if is_greeting(intent) {
             return None;
         }
-        let round = AuthoringRound::new(intent);
+        let mut round = AuthoringRound::new(intent);
+        round.money.clone_from(&self.money.admitted);
         let context = self.project_context();
         let out = match compile_in(&DETERMINISTIC, &context, &round.request(), intent) {
             Ok(out) => out,
@@ -114,7 +115,7 @@ impl SessionRuntime {
                 ),
             ));
         }
-        let reading = Reading::of(out);
+        let reading = as_written(Reading::of(out), &round, &context, intent);
         // Only work owns the automation goal. Keep this round before any
         // seat/admission failure; an earlier conversation is not its request.
         if !matches!(reading, Reading::NotWork(_)) {
@@ -156,6 +157,13 @@ impl SessionRuntime {
                 }
             }
             Reading::Unsettled(out) => Some(match &self.seat {
+                // The ceiling refuses the seat (R4 A6): what the reader could not settle is
+                // still said — a directive that also names a field is the human's to restate.
+                AuthoringSeat::Provider { .. } | AuthoringSeat::Harness { .. }
+                    if self.money_blocks_cognition() =>
+                {
+                    self.refused_unsettled(out)
+                }
                 AuthoringSeat::Provider { .. } | AuthoringSeat::Harness { .. } => {
                     self.compile_under_seat(round)
                 }
@@ -177,6 +185,14 @@ impl SessionRuntime {
             }),
             reading => Some(self.settle(round, reading)),
         }
+    }
+
+    /// Work the reader could not settle, under a ceiling that refuses the seat (R4 A6): the
+    /// refusal says the compiler's reasons, never the bare ceiling; `why` keeps the outcome.
+    fn refused_unsettled(&mut self, out: CompileOutcome) -> TurnOutcome {
+        let text = honest_incomplete(&out, Some(&self.cognition_blocked()));
+        self.last_outcome = Some(out);
+        TurnOutcome::Refusal(Refusal::new(RefusalClass::NotAllowed, text))
     }
 
     /// The same Compile, under the seat the human permitted, for work the
@@ -249,7 +265,9 @@ impl SessionRuntime {
     fn restate_round(&mut self, round: &AuthoringRound, line: &str) -> TurnOutcome {
         let intent = format!("{}. {}", round.intent, line.trim());
         self.remember(line, "(the request read again with these words)");
-        let again = AuthoringRound::new(intent);
+        let mut again = AuthoringRound::new(intent);
+        // The request stays in front: its admitted directives keep their offsets.
+        again.money.clone_from(&round.money);
         match self.compile_request(&again.request(), &again.intent) {
             Ok(out) => {
                 let reading = Reading::of(out);
@@ -636,9 +654,7 @@ impl SessionRuntime {
                 .current()
                 .and_then(|q| clause_of(&q.label))
                 .unwrap_or_default();
-            let intent = round.intent.replacen(&clause, line.trim(), 1);
-            let mut restated = AuthoringRound::new(intent);
-            restated.restatements = round.restatements.saturating_add(1);
+            let restated = round.restate_clause(&clause, line.trim());
             let asked = self.question_id_of(&round);
             self.questions.close(asked);
             self.remember(line, &format!("(restated « {clause} » in words)"));
@@ -1243,6 +1259,27 @@ fn syntax_incomplete(clause: Option<&str>) -> String {
     )
 }
 
+/// A line the reader does not settle once its admitted directives are blanked is routed as
+/// written (R4 A6): conversation stays conversation, unread work stays work.
+fn as_written(
+    reading: Reading,
+    round: &AuthoringRound,
+    context: &AuthoringContext,
+    intent: &str,
+) -> Reading {
+    match reading {
+        Reading::NotWork(out) | Reading::Unsettled(out) if !round.money.is_empty() => {
+            let mut written = round.clone();
+            written.money.clear();
+            match compile_in(&DETERMINISTIC, context, &written.request(), intent).map(Reading::of) {
+                Ok(Reading::NotWork(_)) => Reading::NotWork(out),
+                _ => Reading::Unsettled(out),
+            }
+        }
+        reading => reading,
+    }
+}
+
 /// An incomplete the human can act on: what the reader could not settle,
 /// and the next safe step — never a substitute workflow.
 fn honest_incomplete(out: &CompileOutcome, why: Option<&str>) -> String {
@@ -1390,7 +1427,7 @@ fn run_line_is_plain(lower: &str) -> bool {
         })
 }
 
-fn run_prefix(input: &str) -> Option<String> {
+pub(super) fn run_prefix(input: &str) -> Option<String> {
     let lower = input.trim().to_lowercase();
     let first = lower
         .split(|c: char| c.is_whitespace() || c == ',' || c == ':')

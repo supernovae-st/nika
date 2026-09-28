@@ -163,8 +163,9 @@ const SCHEDULE_CAPABILITY: &str = "schedule";
 // speaks generation 2 (explicitProvider · kept-round replay). It names no model, bound,
 // snapshot or endpoint — those are the operator's, never public.
 const NATIVE_COMPILE_CAPABILITY: &str = "compileNativeV2";
-// Only on a server the operator started with `--cost-review` (C6): the cost-review door.
-const COST_REVIEW_CAPABILITY: &str = "costReviewV1";
+// Only on a server the operator started with `--cost-review` (C6): the cost-review door,
+// version 2 (B12: a finite fan or authored retry with its typed bound) beside version 1.
+const COST_REVIEW_CAPABILITIES: [&str; 2] = ["costReviewV1", "costReviewV2"];
 
 #[derive(Debug, Serialize)]
 struct HttpAdapterIdentity {
@@ -213,7 +214,7 @@ impl HttpAdapterIdentity {
                 .copied()
                 .chain(schedule_live.then_some(SCHEDULE_CAPABILITY))
                 .chain(native.then_some(NATIVE_COMPILE_CAPABILITY))
-                .chain(cost_review.then_some(COST_REVIEW_CAPABILITY))
+                .chain(COST_REVIEW_CAPABILITIES.into_iter().filter(|_| cost_review))
                 .collect(),
         }
     }

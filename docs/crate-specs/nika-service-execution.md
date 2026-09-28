@@ -148,9 +148,15 @@ execution or a spending grant (the third, `declared_free_shape`, follows):
 - `request_bound(workflow, access_plan, unknown_routes)` returns the finite
   physical-request upper bound for static sequential direct text inference.
   Each schema task includes `1 + nika_verb_infer::DEFAULT_SCHEMA_RETRY_BUDGET`
-  requests. It rejects parallel inference, task retries, fan-out, recovery,
-  external secrets, exec, agent, vision and explicit thinking. Local read/write,
-  jq and the builtin pure boolean assertion remain subject to Check/permits.
+  requests. It rejects parallel inference, fan-out, more than one authored
+  attempt, recovery, external secrets, exec, agent, vision and explicit
+  thinking. Local read/write, jq and the builtin pure boolean assertion remain
+  subject to Check/permits. Since B12 r5 it is `dispatch_bound` at declared
+  defaults, refused as `Control` exactly when that bound is `multiplied()`. That
+  is the same predicate the host's review and Serve's version 1 use, so one law
+  answers all three. A single authored attempt (`retry: { max_attempts: 1 }`) is
+  therefore the sequential Run of its requests, with no retry law. A fan whose
+  count only the run decides refuses as `Cardinality`, not `Control`.
 - `project_file_path(consts, action)` resolves only literals or bare immutable
   string constants into a project-relative path. It performs no I/O; it cannot
   attest filesystem containment or grant access.
@@ -161,6 +167,46 @@ tools and actions, and dynamic or unconfined project paths. `Display` is the
 unchanged refusal wording hosts render. It owns no NIKA registry range: it is a
 host-side static observation that never enters the workflow or verb plane (the
 `transport-surface` exemption of the error one-voice gate).
+
+`dispatch_bound(workflow, access_plan, unknown_routes, bindings)` (B12 ·
+2026-09-28) widens `request_bound` to finite fans and authored retries and
+returns the typed `DispatchBound`: the worst-case total of physical requests,
+the requests in flight at once, and one `TaskDispatch` row per infer task
+(items, authored attempts, calls per attempt, width, requests). It judges the
+workflow as the run seats it (`nika_runtime::effective_workflow` over the
+validated bindings: an operator's value before the declared default). The
+counts are the check's own cost law on that seat (`iterations × attempts`),
+each attempt carrying the stock schema re-asks, every product and sum checked
+(`Overflow`). A fan must iterate a literal list or a bare input/const array whose
+value the seat knows; a task output, a computed or navigated expression, or an
+input with no value or default refuses as `Cardinality`, even under a
+`max_items` cap. `on_error`, a fan or retry on a non-infer step, exec, agent and
+nested workflows stay refused. A task's width is its declared `max_parallel`
+(all items when absent, never more than its items). Waves run in order, so the
+Run's in-flight bound is the widest task. A zero total is a value, never an
+allowance: hosts route it to their no-paid-dispatch observer.
+
+Both types keep their fields private. A host reads `requests()`,
+`max_in_flight()` and `tasks()`, and each row's `task()`, `items()`,
+`attempts()`, `calls_per_attempt()`, `max_parallel()` and `requests()`. Only
+`dispatch_bound` makes a bound, and no holder can widen one. `compile_fail`
+doctests pin that another crate can neither build nor mutate a bound; a
+compiling doctest beside them reads the same fields through the accessors. A
+bound is not authority in any case: it only configures a review, whose question
+shows what the confirmed account enforces.
+
+`DispatchBound::authored_retry()` is true only when a task authored
+`retry.max_attempts` above one. It is the sole source of a choice's
+authored-retry law. Fan cardinality, the total and schema re-asks never imply
+it; a schema re-ask is an extra call inside one attempt, never a transport
+resend. `lines()` is the breakdown a fresh choice shows, one line per infer
+task, and is empty for a single sequential Run, which keeps its historical
+words. `review(CostReview)` is where the bound's owner configures a fresh review
+with all four: `for_run(requests)`, `with_concurrency(max_in_flight)`,
+`with_breakdown(lines())` and `with_authored_retry(authored_retry())`. Every
+host's question and confirmed choice therefore carry this one value. A
+sequential bound leaves the historical review byte for byte, and a zero total
+is refused (`for_run`), so zero work buys no allowance even through this door.
 
 `declared_free_shape(workflow, access_plan, providers_config, model_override)`
 (C2 · 2026-09-28) says whether an admitted API lane is an exact
@@ -328,3 +374,10 @@ of the two spawn sites; it does not claim no-spawn parity.
 It shares the route, declared-free shape and finite-request laws with Run;
 unknown-cost work still needs a fresh choice. The observation admits no effects
 and obtains no spending authority. The Host adapter supplies its provider configuration.
+Since B12 it reads the same `dispatch_bound` at declared defaults: a fan or an
+authored retry names its total and in-flight bound. A zero total is no blocker
+(`None`). Such a Run sends no provider request and so pays nothing: the host
+binds its no-paid-dispatch observer (nika-cli-host's `RunCostPlan::Zero`), which
+grants no unknown-cost authority. Readiness at declared defaults cannot see an
+operator's later bindings; the Run re-judges its own bindings before any effect.
+A single sequential Run keeps its historical sentence.

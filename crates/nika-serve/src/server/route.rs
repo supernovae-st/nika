@@ -111,12 +111,13 @@ pub(crate) async fn handle(
     request: Request<Incoming>,
     state: Arc<AppState>,
 ) -> Result<Response<ResponseBody>, Infallible> {
-    let response = if request.uri().path() == "/health" && request.method() == Method::GET {
+    let path = request.uri().path();
+    let response = if path == "/health" && request.method() == Method::GET {
         json_response(
             StatusCode::OK,
             &HealthResponse::current(true, state.native.is_some(), state.cost_review.is_some()),
         )
-    } else if request.uri().path().starts_with("/v1/") {
+    } else if path.starts_with("/v1/") || review_path(path).is_some() {
         protected(request, state).await
     } else {
         ApiError::route_not_found().into_response()
@@ -185,20 +186,23 @@ async fn route_authenticated(
             super::schedule_http::put(request, id.to_owned(), state).await
         }
         (&Method::POST, "/v1/jobs") => create_job(request, state).await,
-        (&Method::POST, "/v1/cost-reviews") => super::cost_review::create(request, state).await,
-        (&Method::POST, path) if path.starts_with("/v1/cost-reviews/") => {
-            match review_route(path).and_then(|(id, action)| action.map(|a| (id, a))) {
-                Some((id, "decision")) => {
+        (&Method::POST, "/v1/cost-reviews") => super::cost_review::create(request, state, 1).await,
+        (&Method::POST, "/v2/cost-reviews") => super::cost_review::create(request, state, 2).await,
+        (&Method::POST, path) if review_path(path).is_some() => {
+            match review_route(path).and_then(|(v, id, action)| action.map(|a| (v, id, a))) {
+                Some((version, id, "decision")) => {
                     let id = id.to_owned();
-                    super::cost_review::decide(request, id, state).await
+                    super::cost_review::decide(request, id, state, version).await
                 }
                 _ => ApiError::route_not_found().into_response(),
             }
         }
-        (&Method::GET, path) if path.starts_with("/v1/cost-reviews/") => match review_route(path) {
-            Some((id, None)) => super::cost_review::get(id, &state),
-            _ => ApiError::route_not_found().into_response(),
-        },
+        (&Method::GET, path) if review_path(path).is_some_and(|(_, rest)| !rest.is_empty()) => {
+            match review_route(path) {
+                Some((version, id, None)) => super::cost_review::get(id, &state, version),
+                _ => ApiError::route_not_found().into_response(),
+            }
+        }
         (&Method::POST, "/v1/check") => check_snapshot(request, state).await,
         (&Method::POST, "/v1/compile") => super::compile::handle(request, state).await,
         (&Method::POST, path) if path.ends_with("/cancel") => cancel_job(path, &state).await,
@@ -222,13 +226,21 @@ async fn route_authenticated(
     }
 }
 
-/// `/v1/cost-reviews/{id}` or `/v1/cost-reviews/{id}/{action}`.
-fn review_route(path: &str) -> Option<(&str, Option<&str>)> {
-    let rest = path.strip_prefix("/v1/cost-reviews/")?;
+/// The cost-review version a path addresses and what follows its root (empty or `/…`).
+fn review_path(path: &str) -> Option<(u64, &str)> {
+    let v1 = path.strip_prefix("/v1/cost-reviews").map(|rest| (1, rest));
+    let (version, rest) = v1.or_else(|| Some((2, path.strip_prefix("/v2/cost-reviews")?)))?;
+    (rest.is_empty() || rest.starts_with('/')).then_some((version, rest))
+}
+
+/// `/v{n}/cost-reviews/{id}` or `/v{n}/cost-reviews/{id}/{action}`.
+fn review_route(path: &str) -> Option<(u64, &str, Option<&str>)> {
+    let (version, rest) = review_path(path)?;
+    let rest = rest.strip_prefix('/')?;
     let (id, action) = rest
         .split_once('/')
         .map_or((rest, None), |(id, a)| (id, Some(a)));
-    (!id.is_empty() && action.is_none_or(|a| !a.contains('/'))).then_some((id, action))
+    (!id.is_empty() && action.is_none_or(|a| !a.contains('/'))).then_some((version, id, action))
 }
 
 fn schedule_route(path: &str) -> Option<&str> {

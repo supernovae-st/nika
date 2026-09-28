@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Vector 24: per-crate LOC ratchet (≤ 15,000 LOC of tracked .rs sources).
+# Vector 24: per-crate LOC ratchet (≤ 15,000 LOC of tracked Rust + embedded jq).
 #
 # Two tiers, escalating consequence (the file-loc vector 12 pattern):
 #   12,000 LOC — YELLOW warning (the descent window, no block)

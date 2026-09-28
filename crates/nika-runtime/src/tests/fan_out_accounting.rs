@@ -776,7 +776,7 @@ async fn a_dropped_run_leaves_its_sent_attempts_on_the_account() {
     assert!(settled.is_none(), "the caller gave up first");
     assert_eq!(wires.bounded.dropped(), 3);
     let receipt = wires.account.snapshot().expect("the account reads");
-    assert_eq!(receipt.unknown_calls, 3, "{receipt:?}");
+    assert_eq!(receipt.unknown_calls, 3);
     assert_eq!(sent_attempts(&wires.account), 3);
     assert_eq!(wires.bounded.posts().len(), 3, "every item began");
     assert!(
@@ -978,7 +978,7 @@ async fn a_dropped_request_closes_the_account_for_a_later_run_decided_route() {
     );
     assert_eq!(wires.bounded.dropped(), 1);
     let receipt = wires.account.snapshot().expect("the account reads");
-    assert_eq!(receipt.unknown_calls, 1, "{receipt:?}");
+    assert_eq!(receipt.unknown_calls, 1);
     assert!(outcome.records["ask"].error.is_some(), "{outcome:?}");
 }
 

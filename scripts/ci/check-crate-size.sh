@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC1091  # _lib.sh sourced at runtime
-# Ratchet: every member crate must have <= MAX LOC of PRODUCTION .rs source.
+# Ratchet: every member crate must have <= MAX LOC of production Rust + jq.
 # Scope = src/ minus in-file #[cfg(test)] regions; tests/ + benches/ are
 # excluded entirely. Rationale: the 15k invariant is a prod-code
 # maintainability budget (CONSTELLATION_PLAN §7 criterion 3) — the mutation
@@ -44,31 +44,49 @@ fi
 # declared under `#[cfg(test)]`, and this copy kept charging 951 lines of
 # test-only code to five crates' production budget. The copy is gone; the
 # measure is read from its single source.
-PROD_FILES="$(rs_prod_files)"
+MANIFESTS="$(package_manifests)"
+if [ -z "$MANIFESTS" ]; then
+  echo 'FAIL  no tracked package manifests — cannot measure crate source' >&2
+  exit 2
+fi
+PROD_FILES="$(rs_prod_files)
+$(git ls-files '*.jq' | grep -E '(^|/)src/' | grep -vE '(^|/)(tests|benches|examples)/' || true)"
 
 while IFS= read -r manifest; do
   [ -z "$manifest" ] && continue
   crate_dir=$(dirname "$manifest")
+  CRATE_FILES=$(printf '%s\n' "$PROD_FILES" | grep -- "^$crate_dir/src/" || true)
+  if [ -z "$CRATE_FILES" ]; then
+    # cargo-fuzz packages contain test targets outside src/, not production.
+    # Require their tracked targets; a missing inventory is still an error.
+    if grep -q '^cargo-fuzz = true$' "$manifest" \
+      && [ -n "$(git ls-files "$crate_dir/fuzz_targets/*.rs")" ]; then
+      printf 'SKIP  %s: cargo-fuzz test targets outside production src/ scope\n' "$crate_dir"
+      continue
+    fi
+    printf 'FAIL  %s has no tracked production source — cannot measure it\n' "$crate_dir" >&2
+    exit 2
+  fi
   # Prod scope: src/ only, minus in-file #[cfg(test)] regions (counted by the
   # python block below) — the FILE-level exclusions are already applied by
   # rs_prod_files (basename `tests.rs` + `#[cfg(test)] mod` declarations).
-  # `|| true` keeps an src-less crate from killing the loop under pipefail
-  # (grep exits 1 on zero matches); python prints 0 on empty stdin then.
+  # An absent inventory is a refusal above, never a zero-LOC success. Embedded
+  # jq uses raw lines; only Rust receives the cfg(test) item filter.
   # The counter lives in ONE proven file (prod-loc.py), not inline here.
   # It used to be inline, and it was blind twice over — braces inside string
   # literals ended a test module early (412 lines of `mod tests` charged to
   # production in nika-runtime/src/expr.rs alone), and `#[cfg(test)] mod foo;`
   # swallowed whichever block came next. One rule, one reader, one self-test.
   total=$(
-    { printf '%s\n' "$PROD_FILES" | grep -- "^$crate_dir/src/" || true; } \
+    printf '%s\n' "$CRATE_FILES" \
       | python3 "$HERE/prod-loc.py" \
       | awk -F'\t' '{ sum += $1 } END { print sum + 0 }'
-  )
+  ) || exit 2
   if [ "$total" -gt "$MAX" ]; then
     printf 'FAIL  %s  %d LOC (max %d)\n' "$crate_dir" "$total" "$MAX"
     violations=$((violations + 1))
   fi
-done < <(package_manifests)
+done <<<"$MANIFESTS"
 
 if [ "$violations" -gt 0 ]; then
   printf '\n%d crate(s) over the %d-LOC limit.\n' "$violations" "$MAX" >&2

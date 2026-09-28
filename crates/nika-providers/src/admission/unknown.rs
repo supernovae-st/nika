@@ -71,14 +71,23 @@ pub struct UnknownCostChoice {
     model: String,
     endpoint: String,
     max_requests: u32,
+    /// Requests in flight at once when widened past one; absent is the
+    /// historical one-at-a-time choice, serialized byte for byte as before.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    max_in_flight: Option<u32>,
+    /// The Run authored retries: only then does a received 429/503 answer its
+    /// attempt; absent (false) keeps the historical bytes and Uncertain law.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    authored_retry: bool,
     max_output_tokens: u32,
     timeout_ms: u64,
     declared_tariff: Option<super::DeclaredTariff>,
 }
 impl UnknownCostChoice {
     /// Bind an explicit choice to one candidate, invocation and full request
-    /// route. Every request has finite output/time bounds; retry is always zero
-    /// and only one request may be in flight. Endpoint bytes are never shortened.
+    /// route. Every request has finite output/time bounds; no transport retry,
+    /// and one request in flight unless [`Self::with_max_in_flight`] widens it.
+    /// Endpoint bytes are never shortened.
     /// # Errors
     /// Empty identity, credentials/query/fragment, zero or unrepresentable bounds.
     #[allow(
@@ -118,10 +127,33 @@ impl UnknownCostChoice {
             model,
             endpoint,
             max_requests,
+            max_in_flight: None,
+            authored_retry: false,
             max_output_tokens,
             timeout_ms,
             declared_tariff: None,
         })
+    }
+    /// The Run authored retries inside the confirmed total: a 429 or 503
+    /// received from the reserved endpoint answers its attempt (usage and USD
+    /// cost unknown) instead of leaving the account Uncertain.
+    #[must_use]
+    pub fn with_authored_retry(mut self) -> Self {
+        self.authored_retry = true;
+        self
+    }
+    /// At most `n` of this choice's requests in flight at once, inside the same
+    /// confirmed total; each reservation takes one of both atomically.
+    /// # Errors
+    /// Zero, or more than the confirmed total.
+    pub fn with_max_in_flight(mut self, n: u32) -> Result<Self, ProviderError> {
+        if n == 0 || n > self.max_requests {
+            return Err(denied(
+                "unknown-cost concurrency must be positive and within the confirmed total",
+            ));
+        }
+        self.max_in_flight = (n > 1).then_some(n);
+        Ok(self)
     }
     /// Exact selected adapter namespace.
     #[must_use]
@@ -286,13 +318,13 @@ impl InferenceAdmission {
         };
         if output == 0
             || output > choice.max_output_tokens
-            || s.unknown_active
+            || s.unknown_in_flight >= choice.max_in_flight.unwrap_or(1)
             || s.unknown_attempts.len() >= choice.max_requests as usize
         {
             return Err(s.refuse("unknown-cost request/output/concurrency bound exhausted"));
         }
         let id = s.unknown_attempts.len();
-        s.unknown_active = true;
+        s.unknown_in_flight += 1;
         let pricing = choice.declared_tariff.as_ref().map_or_else(
             || {
                 crate::retry::BillingRoute::new(provider.into(), model.into(), endpoint.into())
@@ -421,9 +453,30 @@ impl UnknownAttempt {
         if let Some(cost) = estimate {
             s.estimated = super::add(s.estimated, cost)?;
         }
-        s.unknown_active = false;
+        s.unknown_in_flight = s.unknown_in_flight.saturating_sub(1);
         self.done = true;
         Ok(())
+    }
+    /// A 429 or 503 received from the reserved endpoint of a choice whose Run
+    /// authored retries: the attempt is answered, its usage and USD cost stay
+    /// unknown (never « not billed »). The account keeps its state, so only an
+    /// authored retry inside the confirmed total may dispatch again, and only
+    /// while it is Open. Any other status, endpoint or choice is left to
+    /// `Drop`: Uncertain, no further dispatch.
+    pub(super) fn answered(&mut self, status: u16, final_url: &str) {
+        if !self.sent || self.done || !self.choice.authored_retry || !matches!(status, 429 | 503) {
+            return;
+        }
+        if final_url != self.choice.endpoint {
+            return;
+        }
+        let Ok(mut s) = self.account.lock() else {
+            return;
+        };
+        s.unknown_attempts[self.id].note =
+            format!("answered HTTP {status}; usage and USD cost unknown");
+        s.unknown_in_flight = s.unknown_in_flight.saturating_sub(1);
+        self.done = true;
     }
 }
 impl Drop for UnknownAttempt {
@@ -432,7 +485,7 @@ impl Drop for UnknownAttempt {
             return;
         }
         if let Ok(mut s) = self.account.lock() {
-            s.unknown_active = false;
+            s.unknown_in_flight = s.unknown_in_flight.saturating_sub(1);
             if self.sent {
                 s.status = AdmissionState::Uncertain;
                 s.unknown_attempts[self.id].note = "possibly billed; no automatic retry".into();

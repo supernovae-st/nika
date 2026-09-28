@@ -4,8 +4,26 @@ use super::{csv, jsonl, number_text, records};
 use serde_json::json;
 
 #[test]
-fn the_number_text_law_reads_a_plain_decimal_and_nothing_else() {
-    for text in ["0", "-0", "150", "120.50", "-3.5", "0.5", " 150 ", "\t42"] {
+fn the_number_text_law_reads_a_json_number_and_nothing_else() {
+    // A plain decimal, and an exponent the JSON number grammar allows (R4 A6: `1.5e2` is 150).
+    for text in [
+        "0",
+        "-0",
+        "150",
+        "120.50",
+        "-3.5",
+        "0.5",
+        " 150 ",
+        "\t42",
+        "1.5e2",
+        "1E+3",
+        "-1e3",
+        "0.1e3",
+        "1e-999",
+        "2E-1",
+        " 2e1 ",
+        "12345678901234567890",
+    ] {
         assert!(number_text(text), "{text:?}");
     }
     for text in [
@@ -14,8 +32,15 @@ fn the_number_text_law_reads_a_plain_decimal_and_nothing_else() {
         "007",
         "01.5",
         "+5",
-        "1e3",
-        "1E3",
+        "+1e3",
+        "1e",
+        "1e+",
+        "1.e3",
+        ".5e3",
+        "1e3.5",
+        "1e2e3",
+        "1e999",
+        "-1e999",
         "1,5",
         "1 000",
         "Infinity",

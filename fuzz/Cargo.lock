@@ -2663,6 +2663,8 @@ dependencies = [
  "nika-types",
  "serde",
  "serde_json",
+ "tokio",
+ "url",
 ]
 
 [[package]]

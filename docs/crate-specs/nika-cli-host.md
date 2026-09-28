@@ -67,6 +67,15 @@ typed Compile core; this adapter does not own compiler semantics or runtime
 admission. Shell-word quoting is shared through `output::sh_word` so the
 Compile next step and Run resume teaching use the same escaping law.
 
+Only a Ready compile writes. When a compile that is not Ready was given a
+destination that already holds a file or link (R4 A6), the JSON document adds
+`existing_destination` (that caller-named path, beside `written: null`) and
+the human text ends « existing destination remains at <path>; this compile did
+not write or remove it ». Presence is read with no-follow metadata: the file is
+never read, followed, removed or rewritten (`--force` included), never shown
+as this round's output or judged a workflow, and status, exit code and the
+absent `nika run` next step are unchanged.
+
 The binary and all dispatch remain in `nika-cli`. Existing CLI integration
 tests exercise the re-exported surface and actual process boundary; the
 quoting law itself is unit-tested here, beside `output::sh_word`. No new
@@ -210,6 +219,29 @@ read, so no review is framed). A positive project ceiling stays an
 overridable default; a model-free plan never reads it (pinned in
 `run_cost::tests`).
 
+Since B12 (2026-09-28) `prepare` frames the review from Service's typed
+`dispatch_bound` over the Run's validated bindings (the operator's value before
+the default) instead of `request_bound`. The review confirms its total
+(`for_run`), its in-flight bound (`with_concurrency`), its per-task breakdown
+(`with_breakdown`) and, only when a task authored `retry.max_attempts` above
+one, the retry law (`with_authored_retry`). `ReviewedRun::dispatch_bound()`
+exposes the same typed value, the single positive-work value. The review's question
+(which the CLI challenge binds) and the Serve witness therefore cover exactly the
+reviewed limits. The order is unchanged: clear, then the host's `ask`, then a
+shape refusal in its own words (`Cardinality` for a count only the run decides).
+One addition comes before `ask`: a zero total returns its own plan,
+`RunCostPlan::Zero(observer)`. That is the no-paid-dispatch observer
+(`observe_run`: no allowance, no lease kept), which grants no unknown-cost
+authority, so an empty fan runs and sends nothing, as B11 left it. The variant,
+never a field on the account, tells it from a declared-free `Observer`. It is
+decided before any cap judgment, because sending nothing needs none.
+`review_with_model` and Serve's unreviewed jobs bind it as they bind an observer.
+Serve's version-2 door answers it as no review; version 1 refuses it. Right before the review is
+framed, host evidence whose own `unknown_cost_refusal()` refuses every
+unknown-cost choice returns `RunCostPlan::HardCapped(words)`. The words are
+unchanged; that variant is the one refusal a host may teach its cap's remedy
+for. `review_with_model` returns it as its refusal, as before.
+
 `lines::fresh_terminal` is the fresh-input boundary of both local spending doors:
 the plain session before its `continue once? ›` prompt, and `ReviewChannel::Terminal`
 before each answer (again after `details`). It flushes the question, then switches
@@ -282,6 +314,12 @@ so the CLI and the Session, which share this observer, share one law. The world
 carries the kinds beside the rows (`kinds`, keyed by path: counts only, never a
 value); a row keeps exactly the bytes it had, so a plan or a verified transform
 bound to a recorded row stays bound to it.
+
+`compile::sidecar` records the plan an answer round replays. A replay whose outcome
+re-anchors the plan to a changed source (its observation or the keys asked again moved, R4 A6)
+replaces the record atomically once the compile succeeded, so the next `--answer` binds against
+the observation the question showed; a write failure keeps the old record and names the error,
+and a verified or pending transform is never re-recorded over another source.
 
 `compile::typesafe::session` carries the bounded operator-selected decision
 adapter and its observation journal beside the one TypeSafe transport. Session

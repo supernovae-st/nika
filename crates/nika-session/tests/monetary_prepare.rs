@@ -170,9 +170,16 @@ fn comma_zero_and_unset_are_distinct_and_intent_is_verbatim() {
         assert_eq!(money.source, source);
         assert_eq!(money.explicit_amount.as_deref(), literal);
         assert!(runtime.status().contains("money:"));
-        assert!(
-            matches!(runtime.turn("/meaning"), TurnOutcome::Aside(ref view) if view.contains("money:"))
-        );
+        let proposal = runtime.pending_proposal();
+        match runtime.turn("/meaning") {
+            TurnOutcome::Aside(view) => assert!(view.contains("money:")),
+            TurnOutcome::Held { id, preview } => {
+                assert_eq!(proposal.as_ref(), Some(&id));
+                assert!(preview.contains("money:"));
+            }
+            other => panic!("meaning must remain read-only: {other:?}"),
+        }
+        assert_eq!(runtime.pending_proposal(), proposal);
     }
 }
 

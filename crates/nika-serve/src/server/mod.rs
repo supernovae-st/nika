@@ -56,6 +56,7 @@ pub use config::{
 };
 pub use coordinator::{PreparedScheduledRun, ResidentExecutionCoordinator};
 pub use cost_review::CostAuthority;
+pub(crate) use error::bound_message;
 use error::diagnose_capture;
 pub use error::{CredentialRefuse, ServerError};
 use listen::listen_line;

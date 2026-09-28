@@ -111,6 +111,17 @@ impl CostHostEvidence {
             "occurrence": self.layers[2].view(),
         })
     }
+    /// The refusal this evidence gives every unknown-cost choice (a hard cap,
+    /// a denied or unknown layer) before any review is framed, in the words
+    /// [`CostReview::new`] gives; `None` when a fresh choice may be reviewed.
+    /// A host teaches its own cap's remedy beside this refusal only.
+    #[must_use]
+    pub fn unknown_cost_refusal(&self) -> Option<String> {
+        self.policy(None, None)
+            .validate()
+            .err()
+            .map(|e| e.to_string())
+    }
     fn policy(&self, invocation: Option<Cost>, project: Option<Cost>) -> UnknownCostPolicy {
         UnknownCostPolicy::new(
             self.allowed,
@@ -269,6 +280,9 @@ pub struct CostReview {
     evidence: CostHostEvidence,
     defaults: [Option<Cost>; 2],
     max_requests: u32,
+    max_in_flight: u32,
+    breakdown: Vec<String>,
+    authored_retry: bool,
     max_output_tokens: u32,
     request_timeout: Duration,
     reviewed_at: std::time::Instant,
@@ -316,6 +330,9 @@ impl CostReview {
             evidence,
             defaults: [invocation_default, project_default],
             max_requests: 1,
+            max_in_flight: 1,
+            breakdown: Vec::new(),
+            authored_retry: false,
             max_output_tokens: RUN_REVIEW_MAX_OUTPUT_TOKENS,
             request_timeout: RUN_REVIEW_TIMEOUT,
             reviewed_at: nika_kernel::clock::ClockDyn::now(clock.as_ref()),
@@ -358,6 +375,17 @@ impl CostReview {
         self.request_timeout
     }
 
+    /// The requests, per-request output tokens and per-request deadline this
+    /// review would admit, together: the triple a host shows, from its owner.
+    #[must_use]
+    pub fn bounds(&self) -> (u32, u32, Duration) {
+        (
+            self.max_requests,
+            self.max_output_tokens,
+            self.request_timeout,
+        )
+    }
+
     /// A Run host derives this upper bound from checked, sequential direct infers.
     /// This builder creates no authority; confirmation still binds one invocation.
     /// # Errors
@@ -368,6 +396,40 @@ impl CostReview {
         }
         self.max_requests = max_requests;
         Ok(self)
+    }
+
+    /// At most `max_in_flight` of the Run's requests at once, inside the same
+    /// total; the confirmed choice reserves both atomically.
+    /// # Errors
+    /// Zero, or more than the review's total.
+    pub fn with_concurrency(mut self, max_in_flight: u32) -> Result<Self, String> {
+        if max_in_flight == 0 || max_in_flight > self.max_requests {
+            return Err("unknown-cost concurrency must be positive and within the total".into());
+        }
+        self.max_in_flight = max_in_flight;
+        Ok(self)
+    }
+
+    /// The finite breakdown the question shows, one line per task.
+    #[must_use]
+    pub fn with_breakdown(mut self, lines: Vec<String>) -> Self {
+        self.breakdown = lines;
+        self
+    }
+
+    /// Whether the Run authored retries inside its total: only then may a
+    /// received 429 or 503 be followed by another request, and the question
+    /// says so.
+    #[must_use]
+    pub fn with_authored_retry(mut self, authored: bool) -> Self {
+        self.authored_retry = authored;
+        self
+    }
+
+    /// The requests this review would admit in flight at once.
+    #[must_use]
+    pub fn max_in_flight(&self) -> u32 {
+        self.max_in_flight
     }
 
     fn choice(&self) -> Result<UnknownCostChoice, String> {
@@ -381,6 +443,14 @@ impl CostReview {
             self.max_output_tokens,
             self.request_timeout,
         )
+        .and_then(|choice| choice.with_max_in_flight(self.max_in_flight))
+        .map(|choice| {
+            if self.authored_retry {
+                choice.with_authored_retry()
+            } else {
+                choice
+            }
+        })
         .map_err(|e| e.to_string())
     }
     fn policy(&self) -> UnknownCostPolicy {
@@ -393,8 +463,32 @@ impl CostReview {
             .defaults
             .map(|c| c.map_or_else(|| "none".into(), |v| v.to_string()));
         let seconds = self.request_timeout.as_secs();
+        // A fan or an authored retry shows its breakdown and concurrency; a
+        // sequential Run keeps its historical words byte for byte.
+        let concurrency = (self.max_in_flight > 1 || !self.breakdown.is_empty()).then(|| {
+            format!(
+                "At most {} in flight at once; authored retries and schema re-asks consume this same request bound.",
+                self.max_in_flight
+            )
+        });
+        // A task retry the workflow authored is the runtime's, never a hidden
+        // resend by the transport, which stays at zero.
+        let retry = self.authored_retry.then(|| {
+            "Task retries authored in the workflow (retry.max_attempts) may send a new request only after a completed response or a received 429 or 503; the transport never resends on its own, and any other failure stops every further request.".to_owned()
+        });
+        let mut multiplicity = String::new();
+        for line in self
+            .breakdown
+            .iter()
+            .cloned()
+            .chain(concurrency)
+            .chain(retry)
+        {
+            multiplicity.push('\n');
+            multiplicity.push_str(&line);
+        }
         format!(
-            "USD cost is unknown; a charge is possible on {}/{}.\nAt most {} requests; each at most {} output tokens and {} seconds (at most {} seconds of model wait). Any schema re-asks consume this same request bound. No automatic transport retry.\nOverrides only the shown defaults (invocation: {}; project: {}); no hard cap is overridden.\nContinue once? yes / no",
+            "USD cost is unknown; a charge is possible on {}/{}.\nAt most {} requests; each at most {} output tokens and {} seconds (at most {} seconds of model wait). Any schema re-asks consume this same request bound. No automatic transport retry.{multiplicity}\nOverrides only the shown defaults (invocation: {}; project: {}); no hard cap is overridden.\nContinue once? yes / no",
             self.route.provider,
             self.route.model,
             self.max_requests,

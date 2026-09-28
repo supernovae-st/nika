@@ -24,6 +24,9 @@ pub struct CompileRequest {
     /// The request the base candidate answered, when the caller has it — see
     /// [`Self::with_original_intent`]; an edit's laws read it beside the change.
     pub original_intent: Option<String>,
+    /// The monetary directives of the request the caller admitted as its own authority (R4 A6)
+    /// — see [`Self::with_admitted_money`]; empty when the caller admits none.
+    pub money: Vec<std::ops::Range<usize>>,
 }
 
 /// One reference a knowledge snapshot recalled for the seat: its kind (`pattern` · `block` ·
@@ -142,6 +145,15 @@ impl CompileRequest {
         self.original_intent = Some(intent.into());
         self
     }
+    /// The monetary directives of this request (byte ranges `crate::money::directives` found)
+    /// that the caller admitted as its own ceiling (R4 A6): the compiler reads the request with
+    /// them blanked, never as business clauses, and records them in `decision.money`; the
+    /// caller's admission stays the caller's, the compiler grants and certifies nothing.
+    #[must_use]
+    pub fn with_admitted_money(mut self, spans: Vec<std::ops::Range<usize>>) -> Self {
+        self.money = spans;
+        self
+    }
     /// Create from an exact skeleton or bounded support clauses. Other intents
     /// remain incomplete unless an explicit provider authoring call resolves them.
     #[must_use]
@@ -156,6 +168,7 @@ impl CompileRequest {
             knowledge: None,
             authoring_knowledge: None,
             original_intent: None,
+            money: Vec::new(),
         }
     }
 
@@ -179,6 +192,7 @@ impl CompileRequest {
             knowledge: None,
             authoring_knowledge: None,
             original_intent: None,
+            money: Vec::new(),
         }
     }
 
@@ -213,6 +227,7 @@ impl CompileRequest {
             knowledge: None,
             authoring_knowledge: None,
             original_intent: None,
+            money: Vec::new(),
         }
     }
 

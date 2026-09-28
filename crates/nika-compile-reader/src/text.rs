@@ -230,11 +230,13 @@ pub fn exact_excerpt(intent: &str, evidence: &str) -> Option<String> {
     intent.get(start..end).map(str::to_owned)
 }
 
-/// The number-text law (R4 A5): the one decimal a record may state as text, blanks around
-/// allowed: an optional minus, `0` or digits without a leading zero, an optional fraction. No
-/// plus sign, exponent, comma, `Infinity`, `NaN` or empty text. The jq the compiler writes
-/// tests this pattern before it parses; the observer's mirror counts values with it.
-pub const NUMBER_TEXT: &str = r"^[ \t]*-?(0|[1-9][0-9]*)([.][0-9]+)?[ \t]*$";
+/// The number-text law (R4 A5, exponent R4 A6): the JSON number a record may state as text,
+/// blanks around allowed: an optional minus, `0` or digits without a leading zero, an optional
+/// fraction, an optional exponent (`1.5e2`, `1E+3`). No plus sign in front, bare or trailing
+/// point, comma, `Infinity`, `NaN` or empty text; a text whose value overflows is no number
+/// either (the law tests finiteness after it parses). The jq the compiler writes tests this
+/// pattern before it parses; the observer's mirror counts values with the same grammar.
+pub const NUMBER_TEXT: &str = r"^[ \t]*-?(0|[1-9][0-9]*)([.][0-9]+)?([eE][+-]?[0-9]+)?[ \t]*$";
 
 #[cfg(test)]
 mod tests {

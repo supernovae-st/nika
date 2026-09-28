@@ -386,8 +386,8 @@ impl ServerConfig {
         self
     }
 
-    /// Seat the cost-review door (`POST /v1/cost-reviews`, health `costReviewV1`): off
-    /// unless called. It grants review authority only; it never changes a ceiling.
+    /// Seat the cost-review door (`/v1` and `/v2/cost-reviews`, health `costReviewV1`/`V2`):
+    /// off unless called. It grants review authority only; it never changes a ceiling.
     #[must_use]
     pub const fn with_cost_review(mut self, seat: bool) -> Self {
         self.cost_review = seat;

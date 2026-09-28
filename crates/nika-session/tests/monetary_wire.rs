@@ -134,7 +134,7 @@ fn invalid_zero_and_positive_bounded_prepare_never_reach_the_wire() {
     assert_eq!(
         std::fs::read_dir(root).expect("root").count(),
         0,
-        "no proposal/Run/file effect"
+        "no save/Run/file effect before explicit consent"
     );
 }
 
@@ -201,8 +201,13 @@ fn child() {
             let input =
                 format!("Prépare la copie de entree.txt dans sortie.txt, budget {value} dollars.");
             let out = runtime.turn(&input);
-            assert!(matches!(out, TurnOutcome::Refusal(_)), "{out:?}");
-            assert!(runtime.pending_proposal().is_none());
+            let valid = matches!(value, "0" | "0,50" | "2");
+            if valid {
+                assert!(matches!(out, TurnOutcome::Proposal { .. }), "{out:?}");
+            } else {
+                assert!(matches!(out, TurnOutcome::Refusal(_)), "{out:?}");
+            }
+            assert_eq!(runtime.pending_proposal().is_some(), valid);
             assert!(runtime.pending_question().is_none());
         }
         return;

@@ -76,8 +76,14 @@ pub enum RunCostPlan {
     Unneeded,
     /// Declared-free or run-time routes: the observer bound before any effect.
     Observer(Box<RunCost>),
+    /// An unknown-cost route whose typed bound is zero physical requests: the
+    /// no-paid-dispatch observer, bound before any question or allowance.
+    Zero(Box<RunCost>),
     /// One fresh review of an unknown-cost Run, holding this project's cost lease.
     Review(Box<ReviewedRun>),
+    /// The host's own cap evidence refuses every unknown-cost choice, in the
+    /// evaluator's words: the one refusal a host may teach its cap's remedy for.
+    HardCapped(String),
 }
 
 /// One framed review. Its challenge is what the host shows; only
@@ -93,6 +99,7 @@ pub struct ReviewedRun {
     model: String,
     prior: JournalWitness,
     bounds: (u32, u32, std::time::Duration),
+    dispatch: nika_service_execution::run_cost::DispatchBound,
     defaults: [Option<f64>; 2],
 }
 
@@ -123,10 +130,16 @@ pub fn prepare(
     // Record what earlier Runs left before any refusal of this host or shape:
     // a host that cannot ask still leaves a killed Run's UNKNOWN on record.
     let cleared = clear_exposure(root, &invocation)?;
+    // The typed law every host projects, over the validated bindings. Zero
+    // work buys no allowance: the no-paid-dispatch observer runs it.
+    let dispatch =
+        nika_service_execution::run_cost::dispatch_bound(wf, plan, unknown.len(), inputs);
+    if dispatch.as_ref().is_ok_and(|bound| bound.requests() == 0) {
+        return Ok(RunCostPlan::Zero(Box::new(run_observer(wf))));
+    }
     ask()?;
     // The host's own review stays a message: the typed reason renders its words.
-    let bound = nika_service_execution::run_cost::request_bound(wf, plan, unknown.len())
-        .map_err(|e| e.to_string())?;
+    let dispatch = dispatch.map_err(|e| e.to_string())?;
     let launch = match launch {
         Some(launch) => launch.to_path_buf(),
         None => std::env::current_dir().map_err(|e| e.to_string())?,
@@ -139,20 +152,18 @@ pub fn prepare(
     let project_default = project.as_ref().and_then(|(_, p)| p.ceiling);
     let (model, route) = unknown.remove(0);
     let candidate = witness(source, inputs, &(&project, &files));
-    let review = CostReview::new(
+    if let Some(why) = evidence.unknown_cost_refusal() {
+        return Ok(RunCostPlan::HardCapped(why));
+    }
+    let review = dispatch.review(CostReview::new(
         candidate,
         invocation.clone(),
         route,
         evidence,
         monetary_default(invocation_default)?,
         monetary_default(project_default)?,
-    )?
-    .for_run(bound)?;
-    let bounds = (
-        review.max_requests(),
-        review.max_output_tokens(),
-        review.request_timeout(),
-    );
+    )?)?;
+    let bounds = review.bounds();
     let pending = PendingCostReview::new(
         review,
         nika_event::source_id::sha256_hex(source.as_bytes()),
@@ -169,6 +180,7 @@ pub fn prepare(
         inputs: inputs.clone(),
         model,
         bounds,
+        dispatch,
         defaults: [invocation_default, project_default],
     })))
 }
@@ -199,6 +211,11 @@ impl ReviewedRun {
     #[must_use]
     pub fn bounds(&self) -> (u32, u32, std::time::Duration) {
         self.bounds
+    }
+    /// The typed dispatch bound (total, in-flight, per-task rows) it confirms.
+    #[must_use]
+    pub fn dispatch_bound(&self) -> &nika_service_execution::run_cost::DispatchBound {
+        &self.dispatch
     }
     /// The invocation and project defaults approval overrides once.
     #[must_use]
@@ -314,8 +331,9 @@ pub fn review_with_model(
         (evidence, &ask),
     )? {
         RunCostPlan::Unneeded => return Ok(None),
-        RunCostPlan::Observer(cost) => return Ok(Some(*cost)),
+        RunCostPlan::Observer(cost) | RunCostPlan::Zero(cost) => return Ok(Some(*cost)),
         RunCostPlan::Review(review) => review,
+        RunCostPlan::HardCapped(why) => return Err(why),
     };
     let answer = channel.ask(review.challenge())?;
     let actual_source = std::fs::read_to_string(file).map_err(|e| e.to_string())?;
@@ -1010,5 +1028,190 @@ mod tests {
             matches!(free, Ok(RunCostPlan::Unneeded)),
             "a model-free plan never reads it"
         );
+    }
+    /// B12 · one hosted Run of `tasks` on the unpriced route, and the number
+    /// of times the host's gate was asked.
+    fn hosted(
+        root: &Path,
+        tasks: &str,
+        inputs: &Inputs,
+        evidence: CostHostEvidence,
+    ) -> (Result<RunCostPlan, String>, u32, String) {
+        let (_, _, plan) = unpriced();
+        let source = format!(
+            "nika: hosted\nmodel: deepseek/c6-unpriced-fixture\ninputs:\n  items: {{ type: {{ array: string }}, default: [a] }}\npermits: {{}}\ntasks:\n{tasks}"
+        );
+        let wf = nika_schema::parse(
+            &source,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .unwrap();
+        let asked = std::cell::Cell::new(0);
+        let ask = || {
+            asked.set(asked.get() + 1);
+            Ok(())
+        };
+        let run = "exe-b12".to_owned();
+        let prepared = prepare(
+            root,
+            Some(root),
+            &source,
+            run,
+            &wf,
+            None,
+            &plan,
+            inputs,
+            None,
+            (evidence, &ask),
+        );
+        (prepared, asked.get(), source)
+    }
+    const FAN: &str = "  ask:\n    for_each: { items: [a, b, c], max_parallel: 2 }\n    retry: { max_attempts: 2 }\n    infer: { prompt: 'x ${{ item }}', max_tokens: 16 }\n";
+    /// B12 · a finite fan with an authored retry is reviewed once, showing its
+    /// breakdown, and the confirmed choice carries both limits and the retry law.
+    #[test]
+    fn a_fan_review_confirms_its_total_in_flight_bound_and_retry_law() {
+        let root = tempfile::tempdir().unwrap();
+        let local = CostHostEvidence::unmanaged_interactive_local();
+        let (plan, asked, source) = hosted(root.path(), FAN, &Inputs::new(), local);
+        let Ok(RunCostPlan::Review(review)) = plan else {
+            panic!("a finite fan is reviewed");
+        };
+        assert_eq!((asked, review.bounds().0), (1, 6));
+        let dispatch = review.dispatch_bound();
+        assert_eq!((dispatch.requests(), dispatch.max_in_flight()), (6, 2));
+        let question = &review.challenge().question;
+        for line in [
+            "`ask`: 3 items × 2 attempts × 1 call = 6 requests, at most 2 at once",
+            "At most 2 in flight at once;",
+            "Task retries authored in the workflow (retry.max_attempts)",
+        ] {
+            assert!(question.contains(line), "{question}");
+        }
+        let answer = review.challenge().response(true);
+        let cost = review.confirm(&answer, &source).unwrap();
+        let receipt = cost.account.snapshot().unwrap();
+        let choice = serde_json::to_value(receipt.unknown_cost).unwrap();
+        assert_eq!(choice["max_requests"], 6);
+        assert_eq!(choice["max_in_flight"], 2);
+        assert_eq!(choice["authored_retry"], true);
+        cost.finish().unwrap();
+        // Without a retry the fan multiplies, and the retry law stays off.
+        let root = tempfile::tempdir().unwrap();
+        let unretried = FAN.replace("    retry: { max_attempts: 2 }\n", "");
+        let local = CostHostEvidence::unmanaged_interactive_local();
+        let (plan, ..) = hosted(root.path(), &unretried, &Inputs::new(), local);
+        let Ok(RunCostPlan::Review(review)) = plan else {
+            panic!("a finite fan is reviewed");
+        };
+        assert!(!review.challenge().question.contains("Task retries"));
+        assert!(!review.dispatch_bound().authored_retry());
+    }
+    /// B12 · zero requests take the no-paid-dispatch observer, as their own
+    /// plan, before any question: no allowance, no lease kept. The run's
+    /// validated inputs decide, the operator's value before the default.
+    #[test]
+    fn zero_work_binds_the_observer_before_any_question() {
+        let bound_fan = "  ask:\n    for_each: { items: '${{ inputs.items }}' }\n    infer: { prompt: 'x ${{ item }}', max_tokens: 16 }\n";
+        for (tasks, items) in [
+            (FAN.replace("[a, b, c]", "[]"), None),
+            (bound_fan.to_owned(), Some(serde_json::json!([]))),
+        ] {
+            let root = tempfile::tempdir().unwrap();
+            let inputs: Inputs = items.into_iter().map(|v| ("items".into(), v)).collect();
+            let local = CostHostEvidence::unmanaged_interactive_local();
+            let (plan, asked, _) = hosted(root.path(), &tasks, &inputs, local);
+            let Ok(RunCostPlan::Zero(cost)) = plan else {
+                panic!("zero work never asks: {tasks}");
+            };
+            assert_eq!(asked, 0);
+            assert!(cost.account.observes_declared_free_only() && cost.journal.is_none());
+            assert!(clear_exposure(root.path(), "next").is_ok(), "lease free");
+        }
+        // The operator's items are reviewed; the default alone is one item.
+        for (items, requests) in [(Some(serde_json::json!(["x", "y"])), 2), (None, 1)] {
+            let root = tempfile::tempdir().unwrap();
+            let inputs: Inputs = items.into_iter().map(|v| ("items".into(), v)).collect();
+            let local = CostHostEvidence::unmanaged_interactive_local();
+            let (plan, ..) = hosted(root.path(), bound_fan, &inputs, local);
+            let Ok(RunCostPlan::Review(review)) = plan else {
+                panic!("bound items are reviewed");
+            };
+            assert_eq!(review.bounds().0, requests);
+        }
+    }
+    /// B12 r5 · zero work and an exact declared-free route are distinct plans:
+    /// each binds an observer that grants no unknown-cost authority, and only
+    /// the plan's variant tells them apart, never a field on the account.
+    #[test]
+    fn zero_work_and_a_declared_free_route_are_distinct_plans() {
+        let root = tempfile::tempdir().unwrap();
+        let ask = || Ok(());
+        let local = CostHostEvidence::unmanaged_interactive_local();
+        let free = prepare(
+            root.path(),
+            Some(root.path()),
+            "nika: free\n",
+            "exe-free".into(),
+            &free_wf("", ""),
+            None,
+            &free_plan(),
+            &Inputs::new(),
+            None,
+            (local, &ask),
+        );
+        let Ok(RunCostPlan::Observer(free)) = free else {
+            panic!("an exact declared-free route binds the observer");
+        };
+        let empty = FAN.replace("[a, b, c]", "[]");
+        let local = CostHostEvidence::unmanaged_interactive_local();
+        let (zero, asked, _) = hosted(root.path(), &empty, &Inputs::new(), local);
+        let Ok(RunCostPlan::Zero(zero)) = zero else {
+            panic!("zero work is its own plan");
+        };
+        assert_eq!(asked, 0);
+        for cost in [&free, &zero] {
+            assert!(cost.account.observes_declared_free_only() && cost.journal.is_none());
+        }
+    }
+    /// B12 · a count only the run decides is refused after the host's gate,
+    /// in its own words; a hard cap is named as the cause only when it is, and
+    /// zero work under a cap stays zero (sending nothing needs no cap judgment).
+    #[test]
+    fn a_run_decided_count_refuses_and_a_hard_cap_names_only_itself() {
+        let upstream = "  load:\n    invoke: { tool: 'nika:jq', args: { input: [1], expression: '.' } }\n  ask:\n    with: { list: '${{ tasks.load.output }}' }\n    for_each: { items: '${{ with.list }}' }\n    infer: { prompt: 'x ${{ item }}', max_tokens: 16 }\n";
+        let capped = || {
+            let absent = |origin: &str| nika_providers::admission::CapEvidence::NotApplicable {
+                origin: origin.into(),
+            };
+            let machine = nika_providers::admission::CapEvidence::Observed {
+                cap: nika_providers::admission::HardMonetaryCap::Capped(
+                    nika_types::cost::Cost::new(1),
+                ),
+                origin: "server ceiling".into(),
+            };
+            CostHostEvidence::new(true, absent("policy"), machine, absent("occurrence"))
+        };
+        let root = tempfile::tempdir().unwrap();
+        let local = CostHostEvidence::unmanaged_interactive_local();
+        let (plan, asked, _) = hosted(root.path(), upstream, &Inputs::new(), local);
+        let refused = plan.err().expect("a run-decided count");
+        assert!(
+            refused.contains("a count only the run decides"),
+            "{refused}"
+        );
+        assert_eq!(asked, 1, "the host's gate speaks first");
+        let (plan, ..) = hosted(root.path(), upstream, &Inputs::new(), capped());
+        assert!(plan.is_err(), "a shape refusal is never labelled a cap");
+        let (plan, ..) = hosted(root.path(), FAN, &Inputs::new(), capped());
+        let Ok(RunCostPlan::HardCapped(why)) = plan else {
+            panic!("the cap is the cause");
+        };
+        assert_eq!(Some(why), capped().unknown_cost_refusal());
+        let empty = FAN.replace("[a, b, c]", "[]");
+        let (plan, asked, _) = hosted(root.path(), &empty, &Inputs::new(), capped());
+        assert!(matches!(plan, Ok(RunCostPlan::Zero(_))) && asked == 0);
+        assert!(clear_exposure(root.path(), "next").is_ok(), "lease free");
     }
 }

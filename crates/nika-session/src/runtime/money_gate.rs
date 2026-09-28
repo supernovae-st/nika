@@ -26,6 +26,10 @@ pub(super) struct MoneyState {
     pub current: Option<MonetaryDecision>,
     pub draft: Option<MonetaryDecision>,
     pub pending: Option<MonetaryDecision>,
+    // The monetary directives of the current work request this gate admitted (R4 A6): the
+    // compiler reads them as this ceiling, never as business clauses. A line no work admission
+    // reads (a local run line) clears them: no admitted directive rides with it.
+    pub admitted: Vec<std::ops::Range<usize>>,
     // Priced calls made without any Session budget ride this account: an
     // observation with no allowance, never admission, a cap or a review.
     pub observed: nika_providers::InferenceAdmission,
@@ -43,6 +47,7 @@ impl Default for MoneyState {
             current: None,
             draft: None,
             pending: None,
+            admitted: Vec::new(),
             observed: nika_providers::InferenceAdmission::unbudgeted(),
             saved: Vec::new(),
         }
@@ -98,7 +103,9 @@ impl SessionRuntime {
         // nobody read. The route holds it with its observed effects (E5 FB3).
         let unread = !review
             && self.money_blocks_cognition()
-            && self.read_money(answer).is_ok_and(|p| p.amount.is_none());
+            && self
+                .read_money(answer, false)
+                .is_ok_and(|(p, _)| p.amount.is_none());
         if !unread && let Err(refusal) = self.admit_money(answer, true) {
             return refusal;
         }
@@ -225,9 +232,25 @@ impl SessionRuntime {
         self.last_outcome = None;
     }
 
-    // Shared validation precedes either scope's continuation fast path.
-    fn read_money(&self, input: &str) -> Result<ParsedMoney, String> {
-        let parsed = money_parse::parse(input).map_err(str::to_owned)?;
+    // Shared validation precedes either scope's continuation fast path. A work request states
+    // money only in its directives (R4 A6); Run, gate and consent lines keep the whole line.
+    fn read_money(
+        &self,
+        input: &str,
+        work: bool,
+    ) -> Result<(ParsedMoney, Vec<std::ops::Range<usize>>), String> {
+        let (parsed, spans) = if work {
+            let found = money_parse::directives(input).map_err(str::to_owned)?;
+            (
+                found.money,
+                found.found.into_iter().map(|d| d.span).collect(),
+            )
+        } else {
+            (
+                money_parse::parse(input).map_err(str::to_owned)?,
+                Vec::new(),
+            )
+        };
         if let Some(error) = &self.snapshot.project_error {
             return Err(format!(
                 "project money/default is unavailable: {error} — correct nika.yaml before preparing work"
@@ -243,13 +266,13 @@ impl SessionRuntime {
         if parsed.replaced_default.is_some() && parsed.replaced_default != self.snapshot.ceiling {
             return Err("the stated default to replace does not match the observed project default — confirm one finite, nonnegative amount".into());
         }
-        Ok(parsed)
+        Ok((parsed, spans))
     }
 
     pub(super) fn admit_gate_money(&mut self, input: &str) -> Result<(), TurnOutcome> {
-        let mut decision = match self.read_money(input) {
-            Ok(parsed) if parsed.amount.is_none() => return Ok(()),
-            Ok(parsed) => self.money_decision(input, &parsed),
+        let mut decision = match self.read_money(input, false) {
+            Ok((parsed, _)) if parsed.amount.is_none() => return Ok(()),
+            Ok((parsed, _)) => self.money_decision(input, &parsed),
             Err(reason) => {
                 let decision = self.rejected_money(input, &reason);
                 self.record_gate_money(decision);
@@ -310,9 +333,18 @@ impl SessionRuntime {
         if self.money.gate.is_some() {
             return self.admit_gate_money(input);
         }
-        let parsed = match self.read_money(input) {
-            Ok(parsed) => parsed,
-            Err(reason) => return Err(self.refuse_money(input, &reason)),
+        let work = !continuation && super::authoring::run_prefix(input).is_none();
+        let parsed = match self.read_money(input, work) {
+            Ok((parsed, spans)) => {
+                if !continuation {
+                    self.money.admitted = spans;
+                }
+                parsed
+            }
+            Err(reason) => {
+                self.money.admitted.clear();
+                return Err(self.refuse_money(input, &reason));
+            }
         };
         // The Session restriction cannot replace an independent gate observation.
         // Gate parsing above still holds cognition, but does not consume this flag.
@@ -440,8 +472,8 @@ impl SessionRuntime {
         workflow: &std::path::Path,
         explicit: Option<f64>,
     ) -> Result<f64, TurnOutcome> {
-        let parsed = self
-            .read_money(input)
+        let (parsed, _) = self
+            .read_money(input, false)
             .map_err(|reason| self.refuse_run_money(input, &reason))?;
         if explicit.is_some() {
             self.money.current =
