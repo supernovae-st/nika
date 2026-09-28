@@ -1,0 +1,1 @@
+- **Describe compile decision evidence across response generations.** Generation-1 contracts expose the shared compiler decision record, plan, strategy and suggested file; authoring counters state when they are partial observed sums.

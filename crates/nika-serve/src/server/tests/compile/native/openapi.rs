@@ -178,6 +178,16 @@ async fn a_native_server_publishes_generation_two_and_its_live_payloads_validate
     let answers = json!({"answers": {"model": RUN_MODEL}});
     let replayed = exchange(&server, &request, &answer, &replay(&token, &answers)).await;
     assert_eq!(replayed.json()["compile_version"], 1);
+    // Generation-1 replay keeps decision evidence and its public type. Without
+    // this schema field generated SDK types erase an actually observed record.
+    let replay_doc = replayed.json();
+    assert!(replay_doc["provenance"]["decision"].is_object());
+    let decision = &document["components"]["schemas"]["CompileOutcome"]["properties"]["provenance"]
+        ["properties"]["decision"];
+    assert_eq!(decision["type"], "object");
+    let mut invalid_decision = replay_doc.clone();
+    invalid_decision["provenance"]["decision"] = json!(false);
+    assert!(!answer.is_valid(&invalid_decision));
     // A revision in words, and a generation-2 skeleton that needs no call.
     let revision = json!({
         "compile_version": 2, "mode": "edit", "cognition": "explicitProvider",

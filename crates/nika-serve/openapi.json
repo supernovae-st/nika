@@ -136,6 +136,16 @@
               "compiler_version": {
                 "type": "string"
               },
+              "decision": {
+                "additionalProperties": true,
+                "description": "Bounded compiler decision evidence, including deterministic and replay outcomes; it grants no execution or spending authority.",
+                "type": "object"
+              },
+              "plan": {
+                "additionalProperties": true,
+                "description": "The compiler record retained in this outcome; a server replay uses its opaque token rather than accepting this object as authority.",
+                "type": "object"
+              },
               "skeleton": {
                 "type": [
                   "string",
@@ -144,6 +154,17 @@
               },
               "spec_pin": {
                 "type": "string"
+              },
+              "strategy": {
+                "description": "The compiler strategy that produced this outcome.",
+                "type": "string"
+              },
+              "suggested_file": {
+                "description": "A suggested candidate file name, never a file written by compilation.",
+                "type": [
+                  "string",
+                  "null"
+                ]
               }
             },
             "required": [
