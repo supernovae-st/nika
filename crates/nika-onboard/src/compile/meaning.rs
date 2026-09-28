@@ -329,8 +329,10 @@ pub fn delta(base: &Value, revised: &Value) -> Option<String> {
     Some(text)
 }
 
-/// The line when no ledger exists: never an invented coverage.
-pub const UNAVAILABLE: &str = "Meaning · unavailable for this candidate (the compiler recorded no ledger) — the review above and `/show` are what there is";
+/// The line when no ledger exists: never an invented coverage. It names no
+/// host's protocol; the reader adds its own way on.
+pub const UNAVAILABLE: &str =
+    "Meaning · unavailable for this candidate (the compiler recorded no ledger)";
 
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
@@ -453,6 +455,11 @@ mod tests {
         let doc = fixture("discussion");
         assert!(doc["provenance"]["decision"].is_null(), "{doc}");
         assert!(UNAVAILABLE.contains("unavailable"));
+        // The owner's words name no host's protocol (E8): its reader adds its own way on.
+        assert!(
+            !UNAVAILABLE.contains('/') && !UNAVAILABLE.contains('`'),
+            "{UNAVAILABLE}"
+        );
     }
 
     /// A revision's delta: the clause the words added, the one they

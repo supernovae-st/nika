@@ -636,6 +636,29 @@ fn french_typography_reads_as_the_same_closed_line() {
     }
 }
 
+/// E8 (5): with no ledger the owner's line says only that the view is unavailable; the session
+/// adds its own way on (the review above and `/show`), and the proposal still waits.
+#[test]
+fn meaning_without_a_ledger_adds_the_sessions_own_way_on() {
+    let mut w = world(&[], false);
+    let TurnOutcome::Proposal { id, .. } = w.s.turn(COPY) else {
+        panic!("a proposal");
+    };
+    if let Some(out) = w.s.last_outcome.as_mut() {
+        out.provenance.decision = None;
+    }
+    let out = w.s.turn("/meaning");
+    let TurnOutcome::Held { id: held, preview } = &out else {
+        panic!("beside a proposal the view holds it: {out:?}");
+    };
+    assert_eq!(held, &id);
+    assert!(
+        preview.starts_with(crate::meaning::UNAVAILABLE)
+            && preview.contains("the review above and `/show` are what there is"),
+        "{preview}"
+    );
+}
+
 /// E8 (3): the quoted escape reaches a run's input as it reaches a question — a value in
 /// quotes is its content (how a protocol word becomes the literal value: `"why"` binds `why`,
 /// where `why` alone explains), never its quotes; unquoted words and a path bind as typed.

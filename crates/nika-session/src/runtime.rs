@@ -479,7 +479,9 @@ impl SessionRuntime {
     /// incomplete it is an aside; never a score, never invented.
     fn meaning_unrecorded(&mut self) -> TurnOutcome {
         let view = if let Some(out) = &self.last_outcome {
-            crate::meaning::render(out).unwrap_or_else(|| crate::meaning::UNAVAILABLE.to_owned())
+            let way = " — the review above and `/show` are what there is";
+            crate::meaning::render(out)
+                .unwrap_or_else(|| crate::meaning::UNAVAILABLE.to_owned() + way)
         } else {
             if self.money.current.is_some() {
                 return TurnOutcome::Aside(self.money_line());

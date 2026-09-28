@@ -49,7 +49,9 @@ that module: the same types, functions and constant under the old path, which
 candidate's bytes are read by the same strict `nika_schema` law as the
 review's. What stays here is the session's side: `/meaning` shows the view and
 holds a waiting proposal, and a revision's delta rides beside the revised
-proposal. The three recorded outcomes its tests read moved with them.
+proposal. The owner's « unavailable » line names no protocol; the session adds
+its own way on (the review above and `/show`). The three recorded outcomes its
+tests read moved with them.
 
 ## Exact schedule activation
 

@@ -47,7 +47,8 @@ candidate's bytes, parsed by the one strict `nika_schema` law: strict mode, one
 anonymous file, and bytes it refuses carry no verb), the rendered view and a
 revision's delta. It is pure (an outcome or a ledger in, words out), never
 certifies coverage (a clause the compiler did not read is not listed, and the
-view says so) and renders « unavailable » without a ledger. A ledger that is
+view says so) and renders « unavailable » without a ledger — words that name
+no host's protocol (`UNAVAILABLE`; a host adds its own way on). A ledger that is
 not a list, or an entry of an unknown or missing state, is never guessed and
 never silently dropped: the view says it could not read it and counts none of
 it as done (no « no clause » or « 0 waiting » over unread entries), and a delta
