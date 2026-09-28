@@ -344,8 +344,19 @@ the complete native task graph. A typed rule for the whole detail retains its
 deterministic path, as does a single-output pipeline whose parsed rule retains
 every recorded typed stage in the recorded order: a part is found only in the
 step of the part recorded before it or in a later step (R4 F5), so an inventory
-holding every stage in another order is refused. This structural boundary does
-not prove arbitrary model-generated computations semantically correct.
+holding every stage in another order is refused.
+The operations the request states are witnessed (R4 A3). Each plan rule whose text
+is an exact excerpt of the request is a part, read once by the one grammar over
+the binding's columns: the widest readable excerpt stands for excerpts inside it,
+and an unreadable excerpt counts only where no readable one overlaps it. A rule
+holds the parts when their operations (each filter clause, an « or » of clauses
+as one, each count with its grouping, each sort with its key and direction, each
+cut with its size) appear in its lowered sequence in request order with those
+parameters. A proposal that does not hold them yields to a reading that does
+(the step's detail, its evidence, or the parts' excerpts joined in request order).
+Without one, the missing operations remain unresolved. This is containment of
+the stated operations; extra operations are not excluded by this witness.
+It does not prove arbitrary model-generated computations semantically correct.
 
 The lexical reader supplies hypotheses for effects it cannot settle: an indirect negation
 does not become a ban, and an undecided effect is not an obligation to execute. Native
@@ -374,8 +385,10 @@ answer round, and a record that replaced a filter by the identity (every row kep
 typed computation is bound to the law that admitted it, not to what its words mean. That law
 grounds a value, a number or a limit in the clause that states it (a schedule's hour is
 another clause's), a field among the request's columns, and a comparator, an aggregate, a
-junction or a direction nowhere, so another element it admits can replace the recorded one
-unseen (pinned by `compile_rule_binding`). No meaning closure is claimed.
+junction or a direction nowhere. Where the reader reads the rule's own words, the witness
+(R4 A3) catches a replaced comparator, direction, cut or step order; an aggregate or a listed
+column the law admits can still replace the recorded one unseen (pinned by
+`compile_rule_binding`). No meaning closure is claimed.
 
 An effect the request's own words both ask for and prohibit (the reader's `Conflict`) stays
 the human's (R4 S0): `surface::assemble::refuse_contradiction` refuses it with both clauses
@@ -388,6 +401,20 @@ carries the stated ledger (`decision.ledger`): the contradicted effect, the unsu
 every clause beside them, typed with their states, not only the plan and the sentence. This covers the
 contradictions the reader recognizes (a request and a ban of the same effect, object or
 destination, and a ban of every write), not every semantic incompatibility a request can hold.
+
+The READY law realizes typed duties against the emitted computation (R4 A3).
+`decision.ledger` states one duty per operation the parts state (`filter`, `count`,
+`order`, `limit`, each with `position`, its place in the stated order, and `reads`,
+the fields it reads), anchored on the part's excerpt, in place of the compute
+step's generic filter duty. `compute` realizes one only when its expression is
+the bound rule's lowering byte for byte and the rule holds the operation at its
+place; `compute_summary` realizes the summary stage's count only when it runs the
+summary law. A task id, record flag or plan annotation realizes no typed duty.
+Words the grammar cannot read state no typed duty: their excerpt stays a
+transformation duty carried by the task, noted unverified; an answered program's
+filter duty is noted unverified too. `plan.obligations` is unchanged, and no
+closure is claimed: aggregates other than a count, groupings, projections,
+renames, distinct keys, joins and derived values remain transformation duties.
 
 Constant work stays deterministic (R4 S0, G2). A write the reader states with a quoted literal
 as its content (`Plan::content_of`) is lowered to the existing `nika:write`: the literal's
