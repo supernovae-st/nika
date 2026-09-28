@@ -1125,6 +1125,42 @@ impl<T> core::clone::CloneToUninit for nika_compile_reader::rules::Junction wher
 pub unsafe fn nika_compile_reader::rules::Junction::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_compile_reader::rules::Junction
 pub fn nika_compile_reader::rules::Junction::from(t: T) -> T
+#[non_exhaustive] pub enum nika_compile_reader::rules::NumberPolicy
+pub nika_compile_reader::rules::NumberPolicy::Fail
+pub nika_compile_reader::rules::NumberPolicy::Skip
+impl nika_compile_reader::rules::NumberPolicy
+pub const fn nika_compile_reader::rules::NumberPolicy::word(self) -> &'static str
+impl core::clone::Clone for nika_compile_reader::rules::NumberPolicy
+pub fn nika_compile_reader::rules::NumberPolicy::clone(&self) -> nika_compile_reader::rules::NumberPolicy
+impl core::cmp::Eq for nika_compile_reader::rules::NumberPolicy
+impl core::cmp::PartialEq for nika_compile_reader::rules::NumberPolicy
+pub fn nika_compile_reader::rules::NumberPolicy::eq(&self, other: &nika_compile_reader::rules::NumberPolicy) -> bool
+impl core::fmt::Debug for nika_compile_reader::rules::NumberPolicy
+pub fn nika_compile_reader::rules::NumberPolicy::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_reader::rules::NumberPolicy
+impl core::marker::StructuralPartialEq for nika_compile_reader::rules::NumberPolicy
+impl<T, U> core::convert::Into<U> for nika_compile_reader::rules::NumberPolicy where U: core::convert::From<T>
+pub fn nika_compile_reader::rules::NumberPolicy::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_reader::rules::NumberPolicy where U: core::convert::Into<T>
+pub type nika_compile_reader::rules::NumberPolicy::Error = core::convert::Infallible
+pub fn nika_compile_reader::rules::NumberPolicy::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_reader::rules::NumberPolicy where U: core::convert::TryFrom<T>
+pub type nika_compile_reader::rules::NumberPolicy::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_reader::rules::NumberPolicy::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_reader::rules::NumberPolicy where T: core::clone::Clone
+pub type nika_compile_reader::rules::NumberPolicy::Owned = T
+pub fn nika_compile_reader::rules::NumberPolicy::clone_into(&self, target: &mut T)
+pub fn nika_compile_reader::rules::NumberPolicy::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_reader::rules::NumberPolicy where T: 'static + ?core::marker::Sized
+pub fn nika_compile_reader::rules::NumberPolicy::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_reader::rules::NumberPolicy where T: ?core::marker::Sized
+pub fn nika_compile_reader::rules::NumberPolicy::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_reader::rules::NumberPolicy where T: ?core::marker::Sized
+pub fn nika_compile_reader::rules::NumberPolicy::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_reader::rules::NumberPolicy where T: core::clone::Clone
+pub unsafe fn nika_compile_reader::rules::NumberPolicy::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_reader::rules::NumberPolicy
+pub fn nika_compile_reader::rules::NumberPolicy::from(t: T) -> T
 #[non_exhaustive] pub enum nika_compile_reader::rules::Operand
 pub nika_compile_reader::rules::Operand::Bool(bool)
 pub nika_compile_reader::rules::Operand::Column(alloc::string::String)
@@ -1361,6 +1397,13 @@ pub fn nika_compile_reader::rules::Rule::typed(text: &str, clauses: alloc::vec::
 pub fn nika_compile_reader::rules::Rule::verified_program(&self) -> core::option::Option<&nika_compile_reader::rules::Program>
 pub fn nika_compile_reader::rules::Rule::with_limit(self, n: u32) -> Self
 impl nika_compile_reader::rules::Rule
+pub fn nika_compile_reader::rules::Rule::number_fields(&self) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_compile_reader::rules::Rule::number_policy(&self, field: &str) -> core::option::Option<nika_compile_reader::rules::NumberPolicy>
+pub fn nika_compile_reader::rules::Rule::plain_sort(&self) -> core::option::Option<&str>
+pub fn nika_compile_reader::rules::Rule::text_equalities(&self) -> alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
+pub fn nika_compile_reader::rules::Rule::with_number_policy(&self, field: &str, policy: nika_compile_reader::rules::NumberPolicy) -> core::option::Option<Self>
+pub fn nika_compile_reader::rules::Rule::with_spellings(&self, field: &str, literal: &str, spellings: &[alloc::string::String]) -> core::option::Option<Self>
+impl nika_compile_reader::rules::Rule
 pub fn nika_compile_reader::rules::Rule::source_fields(&self) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_compile_reader::rules::Rule::with_source_field(&self, from: &str, to: &str) -> core::option::Option<Self>
 impl core::clone::Clone for nika_compile_reader::rules::Rule
@@ -1575,6 +1618,7 @@ pub fn nika_compile_reader::structure::binds_no_operation(text: &str) -> bool
 pub fn nika_compile_reader::structure::context_statement(text: &str) -> bool
 pub fn nika_compile_reader::structure::laws(text: &str) -> alloc::vec::Vec<nika_compile_reader::structure::Law>
 pub mod nika_compile_reader::text
+pub const nika_compile_reader::text::NUMBER_TEXT: &str
 pub const nika_compile_reader::text::STOPWORDS: &[&str]
 pub fn nika_compile_reader::text::banner_lines(body: &str) -> alloc::vec::Vec<&str>
 pub fn nika_compile_reader::text::banner_sentence(body: &str) -> core::option::Option<alloc::string::String>

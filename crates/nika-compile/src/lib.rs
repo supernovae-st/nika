@@ -79,6 +79,7 @@ mod laws;
 mod ledger;
 mod materialize;
 mod network;
+pub mod observation;
 mod observed;
 pub(crate) mod pattern;
 mod pending_transform;

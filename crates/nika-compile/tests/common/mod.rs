@@ -155,3 +155,47 @@ pub(crate) fn e14_world() -> Value {
         ("./sales.csv", &["client", "amount", "montant", "status"]),
     ])
 }
+
+/// The compute task's expression of a candidate, its number law folded (`short`): empty when
+/// the candidate has none.
+pub(crate) fn compute(candidate: &str) -> String {
+    let doc: Value = serde_yaml_bw::from_str(candidate).unwrap_or(Value::Null);
+    short(
+        doc["tasks"]["compute"]["invoke"]["args"]["expression"]
+            .as_str()
+            .unwrap_or_default(),
+    )
+}
+
+/// The number law's reads as the reader writes them (R4 A5), folded to `(key | num)` and its tests
+/// to `(key | isnum)`: a suite pins where a number is read, `nika-compile-reader` pins the law.
+pub(crate) fn short(jq: &str) -> String {
+    let law = format!(
+        "(type == \"number\" and (isinfinite or isnan | not)) or (type == \"string\" and test({}))",
+        json!(nika_compile_reader::text::NUMBER_TEXT)
+    );
+    let read = format!(" | if {law} then tonumber else error(");
+    let close = ", not a number\") end)";
+    let mut out = jq.to_owned();
+    while let Some(at) = out.find(&read) {
+        let start = out[..at].rfind('(').expect("a read opens");
+        let end = out[at..].find(close).expect("a read closes");
+        let key = out[start + 1..at].to_owned();
+        out = format!(
+            "{}({key} | num){}",
+            &out[..start],
+            &out[at + end + close.len()..]
+        );
+    }
+    let test = format!(" | {law})");
+    while let Some(at) = out.find(&test) {
+        let start = out[..at].rfind('(').expect("a test opens");
+        let key = out[start + 1..at].to_owned();
+        out = format!(
+            "{}({key} | isnum){}",
+            &out[..start],
+            &out[at + test.len()..]
+        );
+    }
+    out
+}

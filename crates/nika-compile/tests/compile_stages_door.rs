@@ -39,7 +39,7 @@ fn ready(intent: &str) -> Value {
 fn expression(doc: &Value) -> String {
     let jq = doc["tasks"]["compute"]["invoke"]["args"]["expression"].as_str();
     assert!(jq.is_some(), "no jq on `compute`: {doc:#}");
-    jq.unwrap_or_default().to_owned()
+    common::short(jq.unwrap_or_default())
 }
 
 fn writes(doc: &Value) -> Vec<String> {
@@ -110,7 +110,7 @@ fn a_spanish_filter_with_a_plural_write_head_compiles_at_the_door() {
         "Lee ./ventas.csv, conserva solo las filas cuyo importe supera 200 y escríbelas en ./grandes.csv",
     );
     let jq = expression(&doc);
-    assert!(jq.contains("(.importe | tonumber) > 200"), "{jq}");
+    assert!(jq.contains("(.importe | num) > 200"), "{jq}");
     assert_eq!(writes(&doc), ["./grandes.csv"]);
 }
 

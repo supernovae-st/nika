@@ -34,8 +34,9 @@ pub mod compile {
         CompilePreview, CompileProvenance, CompileQuestion, CompileRequest, CompileStatus,
         DiagnosticKind, Hit, HitKind, HotPolicy, KnowledgeReference, MaterializeError, NativeMode,
         PreviewScope, QuestionType, RepresentationError, Strategy, TriggerKind, TriggerRequirement,
-        TriggerStatus, compile, fold, intent_sha256, materialize_ready, outcome_document, retrieve,
-        retrieve_by_ops, revise_intent, stated_destinations, stated_sources, text,
+        TriggerStatus, compile, fold, intent_sha256, materialize_ready, observation,
+        outcome_document, retrieve, retrieve_by_ops, revise_intent, stated_destinations,
+        stated_sources, text,
     };
     pub use nika_compile_cognition::{
         Cognition, NoProvider, authority, compile_with_cognition, compile_with_provider, decide,

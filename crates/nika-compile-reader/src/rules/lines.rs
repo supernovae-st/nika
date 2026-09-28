@@ -309,6 +309,7 @@ pub fn line_filter(text: &str) -> Option<Rule> {
         shape: Shape::default(),
         lines: true,
         program: None,
+        numbers: super::numbers::Numbers::new(),
     })
 }
 
@@ -408,7 +409,10 @@ mod tests {
             Comparator::Contains.negated(),
             Operand::Text("x".into()),
         );
-        assert_eq!(negated.jq(), "((. | tostring | contains(\"x\")) | not)");
+        assert_eq!(
+            negated.jq(&crate::rules::numbers::Numbers::new()),
+            "((. | tostring | contains(\"x\")) | not)"
+        );
     }
 
     #[test]

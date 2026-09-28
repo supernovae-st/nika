@@ -94,7 +94,9 @@ fn exact_id_is_preserved_but_a_ticket_to_id_mapping_is_not_invented() {
         &mut BTreeSet::new(),
     )
     .unwrap();
-    assert_eq!(accepted.jq(), rule.jq());
+    // The exact key is kept; grounding states only its number policy (R4 A5).
+    let stated = rule.with_number_policy("id", crate::rules::NumberPolicy::Fail);
+    assert_eq!(Some(accepted), stated);
     assert!(out.questions.is_empty());
     let ambiguous = request("Read ./orders.json and find ticket 42");
     assert!(

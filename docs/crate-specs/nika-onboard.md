@@ -55,6 +55,12 @@ reasons, presented references and byte identities remain observable.
 existing callers. The existing L4 edge remains acyclic; no new crate or compiler
 is introduced. `nika-event` supplies the existing shared SHA-256 byte identity.
 
+`compile::observation` re-exports the pure observation law of the compile unit
+(R4 A5): a host peeks and reads, this law turns the head or the parsed records
+into columns, categorical values and the counted raw kinds the compiler grounds
+a rule's numbers in. The host observer (`nika-cli-host::compile::observe`) is
+its one I/O caller, for the CLI and the Session alike.
+
 ## The Meaning projection (read by Session)
 
 `compile::meaning` projects an outcome's obligation ledger

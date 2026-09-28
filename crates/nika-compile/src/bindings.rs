@@ -527,7 +527,11 @@ fn bind_computation(
                 }
                 _ => rule,
             };
-            return ranked(rule, request, out, recognized).map(RuleBinding::Synthesized);
+            // Every number the bound rule reads is read under one law, its policy stated (R4 A5).
+            let rule = ranked(rule, request, out, recognized)?;
+            return Some(RuleBinding::Synthesized(super::observed::numbered(
+                rule, out,
+            )));
         }
         recognized.insert("const.rule_expression".to_owned());
         let label = rule_label(plan, bindings, &step.detail);

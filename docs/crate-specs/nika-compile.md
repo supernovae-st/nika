@@ -107,6 +107,64 @@ recurrence and non-divisor intervals retain their words and yield null `cron`.
 This does not claim unrestricted natural-language cadence understanding or add
 another cron parser. `nika-cadence` alone validates/executes the bound expression.
 
+A period five cron fields cannot hold is no coarse label either (R4 A5 · C1):
+an alternating or counted day-or-longer period (« every other Monday », « every
+2 weeks », « un lundi sur deux », « tous les quinze jours », « biweekly »), a
+frequency (« twice a week », « deux fois par semaine ») or an hour/minute
+interval that does not divide its day or hour (« every 5 hours ») keeps a null
+`cadence` and a null `cron`, keeps its time of day, and asks the mandatory
+`trigger.cadence` question before READY. Only the human's explicit replacement
+cadence or « manual » resolves it; another unbindable period is refused as an
+answer and the question stays. Weekly, weekday, daily and dividing-interval
+schedules are unchanged. A clause the reader does not take as a trigger stays
+an unresolved clause, never READY.
+
+## Numbers a bound rule reads
+
+Every field a bound rule reads as a number (a numeric comparison, a sum, an average, a
+minimum, a maximum, a ranking's key) is read under the reader's one number law (R4 A5): the
+binding states its policy on the rule (`observed::numbered`), FAIL unless the request grounds
+another, and records each in the decision (`decision.numbers`: rule, field, policy, what
+bound it). A candidate therefore never parses a number with jq's lenient `tonumber` (which
+reads « 1,5 » as 1, « Infinity » as infinite and an empty text as nothing) nor ranks by jq's
+total order (null lowest, any text above every number): a value that is not a number stops
+the run with the field and the value named, before any write that depends on it. An average,
+a minimum or a maximum over no number stops the run too, never 0 or null, and under SKIP an
+average divides by the numbers it kept. The plan record keeps the reader's own reading, so
+plans recorded before replay unchanged; the decision's `rule` is the bound computation the
+candidate runs.
+
+Over one observed source the policy is grounded in the raw kinds the host counted
+(`world.kinds`, `observation.rs`, R4 A5): a numeric field whose sampled values include
+anything that is not a number (null, missing, true/false, text, empty, a list, an object)
+asks a mandatory closed choice before READY (`const.rule_number_<n>`: `skip` or `fail`),
+naming how many sampled records hold what; a field observed as numbers only (a JSON
+number, a decimal text, zero) asks nothing and reads under FAIL, so a value the bounded
+sample did not show stops the run by name. The answer binds the source's revision: a
+changed row or changed kinds (a type-only change included) asks it again. That question
+also answers what S1's partial-presence obligation would ask for a missing numeric key, so
+it is never asked twice. A plain sort over a key observed as numbers only reads the law;
+over any other key it keeps its legacy reading. `decision.numbers` records per field the
+source, revision, sampled count, kinds, policy and what bound it (`answer`, `pending`,
+`observed numbers`, `unobserved`). A recorded plan is grounded again on every replay:
+over observed non-numbers it is asked, never READY without a stated policy. A verified
+seat program (a pending transform's) keeps its own bytes and reads no policy.
+
+## Canonical spellings of a stated text
+
+Text is compared byte-exact everywhere (jq equality, the candidate, an answer). A text
+equality over one observed source is grounded by the bounded canonical-spelling expansion
+(`observed/spellings.rs`, R4 A5): where the observed categorical values of the compared field
+hold a spelling that differs from the stated literal only by Unicode canonical equivalence
+(NFC, « livré » typed precomposed against a file's e + U+0301), the equality also matches
+exactly that observed spelling (`Rule::with_spellings`), and the decision records the law, the
+field, the literal, the spellings, the source and its revision (`decision.spellings`). Nothing
+is normalized at run and jq equality is unchanged: no case folding, no compatibility (NFKC)
+folding, no accent stripping. A spelling the bounded sample did not show, or a field the
+observer did not find categorical, stays byte-exact and is not claimed matched. The expansion
+lives in the binding, never in the plan record: a recorded plan replays with the same bytes and
+is expanded again from its fresh observation; a record that carries spellings is refused.
+
 ## Observed fields and pending transformations
 
 Source observation distinguishes absent, unreadable, empty, unknown and observed

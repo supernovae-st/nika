@@ -4,7 +4,8 @@
 
 use serde_json::{Value, json};
 
-use super::rules::key;
+use super::rules::numbers::{Numbers, number, numbered};
+use super::rules::{NumberPolicy, key};
 
 /// An aggregate over a group or over every row: sum, count, average, minimum, maximum.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -68,19 +69,50 @@ impl Aggregation {
             round,
         }
     }
-    pub(crate) fn jq(&self) -> String {
-        let values = self
+    pub(crate) fn jq(&self, numbers: &Numbers) -> String {
+        let values = self.field.as_deref().map(|f| {
+            let k = key(f);
+            let Some(policy) = numbers.get(f) else {
+                return format!("map({k} | tonumber)");
+            };
+            if *policy == NumberPolicy::Skip {
+                let what = format!("its {} cannot be stated", self.name);
+                let none = matches!(self.op, AggOp::Avg | AggOp::Min | AggOp::Max);
+                format!(
+                    "({} | map({}))",
+                    numbered(&k, f, &what, none),
+                    number(&k, f)
+                )
+            } else {
+                format!("map({})", number(&k, f))
+            }
+        });
+        // Under a stated policy an average, minimum or maximum of no number is no value: the run
+        // stops, from an empty input too, and an average divides by the numbers it kept (R4 A5).
+        let empty = self
             .field
             .as_deref()
-            .map(|f| format!("map({} | tonumber)", key(f)));
-        let core = match (self.op, values) {
-            (AggOp::Sum, Some(v)) => format!("({v} | add // 0)"),
-            (AggOp::Avg, Some(v)) => {
+            .filter(|f| numbers.contains_key(*f))
+            .map(|f| {
+                json!(format!(
+                    "no `{f}` is a number: its {} cannot be stated",
+                    self.name
+                ))
+            });
+        let or_stop = |v: &str, why: &Value, op: &str| {
+            format!("({v} | if length == 0 then error({why}) else {op} end)")
+        };
+        let core = match (self.op, values, empty) {
+            (AggOp::Sum, Some(v), _) => format!("({v} | add // 0)"),
+            (AggOp::Avg, Some(v), Some(why)) => or_stop(&v, &why, "add / length"),
+            (AggOp::Min, Some(v), Some(why)) => or_stop(&v, &why, "min"),
+            (AggOp::Max, Some(v), Some(why)) => or_stop(&v, &why, "max"),
+            (AggOp::Avg, Some(v), None) => {
                 format!("(if length == 0 then 0 else (({v} | add) / length) end)")
             }
-            (AggOp::Min, Some(v)) => format!("({v} | min)"),
-            (AggOp::Max, Some(v)) => format!("({v} | max)"),
-            (AggOp::Count, _) | (_, None) => "length".to_owned(),
+            (AggOp::Min, Some(v), None) => format!("({v} | min)"),
+            (AggOp::Max, Some(v), None) => format!("({v} | max)"),
+            (AggOp::Count, _, _) | (_, None, _) => "length".to_owned(),
         };
         match self.round {
             Some(n) => {
@@ -454,10 +486,12 @@ impl Shape {
     }
     /// The stages after the filter, lowered in a fixed order onto the filtered rows: the
     /// grouping with its aggregates or the totals, then the sort, then the first N rows,
-    /// then the projection, then the removal of duplicates. A sort on a source column
-    /// compares numbers when the text holds one (a CSV cell is text, `"900" < "1000"` only
-    /// as numbers) and the text itself otherwise; a produced name is already typed.
-    pub(crate) fn lower(&self, filtered: String) -> String {
+    /// then the projection, then the removal of duplicates. A sort on a source column whose
+    /// policy the compiler stated reads its key under the number law (R4 A5), never jq's total
+    /// order; without one it compares numbers when the text holds one (a CSV cell is text,
+    /// `"900" < "1000"` only as numbers) and the text itself otherwise, as a recorded plan
+    /// always read it; a produced name is already typed.
+    pub(crate) fn lower(&self, filtered: String, numbers: &Numbers) -> String {
         let mut jq = filtered;
         if !self.distinct_by.is_empty() {
             jq = format!("{jq} | {}", distinct_by(&self.distinct_by));
@@ -465,7 +499,7 @@ impl Shape {
         let entries = |aggregations: &[Aggregation]| {
             aggregations
                 .iter()
-                .map(|a| format!("{}: {}", json!(a.name), a.jq()))
+                .map(|a| format!("{}: {}", json!(a.name), a.jq(numbers)))
                 .collect::<Vec<_>>()
                 .join(", ")
         };
@@ -497,8 +531,15 @@ impl Shape {
             };
         }
         if let Some((field, descending)) = &self.sort_by {
+            let policy = numbers.get(field).copied();
             let by = if self.produced().contains(&field.as_str()) {
                 key(field)
+            } else if policy.is_some() {
+                if policy == Some(NumberPolicy::Skip) {
+                    let kept = numbered(&key(field), field, "no row can be ranked", false);
+                    jq = format!("{jq} | {kept}");
+                }
+                number(&key(field), field)
             } else {
                 format!("{} | tonumber? // .", key(field))
             };
@@ -936,7 +977,10 @@ mod tests {
             distinct_by: vec!["titre".to_owned(), "artiste".to_owned()],
             ..Default::default()
         };
-        let jq = shape.lower("[.records[]]".to_owned());
+        let jq = shape.lower(
+            "[.records[]]".to_owned(),
+            &crate::rules::numbers::Numbers::new(),
+        );
         assert_eq!(
             jq,
             "[.records[]] | reduce .[] as $r ([]; if any(.[]; .titre == ($r | .titre) and .artiste == ($r | .artiste)) then . else . + [$r] end)"
@@ -944,7 +988,10 @@ mod tests {
         // Before the sort and the limit: a top-N after a dedup is well defined.
         shape.sort_by = Some(("heure".to_owned(), false));
         shape.limit = Some(2);
-        let jq = shape.lower("[.records[]]".to_owned());
+        let jq = shape.lower(
+            "[.records[]]".to_owned(),
+            &crate::rules::numbers::Numbers::new(),
+        );
         assert!(
             jq.find("reduce").unwrap() < jq.find("sort_by").unwrap(),
             "{jq}"
@@ -965,7 +1012,8 @@ mod tests {
 
     #[test]
     fn a_stated_aggregate_lowers_to_one_object_of_totals() {
-        let total = stated("the total of the amount column", &[]).map(|a| a.jq());
+        let total = stated("the total of the amount column", &[])
+            .map(|a| a.jq(&crate::rules::numbers::Numbers::new()));
         assert_eq!(
             total.as_deref(),
             Some("(map(.amount | tonumber) | add // 0)")
@@ -979,7 +1027,10 @@ mod tests {
         assert!(shape.is_totals());
         assert_eq!(shape.totals_names(), ["average"]);
         assert_eq!(
-            shape.lower(".records".to_owned()),
+            shape.lower(
+                ".records".to_owned(),
+                &crate::rules::numbers::Numbers::new()
+            ),
             ".records | {\"average\": (if length == 0 then 0 else ((map(.amount | tonumber) | add) / length) end)}"
         );
     }

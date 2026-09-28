@@ -507,56 +507,13 @@ pub(crate) fn mask_columns(lower: &str, columns: &[String]) -> String {
 /// Words that name a fold of pieces produced earlier ("the combined brief", "le résumé
 /// fusionné", "il riassunto unito"), diacritics folded: such an object refers back to the
 /// pieces a step produced, never to new content.
-const FOLD_WORDS: &[&str] = &[
-    "combined",
-    "merged",
-    "consolidated",
-    "assembled",
-    "concatenated",
-    "collated",
-    "aggregated",
-    "combine",
-    "combinee",
-    "combines",
-    "combinees",
-    "fusionne",
-    "fusionnee",
-    "fusionnes",
-    "fusionnees",
-    "regroupe",
-    "regroupee",
-    "regroupes",
-    "regroupees",
-    "consolide",
-    "consolidee",
-    "consolides",
-    "consolidees",
-    "combinado",
-    "combinada",
-    "combinados",
-    "combinadas",
-    "fusionado",
-    "fusionada",
-    "combinato",
-    "combinata",
-    "combinati",
-    "combinate",
-    "unito",
-    "unita",
-    "uniti",
-    "kombiniert",
-    "kombinierte",
-    "kombinierten",
-    "zusammengefuhrt",
-    "zusammengefuhrte",
-    "zusammengefasst",
-];
+const FOLD_WORDS: &str = include_str!("../assets/object_fold_words.txt");
 
 /// Whether an object names a fold of pieces ("the combined brief").
 pub(crate) fn folds(object_lower: &str) -> bool {
     super::rule_tokens::fold(object_lower)
         .split(|c: char| !c.is_alphanumeric() && c != '-')
-        .any(|w| FOLD_WORDS.contains(&w))
+        .any(|w| FOLD_WORDS.lines().any(|f| f == w))
 }
 
 /// Words that name the result of a classification ("the category", "la catégorie", "the
@@ -610,61 +567,7 @@ const OBJECT_DETERMINERS: &[&str] = &[
 ];
 
 /// Pronouns and generic result words: an object led or headed by one refers back.
-const BACK_REFERENCES: &[&str] = &[
-    "it",
-    "them",
-    "ones",
-    "this",
-    "that",
-    "these",
-    "those",
-    "le",
-    "la",
-    "les",
-    "ça",
-    "cela",
-    "ceci",
-    "everything",
-    "tout",
-    "result",
-    "results",
-    "résultat",
-    "résultats",
-    "output",
-    "sortie",
-    "outcome",
-    "content",
-    "contenu",
-    "file",
-    "fichier",
-    "files",
-    "fichiers",
-    "text",
-    "texte",
-    "document",
-    "documents",
-    "lo",
-    "li",
-    "ciò",
-    "questo",
-    "risultato",
-    "risultati",
-    "contenuto",
-    "testo",
-    "documento",
-    "documenti",
-    "esto",
-    "eso",
-    "resultado",
-    "resultados",
-    "contenido",
-    "archivo",
-    "archivos",
-    "fichero",
-    "ficheros",
-    "texto",
-    "documentos",
-];
+const BACK_REFERENCES: &str = include_str!("../assets/object_back_references.txt");
 
 /// The preposition after which an object's head noun ends (`the count of the tickets`).
 const OF_WORDS: &[&str] = &[
@@ -749,7 +652,7 @@ pub(crate) fn refers_back<'a>(object_lower: &str, earlier: impl Iterator<Item = 
         .unwrap_or(first);
     // A pro-form as the head ("the unique ones", "the open ones") stands for the rows an
     // earlier step produced, whatever adjective leads it.
-    if BACK_REFERENCES.contains(first) || BACK_REFERENCES.contains(&head) {
+    if BACK_REFERENCES.lines().any(|b| b == *first || b == head) {
         return true;
     }
     let head = singular(head);

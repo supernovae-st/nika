@@ -29,6 +29,7 @@ miette = { workspace = true }
 nika-error = { path = "../nika-error", version = "0.121.0" } # compiler machinery failures retain the canonical error voice
 nika-vocab = { path = "../nika-vocab", version = "0.121.0" } # the project grammar's own spellings (`manqué:`) for a schedule's binding questions
 tempfile = { workspace = true } # exclusive dest create + atomic overwrite persist
+unicode-normalization = { workspace = true, default-features = false } # the bounded canonical-spelling expansion of a text equality compares observed spellings under Unicode canonical equivalence (NFC), never at run (R4 A5 · C2)
 
 [dev-dependencies]
 nika-kernel = { path = "../nika-kernel", version = "0.121.0" } # hermetic provider doubles

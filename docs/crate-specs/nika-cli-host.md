@@ -240,6 +240,16 @@ The shared knowledge implementation lives in `nika-onboard::knowledge`, beside
 the authoring facade. `compile::knowledge` remains a compatibility re-export;
 CLI flags, host observation, admission and decision-seat adapters stay here.
 
+`compile::observe` keeps the observation's I/O: resolving a stated path under
+the project root and refusing a link out of it, the bounded peek, the whole
+read of a small JSON file. Its pure half (a CSV header's columns and delimiter,
+the records' keys, the short categorical values, the raw kind of every sampled
+value) is the compile unit's law, `nika_onboard::compile::observation` (R4 A5),
+so the CLI and the Session, which share this observer, share one law. The world
+carries the kinds beside the rows (`kinds`, keyed by path: counts only, never a
+value); a row keeps exactly the bytes it had, so a plan or a verified transform
+bound to a recorded row stays bound to it.
+
 `compile::typesafe::session` carries the bounded operator-selected decision
 adapter and its observation journal beside the one TypeSafe transport. Session
 still decides whether its current monetary account admits a call and persists

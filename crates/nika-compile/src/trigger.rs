@@ -9,6 +9,7 @@
 //! is an event the operator binds, never a guessed cron. A recurrence stated without its
 //! cadence (« régulièrement », « from time to time ») is a schedule whose cadence is asked.
 
+mod multiple;
 mod schedule;
 
 use super::plan::Plan;
@@ -28,10 +29,14 @@ pub(super) fn requirement(plan: &Plan, item: bool) -> Option<TriggerRequirement>
     let folded = hot::fold(phrase);
     let words = phrase_words(&folded);
     let (cadence, at) = stated_cadence(&words);
+    // A period five cron fields cannot hold (« every other monday ») keeps no coarse label: it
+    // is a schedule whose cadence is asked (`bind_cadence`), never recorded as `weekly` (C1).
+    let multiple = multiple::unbindable(&words);
+    let cadence = cadence.filter(|_| !multiple);
     // A recurrence without its cadence (« régulièrement ») is a schedule; its cadence is asked
     // (`bind_cadence`). Under an event head (« quand … régulièrement ») it stays the event.
     let recurrent = recurrence(phrase).is_some() && classify(phrase) == TriggerForm::Schedule;
-    let kind = if cadence.is_some() || at.is_some() || recurrent {
+    let kind = if cadence.is_some() || at.is_some() || recurrent || multiple {
         TriggerKind::Schedule
     } else if words.iter().any(|w| WEBHOOK.contains(w)) {
         TriggerKind::Webhook
@@ -118,11 +123,12 @@ pub(super) fn bind_schedule(
 }
 
 /// `trigger.cadence`: the request wants its work repeated and never says when
-/// (« régulièrement », « from time to time »). A guessed cadence would invent the deployment,
+/// (« régulièrement », « from time to time »), or states a period a schedule cannot bind
+/// (« every other monday »: C1). A guessed or narrowed cadence would invent the deployment,
 /// so the cadence is a mandatory question: the answer is read with the words a request states
 /// a cadence with (« chaque lundi à 9h », « every day at 18:00 »), or `manual` says each run
-/// starts by hand and nothing is bound. An answer that states neither is a finding and the
-/// question stays.
+/// starts by hand and nothing is bound. An answer that states neither, or another unbindable
+/// period, is a finding and the question stays.
 fn bind_cadence(
     trigger: &mut TriggerRequirement,
     request: &super::CompileRequest,
@@ -131,7 +137,9 @@ fn bind_cadence(
 ) {
     use super::types::{DiagnosticKind, QuestionType};
     const KEY: &str = "trigger.cadence";
-    if trigger.cadence.is_some() || trigger.at.is_some() {
+    let hint = trigger.source_hint.clone().unwrap_or_default();
+    let unbound = multiple::unbindable(&phrase_words(&hot::fold(&hint)));
+    if (trigger.cadence.is_some() || trigger.at.is_some()) && !unbound {
         return;
     }
     recognized.insert(KEY.to_owned());
@@ -139,22 +147,28 @@ fn bind_cadence(
         Some(serde_json::Value::String(answer)) => {
             let folded = hot::fold(&answer);
             let words = phrase_words(&folded);
-            if MANUAL.contains(&words.join(" ").as_str()) {
+            let (cadence, at) = stated_cadence(&words);
+            let said = answer.trim();
+            if multiple::unbindable(&words) {
+                super::finding(
+                    out,
+                    DiagnosticKind::Missed,
+                    KEY,
+                    format!(
+                        "« {said} » is a period a schedule cannot bind either: answer a day, a weekday, a named weekday at a time or an hour or minute interval, or \"manual\"."
+                    ),
+                );
+            } else if MANUAL.contains(&words.join(" ").as_str()) {
                 trigger.kind = TriggerKind::Manual;
                 trigger.status = TriggerStatus::Satisfied;
                 super::finding(
                     out,
                     DiagnosticKind::Applied,
                     KEY,
-                    format!(
-                        "« {} »: each run starts by hand, no cadence is bound.",
-                        answer.trim()
-                    ),
+                    format!("« {said} »: each run starts by hand, no cadence is bound."),
                 );
                 return;
-            }
-            let (cadence, at) = stated_cadence(&words);
-            if cadence.is_some() || at.is_some() {
+            } else if cadence.is_some() || at.is_some() {
                 trigger.cadence = cadence.map(str::to_owned);
                 trigger.at = at;
                 trigger.cron = schedule::fields(&answer);
@@ -163,21 +177,20 @@ fn bind_cadence(
                     DiagnosticKind::Applied,
                     KEY,
                     format!(
-                        "« {} » is the cadence: recorded on requested_trigger, never in the workflow bytes.",
-                        answer.trim()
+                        "« {said} » is the cadence: recorded on requested_trigger, never in the workflow bytes."
                     ),
                 );
                 return;
+            } else {
+                super::finding(
+                    out,
+                    DiagnosticKind::Missed,
+                    KEY,
+                    format!(
+                        "« {said} » states no cadence: answer a period and, if wanted, a time (« chaque lundi à 9h », « every day at 18:00 »), or \"manual\"."
+                    ),
+                );
             }
-            super::finding(
-                out,
-                DiagnosticKind::Missed,
-                KEY,
-                format!(
-                    "« {} » states no cadence: answer a period and, if wanted, a time (« chaque lundi à 9h », « every day at 18:00 »), or \"manual\".",
-                    answer.trim()
-                ),
-            );
         }
         Some(_) => super::finding(
             out,
@@ -187,15 +200,16 @@ fn bind_cadence(
         ),
         None => {}
     }
-    let hint = trigger.source_hint.clone().unwrap_or_default();
-    super::question(
-        out,
-        KEY,
-        &format!(
+    let question = if unbound {
+        format!(
+            "The request says `{hint}`, a period a schedule cannot bind: it binds a day, a weekday, a named weekday at a time, or an hour or minute interval, never every other week or a count of days. How should it run? Answer a cadence it binds (« every Monday at 09:00 », « chaque lundi à 9h »), or \"manual\" to start each run by hand."
+        )
+    } else {
+        format!(
             "The request says `{hint}` without saying when: how often should it run? A period and, if wanted, a time (« chaque lundi à 9h », « every day at 18:00 »), or \"manual\" to start each run by hand."
-        ),
-        QuestionType::Text,
-    );
+        )
+    };
+    super::question(out, KEY, &question, QuestionType::Text);
 }
 
 /// The answer a request carries for one key, decoded as a JSON literal (or nothing).

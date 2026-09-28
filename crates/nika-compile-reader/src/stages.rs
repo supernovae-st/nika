@@ -918,7 +918,12 @@ mod tests {
     }
 
     fn lowered(text: &str) -> Option<String> {
-        stated(text, &[]).map(|s| s.lower(".records".to_owned()))
+        stated(text, &[]).map(|s| {
+            s.lower(
+                ".records".to_owned(),
+                &crate::rules::numbers::Numbers::new(),
+            )
+        })
     }
 
     #[test]
@@ -1049,7 +1054,10 @@ mod tests {
                 "top five issues by rating, highest first, same columns",
                 &[]
             )
-            .map(|s| s.lower(".records".to_owned())),
+            .map(|s| s.lower(
+                ".records".to_owned(),
+                &crate::rules::numbers::Numbers::new()
+            )),
             Some(".records | sort_by(.rating | tonumber? // .) | reverse | .[:5]".to_owned())
         );
         assert_eq!(
@@ -1206,7 +1214,10 @@ mod tests {
         assert_eq!(both.group_by.as_deref(), Some("client"));
         assert_eq!(both.limit, Some(2));
         assert_eq!(
-            both.lower(".records".to_owned()),
+            both.lower(
+                ".records".to_owned(),
+                &crate::rules::numbers::Numbers::new()
+            ),
             ".records | group_by(.client) | map({\"client\": (.[0] | .client), \"count\": length}) | sort_by(.count) | reverse | .[:2]",
             "a sort on a produced name compares the number it already is"
         );

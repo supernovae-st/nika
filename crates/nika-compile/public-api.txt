@@ -3,6 +3,53 @@ pub use nika_compile::fold
 pub use nika_compile::stated_destinations
 pub use nika_compile::stated_sources
 pub use nika_compile::text
+pub mod nika_compile::observation
+#[non_exhaustive] pub struct nika_compile::observation::Sample
+pub nika_compile::observation::Sample::columns: alloc::vec::Vec<alloc::string::String>
+pub nika_compile::observation::Sample::common: core::option::Option<alloc::vec::Vec<alloc::string::String>>
+pub nika_compile::observation::Sample::delimiter: core::option::Option<char>
+pub nika_compile::observation::Sample::kinds: serde_json::value::Value
+pub nika_compile::observation::Sample::values: alloc::vec::Vec<(alloc::string::String, serde_json::value::Value)>
+impl core::clone::Clone for nika_compile::observation::Sample
+pub fn nika_compile::observation::Sample::clone(&self) -> nika_compile::observation::Sample
+impl core::cmp::PartialEq for nika_compile::observation::Sample
+pub fn nika_compile::observation::Sample::eq(&self, other: &nika_compile::observation::Sample) -> bool
+impl core::fmt::Debug for nika_compile::observation::Sample
+pub fn nika_compile::observation::Sample::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile::observation::Sample
+impl<D> owo_colors::OwoColorize for nika_compile::observation::Sample
+impl<T, U> core::convert::Into<U> for nika_compile::observation::Sample where U: core::convert::From<T>
+pub fn nika_compile::observation::Sample::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile::observation::Sample where U: core::convert::Into<T>
+pub type nika_compile::observation::Sample::Error = core::convert::Infallible
+pub fn nika_compile::observation::Sample::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile::observation::Sample where U: core::convert::TryFrom<T>
+pub type nika_compile::observation::Sample::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile::observation::Sample::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile::observation::Sample where T: core::clone::Clone
+pub type nika_compile::observation::Sample::Owned = T
+pub fn nika_compile::observation::Sample::clone_into(&self, target: &mut T)
+pub fn nika_compile::observation::Sample::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile::observation::Sample where T: 'static + ?core::marker::Sized
+pub fn nika_compile::observation::Sample::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile::observation::Sample where T: ?core::marker::Sized
+pub fn nika_compile::observation::Sample::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile::observation::Sample where T: ?core::marker::Sized
+pub fn nika_compile::observation::Sample::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile::observation::Sample where T: core::clone::Clone
+pub unsafe fn nika_compile::observation::Sample::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile::observation::Sample
+pub fn nika_compile::observation::Sample::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile::observation::Sample where T: core::clone::Clone
+pub fn nika_compile::observation::Sample::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile::observation::Sample where T: 'static
+pub fn nika_compile::observation::Sample::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile::observation::Sample
+pub type nika_compile::observation::Sample::Output = T
+pub fn nika_compile::observation::csv(head: &str, tsv: bool) -> nika_compile::observation::Sample
+pub fn nika_compile::observation::jsonl(head: &str) -> alloc::vec::Vec<serde_json::value::Value>
+pub fn nika_compile::observation::number_text(text: &str) -> bool
+pub fn nika_compile::observation::records(rows: &[serde_json::value::Value]) -> nika_compile::observation::Sample
 pub mod nika_compile::surface
 pub mod nika_compile::surface::assemble
 pub fn nika_compile::surface::assemble::assemble(plan: &nika_compile_reader::plan::Plan, intent: &str, request: &nika_compile::CompileRequest, out: &mut nika_compile::CompileOutcome) -> core::result::Result<(), nika_compile::CompileError>

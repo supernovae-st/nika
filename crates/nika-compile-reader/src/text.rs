@@ -230,6 +230,12 @@ pub fn exact_excerpt(intent: &str, evidence: &str) -> Option<String> {
     intent.get(start..end).map(str::to_owned)
 }
 
+/// The number-text law (R4 A5): the one decimal a record may state as text, blanks around
+/// allowed: an optional minus, `0` or digits without a leading zero, an optional fraction. No
+/// plus sign, exponent, comma, `Infinity`, `NaN` or empty text. The jq the compiler writes
+/// tests this pattern before it parses; the observer's mirror counts values with it.
+pub const NUMBER_TEXT: &str = r"^[ \t]*-?(0|[1-9][0-9]*)([.][0-9]+)?[ \t]*$";
+
 #[cfg(test)]
 mod tests {
     use super::quoted_literal;

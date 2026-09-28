@@ -45,14 +45,15 @@ fn keys(out: &CompileOutcome) -> Vec<&str> {
 fn expression(doc: &Value, task: &str) -> String {
     let jq = doc["tasks"][task]["invoke"]["args"]["expression"].as_str();
     assert!(jq.is_some(), "no jq on `{task}`: {doc:#}");
-    jq.unwrap_or_default().to_owned()
+    common::short(jq.unwrap_or_default())
 }
 
 fn rule_jq(out: &CompileOutcome) -> String {
-    out.provenance.decision.as_ref().unwrap()["rule"]["jq"]
-        .as_str()
-        .unwrap()
-        .to_owned()
+    common::short(
+        out.provenance.decision.as_ref().unwrap()["rule"]["jq"]
+            .as_str()
+            .unwrap(),
+    )
 }
 
 #[test]
@@ -86,7 +87,7 @@ fn a_stated_aggregate_over_a_csv_column_is_the_code_the_workflow_runs() {
     let (out, doc) = ready(intent);
     assert_eq!(
         expression(&doc, "compute"),
-        ".records | {\"total\": (map(.amount | tonumber) | add // 0)}"
+        ".records | {\"total\": (map((.amount | num)) | add // 0)}"
     );
     assert_eq!(rule_jq(&out), expression(&doc, "compute"));
     assert_eq!(
@@ -107,7 +108,7 @@ fn a_stated_aggregate_over_a_csv_column_is_the_code_the_workflow_runs() {
     let (_, doc) = ready(intent);
     assert_eq!(
         expression(&doc, "compute"),
-        ".records | {\"average\": (if length == 0 then 0 else ((map(.amount | tonumber) | add) / length) end)}"
+        ".records | {\"average\": (map((.amount | num)) | if length == 0 then error(\"no `amount` is a number: its average cannot be stated\") else add / length end)}"
     );
     assert_eq!(
         doc["tasks"]["write_output"]["with"]["content"],
@@ -121,7 +122,7 @@ fn a_french_restriction_is_a_filter_and_a_csv_write_keeps_the_header_order() {
     let (_, doc) = ready(intent);
     assert_eq!(
         expression(&doc, "compute"),
-        "[.records[] | select((.amount | tonumber) > 200)]"
+        "[.records[] | select((.amount | num) > 200)]"
     );
     // CSV in, CSV out: the source's own header order feeds the conversion stage.
     assert!(doc["tasks"].get("source_columns").is_some(), "{doc:#}");
@@ -145,7 +146,7 @@ fn a_filter_and_a_total_in_one_request_run_as_one_computation() {
     let (_, doc) = ready(intent);
     assert_eq!(
         expression(&doc, "compute"),
-        "[.records[] | select(.client == \"acme\")] | {\"total\": (map(.amount | tonumber) | add // 0)}"
+        "[.records[] | select(.client == \"acme\")] | {\"total\": (map((.amount | num)) | add // 0)}"
     );
     assert_eq!(
         doc["tasks"]["write_output"]["with"]["content"],
@@ -201,7 +202,7 @@ fn a_stated_top_n_and_a_stated_sort_run_as_code_and_write_csv_in_header_order() 
     let (out, doc) = ready(intent);
     assert_eq!(
         expression(&doc, "compute"),
-        ".records | sort_by(.amount | tonumber? // .) | reverse | .[:2]"
+        ".records | sort_by((.amount | num)) | reverse | .[:2]"
     );
     assert_eq!(rule_jq(&out), expression(&doc, "compute"));
     assert_eq!(
@@ -218,7 +219,7 @@ fn a_stated_top_n_and_a_stated_sort_run_as_code_and_write_csv_in_header_order() 
     );
     assert_eq!(
         expression(&doc, "compute"),
-        ".records | sort_by(.montant | tonumber? // .) | reverse | .[:2]"
+        ".records | sort_by((.montant | num)) | reverse | .[:2]"
     );
     // A sort, then a write whose whole object is the path: the write carries the sorted rows.
     let intent = "Read ./sales.csv, sort the rows by amount descending and write ./sorted.csv";

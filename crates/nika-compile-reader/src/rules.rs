@@ -25,8 +25,10 @@ use super::rule_cues::{
 
 mod fields;
 mod lines;
+pub(crate) mod numbers;
 mod record;
 pub use lines::{by_construction_tail, line_filter};
+pub use numbers::NumberPolicy;
 
 /// Whether a constraint only says the rows keep their order (« garde l'ordre », « keep the
 /// order », « en el mismo orden »): a computation that does not sort keeps the source order
@@ -263,6 +265,9 @@ pub struct Clause {
     pub field: String,
     pub comparator: Comparator,
     pub value: Operand,
+    /// Other exact spellings a text equality also matches: the bounded canonical-spelling
+    /// expansion the compiler grounds in observed values (R4 A5), never read from words.
+    spellings: Vec<String>,
 }
 
 impl Clause {
@@ -273,6 +278,7 @@ impl Clause {
             field: field.into(),
             comparator,
             value,
+            spellings: Vec::new(),
         }
     }
 }
@@ -312,6 +318,8 @@ pub struct Rule {
     /// the compiler on the seat's own example before it was bound: it runs verbatim over
     /// `.records`, and the columns it declares are the guard's fields.
     program: Option<Program>,
+    /// The number policies the compiler stated from what it observed (R4 A5), by field.
+    numbers: numbers::Numbers,
 }
 
 /// A verified program and the columns it reads.
@@ -341,8 +349,15 @@ pub(crate) fn key(field: &str) -> String {
 }
 
 impl Clause {
-    fn jq(&self) -> String {
+    fn jq(&self, numbers: &numbers::Numbers) -> String {
         let field = key(&self.field);
+        let skip = |name: &str| numbers.get(name) == Some(&NumberPolicy::Skip);
+        // A field with no stated policy reads as a recorded plan always read it (R4 A5).
+        let law = |k: &str, name: &str| match numbers.get(name) {
+            Some(_) => numbers::number(k, name),
+            None => format!("({k} | tonumber)"),
+        };
+        let read = law(&field, &self.field);
         if let Operand::Slot(slug) = &self.value {
             let slot = format!("$in.slots.{slug}");
             if let Some((function, negated)) = self.comparator.textual() {
@@ -354,10 +369,8 @@ impl Clause {
                 };
             }
             return if self.comparator.numeric() {
-                format!(
-                    "({field} | tonumber) {} ({slot} | tonumber)",
-                    self.comparator.symbol()
-                )
+                let test = format!("{read} {} ({slot} | tonumber)", self.comparator.symbol());
+                numbers::guarded(skip(&self.field), &field, test)
             } else {
                 format!(
                     "({field} | tostring) {} ({slot} | tostring)",
@@ -381,25 +394,42 @@ impl Clause {
         }
         match (&self.value, self.comparator.numeric()) {
             (Operand::Number(n), _) => {
-                format!("({field} | tonumber) {} {n}", self.comparator.symbol())
+                let test = format!("{read} {} {n}", self.comparator.symbol());
+                numbers::guarded(skip(&self.field), &field, test)
             }
-            (Operand::Column(other), true) => format!(
-                "({field} | tonumber) {} ({} | tonumber)",
-                self.comparator.symbol(),
-                key(other)
-            ),
+            (Operand::Column(other), true) => {
+                let right = key(other);
+                let test = format!("{read} {} {}", self.comparator.symbol(), law(&right, other));
+                let test = numbers::guarded(skip(other), &right, test);
+                numbers::guarded(skip(&self.field), &field, test)
+            }
             (Operand::Column(other), false) => {
                 format!("{field} {} {}", self.comparator.symbol(), key(other))
+            }
+            (Operand::Text(text), _) if !self.spellings.is_empty() => {
+                let join = if self.comparator == Comparator::Ne {
+                    " and "
+                } else {
+                    " or "
+                };
+                let arms: Vec<String> = std::iter::once(text)
+                    .chain(&self.spellings)
+                    .map(|s| format!("{field} {} {}", self.comparator.symbol(), json!(s)))
+                    .collect();
+                format!("({})", arms.join(join))
             }
             (Operand::Text(text), _) => {
                 format!("{field} {} {}", self.comparator.symbol(), json!(text))
             }
             // A JSON file holds the boolean, a CSV its spelling: both are the same truth.
             // A slot is rendered before this match; the arm keeps it exhaustive.
-            (Operand::Slot(slug), true) => format!(
-                "({field} | tonumber) {} ($in.slots.{slug} | tonumber)",
-                self.comparator.symbol()
-            ),
+            (Operand::Slot(slug), true) => {
+                let test = format!(
+                    "{read} {} ($in.slots.{slug} | tonumber)",
+                    self.comparator.symbol()
+                );
+                numbers::guarded(skip(&self.field), &field, test)
+            }
             (Operand::Slot(slug), false) => format!(
                 "({field} | tostring) {} ($in.slots.{slug} | tostring)",
                 self.comparator.symbol()
@@ -419,9 +449,17 @@ impl Clause {
             Operand::Column(c) => (c.clone(), "column"),
             Operand::Slot(s) => (s.clone(), "slot"),
         };
-        json!({"field": self.field, "comparator": self.comparator.symbol(), "value": value, "value_kind": kind})
+        let mut record = json!({"field": self.field, "comparator": self.comparator.symbol(), "value": value, "value_kind": kind});
+        if !self.spellings.is_empty() {
+            record["spellings"] = json!(self.spellings);
+        }
+        record
     }
     fn from_json(value: &Value) -> Option<Self> {
+        // Spellings are grounded again from what is observed on every compile, never replayed.
+        if value.get("spellings").is_some() {
+            return None;
+        }
         let field = value.get("field")?.as_str()?.trim().to_owned();
         let comparator = Comparator::from_word(value.get("comparator")?.as_str()?)?;
         let literal = value.get("value")?.as_str()?.to_owned();
@@ -442,6 +480,7 @@ impl Clause {
             field,
             comparator,
             value: operand,
+            spellings: Vec::new(),
         })
     }
 }
@@ -459,6 +498,7 @@ impl Rule {
             shape,
             lines: false,
             program: None,
+            numbers: numbers::Numbers::new(),
         }
     }
     /// A rule whose computation is a verified program the seat wrote: no typed stage, the
@@ -476,6 +516,7 @@ impl Rule {
                 jq: jq.to_owned(),
                 columns,
             }),
+            numbers: numbers::Numbers::new(),
         }
     }
     /// The verified program the rule carries, when a seat wrote it.
@@ -565,6 +606,10 @@ impl Rule {
     }
     /// The inverse of [`Rule::to_json`], for a recorded plan replayed on an answer round.
     pub(crate) fn from_json(value: &Value) -> Option<Self> {
+        // Number policies are grounded again from the answers on every compile, never replayed.
+        if value.get("numbers").is_some() {
+            return None;
+        }
         let text = value.get("text")?.as_str()?.to_owned();
         let clauses = value
             .get("clauses")?
@@ -611,6 +656,7 @@ impl Rule {
             shape,
             lines,
             program,
+            numbers: numbers::Numbers::new(),
         };
         record::valid(&rule).then_some(rule)
     }
@@ -671,7 +717,7 @@ impl Rule {
     fn predicate(&self) -> String {
         self.clauses
             .iter()
-            .map(Clause::jq)
+            .map(|clause| clause.jq(&self.numbers))
             .collect::<Vec<_>>()
             .join(&format!(" {} ", self.junction.word()))
     }
@@ -697,7 +743,7 @@ impl Rule {
         } else {
             format!("[.records[] | select({})]", self.predicate())
         };
-        let mut jq = self.shape.lower(filtered);
+        let mut jq = self.shape.lower(filtered, &self.numbers);
         if self.lines {
             jq.push_str(" | join(\"\\n\") | if length > 0 then . + \"\\n\" else . end");
         }
@@ -737,6 +783,7 @@ impl Rule {
         let has = self
             .fields()
             .iter()
+            .filter(|f| self.numbers.get(*f) != Some(&NumberPolicy::Skip))
             .map(|f| format!(" and has({})", json!(f)))
             .collect::<Vec<_>>()
             .concat();
@@ -793,6 +840,13 @@ impl Rule {
             record["field"] = clause["field"].clone();
             record["comparator"] = clause["comparator"].clone();
             record["value"] = clause["value"].clone();
+        }
+        if !self.numbers.is_empty() {
+            record["numbers"] = self
+                .numbers
+                .iter()
+                .map(|(f, p)| (f.clone(), json!(p.word())))
+                .collect();
         }
         record
     }
@@ -1157,14 +1211,7 @@ fn parse_clause(tokens: &[Token], from: usize, columns: &[String]) -> Option<(Cl
         return None;
     }
     let next = residual(tokens, next)?;
-    Some((
-        Clause {
-            field,
-            comparator,
-            value,
-        },
-        next,
-    ))
+    Some((Clause::new(field, comparator, value), next))
 }
 
 /// Sentences and `;`-joined rules, each of which must parse whole.
@@ -1248,6 +1295,7 @@ pub fn synthesize(text: &str, columns: &[String]) -> Option<Rule> {
         shape,
         lines: false,
         program: None,
+        numbers: numbers::Numbers::new(),
     })
 }
 

@@ -3,9 +3,12 @@
 //! Positive host observations, never a claim that an unobserved field cannot exist.
 use crate::{ChoiceOffer, CompileOutcome, CompileRequest, DiagnosticKind};
 use grounding::Grade;
+pub(crate) use numbers::numbered;
 use serde_json::{Value, json};
 
 mod grounding;
+mod numbers;
+mod spellings;
 
 /// Keys observed in one source, with exact spelling. None means no usable observation;
 /// Some(empty) means the host observed records with no common keys. Neither is a schema.
@@ -179,7 +182,16 @@ pub(crate) fn ground_rule(
             }
         }
     }
-    pending |= settle(out, entries);
+    // Every number the rule reads is grounded in the kinds the host observed (R4 A5 · C3/C4).
+    let mut governed = Vec::new();
+    if !pending {
+        let asked;
+        (rule, governed, asked) = numbers::ground(rule, path, request, out, recognized);
+        pending |= asked;
+        // A text equality also matches the observed canonical spellings of its literal (C2).
+        rule = spellings::ground(rule, world(request), path, out);
+    }
+    pending |= settle(out, entries, &governed);
     (!pending).then_some(rule)
 }
 
@@ -235,9 +247,14 @@ fn mapped(
 
 /// Record the grounding of this rule's keys in the decision (replacing an earlier door's); a
 /// grounded key some sampled records lack opens the missing-records obligation, stated and
-/// asked, never defaulted. Returns whether one is open.
-fn settle(out: &mut CompileOutcome, entries: Vec<Value>) -> bool {
-    let open: Vec<&Value> = entries.iter().filter(|e| !e["open"].is_null()).collect();
+/// asked, never defaulted, unless a number policy question already asks it (`governed`).
+/// Returns whether one is open.
+fn settle(out: &mut CompileOutcome, entries: Vec<Value>, governed: &[String]) -> bool {
+    let asked = |e: &&Value| governed.iter().any(|g| e["field"] == g.as_str());
+    let open: Vec<&Value> = entries
+        .iter()
+        .filter(|e| !e["open"].is_null() && !asked(e))
+        .collect();
     for entry in &open {
         let word = |key: &str| entry[key].as_str().unwrap_or_default().to_owned();
         crate::finding(

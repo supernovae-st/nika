@@ -368,8 +368,8 @@ async fn a_numeric_rule_stated_in_the_request_needs_no_rule_question() {
     let compute = &tasks(&doc)["compute"];
     assert_eq!(compute["invoke"]["tool"], "nika:jq");
     assert_eq!(
-        compute["invoke"]["args"]["expression"],
-        "[.records[] | select((.amount | tonumber) > 100)]",
+        common::short(compute["invoke"]["args"]["expression"].as_str().unwrap()),
+        "[.records[] | select((.amount | num) > 100)]",
         "{doc:#}"
     );
     assert_eq!(
@@ -412,8 +412,8 @@ async fn a_numeric_rule_stated_in_the_request_needs_no_rule_question() {
     assert_eq!(rule["comparator"], ">");
     assert_eq!(rule["value"], "100");
     assert_eq!(
-        rule["jq"],
-        "[.records[] | select((.amount | tonumber) > 100)]"
+        common::short(rule["jq"].as_str().unwrap()),
+        "[.records[] | select((.amount | num) > 100)]"
     );
     // An explicit answer still wins over the synthesis: the human's expression runs.
     let answered = compile(BIG_ORDERS, &big_orders_plan(), &[MODEL, RULE]).await;
@@ -479,8 +479,12 @@ fn an_equality_rule_on_a_status_column_is_synthesized() {
     let out = replay(intent, &record, &[]);
     let doc = document(&out);
     assert_eq!(
-        tasks(&doc)["compute"]["invoke"]["args"]["expression"],
-        r#"[.records[] | select(.status == "Shipped" and (.amount_eur | tonumber) >= 120)]"#,
+        common::short(
+            tasks(&doc)["compute"]["invoke"]["args"]["expression"]
+                .as_str()
+                .unwrap()
+        ),
+        r#"[.records[] | select(.status == "Shipped" and (.amount_eur | num) >= 120)]"#,
         "{doc:#}"
     );
     let rule = &out.provenance.decision.as_ref().unwrap()["rule"];
@@ -514,8 +518,12 @@ fn a_count_and_total_folded_into_the_rule_is_the_summary_stage() {
     assert_eq!(keys(&out), Vec::<&str>::new(), "{out:#?}");
     let doc = document(&out);
     assert_eq!(
-        tasks(&doc)["compute"]["invoke"]["args"]["expression"],
-        "[.records[] | select((.amount | tonumber) > 100)]",
+        common::short(
+            tasks(&doc)["compute"]["invoke"]["args"]["expression"]
+                .as_str()
+                .unwrap()
+        ),
+        "[.records[] | select((.amount | num) > 100)]",
         "{doc:#}"
     );
     assert_eq!(
@@ -541,8 +549,8 @@ fn a_count_and_total_folded_into_the_rule_is_the_summary_stage() {
     let rule = &out.provenance.decision.as_ref().unwrap()["rule"];
     assert_eq!(rule["summary"], true, "{rule:#}");
     assert_eq!(
-        rule["jq"],
-        "[.records[] | select((.amount | tonumber) > 100)]"
+        common::short(rule["jq"].as_str().unwrap()),
+        "[.records[] | select((.amount | num) > 100)]"
     );
     // Without the fold, the summary stage is not emitted for a rule nothing later reads. The
     // plain record writes no note, so it answers the request without the note clause: a

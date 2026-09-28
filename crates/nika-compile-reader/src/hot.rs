@@ -437,44 +437,7 @@ pub const WRITE_HEADS: &[&str] = &[
     "speichern",
 ];
 /// Words that only link a write to its target; never content.
-const LINK_WORDS: &[&str] = &[
-    "to",
-    "into",
-    "in",
-    "at",
-    "dans",
-    "vers",
-    "sous",
-    "em",
-    "en",
-    "nel",
-    "nella",
-    "auf",
-    "nach",
-    "a",
-    "the",
-    "le",
-    "la",
-    "les",
-    "o",
-    "os",
-    "as",
-    "il",
-    "el",
-    "der",
-    "die",
-    "das",
-    "it",
-    "them",
-    "result",
-    "résultat",
-    "resultado",
-    "output",
-    "file",
-    "fichier",
-    "ficheiro",
-    "archivo",
-];
+const LINK_WORDS: &str = include_str!("../assets/hot_link_words.txt");
 
 /// Nouns that name content a step must produce before an effect can carry it (EN · FR ·
 /// ES · IT · PT · DE), in their diacritic-folded lowercase form. The reader shares the
@@ -483,36 +446,7 @@ pub(crate) const PRODUCED_NOUNS: &str = include_str!("../assets/produced_nouns.t
 
 /// Cues that an effect carries existing material unchanged: a source step is then its
 /// producer. Matched as whole words or whole phrases on the folded text.
-const COPY_CUES: &[&str] = &[
-    "copy",
-    "copies",
-    "forward",
-    "forwards",
-    "verbatim",
-    "tel quel",
-    "telle quelle",
-    "as is",
-    "as-is",
-    "unchanged",
-    "attach",
-    "attached",
-    "attachment",
-    "piece jointe",
-    "ci-joint",
-    "ci-jointe",
-    "transmets",
-    "transmet",
-    "transmettre",
-    "transfere",
-    "transferer",
-    "sans modification",
-    "reenvia",
-    "reenviar",
-    "inoltra",
-    "inoltrare",
-    "weiterleiten",
-    "raw",
-];
+const COPY_CUES: &str = include_str!("../assets/hot_copy_cues.txt");
 
 /// Lowercase with French, Spanish, Portuguese and German diacritics folded, so the
 /// noun and cue tables match one spelling.
@@ -554,7 +488,7 @@ fn copy_cue(text: &str) -> bool {
         fold(text).replace(|c: char| !c.is_alphanumeric() && c != '-', " ")
     );
     COPY_CUES
-        .iter()
+        .lines()
         .any(|cue| padded.contains(&format!(" {cue} ")))
 }
 
@@ -691,7 +625,7 @@ fn write_without_producer(plan: &Plan, why: &mut Vec<String>) {
         }
         let words = content
             .split(|c: char| !c.is_alphanumeric() && c != '-' && c != '\'')
-            .filter(|w| !w.is_empty() && !LINK_WORDS.contains(w))
+            .filter(|w| !w.is_empty() && !LINK_WORDS.lines().any(|l| l == *w))
             .count();
         if words >= 3 {
             why.push(format!(

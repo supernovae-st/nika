@@ -505,60 +505,7 @@ pub fn parallel_bound(constraint: &str) -> Option<u32> {
 /// Superlatives that name one row of a corpus (EN · FR · IT · ES · DE · PT, accented and
 /// folded): the `1` a seat writes as a limit beside « the most », « le plus », « el mayor »
 /// is stated by them.
-const SUPERLATIVES: &[&str] = &[
-    "most",
-    "worst",
-    "best",
-    "highest",
-    "lowest",
-    "largest",
-    "smallest",
-    "biggest",
-    "longest",
-    "shortest",
-    "latest",
-    "earliest",
-    "oldest",
-    "newest",
-    "least",
-    "le plus",
-    "la plus",
-    "les plus",
-    "le moins",
-    "la moins",
-    "il più",
-    "la più",
-    "il piu",
-    "la piu",
-    "il meno",
-    "la meno",
-    "el más",
-    "la más",
-    "el mas",
-    "la mas",
-    "el menos",
-    "la menos",
-    "mayor",
-    "menor",
-    "höchste",
-    "hochste",
-    "niedrigste",
-    "größte",
-    "grosste",
-    "kleinste",
-    "längste",
-    "langste",
-    "kürzeste",
-    "kurzeste",
-    "meisten",
-    "wenigsten",
-    "o mais",
-    "a mais",
-    "o maior",
-    "a maior",
-    "o menor",
-    "a menor",
-];
+const SUPERLATIVES: &str = include_str!("../assets/cardinality_superlatives.txt");
 
 /// Whether the request states a superlative: one row of its corpus, the `1` of a limit.
 #[must_use]
@@ -566,7 +513,7 @@ pub fn superlative_covers(intent: &str) -> bool {
     let folded = crate::shape::fold(intent);
     let padded = format!(" {folded} ");
     SUPERLATIVES
-        .iter()
+        .lines()
         .any(|w| padded.contains(&format!(" {w} ")))
 }
 

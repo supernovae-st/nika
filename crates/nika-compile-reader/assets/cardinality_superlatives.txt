@@ -1,0 +1,52 @@
+most
+worst
+best
+highest
+lowest
+largest
+smallest
+biggest
+longest
+shortest
+latest
+earliest
+oldest
+newest
+least
+le plus
+la plus
+les plus
+le moins
+la moins
+il più
+la più
+il piu
+la piu
+il meno
+la meno
+el más
+la más
+el mas
+la mas
+el menos
+la menos
+mayor
+menor
+höchste
+hochste
+niedrigste
+größte
+grosste
+kleinste
+längste
+langste
+kürzeste
+kurzeste
+meisten
+wenigsten
+o mais
+a mais
+o maior
+a maior
+o menor
+a menor

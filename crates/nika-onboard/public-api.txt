@@ -44,6 +44,7 @@ pub use nika_onboard::compile::decide
 pub use nika_onboard::compile::fold
 pub use nika_onboard::compile::intent_sha256
 pub use nika_onboard::compile::materialize_ready
+pub use nika_onboard::compile::observation
 pub use nika_onboard::compile::outcome_document
 pub use nika_onboard::compile::retrieve
 pub use nika_onboard::compile::retrieve_by_ops
