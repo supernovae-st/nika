@@ -54,6 +54,10 @@ from captured output:
 | `editor-diagnostics` | what `nika lsp` publishes, fixed by one keystroke |
 | `workflow-gallery` | the jobs `nika try` lists |
 | `full-loop` | the README's first file: compile, check, run, verify |
+| `pr-check-comment` | a pull request's sticky nika-action comment: one finding, the fixing push, the clean verdict and its graph |
+| `trace-proof` | a run's hash-chained trace verified intact, then one changed byte refused at the next line |
+| `spec-anatomy` | one checked file with all nine envelope keys and the four verbs, labelled in the spec's words |
+| `agent-plugin` | a coding agent's draft refused by the check, its repair, and a rehearsal run of the kept file |
 
 How they are made and checked is in
 [the film README](../scripts/media/motion/intent-to-proof/README.md#feature-clips).
@@ -65,7 +69,10 @@ How they are made and checked is in
   real binary and its language server (`scripts/media/capture-transcripts.sh`
   → `media/raw/`). The chat-to-workflow and nika-hero runs are a real local
   inference (`ollama/llama3.2:3b`); a `mock/echo` run is a rehearsal and
-  says so.
+  says so. A clip whose story takes several commands owns its capture
+  script in `scripts/media/capture/`; the pr-check-comment capture replays
+  nika-action's own renderer from a checkout of that repository
+  (`NIKA_ACTION`).
 - **Every complete runnable workflow shown passes `nika check`**, except the
   deliberately broken fixtures (`broken-pr-review` in static-check-fix and
   editor-diagnostics, `permits-escape` in permits-audit), whose failure is
@@ -114,7 +121,7 @@ Chrome by `scripts/media/render-motion.mjs` (`npm ci` in `scripts/media`;
 
 Workflow fixtures live in `scripts/media/fixtures/` and are gated in both
 directions (a broken half must keep failing `nika check`, a fixed half must
-stay clean).
+stay clean). Every clip in `clips/` must ship its GIF, MP4, WebM and poster.
 
 ## Embedding
 
