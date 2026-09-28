@@ -211,10 +211,10 @@ This is **Intent as Code**: the contract is the plan, not a disposable chat.
   <a href="https://github.com/supernovae-st/nika/raw/refs/heads/main/media/videos/dag-execution.mp4"><img src="media/posters/dag-execution.png" alt="A workflow is a graph: the tasks and waves of a fan-out workflow, from nika inspect and nika check" width="32%"></a>
 </p>
 
-*Short clips of the three ideas above; each opens as a video. Every program
-and terminal line in them is captured from the real CLI; what a clip
-illustrates is named on it. The [media README](media/README.md#feature-clips)
-lists them all.*
+*Short clips of the three ideas above; each opens as a video. The programs
+in them are real files and the terminal lines are captured from the real
+CLI; what a clip illustrates is named on it. The
+[media README](media/README.md#feature-clips) lists them all.*
 
 <details>
 <summary><strong>The four building blocks</strong></summary>
