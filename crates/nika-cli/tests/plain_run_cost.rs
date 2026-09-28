@@ -118,7 +118,7 @@ fn terminal_run_child() {
         root.join("one.nika").to_str().unwrap(),
         &source,
         nika_types::id::ExecutionId::generate().to_string(),
-        &wf,
+        (&wf, None),
         &plan(),
         &BTreeMap::new(),
         Some(0.25),

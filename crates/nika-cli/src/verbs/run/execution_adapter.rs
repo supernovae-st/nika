@@ -325,7 +325,7 @@ fn run_admitted_context(
         request.file,
         source,
         format!("{:?}", world.execution_id),
-        &wf,
+        (&wf, request.model_override),
         &plan,
         &inputs.values,
         request.invocation_cost,
@@ -337,9 +337,9 @@ fn run_admitted_context(
             return RunVerdict::bare(exit::ENV);
         }
     };
-    if cost.is_none()
-        && let Err(code) = budget_gate(&wf, &report, request, machine, &plan)
-    {
+    // Only a fresh unknown-cost choice replaces the Run's budget gate and cap.
+    let unknown = matches!(&cost, Some(c) if !c.account.observes_declared_free_only());
+    if !unknown && let Err(code) = budget_gate(&wf, &report, request, machine, &plan) {
         return RunVerdict::bare(code);
     }
     let setup = match setup.bind_durable(machine) {
@@ -352,11 +352,7 @@ fn run_admitted_context(
         &plan,
         inputs,
         setup,
-        if cost.is_some() {
-            None
-        } else {
-            request.max_cost_usd
-        },
+        request.max_cost_usd.filter(|_| !unknown),
         cost.as_ref().map(|c| c.config.clone()),
         (request.no_trace_file, machine),
         &world,

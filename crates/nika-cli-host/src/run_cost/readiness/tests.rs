@@ -84,3 +84,44 @@ fn no_model_plan_has_no_monetary_blocker() {
         None
     );
 }
+
+/// C2 · Check mirrors the Run: bounded text on an exact declared-free route
+/// is run ready; the same route with vision is not, and says which task.
+#[test]
+fn a_declared_free_route_is_ready_for_text_and_names_an_unsupported_shape() {
+    use nika_providers::probe::{ExecutionLocus, ProviderProbe, ProviderReadiness};
+    let free = "openrouter/qwen/qwen3.8-27b:free";
+    let plan = nika_providers::resolve_execution_plan(
+        &[nika_providers::ModelNeed::new(free, true, false)],
+        &[ProviderProbe::new(
+            "openrouter",
+            true,
+            true,
+            "OPENROUTER_API_KEY",
+            false,
+            ProviderReadiness::new(
+                true,
+                true,
+                None,
+                None,
+                true,
+                ExecutionLocus::Cloud,
+                nika_types::access::AccessClass::Api,
+            ),
+            "https://openrouter.ai/api/v1/chat/completions",
+        )],
+        Some("api"),
+    );
+    let text = format!(
+        "nika: free\nmodel: {free}\npermits: {{}}\ntasks:\n  draft:\n    infer: {{ prompt: text, max_tokens: 64 }}\n"
+    );
+    let config = ProvidersConfig::new();
+    assert_eq!(readiness_with_config(&parsed(&text), &plan, &config), None);
+    let vision = text.replace(
+        "max_tokens: 64",
+        "max_tokens: 64, vision: [{ source: file, path: './image.png' }]",
+    );
+    let blocker = readiness_with_config(&parsed(&vision), &plan, &config).unwrap();
+    assert!(blocker.contains("task `draft`"), "{blocker}");
+    assert!(blocker.contains("with vision"), "{blocker}");
+}

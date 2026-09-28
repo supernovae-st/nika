@@ -124,6 +124,18 @@ UNKNOWN, recorded once) and torn-tail append live in `nika_dap::cost_journal`
 (descended at the 15k wall); `run_cost` keeps the question, the live account
 and its rows (`prepared` · `settled` · settle-on-drop).
 
+A Run with no unknown-cost route but an exact catalog-declared-free API route
+(C2 · 2026-09-28) gets no question, lease or journal row. `review` takes the
+workflow with the Run's `--model` (the lane its model-less tasks ride), refuses
+any task the route's observation cannot admit through the shared
+`nika_service_execution::run_cost::declared_free_shape` (Check's readiness
+mirror consumes the same judgment), then binds a per-Run
+`InferenceAdmission::observe_declared_free()` with the run's own jitter seed.
+That observer never replaces the Run's `--max-cost-usd` preflight or runtime
+budget; the trace's terminal frame carries its receipt, and `finish` only
+closes it. A plan that mixes such a route with an unknown-cost one stays on the
+unknown-cost review, which refuses it before any question.
+
 `lines::fresh_terminal` is the fresh-input boundary of both local spending doors:
 the plain session before its `continue once? ›` prompt, and `ReviewChannel::Terminal`
 before each answer (again after `details`). It flushes the question, then switches

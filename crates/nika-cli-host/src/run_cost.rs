@@ -7,6 +7,7 @@
 
 use nika_providers::InferenceAdmission;
 use nika_providers::admission::{CostHostEvidence, CostReview, CostRoute, monetary_default};
+use nika_runtime::compose::RunSeams;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 mod exchange;
@@ -17,24 +18,30 @@ use nika_dap::cost_journal;
 pub(crate) use readiness::readiness;
 
 /// A fresh Run decision and its observation journal; never recovered authority.
+/// A declared-free observer (`account.observes_declared_free_only()`) has no
+/// journal: the trace's terminal frame carries its receipt, and it never
+/// replaces the Run's own `--max-cost-usd` gate.
 #[non_exhaustive]
 pub struct RunCost {
     pub account: InferenceAdmission,
     pub config: nika_runtime::RuntimeConfig,
-    journal: Journal,
+    journal: Option<Journal>,
 }
 impl RunCost {
     /// Append observation only; no callable authority is serialized.
     /// # Errors
     /// Unreadable account or unwritable descriptor-rooted journal.
     pub fn observe(&self, phase: &str) -> Result<(), String> {
-        self.journal.observe(phase)
+        self.journal.as_ref().map_or(Ok(()), |j| j.observe(phase))
     }
     /// Close live authority and persist the final observation, including uncertainty.
     /// # Errors
     /// Account closure or journal failure; the caller must report possible billing.
     pub fn finish(&self) -> Result<(), String> {
-        self.journal.settle()
+        match &self.journal {
+            Some(journal) => journal.settle(),
+            None => self.account.close("Run ended").map_err(|e| e.to_string()),
+        }
     }
 }
 
@@ -113,6 +120,7 @@ fn clear_exposure(
     Ok((held, writer))
 }
 /// Unsupported hosts and workflow shapes never borrow this approval.
+/// A Run with no unknown-cost route gets only a declared-free observer.
 /// # Errors
 /// Unsupported or changed scope, unreadable evidence, decline, or journal failure.
 #[allow(clippy::too_many_arguments)]
@@ -121,7 +129,7 @@ pub fn review(
     file: &str,
     source: &str,
     invocation: String,
-    wf: &nika_schema::raw::RawWorkflow,
+    (wf, model_override): (&nika_schema::raw::RawWorkflow, Option<&str>),
     plan: &nika_providers::ExecutionAccessPlan,
     inputs: &std::collections::BTreeMap<String, serde_json::Value>,
     invocation_default: Option<f64>,
@@ -130,7 +138,7 @@ pub fn review(
     let config = nika_runtime::compose::config_from_env();
     let mut unknown = readiness::unknown_routes(plan, &config)?;
     if unknown.is_empty() {
-        return Ok(None);
+        return declared_free(wf, plan, &config, model_override, &invocation);
     }
     let channel = channel.into();
     if !channel.available() {
@@ -195,10 +203,39 @@ pub fn review(
     let choice = RunCost {
         account,
         config,
-        journal,
+        journal: Some(journal),
     };
     choice.observe("prepared")?;
     Ok(Some(choice))
+}
+
+/// Exact declared-free text routes (E4): a per-Run observer, with no review,
+/// lease or journal, bound before any effect. A shape it cannot admit refuses
+/// here; a plan without such a route keeps today's composition.
+fn declared_free(
+    wf: &nika_schema::raw::RawWorkflow,
+    plan: &nika_providers::ExecutionAccessPlan,
+    config: &nika_providers::ProvidersConfig,
+    model_override: Option<&str>,
+    invocation: &str,
+) -> Result<Option<RunCost>, String> {
+    let free =
+        nika_service_execution::run_cost::declared_free_shape(wf, plan, config, model_override)
+            .map_err(|refusal| format!("Run refused before any provider call: {refusal}"))?;
+    if !free {
+        return Ok(None);
+    }
+    let account = InferenceAdmission::observe_declared_free();
+    // A host config replaces compose's default: keep the run's jitter seed.
+    let run = wf.run.as_ref().map(|run| &run.value);
+    let config = nika_runtime::RuntimeConfig::new(None, RunSeams::of(run).jitter_seed)
+        .with_inference_admission(&account, "declared-free observation", invocation)
+        .map_err(|e| e.to_string())?;
+    Ok(Some(RunCost {
+        account,
+        config,
+        journal: None,
+    }))
 }
 
 fn witness(
@@ -259,7 +296,7 @@ mod tests {
         RunCost {
             account,
             config,
-            journal,
+            journal: Some(journal),
         }
     }
     fn rows(root: &Path) -> Vec<serde_json::Value> {
@@ -314,6 +351,107 @@ mod tests {
     fn a_reviewed_run_stays_send_and_sync() {
         fn send_sync<T: Send + Sync>() {}
         send_sync::<RunCost>();
+    }
+    const FREE: &str = "openrouter/qwen/qwen3.8-27b:free";
+    fn free_plan() -> nika_providers::ExecutionAccessPlan {
+        use nika_providers::probe::{ExecutionLocus, ProviderProbe, ProviderReadiness};
+        let ready = ProviderReadiness::new(
+            true,
+            true,
+            None,
+            None,
+            true,
+            ExecutionLocus::Cloud,
+            nika_types::access::AccessClass::Api,
+        );
+        nika_providers::resolve_execution_plan(
+            &[nika_providers::ModelNeed::new(FREE, true, false)],
+            &[ProviderProbe::new(
+                "openrouter",
+                true,
+                true,
+                "OPENROUTER_API_KEY",
+                false,
+                ready,
+                "https://openrouter.ai/api/v1/chat/completions",
+            )],
+            Some("api"),
+        )
+    }
+    fn free_wf(envelope: &str, infer: &str) -> nika_schema::raw::RawWorkflow {
+        let source = format!(
+            "nika: free\nmodel: {FREE}\n{envelope}permits: {{}}\ntasks:\n  draft:\n    infer: {{ prompt: text, max_tokens: 64{infer} }}\n"
+        );
+        nika_schema::parse(
+            &source,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .unwrap()
+    }
+    fn free_run(envelope: &str, infer: &str) -> Result<Option<RunCost>, String> {
+        let config = nika_providers::ProvidersConfig::new();
+        declared_free(
+            &free_wf(envelope, infer),
+            &free_plan(),
+            &config,
+            None,
+            "run-1",
+        )
+    }
+    /// C2 · an exact declared-free text Run gets its own scoped observer and
+    /// nothing else: no review, no lease (the function never sees a project,
+    /// so Runs in one project never wait on each other), no journal row. It
+    /// never replaces the Run's budget gate, and ending it closes only it.
+    #[test]
+    fn a_declared_free_run_gets_a_scoped_observer_without_a_journal() {
+        let first = free_run("", "").unwrap().expect("an observer");
+        let second = free_run("", "").unwrap().expect("a second Run proceeds");
+        assert!(first.account.observes_declared_free_only());
+        let bound = first.config.inference_admission.as_ref().unwrap();
+        assert!(bound.observes_declared_free_only());
+        assert!(first.journal.is_none() && first.observe("prepared").is_ok());
+        first.finish().unwrap();
+        let state = |c: &RunCost| c.account.snapshot().unwrap().state;
+        assert_eq!(state(&first), nika_providers::AdmissionState::Closed);
+        assert_eq!(state(&second), nika_providers::AdmissionState::Open);
+    }
+    /// A shape the observer cannot admit refuses before any account exists,
+    /// naming the task; a plan with no declared-free route composes as today.
+    #[test]
+    fn unsupported_free_shapes_refuse_and_other_plans_keep_todays_composition() {
+        let vision = ", vision: [{ source: file, path: './image.png' }]";
+        let refused = free_run("", vision).err().expect("refused");
+        assert!(refused.starts_with("Run refused before any provider call"));
+        assert!(refused.contains("task `draft`") && refused.contains("with vision"));
+        let none = nika_providers::resolve_execution_plan(&[], &[], None);
+        let wf = nika_schema::parse(
+            "nika: local\npermits: {}\ntasks:\n  ok:\n    invoke: { tool: 'nika:assert', args: { condition: true } }\n",
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .unwrap();
+        let config = nika_providers::ProvidersConfig::new();
+        assert!(
+            declared_free(&wf, &none, &config, None, "run-1")
+                .unwrap()
+                .is_none()
+        );
+    }
+    /// The host config replaces compose's default, so it carries the run's
+    /// own jitter seed: a seeded run stays replay-stable under the observer.
+    #[test]
+    fn the_observer_config_keeps_a_seeded_runs_jitter_seed() {
+        let run = "run: { entropy: { seeded: 42 } }\n";
+        let seeded = free_run(run, "").unwrap().unwrap();
+        let wf = free_wf(run, "");
+        let expected = RunSeams::of(wf.run.as_ref().map(|r| &r.value)).jitter_seed;
+        assert_eq!(seeded.config.jitter_seed, expected);
+        assert_ne!(
+            expected,
+            RunSeams::of(None).jitter_seed,
+            "the seed is the run's"
+        );
     }
     #[test]
     fn missing_or_corrupt_observation_fields_fail_closed() {

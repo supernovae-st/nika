@@ -43,7 +43,11 @@ fn readiness_with_config(
         Err(why) => return Some(format!("Run monetary admission is unresolved: {why}")),
     };
     if routes.is_empty() {
-        return None;
+        // Check mirrors the Run's refusal of what a declared-free observation
+        // cannot admit: never run ready, never a known zero.
+        return nika_service_execution::run_cost::declared_free_shape(wf, plan, config, None)
+            .err()
+            .map(|refusal| format!("Run cannot observe its declared-free route: {refusal}"));
     }
     Some(
         match nika_service_execution::run_cost::request_bound(wf, plan, routes.len()) {
