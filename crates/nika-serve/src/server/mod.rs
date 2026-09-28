@@ -6,6 +6,7 @@ mod cancel;
 mod compile;
 mod config;
 mod coordinator;
+mod cost_review;
 mod error;
 mod inputs;
 mod listen;
@@ -54,12 +55,14 @@ pub use config::{
     SystemResidentClock,
 };
 pub use coordinator::{PreparedScheduledRun, ResidentExecutionCoordinator};
+pub use cost_review::CostAuthority;
 use error::diagnose_capture;
 pub use error::{CredentialRefuse, ServerError};
 use listen::listen_line;
 pub use production::{
     ResidentExecutionBackend, ServerLaunchRefuse, launch_operator_message, optional_server_config,
-    process_shutdown, serve_resident, serve_resident_process, server_operator_message,
+    process_shutdown, seat_cost_review, serve_resident, serve_resident_process,
+    server_operator_message,
 };
 use store::{StoreActor, StoreHandle};
 
@@ -304,6 +307,25 @@ pub trait ExecutionBackend: Send + Sync + 'static {
         }
     }
 
+    /// Execute one job its cost review admitted, under that review's plan and
+    /// confirmed account (C6). A backend must explicitly support it: the
+    /// default refuses, and dropping the authority settles its account.
+    fn execute_reviewed<'a>(
+        &'a self,
+        _context: ExecutionContext<'a>,
+        _inputs: &BTreeMap<String, serde_json::Value>,
+        _cancel: nika_types::cancel::CancelCtx,
+        authority: CostAuthority,
+    ) -> Pin<Box<dyn Future<Output = ExecutionOutcome> + Send + 'a>> {
+        drop(authority);
+        Box::pin(async {
+            ExecutionOutcome::failed(
+                "cost_review_unsupported",
+                "execution backend does not support a reviewed Run cost authority",
+            )
+        })
+    }
+
     /// Where this backend leaves a job's trace journal (the `.nika/traces`
     /// of the project it serves), when it leaves one at all. The verify
     /// route locates the job's journal under it — the backend composes the
@@ -350,6 +372,8 @@ struct AppState {
     fire_refusals: scheduler::FireRefusals,
     clock: Arc<dyn ResidentClock>,
     cancellations: Arc<ActiveCancellations>,
+    /// The cost-review door, when the operator started this server with it.
+    cost_review: Option<Arc<cost_review::Door>>,
 }
 
 struct AuthorityState {
@@ -372,6 +396,8 @@ struct AuthorityState {
     coordinator: ResidentExecutionCoordinator,
     clock: Arc<dyn ResidentClock>,
     cancellations: Arc<ActiveCancellations>,
+    /// Reviewed jobs' captured worlds and cost authority, until their run.
+    reviewed: Arc<cost_review::Reviewed>,
 }
 
 #[derive(Debug)]
@@ -458,8 +484,13 @@ impl ResidentAuthority {
                 ExecutionTask::new(id, default_max_cost_usd).with_access_pin(access_pin)
             })
             .collect();
-        let coordinator =
-            ResidentExecutionCoordinator::new(store_actor.handle(), jobs, config.limits());
+        let reviewed = Arc::new(cost_review::Reviewed::default());
+        let coordinator = ResidentExecutionCoordinator::new(
+            store_actor.handle(),
+            jobs,
+            config.limits(),
+            Arc::clone(&reviewed),
+        );
         let project = Arc::new(OnceLock::new());
         if let Some(held) = prepared.project {
             let _set = project.set(held);
@@ -491,6 +522,7 @@ impl ResidentAuthority {
             coordinator: coordinator.clone(),
             clock: Arc::clone(config.clock()),
             cancellations,
+            reviewed,
         });
         Ok(Self {
             state,
@@ -587,6 +619,11 @@ impl BoundServer {
         let listener = TcpListener::bind(config.bind())
             .await
             .map_err(|error| ServerError::Listener(error.kind()))?;
+        let cost_review = config.cost_review().then(|| {
+            let root = authority.state.workflow_root.get().cloned();
+            let root = root.unwrap_or_else(|| config.workflow_root().to_path_buf());
+            cost_review::Door::open(root, authority.state.limits.default_max_cost_usd())
+        });
         let state = Arc::new(AppState {
             #[cfg(test)]
             before_named_capture: Arc::default(),
@@ -616,6 +653,7 @@ impl BoundServer {
             fire_refusals: Arc::clone(&authority.state.fire_refusals),
             clock: Arc::clone(&authority.state.clock),
             cancellations: Arc::clone(&authority.state.cancellations),
+            cost_review,
         });
         Ok(Self { listener, state })
     }
@@ -740,7 +778,7 @@ async fn prepare_http(config: &ServerConfig) -> Result<PreparedHttp, ServerError
 fn validate_resident_config(config: &ResidentConfig) -> Result<(), ServerError> {
     if !config.limits().valid() {
         return Err(ServerError::InvalidConfig(
-            "all size, timeout, concurrency, queue, connection, sse, and header ceilings must be non-zero, and the default budget ceiling must be finite and positive",
+            "all size, timeout, concurrency, queue, connection, sse, and header ceilings must be non-zero, and the default budget ceiling must be finite and non-negative",
         ));
     }
     if config.limits().max_body_bytes() > crate::MAX_ENCODED_EXECUTION_SNAPSHOT_BYTES {
@@ -1044,6 +1082,22 @@ async fn serve_connection(stream: TcpStream, state: Arc<AppState>) {
 }
 
 async fn run_job(state: Arc<AuthorityState>, mut task: ExecutionTask) -> Result<(), ServerError> {
+    // A reviewed job's first run takes its captured world and cost authority;
+    // a duplicate never runs it. Leaving early drops (settles) the authority.
+    let claim = state.reviewed.claim(task.id.as_str());
+    if matches!(claim, cost_review::Claim::Duplicate) {
+        return Ok(());
+    }
+    let settled = run_claimed(&state, &mut task, claim).await;
+    state.reviewed.release(task.id.as_str());
+    settled
+}
+
+async fn run_claimed(
+    state: &Arc<AuthorityState>,
+    task: &mut ExecutionTask,
+    claim: cost_review::Claim,
+) -> Result<(), ServerError> {
     // Replays can leave duplicate queue entries after the owner settles.
     // This is only a read-avoidance optimization: the durable claim and
     // queued-only refusal below still arbitrate concurrent transitions.
@@ -1060,37 +1114,15 @@ async fn run_job(state: Arc<AuthorityState>, mut task: ExecutionTask) -> Result<
     {
         return Ok(());
     }
-    let admitted = match admit_task(&state, &mut task).await {
-        Ok(admitted) => admitted,
-        Err(error) => {
-            let (code, message) = match &error {
-                Some(error) => diagnose_capture(error),
-                None => (
-                    "admission_refused".to_owned(),
-                    "workflow world could not be readmitted".to_owned(),
-                ),
-            };
-            let refused = state
-                .store
-                .refuse_queued(
-                    task.id.clone(),
-                    json!({
-                        "kind": crate::JobEventKind::Refused,
-                        "status": JobStatus::Failed,
-                        "code": code,
-                        "message": message
-                    }),
-                )
-                .await;
-            return match refused {
-                Ok(_) => Ok(()),
-                Err(ServerError::JobStore(crate::JobStoreError::IllegalTransition {
-                    from,
-                    ..
-                })) if from != JobStatus::Queued => Ok(()),
-                Err(error) => Err(error),
-            };
+    let (session, authority) = match claim {
+        cost_review::Claim::Owned(held) => {
+            let (session, authority) = *held;
+            (session, Some(authority))
         }
+        _ => match admit_task(state, task).await {
+            Ok(admitted) => (state.service.begin(admitted), None),
+            Err(error) => return refuse_admission(state, task, error.as_ref()).await,
+        },
     };
     let record = state
         .store
@@ -1099,7 +1131,7 @@ async fn run_job(state: Arc<AuthorityState>, mut task: ExecutionTask) -> Result<
         .ok_or_else(|| crate::JobStoreError::JobNotFound(task.id.clone()))?;
     let inputs = record.inputs;
     let mut guard = RunningGuard::new(state.store.clone(), task.id.clone(), task.prestarted);
-    if !task.prestarted && !start_running(&mut guard, &admitted).await? {
+    if !task.prestarted && !start_running(&mut guard, session.context()).await? {
         return Ok(());
     }
     // Only the claimed execution may retire its cancellation registration
@@ -1107,16 +1139,53 @@ async fn run_job(state: Arc<AuthorityState>, mut task: ExecutionTask) -> Result<
     let (_registration, cancel) =
         CancellationRegistration::new(Arc::clone(&state.cancellations), task.id.clone());
     settle_disposition(
-        &state,
+        state,
         &mut guard,
-        admitted,
-        task.origin,
+        (session, authority),
+        task.origin.clone(),
         task.max_cost_usd,
-        task.access_pin,
+        task.access_pin.take(),
         inputs,
         cancel,
     )
     .await
+}
+
+/// A queued job whose world cannot be readmitted fails with the capture's
+/// diagnosis; a job another transition already moved stays as it is.
+async fn refuse_admission(
+    state: &AuthorityState,
+    task: &ExecutionTask,
+    error: Option<&nika_execution::ExecutionError>,
+) -> Result<(), ServerError> {
+    let (code, message) = match error {
+        Some(error) => diagnose_capture(error),
+        None => (
+            "admission_refused".to_owned(),
+            "workflow world could not be readmitted".to_owned(),
+        ),
+    };
+    let refused = state
+        .store
+        .refuse_queued(
+            task.id.clone(),
+            json!({
+                "kind": crate::JobEventKind::Refused,
+                "status": JobStatus::Failed,
+                "code": code,
+                "message": message
+            }),
+        )
+        .await;
+    match refused {
+        Ok(_) => Ok(()),
+        Err(ServerError::JobStore(crate::JobStoreError::IllegalTransition { from, .. }))
+            if from != JobStatus::Queued =>
+        {
+            Ok(())
+        }
+        Err(error) => Err(error),
+    }
 }
 
 async fn admit_task(
@@ -1131,7 +1200,7 @@ async fn admit_task(
 
 async fn start_running(
     guard: &mut RunningGuard,
-    admitted: &nika_execution::AdmittedExecution,
+    admitted: ExecutionContext<'_>,
 ) -> Result<bool, ServerError> {
     match guard
         .store
@@ -1180,23 +1249,40 @@ async fn admit_workflow(
 /// with terminal frames before the resident drops it (#1353).
 const CANCEL_GRACE: std::time::Duration = std::time::Duration::from_secs(5);
 
+/// The backend's future for one run: a reviewed job under its authority (C6),
+/// any other job with its literal inputs and pin under the run's ceiling.
+fn execution<'a>(
+    backend: &'a dyn ExecutionBackend,
+    context: ExecutionContext<'a>,
+    (authority, max_cost_usd, access_pin): (Option<CostAuthority>, Option<f64>, Option<&str>),
+    inputs: &BTreeMap<String, serde_json::Value>,
+    cancel: &nika_types::cancel::CancelCtx,
+) -> Pin<Box<dyn Future<Output = ExecutionOutcome> + Send + 'a>> {
+    match authority {
+        Some(authority) => backend.execute_reviewed(context, inputs, cancel.clone(), authority),
+        None => {
+            backend.execute_with_inputs(context, max_cost_usd, access_pin, inputs, cancel.clone())
+        }
+    }
+}
+
 async fn settle_disposition(
     state: &AuthorityState,
     guard: &mut RunningGuard,
-    admitted: nika_execution::AdmittedExecution,
+    (session, authority): (nika_execution::ExecutionSession, Option<CostAuthority>),
     origin: JobOrigin,
     max_cost_usd: Option<f64>,
     access_pin: Option<String>,
     inputs: BTreeMap<String, serde_json::Value>,
     cancel: nika_types::cancel::CancelCtx,
 ) -> Result<(), ServerError> {
-    let session = state.service.begin(admitted);
-    let execute = state.backend.execute_with_inputs(
+    let run = (authority, max_cost_usd, access_pin.as_deref());
+    let execute = execution(
+        state.backend.as_ref(),
         session.context(),
-        max_cost_usd,
-        access_pin.as_deref(),
+        run,
         &inputs,
-        cancel.clone(),
+        &cancel,
     );
     // A cancel signal gives the runtime a grace to reach its next wave
     // boundary and return its result. A signal requests action; only the

@@ -1,24 +1,65 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-use serde_json::{Value, json};
+//! The live HTTP contract. This server serves the COMMITTED document
+//! (`crates/nika-serve/openapi.json`, the file the docs site and the SDK read); its
+//! source builder lives in this module's tests, which pin the committed bytes to it
+//! and regenerate them (`NIKA_UPDATE_OPENAPI=1 cargo test -p nika-serve snapshot`).
+//! The compile door's fragments stay owned beside its handler (`compile::schema`)
+//! and are applied from there.
+
+use serde_json::{Map, Value};
+
+/// The committed contract, parsed on each read (it is small and served rarely).
+const COMMITTED: &str = include_str!("../../openapi.json");
 
 /// [`OpenAPI`](https://spec.openapis.org/oas/v3.1.0) document of the live HTTP surface.
 ///
 /// Artifact and `POST /v1/run` paths are omitted until those authorities exist.
 pub(crate) fn document() -> Value {
-    json!({
-        "openapi": "3.1.0",
-        "info": {
-            "title": "nika serve",
-            "version": env!("CARGO_PKG_VERSION"),
-            "description": "Authenticated loopback remote execution, declarative schedules and stateless source-only authoring (POST /v1/compile never runs, admits or writes). Artifacts, schedule list/delete/trigger/backfill, /v1/arm, and POST /v1/run are absent."
-        },
-        "servers": [{"url": "http://127.0.0.1"}],
-        "security": [{"bearerAuth": []}],
-        "components": components(),
-        "paths": paths(),
-    })
+    let mut document = serde_json::from_str::<Value>(COMMITTED).unwrap_or(Value::Null);
+    let version = Value::from(env!("CARGO_PKG_VERSION"));
+    set(&mut document, &["info", "version"], version);
+    set(
+        &mut document,
+        &["paths", "/v1/compile"],
+        super::compile::schema::path(),
+    );
+    set(
+        &mut document,
+        &["components", "schemas", "CompileRequest"],
+        super::compile::schema::request(),
+    );
+    set(
+        &mut document,
+        &["components", "schemas", "CompileOutcome"],
+        super::compile::schema::outcome(),
+    );
+    document
+}
+
+/// Place `value` at `at`, creating objects on the way; never panics on a
+/// malformed document (a non-object on the way leaves it unchanged).
+fn set(document: &mut Value, at: &[&str], value: Value) {
+    let Some((last, parents)) = at.split_last() else {
+        return;
+    };
+    let mut node = document;
+    for key in parents {
+        if node.is_null() {
+            *node = Value::Object(Map::new());
+        }
+        let Some(next) = node.as_object_mut().map(|map| {
+            map.entry((*key).to_owned())
+                .or_insert_with(|| Value::Object(Map::new()))
+        }) else {
+            return;
+        };
+        node = next;
+    }
+    if let Some(map) = node.as_object_mut() {
+        map.insert((*last).to_owned(), value);
+    }
 }
 
 /// The document this server serves: a server that seats native authoring also publishes the
@@ -32,669 +73,706 @@ pub(crate) fn live(native: bool) -> Value {
     }
 }
 
-fn components() -> Value {
-    json!({
-        "securitySchemes": {
-            "bearerAuth": {
-                "type": "http",
-                "scheme": "bearer",
-                "description": "Exactly one Authorization: Bearer value from the token file"
-            }
-        },
-        "parameters": {
-            "IdempotencyKey": {
-                "name": "Idempotency-Key",
-                "in": "header",
-                "required": true,
-                "schema": {"type": "string", "minLength": 1, "maxLength": 255}
-            },
-            "LastEventId": {
-                "name": "Last-Event-ID",
-                "in": "header",
-                "required": false,
-                "schema": {"type": "string", "pattern": "^(0|[1-9][0-9]*)$"}
-            },
-            "IfMatch": {
-                "name": "If-Match", "in": "header", "required": false,
-                "schema": {"type": "string", "maxLength": 96}
-            },
-            "IfNoneMatch": {
-                "name": "If-None-Match", "in": "header", "required": false,
-                "schema": {"type": "string", "const": "*"}
-            }
-        },
-        "schemas": schemas()
-    })
-}
+/// The cost-review door's contract, an RFC 7386 merge patch over the whole document.
+const COST_REVIEW: &str = include_str!("cost_review/openapi.json");
 
-fn job_schema() -> Value {
-    json!({
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["id", "status"],
-        "properties": {
-            "id": {"type": "string", "format": "uuid"},
-            "status": {"$ref": "#/components/schemas/JobStatus"},
-            "execution_id": {"type": "string"},
-            "trace_id": {"type": "string"},
-            "outputs": {
-                "type": "object",
-                "description": "Declared workflow outputs; present only after settlement when supplied by the execution adapter",
-                "additionalProperties": true
-            },
-            "receipt": {"$ref": "#/components/schemas/JobReceipt"},
-            "settlement": {"$ref": "#/components/schemas/RunSettlement"},
-            "evidence": {"$ref": "#/components/schemas/JournalEvidence"},
-            "error": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": ["code", "message"],
-                "properties": {
-                    "code": {"type": "string"},
-                    "message": {"type": "string"}
-                }
-            }
-        }
-    })
-}
-
-fn schemas() -> Value {
-    let mut schemas = core_schemas();
-    // The compile door's schemas join outside the literal below: `json!` expands
-    // recursively per token, and that literal is already the crate's largest.
-    if let Some(named) = schemas.as_object_mut() {
-        named.insert(
-            "CompileRequest".to_owned(),
-            super::compile::schema::request(),
-        );
-        named.insert(
-            "CompileOutcome".to_owned(),
-            super::compile::schema::outcome(),
-        );
+/// The document this server serves: [`live`], and on a server started with
+/// `--cost-review` the door's paths and schemas merged in (health `costReviewV1`).
+pub(crate) fn served(native: bool, cost_review: bool) -> Value {
+    let mut document = live(native);
+    if cost_review && let Ok(patch) = serde_json::from_str::<Value>(COST_REVIEW) {
+        super::compile::schema::merge(&mut document, patch);
     }
-    schemas
+    document
 }
 
-fn core_schemas() -> Value {
-    json!({
-            "Health": health_schema(),
-            "WorkflowList": workflow_list_schema(),
-            "WorkflowMetadata": workflow_metadata_schema(),
-            "JobStatus": {
-                "type": "string",
-                "description": "queued and running: the resident owns the execution. interrupted: execution ownership was lost and effect settlement is unknown — an EVIDENCE state (the journal is INCOMPLETE), never a run state (ADR-129). paused, succeeded, failed and cancelled: the run's own settlement, the words its terminal frame carries (ADR-128).",
-                "enum": ["queued", "running", "interrupted", "paused", "succeeded", "failed", "cancelled"]
+/// The document's source: the builder the committed file is generated from.
+#[cfg(test)]
+mod builder {
+    use serde_json::{Value, json};
+
+    /// [`OpenAPI`](https://spec.openapis.org/oas/v3.1.0) document of the live HTTP surface.
+    ///
+    /// Artifact and `POST /v1/run` paths are omitted until those authorities exist.
+    pub(super) fn document() -> Value {
+        json!({
+            "openapi": "3.1.0",
+            "info": {
+                "title": "nika serve",
+                "version": env!("CARGO_PKG_VERSION"),
+                "description": "Authenticated loopback remote execution, declarative schedules and stateless source-only authoring (POST /v1/compile never runs, admits or writes). Artifacts, schedule list/delete/trigger/backfill, /v1/arm, and POST /v1/run are absent."
             },
-            "Job": job_schema(),
-            "JobOrigin": job_origin_schema(),
-            "JobReceipt": job_receipt_schema(),
-            "JobEvent": job_event_schema(),
-            "RunSettlement": run_settlement_schema(),
-            "JournalEvidence": journal_evidence_schema(),
-            "TraceVerification": trace_verification_schema(),
-            "JobStatusOnly": {
-                "type": "object",
-                "additionalProperties": false,
-                "description": "Status only. Redacted diagnosis lives on GET /v1/jobs/{id} and SSE, never here.",
-                "required": ["status"],
-                "properties": {
-                    "status": {"$ref": "#/components/schemas/JobStatus"}
+            "servers": [{"url": "http://127.0.0.1"}],
+            "security": [{"bearerAuth": []}],
+            "components": components(),
+            "paths": paths(),
+        })
+    }
+
+    fn components() -> Value {
+        json!({
+            "securitySchemes": {
+                "bearerAuth": {
+                    "type": "http",
+                    "scheme": "bearer",
+                    "description": "Exactly one Authorization: Bearer value from the token file"
                 }
             },
-            "JobByName": job_by_name_schema(),
-            "CheckByName": check_by_name_schema(),
-            "ExecutionSnapshot": {
-                "type": "object",
-                "additionalProperties": false,
-                "description": "Immutable byte-owned execution world — the body `nika check <file> --json --sdk-snapshot` prints (the engine is the one producer; a client never hashes). Unit bytes are canonical lowercase hexadecimal. `digest` and every unit `digest` are OPTIONAL caller-supplied integrity digests (canonical lowercase SHA-256 · a content assertion, never a signature): absent, the resident computes them and the receipt carries the result; present, they must match the bytes or the request is refused as `snapshot_tampered`. The decoded unit aggregate is limited to 16 MiB and the complete encoded request to 33 MiB. This object is the request body itself, not a path-bearing wrapper.",
-                "required": ["format_version", "root", "units"],
-                "properties": {
-                    "format_version": {"type": "integer", "const": 1},
-                    "root": {"type": "string", "minLength": 1, "maxLength": 4096},
-                    "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$", "description": "Optional caller-supplied integrity digest of the world (never a signature)"},
-                    "units": {
-                        "type": "array",
-                        "maxItems": 256,
-                        "items": {
-                            "type": "object",
-                            "additionalProperties": false,
-                            "required": ["path", "kind", "bytes_hex"],
-                            "properties": {
-                                "path": {"type": "string", "minLength": 1, "maxLength": 4096},
-                                "kind": {"type": "integer", "minimum": 0, "maximum": 3, "description": "0 root (the admitted workflow) · 1 child (a transitively invoked workflow) · 2 skill (an Agent Skill document) · 3 import (an opaque import the caller supplied)"},
-                                "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$", "description": "Optional caller-supplied integrity digest of the unit (never a signature)"},
-                                "bytes_hex": {"type": "string", "pattern": "^(?:[0-9a-f]{2})*$"}
+            "parameters": {
+                "IdempotencyKey": {
+                    "name": "Idempotency-Key",
+                    "in": "header",
+                    "required": true,
+                    "schema": {"type": "string", "minLength": 1, "maxLength": 255}
+                },
+                "LastEventId": {
+                    "name": "Last-Event-ID",
+                    "in": "header",
+                    "required": false,
+                    "schema": {"type": "string", "pattern": "^(0|[1-9][0-9]*)$"}
+                },
+                "IfMatch": {
+                    "name": "If-Match", "in": "header", "required": false,
+                    "schema": {"type": "string", "maxLength": 96}
+                },
+                "IfNoneMatch": {
+                    "name": "If-None-Match", "in": "header", "required": false,
+                    "schema": {"type": "string", "const": "*"}
+                }
+            },
+            "schemas": schemas()
+        })
+    }
+
+    fn job_schema() -> Value {
+        json!({
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "status"],
+            "properties": {
+                "id": {"type": "string", "format": "uuid"},
+                "status": {"$ref": "#/components/schemas/JobStatus"},
+                "execution_id": {"type": "string"},
+                "trace_id": {"type": "string"},
+                "outputs": {
+                    "type": "object",
+                    "description": "Declared workflow outputs; present only after settlement when supplied by the execution adapter",
+                    "additionalProperties": true
+                },
+                "receipt": {"$ref": "#/components/schemas/JobReceipt"},
+                "settlement": {"$ref": "#/components/schemas/RunSettlement"},
+                "evidence": {"$ref": "#/components/schemas/JournalEvidence"},
+                "error": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["code", "message"],
+                    "properties": {
+                        "code": {"type": "string"},
+                        "message": {"type": "string"}
+                    }
+                }
+            }
+        })
+    }
+
+    fn schemas() -> Value {
+        let mut schemas = core_schemas();
+        // The compile door's schemas join outside the literal below: `json!` expands
+        // recursively per token, and that literal is already the crate's largest.
+        if let Some(named) = schemas.as_object_mut() {
+            named.insert(
+                "CompileRequest".to_owned(),
+                super::super::compile::schema::request(),
+            );
+            named.insert(
+                "CompileOutcome".to_owned(),
+                super::super::compile::schema::outcome(),
+            );
+        }
+        schemas
+    }
+
+    fn core_schemas() -> Value {
+        json!({
+                "Health": health_schema(),
+                "WorkflowList": workflow_list_schema(),
+                "WorkflowMetadata": workflow_metadata_schema(),
+                "JobStatus": {
+                    "type": "string",
+                    "description": "queued and running: the resident owns the execution. interrupted: execution ownership was lost and effect settlement is unknown — an EVIDENCE state (the journal is INCOMPLETE), never a run state (ADR-129). paused, succeeded, failed and cancelled: the run's own settlement, the words its terminal frame carries (ADR-128).",
+                    "enum": ["queued", "running", "interrupted", "paused", "succeeded", "failed", "cancelled"]
+                },
+                "Job": job_schema(),
+                "JobOrigin": job_origin_schema(),
+                "JobReceipt": job_receipt_schema(),
+                "JobEvent": job_event_schema(),
+                "RunSettlement": run_settlement_schema(),
+                "JournalEvidence": journal_evidence_schema(),
+                "TraceVerification": trace_verification_schema(),
+                "JobStatusOnly": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "description": "Status only. Redacted diagnosis lives on GET /v1/jobs/{id} and SSE, never here.",
+                    "required": ["status"],
+                    "properties": {
+                        "status": {"$ref": "#/components/schemas/JobStatus"}
+                    }
+                },
+                "JobByName": job_by_name_schema(),
+                "CheckByName": check_by_name_schema(),
+                "ExecutionSnapshot": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "description": "Immutable byte-owned execution world — the body `nika check <file> --json --sdk-snapshot` prints (the engine is the one producer; a client never hashes). Unit bytes are canonical lowercase hexadecimal. `digest` and every unit `digest` are OPTIONAL caller-supplied integrity digests (canonical lowercase SHA-256 · a content assertion, never a signature): absent, the resident computes them and the receipt carries the result; present, they must match the bytes or the request is refused as `snapshot_tampered`. The decoded unit aggregate is limited to 16 MiB and the complete encoded request to 33 MiB. This object is the request body itself, not a path-bearing wrapper.",
+                    "required": ["format_version", "root", "units"],
+                    "properties": {
+                        "format_version": {"type": "integer", "const": 1},
+                        "root": {"type": "string", "minLength": 1, "maxLength": 4096},
+                        "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$", "description": "Optional caller-supplied integrity digest of the world (never a signature)"},
+                        "units": {
+                            "type": "array",
+                            "maxItems": 256,
+                            "items": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": ["path", "kind", "bytes_hex"],
+                                "properties": {
+                                    "path": {"type": "string", "minLength": 1, "maxLength": 4096},
+                                    "kind": {"type": "integer", "minimum": 0, "maximum": 3, "description": "0 root (the admitted workflow) · 1 child (a transitively invoked workflow) · 2 skill (an Agent Skill document) · 3 import (an opaque import the caller supplied)"},
+                                    "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$", "description": "Optional caller-supplied integrity digest of the unit (never a signature)"},
+                                    "bytes_hex": {"type": "string", "pattern": "^(?:[0-9a-f]{2})*$"}
+                                }
                             }
                         }
                     }
-                }
-            },
-            "SnapshotValidationAck": {
-                "type": "object",
-                "additionalProperties": false,
-                "description": "Compact remote acknowledgement that the exact snapshot was revalidated. This is not the engine's public full check report; SDK callers retain the engine-owned report captured with the snapshot and return it only after this acknowledgement succeeds.",
-                "required": ["status", "snapshot_digest", "root", "units"],
-                "properties": {
-                    "status": {"type": "string", "const": "accepted"},
-                    "snapshot_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-                    "root": {"type": "string", "minLength": 1},
-                    "units": {"type": "integer", "minimum": 1}
-                }
-            },
-            "SchedulePut": schedule_put_schema(),
-            "ScheduleApply": schedule_apply_schema(),
-            "ScheduleStatus": {
-                "type": "object",
-                "description": "Normalized definition, origin, distinct schedule revision, active/pause state, due verdict, bounded next slots with shift evidence, earliest wake hint, and last durable decision.",
-                "additionalProperties": true
-            },
-            "Error": error_schema()
-    })
-}
+                },
+                "SnapshotValidationAck": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "description": "Compact remote acknowledgement that the exact snapshot was revalidated. This is not the engine's public full check report; SDK callers retain the engine-owned report captured with the snapshot and return it only after this acknowledgement succeeds.",
+                    "required": ["status", "snapshot_digest", "root", "units"],
+                    "properties": {
+                        "status": {"type": "string", "const": "accepted"},
+                        "snapshot_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                        "root": {"type": "string", "minLength": 1},
+                        "units": {"type": "integer", "minimum": 1}
+                    }
+                },
+                "SchedulePut": schedule_put_schema(),
+                "ScheduleApply": schedule_apply_schema(),
+                "ScheduleStatus": {
+                    "type": "object",
+                    "description": "Normalized definition, origin, distinct schedule revision, active/pause state, due verdict, bounded next slots with shift evidence, earliest wake hint, and last durable decision.",
+                    "additionalProperties": true
+                },
+                "Error": error_schema()
+        })
+    }
 
-fn health_schema() -> Value {
-    json!({
-        "type": "object", "additionalProperties": false,
-        "required": ["status", "service", "engine_version", "build_sha", "spec_sha", "api_version", "engineVersion", "buildSha", "specSha", "machineProtocolVersion", "snapshotFormatVersion", "checkReportVersion", "eventFormatVersion", "traceFormatVersion", "storeFormatVersion", "supportedCapabilities"],
-        "properties": {
-            "status": {"type": "string", "const": "ok"},
-            "service": {"type": "string", "const": "nika-serve"},
-            "engine_version": {"type": "string", "minLength": 1},
-            "build_sha": {"type": "string", "minLength": 1},
-            "spec_sha": {"type": "string", "minLength": 1},
-            "api_version": {"type": "string", "minLength": 1},
-            "engineVersion": {"type": "string", "minLength": 1},
-            "buildSha": {"type": "string", "minLength": 1},
-            "specSha": {"type": "string", "minLength": 1},
-            "machineProtocolVersion": {"type": "integer", "minimum": 1},
-            "snapshotFormatVersion": {"type": "integer", "minimum": 1},
-            "checkReportVersion": {"type": "integer", "minimum": 1},
-            "eventFormatVersion": {"type": "integer", "minimum": 1},
-            "traceFormatVersion": {"type": "integer", "minimum": 1},
-            "storeFormatVersion": {
-                "type": "object", "additionalProperties": false,
-                "description": "Durable store formats this resident reads and writes; independent of the HTTP and event protocol versions.",
-                "required": ["jobs", "schedules"],
-                "properties": {
-                    "jobs": {"type": "integer", "minimum": 1, "examples": [crate::job::STATE_VERSION]},
-                    "schedules": {"type": "integer", "minimum": 1, "examples": [crate::schedule::STATE_VERSION]}
-                }
-            },
-            "supportedCapabilities": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
-        }
-    })
-}
+    fn health_schema() -> Value {
+        json!({
+            "type": "object", "additionalProperties": false,
+            "required": ["status", "service", "engine_version", "build_sha", "spec_sha", "api_version", "engineVersion", "buildSha", "specSha", "machineProtocolVersion", "snapshotFormatVersion", "checkReportVersion", "eventFormatVersion", "traceFormatVersion", "storeFormatVersion", "supportedCapabilities"],
+            "properties": {
+                "status": {"type": "string", "const": "ok"},
+                "service": {"type": "string", "const": "nika-serve"},
+                "engine_version": {"type": "string", "minLength": 1},
+                "build_sha": {"type": "string", "minLength": 1},
+                "spec_sha": {"type": "string", "minLength": 1},
+                "api_version": {"type": "string", "minLength": 1},
+                "engineVersion": {"type": "string", "minLength": 1},
+                "buildSha": {"type": "string", "minLength": 1},
+                "specSha": {"type": "string", "minLength": 1},
+                "machineProtocolVersion": {"type": "integer", "minimum": 1},
+                "snapshotFormatVersion": {"type": "integer", "minimum": 1},
+                "checkReportVersion": {"type": "integer", "minimum": 1},
+                "eventFormatVersion": {"type": "integer", "minimum": 1},
+                "traceFormatVersion": {"type": "integer", "minimum": 1},
+                "storeFormatVersion": {
+                    "type": "object", "additionalProperties": false,
+                    "description": "Durable store formats this resident reads and writes; independent of the HTTP and event protocol versions.",
+                    "required": ["jobs", "schedules"],
+                    "properties": {
+                        "jobs": {"type": "integer", "minimum": 1, "examples": [crate::job::STATE_VERSION]},
+                        "schedules": {"type": "integer", "minimum": 1, "examples": [crate::schedule::STATE_VERSION]}
+                    }
+                },
+                "supportedCapabilities": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+            }
+        })
+    }
 
-fn workflow_list_schema() -> Value {
-    json!({
-        "type": "object", "additionalProperties": false,
-        "required": ["workflows"],
-        "properties": {"workflows": {"type": "array", "items": {"type": "string", "minLength": 1}}}
-    })
-}
+    fn workflow_list_schema() -> Value {
+        json!({
+            "type": "object", "additionalProperties": false,
+            "required": ["workflows"],
+            "properties": {"workflows": {"type": "array", "items": {"type": "string", "minLength": 1}}}
+        })
+    }
 
-fn workflow_metadata_schema() -> Value {
-    json!({
-        "type": "object", "additionalProperties": false,
-        "required": ["workflow"],
-        "properties": {"workflow": {"type": "string", "minLength": 1}}
-    })
-}
+    fn workflow_metadata_schema() -> Value {
+        json!({
+            "type": "object", "additionalProperties": false,
+            "required": ["workflow"],
+            "properties": {"workflow": {"type": "string", "minLength": 1}}
+        })
+    }
 
-/// The `kind` enumeration is GENERATED from [`crate::JobEventKind`] (#1471):
-/// the resident's own words, plus the one run-vocabulary frame the journal
-/// admits beside them (`approval_decided` · NEP-0013), spelled by its owner.
-fn job_event_kind_schema() -> Value {
-    let mut kinds: Vec<&str> = crate::JobEventKind::ALL
-        .iter()
-        .map(|kind| kind.as_str())
-        .collect();
-    kinds.push(nika_event::EventKind::ApprovalDecided.as_str());
-    json!({
-        "description": "The resident's event vocabulary: execution.<word> (queued · started · prepared · requeued · settled · cancelled · interrupted · refused · aborted_before_claim), plus the approval_decided frame the journal admits. Null on a payload that carries no kind.",
-        "anyOf": [{"type": "string", "enum": kinds}, {"type": "null"}]
-    })
-}
+    /// The `kind` enumeration is GENERATED from [`crate::JobEventKind`] (#1471):
+    /// the resident's own words, plus the one run-vocabulary frame the journal
+    /// admits beside them (`approval_decided` · NEP-0013), spelled by its owner.
+    fn job_event_kind_schema() -> Value {
+        let mut kinds: Vec<&str> = crate::JobEventKind::ALL
+            .iter()
+            .map(|kind| kind.as_str())
+            .collect();
+        kinds.push(nika_event::EventKind::ApprovalDecided.as_str());
+        json!({
+            "description": "The resident's event vocabulary: execution.<word> (queued · started · prepared · requeued · settled · cancelled · interrupted · refused · aborted_before_claim), plus the approval_decided frame the journal admits. Null on a payload that carries no kind.",
+            "anyOf": [{"type": "string", "enum": kinds}, {"type": "null"}]
+        })
+    }
 
-fn job_event_schema() -> Value {
-    json!({
-        "type": "object", "additionalProperties": false,
-        "required": ["sequence", "kind", "status"],
-        "properties": {
-            "sequence": {"type": "integer", "minimum": 1},
-            "at": {"type": "string", "format": "date-time", "description": "When the resident admitted the event (RFC 3339 · UTC). Outside the event's hash chain; absent on an event written before the journal was dated."},
-            "kind": job_event_kind_schema(),
-            "status": {"anyOf": [{"$ref": "#/components/schemas/JobStatus"}, {"type": "null"}]},
-            "code": {"type": "string"},
-            "message": {"type": "string"},
-            "outputs": {"type": "object", "additionalProperties": true},
-            "receipt": {"$ref": "#/components/schemas/JobReceipt"},
-            "settlement": {"$ref": "#/components/schemas/RunSettlement"},
-            "evidence": {"$ref": "#/components/schemas/JournalEvidence"}
-        }
-    })
-}
+    fn job_event_schema() -> Value {
+        json!({
+            "type": "object", "additionalProperties": false,
+            "required": ["sequence", "kind", "status"],
+            "properties": {
+                "sequence": {"type": "integer", "minimum": 1},
+                "at": {"type": "string", "format": "date-time", "description": "When the resident admitted the event (RFC 3339 · UTC). Outside the event's hash chain; absent on an event written before the journal was dated."},
+                "kind": job_event_kind_schema(),
+                "status": {"anyOf": [{"$ref": "#/components/schemas/JobStatus"}, {"type": "null"}]},
+                "code": {"type": "string"},
+                "message": {"type": "string"},
+                "outputs": {"type": "object", "additionalProperties": true},
+                "receipt": {"$ref": "#/components/schemas/JobReceipt"},
+                "settlement": {"$ref": "#/components/schemas/RunSettlement"},
+                "evidence": {"$ref": "#/components/schemas/JournalEvidence"}
+            }
+        })
+    }
 
-/// ADR-128 · the run's settlement, built once by the runtime and projected
-/// here whole on the terminal event (`execution.settled` ·
-/// `execution.cancelled`): the same object the CLI's `run_settled` flattens.
-fn run_settlement_schema() -> Value {
-    json!({
-        "type": "object",
-        "additionalProperties": false,
-        "description": "The run's settlement (ADR-128), built once by the runtime and projected whole: the state word every door speaks, why, the elapsed time on the kernel clock, the task tally, the spend with its qualifier, the failure named. Unknown cost is never zero: `total_cost_usd` is absent when nothing was metered. Present on the terminal event and durable job response of a job whose runtime settled; absent when the resident lost the execution (interrupted) or refused it before any task. Reattachment and idempotent admission replay project the same hash-bound terminal event, never a new settlement.",
-        "required": ["status", "cause", "spend"],
-        "properties": {
-            "status": {"type": "string", "enum": ["succeeded", "failed", "paused", "cancelled"]},
-            "cause": {"type": "string", "enum": ["normal", "human_gate", "task_failed", "output_contract", "budget", "operator", "refused"]},
-            "elapsed_ms": {"type": "integer", "minimum": 0},
-            "tasks": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": ["total", "ok", "failed", "recovered", "skipped", "cancelled", "never_started"],
-                "properties": {
-                    "total": {"type": "integer", "minimum": 0},
-                    "ok": {"type": "integer", "minimum": 0, "description": "A recovered task IS a success (counted here too)"},
-                    "failed": {"type": "integer", "minimum": 0},
-                    "recovered": {"type": "integer", "minimum": 0},
-                    "skipped": {"type": "integer", "minimum": 0},
-                    "cancelled": {"type": "integer", "minimum": 0},
-                    "never_started": {"type": "integer", "minimum": 0, "description": "Cancelled at the boundary without ever starting (counted in `cancelled` too)"}
-                }
-            },
-            "spend": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": ["priced_calls", "unpriced_calls", "qualifier"],
-                "properties": {
-                    "total_cost_usd": {"type": "number", "minimum": 0, "description": "Present only when at least one leaf metered real spend"},
-                    "priced_calls": {"type": "integer", "minimum": 0},
-                    "unpriced_calls": {"type": "integer", "minimum": 0},
-                    "qualifier": {"type": "string", "enum": ["priced", "partially_priced", "unpriced", "unmetered"]},
-                    "pricing_as_of": {"type": "string"},
-                    "by_source": {"type": "object", "additionalProperties": {"type": "number"}}
-                }
-            },
-            "error": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": ["code", "message"],
-                "properties": {
-                    "code": {"type": "string"},
-                    "message": {"type": "string"},
-                    "task": {"type": "string", "description": "The task that failed · absent for a run-level cause"}
+    /// ADR-128 · the run's settlement, built once by the runtime and projected
+    /// here whole on the terminal event (`execution.settled` ·
+    /// `execution.cancelled`): the same object the CLI's `run_settled` flattens.
+    fn run_settlement_schema() -> Value {
+        json!({
+            "type": "object",
+            "additionalProperties": false,
+            "description": "The run's settlement (ADR-128), built once by the runtime and projected whole: the state word every door speaks, why, the elapsed time on the kernel clock, the task tally, the spend with its qualifier, the failure named. Unknown cost is never zero: `total_cost_usd` is absent when nothing was metered. Present on the terminal event and durable job response of a job whose runtime settled; absent when the resident lost the execution (interrupted) or refused it before any task. Reattachment and idempotent admission replay project the same hash-bound terminal event, never a new settlement.",
+            "required": ["status", "cause", "spend"],
+            "properties": {
+                "status": {"type": "string", "enum": ["succeeded", "failed", "paused", "cancelled"]},
+                "cause": {"type": "string", "enum": ["normal", "human_gate", "task_failed", "output_contract", "budget", "operator", "refused"]},
+                "elapsed_ms": {"type": "integer", "minimum": 0},
+                "tasks": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["total", "ok", "failed", "recovered", "skipped", "cancelled", "never_started"],
+                    "properties": {
+                        "total": {"type": "integer", "minimum": 0},
+                        "ok": {"type": "integer", "minimum": 0, "description": "A recovered task IS a success (counted here too)"},
+                        "failed": {"type": "integer", "minimum": 0},
+                        "recovered": {"type": "integer", "minimum": 0},
+                        "skipped": {"type": "integer", "minimum": 0},
+                        "cancelled": {"type": "integer", "minimum": 0},
+                        "never_started": {"type": "integer", "minimum": 0, "description": "Cancelled at the boundary without ever starting (counted in `cancelled` too)"}
+                    }
+                },
+                "spend": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["priced_calls", "unpriced_calls", "qualifier"],
+                    "properties": {
+                        "total_cost_usd": {"type": "number", "minimum": 0, "description": "Present only when at least one leaf metered real spend"},
+                        "priced_calls": {"type": "integer", "minimum": 0},
+                        "unpriced_calls": {"type": "integer", "minimum": 0},
+                        "qualifier": {"type": "string", "enum": ["priced", "partially_priced", "unpriced", "unmetered"]},
+                        "pricing_as_of": {"type": "string"},
+                        "by_source": {"type": "object", "additionalProperties": {"type": "number"}}
+                    }
+                },
+                "error": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["code", "message"],
+                    "properties": {
+                        "code": {"type": "string"},
+                        "message": {"type": "string"},
+                        "task": {"type": "string", "description": "The task that failed · absent for a run-level cause"}
+                    }
                 }
             }
-        }
-    })
-}
+        })
+    }
 
-fn error_schema() -> Value {
-    json!({
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["error"],
-        "properties": {
-            "error": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": ["code", "message"],
-                "properties": {
-                    "code": {"type": "string"},
-                    "message": {"type": "string"}
+    fn error_schema() -> Value {
+        json!({
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["error"],
+            "properties": {
+                "error": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["code", "message"],
+                    "properties": {
+                        "code": {"type": "string"},
+                        "message": {"type": "string"}
+                    }
                 }
             }
-        }
-    })
-}
+        })
+    }
 
-fn journal_evidence_schema() -> Value {
-    json!({
-        "type": "object", "additionalProperties": false,
-        "description": "Reported journal delivery loss, independent of execution status. The reason classifies the mirror's first error without exposing OS text or paths. Absence is not a claim that a journal exists.",
-        "required": ["status", "reason"],
-        "properties": {
-            "status": {"type": "string", "const": "mirror_lost"},
-            "reason": {"type": "string", "enum": ["write_failed", "record_refused"]}
-        }
-    })
-}
+    fn journal_evidence_schema() -> Value {
+        json!({
+            "type": "object", "additionalProperties": false,
+            "description": "Reported journal delivery loss, independent of execution status. The reason classifies the mirror's first error without exposing OS text or paths. Absence is not a claim that a journal exists.",
+            "required": ["status", "reason"],
+            "properties": {
+                "status": {"type": "string", "const": "mirror_lost"},
+                "reason": {"type": "string", "enum": ["write_failed", "record_refused"]}
+            }
+        })
+    }
 
-fn job_receipt_schema() -> Value {
-    json!({
-        "type": "object",
-        "additionalProperties": false,
-        "description": "Terminal binding to the exact immutable admitted execution",
-        "required": ["job_id", "execution_id", "trace_id", "snapshot_digest"],
-        "properties": {
-            "job_id": {"type": "string", "format": "uuid"},
-            "execution_id": {"type": "string", "minLength": 1},
-            "trace_id": {"type": "string", "minLength": 1},
-            "snapshot_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-            "origin": {"$ref": "#/components/schemas/JobOrigin"},
-            "chain_head": {"type": "string", "minLength": 1}
-        }
-    })
-}
+    fn job_receipt_schema() -> Value {
+        json!({
+            "type": "object",
+            "additionalProperties": false,
+            "description": "Terminal binding to the exact immutable admitted execution",
+            "required": ["job_id", "execution_id", "trace_id", "snapshot_digest"],
+            "properties": {
+                "job_id": {"type": "string", "format": "uuid"},
+                "execution_id": {"type": "string", "minLength": 1},
+                "trace_id": {"type": "string", "minLength": 1},
+                "snapshot_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                "origin": {"$ref": "#/components/schemas/JobOrigin"},
+                "chain_head": {"type": "string", "minLength": 1}
+            }
+        })
+    }
 
-fn job_origin_schema() -> Value {
-    json!({
-        "oneOf": [
-            {
-                "type": "object",
-                "additionalProperties": false,
-                "required": ["kind"],
-                "properties": {
-                    "kind": {"type": "string", "const": "manual"}
+    fn job_origin_schema() -> Value {
+        json!({
+            "oneOf": [
+                {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["kind"],
+                    "properties": {
+                        "kind": {"type": "string", "const": "manual"}
+                    }
+                },
+                {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                        "kind", "schedule_origin", "schedule_id", "schedule_revision",
+                        "slot_id", "decision", "scheduled_for", "fired_at", "arm_generation"
+                    ],
+                    "properties": {
+                        "kind": {"type": "string", "const": "schedule"},
+                        "schedule_origin": {"type": "string", "enum": ["project", "api"]},
+                        "schedule_id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 255,
+                            "description": "Origin-local identifier, bounded to 255 UTF-8 bytes by the server"
+                        },
+                        "schedule_revision": {
+                            "type": "string",
+                            "pattern": "^sha256:[0-9a-f]{64}$"
+                        },
+                        "slot_id": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                        "decision": {"type": "string", "enum": ["scheduled", "catch_up"]},
+                        "scheduled_for": {"type": "string", "format": "date-time"},
+                        "fired_at": {"type": "string", "format": "date-time"},
+                        "arm_generation": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+                    }
                 }
-            },
-            {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                    "kind", "schedule_origin", "schedule_id", "schedule_revision",
-                    "slot_id", "decision", "scheduled_for", "fired_at", "arm_generation"
-                ],
-                "properties": {
-                    "kind": {"type": "string", "const": "schedule"},
-                    "schedule_origin": {"type": "string", "enum": ["project", "api"]},
-                    "schedule_id": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 255,
-                        "description": "Origin-local identifier, bounded to 255 UTF-8 bytes by the server"
-                    },
-                    "schedule_revision": {
-                        "type": "string",
-                        "pattern": "^sha256:[0-9a-f]{64}$"
-                    },
-                    "slot_id": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-                    "decision": {"type": "string", "enum": ["scheduled", "catch_up"]},
-                    "scheduled_for": {"type": "string", "format": "date-time"},
-                    "fired_at": {"type": "string", "format": "date-time"},
-                    "arm_generation": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+            ]
+        })
+    }
+
+    fn trace_verification_schema() -> Value {
+        json!({
+            "type": "object",
+            "additionalProperties": false,
+            "description": "Run-scoped verdict on the journal the resident wrote for the job, through the ONE verifier `nika trace verify --json` runs. `verdict` is the CLI's headline word: the attained tier (ok · sealed · anchored · replayed), incomplete for a journal with no terminal frame (the writer's liveness rides `reason`), tampered for a buried seal, broken for an edited chain, and the CLI's refusal classes; `unavailable` only when no journal exists for the job (refused before its first event · queued · a backend keeping none). `reason` is the machine class beside it (the seal tier under a ladder verdict). The CLI's own document rides verbatim (exit · chain · seal · anchor · replay · lines); a filesystem path is never returned.",
+            "required": ["verdict", "reason"],
+            "properties": {
+                "verdict": {"type": "string", "enum": ["unavailable", "ok", "sealed", "anchored", "replayed", "incomplete", "tampered", "broken", "unchained", "empty", "unreadable", "refused", "line-over-long", "unknown"]},
+                "reason": {"type": "string", "enum": ["run_not_terminal", "trace_journal_unavailable", "sealed", "unsealed", "forged", "buried", "unattributable", "writer_alive", "writer_dead", "writer_unknown", "buried_seal", "broken", "unchained", "empty", "unreadable", "refused", "line_over_long", "unknown"]},
+                "trace_id": {"type": "string", "minLength": 1},
+                "verify_version": {"type": "integer", "minimum": 1},
+                "exit": {"type": "integer", "enum": [0, 2, 3, 5], "description": "The CLI's exit class: 0 the reported tier holds · 2 a forged or edited journal · 3 the environment (unchained · unreadable · a missing input) · 5 incomplete lifecycle evidence"},
+                "chain": {"type": "object", "additionalProperties": true, "description": "events · head · headline (intact · torn · incomplete) · liveness (alive · dead · unknown · null)"},
+                "seal": {"type": "object", "additionalProperties": true, "description": "tier (unsealed · sealed · forged · buried · unattributable) and the tier's facts"},
+                "anchor": {"type": "object", "additionalProperties": true},
+                "replay": {"type": "object", "additionalProperties": true},
+                "lines": {"type": "array", "items": {"type": "string"}, "description": "The CLI's ladder lines, the journal path replaced by <journal>"}
+            }
+        })
+    }
+
+    fn paths() -> Value {
+        json!({
+            "/health": health_path(),
+            "/v1/openapi.json": openapi_path(),
+            "/v1/workflows": workflow_list_path(),
+            "/v1/workflows/{name}": workflow_metadata_path(),
+            "/v1/jobs": jobs_path(),
+            "/v1/check": check_path(),
+            "/v1/compile": super::super::compile::schema::path(),
+            "/v1/jobs/{id}": job_path(),
+            "/v1/jobs/{id}/status": job_status_path(),
+            "/v1/jobs/{id}/events": job_events_path(),
+            "/v1/jobs/{id}/cancel": job_cancel_path(),
+            "/v1/jobs/{id}/trace/verify": job_trace_verify_path(),
+            "/v1/schedules/{id}": schedule_path()
+        })
+    }
+
+    fn schedule_apply_schema() -> Value {
+        json!({
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["applied", "changed", "status"],
+            "properties": {
+                "applied": {"type": "boolean", "const": true},
+                "changed": {"type": "boolean"},
+                "status": {"$ref": "#/components/schemas/ScheduleStatus"}
+            }
+        })
+    }
+
+    fn schedule_put_schema() -> Value {
+        json!({
+            "type": "object", "additionalProperties": false,
+            "required": ["workflow", "when", "maxCostUsd", "missed"],
+            "properties": {
+                "workflow": {"type": "string", "pattern": "^[^/].*\\.nika$", "maxLength": 1024},
+                "when": {
+                    "oneOf": [
+                        {"type": "object", "additionalProperties": false, "required": ["kind", "at"], "properties": {"kind": {"const": "once"}, "at": {"type": "string", "format": "date-time"}}},
+                        {"type": "object", "additionalProperties": false, "required": ["kind", "expression"], "properties": {"kind": {"const": "cadence"}, "expression": {"type": "string", "maxLength": 4096}}}
+                    ]
+                },
+                "maxCostUsd": {"type": "number", "exclusiveMinimum": 0},
+                "missed": {"type": "string", "enum": ["catch-up", "catch-up-once", "skip"]},
+                "maxLatenessSeconds": {"type": "integer", "minimum": 0},
+                "overlap": {"type": "string", "enum": ["skip", "queue", "replace"]},
+                "afterSkip": {"type": "string", "enum": ["next_slot", "on_completion"]},
+                "jitter": {"type": "string", "enum": ["hash"]},
+                "tolerance": {"type": "string"},
+                "active": {"type": "boolean"},
+                "pauseReason": {"type": "string", "maxLength": 1024},
+                "pauseUntil": {"type": "string", "format": "date"},
+                "inputs": {
+                    "type": "object",
+                    "description": "Per-fire inputs bound on every resident fire (#1370): one scalar per key the workflow declares under `inputs:`, coerced by the declared type exactly as the CLI `--var` edge does, then judged by the same literal admission validator as POST /v1/jobs. Unknown keys, values the declared type refuses, missing required inputs and the `@env:` channel are refused at PUT and again at fire.",
+                    "additionalProperties": {"oneOf": [{"type": "string"}, {"type": "number"}, {"type": "boolean"}]}
                 }
             }
-        ]
-    })
-}
+        })
+    }
 
-fn trace_verification_schema() -> Value {
-    json!({
-        "type": "object",
-        "additionalProperties": false,
-        "description": "Run-scoped verdict on the journal the resident wrote for the job, through the ONE verifier `nika trace verify --json` runs. `verdict` is the CLI's headline word: the attained tier (ok · sealed · anchored · replayed), incomplete for a journal with no terminal frame (the writer's liveness rides `reason`), tampered for a buried seal, broken for an edited chain, and the CLI's refusal classes; `unavailable` only when no journal exists for the job (refused before its first event · queued · a backend keeping none). `reason` is the machine class beside it (the seal tier under a ladder verdict). The CLI's own document rides verbatim (exit · chain · seal · anchor · replay · lines); a filesystem path is never returned.",
-        "required": ["verdict", "reason"],
-        "properties": {
-            "verdict": {"type": "string", "enum": ["unavailable", "ok", "sealed", "anchored", "replayed", "incomplete", "tampered", "broken", "unchained", "empty", "unreadable", "refused", "line-over-long", "unknown"]},
-            "reason": {"type": "string", "enum": ["run_not_terminal", "trace_journal_unavailable", "sealed", "unsealed", "forged", "buried", "unattributable", "writer_alive", "writer_dead", "writer_unknown", "buried_seal", "broken", "unchained", "empty", "unreadable", "refused", "line_over_long", "unknown"]},
-            "trace_id": {"type": "string", "minLength": 1},
-            "verify_version": {"type": "integer", "minimum": 1},
-            "exit": {"type": "integer", "enum": [0, 2, 3, 5], "description": "The CLI's exit class: 0 the reported tier holds · 2 a forged or edited journal · 3 the environment (unchained · unreadable · a missing input) · 5 incomplete lifecycle evidence"},
-            "chain": {"type": "object", "additionalProperties": true, "description": "events · head · headline (intact · torn · incomplete) · liveness (alive · dead · unknown · null)"},
-            "seal": {"type": "object", "additionalProperties": true, "description": "tier (unsealed · sealed · forged · buried · unattributable) and the tier's facts"},
-            "anchor": {"type": "object", "additionalProperties": true},
-            "replay": {"type": "object", "additionalProperties": true},
-            "lines": {"type": "array", "items": {"type": "string"}, "description": "The CLI's ladder lines, the journal path replaced by <journal>"}
-        }
-    })
-}
-
-fn paths() -> Value {
-    json!({
-        "/health": health_path(),
-        "/v1/openapi.json": openapi_path(),
-        "/v1/workflows": workflow_list_path(),
-        "/v1/workflows/{name}": workflow_metadata_path(),
-        "/v1/jobs": jobs_path(),
-        "/v1/check": check_path(),
-        "/v1/compile": super::compile::schema::path(),
-        "/v1/jobs/{id}": job_path(),
-        "/v1/jobs/{id}/status": job_status_path(),
-        "/v1/jobs/{id}/events": job_events_path(),
-        "/v1/jobs/{id}/cancel": job_cancel_path(),
-        "/v1/jobs/{id}/trace/verify": job_trace_verify_path(),
-        "/v1/schedules/{id}": schedule_path()
-    })
-}
-
-fn schedule_apply_schema() -> Value {
-    json!({
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["applied", "changed", "status"],
-        "properties": {
-            "applied": {"type": "boolean", "const": true},
-            "changed": {"type": "boolean"},
-            "status": {"$ref": "#/components/schemas/ScheduleStatus"}
-        }
-    })
-}
-
-fn schedule_put_schema() -> Value {
-    json!({
-        "type": "object", "additionalProperties": false,
-        "required": ["workflow", "when", "maxCostUsd", "missed"],
-        "properties": {
-            "workflow": {"type": "string", "pattern": "^[^/].*\\.nika$", "maxLength": 1024},
-            "when": {
-                "oneOf": [
-                    {"type": "object", "additionalProperties": false, "required": ["kind", "at"], "properties": {"kind": {"const": "once"}, "at": {"type": "string", "format": "date-time"}}},
-                    {"type": "object", "additionalProperties": false, "required": ["kind", "expression"], "properties": {"kind": {"const": "cadence"}, "expression": {"type": "string", "maxLength": 4096}}}
-                ]
+    fn schedule_path() -> Value {
+        json!({
+            "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string", "minLength": 1, "maxLength": 255}}],
+            "get": {
+                "summary": "Read one declarative resident schedule",
+                "responses": {"200": {"description": "Fresh planned status", "headers": {"ETag": {"schema": {"type": "string"}}}, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ScheduleStatus"}}}}, "401": error_ref(), "404": error_ref()}
             },
-            "maxCostUsd": {"type": "number", "exclusiveMinimum": 0},
-            "missed": {"type": "string", "enum": ["catch-up", "catch-up-once", "skip"]},
-            "maxLatenessSeconds": {"type": "integer", "minimum": 0},
-            "overlap": {"type": "string", "enum": ["skip", "queue", "replace"]},
-            "afterSkip": {"type": "string", "enum": ["next_slot", "on_completion"]},
-            "jitter": {"type": "string", "enum": ["hash"]},
-            "tolerance": {"type": "string"},
-            "active": {"type": "boolean"},
-            "pauseReason": {"type": "string", "maxLength": 1024},
-            "pauseUntil": {"type": "string", "format": "date"},
-            "inputs": {
-                "type": "object",
-                "description": "Per-fire inputs bound on every resident fire (#1370): one scalar per key the workflow declares under `inputs:`, coerced by the declared type exactly as the CLI `--var` edge does, then judged by the same literal admission validator as POST /v1/jobs. Unknown keys, values the declared type refuses, missing required inputs and the `@env:` channel are refused at PUT and again at fire.",
-                "additionalProperties": {"oneOf": [{"type": "string"}, {"type": "number"}, {"type": "boolean"}]}
+            "put": {
+                "summary": "Create or revision-conditionally update one resident schedule",
+                "description": "Create requires If-None-Match: *. Update requires the exact ETag in If-Match. Identical lost-response retries are unchanged and retain the revision.",
+                "parameters": [{"$ref": "#/components/parameters/IfNoneMatch"}, {"$ref": "#/components/parameters/IfMatch"}],
+                "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SchedulePut"}}}},
+                "responses": {"200": {"description": "Applied or unchanged", "headers": {"ETag": {"schema": {"type": "string"}}}, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ScheduleApply"}}}}, "401": error_ref(), "412": error_ref(), "413": error_ref(), "415": error_ref(), "422": error_ref(), "503": error_ref()}
             }
-        }
-    })
-}
+        })
+    }
 
-fn schedule_path() -> Value {
-    json!({
-        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string", "minLength": 1, "maxLength": 255}}],
-        "get": {
-            "summary": "Read one declarative resident schedule",
-            "responses": {"200": {"description": "Fresh planned status", "headers": {"ETag": {"schema": {"type": "string"}}}, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ScheduleStatus"}}}}, "401": error_ref(), "404": error_ref()}
-        },
-        "put": {
-            "summary": "Create or revision-conditionally update one resident schedule",
-            "description": "Create requires If-None-Match: *. Update requires the exact ETag in If-Match. Identical lost-response retries are unchanged and retain the revision.",
-            "parameters": [{"$ref": "#/components/parameters/IfNoneMatch"}, {"$ref": "#/components/parameters/IfMatch"}],
-            "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SchedulePut"}}}},
-            "responses": {"200": {"description": "Applied or unchanged", "headers": {"ETag": {"schema": {"type": "string"}}}, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ScheduleApply"}}}}, "401": error_ref(), "412": error_ref(), "413": error_ref(), "415": error_ref(), "422": error_ref(), "503": error_ref()}
-        }
-    })
-}
+    fn health_path() -> Value {
+        json!({"get": {
+            "security": [],
+            "summary": "Public process liveness",
+            "responses": {"200": {"description": "Engine identity only", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Health"}}}}}
+        }})
+    }
 
-fn health_path() -> Value {
-    json!({"get": {
-        "security": [],
-        "summary": "Public process liveness",
-        "responses": {"200": {"description": "Engine identity only", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Health"}}}}}
-    }})
-}
+    fn openapi_path() -> Value {
+        json!({"get": {
+            "summary": "This document",
+            "responses": {"200": {"description": "OpenAPI 3.1"}, "401": {"description": "Bearer required"}}
+        }})
+    }
 
-fn openapi_path() -> Value {
-    json!({"get": {
-        "summary": "This document",
-        "responses": {"200": {"description": "OpenAPI 3.1"}, "401": {"description": "Bearer required"}}
-    }})
-}
+    fn workflow_list_path() -> Value {
+        json!({"get": {
+            "summary": "Contained workflow names",
+            "responses": {"200": {"description": "Project-relative .nika names under the served registry (--workflows)", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowList"}}}}, "401": error_ref()}
+        }})
+    }
 
-fn workflow_list_path() -> Value {
-    json!({"get": {
-        "summary": "Contained workflow names",
-        "responses": {"200": {"description": "Project-relative .nika names under the served registry (--workflows)", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowList"}}}}, "401": error_ref()}
-    }})
-}
+    fn workflow_metadata_path() -> Value {
+        json!({"get": {
+            "summary": "Workflow metadata without source bytes",
+            "parameters": [{"name": "name", "in": "path", "required": true, "schema": {"type": "string"}}],
+            "responses": {"200": {"description": "Contained name", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowMetadata"}}}}, "401": error_ref(), "404": error_ref()}
+        }})
+    }
 
-fn workflow_metadata_path() -> Value {
-    json!({"get": {
-        "summary": "Workflow metadata without source bytes",
-        "parameters": [{"name": "name", "in": "path", "required": true, "schema": {"type": "string"}}],
-        "responses": {"200": {"description": "Contained name", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowMetadata"}}}}, "401": error_ref(), "404": error_ref()}
-    }})
-}
-
-/// The by-name form of the job door (ADR-131).
-fn job_by_name_schema() -> Value {
-    json!({
-        "type": "object",
-        "additionalProperties": false,
-        "description": "The by-name form (ADR-131): a workflow the served registry lists (GET /v1/workflows · project-root-relative, `.nika`). The resident captures its world exactly as a schedule does — the one owner of the snapshot and its digest domain. Idempotency binds to these request bytes. Optional `access` is the same pin as CLI `--access` (a pin is a pin). Absent: the resident's unpinned plan. Snapshot bodies reject both access and inputs overlays, including null or empty maps. Optional inputs are literal JSON values checked against declared keys, types and required values before a job exists; strings are never CLI @env instructions or expressions.",
-        "required": ["workflow"],
-        "properties": {
-            "workflow": {"type": "string", "minLength": 1, "maxLength": 4096},
-            "inputs": {
-                "type": "object",
-                "additionalProperties": true,
-                "description": "Literal JSON overrides for declared workflow inputs. Unknown keys, wrong types and missing required values refuse with 422; defaults remain authored. A present null is refused. Inputs bind exact request identity and survive durable queue recovery; workflow bytes are unchanged."
-            },
-            "access": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 64,
-                "description": "Access pin, same vocabulary as `--access` (class or harness id). A pin never silently substitutes a metered seat."
+    /// The by-name form of the job door (ADR-131).
+    fn job_by_name_schema() -> Value {
+        json!({
+            "type": "object",
+            "additionalProperties": false,
+            "description": "The by-name form (ADR-131): a workflow the served registry lists (GET /v1/workflows · project-root-relative, `.nika`). The resident captures its world exactly as a schedule does — the one owner of the snapshot and its digest domain. Idempotency binds to these request bytes. Optional `access` is the same pin as CLI `--access` (a pin is a pin). Absent: the resident's unpinned plan. Snapshot bodies reject both access and inputs overlays, including null or empty maps. Optional inputs are literal JSON values checked against declared keys, types and required values before a job exists; strings are never CLI @env instructions or expressions.",
+            "required": ["workflow"],
+            "properties": {
+                "workflow": {"type": "string", "minLength": 1, "maxLength": 4096},
+                "inputs": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "description": "Literal JSON overrides for declared workflow inputs. Unknown keys, wrong types and missing required values refuse with 422; defaults remain authored. A present null is refused. Inputs bind exact request identity and survive durable queue recovery; workflow bytes are unchanged."
+                },
+                "access": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64,
+                    "description": "Access pin, same vocabulary as `--access` (class or harness id). A pin never silently substitutes a metered seat."
+                }
             }
-        }
-    })
-}
+        })
+    }
 
-fn check_by_name_schema() -> Value {
-    let job = job_by_name_schema();
-    json!({
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["workflow"],
-        "description": "Source-only Check by served name. Required launch inputs may remain unsupplied; caller inputs are accepted only on POST /v1/jobs and are refused here. Check does not execute an access plan.",
-        "properties": {
-            "workflow": job["properties"]["workflow"],
-            "access": job["properties"]["access"]
-        }
-    })
-}
+    fn check_by_name_schema() -> Value {
+        let job = job_by_name_schema();
+        json!({
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["workflow"],
+            "description": "Source-only Check by served name. Required launch inputs may remain unsupplied; caller inputs are accepted only on POST /v1/jobs and are refused here. Check does not execute an access plan.",
+            "properties": {
+                "workflow": job["properties"]["workflow"],
+                "access": job["properties"]["access"]
+            }
+        })
+    }
 
-fn jobs_path() -> Value {
-    json!({"post": {
-        "summary": "Admit a workflow as a durable job — by served name, or as immutable snapshot bytes",
-        "description": "Two forms, one admission (ADR-131). `{\"workflow\": \"<name>\"}` names a workflow the served registry lists: the resident captures its world through ExecutionService, exactly as a schedule does. Optional `access` on that form is CLI `--access` for this job only. A snapshot body is the world `nika check <file> --json --sdk-snapshot` prints, decoded and readmitted through the same ExecutionService; its digests are optional caller-supplied integrity digests (a content assertion, never a signature). Snapshot jobs inherit the resident's unpinned plan. The server never interprets a caller filesystem path. Idempotency binds to the exact request bytes.",
-        "parameters": [{"$ref": "#/components/parameters/IdempotencyKey"}],
-        "requestBody": snapshot_request_body("JobByName"),
-        "responses": {
-            "202": {"description": "Created", "content": json_job()},
-            "200": {"description": "Idempotent replay", "content": json_job()},
-            "400": error_named("Invalid idempotency key"), "401": error_ref(),
-            "408": error_named("Request deadline"),
-            "409": error_named("Idempotency key already bound to another request"),
-            "413": error_named("Encoded body or decoded snapshot resource limit"),
-            "415": error_named("Content-Type or Content-Encoding refused"),
-            "422": error_named("Malformed, unsupported, tampered, or semantically refused snapshot"),
-            "503": error_named("Execution queue or durable store unavailable"),
-            "507": error_named("Durable job capacity exhausted")
-        }
-    }})
-}
+    fn jobs_path() -> Value {
+        json!({"post": {
+            "summary": "Admit a workflow as a durable job — by served name, or as immutable snapshot bytes",
+            "description": "Two forms, one admission (ADR-131). `{\"workflow\": \"<name>\"}` names a workflow the served registry lists: the resident captures its world through ExecutionService, exactly as a schedule does. Optional `access` on that form is CLI `--access` for this job only. A snapshot body is the world `nika check <file> --json --sdk-snapshot` prints, decoded and readmitted through the same ExecutionService; its digests are optional caller-supplied integrity digests (a content assertion, never a signature). Snapshot jobs inherit the resident's unpinned plan. The server never interprets a caller filesystem path. Idempotency binds to the exact request bytes.",
+            "parameters": [{"$ref": "#/components/parameters/IdempotencyKey"}],
+            "requestBody": snapshot_request_body("JobByName"),
+            "responses": {
+                "202": {"description": "Created", "content": json_job()},
+                "200": {"description": "Idempotent replay", "content": json_job()},
+                "400": error_named("Invalid idempotency key"), "401": error_ref(),
+                "408": error_named("Request deadline"),
+                "409": error_named("Idempotency key already bound to another request"),
+                "413": error_named("Encoded body or decoded snapshot resource limit"),
+                "415": error_named("Content-Type or Content-Encoding refused"),
+                "422": error_named("Malformed, unsupported, tampered, or semantically refused snapshot"),
+                "503": error_named("Execution queue or durable store unavailable"),
+                "507": error_named("Durable job capacity exhausted")
+            }
+        }})
+    }
 
-fn check_path() -> Value {
-    json!({"post": {
-        "summary": "Judge a workflow without creating a job — by served name, or as immutable snapshot bytes",
-        "description": "Runs the same admission as POST /v1/jobs (ADR-131 · both forms) over the exact request body, and creates nothing.",
-        "requestBody": snapshot_request_body("CheckByName"),
-        "responses": {
-            "200": {"description": "Compact snapshot validation acknowledgement, not the full engine check report", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SnapshotValidationAck"}}}},
-            "401": error_ref(), "408": error_named("Request deadline"),
-            "413": error_named("Encoded body or decoded snapshot resource limit"),
-            "415": error_named("Content-Type or Content-Encoding refused"),
-            "422": error_named("Malformed, unsupported, tampered, or semantically refused snapshot")
-        }
-    }})
-}
+    fn check_path() -> Value {
+        json!({"post": {
+            "summary": "Judge a workflow without creating a job — by served name, or as immutable snapshot bytes",
+            "description": "Runs the same admission as POST /v1/jobs (ADR-131 · both forms) over the exact request body, and creates nothing.",
+            "requestBody": snapshot_request_body("CheckByName"),
+            "responses": {
+                "200": {"description": "Compact snapshot validation acknowledgement, not the full engine check report", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SnapshotValidationAck"}}}},
+                "401": error_ref(), "408": error_named("Request deadline"),
+                "413": error_named("Encoded body or decoded snapshot resource limit"),
+                "415": error_named("Content-Type or Content-Encoding refused"),
+                "422": error_named("Malformed, unsupported, tampered, or semantically refused snapshot")
+            }
+        }})
+    }
 
-fn job_path() -> Value {
-    json!({"get": {
-        "summary": "Job identity and status", "parameters": [job_id_param()],
-        "responses": {"200": {"description": "Job", "content": json_job()}, "401": error_ref(), "404": error_ref()}
-    }})
-}
+    fn job_path() -> Value {
+        json!({"get": {
+            "summary": "Job identity and status", "parameters": [job_id_param()],
+            "responses": {"200": {"description": "Job", "content": json_job()}, "401": error_ref(), "404": error_ref()}
+        }})
+    }
 
-fn job_status_path() -> Value {
-    json!({"get": {
-        "summary": "Status only; diagnosis lives on GET /v1/jobs/{id} and SSE",
-        "parameters": [job_id_param()],
-        "responses": {"200": {"description": "Status", "content": json_status()}, "401": error_ref(), "404": error_ref()}
-    }})
-}
+    fn job_status_path() -> Value {
+        json!({"get": {
+            "summary": "Status only; diagnosis lives on GET /v1/jobs/{id} and SSE",
+            "parameters": [job_id_param()],
+            "responses": {"200": {"description": "Status", "content": json_status()}, "401": error_ref(), "404": error_ref()}
+        }})
+    }
 
-fn job_events_path() -> Value {
-    json!({"get": {
-        "summary": "Job event SSE",
-        "parameters": [job_id_param(), {"$ref": "#/components/parameters/LastEventId"}],
-        "responses": {
-            "200": {
-                "description": "text/event-stream; sends bounded retry guidance and cursor-neutral heartbeat comments; Last-Event-ID replays only persisted events after that sequence; terminal data adds declared outputs and receipt when available; failures add redacted {code,message}",
-                "content": {"text/event-stream": {"schema": {"type": "string"}, "x-nika-event-schema": {"$ref": "#/components/schemas/JobEvent"}}}
-            },
-            "400": error_ref(), "401": error_ref(), "404": error_ref()
-        }
-    }})
-}
+    fn job_events_path() -> Value {
+        json!({"get": {
+            "summary": "Job event SSE",
+            "parameters": [job_id_param(), {"$ref": "#/components/parameters/LastEventId"}],
+            "responses": {
+                "200": {
+                    "description": "text/event-stream; sends bounded retry guidance and cursor-neutral heartbeat comments; Last-Event-ID replays only persisted events after that sequence; terminal data adds declared outputs and receipt when available; failures add redacted {code,message}",
+                    "content": {"text/event-stream": {"schema": {"type": "string"}, "x-nika-event-schema": {"$ref": "#/components/schemas/JobEvent"}}}
+                },
+                "400": error_ref(), "401": error_ref(), "404": error_ref()
+            }
+        }})
+    }
 
-fn job_cancel_path() -> Value {
-    json!({"post": {
-        "summary": "Request cancellation or replay an ended observation",
-        "description": "A queued job cancels atomically before execution claims it. An active job receives the run-scoped cancellation signal and returns 202 until its execution owner settles: the result may be success, failure or cancellation; expired grace means interrupted, never an invented cancellation. A paused or final observation returns its existing result unchanged.",
-        "parameters": [job_id_param()],
-        "responses": {"200": {"description": "Cancelled before execution, or already ended observation", "content": json_job()}, "202": {"description": "Cancellation requested; execution has not yet settled", "content": json_job()}, "401": error_ref(), "404": error_ref(), "503": error_ref()}
-    }})
-}
+    fn job_cancel_path() -> Value {
+        json!({"post": {
+            "summary": "Request cancellation or replay an ended observation",
+            "description": "A queued job cancels atomically before execution claims it. An active job receives the run-scoped cancellation signal and returns 202 until its execution owner settles: the result may be success, failure or cancellation; expired grace means interrupted, never an invented cancellation. A paused or final observation returns its existing result unchanged.",
+            "parameters": [job_id_param()],
+            "responses": {"200": {"description": "Cancelled before execution, or already ended observation", "content": json_job()}, "202": {"description": "Cancellation requested; execution has not yet settled", "content": json_job()}, "401": error_ref(), "404": error_ref(), "503": error_ref()}
+        }})
+    }
 
-fn job_trace_verify_path() -> Value {
-    json!({"get": {
-        "summary": "Verify the job's trace journal",
-        "description": "Locates the journal the resident wrote for this job under the project it serves (by the job's execution and trace identity) and verifies it through the same verifier `nika trace verify` runs; the vocabulary is the CLI's. `unavailable` is the honest refusal when no journal exists. The response never exposes a filesystem path.",
-        "parameters": [job_id_param()],
-        "responses": {"200": {"description": "Typed trace verdict", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/TraceVerification"}}}}, "401": error_ref(), "404": error_ref()}
-    }})
-}
+    fn job_trace_verify_path() -> Value {
+        json!({"get": {
+            "summary": "Verify the job's trace journal",
+            "description": "Locates the journal the resident wrote for this job under the project it serves (by the job's execution and trace identity) and verifies it through the same verifier `nika trace verify` runs; the vocabulary is the CLI's. `unavailable` is the honest refusal when no journal exists. The response never exposes a filesystem path.",
+            "parameters": [job_id_param()],
+            "responses": {"200": {"description": "Typed trace verdict", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/TraceVerification"}}}}, "401": error_ref(), "404": error_ref()}
+        }})
+    }
 
-fn snapshot_request_body(named: &str) -> Value {
-    json!({"required": true, "content": {"application/json": {"schema": {"oneOf": [
-        {"$ref": format!("#/components/schemas/{named}")},
-        {"$ref": "#/components/schemas/ExecutionSnapshot"}
-    ]}}}})
-}
+    fn snapshot_request_body(named: &str) -> Value {
+        json!({"required": true, "content": {"application/json": {"schema": {"oneOf": [
+            {"$ref": format!("#/components/schemas/{named}")},
+            {"$ref": "#/components/schemas/ExecutionSnapshot"}
+        ]}}}})
+    }
 
-fn job_id_param() -> Value {
-    json!({"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}})
-}
+    fn job_id_param() -> Value {
+        json!({"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}})
+    }
 
-fn json_job() -> Value {
-    json!({"application/json": {"schema": {"$ref": "#/components/schemas/Job"}}})
-}
+    fn json_job() -> Value {
+        json!({"application/json": {"schema": {"$ref": "#/components/schemas/Job"}}})
+    }
 
-fn json_status() -> Value {
-    json!({"application/json": {"schema": {"$ref": "#/components/schemas/JobStatusOnly"}}})
-}
+    fn json_status() -> Value {
+        json!({"application/json": {"schema": {"$ref": "#/components/schemas/JobStatusOnly"}}})
+    }
 
-fn error_ref() -> Value {
-    error_named("Error envelope")
-}
+    fn error_ref() -> Value {
+        error_named("Error envelope")
+    }
 
-fn error_named(description: &'static str) -> Value {
-    json!({"description": description, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}})
+    fn error_named(description: &'static str) -> Value {
+        json!({"description": description, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}})
+    }
 }
 
 #[cfg(test)]
@@ -929,29 +1007,51 @@ mod snapshot {
         doc
     }
 
+    /// The source builder regenerates the committed file byte for byte (its
+    /// version aside, which follows the workspace at every bump), and the
+    /// served document is the committed one.
     #[test]
-    fn the_committed_document_is_the_live_one() {
-        let live = super::document();
-        let rendered = format!(
-            "{}\n",
-            serde_json::to_string_pretty(&live).expect("serializes")
-        );
+    fn the_committed_document_is_the_builder_s_and_the_served_one() {
+        let built = super::builder::document();
         // The sanctioned env edge: the re-pin switch is the test's own
         // operator gesture, never a secret and never a runtime read.
         #[allow(clippy::disallowed_methods)]
         let update = std::env::var_os("NIKA_UPDATE_OPENAPI").is_some();
         if update {
+            let rendered = format!(
+                "{}\n",
+                serde_json::to_string_pretty(&built).expect("serializes")
+            );
             std::fs::write(PATH, rendered).expect("the snapshot writes");
             return;
         }
-        let committed = std::fs::read_to_string(PATH)
+        let bytes = std::fs::read_to_string(PATH)
             .expect("crates/nika-serve/openapi.json is committed beside the crate");
-        let committed: Value = serde_json::from_str(&committed).expect("the snapshot is JSON");
+        let committed: Value = serde_json::from_str(&bytes).expect("the snapshot is JSON");
+        let hint = "the committed OpenAPI document drifted from its builder — re-pin it: \
+                    NIKA_UPDATE_OPENAPI=1 cargo test -p nika-serve snapshot";
         assert_eq!(
+            without_version(committed.clone()),
+            without_version(built.clone()),
+            "{hint}"
+        );
+        // Byte equality under the committed version: formatting cannot drift either.
+        let mut pinned = built;
+        if let (Some(info), Some(version)) = (
+            pinned.get_mut("info").and_then(Value::as_object_mut),
+            committed["info"]["version"].as_str(),
+        ) {
+            info.insert("version".to_owned(), Value::from(version));
+        }
+        let rendered = format!(
+            "{}\n",
+            serde_json::to_string_pretty(&pinned).expect("serializes")
+        );
+        assert_eq!(bytes, rendered, "{hint}");
+        assert_eq!(
+            without_version(super::document()),
             without_version(committed),
-            without_version(live),
-            "the committed OpenAPI document drifted from the live one — re-pin it: \
-             NIKA_UPDATE_OPENAPI=1 cargo test -p nika-serve snapshot"
+            "the served document is the committed one"
         );
     }
 }

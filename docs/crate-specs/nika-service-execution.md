@@ -196,6 +196,26 @@ retry constant; it introduces no alternate counter or composition path.
 
 ## Host-configured monetary admission
 
+Three more static observations moved here from the host at its 15k wall
+(C6), each beside the laws it composes, none a grant:
+`bound_files(workflow)` lists, in task order, the project files a Run's
+`nika:read`/`nika:write` tasks bind (`BoundFile { path, write }`, where a
+write's literal `create_dirs: true` alone lets a missing parent through), or
+that task's `project_file_path` refusal; `observes(...)` decides whether a Run
+binds the per-Run observer (an exact declared-free lane or a run-time
+`model:`, judged against its inputs; without inputs any doubt binds), in the
+Run's refusal words; `observer(workflow)` builds that observer's account and
+configuration, keeping the run's jitter seed. The descriptor-rooted file
+observation itself lives in DAP (`Cleared::observe_file`).
+
+`ServiceExecutionOptions::with_runtime_config(config)` (C6) hands the same
+host-bound configuration to `execute`, which composes through
+`compose_configured` exactly as `compose_with_config` does; absent, `execute`
+composes as before. The builder lives in `run_cost` beside the finite-call
+analysis; the options keep one private field, so the closed struct stays
+additive. It grants no effect: the host owns the evidence, the review and the
+account's settlement.
+
 `compose_with_config` selects service metadata-only versus local stderr
 projection at the same `production_runtime_with_emitter` seam. The host must
 have scope-bound the live account in `RuntimeConfig` before composition; this
@@ -233,6 +253,26 @@ Two E16 fixes landed here, once for every door:
   `env_name_missing`, `env_undeclared_in_ci`, `env_unset`, `type_mismatch`),
   never the value. A correct binding is never blamed for a neighbour.
   `BindingFault` and `BindingCheck` are `#[non_exhaustive]`.
+
+The literal law under `--var` is shared with the resident's schedule binding
+(C6, approved P1): `inputs::declaration(workflow, key)` finds the input a key
+names verbatim, or refuses `UndeclaredInput { declared }` (with the shared
+`teaching()`), and `inputs::coerce_literal(declaration, text)` binds the text
+by its declared type (a `string` keeps its raw text) or keeps the untyped
+JSON-or-string guess, or refuses `Misfit { why, expects }`. Each door applies
+its own `@env:` policy between the two halves, so an undeclared key refuses
+before its text is judged and a channel before any type; each keeps its own
+words (`--var` for the CLI, with env values withheld, `inputs.` and HTTP codes
+for the resident).
+
+A transport caller's bindings have their own provenance door, `caller`
+(C6, descended from Serve's resident door):
+`ServiceExecutionDriver::caller_origins(inputs, origin)` gives each supplied
+key the caller's origin (Serve passes `ApiCaller`), and each declared input
+left unbound keeps what `nika_runtime::input_origins` derives with no CLI
+channel (a default is the file's; an input with no default has no entry).
+Nothing is read from the executing process, and the inputs themselves are
+checked before, by the door's literal law.
 
 ## Scheduled program readiness (C5 · 2026-09-28)
 

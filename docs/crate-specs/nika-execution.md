@@ -66,6 +66,19 @@ their L4 adapters; later Serve/jobs work must use the same boundary.
   trace ID, snapshot digest, and the adapter's typed outcome.
 - `ExecutionService::execute` remains the function-pointer convenience surface
   for adapters that need no request state.
+- `check_wire(encoded, WireLimits)` (C6, descended from Serve's job door) probes
+  an encoded snapshot envelope before any decode, with a capped unit count
+  (`WIRE_UNIT_CEILING`, 256) and borrowed strings: root and unit paths and the
+  JSON metadata bounded, digests canonical lowercase SHA-256, unit bytes
+  even-length lowercase hex. Each refusal is a typed `WireRefusal`; a transport
+  maps it to its own wire answer (Serve keeps its codes and statuses).
+- `AdmittedExecution::check_inputs(inputs)` (C6, descended from Serve's job
+  door) checks a caller's literal inputs against the admitted declarations:
+  every key declared, every value of a typed declaration fitting its type, with
+  no coercion, environment lookup or evaluation. A refusal is a typed
+  `InputRefusal` (`Undeclared` · `UnresolvedType` · `Mismatch`). Whether a
+  required input is missing stays the runtime's judgment, and a transport keeps
+  its own answers.
 
 All public structs and enums are non-exhaustive. Response fields remain private
 behind constructors or accessors.

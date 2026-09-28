@@ -1,19 +1,24 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The resident's unknown-cost gate: an unattended Serve run has no Run cost
-//! review, so an admitted API route whose price needs a fresh one-time choice
-//! (for example an OpenAI-compatible override on plain HTTP, which `nika run`
-//! refuses before dispatch) refuses before the worker starts. Plans come from
-//! the public constructors and the provider configuration is explicit: no
-//! environment is read or written and nothing is dispatched.
+//! The resident's cost gate for a job with no reviewed authority (manual,
+//! snapshot or scheduled): the one host evaluator `nika run` uses (C6). An
+//! admitted API route whose price needs a fresh one-time choice refuses before
+//! the worker starts, with the review door named; exact priced, local and
+//! model-free plans keep their composition; a declared-free route binds the
+//! per-Run observer. Plans come from the public constructors; nothing is
+//! dispatched and no environment is written. (The route-observation law, its
+//! wrong-endpoint and override cases included, is tested with its owner:
+//! `nika_service_execution::run_cost`.)
 
 use std::collections::BTreeMap;
+use std::path::Path;
 
-use nika_providers::{ExecutionAccessPlan, LaneVerdict, ProvidersConfig, ResolvedLane};
+use nika_providers::{ExecutionAccessPlan, LaneVerdict, ResolvedLane};
+use nika_service_execution::ServiceExecutionDriver;
 use nika_types::access::{AccessClass, AccessPlan, BillingClass};
 
-use super::unknown_cost_refusal;
+use super::unreviewed_cost;
 
 fn plan_with(
     model: &str,
@@ -38,102 +43,110 @@ fn plan_with(
     ExecutionAccessPlan::new(lanes, None, None, None)
 }
 
+/// A driver over one admitted workflow that asks `model` for bounded text.
+#[cfg(test)]
+fn driver(root: &Path, model: &str, max_tokens: u32) -> ServiceExecutionDriver {
+    let source = format!(
+        "nika: gate\nmodel: {model}\npermits: {{}}\ntasks:\n  ask:\n    infer: {{ prompt: hi, max_tokens: {max_tokens} }}\n"
+    );
+    std::fs::write(root.join("gate.nika"), source).expect("workflow");
+    let project = nika_fs::OwnedDir::open(root).expect("project");
+    let service = nika_execution::ExecutionService::default();
+    let admitted = service
+        .admit(&project, Path::new("gate.nika"))
+        .expect("a clean workflow admits");
+    let session = service.begin(admitted);
+    ServiceExecutionDriver::new(session.context(), root).expect("driver")
+}
+
+#[cfg(test)]
+fn judge(
+    model: &str,
+    provider: &str,
+    chosen: AccessClass,
+    billing: BillingClass,
+) -> Result<bool, String> {
+    let root = tempfile::tempdir().expect("root");
+    let plan = plan_with(model, provider, chosen, billing);
+    // A reasoning seat needs room for its thinking before Check admits it.
+    let max_tokens = if provider == "deepseek" { 512 } else { 16 };
+    let cost = unreviewed_cost(
+        root.path(),
+        &driver(root.path(), model, max_tokens),
+        &plan,
+        &BTreeMap::new(),
+    )?;
+    // Whatever the verdict, the lease the evaluator may have taken is free again.
+    let project = nika_fs::OwnedDir::open(root.path()).expect("project");
+    let clear = nika_dap::cost_journal::clear(&project, "after").expect("journal");
+    assert!(
+        clear.is_ok(),
+        "the evaluator never keeps the project's cost lease"
+    );
+    Ok(cost.is_some())
+}
+
 #[test]
-fn an_http_api_override_refuses_before_dispatch() {
-    // An OpenAI-compatible override on plain HTTP (a loopback endpoint).
-    let config =
-        ProvidersConfig::new().with_base_url("openai", "http://127.0.0.1:9/v1/chat/completions");
-    let plan = plan_with(
+fn a_default_openai_route_without_a_review_refuses_and_names_the_door() {
+    let refused = judge(
         "openai/gpt-4.1-mini",
         "openai",
         AccessClass::Api,
         BillingClass::ApiMetered,
-    );
-    let refusal = unknown_cost_refusal(&plan, &config);
+    )
+    .expect_err("an unreviewed unknown-cost route must not reach the provider");
+    assert!(refused.contains("price unknown"), "{refused}");
+    assert!(refused.contains("--cost-review"), "{refused}");
     assert!(
-        refusal.is_some(),
-        "an unreviewed HTTP override must not reach the provider"
-    );
-    let message = refusal.unwrap_or_default();
-    assert!(
-        message.contains("price unknown for `openai/gpt-4.1-mini`"),
-        "{message}"
-    );
-    assert!(message.contains("cost review"), "{message}");
-}
-
-#[test]
-fn a_default_openai_route_without_admission_refuses() {
-    // Default OpenAI endpoints need a fresh review in 0.121.0; Serve has none.
-    let plan = plan_with(
-        "openai/gpt-4.1-mini",
-        "openai",
-        AccessClass::Api,
-        BillingClass::ApiMetered,
-    );
-    assert!(
-        unknown_cost_refusal(&plan, &ProvidersConfig::new()).is_some(),
-        "an unadmitted default API route must refuse on the unattended resident"
+        refused.contains("scheduled occurrences stay refused"),
+        "{refused}"
     );
 }
 
 #[test]
-fn deepseek_direct_stays_admitted() {
-    let plan = plan_with(
+fn deepseek_direct_stays_admitted_without_an_observer() {
+    let observed = judge(
         "deepseek/deepseek-flash",
         "deepseek",
         AccessClass::Api,
         BillingClass::ApiMetered,
     );
-    assert_eq!(unknown_cost_refusal(&plan, &ProvidersConfig::new()), None);
+    assert_eq!(observed, Ok(false));
 }
 
 #[test]
 fn a_local_lane_is_never_observed_as_an_api_price() {
-    let config = ProvidersConfig::new().with_base_url("ollama", "http://127.0.0.1:11434");
-    let plan = plan_with(
+    let observed = judge(
         "ollama/llama3.2",
         "ollama",
         AccessClass::Local,
         BillingClass::Local,
     );
-    assert_eq!(unknown_cost_refusal(&plan, &config), None);
-}
-
-#[test]
-fn a_plan_without_model_lanes_passes() {
-    assert_eq!(
-        unknown_cost_refusal(&ExecutionAccessPlan::default(), &ProvidersConfig::new()),
-        None
-    );
+    assert_eq!(observed, Ok(false));
 }
 
 #[test]
 fn a_catalog_priced_native_default_stays_admitted() {
-    // A native (non OpenAI-compatible) wire at its default endpoint with a
-    // catalog price keeps its existing paid path.
-    let plan = plan_with(
-        "anthropic/claude-sonnet-4-20250514",
+    let model = "anthropic/claude-sonnet-4-20250514";
+    let observed = judge(
+        model,
         "anthropic",
         AccessClass::Api,
         BillingClass::ApiMetered,
     );
-    assert_eq!(unknown_cost_refusal(&plan, &ProvidersConfig::new()), None);
+    assert_eq!(observed, Ok(false));
 }
 
+/// C4 parity on the resident: an exact declared-free route binds the same
+/// per-Run observer `nika run` binds, never unknown-cost authority.
 #[test]
-fn an_overridden_native_gateway_refuses() {
-    // An override never borrows the native catalog price.
-    let config =
-        ProvidersConfig::new().with_base_url("anthropic", "https://gateway.invalid/v1/messages");
-    let plan = plan_with(
-        "anthropic/claude-sonnet-4-20250514",
-        "anthropic",
+fn a_declared_free_route_binds_the_observer() {
+    let free = "openrouter/qwen/qwen3.8-27b:free";
+    let observed = judge(
+        free,
+        "openrouter",
         AccessClass::Api,
         BillingClass::ApiMetered,
     );
-    assert!(
-        unknown_cost_refusal(&plan, &config).is_some(),
-        "an overridden native gateway must refuse on the unattended resident"
-    );
+    assert_eq!(observed, Ok(true));
 }

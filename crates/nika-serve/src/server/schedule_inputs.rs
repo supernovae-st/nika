@@ -2,17 +2,17 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! The resident binds a schedule's declared `inputs` (#1370) on every fire
-//! through the same law the CLI edge already applies: each `(key, text)`
-//! pair is coerced by the workflow's declared type (`--var` semantics), then
-//! judged by the literal admission validator `POST /v1/jobs` uses. One law,
-//! two doors. Judged at `PUT` so an operator learns before the first slot,
-//! and again at fire because the workflow file may have changed in between.
+//! through the literal law the CLI edge shares (`nika_service_execution::inputs`:
+//! the declared key, then the declared type's coercion, `--var` semantics),
+//! then judges them by the literal admission validator `POST /v1/jobs` uses.
+//! One law, two doors. Judged at `PUT` so an operator learns before the first
+//! slot, and again at fire because the workflow file may have changed in between.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use nika_cadence::ScheduleDefinition;
 use nika_execution::AdmittedExecution;
-use nika_vocab::VarDecl;
+use nika_service_execution::inputs::{coerce_literal, declaration};
 use serde_json::Value;
 
 use super::inputs;
@@ -51,26 +51,12 @@ pub(super) fn bind(
     admitted: &AdmittedExecution,
     definition: &ScheduleDefinition,
 ) -> Result<BTreeMap<String, Value>, ScheduleInputsRefusal> {
-    let workflow = admitted.workflow();
-    let declared: Vec<&str> = workflow
-        .inputs
-        .iter()
-        .map(|(name, _)| name.value.as_str())
-        .collect();
     let mut bound = BTreeMap::new();
     for (key, text) in definition.inputs() {
-        let Some((_, declaration)) = workflow.inputs.iter().find(|(name, _)| name.value == key)
-        else {
-            let teaches = if declared.is_empty() {
-                "this workflow declares no `inputs:`".to_owned()
-            } else {
-                format!("the workflow declares: {}", declared.join(" · "))
-            };
-            return Err(ScheduleInputsRefusal::new(
-                "unknown_input",
-                format!("inputs.{key}: unknown input — {teaches}"),
-            ));
-        };
+        let declared = declaration(admitted.workflow(), key).map_err(|undeclared| {
+            let message = format!("inputs.{key}: unknown input — {}", undeclared.teaching());
+            ScheduleInputsRefusal::new("unknown_input", message)
+        })?;
         if text.starts_with(ENV_PREFIX) {
             return Err(ScheduleInputsRefusal::new(
                 "env_channel_unsupported",
@@ -79,19 +65,10 @@ pub(super) fn bind(
                 ),
             ));
         }
-        let value = match declaration {
-            VarDecl::Typed { r#type, .. } => {
-                nika_vocab::coerce_declared(&r#type.value, &BTreeSet::new(), &BTreeMap::new(), text)
-                    .map_err(|why| {
-                        ScheduleInputsRefusal::new(
-                            "input_type_mismatch",
-                            format!("inputs.{key}: {why}"),
-                        )
-                    })?
-            }
-            VarDecl::Untyped(_) => serde_json::from_str::<Value>(text)
-                .unwrap_or_else(|_| Value::String(text.to_owned())),
-        };
+        let value = coerce_literal(declared, text).map_err(|misfit| {
+            let message = format!("inputs.{key}: {}", misfit.why);
+            ScheduleInputsRefusal::new("input_type_mismatch", message)
+        })?;
         bound.insert(key.to_owned(), value);
     }
     inputs::validate(admitted, &bound)

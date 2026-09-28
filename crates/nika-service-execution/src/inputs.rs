@@ -54,6 +54,83 @@ fn in_ci() -> bool {
 /// through an explicit spelling, never an ambient guess.
 const ENV_PREFIX: &str = "@env:";
 
+/// A key the workflow does not declare, and what it declares instead.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct UndeclaredInput {
+    /// The declared input names, in declaration order.
+    pub declared: Vec<String>,
+}
+
+impl UndeclaredInput {
+    /// What the workflow declares, as a door's refusal teaches it.
+    #[must_use]
+    pub fn teaching(&self) -> String {
+        if self.declared.is_empty() {
+            "this workflow declares no `inputs:`".to_owned()
+        } else {
+            format!("the workflow declares: {}", self.declared.join(" · "))
+        }
+    }
+}
+
+/// A literal text its declared type does not fit.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Misfit {
+    /// The coercion's reason, naming the expected form and the text.
+    pub why: String,
+    /// The declared type as displayed, for a door that withholds the text.
+    pub expects: String,
+}
+
+/// The input a literal binding's key names, matched verbatim (a door trims
+/// its key or not before asking): the first half of the one literal-binding
+/// law every door shares (C6, the resident's schedule binding and this `--var`
+/// seam). Between it and [`coerce_literal`] each door applies its own `@env:`
+/// policy (the CLI reads the declared channel, the resident refuses it), so an
+/// undeclared key is refused before its text is judged, and a channel before
+/// any type.
+///
+/// # Errors
+/// [`UndeclaredInput`] when no declared input is named `key`.
+pub fn declaration<'w>(wf: &'w RawWorkflow, key: &str) -> Result<&'w VarDecl, UndeclaredInput> {
+    let found = wf.inputs.iter().find(|(name, _)| name.value == key);
+    found.map(|(_, decl)| decl).ok_or_else(|| UndeclaredInput {
+        declared: wf
+            .inputs
+            .iter()
+            .map(|(name, _)| name.value.clone())
+            .collect(),
+    })
+}
+
+/// A literal text bound by its declaration, the law's second half: a typed
+/// input's declared `TypeExpr` drives the coercion (the one type core; a
+/// `string` takes the text verbatim), and an untyped constant keeps the
+/// JSON-or-string guess (the graved fallback of spec 01 §inputs).
+///
+/// # Errors
+/// [`Misfit`] when the text does not fit the declared type.
+pub fn coerce_literal(decl: &VarDecl, text: &str) -> Result<Value, Misfit> {
+    match decl {
+        VarDecl::Typed { r#type, .. } => nika_schema::types::coerce_declared(
+            &r#type.value,
+            &BTreeSet::new(),
+            &BTreeMap::new(),
+            text,
+        )
+        .map_err(|why| Misfit {
+            why,
+            expects: nika_schema::types::type_expr_display(&r#type.value),
+        }),
+        VarDecl::Untyped(_) => {
+            Ok(serde_json::from_str::<Value>(text)
+                .unwrap_or_else(|_| Value::String(text.to_owned())))
+        }
+    }
+}
+
 /// Parse the repeatable `--var KEY=VALUE` overrides and validate every
 /// key against the workflow's declared `inputs:` — an unknown key is
 /// refused with the declared set (a typo'd override silently doing
@@ -230,18 +307,14 @@ fn bind_one(
             return Err(Refusal::new("", None, BindingFault::Malformed, message));
         }
     };
-    let Some((_, decl)) = wf.inputs.iter().find(|(k, _)| k.value == key) else {
-        let declared: Vec<&str> = wf.inputs.iter().map(|(k, _)| k.value.as_str()).collect();
-        let message = if declared.is_empty() {
-            format!("--var {key}: this workflow declares no `inputs:`")
+    let decl = declaration(wf, key).map_err(|undeclared| {
+        let message = if undeclared.declared.is_empty() {
+            format!("--var {key}: {}", undeclared.teaching())
         } else {
-            format!(
-                "--var {key}: unknown input — the workflow declares: {}",
-                declared.join(" · ")
-            )
+            format!("--var {key}: unknown input — {}", undeclared.teaching())
         };
-        return Err(Refusal::new(key, None, BindingFault::UnknownInput, message));
-    };
+        Refusal::new(key, None, BindingFault::UnknownInput, message)
+    })?;
     // F-P13 · the declared env channel: `@env:VAR` reads the named
     // variable, CI judges the declaration BEFORE the read.
     let var = raw.strip_prefix(ENV_PREFIX);
@@ -250,31 +323,18 @@ fn bind_one(
             .map_err(|(fault, message)| Refusal::new(key, Some(var), fault, message))?,
         None => std::borrow::Cow::Borrowed(raw),
     };
-    let value = match decl {
-        // The declared TypeExpr drives the parse (the one type core,
-        // never a second fit) — a mismatch names the form + the value,
-        // or only the form when the value came from the environment.
-        VarDecl::Typed { r#type, .. } => nika_schema::types::coerce_declared(
-            &r#type.value,
-            &BTreeSet::new(),
-            &BTreeMap::new(),
-            &raw,
-        )
-        .map_err(|why| {
-            let message = match var {
-                Some(var) => format!(
-                    "--var {key}={ENV_PREFIX}{var}: expects `{}` — the value of {var} does not fit (withheld)",
-                    nika_schema::types::type_expr_display(&r#type.value)
-                ),
-                None => format!("--var {key}: {why}"),
-            };
-            Refusal::new(key, var, BindingFault::TypeMismatch, message)
-        })?,
-        // Untyped constant: the JSON-or-string guess (no declared type
-        // — the graved fallback of spec 01 §inputs).
-        VarDecl::Untyped(_) => serde_json::from_str::<Value>(&raw)
-            .unwrap_or_else(|_| Value::String(raw.as_ref().to_owned())),
-    };
+    // The declaration drives the parse — a mismatch names the form and the
+    // value, or only the form when the value came from the environment.
+    let value = coerce_literal(decl, &raw).map_err(|misfit| {
+        let message = match var {
+            Some(var) => format!(
+                "--var {key}={ENV_PREFIX}{var}: expects `{}` — the value of {var} does not fit (withheld)",
+                misfit.expects
+            ),
+            None => format!("--var {key}: {}", misfit.why),
+        };
+        Refusal::new(key, var, BindingFault::TypeMismatch, message)
+    })?;
     Ok(Bound {
         input: key.to_owned(),
         value,
@@ -577,5 +637,34 @@ mod tests {
             true,
         );
         assert_eq!(ci[0].fault, Some(BindingFault::EnvUndeclaredInCi));
+    }
+
+    /// C6 · the shared literal law's two halves: an undeclared key names the
+    /// declared set in order (or none), a misfit carries its reason and the
+    /// declared type, a `string` keeps its raw text, and an untyped constant
+    /// keeps the JSON-or-string guess.
+    #[test]
+    fn the_literal_law_names_its_refusals_and_keeps_the_untyped_guess() {
+        let wf = parse(ORIGIN_WF);
+        let undeclared = declaration(&wf, "ghost").expect_err("undeclared");
+        assert_eq!(undeclared.declared, ["count", "region"]);
+        assert_eq!(
+            undeclared.teaching(),
+            "the workflow declares: count · region"
+        );
+        let bare = parse("nika: t\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n");
+        let none = declaration(&bare, "ghost").expect_err("nothing declared");
+        assert_eq!(none.teaching(), "this workflow declares no `inputs:`");
+        let count = declaration(&wf, "count").expect("declared");
+        let misfit = coerce_literal(count, "many").expect_err("an integer refuses words");
+        assert_eq!(misfit.expects, "integer");
+        assert!(misfit.why.contains("many"), "{misfit:?}");
+        assert_eq!(coerce_literal(count, "42"), Ok(json!(42)));
+        let region = declaration(&wf, "region").expect("declared");
+        assert_eq!(coerce_literal(region, "{\"a\":1}"), Ok(json!("{\"a\":1}")));
+        let untyped = VarDecl::Untyped(json!(null));
+        assert_eq!(coerce_literal(&untyped, "{\"a\":1}"), Ok(json!({"a": 1})));
+        assert_eq!(coerce_literal(&untyped, "not json"), Ok(json!("not json")));
+        assert_eq!(coerce_literal(&untyped, ""), Ok(json!("")));
     }
 }

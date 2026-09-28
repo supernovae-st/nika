@@ -79,6 +79,54 @@ impl<T> nika_error::traits::AsAny for nika_execution::ExecutionError where T: 's
 pub fn nika_execution::ExecutionError::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_execution::ExecutionError
 pub type nika_execution::ExecutionError::Output = T
+#[non_exhaustive] pub enum nika_execution::InputRefusal
+pub nika_execution::InputRefusal::Mismatch
+pub nika_execution::InputRefusal::Undeclared
+pub nika_execution::InputRefusal::UnresolvedType
+impl core::clone::Clone for nika_execution::InputRefusal
+pub fn nika_execution::InputRefusal::clone(&self) -> nika_execution::InputRefusal
+impl core::cmp::Eq for nika_execution::InputRefusal
+impl core::cmp::PartialEq for nika_execution::InputRefusal
+pub fn nika_execution::InputRefusal::eq(&self, other: &nika_execution::InputRefusal) -> bool
+impl core::fmt::Debug for nika_execution::InputRefusal
+pub fn nika_execution::InputRefusal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_execution::InputRefusal
+impl core::marker::StructuralPartialEq for nika_execution::InputRefusal
+impl<D> owo_colors::OwoColorize for nika_execution::InputRefusal
+impl<Q, K> equivalent::Equivalent<K> for nika_execution::InputRefusal where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_execution::InputRefusal::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_execution::InputRefusal where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_execution::InputRefusal::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_execution::InputRefusal where U: core::convert::From<T>
+pub fn nika_execution::InputRefusal::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_execution::InputRefusal where U: core::convert::Into<T>
+pub type nika_execution::InputRefusal::Error = core::convert::Infallible
+pub fn nika_execution::InputRefusal::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_execution::InputRefusal where U: core::convert::TryFrom<T>
+pub type nika_execution::InputRefusal::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_execution::InputRefusal::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_execution::InputRefusal where T: core::clone::Clone
+pub type nika_execution::InputRefusal::Owned = T
+pub fn nika_execution::InputRefusal::clone_into(&self, target: &mut T)
+pub fn nika_execution::InputRefusal::to_owned(&self) -> T
+impl<T> core::any::Any for nika_execution::InputRefusal where T: 'static + ?core::marker::Sized
+pub fn nika_execution::InputRefusal::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_execution::InputRefusal where T: ?core::marker::Sized
+pub fn nika_execution::InputRefusal::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_execution::InputRefusal where T: ?core::marker::Sized
+pub fn nika_execution::InputRefusal::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_execution::InputRefusal where T: core::clone::Clone
+pub unsafe fn nika_execution::InputRefusal::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_execution::InputRefusal
+pub fn nika_execution::InputRefusal::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_execution::InputRefusal where T: core::clone::Clone
+pub fn nika_execution::InputRefusal::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_execution::InputRefusal where T: 'static
+pub fn nika_execution::InputRefusal::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_execution::InputRefusal where T: core::marker::Copy
+pub fn nika_execution::InputRefusal::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_execution::InputRefusal
+pub type nika_execution::InputRefusal::Output = T
 #[non_exhaustive] pub enum nika_execution::SnapshotUnitKind
 pub nika_execution::SnapshotUnitKind::Child
 pub nika_execution::SnapshotUnitKind::Import
@@ -134,9 +182,61 @@ impl<T> outref::AsOut<T> for nika_execution::SnapshotUnitKind where T: core::mar
 pub fn nika_execution::SnapshotUnitKind::as_out(&mut self) -> outref::Out<'_, T>
 impl<T> typenum::type_operators::Same for nika_execution::SnapshotUnitKind
 pub type nika_execution::SnapshotUnitKind::Output = T
+#[non_exhaustive] pub enum nika_execution::WireRefusal
+pub nika_execution::WireRefusal::Digest
+pub nika_execution::WireRefusal::Hex
+pub nika_execution::WireRefusal::Malformed
+pub nika_execution::WireRefusal::MetadataLimit
+pub nika_execution::WireRefusal::PathLimit
+pub nika_execution::WireRefusal::UnitCount
+impl core::clone::Clone for nika_execution::WireRefusal
+pub fn nika_execution::WireRefusal::clone(&self) -> nika_execution::WireRefusal
+impl core::cmp::Eq for nika_execution::WireRefusal
+impl core::cmp::PartialEq for nika_execution::WireRefusal
+pub fn nika_execution::WireRefusal::eq(&self, other: &nika_execution::WireRefusal) -> bool
+impl core::fmt::Debug for nika_execution::WireRefusal
+pub fn nika_execution::WireRefusal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_execution::WireRefusal
+impl core::marker::StructuralPartialEq for nika_execution::WireRefusal
+impl<D> owo_colors::OwoColorize for nika_execution::WireRefusal
+impl<Q, K> equivalent::Equivalent<K> for nika_execution::WireRefusal where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_execution::WireRefusal::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_execution::WireRefusal where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_execution::WireRefusal::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_execution::WireRefusal where U: core::convert::From<T>
+pub fn nika_execution::WireRefusal::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_execution::WireRefusal where U: core::convert::Into<T>
+pub type nika_execution::WireRefusal::Error = core::convert::Infallible
+pub fn nika_execution::WireRefusal::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_execution::WireRefusal where U: core::convert::TryFrom<T>
+pub type nika_execution::WireRefusal::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_execution::WireRefusal::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_execution::WireRefusal where T: core::clone::Clone
+pub type nika_execution::WireRefusal::Owned = T
+pub fn nika_execution::WireRefusal::clone_into(&self, target: &mut T)
+pub fn nika_execution::WireRefusal::to_owned(&self) -> T
+impl<T> core::any::Any for nika_execution::WireRefusal where T: 'static + ?core::marker::Sized
+pub fn nika_execution::WireRefusal::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_execution::WireRefusal where T: ?core::marker::Sized
+pub fn nika_execution::WireRefusal::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_execution::WireRefusal where T: ?core::marker::Sized
+pub fn nika_execution::WireRefusal::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_execution::WireRefusal where T: core::clone::Clone
+pub unsafe fn nika_execution::WireRefusal::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_execution::WireRefusal
+pub fn nika_execution::WireRefusal::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_execution::WireRefusal where T: core::clone::Clone
+pub fn nika_execution::WireRefusal::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_execution::WireRefusal where T: 'static
+pub fn nika_execution::WireRefusal::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_execution::WireRefusal where T: core::marker::Copy
+pub fn nika_execution::WireRefusal::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_execution::WireRefusal
+pub type nika_execution::WireRefusal::Output = T
 #[non_exhaustive] pub struct nika_execution::AdmittedExecution
 impl nika_execution::AdmittedExecution
 pub const fn nika_execution::AdmittedExecution::check(&self) -> &nika_check::CheckReport
+pub fn nika_execution::AdmittedExecution::check_inputs(&self, inputs: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> core::result::Result<(), nika_execution::InputRefusal>
 pub const fn nika_execution::AdmittedExecution::execution_id(&self) -> nika_types::id::ExecutionId
 pub const fn nika_execution::AdmittedExecution::skills(&self) -> &nika_schema::skill::ResolvedSkills
 pub const fn nika_execution::AdmittedExecution::snapshot(&self) -> &nika_execution::ExecutionSnapshot
@@ -459,5 +559,56 @@ impl<T> outref::AsOut<T> for nika_execution::SnapshotLimits where T: core::marke
 pub fn nika_execution::SnapshotLimits::as_out(&mut self) -> outref::Out<'_, T>
 impl<T> typenum::type_operators::Same for nika_execution::SnapshotLimits
 pub type nika_execution::SnapshotLimits::Output = T
+#[non_exhaustive] pub struct nika_execution::WireLimits
+pub nika_execution::WireLimits::metadata_bytes: usize
+pub nika_execution::WireLimits::path_bytes: usize
+impl nika_execution::WireLimits
+pub const fn nika_execution::WireLimits::new(path_bytes: usize, metadata_bytes: usize) -> Self
+impl core::clone::Clone for nika_execution::WireLimits
+pub fn nika_execution::WireLimits::clone(&self) -> nika_execution::WireLimits
+impl core::cmp::Eq for nika_execution::WireLimits
+impl core::cmp::PartialEq for nika_execution::WireLimits
+pub fn nika_execution::WireLimits::eq(&self, other: &nika_execution::WireLimits) -> bool
+impl core::fmt::Debug for nika_execution::WireLimits
+pub fn nika_execution::WireLimits::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_execution::WireLimits
+impl core::marker::StructuralPartialEq for nika_execution::WireLimits
+impl<D> owo_colors::OwoColorize for nika_execution::WireLimits
+impl<Q, K> equivalent::Equivalent<K> for nika_execution::WireLimits where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_execution::WireLimits::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_execution::WireLimits where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_execution::WireLimits::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_execution::WireLimits where U: core::convert::From<T>
+pub fn nika_execution::WireLimits::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_execution::WireLimits where U: core::convert::Into<T>
+pub type nika_execution::WireLimits::Error = core::convert::Infallible
+pub fn nika_execution::WireLimits::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_execution::WireLimits where U: core::convert::TryFrom<T>
+pub type nika_execution::WireLimits::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_execution::WireLimits::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_execution::WireLimits where T: core::clone::Clone
+pub type nika_execution::WireLimits::Owned = T
+pub fn nika_execution::WireLimits::clone_into(&self, target: &mut T)
+pub fn nika_execution::WireLimits::to_owned(&self) -> T
+impl<T> core::any::Any for nika_execution::WireLimits where T: 'static + ?core::marker::Sized
+pub fn nika_execution::WireLimits::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_execution::WireLimits where T: ?core::marker::Sized
+pub fn nika_execution::WireLimits::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_execution::WireLimits where T: ?core::marker::Sized
+pub fn nika_execution::WireLimits::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_execution::WireLimits where T: core::clone::Clone
+pub unsafe fn nika_execution::WireLimits::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_execution::WireLimits
+pub fn nika_execution::WireLimits::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_execution::WireLimits where T: core::clone::Clone
+pub fn nika_execution::WireLimits::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_execution::WireLimits where T: 'static
+pub fn nika_execution::WireLimits::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_execution::WireLimits where T: core::marker::Copy
+pub fn nika_execution::WireLimits::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_execution::WireLimits
+pub type nika_execution::WireLimits::Output = T
 pub const nika_execution::SNAPSHOT_FORMAT_VERSION: u32
+pub const nika_execution::WIRE_UNIT_CEILING: usize
+pub fn nika_execution::check_wire(encoded: &str, limits: nika_execution::WireLimits) -> core::result::Result<(), nika_execution::WireRefusal>
 pub fn nika_execution::model_admission_findings(workflow: &nika_schema::raw::workflow::RawWorkflow, model_override: core::option::Option<&str>) -> alloc::vec::Vec<alloc::string::String>

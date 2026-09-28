@@ -254,6 +254,7 @@ impl<T> serde_core::de::DeserializeOwned for nika_providers::admission::CostChal
 impl nika_providers::admission::CostHostEvidence
 pub fn nika_providers::admission::CostHostEvidence::new(allowed: bool, policy: nika_providers::admission::CapEvidence, machine: nika_providers::admission::CapEvidence, occurrence: nika_providers::admission::CapEvidence) -> Self
 pub fn nika_providers::admission::CostHostEvidence::unmanaged_interactive_local() -> Self
+pub fn nika_providers::admission::CostHostEvidence::view(&self) -> serde_json::value::Value
 impl core::clone::Clone for nika_providers::admission::CostHostEvidence
 pub fn nika_providers::admission::CostHostEvidence::clone(&self) -> nika_providers::admission::CostHostEvidence
 impl core::default::Default for nika_providers::admission::CostHostEvidence
@@ -352,6 +353,7 @@ pub nika_providers::admission::CostRoute::provider: alloc::string::String
 impl nika_providers::admission::CostRoute
 pub fn nika_providers::admission::CostRoute::needs_unknown_choice(&self) -> bool
 pub fn nika_providers::admission::CostRoute::observe(model: &str, config: nika_providers::registry::ProvidersConfig) -> core::result::Result<Self, alloc::string::String>
+pub fn nika_providers::admission::CostRoute::origin(&self) -> alloc::string::String
 impl core::clone::Clone for nika_providers::admission::CostRoute
 pub fn nika_providers::admission::CostRoute::clone(&self) -> nika_providers::admission::CostRoute
 impl core::cmp::Eq for nika_providers::admission::CostRoute
@@ -858,6 +860,7 @@ pub nika_providers::plan::ExecutionAccessPlan::pin: core::option::Option<alloc::
 pub nika_providers::plan::ExecutionAccessPlan::pin_refusal: core::option::Option<nika_providers::resolve_access::PinRefusal>
 pub nika_providers::plan::ExecutionAccessPlan::seat: core::option::Option<alloc::string::String>
 impl nika_providers::plan::ExecutionAccessPlan
+pub fn nika_providers::plan::ExecutionAccessPlan::admits_api_lane(&self, provider: &str) -> bool
 pub fn nika_providers::plan::ExecutionAccessPlan::admitted(&self) -> impl core::iter::traits::iterator::Iterator<Item = (&str, &nika_providers::plan::ResolvedLane)>
 pub fn nika_providers::plan::ExecutionAccessPlan::first_refused(&self) -> core::option::Option<(&str, &nika_providers::resolve_access::AccessRefusal)>
 pub fn nika_providers::plan::ExecutionAccessPlan::into_decisions(self) -> alloc::vec::Vec<(alloc::string::String, core::result::Result<nika_types::access::AccessPlan, nika_providers::resolve_access::AccessRefusal>)>
@@ -2337,6 +2340,7 @@ pub nika_providers::ExecutionAccessPlan::pin: core::option::Option<alloc::string
 pub nika_providers::ExecutionAccessPlan::pin_refusal: core::option::Option<nika_providers::resolve_access::PinRefusal>
 pub nika_providers::ExecutionAccessPlan::seat: core::option::Option<alloc::string::String>
 impl nika_providers::plan::ExecutionAccessPlan
+pub fn nika_providers::plan::ExecutionAccessPlan::admits_api_lane(&self, provider: &str) -> bool
 pub fn nika_providers::plan::ExecutionAccessPlan::admitted(&self) -> impl core::iter::traits::iterator::Iterator<Item = (&str, &nika_providers::plan::ResolvedLane)>
 pub fn nika_providers::plan::ExecutionAccessPlan::first_refused(&self) -> core::option::Option<(&str, &nika_providers::resolve_access::AccessRefusal)>
 pub fn nika_providers::plan::ExecutionAccessPlan::into_decisions(self) -> alloc::vec::Vec<(alloc::string::String, core::result::Result<nika_types::access::AccessPlan, nika_providers::resolve_access::AccessRefusal>)>

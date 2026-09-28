@@ -157,19 +157,14 @@ const HTTP_ADAPTER_CAPABILITIES: &[&str] = &[
     "jobInputs",
     "compile",
 ];
-const HTTP_ADAPTER_SCHEDULE_CAPABILITIES: &[&str] = &[
-    "check",
-    "executionSnapshot",
-    "eventStream",
-    "cancel",
-    "jobInputs",
-    "compile",
-    "schedule",
-];
+// Only on a server whose resident scheduler is live: the schedule routes.
+const SCHEDULE_CAPABILITY: &str = "schedule";
 // Only on a server the operator built with a native authoring seat: `POST /v1/compile` also
 // speaks generation 2 (explicitProvider · kept-round replay). It names no model, bound,
 // snapshot or endpoint — those are the operator's, never public.
 const NATIVE_COMPILE_CAPABILITY: &str = "compileNativeV2";
+// Only on a server the operator started with `--cost-review` (C6): the cost-review door.
+const COST_REVIEW_CAPABILITY: &str = "costReviewV1";
 
 #[derive(Debug, Serialize)]
 struct HttpAdapterIdentity {
@@ -198,7 +193,7 @@ struct HttpAdapterIdentity {
 }
 
 impl HttpAdapterIdentity {
-    fn current(schedule_live: bool, native: bool) -> Self {
+    fn current(schedule_live: bool, native: bool, cost_review: bool) -> Self {
         let identity = nika_runtime::engine_identity();
         Self {
             engine_version: identity.engine_version(),
@@ -213,21 +208,19 @@ impl HttpAdapterIdentity {
             check_report_version: identity.check_report_version(),
             event_format_version: identity.event_format_version(),
             trace_format_version: identity.trace_format_version(),
-            supported_capabilities: if schedule_live {
-                HTTP_ADAPTER_SCHEDULE_CAPABILITIES
-            } else {
-                HTTP_ADAPTER_CAPABILITIES
-            }
-            .iter()
-            .copied()
-            .chain(native.then_some(NATIVE_COMPILE_CAPABILITY))
-            .collect(),
+            supported_capabilities: HTTP_ADAPTER_CAPABILITIES
+                .iter()
+                .copied()
+                .chain(schedule_live.then_some(SCHEDULE_CAPABILITY))
+                .chain(native.then_some(NATIVE_COMPILE_CAPABILITY))
+                .chain(cost_review.then_some(COST_REVIEW_CAPABILITY))
+                .collect(),
         }
     }
 }
 
 impl HealthResponse {
-    pub(crate) fn current(schedule_live: bool, native: bool) -> Self {
+    pub(crate) fn current(schedule_live: bool, native: bool, cost_review: bool) -> Self {
         Self {
             status: "ok",
             service: "nika-serve",
@@ -235,7 +228,7 @@ impl HealthResponse {
                 jobs: crate::job::STATE_VERSION,
                 schedules: crate::schedule::STATE_VERSION,
             },
-            identity: HttpAdapterIdentity::current(schedule_live, native),
+            identity: HttpAdapterIdentity::current(schedule_live, native, cost_review),
         }
     }
 }

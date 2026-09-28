@@ -335,6 +335,12 @@ and consuming admission use these same values. `CostReview::new` and
 `with_run_requests` retain the Run per-request limits (8192 tokens, 120 seconds);
 unknown outcomes freeze their account and never grant a transport retry.
 
+`ExecutionAccessPlan::admits_api_lane(provider)` (C6, descended from Serve's
+cost-review door) answers whether an admitted lane of that canonical provider,
+named by the lane's model prefix, runs on the API access class: the lane whose
+key the executing process itself reads. A host keeps its own words for that
+credential custody (Serve says `HOST_SERVER_MEMORY`).
+
 ## Opt-in local model listing
 
 `probe::probe_model_listing` sends one bodyless GET through the kernel HTTP seam.

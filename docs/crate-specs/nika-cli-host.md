@@ -177,6 +177,31 @@ An unsupported free shape or an unknown-cost route is refused before any effect
 - Bookkeeping: the observer still has no lease or journal, and the budget
   preflight and cap are unchanged.
 
+Since C6 (2026-09-28) the review is one shared path every host drives:
+`prepare` runs the evaluator (`RunCostPlan::Unneeded` · `Observer` ·
+`Review`), clearing the project (DAP `cost_journal::clear`) before the host's
+own `ask` gate speaks, then frames one `ReviewedRun` under the host's
+`CostHostEvidence` and its `launch` root. `ReviewedRun::confirm(answer,
+source)` re-observes everything it bound before any authority: the source as
+the host reads it now, the held project root and `.nika/` (a directory
+replaced at the same path refuses), the journal's exact bytes after the
+review's own clear, the project configuration, the bound files (read through
+the held root: DAP `Cleared::observe_file` over Service `bound_files`) and the
+route. Only then is the account confirmed, the Run's `RunJournal` (DAP) bound
+to the held `.nika/` descriptor, and the `prepared` row written.
+`review_with_model` is that path with the terminal as `ask` and the process's
+current directory as `launch`; its refusals and their order are unchanged.
+Serve's cost-review door (`--cost-review`) drives the same path with its own
+startup-composed evidence. `serve_args` gains `--cost-review` and
+`--run-cost-ceiling <USD|none>` (both require `--bind`). The observer decision
+and account now come from Service (`observes` · `observer`).
+Zero vetoes unknown spend before any question and no review can override
+it: `--max-cost-usd 0` refuses in `prepare`, and a project `ceiling:` must
+be a positive real (nika-vocab refuses 0, negative and NaN at the project
+read, so no review is framed). A positive project ceiling stays an
+overridable default; a model-free plan never reads it (pinned in
+`run_cost::tests`).
+
 `lines::fresh_terminal` is the fresh-input boundary of both local spending doors:
 the plain session before its `continue once? ›` prompt, and `ReviewChannel::Terminal`
 before each answer (again after `details`). It flushes the question, then switches

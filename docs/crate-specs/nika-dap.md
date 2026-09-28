@@ -62,11 +62,11 @@ pub mod chain      { CHAIN_GENESIS · Verdict · walk }
 pub mod stats      { Prior (#[non_exhaustive]) · BANDS_MIN_N · quantile_h7 · ConformalUpper · conformal_upper }
 pub mod otel       { project (journal + chain Verdict → one OTLP/JSON line) }
 pub mod reproduce  { Verdict · Row · Report · compare · workflow_of }
-pub mod store      { TRACE_DIR · TraceState · TraceMeta · scan · fold_facts }
+pub mod store      { TRACE_DIR · TraceState · TraceMeta · scan · fold_facts · locate_trace }
 pub mod retention  { RetentionConfig · Reason · GcReport · plan · newest_per_workflow · collect }
-pub mod journal    { TraceFileSink · JsonSink · Tee · seal_journal }   // the WRITE half (descended 2026-07-22)
+pub mod journal    { TraceFileSink (· settle_sealed · interrupt) · JsonSink · Tee · seal_journal }   // the WRITE half (descended 2026-07-22)
 pub mod resume     { ResumeRequest · PlanFold · fold_plan · apply_from · parse_answers · summary_line }   // ADR-099 (descended 2026-07-22)
-pub mod cost_journal { JOURNAL · Writer · Lease · Taken · take · Exposure · Blocker · Exposures · fold · refusal · append_row }   // billing evidence (descended 2026-09-28)
+pub mod cost_journal { JOURNAL · Writer · Lease · Taken · take · Exposure · Blocker · Exposures · fold · refusal · append_row · clear · Cleared · Blocked · JournalWitness · RunAccount · RunJournal }   // billing evidence (descended 2026-09-28 · Run custody C6)
 ```
 
 Consumers: `nika-cli` (the bin's `Command::Dap` arm + the re-exported
@@ -160,6 +160,162 @@ Uncertain still blocks. Malformed rows still fail closed as unreadable. This
 checks what a row says, never who wrote it: a consistent row forged by a
 copied writer remains the open P4 authentication work.
 
+Reconciliation door (P4, 2026-09-28). The first supported recovery for an
+unknown exposure lives here, in the same journal and the same fold:
+`cost_journal::reconcile`. An operator runs `inspect`, which takes the cost
+lease like a review, may record a Run's unknown once as every review does,
+and reports that in `derived`. Its output is the journal as data: per blocking
+or reconciled Run, its state, the digest of its latest row, whether this door
+can resolve it and why not, the writer, the trace, the facts its own rows
+record, and its history. `submit` then appends one `phase: "reconciled"` row
+inside `nika/run-cost-observation@1`. That row carries `reconciliation`
+(`nika/cost-reconciliation@1`) with these fields:
+- `prior_sha256`, the exact bytes of the Run's latest row;
+- `resolution`, one of `billed`, `not_billed` or `still_unknown`;
+- `evidence`, the one supported class, `operator_attestation`, with
+  `verified: false` and the operator's reference;
+- `route`, `provider_request_ids` and `window`, copied from the Run's rows and
+  never typed. The window is the `UUIDv7` time of the invocation and of the
+  deriving review, labeled `uuidv7-execution-ids`, never a measured request
+  time;
+- `principal`, the local OS account the host read;
+- `project`, a host-local binding: the sha256 of the held `.nika`
+  descriptor's device and inode under `nika/cost-project@1`, not an
+  authenticated or globally unique identity;
+- `observed_at`.
+
+The row also carries the reconciler's `lease`.
+
+Only an Uncertain settlement, a recorded unknown, or an earlier
+`still_unknown` can be reconciled, and only through its latest row.
+`still_unknown` keeps blocking and becomes that latest row. `billed` and
+`not_billed` end the exposure and authorize nothing: the next unknown-cost Run
+still meets its own fresh review. Everything else is a named conflict:
+- a stale or foreign prior;
+- a clean or prepared Run;
+- unsupported or "verified" evidence;
+- a copied fact that does not match;
+- no lease;
+- anything after a final resolution;
+- an unknown resolution.
+
+A reconciliation that does not read is unreadable, as every reconciliation is
+to an engine older than this phase, so an old engine fails closed.
+
+`submit` judges everything before its one write: the binding, the Run's
+standing and latest row, the evidence, and the event itself through the same
+fold. A Run whose unknown is not on record yet is refused with "inspect first".
+Every preflight refusal leaves every journal byte untouched: busy, no journal,
+another project, an unknown Run, not reconcilable, stale, invalid, and a double
+resolution. After attempting an append, an I/O failure means its effect is
+uncertain; inspect before another action. A successful receipt requires both
+byte-prefix preservation and the fold naming that exact event as the Run's
+current standing, without refusing that event.
+
+The cost lease holds independent project-directory, journal-directory,
+journal-inode and legacy lock-file flocks for its lifetime. The project guard
+is acquired first through a fresh parent-directory descriptor and survives
+replacing `.nika` inside that same project. Journal-directory custody survives
+replacing the journal or lock names; journal custody ties the writer to the opened bytes. The locked
+files must still be the named, singly linked inodes after acquisition. A
+hard-linked journal or lock is refused rather than sharing project custody.
+Taking the first lease may create an empty journal; it does not create a cost
+observation. The legacy lock remains for interoperation with older writers.
+These are cooperating-writer guarantees: an old or arbitrary process holding
+only an unlinked legacy lock cannot retroactively acquire the new project,
+directory and journal guards. Replacing the project root itself changes the
+custody object, and filesystem access can still forge unauthenticated rows.
+
+Unjudged writers, refused rows and torn rows stay blocking and are shown as not
+reconcilable. The journal is still not authenticated: a consistent
+reconciliation written by hand reads like one this door wrote, and a copied
+journal's rows, reconciliations included, still apply in the copy. Serve and
+SDK transport of the same documents is a later slice.
+
+## 7. The Run custody descent (C6, 2026-09-28)
+
+A second host (Serve's cost-review door) reviews unknown-cost Runs, so the
+Run's side of the journal leaves `nika-cli-host` for the child module
+`cost_journal::run`, on the laws above unchanged (`take_at`, the lease's
+`read`, `fold_as` and `append_row`, and `refusal` are called, never edited).
+`clear(root, observer)` creates `.nika/` below the held root, takes the lease
+from that root descriptor (`take_at`) and folds through the locked journal
+inode: `Cleared`
+holds the root and `.nika/` descriptors, the writer and the lease; `Blocked`
+is `Busy { pid }` (the host's words) or `Exposed(Exposures)` (the refusal).
+`Cleared::journal()` is the journal's exact length and sha256 read through
+the locked journal inode (a review's prior-journal witness), and
+`Cleared::same_place(path)` re-observes, by path, that the root and its
+`.nika/` are the very directory objects held (device and inode): a directory
+moved away or a copy put back at the same path is not the same place, even
+with byte-identical journal bytes. `RunJournal` then appends one Run's rows
+through the lease's locked journal inode, never by reopening a name (E21: the
+old host journal followed a replacement when settling; a renamed or replaced
+journal or `.nika/` never receives a row, and a journal with a second link
+refuses the append); every row
+reads the live `RunAccount` (the host's account), so a `settled` row, and the
+settle-on-drop of a Run that ends without one, record the account's own last
+observation, never a stale `prepared` snapshot. Row shape and schema are
+unchanged (`nika/run-cost-observation@1`). Settlement is attempted once: the
+first `settle` owns the account's closure and the `settled` row, a later call
+succeeds only after that attempt succeeded and otherwise reports it pending or
+unverified, and Drop settles only a Run whose settlement was never attempted. A
+failed or uncertain closure or append (a short write, a failed sync) never earns
+a second row; what it left is what the next review records as unknown.
+
+`Cleared::observe_file(path, write)` observes one project file the Run binds
+through the same held root, never a path reopened: a read input answers the
+sha256 of its bytes (at most 1 MiB); a write target re-observes its contained
+parent component by component (a symlink or a file refuses; a missing one
+passes only under the write's literal `create_dirs: true`) and is never
+created before the answer. It moved from the host's file witness with its
+tests; which files a Run binds is the static half, Service's `bound_files`.
+The boundary is `std::io::Result` throughout, the account included.
+
+`cost_journal::Reviews<H>` (C6, descended from Serve at its 15k wall with its
+words unchanged) is a cost review's custody between its framing and its one
+admission, for a host that answers across requests, generic over what a live
+review holds `H` (Serve's holds the framed review and so its `Cleared`
+lease). It keeps the states (pending · approved · admitting · consumed ·
+refused · failed · declined · expired), the 300 s monotonic lifetime
+(`REVIEW_TTL`, swept on every access), the one-winner `take`, the first
+verdict that stands (`settle` after an end is a no-op), the newest 256 ended
+reviews (`REVIEWS_RETAINED`) and the review-local idempotency keys that leave
+with them, and a constant-time witness comparison; every refusal is a typed
+`ReviewRefusal` with its wire code and words. `review_witness(nonce, binding)`
+(descent L) is the witness it compares: the hex SHA-256 of the host's fresh
+private nonce followed by the exact binding the host composed. The host draws
+the nonce and composes the binding; a witness names one review's binding and is
+never authenticated journal evidence. Ending a review drops what it
+held, which releases the lease. `Claims<V>` is an admitted job's held
+authority until its first run claims it (a duplicate run never gets it).
+Wall clock stays with the host (`decided_at`), the account view is the host's
+closure. Tests hold a real `Cleared` and observe the lease on every ending.
+
+Two trace-journal operations also came home from Serve (C6, at its 15k wall):
+`store::locate_trace(dir, execution, trace)` finds a run's journal by the
+sink's own naming law (the short or full trace suffix) and settles a shared
+short id by the first line's `execution.uuid`, read bounded; and
+`TraceFileSink::settle_sealed(seal)` (the seal first, then the durability
+point, the head the receipt names, `None` for a journal never opened) and
+`TraceFileSink::interrupt(execution, operator)` (the living writer's
+`run_settled interrupted` END, `cause: operator` only when asked). Serve keeps
+the HTTP projection and the seal's custody; behavior and bytes are unchanged.
+
+The resident door's seal teardown fold came home as well (C6, descent F):
+`seal::SealTeardown::served(workflow, report, outcome, settlement,
+sdk_receipt, memory_root)` takes existing plain types only. It folds the
+receipt inputs (proves, the certificate, the caller's outcome word), the
+budgets from the settlement's own spend (`spent_usd` only when metered, no
+budgets without a settlement), the caller's SDK receipt binding and the
+signed-memory fold. The effects and quarantine folds stay out, because a
+service boundary redacts their per-task records. The caller keeps the
+outcome-word mapping and the binding's claims; `seal/served_tests.rs` pins
+the fold against a real parsed workflow and typed settlements.
+`seal::workflow_hash(workflow)` (descent M) is the hash such a run's seal is
+taken under, the per-task Merkle root of the admitted workflow (the CLI's
+`seal_hash`).
+
 ## 4. Gates at admission (2026-07-09)
 
 | Gate | Name | Verdict |
@@ -196,3 +352,31 @@ copied writer remains the open P4 authentication work.
   gained `#[non_exhaustive]` + `new()` (invariant #19), and
   `recover_events` returns a typed `RecoverError` (thiserror · FCI-019 —
   never a bare `String` in public API).
+
+## Original-project cost custody
+
+Project-facing hosts retain the project descriptor before opening `.nika` and
+use `cost_journal::take_at(project, nika, writer)`. Acquisition fresh-opens and
+locks that original project, then checks the held child against its current
+`.nika` before writing child files. Moving an already-open child to a sibling
+therefore cannot change the project whose live writer blocks acquisition.
+The compatibility `take(nika, writer)` locks the child's current parent; it
+cannot recover the caller's original project identity after a move and does
+not establish that stronger claim. CLI review, inspection and reconciliation
+use the explicit-project entry.
+
+Lease acquisition may create empty administrative journal and lock files. A
+fresh refusal before a question appends no preparation or consent row and
+makes no provider request. A prior killed writer may still acquire an UNKNOWN
+observation before that refusal. Neither property means local metadata is
+byte-inert, and the journal remains unauthenticated filesystem evidence.
+
+`Lease::read`, `Lease::fold_as` and `Lease::append_row` use the locked journal
+descriptor. Replacing the journal name or moving `.nika` cannot redirect them
+to a replacement file. The held cursor is serialized locally; append uses
+`O_APPEND` and one write containing any torn-tail separator, row and newline.
+A short write or sync failure remains uncertain and is never retried by that
+operation. The compatibility free functions still resolve names under the
+supplied directory; project-facing review and reconciliation use the lease.
+These guarantees preserve acquired file custody, not authenticity against an
+owner capable of rewriting the journal's contents.

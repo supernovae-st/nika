@@ -2,6 +2,7 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! Pure finite-call analysis for the production composer; never execution authority.
 use nika_check::analyzer::static_args::{ConstStrings, judgeable_arg};
+use nika_providers::InferenceAdmission;
 use nika_schema::raw::{RawAction, RawInferAction, RawInvokeAction, RawWorkflow};
 use std::path::{Component, Path, PathBuf};
 
@@ -204,6 +205,92 @@ pub fn readiness(
         ),
         Err(why) => format!("USD cost is unknown; Run cannot obtain a bounded choice: {why}"),
     })
+}
+
+/// Whether a Run binds the per-Run [`observer`]: an exact declared-free lane
+/// ([`declared_free_shape`]) or a `model:` rendered at run time
+/// ([`run_time_models`], judged against the Run's `inputs`). Without inputs
+/// (an answered leg, whose first leg judged them) any doubt binds it.
+/// # Errors
+/// A shape or decided route the observer cannot admit, in the Run's words.
+pub fn observes(
+    wf: &RawWorkflow,
+    plan: &nika_providers::ExecutionAccessPlan,
+    config: &nika_providers::ProvidersConfig,
+    model_override: Option<&str>,
+    inputs: Option<&std::collections::BTreeMap<String, serde_json::Value>>,
+) -> Result<bool, String> {
+    let Some(inputs) = inputs else {
+        let defaults_only = std::collections::BTreeMap::new();
+        return Ok(
+            declared_free_shape(wf, plan, config, model_override).unwrap_or(true)
+                || run_time_models(wf, plan, config, &defaults_only).unwrap_or(true),
+        );
+    };
+    let refused =
+        |why: &dyn std::fmt::Display| format!("Run refused before any provider call: {why}");
+    let free = declared_free_shape(wf, plan, config, model_override).map_err(|r| refused(&r))?;
+    let dynamic = run_time_models(wf, plan, config, inputs).map_err(|r| refused(&r))?;
+    Ok(free || dynamic)
+}
+
+/// The per-Run observer an exact declared-free lane or a run-time `model:`
+/// binds (C2 · C4): a fresh account that observes and never grants
+/// unknown-cost authority, in a host configuration that keeps the run's own
+/// jitter seed (it replaces composition's default).
+#[must_use]
+pub fn observer(wf: &RawWorkflow) -> (InferenceAdmission, nika_runtime::RuntimeConfig) {
+    let account = InferenceAdmission::observe_run();
+    let run = wf.run.as_ref().map(|run| &run.value);
+    let seed = nika_runtime::compose::RunSeams::of(run).jitter_seed;
+    let mut config = nika_runtime::RuntimeConfig::new(None, seed);
+    config.inference_admission = Some(account.clone());
+    (account, config)
+}
+
+/// A project file an unknown-cost Run binds (static; no I/O): a `nika:read`
+/// input, whose bytes a review witnesses, or a `nika:write` target, whose
+/// contained parent a review re-observes.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct BoundFile {
+    /// The project-relative path ([`project_file_path`]).
+    pub path: PathBuf,
+    /// `Some(creates_dirs)` for a write target (only a literal `create_dirs:
+    /// true` lets a missing parent through), `None` for a read input.
+    pub write: Option<bool>,
+}
+
+/// Every project file the tasks of `wf` read or write, in task order: each
+/// resolved by [`project_file_path`], or that task's refusal.
+#[must_use]
+pub fn bound_files(wf: &RawWorkflow) -> Vec<Result<BoundFile, RunShapeError>> {
+    let consts = ConstStrings::of(wf);
+    let bound = |action: &RawInvokeAction, write| {
+        project_file_path(&consts, action).map(|path| BoundFile { path, write })
+    };
+    wf.tasks
+        .iter()
+        .filter_map(|task| match &task.value.action {
+            RawAction::Invoke(action) => match action.tool().map(|tool| tool.value.as_str()) {
+                Some("nika:write") => Some(bound(action, Some(creates_dirs(action)))),
+                Some("nika:read") => Some(bound(action, None)),
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect()
+}
+
+/// Whether the write itself declares `create_dirs: true` as a literal; an
+/// absent, false or templated value never lets a missing parent through.
+fn creates_dirs(action: &RawInvokeAction) -> bool {
+    action
+        .args
+        .as_ref()
+        .and_then(|args| args.value.get("create_dirs"))
+        .and_then(serde_json::Value::as_bool)
+        == Some(true)
 }
 
 /// A task that uses an exact catalog-declared-free route in a shape its
@@ -921,6 +1008,19 @@ fn free_infer_shape(action: &RawInferAction, max: u32) -> Option<&'static str> {
         Some("an output bound outside its tariff")
     } else {
         None
+    }
+}
+
+impl crate::ServiceExecutionOptions {
+    /// Compose the Run with a host-bound runtime configuration, as
+    /// [`crate::ServiceExecutionDriver::compose_with_config`] does: its account
+    /// (a reviewed unknown-cost choice or a declared-free observer) meters every
+    /// leg of this Run and its children. It grants no effect; the host keeps the
+    /// cap evidence, the review and the account's settlement.
+    #[must_use]
+    pub fn with_runtime_config(mut self, config: nika_runtime::RuntimeConfig) -> Self {
+        self.runtime_config = Some(config);
+        self
     }
 }
 

@@ -68,6 +68,10 @@ fn go(args: &ServeArgs) -> Result<VerbOutput, VerbOutput> {
         args.authoring_max_calls,
     )
     .map_err(|error| fail(format!("serve · {error}")))?;
+    let ceiling = args.run_cost_ceiling.as_deref();
+    let http = nika_serve::server::seat_cost_review(http, args.cost_review, ceiling)
+        .map_err(nika_serve::launch_operator_message)
+        .map_err(&fail)?;
     let now = instant(args.now.as_deref()).map_err(&fail)?;
     let until = instant(args.until.as_deref()).map_err(&fail)?;
     if now.is_some() && !args.once && until.is_none() {

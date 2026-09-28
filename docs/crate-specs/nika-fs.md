@@ -62,6 +62,13 @@ consumers can `tokio::spawn` filesystem work. (The `*Dyn` forms are
 generic bounds, NOT dyn-dispatch surfaces — RPITIT is not object-safe;
 per the kernel doc, L1 impls fan out via `Arc<T>`, not `Arc<dyn _>`.)
 
+`OwnedDir::append_line` tolerates an initial-create ENOENT race by reopening the
+existing child once without O_CREAT, before any write. It frames the line and its newline in one append write,
+then synchronizes the file. A short write is reported as an uncertain partial
+effect; it is never completed by a second write that could interleave another
+writer's row. This mechanism does not replace a caller's transaction lease,
+and arbitrary filesystems still need their own append/locking guarantees.
+
 ### Exclusive publication and backend migration
 
 `write_new(path, contents)` publishes a complete file only if the destination

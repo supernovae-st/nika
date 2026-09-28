@@ -38,6 +38,17 @@ pub enum CapEvidence {
     Unknown,
 }
 impl CapEvidence {
+    /// The layer for a public surface: its class, its origin, its cap. No credential rides it.
+    fn view(&self) -> serde_json::Value {
+        match self {
+            Self::Observed { cap, origin } => serde_json::json!({
+                "class": "observed", "origin": origin, "cap": cap_view(*cap)}),
+            Self::NotApplicable { origin } => {
+                serde_json::json!({"class": "not_applicable", "origin": origin})
+            }
+            Self::Unknown => serde_json::json!({"class": "unknown"}),
+        }
+    }
     fn cap(&self) -> HardMonetaryCap {
         match self {
             Self::Observed { cap, origin } if !origin.trim().is_empty() => *cap,
@@ -89,6 +100,17 @@ impl CostHostEvidence {
             CapEvidence::NotApplicable { origin: "local interactive CLI composition: no machine monetary-cap source configured or supported".into() },
             CapEvidence::NotApplicable { origin: "observed interactive invocation, not an ARM/scheduled occurrence".into() })
     }
+    /// The evidence as a public surface shows it: whether the host permits an
+    /// unknown-cost choice and, per layer, what it observed. Never a credential.
+    #[must_use]
+    pub fn view(&self) -> serde_json::Value {
+        serde_json::json!({
+            "allowed": self.allowed,
+            "policy": self.layers[0].view(),
+            "machine": self.layers[1].view(),
+            "occurrence": self.layers[2].view(),
+        })
+    }
     fn policy(&self, invocation: Option<Cost>, project: Option<Cost>) -> UnknownCostPolicy {
         UnknownCostPolicy::new(
             self.allowed,
@@ -98,6 +120,14 @@ impl CostHostEvidence {
             invocation,
             project,
         )
+    }
+}
+
+fn cap_view(cap: HardMonetaryCap) -> serde_json::Value {
+    match cap {
+        HardMonetaryCap::Absent => serde_json::json!("absent"),
+        HardMonetaryCap::Capped(limit) => serde_json::json!({"capped_usd": limit.to_string()}),
+        _ => serde_json::json!("unknown"),
     }
 }
 
@@ -140,6 +170,34 @@ impl CostRoute {
             model: profile.resolve_model(name).into(),
             endpoint: endpoint.into(),
         })
+    }
+    /// Scheme, host and effective port of the endpoint (443 or 80 when implicit):
+    /// where the request goes, never userinfo, path, query or fragment. The exact
+    /// endpoint stays bound through the review's private witness.
+    #[must_use]
+    pub fn origin(&self) -> String {
+        let (scheme, rest) = self
+            .endpoint
+            .split_once("://")
+            .unwrap_or(("", &self.endpoint));
+        let authority = rest.split(['/', '?', '#']).next().unwrap_or(rest);
+        let host = authority
+            .rsplit_once('@')
+            .map_or(authority, |(_, host)| host);
+        let explicit = match host.rfind(']') {
+            Some(bracket) => host[bracket..].contains(':'),
+            None => host.contains(':'),
+        };
+        let default = match scheme {
+            "https" => Some(443),
+            "http" => Some(80),
+            _ => None,
+        };
+        match (explicit, default) {
+            (false, Some(port)) => format!("{scheme}://{host}:{port}"),
+            _ if scheme.is_empty() => host.to_owned(),
+            _ => format!("{scheme}://{host}"),
+        }
     }
     /// Whether numeric USD catalog admission cannot qualify this exact route.
     #[must_use]
@@ -507,6 +565,85 @@ mod tests {
             .checked_sub(Duration::from_secs(301))
             .unwrap();
         assert!(expired.confirm("candidate-a", &route()).is_err());
+    }
+    const SENTINEL: &str = "C6-SECRET-PATH-TOKEN";
+
+    #[test]
+    fn the_origin_keeps_scheme_host_and_effective_port_only() {
+        let at = |endpoint: &str| CostRoute {
+            provider: "deepseek".into(),
+            model: "m".into(),
+            endpoint: endpoint.into(),
+        };
+        for (endpoint, origin) in [
+            (
+                "https://api.deepseek.com/v1",
+                "https://api.deepseek.com:443",
+            ),
+            (
+                "https://127.0.0.1:18443/v1/C6-SECRET-PATH-TOKEN",
+                "https://127.0.0.1:18443",
+            ),
+            (
+                "https://user:C6-SECRET-PATH-TOKEN@host.example/v1",
+                "https://host.example:443",
+            ),
+            (
+                "https://host.example/v1?key=C6-SECRET-PATH-TOKEN#frag",
+                "https://host.example:443",
+            ),
+            ("http://[::1]:8080/v1", "http://[::1]:8080"),
+            ("https://[::1]/v1", "https://[::1]:443"),
+        ] {
+            let seen = at(endpoint).origin();
+            assert_eq!(seen, origin, "{endpoint}");
+            assert!(!seen.contains(SENTINEL));
+        }
+    }
+    #[test]
+    fn the_evidence_view_names_each_layer() {
+        let view = CostHostEvidence::new(
+            true,
+            CapEvidence::NotApplicable {
+                origin: "test composition".into(),
+            },
+            CapEvidence::Observed {
+                cap: HardMonetaryCap::Capped(Cost::new(2_000_000_000)),
+                origin: "machine cap".into(),
+            },
+            CapEvidence::Unknown,
+        )
+        .view();
+        assert_eq!(view["allowed"], true);
+        assert_eq!(view["policy"]["class"], "not_applicable");
+        assert_eq!(view["machine"]["class"], "observed");
+        assert_eq!(
+            view["machine"]["cap"]["capped_usd"],
+            Cost::new(2_000_000_000).to_string()
+        );
+        assert_eq!(view["occurrence"], serde_json::json!({"class": "unknown"}));
+    }
+    #[test]
+    fn native_price_text_never_carries_an_override_endpoint() {
+        let config = ProvidersConfig::new()
+            .with_base_url("deepseek", format!("https://127.0.0.1:18443/v1/{SENTINEL}"));
+        let route = CostRoute::observe("deepseek/deepseek-v4-pro", config).expect("override route");
+        assert!(
+            route.endpoint.contains(SENTINEL),
+            "the private witness keeps the exact route"
+        );
+        let review = CostReview::new(
+            "c".into(),
+            "i".into(),
+            route,
+            CostHostEvidence::unmanaged_interactive_local(),
+            None,
+            None,
+        )
+        .expect("review");
+        let pending = PendingCostReview::new(review, "s".into(), "i".into());
+        assert!(!pending.challenge().native_price.contains(SENTINEL));
+        assert!(!pending.challenge().route.origin().contains(SENTINEL));
     }
     #[test]
     fn selected_adapter_is_not_substituted_for_unsupported_subscription() {

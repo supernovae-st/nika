@@ -130,4 +130,15 @@ timeout boundary (spec 03 · catchable · never retryable).
    · the RecoverError/PackError precedent); the spec-side mint for
    fortress refusals is NEP-0012 ratification's owed.
 
+7. **`Refusal`** (nika-dap `cost_journal/reconcile.rs`) — the cost-journal
+   inspection/reconciliation API's typed refusal (born typed 2026-09-28).
+   It is never evaluated as a workflow task diagnostic. `Display` and its
+   stable `kind` slug belong at the operator boundary; the CLI cost door
+   has not yet been integrated into this carrier. Its public slugs are
+   `busy`, `no_journal`, `other_project`, `unknown_run`, `inspect_first`,
+   `not_reconcilable`, `stale`, `invalid` and `io`. Exempted
+   `transport-surface` by the RecoverError / PackError / DecodeRefusal
+   precedent. Zero NIKA range owed; propagating this refusal into a
+   workflow task would require a separate registry/spec decision.
+
 🦋

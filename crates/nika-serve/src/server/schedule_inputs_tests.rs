@@ -366,3 +366,88 @@ async fn a_fire_that_finds_the_queue_full_is_deferred_and_the_resident_lives() {
     assert_eq!(alive.status, 200, "the resident is alive: {}", alive.body);
     server.stop().await.expect("a deferred fire stops clean");
 }
+
+/// P1 · one literal law behind two doors: the resident's schedule binding and
+/// the CLI's `--var` seam judge the same `(key, text)` pairs alike. Literal
+/// texts bind to the same values: a `string` keeps its raw text (`=`, JSON and
+/// the empty text included), an `integer` coerces, a typed array reads JSON.
+/// An undeclared key refuses before its `@env:` text is judged, a declared
+/// `@env:` text meets each door's own channel policy before any type, and a
+/// misfit gives the same reason through both doors.
+#[test]
+fn the_schedule_door_and_the_cli_door_share_one_literal_law() {
+    use nika_service_execution::inputs::{BindingFault, check_bindings, parse_var_overrides};
+    const LITERAL: &str = concat!(
+        "nika: literal\n",
+        "inputs:\n",
+        "  tenant: { type: string, required: true }\n",
+        "  limit: { type: integer, default: 5 }\n",
+        "  tags: { type: { array: string }, required: false }\n",
+        "permits:\n",
+        "  tools: [\"nika:jq\"]\n",
+        "tasks:\n",
+        "  value:\n",
+        "    invoke:\n",
+        "      tool: nika:jq\n",
+        "      args: { input: \"${{ inputs.tenant }}\", expression: \".\" }\n",
+    );
+    let project = tempfile::tempdir().expect("project");
+    let owned = nika_fs::OwnedDir::open(project.path()).expect("owned project");
+    let admitted = nika_execution::ExecutionService::default()
+        .admit_root_bytes(&owned, std::path::Path::new("-"), LITERAL.as_bytes())
+        .expect("admitted");
+    let workflow = admitted.workflow();
+    let resident = |pairs: &[(&str, &str)]| {
+        let when = nika_cadence::ScheduleWhenDraft::Once {
+            at: "2099-09-01T07:00:00Z".to_owned(),
+        };
+        let missed = nika_cadence::MissPolicy::RattraperUneFois;
+        let mut draft = nika_cadence::ScheduleDraft::new("p1", "literal.nika", when, 0.25, missed);
+        draft.inputs = pairs
+            .iter()
+            .map(|(key, text)| ((*key).to_owned(), (*text).to_owned()))
+            .collect();
+        super::schedule_inputs::bind(&admitted, &draft.validate().expect("a definition"))
+    };
+    let cli = |pairs: &[(&str, &str)]| -> Vec<String> {
+        pairs
+            .iter()
+            .map(|(key, text)| format!("{key}={text}"))
+            .collect()
+    };
+    let literals: [&[(&str, &str)]; 3] = [
+        &[("tenant", "a=b"), ("limit", "7"), ("tags", "[\"x\",\"y\"]")],
+        &[("tenant", "")],
+        &[("tenant", "{\"n\":1}"), ("limit", "-3")],
+    ];
+    for pairs in literals {
+        let bound = resident(pairs).expect("the resident binds");
+        let parsed = parse_var_overrides(&cli(pairs), workflow).expect("the CLI binds");
+        assert_eq!(bound, parsed.values, "{pairs:?}");
+    }
+    let unknown = resident(&[("tenant", "x"), ("ghost", "@env:NIKA_P1_UNSET")]).unwrap_err();
+    assert_eq!(unknown.code, "unknown_input");
+    let cli_unknown = parse_var_overrides(&cli(&[("ghost", "@env:NIKA_P1_UNSET")]), workflow);
+    let cli_unknown = cli_unknown.expect_err("the CLI refuses the key");
+    assert_eq!(
+        unknown.message.strip_prefix("inputs.ghost: "),
+        cli_unknown.strip_prefix("--var ghost: ")
+    );
+    let channel = resident(&[("tenant", "x"), ("limit", "@env:NIKA_P1_UNSET")]).unwrap_err();
+    assert_eq!(channel.code, "env_channel_unsupported");
+    let fault = check_bindings(&cli(&[("limit", "@env:NIKA_P1_UNSET")]), workflow)[0].fault;
+    assert!(
+        matches!(
+            fault,
+            Some(BindingFault::EnvUnset | BindingFault::EnvUndeclaredInCi)
+        ),
+        "the CLI judges its channel before the type: {fault:?}"
+    );
+    let misfit = resident(&[("tenant", "x"), ("limit", "many")]).unwrap_err();
+    assert_eq!(misfit.code, "input_type_mismatch");
+    let cli_misfit = parse_var_overrides(&cli(&[("limit", "many")]), workflow).unwrap_err();
+    assert_eq!(
+        misfit.message.strip_prefix("inputs.limit: "),
+        cli_misfit.strip_prefix("--var limit: ")
+    );
+}

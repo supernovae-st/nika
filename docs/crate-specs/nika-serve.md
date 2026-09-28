@@ -432,7 +432,9 @@ capabilities require their own typed authorities and tests before projection.
 `{ workflow, inputs?, access? }`. A present `inputs` must be a JSON object,
 and a present access pin must be a nonempty string; null never erases either.
 Other envelope fields are refused. Inputs use the declared workflow keys and
-the canonical TypeExpr fit, with the runtime's required-input refusal before a
+the canonical TypeExpr fit (`AdmittedExecution::check_inputs`, whose typed
+refusals this door answers as 422 `unknown_input` · `invalid_input_type` ·
+`input_type_mismatch`), with the runtime's required-input refusal before a
 job is persisted. There is no CLI coercion, `@env:` lookup or expression
 interpretation: JSON strings are literal data. Declared defaults remain in the
 workflow; source, permits and model are never rewritten.
@@ -467,17 +469,74 @@ an attacker controlling the entire local store and its unkeyed hashes.
 
 ## Resident Run cost admission
 
-The production `ResidentExecutionBackend` checks the frozen access plan against
-Run route pricing before starting the effecting worker. Named jobs, snapshot jobs
-and resident schedule fires share that gate. An admitted API lane that needs a
-fresh unknown-cost choice is refused: this host has no monetary review protocol.
-The job can already have been accepted with HTTP 202; its terminal result is
-`failed` with code `admission_refused`, before any model or tool effect.
+Since C6 (2026-09-28) the production `ResidentExecutionBackend` judges every job
+with no reviewed authority (named, snapshot and scheduled) through the one host
+evaluator `nika run` uses (`nika_cli_host::run_cost::prepare`), replacing the
+resident's private route gate. Exact priced routes such as DeepSeek direct,
+catalog-priced native models at their default endpoint and explicit local lanes
+keep their composition. Exact declared-free or run-time routes bind the per-Run
+observer account (C4 parity), passed to the service through
+`ServiceExecutionOptions::with_runtime_config` and closed at the Run's end. An
+admitted API lane that needs a fresh unknown-cost choice is refused before the
+worker starts, after the evaluator took the project's cost lease and recorded
+what earlier Runs left (as `nika run` without a channel does). The job may
+already hold HTTP 202; its terminal result is `failed`/`admission_refused`, and
+the message names the door. Scheduled occurrences stay refused: no schedule
+carries review authority. Custom backends own their implementation.
 
-Exact priced routes such as DeepSeek direct, catalog-priced native models at their
-default endpoint and explicit local lanes retain their existing rules. A numeric
-ceiling cannot substitute for the missing review. Custom execution backends own
-their implementation of this host policy.
+### The cost-review door (C6 · R4 111)
+
+A server started with `--cost-review` (`ServerConfig::with_cost_review`) seats
+`POST /v1/cost-reviews`, `GET /v1/cost-reviews/{id}` and
+`POST /v1/cost-reviews/{id}/decision`, advertises health `costReviewV1`, and
+serves its contract as an RFC 7386 patch over the committed document
+(`server/cost_review/openapi.json`, `openapi::served`). Without it every door
+route, and a job carrying `cost_review`, answers 403 `cost_review_unavailable`,
+and nothing else changes.
+
+- **Authority from startup composition only.** The review's host evidence is
+  `CostHostEvidence::new(true, policy, machine, occurrence)`: no policy source in
+  this build (not applicable), the server's per-run ceiling as the machine layer
+  (a present ceiling, the default 1 USD included, is an observed hard cap, so an
+  unknown-cost review refuses 422 `cost_review_refused` and names the disarm;
+  only an explicit startup `--run-cost-ceiling none` is observed absent), and a
+  manual job request (not a scheduled occurrence). No request field widens it.
+  A zero ceiling is valid and binding (`ServerLimits::valid` accepts finite
+  values >= 0): every review refuses under it, and a priced job fails at the
+  runtime's cost-floor gate before its first event; declarations stay positive.
+- **A review is one fresh decision, never a job.** The by-name request is
+  captured, its plan resolved and judged by the shared evaluator; an
+  unknown-cost route yields a `ReviewedRun` holding the project's cost lease
+  (one live review or Run per project). The public document shows the route's
+  origin (scheme, host, effective port), the question, bounds, defaults, host
+  evidence, credential custody (`HOST_SERVER_MEMORY` for an admitted API lane),
+  the journal witness and the declared effects; never the endpoint path, a
+  credential or the private nonce. `witness_sha256` digests a fresh private
+  32-byte nonce with the exact private binding (candidate, full endpoint,
+  request, the document) and is compared in constant time.
+- **States.** pending → approved (one `approve_once`) → admitting (one winner)
+  → consumed (a job exists) · refused (a re-observed witness changed: no job) ·
+  failed (confirmed, but no job: the account settles with nothing sent);
+  declined and expired release the lease. 300 s monotonic lifetime from
+  creation, swept every second. The newest 256 terminal reviews are retained.
+  Nothing is refunded; nothing survives a restart (ids become 404
+  `review_unknown`; a replayed key prepares a new pending review, never an
+  approval).
+  The lifecycle itself (states, lifetime, one winner, first verdict,
+  retention, keys, witness comparison, job claims) is DAP's
+  `cost_journal::Reviews` / `Claims`, held under the door's lock; Serve keeps
+  the HTTP handlers, the startup evidence and the public document.
+- **Admission.** A job with `cost_review` must carry the review's witness and
+  exactly its request; the world is captured again by name and must be the
+  reviewed bytes; `ReviewedRun::confirm` then re-observes the source, the held
+  project root and `.nika/`, the journal's exact bytes, configuration, bound
+  files and route before the account exists and the `prepared` row is written.
+  The coordinator attaches the captured world and authority to the created job
+  before its task is queued; its first run claims them (a duplicate never runs)
+  and executes under the review's execution identity, plan and account
+  (`ExecutionBackend::execute_reviewed`, whose default refuses), settling the
+  account at the end. An `Idempotency-Key` replay answers the existing job
+  before the review is read.
 
 ## Native authoring request authority
 

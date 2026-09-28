@@ -6,16 +6,19 @@
 #![allow(clippy::disallowed_macros, clippy::print_stdout, clippy::print_stderr)]
 
 use nika_providers::InferenceAdmission;
-use nika_providers::admission::{CostHostEvidence, CostReview, CostRoute, monetary_default};
-use nika_runtime::compose::RunSeams;
-use std::path::Path;
-use std::sync::atomic::{AtomicBool, Ordering};
+use nika_providers::admission::{
+    CostChallenge, CostHostEvidence, CostResponse, CostReview, CostRoute, PendingCostReview,
+    monetary_default,
+};
+use std::path::{Path, PathBuf};
 mod exchange;
 mod readiness;
 mod shape;
 pub use exchange::ReviewChannel;
-use nika_dap::cost_journal;
+use nika_dap::cost_journal::{self, Cleared, JournalWitness, RunJournal};
 pub(crate) use readiness::readiness;
+
+type Inputs = std::collections::BTreeMap<String, serde_json::Value>;
 
 /// A fresh Run decision and its observation journal; never recovered authority.
 /// A declared-free observer (`account.observes_declared_free_only()`) has no
@@ -25,99 +28,221 @@ pub(crate) use readiness::readiness;
 pub struct RunCost {
     pub account: InferenceAdmission,
     pub config: nika_runtime::RuntimeConfig,
-    journal: Option<Journal>,
+    journal: Option<RunJournal>,
 }
 impl RunCost {
     /// Append observation only; no callable authority is serialized.
     /// # Errors
     /// Unreadable account or unwritable descriptor-rooted journal.
     pub fn observe(&self, phase: &str) -> Result<(), String> {
-        self.journal.as_ref().map_or(Ok(()), |j| j.observe(phase))
+        let journal = self.journal.as_ref();
+        journal.map_or(Ok(()), |j| j.observe(phase).map_err(|e| e.to_string()))
     }
     /// Close live authority and persist the final observation, including uncertainty.
     /// # Errors
     /// Account closure or journal failure; the caller must report possible billing.
     pub fn finish(&self) -> Result<(), String> {
         match &self.journal {
-            Some(journal) => journal.settle(),
+            Some(journal) => journal.settle().map_err(|e| e.to_string()),
             None => self.account.close("Run ended").map_err(|e| e.to_string()),
         }
     }
 }
 
-/// The Run's side of the journal. It holds the writer lease from before the
-/// `prepared` row until after the `settled` one, and every row it writes names
-/// that writer. A Run that ends without `finish` (an early return, an unwinding
-/// panic) still settles what its account observed when this drops; only a
-/// process that dies leaves `prepared` behind, and its released lease lets the
-/// next review record that Run as unknown.
-struct Journal {
-    account: InferenceAdmission,
-    root: std::path::PathBuf,
-    invocation: String,
-    writer: cost_journal::Writer,
-    settled: AtomicBool,
-    _lease: cost_journal::Lease,
-}
-impl Journal {
-    fn observe(&self, phase: &str) -> Result<(), String> {
-        let receipt = self.account.snapshot().map_err(|e| e.to_string())?;
-        let row = serde_json::json!({"schema":"nika/run-cost-observation@1", "invocation":self.invocation,
-            "phase":phase, "observation":receipt.observation(), "lease":self.writer.json()});
-        nika_fs::OwnedDir::open(&self.root)
-            .and_then(|d| d.create_below(&[".nika"]))
-            .and_then(|d| cost_journal::append_row(&d, &row.to_string()))
-            .map_err(|e| e.to_string())
+/// The live account the journal's rows read (the rows are DAP's, the account the host's).
+struct Account(InferenceAdmission);
+impl cost_journal::RunAccount for Account {
+    fn observation(&self) -> std::io::Result<serde_json::Value> {
+        let receipt = self.0.snapshot().map_err(std::io::Error::other)?;
+        Ok(receipt.observation())
     }
-    fn settle(&self) -> Result<(), String> {
-        self.account
-            .close("Run ended; fresh decision required")
-            .map_err(|e| e.to_string())?;
-        self.observe("settled")?;
-        self.settled.store(true, Ordering::SeqCst);
-        Ok(())
-    }
-}
-impl Drop for Journal {
-    fn drop(&mut self) {
-        if !self.settled.load(Ordering::SeqCst) {
-            // Best effort while the lease is still held: a failure leaves the
-            // `prepared` row, which the next review records as unknown.
-            let _ = self.settle();
-        }
+    fn close(&self, why: &str) -> std::io::Result<()> {
+        self.0.close(why).map_err(std::io::Error::other)
     }
 }
 
 /// Take the writer lease and read what earlier Runs left, before any question:
 /// a live Run that has not settled, or an exposure not yet reconciled, refuses.
-fn clear_exposure(
-    root: &Path,
-    observer: &str,
-) -> Result<(cost_journal::Lease, cost_journal::Writer), String> {
-    let nika = nika_fs::OwnedDir::open(root)
-        .and_then(|d| d.create_below(&[".nika"]))
-        .map_err(|e| e.to_string())?;
-    let writer = cost_journal::Writer::this_process();
-    let held = match cost_journal::take(&nika, &writer).map_err(|e| e.to_string())? {
-        cost_journal::Taken::Held(held) => held,
-        // Busy, or an outcome this host does not know: never a second writer.
-        // The holder may be a Run in flight or a review awaiting its answer.
-        busy => {
-            let holder = match busy {
-                cost_journal::Taken::Busy { pid: Some(pid) } => format!("process {pid}"),
-                _ => "an unnamed process".to_owned(),
-            };
-            return Err(format!(
-                "{holder} holds this project's cost lease: an unknown-cost Run in flight or a review waiting for its answer · no second Run, no automatic retry"
-            ));
-        }
-    };
-    let exposures = cost_journal::fold_as(&nika, &writer, observer).map_err(|e| e.to_string())?;
-    if !exposures.is_clear() {
-        return Err(cost_journal::refusal(&exposures));
-    }
-    Ok((held, writer))
+fn clear_exposure(root: &Path, observer: &str) -> Result<Cleared, String> {
+    let root = nika_fs::OwnedDir::open(root).map_err(|e| e.to_string())?;
+    let cleared = cost_journal::clear(&root, observer).map_err(|e| e.to_string())?;
+    cleared.map_err(|blocked| blocked.to_string())
 }
+
+/// What a Run's cost needs before any effect, from the one evaluator every host shares.
+#[non_exhaustive]
+pub enum RunCostPlan {
+    /// No unknown-cost or observed route: the plan keeps its composition.
+    Unneeded,
+    /// Declared-free or run-time routes: the observer bound before any effect.
+    Observer(Box<RunCost>),
+    /// One fresh review of an unknown-cost Run, holding this project's cost lease.
+    Review(Box<ReviewedRun>),
+}
+
+/// One framed review. Its challenge is what the host shows; only
+/// [`Self::confirm`] with an explicit answer turns it into the Run's account.
+pub struct ReviewedRun {
+    pending: PendingCostReview,
+    cleared: Cleared,
+    places: [PathBuf; 2],
+    source: String,
+    invocation: String,
+    wf: nika_schema::raw::RawWorkflow,
+    inputs: Inputs,
+    model: String,
+    prior: JournalWitness,
+    bounds: (u32, u32, std::time::Duration),
+    defaults: [Option<f64>; 2],
+}
+
+/// The evaluator for one Run: an unknown-cost route clears the project under
+/// `root`, then `ask` (the host's gate) speaks before the review is framed
+/// under `evidence`; `launch` resolves paths (`None`: the current directory).
+/// # Errors
+/// A refused scope, lease, earlier Run, host, evidence or policy.
+#[allow(clippy::too_many_arguments)]
+pub fn prepare(
+    root: &Path,
+    launch: Option<&Path>,
+    source: &str,
+    invocation: String,
+    wf: &nika_schema::raw::RawWorkflow,
+    model_override: Option<&str>,
+    plan: &nika_providers::ExecutionAccessPlan,
+    inputs: &Inputs,
+    invocation_default: Option<f64>,
+    (evidence, ask): (CostHostEvidence, &dyn Fn() -> Result<(), String>),
+) -> Result<RunCostPlan, String> {
+    let config = nika_runtime::compose::config_from_env();
+    let mut unknown = readiness::unknown_routes(plan, &config)?;
+    if unknown.is_empty() {
+        let observer = declared_free(wf, plan, &config, model_override, inputs)?;
+        return Ok(observer.map_or(RunCostPlan::Unneeded, |c| RunCostPlan::Observer(c.into())));
+    }
+    // Record what earlier Runs left before any refusal of this host or shape:
+    // a host that cannot ask still leaves a killed Run's UNKNOWN on record.
+    let cleared = clear_exposure(root, &invocation)?;
+    ask()?;
+    // The host's own review stays a message: the typed reason renders its words.
+    let bound = nika_service_execution::run_cost::request_bound(wf, plan, unknown.len())
+        .map_err(|e| e.to_string())?;
+    let launch = match launch {
+        Some(launch) => launch.to_path_buf(),
+        None => std::env::current_dir().map_err(|e| e.to_string())?,
+    };
+    let files = shape::read_witness(&cleared, root, wf, &launch)?;
+    if invocation_default == Some(0.0) {
+        return Err("zero invocation ceiling refuses unknown spend before HTTP".into());
+    }
+    let project = project(&launch, "project monetary configuration is unreadable")?;
+    let project_default = project.as_ref().and_then(|(_, p)| p.ceiling);
+    let (model, route) = unknown.remove(0);
+    let candidate = witness(source, inputs, &(&project, &files));
+    let review = CostReview::new(
+        candidate,
+        invocation.clone(),
+        route,
+        evidence,
+        monetary_default(invocation_default)?,
+        monetary_default(project_default)?,
+    )?
+    .for_run(bound)?;
+    let bounds = (
+        review.max_requests(),
+        review.max_output_tokens(),
+        review.request_timeout(),
+    );
+    let pending = PendingCostReview::new(
+        review,
+        nika_event::source_id::sha256_hex(source.as_bytes()),
+        nika_event::source_id::sha256_hex(format!("{inputs:?}:{files:?}").as_bytes()),
+    );
+    Ok(RunCostPlan::Review(Box::new(ReviewedRun {
+        pending,
+        prior: cleared.journal().map_err(|e| e.to_string())?,
+        cleared,
+        places: [root.into(), launch],
+        source: source.into(),
+        invocation,
+        wf: wf.clone(),
+        inputs: inputs.clone(),
+        model,
+        bounds,
+        defaults: [invocation_default, project_default],
+    })))
+}
+
+fn project(
+    launch: &Path,
+    unreadable: &str,
+) -> Result<Option<(PathBuf, nika_vocab::project::Project)>, String> {
+    let project = nika_vocab::project::discover_reachable(launch).map_err(|e| e.to_string())?;
+    if project.unreachable.is_some() {
+        return Err(unreadable.into());
+    }
+    Ok(project.found)
+}
+
+impl ReviewedRun {
+    /// The observation this review shows, never callable authority.
+    #[must_use]
+    pub fn challenge(&self) -> &CostChallenge {
+        self.pending.challenge()
+    }
+    /// The journal's exact bytes after this review cleared it.
+    #[must_use]
+    pub fn prior_journal(&self) -> &JournalWitness {
+        &self.prior
+    }
+    /// Requests, output tokens per request and per-request deadline it admits.
+    #[must_use]
+    pub fn bounds(&self) -> (u32, u32, std::time::Duration) {
+        self.bounds
+    }
+    /// The invocation and project defaults approval overrides once.
+    #[must_use]
+    pub fn defaults(&self) -> [Option<f64>; 2] {
+        self.defaults
+    }
+    /// Consume the review with the host's explicit answer, re-observing all it
+    /// bound (`source` as read now); the `prepared` row is written only here.
+    /// # Errors
+    /// A decline, a changed witness, an expired review, or a journal failure.
+    pub fn confirm(self, answer: &CostResponse, source: &str) -> Result<RunCost, String> {
+        let [root, launch] = &self.places;
+        if source != self.source {
+            return Err("workflow changed during review; Run not started".into());
+        }
+        if !self.cleared.same_place(root).map_err(|e| e.to_string())? {
+            return Err("the project directory was replaced during review; Run not started".into());
+        }
+        if self.cleared.journal().map_err(|e| e.to_string())? != self.prior {
+            return Err("the cost journal changed during review; Run not started".into());
+        }
+        let project_now = project(launch, "project configuration became unreadable")?;
+        let files_now = shape::read_witness(&self.cleared, root, &self.wf, launch)?;
+        let candidate = witness(source, &self.inputs, &(&project_now, &files_now));
+        let route = CostRoute::observe(&self.model, nika_runtime::compose::config_from_env())?;
+        let account = self.pending.confirm(answer, &candidate, &route)?;
+        let config = nika_runtime::RuntimeConfig::new(None, 0)
+            .with_inference_admission(&account, &candidate, &self.invocation)
+            .map_err(|e| e.to_string())?;
+        let journal = RunJournal::new(
+            self.cleared,
+            self.invocation,
+            Box::new(Account(account.clone())),
+        );
+        let cost = RunCost {
+            account,
+            config,
+            journal: Some(journal),
+        };
+        cost.observe("prepared")?;
+        Ok(cost)
+    }
+}
+
 /// Unsupported hosts and workflow shapes never borrow this approval.
 /// A Run with no unknown-cost route gets only a declared-free observer, whose
 /// model-less tasks ride the workflow's own `model:` here.
@@ -131,7 +256,7 @@ pub fn review(
     invocation: String,
     wf: &nika_schema::raw::RawWorkflow,
     plan: &nika_providers::ExecutionAccessPlan,
-    inputs: &std::collections::BTreeMap<String, serde_json::Value>,
+    inputs: &Inputs,
     invocation_default: Option<f64>,
     channel: impl Into<ReviewChannel>,
 ) -> Result<Option<RunCost>, String> {
@@ -162,84 +287,39 @@ pub fn review_with_model(
     wf: &nika_schema::raw::RawWorkflow,
     model_override: Option<&str>,
     plan: &nika_providers::ExecutionAccessPlan,
-    inputs: &std::collections::BTreeMap<String, serde_json::Value>,
+    inputs: &Inputs,
     invocation_default: Option<f64>,
     channel: impl Into<ReviewChannel>,
 ) -> Result<Option<RunCost>, String> {
-    let config = nika_runtime::compose::config_from_env();
-    let mut unknown = readiness::unknown_routes(plan, &config)?;
-    if unknown.is_empty() {
-        return declared_free(wf, plan, &config, model_override, inputs);
-    }
-    // Record what earlier Runs left before any refusal of this host or shape:
-    // a host that cannot ask still leaves a killed Run's UNKNOWN on record.
-    let (held, writer) = clear_exposure(root, &invocation)?;
     let channel = channel.into();
-    if !channel.available() {
-        return Err("price unknown: this host cannot obtain a fresh one-time choice; use an interactive local `nika run` or a host with explicit cap evidence and confirmation".into());
-    }
-    // The host's own review stays a message: the typed reason renders its words.
-    let bound = nika_service_execution::run_cost::request_bound(wf, plan, unknown.len())
-        .map_err(|e| e.to_string())?;
-    let files = shape::read_witness(root, wf)?;
-    if invocation_default == Some(0.0) {
-        return Err("zero invocation ceiling refuses unknown spend before HTTP".into());
-    }
-    let config_root = std::env::current_dir().map_err(|e| e.to_string())?;
-    let project =
-        nika_vocab::project::discover_reachable(&config_root).map_err(|e| e.to_string())?;
-    if project.unreachable.is_some() {
-        return Err("project monetary configuration is unreadable".into());
-    }
-    let project_default = project.found.as_ref().and_then(|(_, p)| p.ceiling);
-    let (model, route) = unknown.remove(0);
-    let candidate = witness(source, inputs, &(&project.found, &files));
-    let review = CostReview::new(
-        candidate.clone(),
-        invocation.clone(),
-        route,
-        CostHostEvidence::unmanaged_interactive_local(),
-        monetary_default(invocation_default)?,
-        monetary_default(project_default)?,
-    )?
-    .for_run(bound)?;
-    let pending = nika_providers::admission::PendingCostReview::new(
-        review,
-        nika_event::source_id::sha256_hex(source.as_bytes()),
-        nika_event::source_id::sha256_hex(format!("{inputs:?}:{files:?}").as_bytes()),
-    );
-    let answer = channel.ask(pending.challenge())?;
-    let actual_source = std::fs::read_to_string(file).map_err(|e| e.to_string())?;
-    if actual_source != source {
-        return Err("workflow changed during review; Run not started".into());
-    }
-    let project_now =
-        nika_vocab::project::discover_reachable(&config_root).map_err(|e| e.to_string())?;
-    if project_now.unreachable.is_some() {
-        return Err("project configuration became unreadable".into());
-    }
-    let files_now = shape::read_witness(root, wf)?;
-    let actual_candidate = witness(source, inputs, &(&project_now.found, &files_now));
-    let actual_route = CostRoute::observe(&model, nika_runtime::compose::config_from_env())?;
-    let account = pending.confirm(&answer, &actual_candidate, &actual_route)?;
-    let config = nika_runtime::RuntimeConfig::new(None, 0)
-        .with_inference_admission(&account, &actual_candidate, &invocation)
-        .map_err(|e| e.to_string())?;
-    let journal = Journal {
-        account: account.clone(),
-        root: root.into(),
+    let ask = || {
+        if channel.available() {
+            return Ok(());
+        }
+        Err(String::from(
+            "price unknown: this host cannot obtain a fresh one-time choice; use an interactive local `nika run` or a host with explicit cap evidence and confirmation",
+        ))
+    };
+    let evidence = CostHostEvidence::unmanaged_interactive_local();
+    let review = match prepare(
+        root,
+        None,
+        source,
         invocation,
-        writer,
-        settled: AtomicBool::new(false),
-        _lease: held,
+        wf,
+        model_override,
+        plan,
+        inputs,
+        invocation_default,
+        (evidence, &ask),
+    )? {
+        RunCostPlan::Unneeded => return Ok(None),
+        RunCostPlan::Observer(cost) => return Ok(Some(*cost)),
+        RunCostPlan::Review(review) => review,
     };
-    let choice = RunCost {
-        account,
-        config,
-        journal: Some(journal),
-    };
-    choice.observe("prepared")?;
-    Ok(Some(choice))
+    let answer = channel.ask(review.challenge())?;
+    let actual_source = std::fs::read_to_string(file).map_err(|e| e.to_string())?;
+    review.confirm(&answer, &actual_source).map(Some)
 }
 
 /// Exact declared-free text routes (E4) and `model:` values rendered at run
@@ -253,12 +333,8 @@ fn declared_free(
     model_override: Option<&str>,
     inputs: &std::collections::BTreeMap<String, serde_json::Value>,
 ) -> Result<Option<RunCost>, String> {
-    use nika_service_execution::run_cost::{declared_free_shape, run_time_models};
-    let refused =
-        |why: &dyn std::fmt::Display| format!("Run refused before any provider call: {why}");
-    let free = declared_free_shape(wf, plan, config, model_override).map_err(|r| refused(&r))?;
-    let dynamic = run_time_models(wf, plan, config, inputs).map_err(|r| refused(&r))?;
-    Ok((free || dynamic).then(|| run_observer(wf)))
+    let observes = nika_service_execution::run_cost::observes;
+    Ok(observes(wf, plan, config, model_override, Some(inputs))?.then(|| run_observer(wf)))
 }
 
 /// The fresh observer an answered leg binds, as a manual `--resume` does: never
@@ -269,20 +345,14 @@ pub fn leg_observer(
     plan: &nika_providers::ExecutionAccessPlan,
     model_override: Option<&str>,
 ) -> Option<nika_runtime::RuntimeConfig> {
-    use nika_service_execution::run_cost::{declared_free_shape, run_time_models};
     let config = nika_runtime::compose::config_from_env();
-    let defaults_only = std::collections::BTreeMap::new();
-    let observe = declared_free_shape(wf, plan, &config, model_override).unwrap_or(true)
-        || run_time_models(wf, plan, &config, &defaults_only).unwrap_or(true);
-    observe.then(|| run_observer(wf).config)
+    let observes =
+        nika_service_execution::run_cost::observes(wf, plan, &config, model_override, None);
+    observes.unwrap_or(true).then(|| run_observer(wf).config)
 }
 
 fn run_observer(wf: &nika_schema::raw::RawWorkflow) -> RunCost {
-    let account = InferenceAdmission::observe_run();
-    // A host config replaces compose's default: keep the run's jitter seed.
-    let run = wf.run.as_ref().map(|run| &run.value);
-    let mut config = nika_runtime::RuntimeConfig::new(None, RunSeams::of(run).jitter_seed);
-    config.inference_admission = Some(account.clone());
+    let (account, config) = nika_service_execution::run_cost::observer(wf);
     RunCost {
         account,
         config,
@@ -308,6 +378,7 @@ fn witness(
 mod tests {
     use super::*;
     use nika_dap::cost_journal::JOURNAL;
+    use nika_runtime::compose::RunSeams;
     use std::io::BufRead as _;
     fn cost(root: &Path) -> RunCost {
         let route = CostRoute::observe(
@@ -329,22 +400,8 @@ mod tests {
         let config = nika_runtime::RuntimeConfig::new(None, 0)
             .with_inference_admission(&account, "candidate", "run-1")
             .unwrap();
-        let nika = nika_fs::OwnedDir::open(root)
-            .unwrap()
-            .create_below(&[".nika"])
-            .unwrap();
-        let writer = cost_journal::Writer::this_process();
-        let cost_journal::Taken::Held(held) = cost_journal::take(&nika, &writer).unwrap() else {
-            panic!("a fresh project's cost lease is free");
-        };
-        let journal = Journal {
-            account: account.clone(),
-            root: root.into(),
-            invocation: "run-1".into(),
-            writer,
-            settled: AtomicBool::new(false),
-            _lease: held,
-        };
+        let cleared = clear_exposure(root, "run-1").expect("a fresh project's cost lease is free");
+        let journal = RunJournal::new(cleared, "run-1".into(), Box::new(Account(account.clone())));
         RunCost {
             account,
             config,
@@ -464,7 +521,10 @@ mod tests {
         };
         let clean = tempfile::tempdir().unwrap();
         assert!(refuse(clean.path()).starts_with("price unknown"));
-        assert!(!clean.path().join(".nika").join(JOURNAL).exists());
+        // Taking custody may create the journal's empty inode, but refusing this
+        // host records no preparation, consent or provider attempt.
+        let journal = std::fs::read(clean.path().join(".nika").join(JOURNAL)).unwrap();
+        assert_eq!(journal, b"");
         // A writer on this host prepared, then let its lease go unsettled.
         let root = tempfile::tempdir().unwrap();
         let nika = nika_fs::OwnedDir::open(root.path())
@@ -735,5 +795,220 @@ mod tests {
         assert_eq!(derived["unsettled"]["observed_by"], "run-2");
         assert!(clear_exposure(root.path(), "run-3").is_err(), "no retry");
         assert_eq!(rows(root.path()).len(), 2, "recorded once");
+    }
+    /// An unpriced direct route (no catalog tariff) under an API plan: the
+    /// shape every unknown-cost review below frames.
+    fn unpriced() -> (
+        String,
+        nika_schema::raw::RawWorkflow,
+        nika_providers::ExecutionAccessPlan,
+    ) {
+        use nika_providers::probe::{ExecutionLocus, ProviderProbe, ProviderReadiness};
+        let model = "deepseek/c6-unpriced-fixture";
+        let source = format!(
+            "nika: hosted\nmodel: {model}\npermits: {{}}\ntasks:\n  ask:\n    infer: {{ prompt: hi, max_tokens: 16 }}\n"
+        );
+        let wf = nika_schema::parse(
+            &source,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .unwrap();
+        let ready = ProviderReadiness::new(
+            true,
+            true,
+            None,
+            None,
+            true,
+            ExecutionLocus::Cloud,
+            nika_types::access::AccessClass::Api,
+        );
+        let plan = nika_providers::resolve_execution_plan(
+            &[nika_providers::ModelNeed::new(model, true, false)],
+            &[ProviderProbe::new(
+                "deepseek",
+                true,
+                true,
+                "DEEPSEEK_API_KEY",
+                false,
+                ready,
+                "https://api.deepseek.com",
+            )],
+            Some("api"),
+        );
+        (source, wf, plan)
+    }
+    /// A host with its own authority (no terminal) frames the review: the lease
+    /// is held while it waits, and nothing is prepared before its answer.
+    fn framed(root: &Path, invocation: &str) -> Box<ReviewedRun> {
+        let (source, wf, plan) = unpriced();
+        let ask = || Ok(());
+        match prepare(
+            root,
+            Some(root),
+            &source,
+            invocation.into(),
+            &wf,
+            None,
+            &plan,
+            &std::collections::BTreeMap::new(),
+            None,
+            (CostHostEvidence::unmanaged_interactive_local(), &ask),
+        )
+        .unwrap()
+        {
+            RunCostPlan::Review(review) => review,
+            _ => panic!("an unpriced route needs a review"),
+        }
+    }
+    /// C6 · the shared door: prepare frames one review (bounds, defaults, the
+    /// journal it cleared) and holds the lease; confirm with an explicit yes
+    /// writes the `prepared` row, the account settles once. A decline consumes
+    /// the review, prepares nothing and lets the lease go.
+    #[test]
+    fn a_hosted_review_confirms_once_and_a_decline_prepares_nothing() {
+        let root = tempfile::tempdir().unwrap();
+        let (source, ..) = unpriced();
+        let review = framed(root.path(), "exe-c6");
+        assert_eq!(review.bounds().0, 1);
+        assert_eq!(review.defaults(), [None, None]);
+        assert_eq!(review.prior_journal().length, 0);
+        assert!(
+            clear_exposure(root.path(), "other")
+                .unwrap_err()
+                .contains("holds this project's cost lease"),
+            "the review holds the lease while it waits"
+        );
+        let answer = review.challenge().response(true);
+        let cost = review.confirm(&answer, &source).unwrap();
+        assert_eq!(rows(root.path())[0]["phase"], "prepared");
+        assert_eq!(rows(root.path())[0]["invocation"], "exe-c6");
+        cost.finish().unwrap();
+        drop(cost);
+        assert_eq!(rows(root.path()).len(), 2, "settled once");
+        let declined = framed(root.path(), "exe-no");
+        let answer = declined.challenge().response(false);
+        let refused = declined.confirm(&answer, &source).err().unwrap();
+        assert!(refused.contains("declined"), "{refused}");
+        assert_eq!(rows(root.path()).len(), 2, "nothing prepared");
+        assert!(
+            clear_exposure(root.path(), "next").is_ok(),
+            "the lease is free"
+        );
+    }
+    /// C6 · re-observation before authority: a foreign journal change, a project
+    /// directory replaced at the same path (a copy put back), or changed source
+    /// refuses before any `prepared` row, and the review is spent.
+    #[test]
+    fn a_changed_journal_place_or_source_refuses_before_authority() {
+        let (source, ..) = unpriced();
+        let root = tempfile::tempdir().unwrap();
+        let review = framed(root.path(), "exe-journal");
+        std::fs::write(root.path().join(".nika").join(JOURNAL), "\n").unwrap();
+        let answer = review.challenge().response(true);
+        let refused = review.confirm(&answer, &source).err().unwrap();
+        assert!(refused.contains("cost journal changed"), "{refused}");
+        let base = tempfile::tempdir().unwrap();
+        let project = base.path().join("project");
+        std::fs::create_dir(&project).unwrap();
+        let review = framed(&project, "exe-place");
+        std::fs::rename(&project, base.path().join("original")).unwrap();
+        std::fs::create_dir_all(project.join(".nika")).unwrap();
+        let answer = review.challenge().response(true);
+        let refused = review.confirm(&answer, &source).err().unwrap();
+        assert!(refused.contains("directory was replaced"), "{refused}");
+        assert!(!project.join(".nika").join(JOURNAL).exists());
+        let fresh = tempfile::tempdir().unwrap();
+        let review = framed(fresh.path(), "exe-source");
+        let answer = review.challenge().response(true);
+        let refused = review.confirm(&answer, "nika: other\n").err().unwrap();
+        assert!(refused.contains("workflow changed"), "{refused}");
+        let journal = std::fs::read(fresh.path().join(".nika").join(JOURNAL)).unwrap();
+        assert_eq!(journal, b"", "custody's empty inode: no row was written");
+    }
+    /// C6 · zero vetoes unknown spend before any question, whoever supplies
+    /// it: `--max-cost-usd 0` (with or without a positive project default),
+    /// and a project `ceiling:` of zero, negative or NaN, which the project
+    /// file already refuses (a ceiling bounds at the positive real), so no
+    /// review is framed and no consent can override it. A positive project
+    /// ceiling stays an overridable default; a model-free plan never reads it.
+    #[test]
+    fn zero_or_invalid_ceilings_veto_unknown_spend_before_any_review() {
+        let (source, wf, plan) = unpriced();
+        let attempt = |root: &Path, invocation: Option<f64>| {
+            let ask = || Ok(());
+            let evidence = CostHostEvidence::unmanaged_interactive_local();
+            let inputs = std::collections::BTreeMap::new();
+            let run = "exe-zero".to_owned();
+            prepare(
+                root,
+                Some(root),
+                &source,
+                run,
+                &wf,
+                None,
+                &plan,
+                &inputs,
+                invocation,
+                (evidence, &ask),
+            )
+        };
+        let project = |ceiling: &str| {
+            let root = tempfile::tempdir().unwrap();
+            if !ceiling.is_empty() {
+                let file = format!("nika: zero\nceiling: {ceiling}\n");
+                std::fs::write(root.path().join("nika.yaml"), file).unwrap();
+            }
+            root
+        };
+        for ceiling in ["", "5"] {
+            let root = project(ceiling);
+            let refused = attempt(root.path(), Some(0.0)).err().expect("zero vetoes");
+            assert!(refused.contains("zero invocation ceiling"), "{refused}");
+        }
+        for ceiling in ["0", "0.0", "-1", ".nan"] {
+            for invocation in [None, Some(2.0)] {
+                let root = project(ceiling);
+                let refused = attempt(root.path(), invocation).err().expect("refused");
+                assert!(refused.contains("positive real"), "{ceiling}: {refused}");
+                assert!(
+                    !refused.contains("safe"),
+                    "no diagnostic claims cost safety"
+                );
+            }
+        }
+        let root = project("5");
+        let Ok(RunCostPlan::Review(review)) = attempt(root.path(), None) else {
+            panic!("a positive project ceiling stays reviewable");
+        };
+        assert_eq!(review.defaults(), [None, Some(5.0)]);
+        drop(review);
+        let root = project("0");
+        let none = nika_providers::resolve_execution_plan(&[], &[], None);
+        let local = nika_schema::parse(
+            "nika: local\npermits: {}\ntasks:\n  ok:\n    invoke: { tool: 'nika:assert', args: { condition: true } }\n",
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .unwrap();
+        let ask = || Ok(());
+        let evidence = CostHostEvidence::unmanaged_interactive_local();
+        let inputs = std::collections::BTreeMap::new();
+        let free = prepare(
+            root.path(),
+            Some(root.path()),
+            "nika: local\n",
+            "exe-free".into(),
+            &local,
+            None,
+            &none,
+            &inputs,
+            None,
+            (evidence, &ask),
+        );
+        assert!(
+            matches!(free, Ok(RunCostPlan::Unneeded)),
+            "a model-free plan never reads it"
+        );
     }
 }

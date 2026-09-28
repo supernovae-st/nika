@@ -809,6 +809,81 @@ async fn a_configured_run_keeps_its_root_and_hands_its_account_to_children() -> 
     Ok(())
 }
 
+/// C6 · `execute` composes with a host-bound configuration exactly as
+/// `compose_with_config` does: the configured Run's terminal frame carries
+/// its account's receipt, the default composition's carries none.
+#[tokio::test]
+async fn execute_composes_with_a_host_bound_runtime_config() -> TestResult<()> {
+    let root = "nika: root\nmodel: mock/echo\ntasks:\n  say:\n    infer: { prompt: hi }\n";
+    let directory = tempfile::tempdir()?;
+    std::fs::write(directory.path().join("root.nika"), root)?;
+    let project = OwnedDir::open(directory.path())?;
+    let service = nika_execution::ExecutionService::default();
+    let mut stamped = Vec::new();
+    for configured in [false, true] {
+        let admitted = service.admit_with_model_override(&project, Path::new("root.nika"), None)?;
+        let session = service.begin(admitted);
+        let driver = ServiceExecutionDriver::new(session.context(), directory.path())
+            .ok_or("admitted context lost its root")?;
+        let plan =
+            access::resolve_plan_over(driver.workflow(), driver.report(), None, Some("mock"), &[]);
+        let trace = RecordedChildTrace::default();
+        let lane = trace.clone();
+        let mirror: MirrorFactory = Arc::new(move || Box::new(lane.clone()));
+        let mut options = ServiceExecutionOptions::new()
+            .with_access_plan(plan)
+            .with_mirror(mirror);
+        if configured {
+            let mut config = RuntimeConfig::new(None, 0);
+            config.inference_admission = Some(nika_providers::InferenceAdmission::observe_run());
+            options = options.with_runtime_config(config);
+        }
+        let result = driver.execute(options).await?;
+        assert_eq!(result.status(), ServiceExecutionStatus::Succeeded);
+        let events = trace.0.lock().expect("trace lock");
+        stamped.push(
+            events
+                .iter()
+                .filter(|event| event.is_terminal())
+                .any(|event| event.str_field("inference_admission").is_some()),
+        );
+    }
+    assert_eq!(stamped, [false, true], "only the configured Run is metered");
+    Ok(())
+}
+
+/// C6 (moved with the host's file witness) · the files a Run binds, in task
+/// order: a read input, then write targets where only a literal
+/// `create_dirs: true` lets a missing parent through (false, absent and
+/// templated never do); a dynamic path is that task's refusal, in its place.
+#[test]
+fn bound_files_name_reads_writes_and_refusals_in_task_order() -> TestResult<()> {
+    let wf = nika_schema::parse(
+        "nika: t\npermits:\n  tools: [nika:read, nika:write]\n  fs: { read: [./in/**], write: [./out/**] }\ninputs:\n  p: { type: string, default: x }\nconst:\n  mk: true\ntasks:\n  r:\n    invoke: { tool: nika:read, args: { path: ./in/brief.md } }\n  a:\n    invoke: { tool: nika:write, args: { path: ./out/a.txt, content: x, create_dirs: true } }\n  b:\n    invoke: { tool: nika:write, args: { path: ./out/b.txt, content: x, create_dirs: false } }\n  c:\n    invoke: { tool: nika:write, args: { path: ./out/c.txt, content: x } }\n  d:\n    invoke: { tool: nika:write, args: { path: ./out/d.txt, content: x, create_dirs: \"${{ const.mk }}\" } }\n  e:\n    invoke: { tool: nika:read, args: { path: \"${{ inputs.p }}\" } }\n",
+        nika_schema::FileId::new(0),
+        nika_schema::ParseMode::Strict,
+    )?;
+    let bound = run_cost::bound_files(&wf);
+    let file = |path: &str, write| {
+        Ok(run_cost::BoundFile {
+            path: PathBuf::from(path),
+            write,
+        })
+    };
+    assert_eq!(
+        bound,
+        [
+            file("in/brief.md", None),
+            file("out/a.txt", Some(true)),
+            file("out/b.txt", Some(false)),
+            file("out/c.txt", Some(false)),
+            file("out/d.txt", Some(false)),
+            Err(run_cost::RunShapeError::DynamicPath),
+        ]
+    );
+    Ok(())
+}
+
 /// C6 · Run readiness (moved from the host with its law): an unbounded unknown
 /// route, a wrong endpoint, no model and a declared-free shape, judged here.
 const READINESS_MODEL: &str = "openai/gpt-oss-120b";
@@ -1054,5 +1129,31 @@ fn attached_rows_preset_the_child_cell_without_collecting() -> TestResult<()> {
         driver.access_probes.get().is_none(),
         "the parent never collected"
     );
+    Ok(())
+}
+
+/// C6 · a transport caller's provenance: each bound key is the caller's, an
+/// unbound defaulted input stays the file's, an unbound input with no default
+/// has no origin (absent is honest), and a bound default becomes the caller's.
+#[test]
+fn caller_origins_mark_bound_keys_and_keep_default_file_provenance() -> TestResult<()> {
+    let source = "nika: bound\ninputs:\n  ticket: {type: string, required: true}\n  region: {type: string, default: eu}\n  note: {type: string, required: false}\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n";
+    let wf = nika_schema::parse(source, FileId::new(0), ParseMode::Strict)?;
+    let bound = BTreeMap::from([("ticket".to_owned(), serde_json::json!("T-1"))]);
+    let expected = BTreeMap::from([
+        ("region".to_owned(), InputOrigin::File),
+        ("ticket".to_owned(), InputOrigin::ApiCaller),
+    ]);
+    assert_eq!(
+        caller::caller_origins(&wf, &bound, InputOrigin::ApiCaller),
+        expected
+    );
+    let both = BTreeMap::from([
+        ("ticket".to_owned(), serde_json::json!("T-1")),
+        ("region".to_owned(), serde_json::json!("us")),
+    ]);
+    let origins = caller::caller_origins(&wf, &both, InputOrigin::ApiCaller);
+    assert_eq!(origins.get("region"), Some(&InputOrigin::ApiCaller));
+    assert_eq!(origins.get("note"), None);
     Ok(())
 }

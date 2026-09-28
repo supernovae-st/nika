@@ -1152,7 +1152,629 @@ pub const nika_dap::chain::CHAIN_GENESIS: &[u8]
 pub const nika_dap::chain::MAX_LINE_BYTES: usize
 pub fn nika_dap::chain::walk(raw: &str) -> nika_dap::chain::Verdict
 pub mod nika_dap::cost_journal
+pub mod nika_dap::cost_journal::reconcile
+#[non_exhaustive] pub enum nika_dap::cost_journal::reconcile::Evidence
+#[non_exhaustive] pub nika_dap::cost_journal::reconcile::Evidence::OperatorAttestation
+pub nika_dap::cost_journal::reconcile::Evidence::OperatorAttestation::reference: alloc::string::String
+impl nika_dap::cost_journal::reconcile::Evidence
+pub fn nika_dap::cost_journal::reconcile::Evidence::operator_attestation(reference: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_dap::cost_journal::reconcile::Evidence
+pub fn nika_dap::cost_journal::reconcile::Evidence::clone(&self) -> nika_dap::cost_journal::reconcile::Evidence
+impl core::cmp::Eq for nika_dap::cost_journal::reconcile::Evidence
+impl core::cmp::PartialEq for nika_dap::cost_journal::reconcile::Evidence
+pub fn nika_dap::cost_journal::reconcile::Evidence::eq(&self, other: &nika_dap::cost_journal::reconcile::Evidence) -> bool
+impl core::fmt::Debug for nika_dap::cost_journal::reconcile::Evidence
+pub fn nika_dap::cost_journal::reconcile::Evidence::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_dap::cost_journal::reconcile::Evidence
+impl<D> owo_colors::OwoColorize for nika_dap::cost_journal::reconcile::Evidence
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::cost_journal::reconcile::Evidence where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::Evidence::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::cost_journal::reconcile::Evidence where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::Evidence::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::cost_journal::reconcile::Evidence where U: core::convert::From<T>
+pub fn nika_dap::cost_journal::reconcile::Evidence::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::cost_journal::reconcile::Evidence where U: core::convert::Into<T>
+pub type nika_dap::cost_journal::reconcile::Evidence::Error = core::convert::Infallible
+pub fn nika_dap::cost_journal::reconcile::Evidence::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::cost_journal::reconcile::Evidence where U: core::convert::TryFrom<T>
+pub type nika_dap::cost_journal::reconcile::Evidence::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::cost_journal::reconcile::Evidence::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::cost_journal::reconcile::Evidence where T: core::clone::Clone
+pub type nika_dap::cost_journal::reconcile::Evidence::Owned = T
+pub fn nika_dap::cost_journal::reconcile::Evidence::clone_into(&self, target: &mut T)
+pub fn nika_dap::cost_journal::reconcile::Evidence::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::cost_journal::reconcile::Evidence where T: 'static + ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::Evidence::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::cost_journal::reconcile::Evidence where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::Evidence::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::cost_journal::reconcile::Evidence where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::Evidence::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::cost_journal::reconcile::Evidence where T: core::clone::Clone
+pub unsafe fn nika_dap::cost_journal::reconcile::Evidence::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::cost_journal::reconcile::Evidence
+pub fn nika_dap::cost_journal::reconcile::Evidence::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::cost_journal::reconcile::Evidence where T: core::clone::Clone
+pub fn nika_dap::cost_journal::reconcile::Evidence::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::cost_journal::reconcile::Evidence where T: 'static
+pub fn nika_dap::cost_journal::reconcile::Evidence::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::cost_journal::reconcile::Evidence where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::Evidence::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::cost_journal::reconcile::Evidence::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::cost_journal::reconcile::Evidence
+impl<T> tracing::instrument::WithSubscriber for nika_dap::cost_journal::reconcile::Evidence
+impl<T> typenum::type_operators::Same for nika_dap::cost_journal::reconcile::Evidence
+pub type nika_dap::cost_journal::reconcile::Evidence::Output = T
+#[non_exhaustive] pub enum nika_dap::cost_journal::reconcile::Refusal
+pub nika_dap::cost_journal::reconcile::Refusal::Busy
+pub nika_dap::cost_journal::reconcile::Refusal::Busy::pid: core::option::Option<u64>
+pub nika_dap::cost_journal::reconcile::Refusal::InspectFirst
+pub nika_dap::cost_journal::reconcile::Refusal::Invalid(&'static str)
+pub nika_dap::cost_journal::reconcile::Refusal::Io(core::io::error::Error)
+pub nika_dap::cost_journal::reconcile::Refusal::NoJournal
+pub nika_dap::cost_journal::reconcile::Refusal::NotReconcilable(&'static str)
+pub nika_dap::cost_journal::reconcile::Refusal::OtherProject
+pub nika_dap::cost_journal::reconcile::Refusal::OtherProject::here: alloc::string::String
+pub nika_dap::cost_journal::reconcile::Refusal::Stale
+pub nika_dap::cost_journal::reconcile::Refusal::Stale::head: alloc::string::String
+pub nika_dap::cost_journal::reconcile::Refusal::UnknownRun
+impl nika_dap::cost_journal::reconcile::Refusal
+pub fn nika_dap::cost_journal::reconcile::Refusal::is_environment(&self) -> bool
+pub fn nika_dap::cost_journal::reconcile::Refusal::kind(&self) -> &'static str
+pub fn nika_dap::cost_journal::reconcile::Refusal::to_value(&self) -> serde_json::value::Value
+impl core::convert::From<core::io::error::Error> for nika_dap::cost_journal::reconcile::Refusal
+pub fn nika_dap::cost_journal::reconcile::Refusal::from(source: core::io::error::Error) -> Self
+impl core::error::Error for nika_dap::cost_journal::reconcile::Refusal
+pub fn nika_dap::cost_journal::reconcile::Refusal::source(&self) -> core::option::Option<&(dyn core::error::Error + 'static)>
+impl core::fmt::Debug for nika_dap::cost_journal::reconcile::Refusal
+pub fn nika_dap::cost_journal::reconcile::Refusal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_dap::cost_journal::reconcile::Refusal
+pub fn nika_dap::cost_journal::reconcile::Refusal::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_dap::cost_journal::reconcile::Refusal
+impl<T, U> core::convert::Into<U> for nika_dap::cost_journal::reconcile::Refusal where U: core::convert::From<T>
+pub fn nika_dap::cost_journal::reconcile::Refusal::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::cost_journal::reconcile::Refusal where U: core::convert::Into<T>
+pub type nika_dap::cost_journal::reconcile::Refusal::Error = core::convert::Infallible
+pub fn nika_dap::cost_journal::reconcile::Refusal::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::cost_journal::reconcile::Refusal where U: core::convert::TryFrom<T>
+pub type nika_dap::cost_journal::reconcile::Refusal::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::cost_journal::reconcile::Refusal::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_dap::cost_journal::reconcile::Refusal where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::Refusal::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_dap::cost_journal::reconcile::Refusal where T: 'static + ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::Refusal::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::cost_journal::reconcile::Refusal where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::Refusal::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::cost_journal::reconcile::Refusal where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::Refusal::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_dap::cost_journal::reconcile::Refusal
+pub fn nika_dap::cost_journal::reconcile::Refusal::from(t: T) -> T
+impl<T> iri_string::format::ToStringFallible for nika_dap::cost_journal::reconcile::Refusal where T: core::fmt::Display
+pub fn nika_dap::cost_journal::reconcile::Refusal::try_to_string(&self) -> core::result::Result<alloc::string::String, alloc::collections::TryReserveError>
+impl<T> nika_error::traits::AsAny for nika_dap::cost_journal::reconcile::Refusal where T: 'static
+pub fn nika_dap::cost_journal::reconcile::Refusal::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::cost_journal::reconcile::Refusal where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::Refusal::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::cost_journal::reconcile::Refusal::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::cost_journal::reconcile::Refusal
+impl<T> tracing::instrument::WithSubscriber for nika_dap::cost_journal::reconcile::Refusal
+impl<T> typenum::type_operators::Same for nika_dap::cost_journal::reconcile::Refusal
+pub type nika_dap::cost_journal::reconcile::Refusal::Output = T
+#[non_exhaustive] pub enum nika_dap::cost_journal::reconcile::Resolution
+pub nika_dap::cost_journal::reconcile::Resolution::Billed
+pub nika_dap::cost_journal::reconcile::Resolution::NotBilled
+pub nika_dap::cost_journal::reconcile::Resolution::StillUnknown
+impl nika_dap::cost_journal::reconcile::Resolution
+pub fn nika_dap::cost_journal::reconcile::Resolution::as_str(self) -> &'static str
+impl core::clone::Clone for nika_dap::cost_journal::reconcile::Resolution
+pub fn nika_dap::cost_journal::reconcile::Resolution::clone(&self) -> nika_dap::cost_journal::reconcile::Resolution
+impl core::cmp::Eq for nika_dap::cost_journal::reconcile::Resolution
+impl core::cmp::PartialEq for nika_dap::cost_journal::reconcile::Resolution
+pub fn nika_dap::cost_journal::reconcile::Resolution::eq(&self, other: &nika_dap::cost_journal::reconcile::Resolution) -> bool
+impl core::fmt::Debug for nika_dap::cost_journal::reconcile::Resolution
+pub fn nika_dap::cost_journal::reconcile::Resolution::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_dap::cost_journal::reconcile::Resolution
+impl core::marker::StructuralPartialEq for nika_dap::cost_journal::reconcile::Resolution
+impl<D> owo_colors::OwoColorize for nika_dap::cost_journal::reconcile::Resolution
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::cost_journal::reconcile::Resolution where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::Resolution::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::cost_journal::reconcile::Resolution where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::Resolution::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::cost_journal::reconcile::Resolution where U: core::convert::From<T>
+pub fn nika_dap::cost_journal::reconcile::Resolution::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::cost_journal::reconcile::Resolution where U: core::convert::Into<T>
+pub type nika_dap::cost_journal::reconcile::Resolution::Error = core::convert::Infallible
+pub fn nika_dap::cost_journal::reconcile::Resolution::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::cost_journal::reconcile::Resolution where U: core::convert::TryFrom<T>
+pub type nika_dap::cost_journal::reconcile::Resolution::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::cost_journal::reconcile::Resolution::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::cost_journal::reconcile::Resolution where T: core::clone::Clone
+pub type nika_dap::cost_journal::reconcile::Resolution::Owned = T
+pub fn nika_dap::cost_journal::reconcile::Resolution::clone_into(&self, target: &mut T)
+pub fn nika_dap::cost_journal::reconcile::Resolution::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::cost_journal::reconcile::Resolution where T: 'static + ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::Resolution::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::cost_journal::reconcile::Resolution where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::Resolution::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::cost_journal::reconcile::Resolution where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::Resolution::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::cost_journal::reconcile::Resolution where T: core::clone::Clone
+pub unsafe fn nika_dap::cost_journal::reconcile::Resolution::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::cost_journal::reconcile::Resolution
+pub fn nika_dap::cost_journal::reconcile::Resolution::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::cost_journal::reconcile::Resolution where T: core::clone::Clone
+pub fn nika_dap::cost_journal::reconcile::Resolution::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::cost_journal::reconcile::Resolution where T: 'static
+pub fn nika_dap::cost_journal::reconcile::Resolution::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_dap::cost_journal::reconcile::Resolution where T: core::marker::Copy
+pub fn nika_dap::cost_journal::reconcile::Resolution::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::cost_journal::reconcile::Resolution where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::Resolution::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::cost_journal::reconcile::Resolution::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::cost_journal::reconcile::Resolution
+impl<T> tracing::instrument::WithSubscriber for nika_dap::cost_journal::reconcile::Resolution
+impl<T> typenum::type_operators::Same for nika_dap::cost_journal::reconcile::Resolution
+pub type nika_dap::cost_journal::reconcile::Resolution::Output = T
+#[non_exhaustive] pub enum nika_dap::cost_journal::reconcile::RunState
+pub nika_dap::cost_journal::reconcile::RunState::Reconciled(nika_dap::cost_journal::reconcile::Resolution)
+pub nika_dap::cost_journal::reconcile::RunState::StillUnknown
+pub nika_dap::cost_journal::reconcile::RunState::Uncertain
+pub nika_dap::cost_journal::reconcile::RunState::Unjudged
+pub nika_dap::cost_journal::reconcile::RunState::Unknown
+impl nika_dap::cost_journal::reconcile::RunState
+pub fn nika_dap::cost_journal::reconcile::RunState::as_str(self) -> &'static str
+pub fn nika_dap::cost_journal::reconcile::RunState::blocks(self) -> bool
+impl core::clone::Clone for nika_dap::cost_journal::reconcile::RunState
+pub fn nika_dap::cost_journal::reconcile::RunState::clone(&self) -> nika_dap::cost_journal::reconcile::RunState
+impl core::cmp::Eq for nika_dap::cost_journal::reconcile::RunState
+impl core::cmp::PartialEq for nika_dap::cost_journal::reconcile::RunState
+pub fn nika_dap::cost_journal::reconcile::RunState::eq(&self, other: &nika_dap::cost_journal::reconcile::RunState) -> bool
+impl core::fmt::Debug for nika_dap::cost_journal::reconcile::RunState
+pub fn nika_dap::cost_journal::reconcile::RunState::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_dap::cost_journal::reconcile::RunState
+impl core::marker::StructuralPartialEq for nika_dap::cost_journal::reconcile::RunState
+impl<D> owo_colors::OwoColorize for nika_dap::cost_journal::reconcile::RunState
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::cost_journal::reconcile::RunState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::RunState::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::cost_journal::reconcile::RunState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::RunState::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::cost_journal::reconcile::RunState where U: core::convert::From<T>
+pub fn nika_dap::cost_journal::reconcile::RunState::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::cost_journal::reconcile::RunState where U: core::convert::Into<T>
+pub type nika_dap::cost_journal::reconcile::RunState::Error = core::convert::Infallible
+pub fn nika_dap::cost_journal::reconcile::RunState::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::cost_journal::reconcile::RunState where U: core::convert::TryFrom<T>
+pub type nika_dap::cost_journal::reconcile::RunState::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::cost_journal::reconcile::RunState::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::cost_journal::reconcile::RunState where T: core::clone::Clone
+pub type nika_dap::cost_journal::reconcile::RunState::Owned = T
+pub fn nika_dap::cost_journal::reconcile::RunState::clone_into(&self, target: &mut T)
+pub fn nika_dap::cost_journal::reconcile::RunState::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::cost_journal::reconcile::RunState where T: 'static + ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::RunState::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::cost_journal::reconcile::RunState where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::RunState::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::cost_journal::reconcile::RunState where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::RunState::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::cost_journal::reconcile::RunState where T: core::clone::Clone
+pub unsafe fn nika_dap::cost_journal::reconcile::RunState::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::cost_journal::reconcile::RunState
+pub fn nika_dap::cost_journal::reconcile::RunState::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::cost_journal::reconcile::RunState where T: core::clone::Clone
+pub fn nika_dap::cost_journal::reconcile::RunState::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::cost_journal::reconcile::RunState where T: 'static
+pub fn nika_dap::cost_journal::reconcile::RunState::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_dap::cost_journal::reconcile::RunState where T: core::marker::Copy
+pub fn nika_dap::cost_journal::reconcile::RunState::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::cost_journal::reconcile::RunState where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::RunState::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::cost_journal::reconcile::RunState::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::cost_journal::reconcile::RunState
+impl<T> tracing::instrument::WithSubscriber for nika_dap::cost_journal::reconcile::RunState
+impl<T> typenum::type_operators::Same for nika_dap::cost_journal::reconcile::RunState
+pub type nika_dap::cost_journal::reconcile::RunState::Output = T
+#[non_exhaustive] pub struct nika_dap::cost_journal::reconcile::Inspection
+pub nika_dap::cost_journal::reconcile::Inspection::bytes: u64
+pub nika_dap::cost_journal::reconcile::Inspection::bytes_before: u64
+pub nika_dap::cost_journal::reconcile::Inspection::conflicts: alloc::vec::Vec<nika_dap::cost_journal::Conflict>
+pub nika_dap::cost_journal::reconcile::Inspection::derived: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
+pub nika_dap::cost_journal::reconcile::Inspection::project: alloc::string::String
+pub nika_dap::cost_journal::reconcile::Inspection::runs: alloc::vec::Vec<nika_dap::cost_journal::reconcile::RunReport>
+pub nika_dap::cost_journal::reconcile::Inspection::sha256: alloc::string::String
+pub nika_dap::cost_journal::reconcile::Inspection::torn: alloc::vec::Vec<alloc::string::String>
+impl nika_dap::cost_journal::reconcile::Inspection
+pub fn nika_dap::cost_journal::reconcile::Inspection::is_clear(&self) -> bool
+pub fn nika_dap::cost_journal::reconcile::Inspection::to_value(&self) -> serde_json::value::Value
+impl core::clone::Clone for nika_dap::cost_journal::reconcile::Inspection
+pub fn nika_dap::cost_journal::reconcile::Inspection::clone(&self) -> nika_dap::cost_journal::reconcile::Inspection
+impl core::cmp::Eq for nika_dap::cost_journal::reconcile::Inspection
+impl core::cmp::PartialEq for nika_dap::cost_journal::reconcile::Inspection
+pub fn nika_dap::cost_journal::reconcile::Inspection::eq(&self, other: &nika_dap::cost_journal::reconcile::Inspection) -> bool
+impl core::fmt::Debug for nika_dap::cost_journal::reconcile::Inspection
+pub fn nika_dap::cost_journal::reconcile::Inspection::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_dap::cost_journal::reconcile::Inspection
+impl<D> owo_colors::OwoColorize for nika_dap::cost_journal::reconcile::Inspection
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::cost_journal::reconcile::Inspection where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::Inspection::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::cost_journal::reconcile::Inspection where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::Inspection::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::cost_journal::reconcile::Inspection where U: core::convert::From<T>
+pub fn nika_dap::cost_journal::reconcile::Inspection::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::cost_journal::reconcile::Inspection where U: core::convert::Into<T>
+pub type nika_dap::cost_journal::reconcile::Inspection::Error = core::convert::Infallible
+pub fn nika_dap::cost_journal::reconcile::Inspection::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::cost_journal::reconcile::Inspection where U: core::convert::TryFrom<T>
+pub type nika_dap::cost_journal::reconcile::Inspection::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::cost_journal::reconcile::Inspection::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::cost_journal::reconcile::Inspection where T: core::clone::Clone
+pub type nika_dap::cost_journal::reconcile::Inspection::Owned = T
+pub fn nika_dap::cost_journal::reconcile::Inspection::clone_into(&self, target: &mut T)
+pub fn nika_dap::cost_journal::reconcile::Inspection::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::cost_journal::reconcile::Inspection where T: 'static + ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::Inspection::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::cost_journal::reconcile::Inspection where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::Inspection::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::cost_journal::reconcile::Inspection where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::Inspection::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::cost_journal::reconcile::Inspection where T: core::clone::Clone
+pub unsafe fn nika_dap::cost_journal::reconcile::Inspection::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::cost_journal::reconcile::Inspection
+pub fn nika_dap::cost_journal::reconcile::Inspection::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::cost_journal::reconcile::Inspection where T: core::clone::Clone
+pub fn nika_dap::cost_journal::reconcile::Inspection::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::cost_journal::reconcile::Inspection where T: 'static
+pub fn nika_dap::cost_journal::reconcile::Inspection::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::cost_journal::reconcile::Inspection where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::Inspection::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::cost_journal::reconcile::Inspection::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::cost_journal::reconcile::Inspection
+impl<T> tracing::instrument::WithSubscriber for nika_dap::cost_journal::reconcile::Inspection
+impl<T> typenum::type_operators::Same for nika_dap::cost_journal::reconcile::Inspection
+pub type nika_dap::cost_journal::reconcile::Inspection::Output = T
+#[non_exhaustive] pub struct nika_dap::cost_journal::reconcile::Principal
+pub nika_dap::cost_journal::reconcile::Principal::name: core::option::Option<alloc::string::String>
+pub nika_dap::cost_journal::reconcile::Principal::uid: u32
+impl nika_dap::cost_journal::reconcile::Principal
+pub fn nika_dap::cost_journal::reconcile::Principal::new(uid: u32, name: core::option::Option<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_dap::cost_journal::reconcile::Principal
+pub fn nika_dap::cost_journal::reconcile::Principal::clone(&self) -> nika_dap::cost_journal::reconcile::Principal
+impl core::cmp::Eq for nika_dap::cost_journal::reconcile::Principal
+impl core::cmp::PartialEq for nika_dap::cost_journal::reconcile::Principal
+pub fn nika_dap::cost_journal::reconcile::Principal::eq(&self, other: &nika_dap::cost_journal::reconcile::Principal) -> bool
+impl core::fmt::Debug for nika_dap::cost_journal::reconcile::Principal
+pub fn nika_dap::cost_journal::reconcile::Principal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_dap::cost_journal::reconcile::Principal
+impl<D> owo_colors::OwoColorize for nika_dap::cost_journal::reconcile::Principal
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::cost_journal::reconcile::Principal where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::Principal::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::cost_journal::reconcile::Principal where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::Principal::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::cost_journal::reconcile::Principal where U: core::convert::From<T>
+pub fn nika_dap::cost_journal::reconcile::Principal::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::cost_journal::reconcile::Principal where U: core::convert::Into<T>
+pub type nika_dap::cost_journal::reconcile::Principal::Error = core::convert::Infallible
+pub fn nika_dap::cost_journal::reconcile::Principal::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::cost_journal::reconcile::Principal where U: core::convert::TryFrom<T>
+pub type nika_dap::cost_journal::reconcile::Principal::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::cost_journal::reconcile::Principal::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::cost_journal::reconcile::Principal where T: core::clone::Clone
+pub type nika_dap::cost_journal::reconcile::Principal::Owned = T
+pub fn nika_dap::cost_journal::reconcile::Principal::clone_into(&self, target: &mut T)
+pub fn nika_dap::cost_journal::reconcile::Principal::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::cost_journal::reconcile::Principal where T: 'static + ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::Principal::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::cost_journal::reconcile::Principal where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::Principal::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::cost_journal::reconcile::Principal where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::Principal::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::cost_journal::reconcile::Principal where T: core::clone::Clone
+pub unsafe fn nika_dap::cost_journal::reconcile::Principal::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::cost_journal::reconcile::Principal
+pub fn nika_dap::cost_journal::reconcile::Principal::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::cost_journal::reconcile::Principal where T: core::clone::Clone
+pub fn nika_dap::cost_journal::reconcile::Principal::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::cost_journal::reconcile::Principal where T: 'static
+pub fn nika_dap::cost_journal::reconcile::Principal::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::cost_journal::reconcile::Principal where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::Principal::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::cost_journal::reconcile::Principal::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::cost_journal::reconcile::Principal
+impl<T> tracing::instrument::WithSubscriber for nika_dap::cost_journal::reconcile::Principal
+impl<T> typenum::type_operators::Same for nika_dap::cost_journal::reconcile::Principal
+pub type nika_dap::cost_journal::reconcile::Principal::Output = T
+#[non_exhaustive] pub struct nika_dap::cost_journal::reconcile::Receipt
+pub nika_dap::cost_journal::reconcile::Receipt::after: (u64, alloc::string::String)
+pub nika_dap::cost_journal::reconcile::Receipt::before: (u64, alloc::string::String)
+pub nika_dap::cost_journal::reconcile::Receipt::clear: bool
+pub nika_dap::cost_journal::reconcile::Receipt::event: serde_json::value::Value
+pub nika_dap::cost_journal::reconcile::Receipt::event_sha256: alloc::string::String
+pub nika_dap::cost_journal::reconcile::Receipt::prefix_preserved: bool
+pub nika_dap::cost_journal::reconcile::Receipt::still_blocks: bool
+impl nika_dap::cost_journal::reconcile::Receipt
+pub fn nika_dap::cost_journal::reconcile::Receipt::to_value(&self) -> serde_json::value::Value
+impl core::clone::Clone for nika_dap::cost_journal::reconcile::Receipt
+pub fn nika_dap::cost_journal::reconcile::Receipt::clone(&self) -> nika_dap::cost_journal::reconcile::Receipt
+impl core::cmp::Eq for nika_dap::cost_journal::reconcile::Receipt
+impl core::cmp::PartialEq for nika_dap::cost_journal::reconcile::Receipt
+pub fn nika_dap::cost_journal::reconcile::Receipt::eq(&self, other: &nika_dap::cost_journal::reconcile::Receipt) -> bool
+impl core::fmt::Debug for nika_dap::cost_journal::reconcile::Receipt
+pub fn nika_dap::cost_journal::reconcile::Receipt::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_dap::cost_journal::reconcile::Receipt
+impl<D> owo_colors::OwoColorize for nika_dap::cost_journal::reconcile::Receipt
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::cost_journal::reconcile::Receipt where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::Receipt::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::cost_journal::reconcile::Receipt where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::Receipt::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::cost_journal::reconcile::Receipt where U: core::convert::From<T>
+pub fn nika_dap::cost_journal::reconcile::Receipt::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::cost_journal::reconcile::Receipt where U: core::convert::Into<T>
+pub type nika_dap::cost_journal::reconcile::Receipt::Error = core::convert::Infallible
+pub fn nika_dap::cost_journal::reconcile::Receipt::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::cost_journal::reconcile::Receipt where U: core::convert::TryFrom<T>
+pub type nika_dap::cost_journal::reconcile::Receipt::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::cost_journal::reconcile::Receipt::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::cost_journal::reconcile::Receipt where T: core::clone::Clone
+pub type nika_dap::cost_journal::reconcile::Receipt::Owned = T
+pub fn nika_dap::cost_journal::reconcile::Receipt::clone_into(&self, target: &mut T)
+pub fn nika_dap::cost_journal::reconcile::Receipt::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::cost_journal::reconcile::Receipt where T: 'static + ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::Receipt::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::cost_journal::reconcile::Receipt where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::Receipt::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::cost_journal::reconcile::Receipt where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::Receipt::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::cost_journal::reconcile::Receipt where T: core::clone::Clone
+pub unsafe fn nika_dap::cost_journal::reconcile::Receipt::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::cost_journal::reconcile::Receipt
+pub fn nika_dap::cost_journal::reconcile::Receipt::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::cost_journal::reconcile::Receipt where T: core::clone::Clone
+pub fn nika_dap::cost_journal::reconcile::Receipt::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::cost_journal::reconcile::Receipt where T: 'static
+pub fn nika_dap::cost_journal::reconcile::Receipt::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::cost_journal::reconcile::Receipt where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::Receipt::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::cost_journal::reconcile::Receipt::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::cost_journal::reconcile::Receipt
+impl<T> tracing::instrument::WithSubscriber for nika_dap::cost_journal::reconcile::Receipt
+impl<T> typenum::type_operators::Same for nika_dap::cost_journal::reconcile::Receipt
+pub type nika_dap::cost_journal::reconcile::Receipt::Output = T
+#[non_exhaustive] pub struct nika_dap::cost_journal::reconcile::Request
+pub nika_dap::cost_journal::reconcile::Request::evidence: nika_dap::cost_journal::reconcile::Evidence
+pub nika_dap::cost_journal::reconcile::Request::invocation: alloc::string::String
+pub nika_dap::cost_journal::reconcile::Request::observed_at: std::time::SystemTime
+pub nika_dap::cost_journal::reconcile::Request::principal: nika_dap::cost_journal::reconcile::Principal
+pub nika_dap::cost_journal::reconcile::Request::prior_sha256: alloc::string::String
+pub nika_dap::cost_journal::reconcile::Request::project: alloc::string::String
+pub nika_dap::cost_journal::reconcile::Request::resolution: nika_dap::cost_journal::reconcile::Resolution
+impl nika_dap::cost_journal::reconcile::Request
+pub fn nika_dap::cost_journal::reconcile::Request::new(project: alloc::string::String, invocation: alloc::string::String, prior_sha256: alloc::string::String, resolution: nika_dap::cost_journal::reconcile::Resolution, evidence: nika_dap::cost_journal::reconcile::Evidence, principal: nika_dap::cost_journal::reconcile::Principal, observed_at: std::time::SystemTime) -> Self
+impl core::clone::Clone for nika_dap::cost_journal::reconcile::Request
+pub fn nika_dap::cost_journal::reconcile::Request::clone(&self) -> nika_dap::cost_journal::reconcile::Request
+impl core::cmp::Eq for nika_dap::cost_journal::reconcile::Request
+impl core::cmp::PartialEq for nika_dap::cost_journal::reconcile::Request
+pub fn nika_dap::cost_journal::reconcile::Request::eq(&self, other: &nika_dap::cost_journal::reconcile::Request) -> bool
+impl core::fmt::Debug for nika_dap::cost_journal::reconcile::Request
+pub fn nika_dap::cost_journal::reconcile::Request::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_dap::cost_journal::reconcile::Request
+impl<D> owo_colors::OwoColorize for nika_dap::cost_journal::reconcile::Request
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::cost_journal::reconcile::Request where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::Request::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::cost_journal::reconcile::Request where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::Request::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::cost_journal::reconcile::Request where U: core::convert::From<T>
+pub fn nika_dap::cost_journal::reconcile::Request::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::cost_journal::reconcile::Request where U: core::convert::Into<T>
+pub type nika_dap::cost_journal::reconcile::Request::Error = core::convert::Infallible
+pub fn nika_dap::cost_journal::reconcile::Request::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::cost_journal::reconcile::Request where U: core::convert::TryFrom<T>
+pub type nika_dap::cost_journal::reconcile::Request::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::cost_journal::reconcile::Request::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::cost_journal::reconcile::Request where T: core::clone::Clone
+pub type nika_dap::cost_journal::reconcile::Request::Owned = T
+pub fn nika_dap::cost_journal::reconcile::Request::clone_into(&self, target: &mut T)
+pub fn nika_dap::cost_journal::reconcile::Request::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::cost_journal::reconcile::Request where T: 'static + ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::Request::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::cost_journal::reconcile::Request where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::Request::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::cost_journal::reconcile::Request where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::Request::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::cost_journal::reconcile::Request where T: core::clone::Clone
+pub unsafe fn nika_dap::cost_journal::reconcile::Request::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::cost_journal::reconcile::Request
+pub fn nika_dap::cost_journal::reconcile::Request::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::cost_journal::reconcile::Request where T: core::clone::Clone
+pub fn nika_dap::cost_journal::reconcile::Request::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::cost_journal::reconcile::Request where T: 'static
+pub fn nika_dap::cost_journal::reconcile::Request::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::cost_journal::reconcile::Request where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::Request::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::cost_journal::reconcile::Request::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::cost_journal::reconcile::Request
+impl<T> tracing::instrument::WithSubscriber for nika_dap::cost_journal::reconcile::Request
+impl<T> typenum::type_operators::Same for nika_dap::cost_journal::reconcile::Request
+pub type nika_dap::cost_journal::reconcile::Request::Output = T
+#[non_exhaustive] pub struct nika_dap::cost_journal::reconcile::Row
+pub nika_dap::cost_journal::reconcile::Row::index: usize
+pub nika_dap::cost_journal::reconcile::Row::phase: alloc::string::String
+pub nika_dap::cost_journal::reconcile::Row::refused: core::option::Option<&'static str>
+pub nika_dap::cost_journal::reconcile::Row::sha256: alloc::string::String
+impl core::clone::Clone for nika_dap::cost_journal::reconcile::Row
+pub fn nika_dap::cost_journal::reconcile::Row::clone(&self) -> nika_dap::cost_journal::reconcile::Row
+impl core::cmp::Eq for nika_dap::cost_journal::reconcile::Row
+impl core::cmp::PartialEq for nika_dap::cost_journal::reconcile::Row
+pub fn nika_dap::cost_journal::reconcile::Row::eq(&self, other: &nika_dap::cost_journal::reconcile::Row) -> bool
+impl core::fmt::Debug for nika_dap::cost_journal::reconcile::Row
+pub fn nika_dap::cost_journal::reconcile::Row::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_dap::cost_journal::reconcile::Row
+impl<D> owo_colors::OwoColorize for nika_dap::cost_journal::reconcile::Row
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::cost_journal::reconcile::Row where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::Row::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::cost_journal::reconcile::Row where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::Row::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::cost_journal::reconcile::Row where U: core::convert::From<T>
+pub fn nika_dap::cost_journal::reconcile::Row::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::cost_journal::reconcile::Row where U: core::convert::Into<T>
+pub type nika_dap::cost_journal::reconcile::Row::Error = core::convert::Infallible
+pub fn nika_dap::cost_journal::reconcile::Row::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::cost_journal::reconcile::Row where U: core::convert::TryFrom<T>
+pub type nika_dap::cost_journal::reconcile::Row::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::cost_journal::reconcile::Row::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::cost_journal::reconcile::Row where T: core::clone::Clone
+pub type nika_dap::cost_journal::reconcile::Row::Owned = T
+pub fn nika_dap::cost_journal::reconcile::Row::clone_into(&self, target: &mut T)
+pub fn nika_dap::cost_journal::reconcile::Row::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::cost_journal::reconcile::Row where T: 'static + ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::Row::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::cost_journal::reconcile::Row where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::Row::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::cost_journal::reconcile::Row where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::Row::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::cost_journal::reconcile::Row where T: core::clone::Clone
+pub unsafe fn nika_dap::cost_journal::reconcile::Row::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::cost_journal::reconcile::Row
+pub fn nika_dap::cost_journal::reconcile::Row::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::cost_journal::reconcile::Row where T: core::clone::Clone
+pub fn nika_dap::cost_journal::reconcile::Row::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::cost_journal::reconcile::Row where T: 'static
+pub fn nika_dap::cost_journal::reconcile::Row::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::cost_journal::reconcile::Row where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::Row::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::cost_journal::reconcile::Row::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::cost_journal::reconcile::Row
+impl<T> tracing::instrument::WithSubscriber for nika_dap::cost_journal::reconcile::Row
+impl<T> typenum::type_operators::Same for nika_dap::cost_journal::reconcile::Row
+pub type nika_dap::cost_journal::reconcile::Row::Output = T
+#[non_exhaustive] pub struct nika_dap::cost_journal::reconcile::RunReport
+pub nika_dap::cost_journal::reconcile::RunReport::facts: serde_json::value::Value
+pub nika_dap::cost_journal::reconcile::RunReport::head_sha256: alloc::string::String
+pub nika_dap::cost_journal::reconcile::RunReport::history: alloc::vec::Vec<nika_dap::cost_journal::reconcile::Row>
+pub nika_dap::cost_journal::reconcile::RunReport::invocation: alloc::string::String
+pub nika_dap::cost_journal::reconcile::RunReport::state: nika_dap::cost_journal::reconcile::RunState
+pub nika_dap::cost_journal::reconcile::RunReport::trace: core::option::Option<alloc::string::String>
+pub nika_dap::cost_journal::reconcile::RunReport::why_not: core::option::Option<&'static str>
+pub nika_dap::cost_journal::reconcile::RunReport::writer: core::option::Option<serde_json::value::Value>
+impl nika_dap::cost_journal::reconcile::RunReport
+pub fn nika_dap::cost_journal::reconcile::RunReport::to_value(&self) -> serde_json::value::Value
+impl core::clone::Clone for nika_dap::cost_journal::reconcile::RunReport
+pub fn nika_dap::cost_journal::reconcile::RunReport::clone(&self) -> nika_dap::cost_journal::reconcile::RunReport
+impl core::cmp::Eq for nika_dap::cost_journal::reconcile::RunReport
+impl core::cmp::PartialEq for nika_dap::cost_journal::reconcile::RunReport
+pub fn nika_dap::cost_journal::reconcile::RunReport::eq(&self, other: &nika_dap::cost_journal::reconcile::RunReport) -> bool
+impl core::fmt::Debug for nika_dap::cost_journal::reconcile::RunReport
+pub fn nika_dap::cost_journal::reconcile::RunReport::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_dap::cost_journal::reconcile::RunReport
+impl<D> owo_colors::OwoColorize for nika_dap::cost_journal::reconcile::RunReport
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::cost_journal::reconcile::RunReport where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::RunReport::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::cost_journal::reconcile::RunReport where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::RunReport::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::cost_journal::reconcile::RunReport where U: core::convert::From<T>
+pub fn nika_dap::cost_journal::reconcile::RunReport::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::cost_journal::reconcile::RunReport where U: core::convert::Into<T>
+pub type nika_dap::cost_journal::reconcile::RunReport::Error = core::convert::Infallible
+pub fn nika_dap::cost_journal::reconcile::RunReport::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::cost_journal::reconcile::RunReport where U: core::convert::TryFrom<T>
+pub type nika_dap::cost_journal::reconcile::RunReport::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::cost_journal::reconcile::RunReport::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::cost_journal::reconcile::RunReport where T: core::clone::Clone
+pub type nika_dap::cost_journal::reconcile::RunReport::Owned = T
+pub fn nika_dap::cost_journal::reconcile::RunReport::clone_into(&self, target: &mut T)
+pub fn nika_dap::cost_journal::reconcile::RunReport::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::cost_journal::reconcile::RunReport where T: 'static + ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::RunReport::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::cost_journal::reconcile::RunReport where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::RunReport::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::cost_journal::reconcile::RunReport where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::RunReport::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::cost_journal::reconcile::RunReport where T: core::clone::Clone
+pub unsafe fn nika_dap::cost_journal::reconcile::RunReport::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::cost_journal::reconcile::RunReport
+pub fn nika_dap::cost_journal::reconcile::RunReport::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::cost_journal::reconcile::RunReport where T: core::clone::Clone
+pub fn nika_dap::cost_journal::reconcile::RunReport::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::cost_journal::reconcile::RunReport where T: 'static
+pub fn nika_dap::cost_journal::reconcile::RunReport::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::cost_journal::reconcile::RunReport where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::reconcile::RunReport::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::cost_journal::reconcile::RunReport::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::cost_journal::reconcile::RunReport
+impl<T> tracing::instrument::WithSubscriber for nika_dap::cost_journal::reconcile::RunReport
+impl<T> typenum::type_operators::Same for nika_dap::cost_journal::reconcile::RunReport
+pub type nika_dap::cost_journal::reconcile::RunReport::Output = T
+pub fn nika_dap::cost_journal::reconcile::inspect(root: &std::path::Path, writer: &nika_dap::cost_journal::Writer, observer: &str) -> core::result::Result<nika_dap::cost_journal::reconcile::Inspection, nika_dap::cost_journal::reconcile::Refusal>
+pub fn nika_dap::cost_journal::reconcile::submit(root: &std::path::Path, writer: &nika_dap::cost_journal::Writer, request: &nika_dap::cost_journal::reconcile::Request) -> core::result::Result<nika_dap::cost_journal::reconcile::Receipt, nika_dap::cost_journal::reconcile::Refusal>
+#[non_exhaustive] pub enum nika_dap::cost_journal::Blocked
+pub nika_dap::cost_journal::Blocked::Busy
+pub nika_dap::cost_journal::Blocked::Busy::pid: core::option::Option<u64>
+pub nika_dap::cost_journal::Blocked::Exposed(nika_dap::cost_journal::Exposures)
+impl core::fmt::Debug for nika_dap::cost_journal::Blocked
+pub fn nika_dap::cost_journal::Blocked::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_dap::cost_journal::Blocked
+pub fn nika_dap::cost_journal::Blocked::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_dap::cost_journal::Blocked
+impl<T, U> core::convert::Into<U> for nika_dap::cost_journal::Blocked where U: core::convert::From<T>
+pub fn nika_dap::cost_journal::Blocked::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::cost_journal::Blocked where U: core::convert::Into<T>
+pub type nika_dap::cost_journal::Blocked::Error = core::convert::Infallible
+pub fn nika_dap::cost_journal::Blocked::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::cost_journal::Blocked where U: core::convert::TryFrom<T>
+pub type nika_dap::cost_journal::Blocked::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::cost_journal::Blocked::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_dap::cost_journal::Blocked where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_dap::cost_journal::Blocked::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_dap::cost_journal::Blocked where T: 'static + ?core::marker::Sized
+pub fn nika_dap::cost_journal::Blocked::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::cost_journal::Blocked where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::Blocked::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::cost_journal::Blocked where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::Blocked::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_dap::cost_journal::Blocked
+pub fn nika_dap::cost_journal::Blocked::from(t: T) -> T
+impl<T> iri_string::format::ToStringFallible for nika_dap::cost_journal::Blocked where T: core::fmt::Display
+pub fn nika_dap::cost_journal::Blocked::try_to_string(&self) -> core::result::Result<alloc::string::String, alloc::collections::TryReserveError>
+impl<T> nika_error::traits::AsAny for nika_dap::cost_journal::Blocked where T: 'static
+pub fn nika_dap::cost_journal::Blocked::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::cost_journal::Blocked where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::Blocked::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::cost_journal::Blocked::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::cost_journal::Blocked
+impl<T> tracing::instrument::WithSubscriber for nika_dap::cost_journal::Blocked
+impl<T> typenum::type_operators::Same for nika_dap::cost_journal::Blocked
+pub type nika_dap::cost_journal::Blocked::Output = T
+#[non_exhaustive] pub enum nika_dap::cost_journal::Claim<V>
+pub nika_dap::cost_journal::Claim::Absent
+pub nika_dap::cost_journal::Claim::Duplicate
+pub nika_dap::cost_journal::Claim::Owned(V)
+impl<V: core::fmt::Debug> core::fmt::Debug for nika_dap::cost_journal::Claim<V>
+pub fn nika_dap::cost_journal::Claim<V>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_dap::cost_journal::Claim<V>
+impl<T, U> core::convert::Into<U> for nika_dap::cost_journal::Claim<V> where U: core::convert::From<T>
+pub fn nika_dap::cost_journal::Claim<V>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::cost_journal::Claim<V> where U: core::convert::Into<T>
+pub type nika_dap::cost_journal::Claim<V>::Error = core::convert::Infallible
+pub fn nika_dap::cost_journal::Claim<V>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::cost_journal::Claim<V> where U: core::convert::TryFrom<T>
+pub type nika_dap::cost_journal::Claim<V>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::cost_journal::Claim<V>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_dap::cost_journal::Claim<V> where T: 'static + ?core::marker::Sized
+pub fn nika_dap::cost_journal::Claim<V>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::cost_journal::Claim<V> where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::Claim<V>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::cost_journal::Claim<V> where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::Claim<V>::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_dap::cost_journal::Claim<V>
+pub fn nika_dap::cost_journal::Claim<V>::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_dap::cost_journal::Claim<V> where T: 'static
+pub fn nika_dap::cost_journal::Claim<V>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::cost_journal::Claim<V> where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::Claim<V>::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::cost_journal::Claim<V>::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::cost_journal::Claim<V>
+impl<T> tracing::instrument::WithSubscriber for nika_dap::cost_journal::Claim<V>
+impl<T> typenum::type_operators::Same for nika_dap::cost_journal::Claim<V>
+pub type nika_dap::cost_journal::Claim<V>::Output = T
 #[non_exhaustive] pub enum nika_dap::cost_journal::Exposure
+pub nika_dap::cost_journal::Exposure::StillUnknown
 pub nika_dap::cost_journal::Exposure::Uncertain
 pub nika_dap::cost_journal::Exposure::Unjudged
 pub nika_dap::cost_journal::Exposure::Unknown
@@ -1203,6 +1825,166 @@ impl<T> tracing::instrument::Instrument for nika_dap::cost_journal::Exposure
 impl<T> tracing::instrument::WithSubscriber for nika_dap::cost_journal::Exposure
 impl<T> typenum::type_operators::Same for nika_dap::cost_journal::Exposure
 pub type nika_dap::cost_journal::Exposure::Output = T
+#[non_exhaustive] pub enum nika_dap::cost_journal::KeyAnswer
+pub nika_dap::cost_journal::KeyAnswer::NotRequired(serde_json::value::Value)
+pub nika_dap::cost_journal::KeyAnswer::Review(alloc::string::String)
+impl core::clone::Clone for nika_dap::cost_journal::KeyAnswer
+pub fn nika_dap::cost_journal::KeyAnswer::clone(&self) -> nika_dap::cost_journal::KeyAnswer
+impl core::cmp::Eq for nika_dap::cost_journal::KeyAnswer
+impl core::cmp::PartialEq for nika_dap::cost_journal::KeyAnswer
+pub fn nika_dap::cost_journal::KeyAnswer::eq(&self, other: &nika_dap::cost_journal::KeyAnswer) -> bool
+impl core::fmt::Debug for nika_dap::cost_journal::KeyAnswer
+pub fn nika_dap::cost_journal::KeyAnswer::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_dap::cost_journal::KeyAnswer
+impl<D> owo_colors::OwoColorize for nika_dap::cost_journal::KeyAnswer
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::cost_journal::KeyAnswer where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::cost_journal::KeyAnswer::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::cost_journal::KeyAnswer where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::cost_journal::KeyAnswer::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::cost_journal::KeyAnswer where U: core::convert::From<T>
+pub fn nika_dap::cost_journal::KeyAnswer::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::cost_journal::KeyAnswer where U: core::convert::Into<T>
+pub type nika_dap::cost_journal::KeyAnswer::Error = core::convert::Infallible
+pub fn nika_dap::cost_journal::KeyAnswer::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::cost_journal::KeyAnswer where U: core::convert::TryFrom<T>
+pub type nika_dap::cost_journal::KeyAnswer::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::cost_journal::KeyAnswer::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::cost_journal::KeyAnswer where T: core::clone::Clone
+pub type nika_dap::cost_journal::KeyAnswer::Owned = T
+pub fn nika_dap::cost_journal::KeyAnswer::clone_into(&self, target: &mut T)
+pub fn nika_dap::cost_journal::KeyAnswer::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::cost_journal::KeyAnswer where T: 'static + ?core::marker::Sized
+pub fn nika_dap::cost_journal::KeyAnswer::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::cost_journal::KeyAnswer where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::KeyAnswer::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::cost_journal::KeyAnswer where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::KeyAnswer::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::cost_journal::KeyAnswer where T: core::clone::Clone
+pub unsafe fn nika_dap::cost_journal::KeyAnswer::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::cost_journal::KeyAnswer
+pub fn nika_dap::cost_journal::KeyAnswer::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::cost_journal::KeyAnswer where T: core::clone::Clone
+pub fn nika_dap::cost_journal::KeyAnswer::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::cost_journal::KeyAnswer where T: 'static
+pub fn nika_dap::cost_journal::KeyAnswer::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::cost_journal::KeyAnswer where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::KeyAnswer::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::cost_journal::KeyAnswer::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::cost_journal::KeyAnswer
+impl<T> tracing::instrument::WithSubscriber for nika_dap::cost_journal::KeyAnswer
+impl<T> typenum::type_operators::Same for nika_dap::cost_journal::KeyAnswer
+pub type nika_dap::cost_journal::KeyAnswer::Output = T
+#[non_exhaustive] pub enum nika_dap::cost_journal::Replay
+pub nika_dap::cost_journal::Replay::Conflict
+pub nika_dap::cost_journal::Replay::Same(nika_dap::cost_journal::KeyAnswer)
+impl core::clone::Clone for nika_dap::cost_journal::Replay
+pub fn nika_dap::cost_journal::Replay::clone(&self) -> nika_dap::cost_journal::Replay
+impl core::cmp::Eq for nika_dap::cost_journal::Replay
+impl core::cmp::PartialEq for nika_dap::cost_journal::Replay
+pub fn nika_dap::cost_journal::Replay::eq(&self, other: &nika_dap::cost_journal::Replay) -> bool
+impl core::fmt::Debug for nika_dap::cost_journal::Replay
+pub fn nika_dap::cost_journal::Replay::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_dap::cost_journal::Replay
+impl<D> owo_colors::OwoColorize for nika_dap::cost_journal::Replay
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::cost_journal::Replay where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::cost_journal::Replay::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::cost_journal::Replay where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::cost_journal::Replay::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::cost_journal::Replay where U: core::convert::From<T>
+pub fn nika_dap::cost_journal::Replay::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::cost_journal::Replay where U: core::convert::Into<T>
+pub type nika_dap::cost_journal::Replay::Error = core::convert::Infallible
+pub fn nika_dap::cost_journal::Replay::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::cost_journal::Replay where U: core::convert::TryFrom<T>
+pub type nika_dap::cost_journal::Replay::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::cost_journal::Replay::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::cost_journal::Replay where T: core::clone::Clone
+pub type nika_dap::cost_journal::Replay::Owned = T
+pub fn nika_dap::cost_journal::Replay::clone_into(&self, target: &mut T)
+pub fn nika_dap::cost_journal::Replay::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::cost_journal::Replay where T: 'static + ?core::marker::Sized
+pub fn nika_dap::cost_journal::Replay::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::cost_journal::Replay where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::Replay::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::cost_journal::Replay where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::Replay::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::cost_journal::Replay where T: core::clone::Clone
+pub unsafe fn nika_dap::cost_journal::Replay::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::cost_journal::Replay
+pub fn nika_dap::cost_journal::Replay::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::cost_journal::Replay where T: core::clone::Clone
+pub fn nika_dap::cost_journal::Replay::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::cost_journal::Replay where T: 'static
+pub fn nika_dap::cost_journal::Replay::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::cost_journal::Replay where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::Replay::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::cost_journal::Replay::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::cost_journal::Replay
+impl<T> tracing::instrument::WithSubscriber for nika_dap::cost_journal::Replay
+impl<T> typenum::type_operators::Same for nika_dap::cost_journal::Replay
+pub type nika_dap::cost_journal::Replay::Output = T
+#[non_exhaustive] pub enum nika_dap::cost_journal::ReviewRefusal
+pub nika_dap::cost_journal::ReviewRefusal::Busy
+pub nika_dap::cost_journal::ReviewRefusal::Consumed
+pub nika_dap::cost_journal::ReviewRefusal::Decided
+pub nika_dap::cost_journal::ReviewRefusal::Declined
+pub nika_dap::cost_journal::ReviewRefusal::Expired
+pub nika_dap::cost_journal::ReviewRefusal::NotApproved
+pub nika_dap::cost_journal::ReviewRefusal::RequestMismatch
+pub nika_dap::cost_journal::ReviewRefusal::Unknown
+pub nika_dap::cost_journal::ReviewRefusal::WitnessMismatch
+impl nika_dap::cost_journal::ReviewRefusal
+pub const fn nika_dap::cost_journal::ReviewRefusal::code(self) -> &'static str
+pub const fn nika_dap::cost_journal::ReviewRefusal::message(self) -> &'static str
+impl core::clone::Clone for nika_dap::cost_journal::ReviewRefusal
+pub fn nika_dap::cost_journal::ReviewRefusal::clone(&self) -> nika_dap::cost_journal::ReviewRefusal
+impl core::cmp::Eq for nika_dap::cost_journal::ReviewRefusal
+impl core::cmp::PartialEq for nika_dap::cost_journal::ReviewRefusal
+pub fn nika_dap::cost_journal::ReviewRefusal::eq(&self, other: &nika_dap::cost_journal::ReviewRefusal) -> bool
+impl core::fmt::Debug for nika_dap::cost_journal::ReviewRefusal
+pub fn nika_dap::cost_journal::ReviewRefusal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_dap::cost_journal::ReviewRefusal
+impl core::marker::StructuralPartialEq for nika_dap::cost_journal::ReviewRefusal
+impl<D> owo_colors::OwoColorize for nika_dap::cost_journal::ReviewRefusal
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::cost_journal::ReviewRefusal where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::cost_journal::ReviewRefusal::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::cost_journal::ReviewRefusal where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::cost_journal::ReviewRefusal::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::cost_journal::ReviewRefusal where U: core::convert::From<T>
+pub fn nika_dap::cost_journal::ReviewRefusal::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::cost_journal::ReviewRefusal where U: core::convert::Into<T>
+pub type nika_dap::cost_journal::ReviewRefusal::Error = core::convert::Infallible
+pub fn nika_dap::cost_journal::ReviewRefusal::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::cost_journal::ReviewRefusal where U: core::convert::TryFrom<T>
+pub type nika_dap::cost_journal::ReviewRefusal::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::cost_journal::ReviewRefusal::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::cost_journal::ReviewRefusal where T: core::clone::Clone
+pub type nika_dap::cost_journal::ReviewRefusal::Owned = T
+pub fn nika_dap::cost_journal::ReviewRefusal::clone_into(&self, target: &mut T)
+pub fn nika_dap::cost_journal::ReviewRefusal::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::cost_journal::ReviewRefusal where T: 'static + ?core::marker::Sized
+pub fn nika_dap::cost_journal::ReviewRefusal::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::cost_journal::ReviewRefusal where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::ReviewRefusal::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::cost_journal::ReviewRefusal where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::ReviewRefusal::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::cost_journal::ReviewRefusal where T: core::clone::Clone
+pub unsafe fn nika_dap::cost_journal::ReviewRefusal::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::cost_journal::ReviewRefusal
+pub fn nika_dap::cost_journal::ReviewRefusal::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::cost_journal::ReviewRefusal where T: core::clone::Clone
+pub fn nika_dap::cost_journal::ReviewRefusal::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::cost_journal::ReviewRefusal where T: 'static
+pub fn nika_dap::cost_journal::ReviewRefusal::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_dap::cost_journal::ReviewRefusal where T: core::marker::Copy
+pub fn nika_dap::cost_journal::ReviewRefusal::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::cost_journal::ReviewRefusal where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::ReviewRefusal::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::cost_journal::ReviewRefusal::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::cost_journal::ReviewRefusal
+impl<T> tracing::instrument::WithSubscriber for nika_dap::cost_journal::ReviewRefusal
+impl<T> typenum::type_operators::Same for nika_dap::cost_journal::ReviewRefusal
+pub type nika_dap::cost_journal::ReviewRefusal::Output = T
 #[non_exhaustive] pub enum nika_dap::cost_journal::Taken
 pub nika_dap::cost_journal::Taken::Busy
 pub nika_dap::cost_journal::Taken::Busy::pid: core::option::Option<u64>
@@ -1287,6 +2069,74 @@ impl<T> tracing::instrument::Instrument for nika_dap::cost_journal::Blocker
 impl<T> tracing::instrument::WithSubscriber for nika_dap::cost_journal::Blocker
 impl<T> typenum::type_operators::Same for nika_dap::cost_journal::Blocker
 pub type nika_dap::cost_journal::Blocker::Output = T
+pub struct nika_dap::cost_journal::Claims<V>(_)
+impl<V> nika_dap::cost_journal::Claims<V>
+pub fn nika_dap::cost_journal::Claims<V>::attach(&self, job: &str, held: V)
+pub fn nika_dap::cost_journal::Claims<V>::claim(&self, job: &str) -> nika_dap::cost_journal::Claim<V>
+pub fn nika_dap::cost_journal::Claims<V>::release(&self, job: &str)
+impl<V> core::default::Default for nika_dap::cost_journal::Claims<V>
+pub fn nika_dap::cost_journal::Claims<V>::default() -> Self
+impl<V> core::fmt::Debug for nika_dap::cost_journal::Claims<V>
+pub fn nika_dap::cost_journal::Claims<V>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_dap::cost_journal::Claims<V>
+impl<T, U> core::convert::Into<U> for nika_dap::cost_journal::Claims<V> where U: core::convert::From<T>
+pub fn nika_dap::cost_journal::Claims<V>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::cost_journal::Claims<V> where U: core::convert::Into<T>
+pub type nika_dap::cost_journal::Claims<V>::Error = core::convert::Infallible
+pub fn nika_dap::cost_journal::Claims<V>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::cost_journal::Claims<V> where U: core::convert::TryFrom<T>
+pub type nika_dap::cost_journal::Claims<V>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::cost_journal::Claims<V>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_dap::cost_journal::Claims<V> where T: 'static + ?core::marker::Sized
+pub fn nika_dap::cost_journal::Claims<V>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::cost_journal::Claims<V> where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::Claims<V>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::cost_journal::Claims<V> where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::Claims<V>::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_dap::cost_journal::Claims<V>
+pub fn nika_dap::cost_journal::Claims<V>::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_dap::cost_journal::Claims<V> where T: 'static
+pub fn nika_dap::cost_journal::Claims<V>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::cost_journal::Claims<V> where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::Claims<V>::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::cost_journal::Claims<V>::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::cost_journal::Claims<V>
+impl<T> tracing::instrument::WithSubscriber for nika_dap::cost_journal::Claims<V>
+impl<T> typenum::type_operators::Same for nika_dap::cost_journal::Claims<V>
+pub type nika_dap::cost_journal::Claims<V>::Output = T
+pub struct nika_dap::cost_journal::Cleared
+impl nika_dap::cost_journal::Cleared
+pub fn nika_dap::cost_journal::Cleared::journal(&self) -> core::io::error::Result<nika_dap::cost_journal::JournalWitness>
+pub fn nika_dap::cost_journal::Cleared::observe_file(&self, path: &std::path::Path, write: core::option::Option<bool>) -> core::io::error::Result<core::option::Option<alloc::string::String>>
+pub fn nika_dap::cost_journal::Cleared::same_place(&self, root: &std::path::Path) -> core::io::error::Result<bool>
+impl core::fmt::Debug for nika_dap::cost_journal::Cleared
+pub fn nika_dap::cost_journal::Cleared::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_dap::cost_journal::Cleared
+impl<T, U> core::convert::Into<U> for nika_dap::cost_journal::Cleared where U: core::convert::From<T>
+pub fn nika_dap::cost_journal::Cleared::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::cost_journal::Cleared where U: core::convert::Into<T>
+pub type nika_dap::cost_journal::Cleared::Error = core::convert::Infallible
+pub fn nika_dap::cost_journal::Cleared::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::cost_journal::Cleared where U: core::convert::TryFrom<T>
+pub type nika_dap::cost_journal::Cleared::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::cost_journal::Cleared::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_dap::cost_journal::Cleared where T: 'static + ?core::marker::Sized
+pub fn nika_dap::cost_journal::Cleared::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::cost_journal::Cleared where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::Cleared::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::cost_journal::Cleared where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::Cleared::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_dap::cost_journal::Cleared
+pub fn nika_dap::cost_journal::Cleared::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_dap::cost_journal::Cleared where T: 'static
+pub fn nika_dap::cost_journal::Cleared::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::cost_journal::Cleared where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::Cleared::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::cost_journal::Cleared::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::cost_journal::Cleared
+impl<T> tracing::instrument::WithSubscriber for nika_dap::cost_journal::Cleared
+impl<T> typenum::type_operators::Same for nika_dap::cost_journal::Cleared
+pub type nika_dap::cost_journal::Cleared::Output = T
 #[non_exhaustive] pub struct nika_dap::cost_journal::Conflict
 pub nika_dap::cost_journal::Conflict::invocation: alloc::string::String
 pub nika_dap::cost_journal::Conflict::reason: &'static str
@@ -1382,7 +2232,60 @@ impl<T> tracing::instrument::Instrument for nika_dap::cost_journal::Exposures
 impl<T> tracing::instrument::WithSubscriber for nika_dap::cost_journal::Exposures
 impl<T> typenum::type_operators::Same for nika_dap::cost_journal::Exposures
 pub type nika_dap::cost_journal::Exposures::Output = T
+#[non_exhaustive] pub struct nika_dap::cost_journal::JournalWitness
+pub nika_dap::cost_journal::JournalWitness::length: u64
+pub nika_dap::cost_journal::JournalWitness::sha256: alloc::string::String
+impl core::clone::Clone for nika_dap::cost_journal::JournalWitness
+pub fn nika_dap::cost_journal::JournalWitness::clone(&self) -> nika_dap::cost_journal::JournalWitness
+impl core::cmp::Eq for nika_dap::cost_journal::JournalWitness
+impl core::cmp::PartialEq for nika_dap::cost_journal::JournalWitness
+pub fn nika_dap::cost_journal::JournalWitness::eq(&self, other: &nika_dap::cost_journal::JournalWitness) -> bool
+impl core::fmt::Debug for nika_dap::cost_journal::JournalWitness
+pub fn nika_dap::cost_journal::JournalWitness::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_dap::cost_journal::JournalWitness
+impl<D> owo_colors::OwoColorize for nika_dap::cost_journal::JournalWitness
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::cost_journal::JournalWitness where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::cost_journal::JournalWitness::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::cost_journal::JournalWitness where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::cost_journal::JournalWitness::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::cost_journal::JournalWitness where U: core::convert::From<T>
+pub fn nika_dap::cost_journal::JournalWitness::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::cost_journal::JournalWitness where U: core::convert::Into<T>
+pub type nika_dap::cost_journal::JournalWitness::Error = core::convert::Infallible
+pub fn nika_dap::cost_journal::JournalWitness::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::cost_journal::JournalWitness where U: core::convert::TryFrom<T>
+pub type nika_dap::cost_journal::JournalWitness::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::cost_journal::JournalWitness::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::cost_journal::JournalWitness where T: core::clone::Clone
+pub type nika_dap::cost_journal::JournalWitness::Owned = T
+pub fn nika_dap::cost_journal::JournalWitness::clone_into(&self, target: &mut T)
+pub fn nika_dap::cost_journal::JournalWitness::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::cost_journal::JournalWitness where T: 'static + ?core::marker::Sized
+pub fn nika_dap::cost_journal::JournalWitness::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::cost_journal::JournalWitness where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::JournalWitness::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::cost_journal::JournalWitness where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::JournalWitness::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::cost_journal::JournalWitness where T: core::clone::Clone
+pub unsafe fn nika_dap::cost_journal::JournalWitness::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::cost_journal::JournalWitness
+pub fn nika_dap::cost_journal::JournalWitness::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::cost_journal::JournalWitness where T: core::clone::Clone
+pub fn nika_dap::cost_journal::JournalWitness::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::cost_journal::JournalWitness where T: 'static
+pub fn nika_dap::cost_journal::JournalWitness::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::cost_journal::JournalWitness where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::JournalWitness::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::cost_journal::JournalWitness::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::cost_journal::JournalWitness
+impl<T> tracing::instrument::WithSubscriber for nika_dap::cost_journal::JournalWitness
+impl<T> typenum::type_operators::Same for nika_dap::cost_journal::JournalWitness
+pub type nika_dap::cost_journal::JournalWitness::Output = T
 pub struct nika_dap::cost_journal::Lease
+impl nika_dap::cost_journal::Lease
+pub fn nika_dap::cost_journal::Lease::append_row(&self, row: &str) -> core::io::error::Result<()>
+pub fn nika_dap::cost_journal::Lease::fold_as(&self, nika: &nika_fs::owned_dir::OwnedDir, holder: &nika_dap::cost_journal::Writer, observer: &str) -> core::io::error::Result<nika_dap::cost_journal::Exposures>
+pub fn nika_dap::cost_journal::Lease::read(&self) -> core::io::error::Result<alloc::vec::Vec<u8>>
 impl core::fmt::Debug for nika_dap::cost_journal::Lease
 pub fn nika_dap::cost_journal::Lease::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_dap::cost_journal::Lease
@@ -1411,6 +2314,82 @@ impl<T> tracing::instrument::Instrument for nika_dap::cost_journal::Lease
 impl<T> tracing::instrument::WithSubscriber for nika_dap::cost_journal::Lease
 impl<T> typenum::type_operators::Same for nika_dap::cost_journal::Lease
 pub type nika_dap::cost_journal::Lease::Output = T
+pub struct nika_dap::cost_journal::Reviews<H>
+impl<H> nika_dap::cost_journal::Reviews<H>
+pub fn nika_dap::cost_journal::Reviews<H>::bind_key(&mut self, key: alloc::string::String, digest: alloc::string::String, answer: nika_dap::cost_journal::KeyAnswer)
+pub fn nika_dap::cost_journal::Reviews<H>::decide(&mut self, id: &str, witness: &str, approve: bool, (now, decided_at): (std::time::Instant, &str)) -> core::result::Result<serde_json::value::Value, nika_dap::cost_journal::ReviewRefusal>
+pub fn nika_dap::cost_journal::Reviews<H>::expired_at(&self, id: &str, now: std::time::Instant) -> bool
+pub fn nika_dap::cost_journal::Reviews<H>::insert(&mut self, id: alloc::string::String, (view, request): (serde_json::value::Value, serde_json::value::Value), held: H, created: std::time::Instant)
+pub fn nika_dap::cost_journal::Reviews<H>::replay(&self, key: &str, digest: &str) -> core::option::Option<nika_dap::cost_journal::Replay>
+pub fn nika_dap::cost_journal::Reviews<H>::settle(&mut self, id: &str, state: &str, job: core::option::Option<(&str, nika_dap::cost_journal::AccountView)>, refusal: core::option::Option<(&str, &str)>)
+pub fn nika_dap::cost_journal::Reviews<H>::sweep(&mut self, now: std::time::Instant)
+pub fn nika_dap::cost_journal::Reviews<H>::take(&mut self, id: &str, witness: &str, request: &serde_json::value::Value, now: std::time::Instant) -> core::result::Result<H, nika_dap::cost_journal::ReviewRefusal>
+pub fn nika_dap::cost_journal::Reviews<H>::view(&self, id: &str) -> core::result::Result<serde_json::value::Value, nika_dap::cost_journal::ReviewRefusal>
+impl<H> core::default::Default for nika_dap::cost_journal::Reviews<H>
+pub fn nika_dap::cost_journal::Reviews<H>::default() -> Self
+impl<H> core::fmt::Debug for nika_dap::cost_journal::Reviews<H>
+pub fn nika_dap::cost_journal::Reviews<H>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_dap::cost_journal::Reviews<H>
+impl<T, U> core::convert::Into<U> for nika_dap::cost_journal::Reviews<H> where U: core::convert::From<T>
+pub fn nika_dap::cost_journal::Reviews<H>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::cost_journal::Reviews<H> where U: core::convert::Into<T>
+pub type nika_dap::cost_journal::Reviews<H>::Error = core::convert::Infallible
+pub fn nika_dap::cost_journal::Reviews<H>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::cost_journal::Reviews<H> where U: core::convert::TryFrom<T>
+pub type nika_dap::cost_journal::Reviews<H>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::cost_journal::Reviews<H>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_dap::cost_journal::Reviews<H> where T: 'static + ?core::marker::Sized
+pub fn nika_dap::cost_journal::Reviews<H>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::cost_journal::Reviews<H> where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::Reviews<H>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::cost_journal::Reviews<H> where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::Reviews<H>::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_dap::cost_journal::Reviews<H>
+pub fn nika_dap::cost_journal::Reviews<H>::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_dap::cost_journal::Reviews<H> where T: 'static
+pub fn nika_dap::cost_journal::Reviews<H>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::cost_journal::Reviews<H> where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::Reviews<H>::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::cost_journal::Reviews<H>::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::cost_journal::Reviews<H>
+impl<T> tracing::instrument::WithSubscriber for nika_dap::cost_journal::Reviews<H>
+impl<T> typenum::type_operators::Same for nika_dap::cost_journal::Reviews<H>
+pub type nika_dap::cost_journal::Reviews<H>::Output = T
+pub struct nika_dap::cost_journal::RunJournal
+impl nika_dap::cost_journal::RunJournal
+pub fn nika_dap::cost_journal::RunJournal::new(cleared: nika_dap::cost_journal::Cleared, invocation: alloc::string::String, account: alloc::boxed::Box<dyn nika_dap::cost_journal::RunAccount>) -> Self
+pub fn nika_dap::cost_journal::RunJournal::observe(&self, phase: &str) -> core::io::error::Result<()>
+pub fn nika_dap::cost_journal::RunJournal::settle(&self) -> core::io::error::Result<()>
+impl core::fmt::Debug for nika_dap::cost_journal::RunJournal
+pub fn nika_dap::cost_journal::RunJournal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::ops::drop::Drop for nika_dap::cost_journal::RunJournal
+pub fn nika_dap::cost_journal::RunJournal::drop(&mut self)
+impl<D> owo_colors::OwoColorize for nika_dap::cost_journal::RunJournal
+impl<T, U> core::convert::Into<U> for nika_dap::cost_journal::RunJournal where U: core::convert::From<T>
+pub fn nika_dap::cost_journal::RunJournal::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::cost_journal::RunJournal where U: core::convert::Into<T>
+pub type nika_dap::cost_journal::RunJournal::Error = core::convert::Infallible
+pub fn nika_dap::cost_journal::RunJournal::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::cost_journal::RunJournal where U: core::convert::TryFrom<T>
+pub type nika_dap::cost_journal::RunJournal::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::cost_journal::RunJournal::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_dap::cost_journal::RunJournal where T: 'static + ?core::marker::Sized
+pub fn nika_dap::cost_journal::RunJournal::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::cost_journal::RunJournal where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::RunJournal::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::cost_journal::RunJournal where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::RunJournal::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_dap::cost_journal::RunJournal
+pub fn nika_dap::cost_journal::RunJournal::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_dap::cost_journal::RunJournal where T: 'static
+pub fn nika_dap::cost_journal::RunJournal::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::cost_journal::RunJournal where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::RunJournal::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::cost_journal::RunJournal::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::cost_journal::RunJournal
+impl<T> tracing::instrument::WithSubscriber for nika_dap::cost_journal::RunJournal
+impl<T> typenum::type_operators::Same for nika_dap::cost_journal::RunJournal
+pub type nika_dap::cost_journal::RunJournal::Output = T
 #[non_exhaustive] pub struct nika_dap::cost_journal::Writer
 pub nika_dap::cost_journal::Writer::host: alloc::string::String
 pub nika_dap::cost_journal::Writer::pid: u32
@@ -1464,11 +2443,20 @@ impl<T> tracing::instrument::WithSubscriber for nika_dap::cost_journal::Writer
 impl<T> typenum::type_operators::Same for nika_dap::cost_journal::Writer
 pub type nika_dap::cost_journal::Writer::Output = T
 pub const nika_dap::cost_journal::JOURNAL: &str
+pub const nika_dap::cost_journal::REVIEWS_RETAINED: usize
+pub const nika_dap::cost_journal::REVIEW_TTL: core::time::Duration
+pub trait nika_dap::cost_journal::RunAccount: core::marker::Send + core::marker::Sync
+pub fn nika_dap::cost_journal::RunAccount::close(&self, why: &str) -> core::io::error::Result<()>
+pub fn nika_dap::cost_journal::RunAccount::observation(&self) -> core::io::error::Result<serde_json::value::Value>
 pub fn nika_dap::cost_journal::append_row(nika: &nika_fs::owned_dir::OwnedDir, row: &str) -> core::io::error::Result<()>
+pub fn nika_dap::cost_journal::clear(root: &nika_fs::owned_dir::OwnedDir, observer: &str) -> core::io::error::Result<core::result::Result<nika_dap::cost_journal::Cleared, nika_dap::cost_journal::Blocked>>
 pub fn nika_dap::cost_journal::fold(nika: &nika_fs::owned_dir::OwnedDir, host: &str, observer: &str) -> core::io::error::Result<nika_dap::cost_journal::Exposures>
 pub fn nika_dap::cost_journal::fold_as(nika: &nika_fs::owned_dir::OwnedDir, holder: &nika_dap::cost_journal::Writer, observer: &str) -> core::io::error::Result<nika_dap::cost_journal::Exposures>
 pub fn nika_dap::cost_journal::refusal(exposures: &nika_dap::cost_journal::Exposures) -> alloc::string::String
+pub fn nika_dap::cost_journal::review_witness(nonce: &[u8; 32], binding: &str) -> alloc::string::String
 pub fn nika_dap::cost_journal::take(nika: &nika_fs::owned_dir::OwnedDir, writer: &nika_dap::cost_journal::Writer) -> core::io::error::Result<nika_dap::cost_journal::Taken>
+pub fn nika_dap::cost_journal::take_at(project: &nika_fs::owned_dir::OwnedDir, nika: &nika_fs::owned_dir::OwnedDir, writer: &nika_dap::cost_journal::Writer) -> core::io::error::Result<nika_dap::cost_journal::Taken>
+pub type nika_dap::cost_journal::AccountView = alloc::boxed::Box<(dyn core::ops::function::Fn() -> core::option::Option<serde_json::value::Value> + core::marker::Send + core::marker::Sync)>
 pub mod nika_dap::cost_replay
 #[non_exhaustive] pub enum nika_dap::cost_replay::Agreement
 pub nika_dap::cost_replay::Agreement::Agrees
@@ -2079,10 +3067,12 @@ pub fn nika_dap::journal::TraceFileSink::disabled() -> Self
 pub fn nika_dap::journal::TraceFileSink::error(&self) -> core::option::Option<&core::io::error::Error>
 pub fn nika_dap::journal::TraceFileSink::finalize(&mut self)
 pub fn nika_dap::journal::TraceFileSink::for_execution(self, execution: nika_types::id::ExecutionId, trace: nika_types::id::TraceId) -> Self
+pub fn nika_dap::journal::TraceFileSink::interrupt(&mut self, execution: nika_types::id::ExecutionId, operator: bool)
 pub fn nika_dap::journal::TraceFileSink::into_error(self) -> core::option::Option<core::io::error::Error>
 pub fn nika_dap::journal::TraceFileSink::is_disabled(&self) -> bool
 pub fn nika_dap::journal::TraceFileSink::new(dir: impl core::convert::Into<std::path::PathBuf>) -> Self
 pub fn nika_dap::journal::TraceFileSink::path(&self) -> core::option::Option<&std::path::Path>
+pub fn nika_dap::journal::TraceFileSink::settle_sealed(&mut self, seal: impl core::ops::function::FnOnce(&mut Self)) -> core::io::error::Result<core::option::Option<alloc::string::String>>
 impl nika_dap::journal::TraceFileSink
 pub fn nika_dap::journal::TraceFileSink::write_record<T: serde_core::ser::Serialize>(&mut self, record: &T) -> core::io::error::Result<()>
 impl core::ops::drop::Drop for nika_dap::journal::TraceFileSink
@@ -3284,6 +4274,7 @@ pub nika_dap::seal::SealTeardown::quarantine: core::option::Option<serde_json::v
 pub nika_dap::seal::SealTeardown::sdk_receipt: core::option::Option<serde_json::value::Value>
 impl nika_dap::seal::SealTeardown
 pub fn nika_dap::seal::SealTeardown::new() -> Self
+pub fn nika_dap::seal::SealTeardown::served(workflow: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, outcome: &str, settlement: core::option::Option<&nika_event::settlement::RunSettlement>, sdk_receipt: serde_json::value::Value, memory_root: &std::path::Path) -> Self
 impl core::clone::Clone for nika_dap::seal::SealTeardown
 pub fn nika_dap::seal::SealTeardown::clone(&self) -> nika_dap::seal::SealTeardown
 impl core::default::Default for nika_dap::seal::SealTeardown
@@ -3336,6 +4327,7 @@ pub fn nika_dap::seal::load_public_box() -> core::option::Option<alloc::string::
 pub fn nika_dap::seal::load_signing_key() -> core::option::Option<(minisign::secret_key::SecretKey, alloc::string::String)>
 pub fn nika_dap::seal::seal_event(run_id: nika_types::id::EventId, at: nika_types::timestamp::Timestamp, head: &str, events: usize, workflow_hash: &str, engine: &str, sk: &minisign::secret_key::SecretKey, pk_box: &str) -> core::option::Option<nika_event::event::Event>
 pub fn nika_dap::seal::seal_event_with(run_id: nika_types::id::EventId, at: nika_types::timestamp::Timestamp, head: &str, events: usize, workflow_hash: &str, engine: &str, teardown: core::option::Option<&nika_dap::seal::SealTeardown>, sk: &minisign::secret_key::SecretKey, pk_box: &str) -> core::option::Option<nika_event::event::Event>
+pub fn nika_dap::seal::workflow_hash(workflow: &nika_schema::raw::workflow::RawWorkflow) -> core::option::Option<alloc::string::String>
 pub mod nika_dap::sign
 pub enum nika_dap::sign::WorkflowSig
 pub nika_dap::sign::WorkflowSig::Invalid(alloc::string::String)
@@ -3608,6 +4600,7 @@ pub const nika_dap::store::QUARANTINE_DIR: &str
 pub const nika_dap::store::TRACE_DIR: &str
 pub fn nika_dap::store::fold_facts(events: &[nika_event::event::Event]) -> (alloc::string::String, nika_dap::store::TraceState, core::option::Option<alloc::string::String>)
 pub fn nika_dap::store::latest_in(dir: &std::path::Path) -> core::option::Option<std::path::PathBuf>
+pub fn nika_dap::store::locate_trace(dir: &std::path::Path, execution: &str, trace: &str) -> core::option::Option<std::path::PathBuf>
 pub fn nika_dap::store::parse_older_than(raw: &str) -> core::result::Result<core::time::Duration, alloc::string::String>
 pub fn nika_dap::store::resolve_handle(dir: &std::path::Path, handle: &str) -> core::option::Option<std::path::PathBuf>
 pub fn nika_dap::store::scan(dir: &std::path::Path) -> alloc::vec::Vec<nika_dap::store::TraceMeta>

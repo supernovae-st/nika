@@ -58,6 +58,7 @@ grace bounds execution draining, not filesystem cleanup or a stuck backend. \
 Allow extra time before a supervisor forces SIGKILL.";
 
 /// `nika serve` — the resident firer's args, plus the explicit HTTP pair.
+#[allow(clippy::struct_excessive_bools)] // one bool per independent CLI switch
 #[derive(Debug, Clone, Default, clap::Args)]
 #[non_exhaustive]
 #[command(after_long_help = SHUTDOWN_HELP)]
@@ -100,4 +101,10 @@ pub struct ServeArgs {
     /// Explicit model invocation and physical-request ceiling per authoring round (default 1).
     #[arg(long, value_name = "N", requires = "model")]
     pub authoring_max_calls: Option<u32>,
+    /// Seat the cost-review door (POST /v1/cost-reviews · health `costReviewV1`).
+    #[arg(long, requires = "bind")]
+    pub cost_review: bool,
+    /// Per-run spend ceiling of manual jobs in USD (default 1); `none` disarms it explicitly.
+    #[arg(long, value_name = "USD|none", requires = "bind")]
+    pub run_cost_ceiling: Option<String>,
 }

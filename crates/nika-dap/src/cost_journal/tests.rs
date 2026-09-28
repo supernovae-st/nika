@@ -892,6 +892,395 @@ fn a_prepared_row_whose_account_already_moved_is_a_conflict() {
     }
 }
 
+/// The route an unknown-cost choice names, as the account serializes it.
+fn choice() -> serde_json::Value {
+    json!({"provider": "deepseek", "model": "deepseek-chat",
+        "endpoint": "https://127.0.0.1:18443/v1", "candidate": "c", "declared_tariff": null,
+        "invocation": "i", "max_output_tokens": 16, "max_requests": 1, "timeout_ms": 4000})
+}
+
+/// A Run prepared by `pid` and settled Uncertain with one sent request the
+/// provider named `req-1`: its prepared and settled lines.
+fn uncertain_run(invocation: &str, pid: u64) -> (String, String) {
+    let sent = json!({"sent": true, "estimated_nano_usd": null, "request_id": "req-1"});
+    let prepared = observed(
+        invocation,
+        "prepared",
+        pid,
+        &json!({"unknown_cost": choice()}),
+    );
+    let settled = observed(
+        invocation,
+        "settled",
+        pid,
+        &json!({"unknown_cost": choice(), "state": "Uncertain", "unknown_calls": 1,
+            "unknown_attempts": [sent]}),
+    );
+    (prepared, settled)
+}
+
+/// The `reconciled` row a lease holder writes for the Run whose latest line is
+/// `head`: its own facts copied, the operator's attestation, a local principal.
+fn resolution(head: &str, word: &str) -> serde_json::Value {
+    let head_row: serde_json::Value = serde_json::from_str(head).unwrap();
+    let recorded = facts(&head_row);
+    json!({"schema": "nika/run-cost-observation@1", "invocation": head_row["invocation"],
+        "phase": "reconciled", "reconciliation": {"schema": RECONCILIATION,
+            "prior_sha256": sha(head), "resolution": word,
+            "evidence": {"class": "operator_attestation", "verified": false,
+                "reference": "invoice INV-7 line 2"},
+            "route": recorded["route"], "provider_request_ids": recorded["provider_request_ids"],
+            "window": recorded["window"],
+            "principal": {"kind": "local_account", "uid": 501, "name": "operator"},
+            "project": {"binding": "0".repeat(64), "basis": "host-local inspected-directory binding"},
+            "observed_at": "2026-09-28T04:00:00Z"},
+        "lease": {"pid": 77, "host": HOST}})
+}
+
+/// B6 · P4 · a final resolution of the Run's latest row ends its exposure and
+/// keeps every row: `billed` and `not_billed` alike, on the settled Uncertain
+/// row itself. The fold appends nothing.
+#[test]
+fn a_final_resolution_ends_an_uncertain_exposure_and_keeps_every_row() {
+    for word in ["billed", "not_billed"] {
+        let (prepared, settled) = uncertain_run("run-u", 51);
+        let resolved = resolution(&settled, word);
+        let claim = &resolved["reconciliation"];
+        assert_eq!(
+            claim["route"]["model"], "deepseek-chat",
+            "copied, never typed"
+        );
+        assert_eq!(claim["provider_request_ids"], json!(["req-1"]));
+        let (root, nika) = project(&[prepared, settled, resolved.to_string()]);
+        let before = journal(&root);
+        let exposures = fold_as(&nika, &holder(HOST, None), "run-next").unwrap();
+        assert!(exposures.is_clear(), "{word}: {exposures:?}");
+        assert_eq!(journal(&root), before, "{word}: nothing appended");
+    }
+}
+
+/// B6 · `still_unknown` keeps the Run blocking and becomes its latest row, so
+/// a later resolution must name it: one that names the older row is stale.
+#[test]
+fn still_unknown_keeps_blocking_and_becomes_the_runs_latest_row() {
+    let (prepared, settled) = uncertain_run("run-h", 52);
+    let held = resolution(&settled, "still_unknown").to_string();
+    let rows = [prepared, settled.clone(), held.clone()];
+    let (_root, nika) = project(&rows);
+    let exposures = fold_as(&nika, &holder(HOST, None), "run-next").unwrap();
+    let still = Blocker::new("run-h".into(), Exposure::StillUnknown);
+    assert_eq!(exposures.runs, vec![still.clone()]);
+    assert!(refusal(&exposures).contains("Run run-h was reconciled as still unknown"));
+    let stale = resolution(&settled, "billed").to_string();
+    let (_root, nika) = project(&[rows.to_vec(), vec![stale.clone()]].concat());
+    let exposures = fold_as(&nika, &holder(HOST, None), "run-next").unwrap();
+    assert_eq!(exposures.runs, vec![still]);
+    assert_eq!(
+        conflicts(&exposures),
+        vec![(
+            "run-h".into(),
+            sha(&stale),
+            "reconciles a row other than the Run's latest"
+        )]
+    );
+    let final_row = resolution(&held, "billed").to_string();
+    let (_root, nika) = project(&[rows.to_vec(), vec![final_row]].concat());
+    assert!(
+        fold_as(&nika, &holder(HOST, None), "run-next")
+            .unwrap()
+            .is_clear()
+    );
+}
+
+/// B6 · a recorded unknown is resolved through its own digest, in the shape
+/// this engine derives and in the earlier `observation` shape.
+#[test]
+fn a_recorded_unknown_is_resolved_through_its_own_digest() {
+    let invocation = "exe-01a0e5c5-de7d-7199-aa9e-4830e9cda9c8";
+    let prepared = observed(
+        invocation,
+        "prepared",
+        53,
+        &json!({"unknown_cost": choice()}),
+    );
+    let current = derived(&prepared, "exe-01a0e5ea-d6cc-7621-8f55-01df6f1b026d");
+    let earlier = current.replace("\"prior_observation\"", "\"observation\"");
+    for unknown in [current, earlier] {
+        let resolved = resolution(&unknown, "not_billed");
+        assert_eq!(
+            resolved["reconciliation"]["window"],
+            json!({"basis": "uuidv7-execution-ids", "not_before": "2026-09-28T02:09:05.149Z",
+                "not_after": "2026-09-28T02:49:28.012Z"}),
+            "the ids' own times, labeled as such"
+        );
+        let (_root, nika) = project(&[prepared.clone(), unknown, resolved.to_string()]);
+        let exposures = fold_as(&nika, &holder(HOST, None), "run-next").unwrap();
+        assert!(exposures.is_clear(), "{exposures:?}");
+    }
+}
+
+/// B6 · only an uncertain settlement, a recorded unknown or a still-unknown
+/// resolution can be resolved. A clean settlement, a prepared (unjudged) Run
+/// and an orphan are conflicts; after a final, only its exact repeat is benign.
+#[test]
+fn only_a_runs_uncertain_or_unknown_latest_row_can_be_resolved() {
+    let prepared = observed("run-c", "prepared", 54, &json!({}));
+    let clean = observed("run-c", "settled", 54, &json!({}));
+    let on_clean = resolution(&clean, "billed").to_string();
+    let far = prepared_on("run-f", 55, "far-host", None);
+    let on_prepared = resolution(&far, "billed").to_string();
+    let mut orphan = resolution(&clean, "billed");
+    orphan["invocation"] = json!("run-o");
+    let orphan = orphan.to_string();
+    let (_root, nika) = project(&[
+        prepared,
+        clean,
+        on_clean.clone(),
+        far,
+        on_prepared.clone(),
+        orphan.clone(),
+    ]);
+    let exposures = fold_as(&nika, &holder(HOST, None), "run-next").unwrap();
+    assert_eq!(
+        exposures.runs,
+        vec![Blocker::new("run-f".into(), Exposure::Unjudged)]
+    );
+    assert_eq!(
+        conflicts(&exposures),
+        vec![
+            (
+                "run-c".into(),
+                sha(&on_clean),
+                "reconciles a Run that settled without uncertainty"
+            ),
+            (
+                "run-f".into(),
+                sha(&on_prepared),
+                "reconciles a Run that has not settled or been recorded unknown"
+            ),
+            (
+                "run-o".into(),
+                sha(&orphan),
+                "names a Run with no prepared row before it"
+            ),
+        ]
+    );
+    let (prepared, settled) = uncertain_run("run-d", 56);
+    let done = resolution(&settled, "billed").to_string();
+    let again = resolution(&done, "not_billed").to_string();
+    let (_root, nika) = project(&[
+        prepared.clone(),
+        settled.clone(),
+        done.clone(),
+        done.clone(),
+    ]);
+    assert!(
+        fold_as(&nika, &holder(HOST, None), "run-next")
+            .unwrap()
+            .is_clear(),
+        "an exact repeat"
+    );
+    let (_root, nika) = project(&[prepared, settled, done, again.clone()]);
+    let exposures = fold_as(&nika, &holder(HOST, None), "run-next").unwrap();
+    assert!(exposures.runs.is_empty());
+    assert_eq!(
+        conflicts(&exposures),
+        vec![(
+            "run-d".into(),
+            sha(&again),
+            "follows the Run's reconciliation"
+        )]
+    );
+}
+
+/// B6 · a resolution this door does not support never clears: the Run keeps
+/// its exposure, and the row is a named conflict.
+#[test]
+fn a_resolution_this_door_does_not_support_never_clears() {
+    let (prepared, settled) = uncertain_run("run-x", 57);
+    let long = "r".repeat(513);
+    let cases: [(&str, serde_json::Value, &str); 13] = [
+        (
+            "/reconciliation/evidence/class",
+            json!("provider_invoice"),
+            "carries evidence this engine does not support",
+        ),
+        (
+            "/reconciliation/evidence/verified",
+            json!(true),
+            "carries evidence this engine does not support",
+        ),
+        (
+            "/reconciliation/evidence/reference",
+            json!(""),
+            "carries evidence this engine does not support",
+        ),
+        (
+            "/reconciliation/evidence/reference",
+            json!("see \u{1b}[2J"),
+            "carries evidence this engine does not support",
+        ),
+        (
+            "/reconciliation/evidence/reference",
+            json!(long),
+            "carries evidence this engine does not support",
+        ),
+        (
+            "/reconciliation/principal/kind",
+            json!("claimed"),
+            "names no local principal",
+        ),
+        (
+            "/reconciliation/principal/uid",
+            json!("501"),
+            "names no local principal",
+        ),
+        (
+            "/reconciliation/principal/uid",
+            json!(1_u64 << 40),
+            "names no local principal",
+        ),
+        (
+            "/reconciliation/observed_at",
+            json!("yesterday"),
+            "records no readable observation time",
+        ),
+        (
+            "/reconciliation/route/model",
+            json!("deepseek-reasoner"),
+            "names a route or request its Run does not record",
+        ),
+        (
+            "/reconciliation/provider_request_ids",
+            json!([]),
+            "names a route or request its Run does not record",
+        ),
+        (
+            "/reconciliation/window/not_before",
+            json!("2026-01-01T00:00:00Z"),
+            "names a route or request its Run does not record",
+        ),
+        (
+            "/reconciliation/resolution",
+            json!("refunded"),
+            "names a resolution this engine does not know",
+        ),
+    ];
+    for (pointer, value, reason) in cases {
+        let mut forged = resolution(&settled, "billed");
+        *forged.pointer_mut(pointer).unwrap() = value;
+        let forged = forged.to_string();
+        let (_root, nika) = project(&[prepared.clone(), settled.clone(), forged.clone()]);
+        let exposures = fold_as(&nika, &holder(HOST, None), "run-next").unwrap();
+        assert_eq!(
+            exposures.runs,
+            vec![Blocker::new("run-x".into(), Exposure::Uncertain)],
+            "{pointer}"
+        );
+        assert_eq!(
+            conflicts(&exposures),
+            vec![("run-x".into(), sha(&forged), reason)],
+            "{pointer}"
+        );
+    }
+}
+
+/// B6 · a resolution without the lease its writer held never clears: after
+/// leased rows it carries no lease at all, and in a legacy (lease-less)
+/// journal it still must name the lease it held.
+#[test]
+fn a_resolution_without_its_writers_lease_never_clears() {
+    let (prepared, settled) = uncertain_run("run-x", 57);
+    let mut unleased = resolution(&settled, "billed");
+    unleased.as_object_mut().unwrap().remove("lease");
+    let unleased = unleased.to_string();
+    let (_root, nika) = project(&[prepared, settled, unleased.clone()]);
+    let exposures = fold_as(&nika, &holder(HOST, None), "run-next").unwrap();
+    assert_eq!(
+        conflicts(&exposures),
+        vec![(
+            "run-x".into(),
+            sha(&unleased),
+            "carries no cost lease after leased rows began"
+        )]
+    );
+    let legacy_prepared = row("run-l", "prepared", "Open", None);
+    let mut legacy_settled: serde_json::Value =
+        serde_json::from_str(&uncertain_run("run-l", 58).1).unwrap();
+    legacy_settled.as_object_mut().unwrap().remove("lease");
+    let legacy_settled = legacy_settled.to_string();
+    let mut legacy = resolution(&legacy_settled, "billed");
+    legacy.as_object_mut().unwrap().remove("lease");
+    let legacy = legacy.to_string();
+    let (_root, nika) = project(&[legacy_prepared, legacy_settled, legacy.clone()]);
+    let exposures = fold_as(&nika, &holder(HOST, None), "run-next").unwrap();
+    assert_eq!(
+        exposures.runs,
+        vec![Blocker::new("run-l".into(), Exposure::Uncertain)]
+    );
+    assert_eq!(
+        conflicts(&exposures),
+        vec![(
+            "run-l".into(),
+            sha(&legacy),
+            "reconciles without holding the cost lease"
+        )]
+    );
+}
+
+/// B6 · a reconciliation under a contract this engine does not know, or one
+/// that names no prior row, is unreadable: prior exposure is unknown (never a
+/// clear journal), exactly as an engine before this phase reads every one.
+#[test]
+fn an_unreadable_reconciliation_fails_closed() {
+    let (prepared, settled) = uncertain_run("run-r", 59);
+    for (pointer, value) in [
+        (
+            "/reconciliation/schema",
+            json!("nika/cost-reconciliation@2"),
+        ),
+        ("/reconciliation/prior_sha256", serde_json::Value::Null),
+    ] {
+        let mut unreadable = resolution(&settled, "billed");
+        *unreadable.pointer_mut(pointer).unwrap() = value;
+        let (_root, nika) = project(&[prepared.clone(), settled.clone(), unreadable.to_string()]);
+        let error = fold_as(&nika, &holder(HOST, None), "run-next").unwrap_err();
+        assert_eq!(error.kind(), std::io::ErrorKind::InvalidData, "{pointer}");
+    }
+}
+
+/// B6 · the facts a resolution copies: the route of the unknown-cost choice,
+/// every provider request id, and a window labeled as the `UUIDv7` time of the
+/// ids themselves (null for any id that is not a `UUIDv7` execution id).
+#[test]
+fn the_window_is_the_time_of_the_ids_never_a_request_time() {
+    let v4 = "exe-2b1f8a4e-6c3d-4f5a-9b8c-7d6e5f4a3b2c";
+    for (invocation, expected) in [
+        (
+            "exe-01a0e5ea-d6cc-7621-8f55-01df6f1b026d",
+            json!("2026-09-28T02:49:28.012Z"),
+        ),
+        ("run-x", serde_json::Value::Null),
+        (v4, serde_json::Value::Null),
+    ] {
+        let head = observed(
+            invocation,
+            "settled",
+            60,
+            &json!({"unknown_cost": choice()}),
+        );
+        let recorded = facts(&serde_json::from_str(&head).unwrap());
+        assert_eq!(recorded["window"]["basis"], "uuidv7-execution-ids");
+        assert_eq!(recorded["window"]["not_before"], expected, "{invocation}");
+        assert_eq!(recorded["window"]["not_after"], serde_json::Value::Null);
+        assert_eq!(
+            recorded["route"],
+            json!({"provider": "deepseek", "model": "deepseek-chat",
+            "endpoint": "https://127.0.0.1:18443/v1"})
+        );
+    }
+}
+
 /// A held lease refuses a second holder and names it; a dropped lease is taken
 /// again (the kernel's release is the whole liveness proof).
 #[test]
@@ -910,4 +1299,150 @@ fn a_held_lease_is_busy_and_a_released_one_is_taken_again() {
     let record = std::fs::read_to_string(root.path().join(".nika").join(LEASE)).unwrap();
     let record: serde_json::Value = serde_json::from_str(&record).unwrap();
     assert_eq!(record, writer.json());
+}
+
+#[test]
+fn unlinking_a_live_leases_name_does_not_allow_a_second_writer() {
+    let (root, nika) = project(&[]);
+    let writer = Writer::this_process();
+    let Taken::Held(lease) = take(&nika, &writer).unwrap() else {
+        panic!("free lease");
+    };
+    std::fs::remove_file(root.path().join(".nika").join(LEASE)).unwrap();
+    assert!(matches!(take(&nika, &writer).unwrap(), Taken::Busy { .. }));
+    drop(lease);
+    assert!(matches!(take(&nika, &writer).unwrap(), Taken::Held(_)));
+}
+
+#[test]
+fn a_journal_shared_by_hard_link_is_refused_without_changing_its_bytes() {
+    let (root, nika) = project(&[row("run", "prepared", "Open", Some((7, HOST)))]);
+    let (other, other_nika) = project(&[]);
+    let before = journal(&root);
+    std::fs::hard_link(
+        root.path().join(".nika").join(JOURNAL),
+        other.path().join(".nika").join(JOURNAL),
+    )
+    .unwrap();
+    assert!(take(&nika, &Writer::this_process()).is_err());
+    assert!(take(&other_nika, &Writer::this_process()).is_err());
+    assert_eq!(journal(&root), before);
+    assert_eq!(journal(&other), before);
+}
+
+#[test]
+fn replacing_journal_and_lock_names_does_not_bypass_a_live_directory_lease() {
+    let (root, nika) = project(&[row("run", "prepared", "Open", Some((7, HOST)))]);
+    let writer = Writer::this_process();
+    let Taken::Held(lease) = take(&nika, &writer).unwrap() else {
+        panic!("free lease");
+    };
+    let dir = root.path().join(".nika");
+    std::fs::rename(dir.join(JOURNAL), dir.join("set-aside.ndjson")).unwrap();
+    std::fs::copy(dir.join("set-aside.ndjson"), dir.join(JOURNAL)).unwrap();
+    std::fs::remove_file(dir.join(LEASE)).unwrap();
+    assert!(matches!(take(&nika, &writer).unwrap(), Taken::Busy { .. }));
+    drop(lease);
+}
+
+#[test]
+fn a_linked_legacy_lock_still_excludes_the_new_lease() {
+    let (_root, nika) = project(&[]);
+    let legacy = Flock::lock(
+        nika.open_lock(LEASE).unwrap(),
+        FlockArg::LockExclusiveNonblock,
+    )
+    .unwrap();
+    let writer = Writer::this_process();
+    assert!(matches!(take(&nika, &writer).unwrap(), Taken::Busy { .. }));
+    drop(legacy);
+    assert!(matches!(take(&nika, &writer).unwrap(), Taken::Held(_)));
+}
+
+#[test]
+fn replacing_nika_inside_a_stable_project_does_not_admit_a_second_writer() {
+    let (root, nika) = project(&[row("run", "prepared", "Open", Some((7, HOST)))]);
+    let writer = Writer::this_process();
+    let Taken::Held(lease) = take(&nika, &writer).unwrap() else {
+        panic!("free lease");
+    };
+    let before = journal(&root);
+    std::fs::rename(
+        root.path().join(".nika"),
+        root.path().join(".nika-set-aside"),
+    )
+    .unwrap();
+    let replacement = OwnedDir::create(root.path(), &[".nika"]).unwrap();
+    std::fs::write(root.path().join(".nika").join(JOURNAL), &before).unwrap();
+    assert!(matches!(
+        take(&replacement, &writer).unwrap(),
+        Taken::Busy { .. }
+    ));
+    assert_eq!(journal(&root), before);
+    assert!(!root.path().join(".nika").join(LEASE).exists());
+    drop(lease);
+    assert!(matches!(
+        take(&replacement, &writer).unwrap(),
+        Taken::Held(_)
+    ));
+}
+
+#[test]
+fn project_leases_do_not_serialize_sibling_projects() {
+    let parent = tempfile::tempdir().unwrap();
+    let a = OwnedDir::create(parent.path(), &["a", ".nika"]).unwrap();
+    let b = OwnedDir::create(parent.path(), &["b", ".nika"]).unwrap();
+    let writer = Writer::this_process();
+    let Taken::Held(_a) = take(&a, &writer).unwrap() else {
+        panic!("first project lease");
+    };
+    assert!(matches!(take(&b, &writer).unwrap(), Taken::Held(_)));
+}
+
+#[test]
+fn moving_an_opened_nika_does_not_change_the_project_being_locked() {
+    let (root, original) = project(&[]);
+    let project = OwnedDir::open(root.path()).unwrap();
+    let elsewhere = tempfile::tempdir().unwrap();
+    let writer = Writer::this_process();
+    let Taken::Held(lease) = take(&original, &writer).unwrap() else {
+        panic!("original project lease");
+    };
+    std::fs::rename(
+        root.path().join(".nika"),
+        root.path().join(".nika-original"),
+    )
+    .unwrap();
+    let opened = OwnedDir::create(root.path(), &[".nika"]).unwrap();
+    std::fs::rename(root.path().join(".nika"), elsewhere.path().join(".nika")).unwrap();
+    assert!(matches!(
+        take_at(&project, &opened, &writer).unwrap(),
+        Taken::Busy { .. }
+    ));
+    assert!(!elsewhere.path().join(".nika").join(JOURNAL).exists());
+    drop(lease);
+    assert!(take_at(&project, &opened, &writer).is_err());
+    assert!(!elsewhere.path().join(".nika").join(JOURNAL).exists());
+}
+
+#[test]
+fn an_explicit_project_refuses_a_sibling_directory_without_writes() {
+    let (root, own) = project(&[]);
+    let (_other_root, other) = project(&[]);
+    let project = OwnedDir::open(root.path()).unwrap();
+    let writer = Writer::this_process();
+    assert!(take_at(&project, &other, &writer).is_err());
+    assert!(other.read_optional(LEASE).unwrap().is_none());
+    let Taken::Held(held) = take_at(&project, &own, &writer).unwrap() else {
+        panic!("original project can still acquire its lease");
+    };
+    assert!(matches!(
+        take_at(&project, &own, &writer).unwrap(),
+        Taken::Busy { .. }
+    ));
+    drop(held);
+    assert!(matches!(
+        take_at(&project, &own, &writer).unwrap(),
+        Taken::Held(_)
+    ));
 }

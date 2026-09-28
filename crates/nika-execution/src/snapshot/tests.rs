@@ -451,3 +451,49 @@ fn a_wire_body_without_digests_decodes_to_the_same_world() {
         "an attested digest that mismatches refuses"
     );
 }
+
+/// C6 (moved with the wire probe from Serve's job door) · each envelope refusal
+/// is typed and comes before any decode: too many units, a non-envelope, a
+/// long path, a non-canonical digest, bad hex, oversized metadata; a small
+/// canonical envelope passes.
+#[test]
+fn the_wire_probe_types_each_envelope_refusal_before_decode() {
+    use super::{WIRE_UNIT_CEILING, WireLimits, WireRefusal, check_wire};
+    let limits = WireLimits::new(64, 4096);
+    let digest = "a".repeat(64);
+    let unit = |path: &str, digest: &str, hex: &str| {
+        format!(r#"{{"path":"{path}","digest":"{digest}","bytes_hex":"{hex}"}}"#)
+    };
+    let envelope = |root: &str, units: &[String]| {
+        format!(
+            r#"{{"format_version":1,"root":"{root}","units":[{}]}}"#,
+            units.join(",")
+        )
+    };
+    let ok = envelope("root.nika", &[unit("root.nika", &digest, "6e696b61")]);
+    assert_eq!(check_wire(&ok, limits), Ok(()));
+    let many: Vec<String> = (0..=WIRE_UNIT_CEILING)
+        .map(|n| unit(&format!("u{n}.nika"), &digest, "00"))
+        .collect();
+    assert_eq!(
+        check_wire(&envelope("root.nika", &many), limits),
+        Err(WireRefusal::UnitCount)
+    );
+    assert_eq!(
+        check_wire("not a snapshot", limits),
+        Err(WireRefusal::Malformed)
+    );
+    let long = "p".repeat(65);
+    assert_eq!(
+        check_wire(&envelope(&long, &[]), limits),
+        Err(WireRefusal::PathLimit)
+    );
+    let upper = envelope("root.nika", &[unit("root.nika", &"A".repeat(64), "00")]);
+    assert_eq!(check_wire(&upper, limits), Err(WireRefusal::Digest));
+    let odd = envelope("root.nika", &[unit("root.nika", &digest, "abc")]);
+    assert_eq!(check_wire(&odd, limits), Err(WireRefusal::Hex));
+    assert_eq!(
+        check_wire(&ok, WireLimits::new(64, 8)),
+        Err(WireRefusal::MetadataLimit)
+    );
+}

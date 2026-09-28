@@ -328,6 +328,120 @@ pub fn scan_foreign(path: &std::path::Path) -> Option<TraceMeta> {
     scan(path.parent()?).into_iter().find(|t| t.path == path)
 }
 
+/// The journal a run's `execution` (`exe-<uuid>`) and `trace` ids name under
+/// `dir`, by the sink's own naming law: `<ts>-<last 4 hex>.ndjson`, or
+/// `<ts>-<32 hex>.ndjson` on a same-second collision. Two runs in different
+/// seconds can share a short id, so the first line's `execution.uuid` (the
+/// stamp the sink writes on every line, read bounded) settles which file is
+/// the run's. `None` when no file is. (Descended from Serve's trace verdict,
+/// C6.)
+#[must_use]
+pub fn locate_trace(dir: &Path, execution: &str, trace: &str) -> Option<PathBuf> {
+    let short = trace.get(trace.len().saturating_sub(4)..)?;
+    let tails = [format!("-{short}.ndjson"), format!("-{trace}.ndjson")];
+    let wanted = uuid_digits(execution);
+    let mut candidates: Vec<PathBuf> = std::fs::read_dir(dir)
+        .ok()?
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| {
+            path.file_name()
+                .and_then(std::ffi::OsStr::to_str)
+                .is_some_and(|name| tails.iter().any(|tail| name.ends_with(tail)))
+        })
+        .collect();
+    candidates.sort();
+    candidates
+        .into_iter()
+        .find(|path| first_line_execution(path).is_some_and(|found| found == wanted))
+}
+
+/// A uuid's hex digits: a record stores `exe-<hyphenated>`, a journal
+/// `{"uuid": "<hyphenated>"}`; the digits are the identity.
+fn uuid_digits(id: &str) -> String {
+    id.strip_prefix("exe-")
+        .unwrap_or(id)
+        .chars()
+        .filter(char::is_ascii_hexdigit)
+        .map(|c| c.to_ascii_lowercase())
+        .collect()
+}
+
+/// The first line's execution stamp, read bounded (one line, at most the
+/// chain's line bound: the journal is untrusted input).
+fn first_line_execution(path: &Path) -> Option<String> {
+    use std::io::{BufRead as _, Read as _};
+    let file = std::fs::File::open(path).ok()?;
+    let bound = u64::try_from(crate::chain::MAX_LINE_BYTES).unwrap_or(u64::MAX);
+    let mut reader = std::io::BufReader::new(file.take(bound.saturating_add(1)));
+    let mut line = String::new();
+    reader.read_line(&mut line).ok()?;
+    let value: serde_json::Value = serde_json::from_str(line.trim_end()).ok()?;
+    value
+        .get("execution")?
+        .get("uuid")?
+        .as_str()
+        .map(uuid_digits)
+}
+
+#[cfg(test)]
+mod locate_tests {
+    use super::*;
+
+    /// The identity digits: the record's `exe-` form and the journal's
+    /// hyphenated uuid name the same run.
+    #[test]
+    fn uuid_digits_strip_the_prefix_and_the_hyphens() {
+        assert_eq!(
+            uuid_digits("exe-01a07812-3b0a-7ba0-b27e-a4893cac734f"),
+            "01a078123b0a7ba0b27ea4893cac734f"
+        );
+        assert_eq!(
+            uuid_digits("01A07812-3B0A-7BA0-B27E-A4893CAC734F"),
+            "01a078123b0a7ba0b27ea4893cac734f"
+        );
+    }
+
+    /// Two journals sharing a short id (different seconds) are told apart by
+    /// the first line's execution stamp; a stranger's file is never the run's.
+    #[test]
+    fn locate_reads_the_first_lines_execution_to_settle_a_shared_short_id() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let line = |uuid: &str| {
+            format!(
+                "{{\"id\":{{\"uuid\":\"{uuid}\"}},\"timestamp\":1,\"kind\":\"workflow_started\",\"execution\":{{\"uuid\":\"{uuid}\"}},\"fields\":[],\"chain\":\"x\"}}\n"
+            )
+        };
+        let mine = "01a07812-3b0a-7ba0-b27e-a4893cac734f";
+        let other = "0000aaaa-0000-7000-8000-00000000734f";
+        std::fs::write(
+            dir.path().join("2026-01-01T00-00-00Z-734f.ndjson"),
+            line(other),
+        )
+        .expect("other");
+        std::fs::write(
+            dir.path().join("2026-01-01T00-00-01Z-734f.ndjson"),
+            line(mine),
+        )
+        .expect("mine");
+        let found = locate_trace(dir.path(), &format!("exe-{mine}"), &uuid_digits(mine))
+            .expect("the run's journal");
+        assert!(
+            found.ends_with("2026-01-01T00-00-01Z-734f.ndjson"),
+            "{found:?}"
+        );
+        assert!(
+            locate_trace(
+                dir.path(),
+                "exe-ffffffff-0000-7000-8000-000000000000",
+                "ffffffff00007000800000000000734f"
+            )
+            .is_none(),
+            "a run with no journal is not found in a stranger's file"
+        );
+    }
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;

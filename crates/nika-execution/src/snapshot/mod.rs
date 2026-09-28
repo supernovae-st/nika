@@ -13,6 +13,9 @@ use sha2::{Digest, Sha256};
 
 use crate::ExecutionError;
 
+mod wire;
+pub use wire::{WIRE_UNIT_CEILING, WireLimits, WireRefusal, check_wire};
+
 /// Current immutable snapshot format.
 pub const SNAPSHOT_FORMAT_VERSION: u32 = 1;
 

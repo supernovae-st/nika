@@ -47,6 +47,7 @@ use nika_runtime::{
 };
 
 pub mod access;
+mod caller;
 pub mod inputs;
 pub mod run_cost;
 
@@ -465,7 +466,7 @@ impl ServiceExecutionDriver {
             .map_or("", |model| model.value.as_str());
         let default_model = options.model_override.as_deref().unwrap_or(envelope_model);
         let runtime = self
-            .compose(default_model)?
+            .compose_configured(default_model, options.runtime_config)?
             .with_var_overrides(options.inputs)
             .with_input_origins(options.input_origins)
             .with_max_cost_usd(options.max_cost_usd)
@@ -841,6 +842,8 @@ pub struct ServiceExecutionOptions {
     /// The operator's cancellation the runtime observes at every wave
     /// boundary (#1353).
     cancel: Option<nika_types::cancel::CancelCtx>,
+    /// The host-bound configuration (the Run's cost account) composition uses.
+    runtime_config: Option<nika_runtime::RuntimeConfig>,
 }
 
 /// Builds the mirror sink for one run (a lane per run, the child-trace
@@ -857,6 +860,7 @@ impl std::fmt::Debug for ServiceExecutionOptions {
             .field("access_plan", &self.access_plan.is_some())
             .field("mirror", &self.mirror.is_some())
             .field("cancel", &self.cancel.is_some())
+            .field("runtime_config", &self.runtime_config.is_some())
             .finish_non_exhaustive()
     }
 }

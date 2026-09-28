@@ -43,8 +43,9 @@ pub(in crate::server) fn native(mut document: Value) -> Value {
     document
 }
 
-/// RFC 7386: an object merges key by key, `null` removes a key, anything else replaces.
-fn merge(target: &mut Value, patch: Value) {
+/// RFC 7386: an object merges key by key, `null` removes a key, anything else replaces. The
+/// served document's one merge: the native compile patch here and the cost-review door's patch.
+pub(in crate::server) fn merge(target: &mut Value, patch: Value) {
     let Value::Object(patch) = patch else {
         *target = patch;
         return;

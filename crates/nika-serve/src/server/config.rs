@@ -162,7 +162,9 @@ impl ServerLimits {
             && self.sse_reconnect.as_millis() >= 100
             && self.sse_reconnect.as_millis() <= 30_000
             && match self.default_max_cost_usd {
-                Some(cost) => cost.is_finite() && cost > 0.0,
+                // Zero is a binding ceiling (every priced reservation refuses),
+                // never a disarm; only `None` disarms (C6).
+                Some(cost) => cost.is_finite() && cost >= 0.0,
                 None => true,
             }
     }
@@ -225,7 +227,8 @@ impl ServerLimits {
 
     /// The run's effective per-run spend ceiling (#1349): a declaration
     /// RESTRICTS the server default, never widens it — when both exist
-    /// the LOWER wins. Both operands are validated finite and positive
+    /// the LOWER wins. Both operands are validated finite (the declaration
+    /// positive, the default non-negative: zero is a binding veto)
     /// upstream (the coordinator at admission, `valid()` at startup).
     pub(crate) fn effective_max_cost_usd(self, declared: Option<f64>) -> Option<f64> {
         match (declared, self.default_max_cost_usd) {
@@ -342,6 +345,10 @@ pub struct ServerConfig {
     token_file: PathBuf,
     allow_remote: bool,
     native: Option<super::NativeAuthoring>,
+    cost_review: bool,
+    /// An explicit startup ceiling (`Some(None)` is the explicit disarm), kept
+    /// apart from the default it replaces.
+    run_cost_ceiling: Option<ServerLimits>,
 }
 
 impl ServerConfig {
@@ -359,6 +366,8 @@ impl ServerConfig {
             token_file: token_file.into(),
             allow_remote: false,
             native: None,
+            cost_review: false,
+            run_cost_ceiling: None,
         }
     }
 
@@ -375,6 +384,31 @@ impl ServerConfig {
     pub fn with_native_authoring(mut self, native: super::NativeAuthoring) -> Self {
         self.native = Some(native);
         self
+    }
+
+    /// Seat the cost-review door (`POST /v1/cost-reviews`, health `costReviewV1`): off
+    /// unless called. It grants review authority only; it never changes a ceiling.
+    #[must_use]
+    pub const fn with_cost_review(mut self, seat: bool) -> Self {
+        self.cost_review = seat;
+        self
+    }
+
+    /// Replace the per-run ceiling at startup: an amount, or `None` for an explicit
+    /// operator disarm ([`super::serve_resident_process`] applies it).
+    #[must_use]
+    pub fn with_run_cost_ceiling(mut self, ceiling: Option<f64>) -> Self {
+        self.run_cost_ceiling = Some(ServerLimits::default().with_default_max_cost_usd(ceiling));
+        self
+    }
+
+    pub(crate) const fn cost_review(&self) -> bool {
+        self.cost_review
+    }
+
+    /// The resident limits this listener's startup options ask for, when any.
+    pub(crate) const fn resident_limits(&self) -> Option<ServerLimits> {
+        self.run_cost_ceiling
     }
 
     pub(crate) const fn native_authoring(&self) -> Option<&super::NativeAuthoring> {
@@ -405,6 +439,8 @@ impl fmt::Debug for ServerConfig {
             .field("bind", &self.bind)
             .field("allow_remote", &self.allow_remote)
             .field("native_authoring", &self.native)
+            .field("cost_review", &self.cost_review)
+            .field("run_cost_ceiling", &self.run_cost_ceiling)
             .finish_non_exhaustive()
     }
 }
