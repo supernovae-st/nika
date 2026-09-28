@@ -1,0 +1,3 @@
+node_modules/
+# renders, font cuts, glyph outlines, stills, segments, audio: all regenerable
+.cache/

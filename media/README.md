@@ -23,6 +23,27 @@ font prerequisites and regeneration steps are in
 The older `intent-dag-proof` film remains an archived alternative; it is no
 longer the README hero.
 
+## Architecture film
+
+**From intent to proof:** [30-second MP4](videos/intent-to-proof.mp4),
+[poster](posters/intent-to-proof.png) and
+[contact sheet](storyboards/intent-to-proof.png).
+
+One request travels the V9 target architecture: a sentence becomes six
+obligations; the observed world grounds them; a Foundry block is proposed;
+Rust proves the semantic plan. The one unknown, a currency, is asked rather
+than guessed. The plan is then lowered deterministically into a `.nika`
+program, checked, and closed against the intent. A human consents to the exact
+revision; the runtime executes one effect and returns the result with proof.
+
+This is an **architecture illustration with fixture data**. The program it
+draws is `scripts/media/fixtures/invoice-payments.nika`, which passes `nika check`.
+The check rows, task durations, and computed totals (€228.00) are captured from
+the real binary. The payment itself is illustrative, and some components carry
+their V9 target names. The ledger of what is real, the 120 BPM timing system,
+and the render steps are in
+[the film README](../scripts/media/motion/intent-to-proof/README.md).
+
 ## Rules
 
 - **No fake commands.** Every command shown in an asset exists in the CLI.

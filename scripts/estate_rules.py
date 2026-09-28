@@ -224,7 +224,7 @@ PATTERNS = [
         "class": "generated",
         "evidence": "media/README.md: 'Never edit exports by hand. Edit the motion scene or fixture, then re-render' — gifs/posters/videos/social render from scripts/media/motion/ scenes + tapes; raw/ transcripts are captured from the real binary",
         "derivation": {
-            "tool": "scripts/media/render-motion.mjs + render-tape.sh + capture-transcripts.sh (scenes: scripts/media/motion/ · fixtures: scripts/media/fixtures/ · tapes: scripts/media/tapes/)",
+            "tool": "scripts/media/render-motion.mjs + render-tape.sh + capture-transcripts.sh + scripts/media/motion/intent-to-proof/render.mjs (scenes: scripts/media/motion/ · fixtures: scripts/media/fixtures/ · tapes: scripts/media/tapes/)",
             "gate": "scripts/media/validate-media.sh (every shown workflow passes nika check · budgets enforced)",
             "inputs": ["scripts/media/motion/**", "scripts/media/fixtures/**", "scripts/media/tapes/**", "the real nika binary (captured transcripts)"],
         },

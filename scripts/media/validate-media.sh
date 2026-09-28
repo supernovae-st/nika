@@ -89,6 +89,10 @@ required=(
   media/storyboards/intent-dag-proof.png
   media/raw/transcripts.json
   scripts/media/motion/intent-dag-proof.storyboard.md
+  media/videos/intent-to-proof.mp4
+  media/posters/intent-to-proof.png
+  media/storyboards/intent-to-proof.png
+  scripts/media/motion/intent-to-proof/README.md
 )
 for f in "${required[@]}"; do
   if [ -f "$f" ]; then say "✔ $f"; else
@@ -108,6 +112,14 @@ if command -v ffprobe >/dev/null 2>&1 \
   say "✔ product film MP4 is exactly 60 seconds"
 else
   say "✖ product film duration must be 60 seconds (ffprobe required)"
+  fail=1
+fi
+# The architecture film is cut to one 120 BPM clock: exactly 15 bars.
+if command -v ffprobe >/dev/null 2>&1 \
+  && [ "$(ffprobe -v error -show_entries format=duration -of csv=p=0 media/videos/intent-to-proof.mp4)" = "30.000000" ]; then
+  say "✔ architecture film MP4 is exactly 30 seconds"
+else
+  say "✖ architecture film duration must be 30 seconds (ffprobe required)"
   fail=1
 fi
 
