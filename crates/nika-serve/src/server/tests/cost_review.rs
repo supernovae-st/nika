@@ -463,6 +463,49 @@ async fn a_present_server_ceiling_is_a_hard_cap() {
     server.stop().await.expect("stop");
 }
 
+/// C6 defect 1 (B12): the ceiling's remedy follows only the refusal the
+/// ceiling causes; an unsupported shape or a project ceiling of zero keeps
+/// its own words, under the same present server ceiling.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_ceiling_remedy_follows_only_its_own_refusal() {
+    let world = world();
+    let exec = "nika: exec\nmodel: deepseek/c6-unpriced-fixture\npermits: { exec: ['echo'] }\ntasks:\n  ask:\n    infer: { prompt: hi, max_tokens: 16 }\n  shell:\n    exec: { command: ['echo', 'x'] }\n";
+    std::fs::write(world.workflows.join("exec.nika"), exec).expect("workflow");
+    let limits = limits().with_default_max_cost_usd(Some(1.0));
+    let (server, _state) = start(&world, Arc::new(ReviewedBackend::default()), limits, true).await;
+    let capped = server
+        .request(&review_request(REVIEW_BODY, "review-1"))
+        .await;
+    assert_eq!(capped.status, 422, "{}", capped.body);
+    assert!(
+        capped.body.contains("--run-cost-ceiling none"),
+        "{}",
+        capped.body
+    );
+    let exec_body = r#"{"workflow":"exec.nika"}"#;
+    let shape = server.request(&review_request(exec_body, "review-2")).await;
+    assert_eq!(shape.status, 422, "{}", shape.body);
+    assert!(shape.body.contains("exec or agent"), "{}", shape.body);
+    assert!(!shape.body.contains("--run-cost-ceiling"), "{}", shape.body);
+    std::fs::write(
+        world.workflows.join("nika.yaml"),
+        "nika: zero\nceiling: 0\n",
+    )
+    .expect("project");
+    let project = server
+        .request(&review_request(REVIEW_BODY, "review-3"))
+        .await;
+    assert_eq!(project.status, 422, "{}", project.body);
+    assert!(project.body.contains("positive real"), "{}", project.body);
+    assert!(
+        !project.body.contains("--run-cost-ceiling"),
+        "{}",
+        project.body
+    );
+    assert!(lease_is_free(&world), "a refused review holds nothing");
+    server.stop().await.expect("stop");
+}
+
 /// A lost response is observed, never re-granted: the same key and bytes
 /// answer the same review; other bytes conflict; a lost job response replays
 /// the job before the review is read, and the review stays consumed once.

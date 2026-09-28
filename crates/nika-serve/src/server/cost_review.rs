@@ -240,8 +240,12 @@ async fn open_review(
     })
     .await
     .map_err(|_| internal())?;
-    let framed = framed.map_err(|why| {
-        let hint = ceiling.map_or(String::new(), |usd| format!(" · this server's per-run ceiling ({usd} USD) is a hard cap: an operator may disarm it explicitly at startup (--run-cost-ceiling none)"));
+    // Only the cap's own refusal teaches the cap's remedy (C6 defect 1).
+    let framed = framed.map_err(|refused| {
+        let (why, hint) = match refused {
+            Refused::Capped(why) => (why, ceiling.map_or(String::new(), |usd| format!(" · this server's per-run ceiling ({usd} USD) is a hard cap: an operator may disarm it explicitly at startup (--run-cost-ceiling none)"))),
+            Refused::Other(why) => (why, String::new()),
+        };
         json_error(StatusCode::UNPROCESSABLE_ENTITY, "cost_review_refused", &format!("{why}{hint}"))
     })?;
     let Some((review, session, plan, execution)) = framed.0 else {
@@ -288,6 +292,13 @@ type Framed = (
     bool,
 );
 
+/// Why framing refused, in the evaluator's words: this server's own hard cap
+/// (the one refusal whose remedy it teaches) or any other cause.
+enum Refused {
+    Capped(String),
+    Other(String),
+}
+
 fn frame(
     service: ExecutionService,
     admitted: AdmittedExecution,
@@ -295,10 +306,10 @@ fn frame(
     ceiling: Option<f64>,
     inputs: &BTreeMap<String, Value>,
     (access, forced): (Option<&str>, Option<ExecutionAccessPlan>),
-) -> Result<Framed, String> {
+) -> Result<Framed, Refused> {
     let session = service.begin(admitted);
     let driver = nika_service_execution::ServiceExecutionDriver::new(session.context(), root)
-        .ok_or("workflow world could not be composed")?;
+        .ok_or_else(|| Refused::Other("workflow world could not be composed".into()))?;
     let plan = forced.unwrap_or_else(|| driver.resolve_access_plan(None, access));
     let execution = session.context().execution_id().to_string();
     let ask = || Ok(());
@@ -313,18 +324,18 @@ fn frame(
         inputs,
         None,
         (evidence(ceiling), &ask),
-    )?;
+    )
+    .map_err(Refused::Other)?;
     // Version 1 documents only a single-attempt sequential Run: a fan or an
     // authored retry, and a fan that sends nothing, keep their v1 refusal.
-    let v1_refusal = || nika_service_execution::run_cost::RunShapeError::Control.to_string();
+    let v1 =
+        || Refused::Other(nika_service_execution::run_cost::RunShapeError::Control.to_string());
     Ok(match prepared {
-        RunCostPlan::Review(review) if review.dispatch_bound().multiplied() => {
-            return Err(v1_refusal());
-        }
+        RunCostPlan::Review(review) if review.dispatch_bound().multiplied() => return Err(v1()),
         RunCostPlan::Review(review) => (Some((review, session, plan, execution)), false),
-        RunCostPlan::Observer(cost) if cost.dispatch_bound().is_some() => return Err(v1_refusal()),
+        RunCostPlan::Observer(cost) if cost.dispatch_bound().is_some() => return Err(v1()),
         RunCostPlan::Observer(_) => (None, true),
-        RunCostPlan::HardCapped(why) => return Err(why),
+        RunCostPlan::HardCapped(why) => return Err(Refused::Capped(why)),
         _ => (None, false),
     })
 }
