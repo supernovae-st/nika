@@ -596,6 +596,37 @@ fn a_command_shaped_line_never_answers_a_gate_or_an_input() {
     ));
 }
 
+/// E8 (3): the quoted escape reaches a run's input as it reaches a question — a value in
+/// quotes is its content (how a protocol word becomes the literal value: `"why"` binds `why`,
+/// where `why` alone explains), never its quotes; unquoted words and a path bind as typed.
+#[test]
+fn a_quoted_run_input_binds_its_content() {
+    for (line, bound) in [
+        ("\"why\"", "name=why"),
+        ("\"cancel\"", "name=cancel"),
+        (
+            "\"exports/rapport final.txt\"",
+            "name=exports/rapport final.txt",
+        ),
+        ("quantum news", "name=quantum news"),
+        ("/tmp/a.csv", "name=/tmp/a.csv"),
+        ("\"", "name=\""),
+    ] {
+        let mut w = world(&[], false);
+        std::fs::write(w.dir.path().join("greet.nika"), NEEDS_INPUT).expect("workflow");
+        let TurnOutcome::Question { key, .. } = w.s.turn("run greet.nika") else {
+            panic!("the input is asked");
+        };
+        assert_eq!(key, "input.name");
+        let out = w.s.turn(line);
+        assert!(
+            matches!(&out, TurnOutcome::RunRequested { run, .. } if run.vars == [bound]),
+            "{line}: {out:?}"
+        );
+        assert_eq!(w.routed() + w.read(), 0, "{line}");
+    }
+}
+
 /// The control: read-only lines keep the consent identity, but a genuine revision (here the
 /// proposal's ceiling amended) is a new proposal — the old identity is stale and applies
 /// nothing; only the revised one lands.

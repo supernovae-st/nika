@@ -947,6 +947,8 @@ impl SessionRuntime {
                 "the input needs a value — nothing answers for you (`cancel` drops the run)",
             ));
         }
+        // A value in quotes is its content: the escape for a word the protocol would take.
+        let value = serde_json::from_str::<String>(value).unwrap_or_else(|_| value.to_owned());
         let name = inputs.needed.remove(0);
         inputs.given.push(format!("{name}={value}"));
         self.intent.unresolved.clear();
