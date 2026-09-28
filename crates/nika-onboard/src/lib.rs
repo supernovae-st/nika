@@ -44,6 +44,9 @@ pub mod compile {
     /// The Meaning view of an outcome's obligation ledger — what survived of the request,
     /// clause by clause — owned beside the ledger it reads (the session re-exports it).
     pub mod meaning;
+    /// The authoring round a host keeps across a close (C7): the request, the settled
+    /// answers and the question that waited, as evidence — never authority.
+    pub mod round;
 }
 pub mod compile_config;
 pub mod fixtures;

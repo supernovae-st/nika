@@ -172,6 +172,532 @@ pub fn nika_onboard::compile::meaning::clauses_of(ledger: &serde_json::value::Va
 pub fn nika_onboard::compile::meaning::delta(base: &serde_json::value::Value, revised: &serde_json::value::Value) -> core::option::Option<alloc::string::String>
 pub fn nika_onboard::compile::meaning::render(out: &nika_compile::types::CompileOutcome) -> core::option::Option<alloc::string::String>
 pub fn nika_onboard::compile::meaning::render_ledger(ledger: &serde_json::value::Value, candidate: core::option::Option<&str>) -> alloc::string::String
+pub mod nika_onboard::compile::round
+#[non_exhaustive] pub enum nika_onboard::compile::round::RoundReading
+pub nika_onboard::compile::round::RoundReading::Unreadable
+pub nika_onboard::compile::round::RoundReading::Unreadable::raw: serde_json::value::Value
+pub nika_onboard::compile::round::RoundReading::Unreadable::why: alloc::string::String
+pub nika_onboard::compile::round::RoundReading::Usable
+pub nika_onboard::compile::round::RoundReading::Usable::raw: serde_json::value::Value
+pub nika_onboard::compile::round::RoundReading::Usable::record: alloc::boxed::Box<nika_onboard::compile::round::RoundRecord>
+impl nika_onboard::compile::round::RoundReading
+pub fn nika_onboard::compile::round::RoundReading::from_raw(raw: serde_json::value::Value) -> Self
+pub fn nika_onboard::compile::round::RoundReading::raw(&self) -> &serde_json::value::Value
+impl core::clone::Clone for nika_onboard::compile::round::RoundReading
+pub fn nika_onboard::compile::round::RoundReading::clone(&self) -> nika_onboard::compile::round::RoundReading
+impl core::cmp::Eq for nika_onboard::compile::round::RoundReading
+impl core::cmp::PartialEq for nika_onboard::compile::round::RoundReading
+pub fn nika_onboard::compile::round::RoundReading::eq(&self, other: &nika_onboard::compile::round::RoundReading) -> bool
+impl core::fmt::Debug for nika_onboard::compile::round::RoundReading
+pub fn nika_onboard::compile::round::RoundReading::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_onboard::compile::round::RoundReading
+impl<D> owo_colors::OwoColorize for nika_onboard::compile::round::RoundReading
+impl<Q, K> equivalent::Equivalent<K> for nika_onboard::compile::round::RoundReading where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile::round::RoundReading::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_onboard::compile::round::RoundReading where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile::round::RoundReading::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_onboard::compile::round::RoundReading where U: core::convert::From<T>
+pub fn nika_onboard::compile::round::RoundReading::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::round::RoundReading where U: core::convert::Into<T>
+pub type nika_onboard::compile::round::RoundReading::Error = core::convert::Infallible
+pub fn nika_onboard::compile::round::RoundReading::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::round::RoundReading where U: core::convert::TryFrom<T>
+pub type nika_onboard::compile::round::RoundReading::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::compile::round::RoundReading::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_onboard::compile::round::RoundReading where T: core::clone::Clone
+pub type nika_onboard::compile::round::RoundReading::Owned = T
+pub fn nika_onboard::compile::round::RoundReading::clone_into(&self, target: &mut T)
+pub fn nika_onboard::compile::round::RoundReading::to_owned(&self) -> T
+impl<T> core::any::Any for nika_onboard::compile::round::RoundReading where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::compile::round::RoundReading::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::compile::round::RoundReading where T: ?core::marker::Sized
+pub fn nika_onboard::compile::round::RoundReading::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::compile::round::RoundReading where T: ?core::marker::Sized
+pub fn nika_onboard::compile::round::RoundReading::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_onboard::compile::round::RoundReading where T: core::clone::Clone
+pub unsafe fn nika_onboard::compile::round::RoundReading::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_onboard::compile::round::RoundReading
+pub fn nika_onboard::compile::round::RoundReading::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_onboard::compile::round::RoundReading where T: core::clone::Clone
+pub fn nika_onboard::compile::round::RoundReading::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_onboard::compile::round::RoundReading where T: 'static
+pub fn nika_onboard::compile::round::RoundReading::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::compile::round::RoundReading where T: ?core::marker::Sized
+pub fn nika_onboard::compile::round::RoundReading::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::compile::round::RoundReading::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::compile::round::RoundReading
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::round::RoundReading
+impl<T> typenum::type_operators::Same for nika_onboard::compile::round::RoundReading
+pub type nika_onboard::compile::round::RoundReading::Output = T
+#[non_exhaustive] pub enum nika_onboard::compile::round::Unusable
+pub nika_onboard::compile::round::Unusable::Altered(&'static str)
+pub nika_onboard::compile::round::Unusable::NoQuestion
+pub nika_onboard::compile::round::Unusable::Redacted(&'static str)
+pub nika_onboard::compile::round::Unusable::TooManyAnswers(usize)
+pub nika_onboard::compile::round::Unusable::Withheld(alloc::string::String)
+impl core::clone::Clone for nika_onboard::compile::round::Unusable
+pub fn nika_onboard::compile::round::Unusable::clone(&self) -> nika_onboard::compile::round::Unusable
+impl core::cmp::Eq for nika_onboard::compile::round::Unusable
+impl core::cmp::PartialEq for nika_onboard::compile::round::Unusable
+pub fn nika_onboard::compile::round::Unusable::eq(&self, other: &nika_onboard::compile::round::Unusable) -> bool
+impl core::fmt::Debug for nika_onboard::compile::round::Unusable
+pub fn nika_onboard::compile::round::Unusable::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_onboard::compile::round::Unusable
+pub fn nika_onboard::compile::round::Unusable::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_onboard::compile::round::Unusable
+impl<D> owo_colors::OwoColorize for nika_onboard::compile::round::Unusable
+impl<Q, K> equivalent::Equivalent<K> for nika_onboard::compile::round::Unusable where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile::round::Unusable::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_onboard::compile::round::Unusable where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile::round::Unusable::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_onboard::compile::round::Unusable where U: core::convert::From<T>
+pub fn nika_onboard::compile::round::Unusable::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::round::Unusable where U: core::convert::Into<T>
+pub type nika_onboard::compile::round::Unusable::Error = core::convert::Infallible
+pub fn nika_onboard::compile::round::Unusable::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::round::Unusable where U: core::convert::TryFrom<T>
+pub type nika_onboard::compile::round::Unusable::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::compile::round::Unusable::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_onboard::compile::round::Unusable where T: core::clone::Clone
+pub type nika_onboard::compile::round::Unusable::Owned = T
+pub fn nika_onboard::compile::round::Unusable::clone_into(&self, target: &mut T)
+pub fn nika_onboard::compile::round::Unusable::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_onboard::compile::round::Unusable where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_onboard::compile::round::Unusable::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_onboard::compile::round::Unusable where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::compile::round::Unusable::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::compile::round::Unusable where T: ?core::marker::Sized
+pub fn nika_onboard::compile::round::Unusable::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::compile::round::Unusable where T: ?core::marker::Sized
+pub fn nika_onboard::compile::round::Unusable::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_onboard::compile::round::Unusable where T: core::clone::Clone
+pub unsafe fn nika_onboard::compile::round::Unusable::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_onboard::compile::round::Unusable
+pub fn nika_onboard::compile::round::Unusable::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_onboard::compile::round::Unusable where T: core::clone::Clone
+pub fn nika_onboard::compile::round::Unusable::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> iri_string::format::ToStringFallible for nika_onboard::compile::round::Unusable where T: core::fmt::Display
+pub fn nika_onboard::compile::round::Unusable::try_to_string(&self) -> core::result::Result<alloc::string::String, alloc::collections::TryReserveError>
+impl<T> nika_error::traits::AsAny for nika_onboard::compile::round::Unusable where T: 'static
+pub fn nika_onboard::compile::round::Unusable::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::compile::round::Unusable where T: ?core::marker::Sized
+pub fn nika_onboard::compile::round::Unusable::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::compile::round::Unusable::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::compile::round::Unusable
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::round::Unusable
+impl<T> typenum::type_operators::Same for nika_onboard::compile::round::Unusable
+pub type nika_onboard::compile::round::Unusable::Output = T
+pub struct nika_onboard::compile::round::Capture<'r>
+impl<'r> nika_onboard::compile::round::Capture<'r>
+pub fn nika_onboard::compile::round::Capture<'r>::answers(self, answers: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> Self
+pub fn nika_onboard::compile::round::Capture<'r>::authoring_receipt(self, receipt: core::option::Option<&nika_compile::types::AuthoringReceipt>) -> Self
+pub fn nika_onboard::compile::round::Capture<'r>::continuation(self, plan: core::option::Option<&serde_json::value::Value>) -> Self
+pub fn nika_onboard::compile::round::Capture<'r>::edit(self, path: core::option::Option<&str>, base: &str, change: &str, original: core::option::Option<&str>) -> Self
+pub fn nika_onboard::compile::round::Capture<'r>::finish(self) -> core::option::Option<serde_json::value::Value>
+pub fn nika_onboard::compile::round::Capture<'r>::knowledge(self, record: core::option::Option<&serde_json::value::Value>) -> Self
+pub fn nika_onboard::compile::round::Capture<'r>::new(request: &str, redact: &'r dyn core::ops::function::Fn(&str) -> alloc::string::String) -> Self
+pub fn nika_onboard::compile::round::Capture<'r>::questions(self, questions: &[nika_compile::types::CompileQuestion]) -> Self
+pub fn nika_onboard::compile::round::Capture<'r>::reasons(self, reasons: &[alloc::string::String]) -> Self
+pub fn nika_onboard::compile::round::Capture<'r>::restatements(self, restatements: u8) -> Self
+pub fn nika_onboard::compile::round::Capture<'r>::revises(self, proposal: core::option::Option<&str>) -> Self
+impl<D> owo_colors::OwoColorize for nika_onboard::compile::round::Capture<'r>
+impl<T, U> core::convert::Into<U> for nika_onboard::compile::round::Capture<'r> where U: core::convert::From<T>
+pub fn nika_onboard::compile::round::Capture<'r>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::round::Capture<'r> where U: core::convert::Into<T>
+pub type nika_onboard::compile::round::Capture<'r>::Error = core::convert::Infallible
+pub fn nika_onboard::compile::round::Capture<'r>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::round::Capture<'r> where U: core::convert::TryFrom<T>
+pub type nika_onboard::compile::round::Capture<'r>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::compile::round::Capture<'r>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_onboard::compile::round::Capture<'r> where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::compile::round::Capture<'r>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::compile::round::Capture<'r> where T: ?core::marker::Sized
+pub fn nika_onboard::compile::round::Capture<'r>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::compile::round::Capture<'r> where T: ?core::marker::Sized
+pub fn nika_onboard::compile::round::Capture<'r>::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_onboard::compile::round::Capture<'r>
+pub fn nika_onboard::compile::round::Capture<'r>::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_onboard::compile::round::Capture<'r> where T: 'static
+pub fn nika_onboard::compile::round::Capture<'r>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::compile::round::Capture<'r> where T: ?core::marker::Sized
+pub fn nika_onboard::compile::round::Capture<'r>::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::compile::round::Capture<'r>::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::compile::round::Capture<'r>
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::round::Capture<'r>
+impl<T> typenum::type_operators::Same for nika_onboard::compile::round::Capture<'r>
+pub type nika_onboard::compile::round::Capture<'r>::Output = T
+#[non_exhaustive] pub struct nika_onboard::compile::round::KeptAnswer
+pub nika_onboard::compile::round::KeptAnswer::key: alloc::string::String
+pub nika_onboard::compile::round::KeptAnswer::literal: nika_onboard::compile::round::KeptText
+impl core::clone::Clone for nika_onboard::compile::round::KeptAnswer
+pub fn nika_onboard::compile::round::KeptAnswer::clone(&self) -> nika_onboard::compile::round::KeptAnswer
+impl core::cmp::Eq for nika_onboard::compile::round::KeptAnswer
+impl core::cmp::PartialEq for nika_onboard::compile::round::KeptAnswer
+pub fn nika_onboard::compile::round::KeptAnswer::eq(&self, other: &nika_onboard::compile::round::KeptAnswer) -> bool
+impl core::fmt::Debug for nika_onboard::compile::round::KeptAnswer
+pub fn nika_onboard::compile::round::KeptAnswer::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_onboard::compile::round::KeptAnswer
+impl<D> owo_colors::OwoColorize for nika_onboard::compile::round::KeptAnswer
+impl<Q, K> equivalent::Equivalent<K> for nika_onboard::compile::round::KeptAnswer where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile::round::KeptAnswer::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_onboard::compile::round::KeptAnswer where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile::round::KeptAnswer::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_onboard::compile::round::KeptAnswer where U: core::convert::From<T>
+pub fn nika_onboard::compile::round::KeptAnswer::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::round::KeptAnswer where U: core::convert::Into<T>
+pub type nika_onboard::compile::round::KeptAnswer::Error = core::convert::Infallible
+pub fn nika_onboard::compile::round::KeptAnswer::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::round::KeptAnswer where U: core::convert::TryFrom<T>
+pub type nika_onboard::compile::round::KeptAnswer::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::compile::round::KeptAnswer::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_onboard::compile::round::KeptAnswer where T: core::clone::Clone
+pub type nika_onboard::compile::round::KeptAnswer::Owned = T
+pub fn nika_onboard::compile::round::KeptAnswer::clone_into(&self, target: &mut T)
+pub fn nika_onboard::compile::round::KeptAnswer::to_owned(&self) -> T
+impl<T> core::any::Any for nika_onboard::compile::round::KeptAnswer where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::compile::round::KeptAnswer::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::compile::round::KeptAnswer where T: ?core::marker::Sized
+pub fn nika_onboard::compile::round::KeptAnswer::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::compile::round::KeptAnswer where T: ?core::marker::Sized
+pub fn nika_onboard::compile::round::KeptAnswer::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_onboard::compile::round::KeptAnswer where T: core::clone::Clone
+pub unsafe fn nika_onboard::compile::round::KeptAnswer::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_onboard::compile::round::KeptAnswer
+pub fn nika_onboard::compile::round::KeptAnswer::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_onboard::compile::round::KeptAnswer where T: core::clone::Clone
+pub fn nika_onboard::compile::round::KeptAnswer::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_onboard::compile::round::KeptAnswer where T: 'static
+pub fn nika_onboard::compile::round::KeptAnswer::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::compile::round::KeptAnswer where T: ?core::marker::Sized
+pub fn nika_onboard::compile::round::KeptAnswer::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::compile::round::KeptAnswer::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::compile::round::KeptAnswer
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::round::KeptAnswer
+impl<T> typenum::type_operators::Same for nika_onboard::compile::round::KeptAnswer
+pub type nika_onboard::compile::round::KeptAnswer::Output = T
+#[non_exhaustive] pub struct nika_onboard::compile::round::KeptEdit
+pub nika_onboard::compile::round::KeptEdit::base: nika_onboard::compile::round::KeptText
+pub nika_onboard::compile::round::KeptEdit::change: nika_onboard::compile::round::KeptText
+pub nika_onboard::compile::round::KeptEdit::original: core::option::Option<nika_onboard::compile::round::KeptText>
+pub nika_onboard::compile::round::KeptEdit::path: core::option::Option<nika_onboard::compile::round::KeptText>
+impl core::clone::Clone for nika_onboard::compile::round::KeptEdit
+pub fn nika_onboard::compile::round::KeptEdit::clone(&self) -> nika_onboard::compile::round::KeptEdit
+impl core::cmp::Eq for nika_onboard::compile::round::KeptEdit
+impl core::cmp::PartialEq for nika_onboard::compile::round::KeptEdit
+pub fn nika_onboard::compile::round::KeptEdit::eq(&self, other: &nika_onboard::compile::round::KeptEdit) -> bool
+impl core::fmt::Debug for nika_onboard::compile::round::KeptEdit
+pub fn nika_onboard::compile::round::KeptEdit::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_onboard::compile::round::KeptEdit
+impl<D> owo_colors::OwoColorize for nika_onboard::compile::round::KeptEdit
+impl<Q, K> equivalent::Equivalent<K> for nika_onboard::compile::round::KeptEdit where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile::round::KeptEdit::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_onboard::compile::round::KeptEdit where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile::round::KeptEdit::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_onboard::compile::round::KeptEdit where U: core::convert::From<T>
+pub fn nika_onboard::compile::round::KeptEdit::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::round::KeptEdit where U: core::convert::Into<T>
+pub type nika_onboard::compile::round::KeptEdit::Error = core::convert::Infallible
+pub fn nika_onboard::compile::round::KeptEdit::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::round::KeptEdit where U: core::convert::TryFrom<T>
+pub type nika_onboard::compile::round::KeptEdit::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::compile::round::KeptEdit::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_onboard::compile::round::KeptEdit where T: core::clone::Clone
+pub type nika_onboard::compile::round::KeptEdit::Owned = T
+pub fn nika_onboard::compile::round::KeptEdit::clone_into(&self, target: &mut T)
+pub fn nika_onboard::compile::round::KeptEdit::to_owned(&self) -> T
+impl<T> core::any::Any for nika_onboard::compile::round::KeptEdit where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::compile::round::KeptEdit::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::compile::round::KeptEdit where T: ?core::marker::Sized
+pub fn nika_onboard::compile::round::KeptEdit::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::compile::round::KeptEdit where T: ?core::marker::Sized
+pub fn nika_onboard::compile::round::KeptEdit::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_onboard::compile::round::KeptEdit where T: core::clone::Clone
+pub unsafe fn nika_onboard::compile::round::KeptEdit::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_onboard::compile::round::KeptEdit
+pub fn nika_onboard::compile::round::KeptEdit::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_onboard::compile::round::KeptEdit where T: core::clone::Clone
+pub fn nika_onboard::compile::round::KeptEdit::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_onboard::compile::round::KeptEdit where T: 'static
+pub fn nika_onboard::compile::round::KeptEdit::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::compile::round::KeptEdit where T: ?core::marker::Sized
+pub fn nika_onboard::compile::round::KeptEdit::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::compile::round::KeptEdit::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::compile::round::KeptEdit
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::round::KeptEdit
+impl<T> typenum::type_operators::Same for nika_onboard::compile::round::KeptEdit
+pub type nika_onboard::compile::round::KeptEdit::Output = T
+#[non_exhaustive] pub struct nika_onboard::compile::round::KeptOption
+pub nika_onboard::compile::round::KeptOption::key: alloc::string::String
+pub nika_onboard::compile::round::KeptOption::label: alloc::string::String
+impl core::clone::Clone for nika_onboard::compile::round::KeptOption
+pub fn nika_onboard::compile::round::KeptOption::clone(&self) -> nika_onboard::compile::round::KeptOption
+impl core::cmp::Eq for nika_onboard::compile::round::KeptOption
+impl core::cmp::PartialEq for nika_onboard::compile::round::KeptOption
+pub fn nika_onboard::compile::round::KeptOption::eq(&self, other: &nika_onboard::compile::round::KeptOption) -> bool
+impl core::fmt::Debug for nika_onboard::compile::round::KeptOption
+pub fn nika_onboard::compile::round::KeptOption::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_onboard::compile::round::KeptOption
+impl<D> owo_colors::OwoColorize for nika_onboard::compile::round::KeptOption
+impl<Q, K> equivalent::Equivalent<K> for nika_onboard::compile::round::KeptOption where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile::round::KeptOption::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_onboard::compile::round::KeptOption where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile::round::KeptOption::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_onboard::compile::round::KeptOption where U: core::convert::From<T>
+pub fn nika_onboard::compile::round::KeptOption::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::round::KeptOption where U: core::convert::Into<T>
+pub type nika_onboard::compile::round::KeptOption::Error = core::convert::Infallible
+pub fn nika_onboard::compile::round::KeptOption::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::round::KeptOption where U: core::convert::TryFrom<T>
+pub type nika_onboard::compile::round::KeptOption::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::compile::round::KeptOption::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_onboard::compile::round::KeptOption where T: core::clone::Clone
+pub type nika_onboard::compile::round::KeptOption::Owned = T
+pub fn nika_onboard::compile::round::KeptOption::clone_into(&self, target: &mut T)
+pub fn nika_onboard::compile::round::KeptOption::to_owned(&self) -> T
+impl<T> core::any::Any for nika_onboard::compile::round::KeptOption where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::compile::round::KeptOption::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::compile::round::KeptOption where T: ?core::marker::Sized
+pub fn nika_onboard::compile::round::KeptOption::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::compile::round::KeptOption where T: ?core::marker::Sized
+pub fn nika_onboard::compile::round::KeptOption::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_onboard::compile::round::KeptOption where T: core::clone::Clone
+pub unsafe fn nika_onboard::compile::round::KeptOption::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_onboard::compile::round::KeptOption
+pub fn nika_onboard::compile::round::KeptOption::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_onboard::compile::round::KeptOption where T: core::clone::Clone
+pub fn nika_onboard::compile::round::KeptOption::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_onboard::compile::round::KeptOption where T: 'static
+pub fn nika_onboard::compile::round::KeptOption::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::compile::round::KeptOption where T: ?core::marker::Sized
+pub fn nika_onboard::compile::round::KeptOption::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::compile::round::KeptOption::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::compile::round::KeptOption
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::round::KeptOption
+impl<T> typenum::type_operators::Same for nika_onboard::compile::round::KeptOption
+pub type nika_onboard::compile::round::KeptOption::Output = T
+#[non_exhaustive] pub struct nika_onboard::compile::round::KeptPlan
+pub nika_onboard::compile::round::KeptPlan::sha256: alloc::string::String
+pub nika_onboard::compile::round::KeptPlan::value: core::option::Option<serde_json::value::Value>
+pub nika_onboard::compile::round::KeptPlan::withheld: core::option::Option<alloc::string::String>
+impl core::clone::Clone for nika_onboard::compile::round::KeptPlan
+pub fn nika_onboard::compile::round::KeptPlan::clone(&self) -> nika_onboard::compile::round::KeptPlan
+impl core::cmp::Eq for nika_onboard::compile::round::KeptPlan
+impl core::cmp::PartialEq for nika_onboard::compile::round::KeptPlan
+pub fn nika_onboard::compile::round::KeptPlan::eq(&self, other: &nika_onboard::compile::round::KeptPlan) -> bool
+impl core::fmt::Debug for nika_onboard::compile::round::KeptPlan
+pub fn nika_onboard::compile::round::KeptPlan::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_onboard::compile::round::KeptPlan
+impl<D> owo_colors::OwoColorize for nika_onboard::compile::round::KeptPlan
+impl<Q, K> equivalent::Equivalent<K> for nika_onboard::compile::round::KeptPlan where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile::round::KeptPlan::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_onboard::compile::round::KeptPlan where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile::round::KeptPlan::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_onboard::compile::round::KeptPlan where U: core::convert::From<T>
+pub fn nika_onboard::compile::round::KeptPlan::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::round::KeptPlan where U: core::convert::Into<T>
+pub type nika_onboard::compile::round::KeptPlan::Error = core::convert::Infallible
+pub fn nika_onboard::compile::round::KeptPlan::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::round::KeptPlan where U: core::convert::TryFrom<T>
+pub type nika_onboard::compile::round::KeptPlan::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::compile::round::KeptPlan::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_onboard::compile::round::KeptPlan where T: core::clone::Clone
+pub type nika_onboard::compile::round::KeptPlan::Owned = T
+pub fn nika_onboard::compile::round::KeptPlan::clone_into(&self, target: &mut T)
+pub fn nika_onboard::compile::round::KeptPlan::to_owned(&self) -> T
+impl<T> core::any::Any for nika_onboard::compile::round::KeptPlan where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::compile::round::KeptPlan::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::compile::round::KeptPlan where T: ?core::marker::Sized
+pub fn nika_onboard::compile::round::KeptPlan::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::compile::round::KeptPlan where T: ?core::marker::Sized
+pub fn nika_onboard::compile::round::KeptPlan::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_onboard::compile::round::KeptPlan where T: core::clone::Clone
+pub unsafe fn nika_onboard::compile::round::KeptPlan::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_onboard::compile::round::KeptPlan
+pub fn nika_onboard::compile::round::KeptPlan::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_onboard::compile::round::KeptPlan where T: core::clone::Clone
+pub fn nika_onboard::compile::round::KeptPlan::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_onboard::compile::round::KeptPlan where T: 'static
+pub fn nika_onboard::compile::round::KeptPlan::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::compile::round::KeptPlan where T: ?core::marker::Sized
+pub fn nika_onboard::compile::round::KeptPlan::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::compile::round::KeptPlan::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::compile::round::KeptPlan
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::round::KeptPlan
+impl<T> typenum::type_operators::Same for nika_onboard::compile::round::KeptPlan
+pub type nika_onboard::compile::round::KeptPlan::Output = T
+#[non_exhaustive] pub struct nika_onboard::compile::round::KeptQuestion
+pub nika_onboard::compile::round::KeptQuestion::key: alloc::string::String
+pub nika_onboard::compile::round::KeptQuestion::kind: alloc::string::String
+pub nika_onboard::compile::round::KeptQuestion::label: alloc::string::String
+pub nika_onboard::compile::round::KeptQuestion::mandatory: bool
+pub nika_onboard::compile::round::KeptQuestion::options: alloc::vec::Vec<nika_onboard::compile::round::KeptOption>
+pub nika_onboard::compile::round::KeptQuestion::why: alloc::string::String
+impl core::clone::Clone for nika_onboard::compile::round::KeptQuestion
+pub fn nika_onboard::compile::round::KeptQuestion::clone(&self) -> nika_onboard::compile::round::KeptQuestion
+impl core::cmp::Eq for nika_onboard::compile::round::KeptQuestion
+impl core::cmp::PartialEq for nika_onboard::compile::round::KeptQuestion
+pub fn nika_onboard::compile::round::KeptQuestion::eq(&self, other: &nika_onboard::compile::round::KeptQuestion) -> bool
+impl core::fmt::Debug for nika_onboard::compile::round::KeptQuestion
+pub fn nika_onboard::compile::round::KeptQuestion::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_onboard::compile::round::KeptQuestion
+impl<D> owo_colors::OwoColorize for nika_onboard::compile::round::KeptQuestion
+impl<Q, K> equivalent::Equivalent<K> for nika_onboard::compile::round::KeptQuestion where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile::round::KeptQuestion::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_onboard::compile::round::KeptQuestion where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile::round::KeptQuestion::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_onboard::compile::round::KeptQuestion where U: core::convert::From<T>
+pub fn nika_onboard::compile::round::KeptQuestion::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::round::KeptQuestion where U: core::convert::Into<T>
+pub type nika_onboard::compile::round::KeptQuestion::Error = core::convert::Infallible
+pub fn nika_onboard::compile::round::KeptQuestion::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::round::KeptQuestion where U: core::convert::TryFrom<T>
+pub type nika_onboard::compile::round::KeptQuestion::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::compile::round::KeptQuestion::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_onboard::compile::round::KeptQuestion where T: core::clone::Clone
+pub type nika_onboard::compile::round::KeptQuestion::Owned = T
+pub fn nika_onboard::compile::round::KeptQuestion::clone_into(&self, target: &mut T)
+pub fn nika_onboard::compile::round::KeptQuestion::to_owned(&self) -> T
+impl<T> core::any::Any for nika_onboard::compile::round::KeptQuestion where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::compile::round::KeptQuestion::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::compile::round::KeptQuestion where T: ?core::marker::Sized
+pub fn nika_onboard::compile::round::KeptQuestion::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::compile::round::KeptQuestion where T: ?core::marker::Sized
+pub fn nika_onboard::compile::round::KeptQuestion::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_onboard::compile::round::KeptQuestion where T: core::clone::Clone
+pub unsafe fn nika_onboard::compile::round::KeptQuestion::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_onboard::compile::round::KeptQuestion
+pub fn nika_onboard::compile::round::KeptQuestion::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_onboard::compile::round::KeptQuestion where T: core::clone::Clone
+pub fn nika_onboard::compile::round::KeptQuestion::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_onboard::compile::round::KeptQuestion where T: 'static
+pub fn nika_onboard::compile::round::KeptQuestion::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::compile::round::KeptQuestion where T: ?core::marker::Sized
+pub fn nika_onboard::compile::round::KeptQuestion::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::compile::round::KeptQuestion::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::compile::round::KeptQuestion
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::round::KeptQuestion
+impl<T> typenum::type_operators::Same for nika_onboard::compile::round::KeptQuestion
+pub type nika_onboard::compile::round::KeptQuestion::Output = T
+#[non_exhaustive] pub struct nika_onboard::compile::round::KeptText
+pub nika_onboard::compile::round::KeptText::sha256: alloc::string::String
+pub nika_onboard::compile::round::KeptText::text: alloc::string::String
+impl nika_onboard::compile::round::KeptText
+pub fn nika_onboard::compile::round::KeptText::is_exact(&self) -> bool
+impl core::clone::Clone for nika_onboard::compile::round::KeptText
+pub fn nika_onboard::compile::round::KeptText::clone(&self) -> nika_onboard::compile::round::KeptText
+impl core::cmp::Eq for nika_onboard::compile::round::KeptText
+impl core::cmp::PartialEq for nika_onboard::compile::round::KeptText
+pub fn nika_onboard::compile::round::KeptText::eq(&self, other: &nika_onboard::compile::round::KeptText) -> bool
+impl core::fmt::Debug for nika_onboard::compile::round::KeptText
+pub fn nika_onboard::compile::round::KeptText::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_onboard::compile::round::KeptText
+impl<D> owo_colors::OwoColorize for nika_onboard::compile::round::KeptText
+impl<Q, K> equivalent::Equivalent<K> for nika_onboard::compile::round::KeptText where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile::round::KeptText::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_onboard::compile::round::KeptText where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile::round::KeptText::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_onboard::compile::round::KeptText where U: core::convert::From<T>
+pub fn nika_onboard::compile::round::KeptText::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::round::KeptText where U: core::convert::Into<T>
+pub type nika_onboard::compile::round::KeptText::Error = core::convert::Infallible
+pub fn nika_onboard::compile::round::KeptText::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::round::KeptText where U: core::convert::TryFrom<T>
+pub type nika_onboard::compile::round::KeptText::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::compile::round::KeptText::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_onboard::compile::round::KeptText where T: core::clone::Clone
+pub type nika_onboard::compile::round::KeptText::Owned = T
+pub fn nika_onboard::compile::round::KeptText::clone_into(&self, target: &mut T)
+pub fn nika_onboard::compile::round::KeptText::to_owned(&self) -> T
+impl<T> core::any::Any for nika_onboard::compile::round::KeptText where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::compile::round::KeptText::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::compile::round::KeptText where T: ?core::marker::Sized
+pub fn nika_onboard::compile::round::KeptText::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::compile::round::KeptText where T: ?core::marker::Sized
+pub fn nika_onboard::compile::round::KeptText::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_onboard::compile::round::KeptText where T: core::clone::Clone
+pub unsafe fn nika_onboard::compile::round::KeptText::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_onboard::compile::round::KeptText
+pub fn nika_onboard::compile::round::KeptText::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_onboard::compile::round::KeptText where T: core::clone::Clone
+pub fn nika_onboard::compile::round::KeptText::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_onboard::compile::round::KeptText where T: 'static
+pub fn nika_onboard::compile::round::KeptText::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::compile::round::KeptText where T: ?core::marker::Sized
+pub fn nika_onboard::compile::round::KeptText::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::compile::round::KeptText::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::compile::round::KeptText
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::round::KeptText
+impl<T> typenum::type_operators::Same for nika_onboard::compile::round::KeptText
+pub type nika_onboard::compile::round::KeptText::Output = T
+#[non_exhaustive] pub struct nika_onboard::compile::round::RoundRecord
+pub nika_onboard::compile::round::RoundRecord::answers: alloc::vec::Vec<nika_onboard::compile::round::KeptAnswer>
+pub nika_onboard::compile::round::RoundRecord::authoring_receipt: core::option::Option<serde_json::value::Value>
+pub nika_onboard::compile::round::RoundRecord::continuation: core::option::Option<nika_onboard::compile::round::KeptPlan>
+pub nika_onboard::compile::round::RoundRecord::edit: core::option::Option<nika_onboard::compile::round::KeptEdit>
+pub nika_onboard::compile::round::RoundRecord::knowledge: core::option::Option<serde_json::value::Value>
+pub nika_onboard::compile::round::RoundRecord::questions: alloc::vec::Vec<nika_onboard::compile::round::KeptQuestion>
+pub nika_onboard::compile::round::RoundRecord::reasons: alloc::vec::Vec<alloc::string::String>
+pub nika_onboard::compile::round::RoundRecord::request: nika_onboard::compile::round::KeptText
+pub nika_onboard::compile::round::RoundRecord::restatements: u8
+pub nika_onboard::compile::round::RoundRecord::revises: core::option::Option<alloc::string::String>
+pub nika_onboard::compile::round::RoundRecord::schema: u64
+impl nika_onboard::compile::round::RoundRecord
+pub fn nika_onboard::compile::round::RoundRecord::answer_map(&self) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
+pub fn nika_onboard::compile::round::RoundRecord::authoring_receipt(&self) -> core::option::Option<nika_compile::types::AuthoringReceipt>
+pub fn nika_onboard::compile::round::RoundRecord::continuable(&self) -> core::result::Result<(), nika_onboard::compile::round::Unusable>
+pub fn nika_onboard::compile::round::RoundRecord::pending(&self) -> core::option::Option<&nika_onboard::compile::round::KeptQuestion>
+pub fn nika_onboard::compile::round::RoundRecord::revises_base(&self, content: &str) -> bool
+pub fn nika_onboard::compile::round::RoundRecord::summary(&self) -> alloc::string::String
+pub fn nika_onboard::compile::round::RoundRecord::to_value(&self) -> serde_json::value::Value
+impl core::clone::Clone for nika_onboard::compile::round::RoundRecord
+pub fn nika_onboard::compile::round::RoundRecord::clone(&self) -> nika_onboard::compile::round::RoundRecord
+impl core::cmp::Eq for nika_onboard::compile::round::RoundRecord
+impl core::cmp::PartialEq for nika_onboard::compile::round::RoundRecord
+pub fn nika_onboard::compile::round::RoundRecord::eq(&self, other: &nika_onboard::compile::round::RoundRecord) -> bool
+impl core::fmt::Debug for nika_onboard::compile::round::RoundRecord
+pub fn nika_onboard::compile::round::RoundRecord::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_onboard::compile::round::RoundRecord
+impl<D> owo_colors::OwoColorize for nika_onboard::compile::round::RoundRecord
+impl<Q, K> equivalent::Equivalent<K> for nika_onboard::compile::round::RoundRecord where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile::round::RoundRecord::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_onboard::compile::round::RoundRecord where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile::round::RoundRecord::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_onboard::compile::round::RoundRecord where U: core::convert::From<T>
+pub fn nika_onboard::compile::round::RoundRecord::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::round::RoundRecord where U: core::convert::Into<T>
+pub type nika_onboard::compile::round::RoundRecord::Error = core::convert::Infallible
+pub fn nika_onboard::compile::round::RoundRecord::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::round::RoundRecord where U: core::convert::TryFrom<T>
+pub type nika_onboard::compile::round::RoundRecord::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::compile::round::RoundRecord::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_onboard::compile::round::RoundRecord where T: core::clone::Clone
+pub type nika_onboard::compile::round::RoundRecord::Owned = T
+pub fn nika_onboard::compile::round::RoundRecord::clone_into(&self, target: &mut T)
+pub fn nika_onboard::compile::round::RoundRecord::to_owned(&self) -> T
+impl<T> core::any::Any for nika_onboard::compile::round::RoundRecord where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::compile::round::RoundRecord::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::compile::round::RoundRecord where T: ?core::marker::Sized
+pub fn nika_onboard::compile::round::RoundRecord::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::compile::round::RoundRecord where T: ?core::marker::Sized
+pub fn nika_onboard::compile::round::RoundRecord::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_onboard::compile::round::RoundRecord where T: core::clone::Clone
+pub unsafe fn nika_onboard::compile::round::RoundRecord::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_onboard::compile::round::RoundRecord
+pub fn nika_onboard::compile::round::RoundRecord::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_onboard::compile::round::RoundRecord where T: core::clone::Clone
+pub fn nika_onboard::compile::round::RoundRecord::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_onboard::compile::round::RoundRecord where T: 'static
+pub fn nika_onboard::compile::round::RoundRecord::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::compile::round::RoundRecord where T: ?core::marker::Sized
+pub fn nika_onboard::compile::round::RoundRecord::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::compile::round::RoundRecord::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::compile::round::RoundRecord
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::round::RoundRecord
+impl<T> typenum::type_operators::Same for nika_onboard::compile::round::RoundRecord
+pub type nika_onboard::compile::round::RoundRecord::Output = T
+pub const nika_onboard::compile::round::MAX_ANSWERS: usize
+pub const nika_onboard::compile::round::ROUND_LIMIT: usize
+pub const nika_onboard::compile::round::ROUND_SCHEMA: u64
 pub mod nika_onboard::compile_config
 #[non_exhaustive] pub enum nika_onboard::compile_config::ConfigError
 pub nika_onboard::compile_config::ConfigError::ExclusionWithoutSnapshot

@@ -87,6 +87,43 @@ over unread entries says they were not compared. It moved here from
 Its tests and their three recorded outcomes live beside it
 (`src/compile/meaning/`).
 
+## The knowledge pin and its records (read by Session)
+
+`knowledge::pin` owns the identity a session pins for its knowledge snapshot
+(`KnowledgePin`: the declared version and digest, the sha256 of the manifest
+bytes and of the rows as read, opened and compared through the snapshot door
+beside it) and the pure records a session stamps on a compile outcome: what it
+observed (`observed_in`: paths, states, kinds and column counts, never the
+names), composed (`composed_record`: the pinned identity, the pack digest, each
+reference's bytes and sha256, whether the native door presented it and which
+calls carried it), carried (`carried_record`), presented (`presented_knowledge`)
+and the stamp beside the compiler's own record (`stamp`). It descended from
+`nika-session` on 2026-09-28 (C7 · D1); `nika_session::authoring::KnowledgePin`
+re-exports the same type. Nothing here reads the environment, calls a model or
+decides a policy: the session keeps its seat, its strategy and its consent.
+
+## The durable authoring round (kept by Session)
+
+`compile::round` is the codec of the round a host keeps across a close (C7): the
+request, the settled answers, the open questions (evidence to display, never a
+question to answer), the compiler's continuation, the knowledge and subscription
+receipt of the call that authored it, and the proposal a revision revises.
+Schema 1 is written and read by hand over `serde_json::Value` (no new
+dependency): every key is always written, and a key this schema does not know, a
+key missing or a value of another type makes the whole value unreadable
+(`RoundReading::Unreadable`, kept byte for byte by its host and never used).
+Every executable text (the request, each answer, an EDIT's path, base, change
+and original) is kept with the sha256 of its exact original; `Capture` passes
+each through the host's redactor, so a text the redactor changed is kept as
+displayed and `RoundRecord::continuable` refuses it (`Unusable::Redacted` · also
+a text altered since). The continuation is kept whole only when the redactor
+leaves it unchanged and the record fits `ROUND_LIMIT` (256 KiB); otherwise only
+its sha256 and why it was withheld are kept, and a round still over the bound is
+not kept at all. At most `MAX_ANSWERS` (64) answers. A record carries no
+account, admission, review, consent, question identity or monetary span: the
+host re-admits the request through its own gates, and the compiler judges the
+answers against the project as it is when the round continues.
+
 ## Compile foundation
 
 `compile` is a stateless in-memory authoring core behind the CLI creation door. CREATE accepts exact embedded skeleton names
