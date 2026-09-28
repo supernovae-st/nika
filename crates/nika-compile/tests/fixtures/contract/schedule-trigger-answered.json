@@ -366,6 +366,10 @@
             "evidence": "keep only the rows whose status is open",
             "kind": "filter",
             "note": null,
+            "position": 0,
+            "reads": [
+              "status"
+            ],
             "realized_by": "compute",
             "state": "realized"
           },

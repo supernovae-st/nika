@@ -23,3 +23,13 @@
     run in another order.
   - Plans saved before this change keep their bytes; an older binary refuses a plan that
     records ordered steps.
+- **Each operation the request states is checked against the program that runs.**
+  - The compile record lists every filter condition, count, order and cut the request
+    states, with the request's own words, its place in the stated order and the fields it
+    reads. Each is marked done only when the compiled program does it with those
+    parameters, never because a step is named after it.
+  - A proposal that ran the paid filter before « keep the 2 rows with the highest amount »,
+    or left the filter out, compiled READY and wrote a paid row outside the top 2, or an
+    unpaid one. The reading of the request's own clauses now replaces such a proposal, and
+    a program that misses a stated operation is never READY.
+  - Words the compiler cannot read are listed as unverified, not as done.

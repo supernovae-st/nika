@@ -920,12 +920,10 @@ fn emit_step(d: &mut Doc, plan: &Plan, b: &Bindings, guide: &str, step: &Step) {
                 );
                 emit_computed(d, plan, false);
                 d.carry(DutyKind::Transformation, &evidence, "compute");
-                d.carry(DutyKind::Filter, &evidence, "compute");
             }
             Some(RuleBinding::Synthesized(rule)) => {
                 emit_synthesized_rule(d, plan, rule);
                 d.carry(DutyKind::Transformation, &evidence, "compute");
-                d.carry(DutyKind::Filter, &evidence, "compute");
             }
             None => {}
         },

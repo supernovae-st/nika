@@ -23,6 +23,12 @@ pub(super) enum DutyKind {
     Transformation,
     /// A row selection stated as a rule (a computation whose typed rule keeps or drops rows).
     Filter,
+    /// A count of rows the request states (R4 A3): witnessed by the emitted computation.
+    Count,
+    /// An order the request states: a sort's key and direction (R4 A3).
+    Order,
+    /// The number of rows the request keeps: a cut (R4 A3).
+    Limit,
     /// A change to the outside world: a write, a send, a publish, a payment…
     Effect,
     /// A human gate that must dominate an effect.
@@ -54,6 +60,9 @@ impl DutyKind {
         match self {
             Self::Transformation => "transformation",
             Self::Filter => "filter",
+            Self::Count => "count",
+            Self::Order => "order",
+            Self::Limit => "limit",
             Self::Effect => "effect",
             Self::Gate => "gate",
             Self::Format => "format",
@@ -109,6 +118,10 @@ pub(super) struct Duty {
     pub realized_by: Option<String>,
     /// Why the duty is in its state when the state is not the plain unresolved one.
     pub note: Option<String>,
+    /// A typed operation's place in the order the request states it (R4 A3).
+    pub position: Option<usize>,
+    /// The source fields a typed operation reads.
+    pub reads: Vec<String>,
 }
 
 impl Duty {
@@ -119,6 +132,28 @@ impl Duty {
             state: DutyState::Unresolved,
             realized_by: None,
             note: None,
+            position: None,
+            reads: Vec::new(),
+        }
+    }
+    /// Stated work a task carries with no typed witness (R4 A3): realized by `by`, and said to
+    /// be unverified rather than fulfilled.
+    pub(super) fn unverified(kind: DutyKind, evidence: &str, by: &str, why: &str) -> Self {
+        let mut duty = Self::new(kind, evidence);
+        duty.realize(by, Some(&format!("unverified: {why}")));
+        duty
+    }
+    /// A typed operation of a computation, at its place in the order the request states it.
+    pub(super) fn typed(
+        kind: DutyKind,
+        evidence: &str,
+        position: usize,
+        reads: Vec<String>,
+    ) -> Self {
+        Self {
+            position: Some(position),
+            reads,
+            ..Self::new(kind, evidence)
         }
     }
     fn with_state(mut self, state: DutyState, note: &str) -> Self {
@@ -133,13 +168,18 @@ impl Duty {
         self.note = note.map(str::to_owned);
     }
     pub(super) fn to_json(&self) -> Value {
-        json!({
+        let mut duty = json!({
             "kind": self.kind.word(),
             "evidence": self.evidence,
             "state": self.state.word(),
             "realized_by": self.realized_by,
             "note": self.note,
-        })
+        });
+        if let Some(position) = self.position {
+            duty["position"] = json!(position);
+            duty["reads"] = json!(self.reads);
+        }
+        duty
     }
 }
 

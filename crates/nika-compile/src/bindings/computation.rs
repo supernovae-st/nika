@@ -3,8 +3,9 @@
 //! Bind one computation without dropping independent typed stages.
 use super::{Bindings, Need, Source, Structured, joined_format, rules};
 use crate::CompileRequest;
+use crate::ledger::DutyKind;
 use crate::plan::{Plan, Step};
-use serde_json::Value;
+use serde_json::{Value, json};
 
 /// The rule a compute step states in words, when the corpus is what the rule can run over
 /// and every part of the detail is in the grammar: one structured file for a filter, an
@@ -92,6 +93,7 @@ pub(super) fn synthesized_rule(
                 })
                 .flatten()
         })?;
+    let stated = holding(stated, plan, step, intent, &hint);
     // One output may use a composed pipeline (filter then sort, for example), but every
     // recorded typed stage must still be present. Recognizing a prose prefix is insufficient.
     if fragmented && !records_all_stages(&stated, &distinct) {
@@ -107,6 +109,262 @@ pub(super) fn synthesized_rule(
         }
         _ => None,
     }
+}
+
+/// The rule that holds what the request's own words state (R4 A3): every operation the reader
+/// reads in each anchored part, in request order, with its parameters. A proposal missing one,
+/// reordering them or stating another field, comparator, literal, direction or count yields to
+/// a reading that holds them (the step's detail, its evidence, or its parts' excerpts joined in
+/// request order); with none, it stays bound and the ledger leaves what it misses unresolved.
+fn holding(
+    stated: rules::Rule,
+    plan: &Plan,
+    step: &Step,
+    intent: &str,
+    hint: &[String],
+) -> rules::Rule {
+    let parts = stated_parts(plan, step, intent, hint);
+    let expected = expected_operations(&parts);
+    if holds(&operations(&stated), &expected) {
+        return stated;
+    }
+    let anchors: Vec<&str> = parts.iter().map(|part| part.anchor.as_str()).collect();
+    let joined = anchors.join(" ; ");
+    [step.detail.trim(), step.evidence.trim(), joined.as_str()]
+        .into_iter()
+        .filter_map(|text| rules::synthesize(text, hint))
+        .find(|rule| holds(&operations(rule), &expected))
+        .unwrap_or(stated)
+}
+
+/// What the rule bound for the compute step is judged against (R4 A3): the step's parts, read
+/// over the columns the binding reads with, and that rule as chosen before grounding.
+pub(super) fn stated_witness(
+    plan: &Plan,
+    step: &Step,
+    intent: &str,
+    b: &Bindings,
+    request: &CompileRequest,
+    chosen: &rules::Rule,
+) -> Witness {
+    let hint = source_columns(b, request, intent);
+    Witness {
+        parts: stated_parts(plan, step, intent, &hint),
+        chosen: chosen.clone(),
+    }
+}
+
+/// One typed operation of a computation, with the parameters a witness compares (R4 A3): a
+/// filter's clause (field, comparator, value and its kind) or its « or » of clauses, a count's
+/// grouping (its output name is the named outputs' law), a sort's key and direction, a cut's
+/// size, the summary stage's count.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum Operation {
+    Filter(Value),
+    Count(Value),
+    Order(String, bool),
+    Limit(u64),
+    Summary,
+}
+
+impl Operation {
+    /// The duty an operation states.
+    pub(crate) const fn kind(&self) -> DutyKind {
+        match self {
+            Self::Filter(_) => DutyKind::Filter,
+            Self::Count(_) | Self::Summary => DutyKind::Count,
+            Self::Order(..) => DutyKind::Order,
+            Self::Limit(_) => DutyKind::Limit,
+        }
+    }
+    /// The source fields the operation reads.
+    pub(crate) fn reads(&self) -> Vec<String> {
+        let text = |v: &Value| v.as_str().map(str::to_owned);
+        match self {
+            Self::Filter(filter) => filter["clauses"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|clause| text(&clause["field"]))
+                .collect(),
+            Self::Count(group_by) => text(group_by).into_iter().collect(),
+            Self::Order(key, _) => vec![key.clone()],
+            Self::Limit(_) | Self::Summary => Vec::new(),
+        }
+    }
+}
+
+/// The typed operations of a rule in the order its lowering runs them: each step's filter
+/// (an « and » of clauses is each clause in turn, in the order stated, which is also the order
+/// a FAIL policy reads them in), then its counts (after any grouping), its sort and its cut,
+/// and the summary stage last. A verified program has none a witness reads.
+pub(crate) fn operations(rule: &rules::Rule) -> Vec<Operation> {
+    let record = rule.to_json();
+    if !record["program"].is_null() {
+        return Vec::new();
+    }
+    let later = record["then"].as_array().cloned().unwrap_or_default();
+    let mut ops = Vec::new();
+    for step in std::iter::once(&record).chain(&later) {
+        let clauses: Vec<Value> = step["clauses"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .map(|c| json!({"field": c["field"], "comparator": c["comparator"], "value": c["value"], "value_kind": c["value_kind"]}))
+            .collect();
+        if clauses.len() > 1 && step["junction"] == "or" {
+            ops.push(Operation::Filter(
+                json!({"clauses": clauses, "junction": "or"}),
+            ));
+        } else {
+            let each = clauses
+                .into_iter()
+                .map(|c| json!({"clauses": [c], "junction": null}));
+            ops.extend(each.map(Operation::Filter));
+        }
+        let shape = &step["shape"];
+        for aggregation in shape["aggregations"].as_array().into_iter().flatten() {
+            if aggregation["op"] == "count" {
+                ops.push(Operation::Count(shape["group_by"].clone()));
+            }
+        }
+        if let Some(key) = shape["sort_by"].as_str() {
+            ops.push(Operation::Order(
+                key.to_owned(),
+                shape["descending"] == true,
+            ));
+        }
+        if let Some(n) = shape["limit"].as_u64() {
+            ops.push(Operation::Limit(n));
+        }
+    }
+    if record["summary"] == true {
+        ops.push(Operation::Summary);
+    }
+    ops
+}
+
+/// Where each expected operation is found in `ops`, in order (R4 A3): the first equal
+/// operation after the one found for the operation before it, `None` for one found nowhere
+/// after it (so one missing operation never shifts the others).
+pub(crate) fn found(ops: &[Operation], expected: &[Operation]) -> Vec<Option<usize>> {
+    let mut from = 0;
+    expected
+        .iter()
+        .map(|want| {
+            let at = ops
+                .iter()
+                .skip(from)
+                .position(|op| op == want)
+                .map(|i| from + i);
+            if let Some(at) = at {
+                from = at + 1;
+            }
+            at
+        })
+        .collect()
+}
+
+fn holds(ops: &[Operation], expected: &[Operation]) -> bool {
+    found(ops, expected).iter().all(Option::is_some)
+}
+
+/// One part the request states for the computation (R4 A3): the exact request excerpt it
+/// anchors on, and the reader's own reading of those words when the grammar reads them whole.
+/// The plan's typed content never stands in for the reading.
+#[derive(Clone, Debug)]
+pub(crate) struct Part {
+    pub(crate) anchor: String,
+    pub(crate) reading: Option<rules::Rule>,
+}
+
+/// What a bound computation is judged against (R4 A3): the parts in the order the request
+/// states them, and the rule the binding chose before grounding rebinds a field or binds a
+/// number policy (neither moves an operation or changes its other parameters).
+#[derive(Clone, Debug)]
+pub(crate) struct Witness {
+    pub(crate) parts: Vec<Part>,
+    pub(crate) chosen: rules::Rule,
+}
+
+#[cfg(test)]
+impl Witness {
+    /// A witness over `stated` excerpts, read with no column hint, judged against `chosen`.
+    pub(crate) fn of(stated: &[&str], chosen: rules::Rule) -> Self {
+        let read = |text: &&str| Part {
+            anchor: (*text).to_owned(),
+            reading: rules::synthesize(text, &[]),
+        };
+        Self {
+            parts: stated.iter().map(read).collect(),
+            chosen,
+        }
+    }
+}
+
+/// The parts of the compute step: each distinct plan rule whose text is an exact excerpt of
+/// the request, else the step's own evidence, ordered by where the request states them and
+/// each re-read by the one grammar over the columns the binding reads with. Each word is read
+/// once: the widest readable excerpt stands for the excerpts inside it (a seat's rule over a
+/// whole clause beside the rules promoted from its parts), and an unreadable excerpt is a part
+/// only where no readable one overlaps it.
+fn stated_parts(plan: &Plan, step: &Step, intent: &str, hint: &[String]) -> Vec<Part> {
+    let columns = crate::columns::columns_hint(intent);
+    let place = |text: &str| {
+        let excerpt = crate::text::exact_excerpt(intent, text)?;
+        let start = intent.find(&excerpt)?;
+        Some((start, start + excerpt.len(), excerpt))
+    };
+    // Every plan rule anchors its own words, a plain twin of a shaped rule included: the twin
+    // is the reader's reading of a clause the proposal may have moved.
+    let mut spans: Vec<(usize, usize, String)> = plan
+        .rules
+        .iter()
+        .filter_map(|rule| place(rule.text()))
+        .collect();
+    if spans.is_empty() {
+        spans.extend(place(&step.evidence));
+    }
+    spans.sort_by_key(|(start, end, _)| (*start, std::cmp::Reverse(*end)));
+    spans.dedup();
+    let read = |anchor: &str| {
+        rules::synthesize(anchor, hint).or_else(|| rules::synthesize(anchor, &columns))
+    };
+    let parts: Vec<(usize, usize, Part)> = spans
+        .into_iter()
+        .map(|(start, end, anchor)| {
+            (
+                start,
+                end,
+                Part {
+                    reading: read(&anchor),
+                    anchor,
+                },
+            )
+        })
+        .collect();
+    let mut kept: Vec<&(usize, usize, Part)> = Vec::new();
+    for readable in [true, false] {
+        for part in parts.iter().filter(|p| p.2.reading.is_some() == readable) {
+            let (start, end) = (part.0, part.1);
+            let inside = kept.iter().any(|k| k.0 <= start && end <= k.1);
+            let overlaps = kept.iter().any(|k| start < k.1 && k.0 < end);
+            if (readable && !inside) || (!readable && !overlaps) {
+                kept.push(part);
+            }
+        }
+    }
+    kept.sort_by_key(|k| (k.0, k.1));
+    kept.into_iter().map(|k| k.2.clone()).collect()
+}
+
+/// The operations the readable parts state, in request order.
+fn expected_operations(parts: &[Part]) -> Vec<Operation> {
+    parts
+        .iter()
+        .filter_map(|part| part.reading.as_ref())
+        .flat_map(operations)
+        .collect()
 }
 
 fn source_columns(b: &Bindings, request: &CompileRequest, intent: &str) -> Vec<String> {

@@ -22,7 +22,8 @@ use serde_json::{Value, json};
 use std::collections::BTreeSet;
 
 mod computation;
-use computation::synthesized_rule;
+pub(super) use computation::{Operation, Witness, found, operations};
+use computation::{stated_witness, synthesized_rule};
 mod write_path;
 
 const MODEL_LABEL: &str = "Which explicit runtime provider/model should run the language steps (extract, classify, draft)?";
@@ -169,6 +170,8 @@ pub(super) struct Bindings {
     pub slots: Vec<(String, Value)>,
     /// The slots still asked, by key.
     pub pending_slots: Vec<String>,
+    /// What the synthesized computation is judged against (R4 A3), when one is bound.
+    pub witness: Option<Witness>,
 }
 
 impl Bindings {
@@ -498,9 +501,10 @@ pub(super) fn bind(
         classify_per_record,
         slots: Vec::new(),
         pending_slots: Vec::new(),
+        witness: None,
     };
     bind_slots(plan, request, out, recognized, &mut b);
-    b.rule = bind_computation(plan, intent, &b, request, out, recognized);
+    (b.rule, b.witness) = bind_computation(plan, intent, &b, request, out, recognized);
     bind_effects(plan, distributed, request, out, recognized, &mut b);
     bind_named_outputs(plan, request, out, recognized, &mut b);
     b
@@ -528,13 +532,15 @@ fn bind_computation(
     request: &CompileRequest,
     out: &mut CompileOutcome,
     recognized: &mut BTreeSet<String>,
-) -> Need<RuleBinding> {
-    Need::from_step(plan.step(Op::Compute), |step| {
+) -> (Need<RuleBinding>, Option<Witness>) {
+    let mut witness = None;
+    let rule = Need::from_step(plan.step(Op::Compute), |step| {
         // A rule the request states over a parsed source is code the compiler writes;
         // an explicit answer still wins, and anything outside the grammar is asked.
         if !request.answers.contains_key("const.rule_expression")
             && let Some(rule) = synthesized_rule(plan, step, intent, bindings, request)
         {
+            let stated = stated_witness(plan, step, intent, bindings, request, &rule);
             let rule = match &bindings.read {
                 Need::Bound(Source::File(path)) => {
                     super::observed::ground_rule(rule, path, request, out, recognized)?
@@ -543,6 +549,7 @@ fn bind_computation(
             };
             // Every number the bound rule reads is read under one law, its policy stated (R4 A5).
             let rule = ranked(rule, request, out, recognized)?;
+            witness = Some(stated);
             return Some(RuleBinding::Synthesized(super::observed::numbered(
                 rule, out,
             )));
@@ -550,7 +557,8 @@ fn bind_computation(
         recognized.insert("const.rule_expression".to_owned());
         let label = rule_label(plan, bindings, &step.detail);
         answer(request, out, "const.rule_expression", &label, true).map(RuleBinding::Answered)
-    })
+    });
+    (rule, witness)
 }
 
 /// A carry of held material (« post it to `<url>` »); a body whose keys the request states

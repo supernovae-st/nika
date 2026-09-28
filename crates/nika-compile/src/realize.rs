@@ -8,7 +8,7 @@
 //! authority.
 
 use super::assemble::{Doc, Laws, emit};
-use super::bindings::{Bindings, RuleBinding};
+use super::bindings::{Bindings, Operation, RuleBinding, Witness, found, operations};
 use super::ledger::{Duty, DutyKind, DutyState, Ledger};
 use super::plan::{EffectPolicy, EffectVerb, Op, Plan};
 use super::shape::Shape;
@@ -40,6 +40,7 @@ pub(super) fn settle_candidate(
     // The READY law: every duty the request states is carried by a named element, or the
     // candidate is not emitted. The ledger rides in provenance either way.
     let mut ledger = Ledger::extract(plan);
+    type_computation(&mut ledger, plan, b, &d);
     realize(&mut ledger, plan, b, &d, out.requested_trigger.is_some());
     let silent: Vec<(DutyKind, String, Option<String>)> = ledger
         .silent()
@@ -260,12 +261,99 @@ fn realize(ledger: &mut Ledger, plan: &Plan, b: &Bindings, d: &Doc, trigger_stat
             DutyKind::Structure => realize_structure(duty, b, d),
             DutyKind::Transformation
             | DutyKind::Filter
+            | DutyKind::Count
+            | DutyKind::Order
+            | DutyKind::Limit
             | DutyKind::Effect
             | DutyKind::Gate
             | DutyKind::Work
             | DutyKind::Context => {}
         }
     }
+}
+
+/// The computation's duties typed by what the request's own words state (R4 A3). The compute
+/// step's generic filter duty gives way to one duty per operation its anchored parts read
+/// (filter, count, order, limit), in request order, each realized only when the task running
+/// the bound rule emits that rule's lowering byte for byte and the rule holds the operation,
+/// with its parameters, after the operation before it: never by a task id, a record flag or a
+/// plan annotation. A part the reader cannot read, or a program answered as written, keeps its
+/// excerpt in the ledger, carried by the task and said to be unverified.
+fn type_computation(ledger: &mut Ledger, plan: &Plan, b: &Bindings, d: &Doc) {
+    let Some(step) = plan.step(Op::Compute) else {
+        return;
+    };
+    let evidence = super::ledger::step_evidence(step).trim().to_owned();
+    let generic = |duty: &Duty| duty.kind == DutyKind::Filter && duty.evidence == evidence;
+    let stated = ledger.duties.iter().position(generic);
+    let typed = match (b.rule.bound(), &b.witness) {
+        (Some(RuleBinding::Synthesized(rule)), Some(witness)) => typed_duties(rule, witness, d),
+        (Some(RuleBinding::Answered(_)), _) if stated.is_some() => vec![Duty::unverified(
+            DutyKind::Filter,
+            &evidence,
+            "compute",
+            "the answered program runs as written; no typed reading checks it",
+        )],
+        // Nothing bound: the stated duty stays as the plan states it.
+        _ => return,
+    };
+    let carried = |duty: &Duty| duty.kind == DutyKind::Transformation && duty.evidence == evidence;
+    let at = stated
+        .or_else(|| ledger.duties.iter().position(carried).map(|at| at + 1))
+        .unwrap_or(ledger.duties.len());
+    ledger.duties.retain(|duty| !generic(duty));
+    ledger.duties.splice(at..at, typed);
+}
+
+/// The typed duties of a bound computation (R4 A3), realized against the emitted bytes.
+fn typed_duties(rule: &super::rules::Rule, witness: &Witness, d: &Doc) -> Vec<Duty> {
+    let expression = |task: &str| d.root["tasks"][task]["invoke"]["args"]["expression"].as_str();
+    let lowered = super::laws::with_decimal(&rule.jq());
+    let runs = expression("compute") == Some(lowered.as_str());
+    let summarizes = expression("compute_summary") == Some(super::laws::SUMMARY);
+    let mut expected: Vec<(&str, Operation)> = Vec::new();
+    let mut unread = Vec::new();
+    for part in &witness.parts {
+        match &part.reading {
+            Some(reading) => {
+                let anchor = part.anchor.as_str();
+                expected.extend(operations(reading).into_iter().map(|op| (anchor, op)));
+            }
+            None => unread.push(Duty::unverified(
+                DutyKind::Transformation,
+                &part.anchor,
+                "compute",
+                "no deterministic reading of these words; the task carries them unchecked",
+            )),
+        }
+    }
+    let wanted: Vec<Operation> = expected.iter().map(|(_, op)| op.clone()).collect();
+    let places = found(&operations(&witness.chosen), &wanted);
+    let mut duties = Vec::new();
+    for (position, ((anchor, op), place)) in expected.into_iter().zip(places).enumerate() {
+        let mut duty = Duty::typed(op.kind(), anchor, position, op.reads());
+        let (task, emitted) = if op == Operation::Summary {
+            ("compute_summary", summarizes)
+        } else {
+            ("compute", runs)
+        };
+        match (place, emitted) {
+            (Some(_), true) => duty.realize(task, None),
+            (Some(_), false) => {
+                duty.note = Some(format!(
+                    "`{task}` does not run the lowering of the bound rule"
+                ));
+            }
+            (None, _) => {
+                duty.note = Some(
+                    "the emitted computation does not hold this operation, with its parameters, at its place in the stated order".to_owned(),
+                );
+            }
+        }
+        duties.push(duty);
+    }
+    duties.extend(unread);
+    duties
 }
 
 /// A format, a cardinality or an identity is realized by what verifies it at run, by the
@@ -480,4 +568,102 @@ pub(super) fn refused_contradiction(ledger: &Ledger, out: &mut CompileOutcome) -
         QuestionType::Text,
     );
     true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::rules::synthesize;
+    use DutyKind::{Count, Filter, Limit, Order, Transformation};
+    use DutyState::{Realized, Unresolved};
+
+    const COUNT: &str = "count the rows where status is paid";
+    const PAID: &str = "keep the rows where status is paid";
+    const TOP: &str = "keep the 2 rows with the highest amount_usd";
+
+    /// The typed duties `stated` puts on a bound rule read from `bound`, whose lowering the
+    /// compute task emits unless `emitted` stands in its place.
+    fn witnessed(stated: &[&str], bound: &str, emitted: Option<&str>) -> Vec<Duty> {
+        let bound = synthesize(bound, &[]).expect("the bound rule reads");
+        let lowered = crate::laws::with_decimal(&bound.jq());
+        let mut d = Doc::new("witness", false);
+        let expression = emitted.unwrap_or(&lowered);
+        d.root["tasks"]["compute"] = json!({"invoke": {"args": {"expression": expression}}});
+        typed_duties(&bound, &Witness::of(stated, bound.clone()), &d)
+    }
+
+    fn states(duties: &[Duty]) -> Vec<(DutyKind, DutyState, Option<usize>)> {
+        duties
+            .iter()
+            .map(|d| (d.kind, d.state, d.position))
+            .collect()
+    }
+
+    /// A witness compares the parameters of each stated operation, never its kind alone (R4 A3):
+    /// with no reading to fall back on, each changed parameter leaves its own duty unresolved
+    /// and every other one realized (a missing operation never shifts the others).
+    #[test]
+    fn a_witness_compares_the_parameters_of_each_stated_operation() {
+        let both = [(Filter, Realized, Some(0)), (Count, Realized, Some(1))];
+        assert_eq!(states(&witnessed(&[COUNT], COUNT, None)), both);
+        // A count-free rule compiled faithfully.
+        let count_free = [(Filter, Realized, Some(0)), (Count, Unresolved, Some(1))];
+        assert_eq!(states(&witnessed(&[COUNT], PAID, None)), count_free);
+        // Another field, comparator or literal.
+        let filter = [(Filter, Unresolved, Some(0)), (Count, Realized, Some(1))];
+        for other in [
+            "count the rows where state is paid",
+            "count the rows where status is not paid",
+            "count the rows where status is open",
+        ] {
+            assert_eq!(states(&witnessed(&[COUNT], other, None)), filter, "{other}");
+        }
+        // A flipped direction, a cut of 3.
+        let lowest = "keep the 2 rows with the lowest amount_usd";
+        let order = [(Order, Unresolved, Some(0)), (Limit, Realized, Some(1))];
+        assert_eq!(states(&witnessed(&[TOP], lowest, None)), order);
+        let three = "keep the 3 rows with the highest amount_usd";
+        let limit = [(Order, Realized, Some(0)), (Limit, Unresolved, Some(1))];
+        assert_eq!(states(&witnessed(&[TOP], three, None)), limit);
+        // A later step omitted, or moved before the cut; kept in the stated order, all hold.
+        let later = [
+            (Order, Realized, Some(0)),
+            (Limit, Realized, Some(1)),
+            (Filter, Unresolved, Some(2)),
+        ];
+        assert_eq!(states(&witnessed(&[TOP, PAID], TOP, None)), later);
+        let moved = format!("{PAID} ; {TOP}");
+        assert_eq!(states(&witnessed(&[TOP, PAID], &moved, None)), later);
+        let kept = format!("{TOP} ; {PAID}");
+        let all = [
+            (Order, Realized, Some(0)),
+            (Limit, Realized, Some(1)),
+            (Filter, Realized, Some(2)),
+        ];
+        assert_eq!(states(&witnessed(&[TOP, PAID], &kept, None)), all);
+    }
+
+    /// A label realizes nothing (R4 A3): a task named `compute` that runs another program leaves
+    /// every duty unresolved. Words the grammar cannot read state no typed duty; they stay in the
+    /// ledger, carried by the task and said to be unverified.
+    #[test]
+    fn only_the_emitted_computation_realizes_a_typed_duty() {
+        let other = witnessed(
+            &[COUNT],
+            COUNT,
+            Some("[.records[] | select(.status == \"paid\")]"),
+        );
+        let nothing = [(Filter, Unresolved, Some(0)), (Count, Unresolved, Some(1))];
+        assert_eq!(states(&other), nothing);
+        let why = "`compute` does not run the lowering of the bound rule";
+        assert!(
+            other.iter().all(|d| d.note.as_deref() == Some(why)),
+            "{other:?}"
+        );
+        let unread = witnessed(&["tally whatever looks settled"], COUNT, None);
+        assert_eq!(states(&unread), [(Transformation, Realized, None)]);
+        assert_eq!(unread[0].realized_by.as_deref(), Some("compute"));
+        let note = unread[0].note.as_deref().unwrap_or_default();
+        assert!(note.starts_with("unverified: "), "{note}");
+    }
 }

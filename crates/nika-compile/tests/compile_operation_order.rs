@@ -8,8 +8,9 @@
 //! filter-only reading is refused on replay, and a fresh compile recovers. Lane tests (A10):
 //! the CLI and Session journeys belong to the primary's frozen artifact.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-use nika_compile::{CompileOutcome, CompileRequest, CompileStatus, compile};
-use serde_json::Value;
+use nika_compile::{CompileOutcome, CompileRequest, CompileStatus, HotPolicy, compile};
+use nika_compile_cognition::compile_with_provider;
+use serde_json::{Value, json};
 
 mod common;
 
@@ -195,5 +196,216 @@ fn a_filter_and_a_top_n_run_in_the_order_the_request_states() {
         ),
     ] {
         assert_eq!(ready_rule(&intent(clauses, write)), rule, "{clauses}");
+    }
+}
+
+/// The typed duties a READY compile records (R4 A3), each (kind, anchored excerpt, place in
+/// the stated order, fields read, carrier). The plan's own obligation list stays empty: the
+/// ledger witnesses operations, it never claims the request closed; and no filter duty is
+/// carried by a label any more.
+fn typed_duties(out: &CompileOutcome) -> Vec<(String, String, u64, Value, String)> {
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert_eq!(
+        out.provenance.plan.as_ref().unwrap()["obligations"],
+        json!([])
+    );
+    let ledger = out.provenance.decision.as_ref().unwrap()["ledger"]
+        .as_array()
+        .unwrap()
+        .clone();
+    assert!(
+        ledger
+            .iter()
+            .all(|d| d["kind"] != "filter" || d.get("position").is_some()),
+        "{ledger:#?}"
+    );
+    ledger
+        .iter()
+        .filter(|d| d.get("position").is_some())
+        .map(|d| {
+            (
+                d["kind"].as_str().unwrap().to_owned(),
+                d["evidence"].as_str().unwrap().to_owned(),
+                d["position"].as_u64().unwrap(),
+                d["reads"].clone(),
+                d["realized_by"].as_str().unwrap_or("unresolved").to_owned(),
+            )
+        })
+        .collect()
+}
+
+fn duty(
+    kind: &str,
+    evidence: &str,
+    at: u64,
+    reads: &[&str],
+) -> (String, String, u64, Value, String) {
+    let carrier = "compute".to_owned();
+    (
+        kind.to_owned(),
+        evidence.to_owned(),
+        at,
+        json!(reads),
+        carrier,
+    )
+}
+
+const PAID: &str = "keep the rows where status is paid";
+const TOP2: &str = "keep the 2 rows with the highest amount_usd";
+const COUNT: &str = "count the rows where status is paid";
+const WRITE: &str = "write the count to ./out/result.json";
+const THEM: &str = "write them to ./out/result.json";
+
+/// Every operation the request states is a typed duty the emitted computation realizes (R4
+/// A3): one per filter clause, count, order and cut, anchored on the excerpt that states it,
+/// in the stated order.
+#[test]
+fn each_stated_operation_is_a_duty_the_emitted_computation_realizes() {
+    assert_eq!(
+        typed_duties(&compiled(FUSED)),
+        [
+            duty("filter", COUNT, 0, &["status"]),
+            duty("count", COUNT, 1, &[])
+        ]
+    );
+    let then =
+        format!("read ./data/input.csv, {TOP2}, then {PAID}, write them to ./out/result.json");
+    assert_eq!(
+        typed_duties(&compiled(&then)),
+        [
+            duty("order", TOP2, 0, &["amount_usd"]),
+            duty("limit", TOP2, 1, &[]),
+            duty("filter", PAID, 2, &["status"]),
+        ]
+    );
+    let over = "keep the rows where amount_usd is over 10";
+    let both = format!(
+        "read ./data/input.csv, {PAID}, {over}, count them, write the count to ./out/result.json"
+    );
+    assert_eq!(
+        typed_duties(&compiled(&both)),
+        [
+            duty("filter", PAID, 0, &["status"]),
+            duty("filter", over, 1, &["amount_usd"]),
+            duty("count", "count them", 2, &[]),
+        ]
+    );
+}
+
+/// A request reading the CSV, stating `evidence` and then `write`, and a seat's plan for it: a
+/// read, one compute step anchored on `evidence` and labelled `detail` proposing
+/// `computation`, and the write; its regions are the request's three clauses. Nothing else is
+/// annotated.
+fn seat(evidence: &str, write: &str, detail: &str, computation: &Value) -> (String, Value) {
+    let intent = format!("read ./data/input.csv, {evidence}, {write}");
+    let plan = json!({
+        "steps": [
+            {"op": "read", "detail": "./data/input.csv", "evidence": "read ./data/input.csv"},
+            {"op": "compute", "detail": detail, "evidence": evidence, "computation": computation}
+        ],
+        "effects": [{"verb": "write", "target": "./out/result.json", "policy": "automatic", "evidence": write}],
+        "obligations": [], "constraints": [], "unknowns": [],
+        "regions": [
+            {"text": "read ./data/input.csv,", "role": "operation"},
+            {"text": format!("{evidence},"), "role": "operation"},
+            {"text": write, "role": "effect"}
+        ],
+        "approval_bypass": {"present": false, "evidence": ""}
+    });
+    (intent, plan)
+}
+
+/// A cold compile of `intent` whose one seat answer is `plan` (HOT is off, so the seat plans).
+async fn cold((intent, plan): (String, Value)) -> CompileOutcome {
+    let request = CompileRequest::create(&intent)
+        .with_knowledge(common::observed(&[CSV]))
+        .with_hot_policy(HotPolicy::Off)
+        .with_authoring_policy(common::policy());
+    compile_with_provider(&request, &common::Provider::new(plan))
+        .await
+        .unwrap()
+}
+
+fn bound_rule(out: &CompileOutcome) -> String {
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    let compute = common::compute(out.candidate.as_deref().unwrap());
+    compute.rsplit('\n').next().unwrap_or_default().to_owned()
+}
+
+fn filtering(clauses: &Value) -> Value {
+    json!({"present": true, "join": "and", "clauses": clauses})
+}
+
+fn ranking(order: &str, limit: &str, clauses: &Value) -> Value {
+    json!({"present": true, "join": "and", "clauses": clauses, "sort_by": "amount_usd", "order": order, "limit": limit})
+}
+
+/// A seat proposes a filter-only rule for « count the rows where status is paid » and labels
+/// its step a count (R4 A3). The reader's rule for those very words, promoted beside it, binds
+/// (the existing twin law already did before A3): the workflow writes the count, and the ledger
+/// now says why, a filter and a count realized by the emitted computation, not by the label.
+#[tokio::test]
+async fn a_count_free_proposal_yields_to_the_reading_of_the_request() {
+    let paid = json!([{"field": "status", "op": "eq", "value": "paid", "value_field": ""}]);
+    let (intent, plan) = seat(COUNT, WRITE, "count the paid rows", &filtering(&paid));
+    assert_eq!(intent, FUSED);
+    let out = cold((intent, plan)).await;
+    assert_eq!(
+        bound_rule(&out),
+        "[.records[] | select(.status == \"paid\")] | {\"count\": length}"
+    );
+    assert_eq!(
+        typed_duties(&out),
+        [
+            duty("filter", COUNT, 0, &["status"]),
+            duty("count", COUNT, 1, &[])
+        ]
+    );
+}
+
+/// Each parameter a seat changes is caught through the whole pipeline (R4 A3). A field, a
+/// comparator, a literal, a direction or a count the proposal changes was already caught before
+/// A3 (the reader's promoted rule for the same words binds, or the seat law refuses a literal or
+/// a count the request never states). An omitted later step and a reordered one were READY
+/// before A3 (`.records | top 2`, then `[paid] | top 2`): the witness catches them, and the
+/// reading of the request's own clauses binds. Every typed duty is realized by the rule bound.
+#[tokio::test]
+async fn a_proposal_changing_a_parameter_is_never_the_rule_bound() {
+    let clause = |field: &str, op: &str, value: &str| json!([{"field": field, "op": op, "value": value, "value_field": ""}]);
+    let count = "[.records[] | select(.status == \"paid\")] | {\"count\": length}";
+    for computation in [
+        filtering(&clause("id", "eq", "paid")),
+        filtering(&clause("status", "ne", "paid")),
+        filtering(&clause("status", "eq", "open")),
+    ] {
+        let out = cold(seat(COUNT, WRITE, COUNT, &computation)).await;
+        assert_eq!(bound_rule(&out), count, "{computation}");
+        assert_eq!(typed_duties(&out).len(), 2, "{computation}");
+    }
+    let top2 = "sort_by((.amount_usd | num) | dkey) | reverse | dtie(2; (.amount_usd | num) | dkey; .; \"`amount_usd`\") | .[:2]";
+    for computation in [
+        ranking("asc", "2", &json!([])),
+        ranking("desc", "3", &json!([])),
+    ] {
+        let out = cold(seat(TOP2, THEM, TOP2, &computation)).await;
+        assert_eq!(
+            bound_rule(&out),
+            format!(".records | {top2}"),
+            "{computation}"
+        );
+        assert_eq!(typed_duties(&out).len(), 2, "{computation}");
+    }
+    let stated = format!("{TOP2}, then {PAID}");
+    for computation in [
+        ranking("desc", "2", &json!([])),
+        ranking("desc", "2", &clause("status", "eq", "paid")),
+    ] {
+        let out = cold(seat(&stated, THEM, &stated, &computation)).await;
+        assert_eq!(
+            bound_rule(&out),
+            format!(".records | {top2} | map(select(.status == \"paid\"))"),
+            "{computation}"
+        );
+        assert_eq!(typed_duties(&out).len(), 3, "{computation}");
     }
 }
