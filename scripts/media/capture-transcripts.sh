@@ -178,6 +178,23 @@ function diagnose(file) {
 NODE
 rm -rf "$LSP_TMP"
 
+# ── clips that own their capture ────────────────────────────────────────
+# A clip whose story takes several commands owns its capture script in
+# scripts/media/capture/: offline, in its own scratch directory, writing
+# media/raw/<clip>-*. trace-proof's hashes change on every capture, so
+# refreshing it means re-rendering that clip.
+bash scripts/media/capture/agent-plugin.sh
+bash scripts/media/capture/spec-anatomy.sh
+bash scripts/media/capture/trace-proof.sh
+# pr-check-comment replays nika-action's own comment renderer. Without a
+# checkout of that repository, keep the committed snapshot, as the
+# nika-hero run does without an Ollama server.
+if [ -f "${NIKA_ACTION:-../nika-action}/action.yml" ]; then
+  bash scripts/media/capture/pr-check-comment.sh
+else
+  echo "no nika-action checkout (NIKA_ACTION) — keeping the committed pr-check-comment captures" >&2
+fi
+
 # ── bundle for the motion renderer ──────────────────────────────────────
 node - <<'NODE'
 const fs = require('fs');
