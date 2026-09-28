@@ -596,26 +596,9 @@ where
         let started = self.clock.now();
         let witness = std::sync::Arc::new(PermitWitness::new());
         let attempt = self.attempt_loop(task, &scope, types, ledger, &witness, run_start);
-        let mut ran = nika_builtin::witness::scope_attempt_witness(witness.clone(), attempt).await;
-        // `on_finally:` — the task STARTED (spec 03 · success AND
-        // failure · before the failure propagates in the DAG). The
-        // cleanup lane's decisions ride a dedicated witness (the
-        // parent's is already drained by attempt_loop) merged right after.
-        let finally_witness = std::sync::Arc::new(PermitWitness::new());
-        let finally = self.run_finally(
-            task,
-            wf,
-            &scope,
-            &ran,
-            integrity,
-            &finally_witness,
-            run_start,
-        );
-        ran.cleanup_declassified =
-            nika_builtin::witness::scope_attempt_witness(finally_witness.clone(), finally).await;
-        ran.decisions.extend(finally_witness.take());
-        ran.duration_ms = self.since_ms(started);
-        SettleAs::Ran(Box::new(ran))
+        let ran = nika_builtin::witness::scope_attempt_witness(witness.clone(), attempt).await;
+        self.settle_after_finally((task, wf, &scope), ran, integrity, run_start, started)
+            .await
     }
 
     /// The `for_each:` fan-out lane (spec 03 · closed at v1).
@@ -685,7 +668,7 @@ where
             (acc.first_error, acc.first_recovered_from),
             (acc.cost_sum, acc.unpriced),
         );
-        let mut ran = RanTask {
+        let ran = RanTask {
             note: fan_out::fan_note(
                 total,
                 acc.recovered,
@@ -702,23 +685,9 @@ where
             usage: None, // its iterations carry their own metered terminals
             result,
         };
-        let finally_scope =
-            Self::fan_out_finally_scope(records, (inputs, consts, secrets), permits);
-        let finally_witness = std::sync::Arc::new(PermitWitness::new());
-        let finally = self.run_finally(
-            task,
-            wf,
-            &finally_scope,
-            &ran,
-            integrity,
-            &finally_witness,
-            run_start,
-        );
-        ran.cleanup_declassified =
-            nika_builtin::witness::scope_attempt_witness(finally_witness.clone(), finally).await;
-        ran.decisions.extend(finally_witness.take());
-        ran.duration_ms = self.since_ms(started);
-        SettleAs::Ran(Box::new(ran))
+        let scope = Self::fan_out_finally_scope(records, (inputs, consts, secrets), permits);
+        self.settle_after_finally((task, wf, &scope), ran, integrity, run_start, started)
+            .await
     }
 
     fn fan_out_limits(task: &RawTask, item_count: usize) -> (usize, bool) {

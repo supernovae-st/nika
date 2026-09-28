@@ -110,6 +110,27 @@ where
     D: ToolDefinitionProviderDyn,
     C: ClockDyn + Sync,
 {
+    /// Settle a task that STARTED after its cleanup lane (spec 03 · success
+    /// AND failure · before the failure propagates in the DAG). The lane's
+    /// decisions ride a dedicated witness (the parent's is already drained)
+    /// merged right after.
+    pub(crate) async fn settle_after_finally(
+        &self,
+        (task, wf, scope): (&RawTask, &RawWorkflow, &Scope<'_>),
+        mut ran: RanTask,
+        integrity: &nika_cap::Integrity,
+        run_start: nika_kernel::tool_executor::ToolRunStart,
+        started: std::time::Instant,
+    ) -> super::SettleAs {
+        let witness = std::sync::Arc::new(crate::witness::PermitWitness::new());
+        let finally = self.run_finally(task, wf, scope, &ran, integrity, &witness, run_start);
+        ran.cleanup_declassified =
+            nika_builtin::witness::scope_attempt_witness(witness.clone(), finally).await;
+        ran.decisions.extend(witness.take());
+        ran.duration_ms = self.since_ms(started);
+        super::SettleAs::Ran(Box::new(ran))
+    }
+
     /// Run the cleanup mini-tasks (spec 03 §`on_finally` · sequential ·
     /// best-effort · a failure/timeout/skip is journaled on the
     /// witness, never propagated · per-cleanup timeout 30s).

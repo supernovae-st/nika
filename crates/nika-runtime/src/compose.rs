@@ -768,20 +768,11 @@ pub fn production_runtime_with_emitter(
     // File builtins enforce permits.fs (NIKA-SEC-004). Same Arc as runtime.
     let inspect = Arc::new(LiveInspect::new());
     let dispatcher: Arc<ProdDispatcher> = Arc::new(
-        BuiltinDispatcher::new(
-            Arc::new(TokioFs),
-            Arc::clone(&http),
-            Arc::new(seams.clock.clone()),
-            // log/emit → stderr (observable · NOT a silent no-op).
-            Arc::new(emitter),
-            Arc::new(NonInteractive::default()),
-            Arc::clone(&inspect),
-        )
-        .with_fs_boundary(caps.fs)
-        // Images use fixed provider endpoints and their 600s transport ceiling;
-        // the fetch idle guard is unsuitable. Resolve keys only at this boundary.
-        .with_image_plane(Arc::clone(&provider_http), image_keys_from_env())
-        .with_tts_plane(Arc::clone(&provider_http), tts_keys_from_env()),
+        builtin_plane(Arc::clone(&http), &seams, emitter, &inspect, caps.fs)
+            // Images use fixed provider endpoints and their 600s transport ceiling;
+            // the fetch idle guard is unsuitable. Resolve keys only at this boundary.
+            .with_image_plane(Arc::clone(&provider_http), image_keys_from_env())
+            .with_tts_plane(Arc::clone(&provider_http), tts_keys_from_env()),
     );
     let invoke = Arc::new(InvokeVerb::new(Arc::clone(&dispatcher)));
 
@@ -830,6 +821,27 @@ pub fn production_runtime_with_emitter(
     // store boundary). A miss leaves the secret unbound → NIKA-1702 (fail-
     // closed); the IFC governs where a resolved value may flow.
     .with_secret_resolver(Arc::new(EnvFileSecretResolver)))
+}
+
+/// The builtin plane production and simulated compositions share: the real
+/// fs under the declared `permits.fs`, the fetch client, the run's clock.
+fn builtin_plane(
+    http: Arc<ReqwestHttp>,
+    seams: &RunSeams,
+    emitter: StderrEmitter,
+    inspect: &Arc<LiveInspect>,
+    fs: FsBoundary,
+) -> ProdDispatcher {
+    BuiltinDispatcher::new(
+        Arc::new(TokioFs),
+        http,
+        Arc::new(seams.clock.clone()),
+        // log/emit → stderr (observable · NOT a silent no-op).
+        Arc::new(emitter),
+        Arc::new(NonInteractive::default()),
+        Arc::clone(inspect),
+    )
+    .with_fs_boundary(fs)
 }
 
 /// #889 — the waiver's operator note: when the run proceeds unconfined BY
@@ -910,17 +922,9 @@ pub fn simulated_runtime(
 
     // Real builtin plane (permits.fs as production) then the simulated gate.
     let inspect = Arc::new(LiveInspect::new());
-    let dispatcher = Arc::new(SimulatedDispatcher::new(Arc::new(
-        BuiltinDispatcher::new(
-            Arc::new(TokioFs),
-            http,
-            Arc::new(seams.clock.clone()),
-            Arc::new(StderrEmitter::default()),
-            Arc::new(NonInteractive::default()),
-            Arc::clone(&inspect),
-        )
-        .with_fs_boundary(caps.fs),
-    )));
+    let emitter = StderrEmitter::default();
+    let plane = builtin_plane(http, &seams, emitter, &inspect, caps.fs);
+    let dispatcher = Arc::new(SimulatedDispatcher::new(Arc::new(plane)));
     let invoke = Arc::new(InvokeVerb::new(Arc::clone(&dispatcher)));
 
     // The provider registry (real http + env keys) drives infer directly
