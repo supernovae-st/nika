@@ -14,7 +14,9 @@
     "preview": "node render.mjs video --scale 0.5 --fps 30",
     "master": "node render.mjs master",
     "exports": "node render.mjs exports",
-    "readability": "node tools/readability.mjs"
+    "readability": "node tools/readability.mjs",
+    "clip": "node render.mjs clip",
+    "clip-stills": "node render.mjs clip-stills"
   },
   "license": "AGPL-3.0-or-later"
 }

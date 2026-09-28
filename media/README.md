@@ -37,19 +37,44 @@ work, approval and concrete results. Its source and timing tests are in
 
 The older `intent-dag-proof` film also remains an archived alternative.
 
+## Feature clips
+
+Short clips for READMEs, the docs and the site, each an MP4 and WebM, a
+README GIF and a poster, rendered by the same engine as the README film
+from captured output:
+
+| Clip | What it shows |
+|---|---|
+| `nika-hero` | the audit, then a real local model run and the items it wrote (also `media/nika-hero.gif`) |
+| `static-check-fix` | `nika check` catching two defects, the real fix, the clean re-check |
+| `permits-audit` | the file's boundary drawn from its `permits:`, the escape the check catches, the widened fence |
+| `on-error-recover` | a missing live feed absorbed by `on_error: recover`, the stale output and the recorded failure |
+| `dag-execution` | a workflow's graph from `nika inspect`, its waves from `nika check` |
+| `chat-to-workflow` | a request retyped every Monday, kept as a file that runs |
+| `editor-diagnostics` | what `nika lsp` publishes, fixed by one keystroke |
+| `workflow-gallery` | the jobs `nika try` lists |
+| `full-loop` | the README's first file: compile, check, run, verify |
+
+How they are made and checked is in
+[the film README](../scripts/media/motion/intent-to-proof/README.md#feature-clips).
+
 ## Rules
 
 - **No fake commands.** Every command shown in an asset exists in the CLI.
-- **No fake output.** Terminal text is captured from the real binary
-  (`scripts/media/capture-transcripts.sh` → `media/raw/*.txt`). The
-  chat-to-workflow run is a real local inference (`ollama/llama3.2:3b`).
-- **Every complete runnable workflow shown passes `nika check`** — except the deliberately
-  broken fixture in the static-check-fix asset, whose failure is the point.
-  `scripts/media/validate-media.sh` enforces both directions.
+- **No fake output.** Terminal text and diagnostics are captured from the
+  real binary and its language server (`scripts/media/capture-transcripts.sh`
+  → `media/raw/`). The chat-to-workflow and nika-hero runs are a real local
+  inference (`ollama/llama3.2:3b`); a `mock/echo` run is a rehearsal and
+  says so.
+- **Every complete runnable workflow shown passes `nika check`**, except the
+  deliberately broken fixtures (`broken-pr-review` in static-check-fix and
+  editor-diagnostics, `permits-escape` in permits-audit), whose failure is
+  the point. `scripts/media/validate-media.sh` enforces both directions.
 - **Illustrations say so.** The product film labels fictional data and folded
-  source excerpts. It must never be described as a successful real integration.
+  source excerpts; a clip's plate names what it illustrates. None may be
+  described as a successful real integration.
 - **Budgets** · README GIF ≤ 8 MB · poster PNG ≤ 1 MB.
-- **Never edit exports by hand.** Edit the motion scene or fixture, then
+- **Never edit exports by hand.** Edit the clip, scene or fixture, then
   regenerate.
 
 ## Layout
@@ -57,28 +82,33 @@ The older `intent-dag-proof` film also remains an archived alternative.
 ```
 media/
   brand/     nika-logomark.svg — official butterfly mark (geometry preserved)
-  gifs/      *.optimized.gif   — README embeds (scene width/fps · ≤8MB)
+  gifs/      *.optimized.gif   — README embeds (clips: 960 px · 12 fps · ≤8MB)
   videos/    *.mp4 + *.webm    — docs + website embeds
   posters/   *.png             — static frame per animation (og:image, video poster)
   storyboards/*.png            — six-beat visual QA contact sheets
-  social/    og-card + github-social-preview — share cards (scene: motion/og-card.html)
-  raw/       *.txt + *.json    — captured CLI transcripts (the source of truth)
+  social/    *.png             — share cards: the film's end card (og-card,
+                               github-social-preview) and two clips' last
+                               frames (check-before-run, chat-vs-keeping)
+  raw/       *.txt + *.json    — captured CLI and language-server output
+                               (the source of truth)
   nika-hero.gif                — the nika-hero clip at the path other repos hotlink
 ```
 
 ## Regenerate
 
 ```sh
-bash scripts/media/capture-transcripts.sh     # refresh real CLI transcripts
-cd scripts/media && npm install               # once (Playwright + GSAP + Geist)
-node render-motion.mjs intent-dag-proof static-check-fix chat-to-workflow dag-execution
-bash scripts/media/validate-media.sh          # honesty + budget gate
+bash scripts/media/capture-transcripts.sh     # refresh the captured output
+cd scripts/media/motion/intent-to-proof
+npm ci && npm run fonts                       # once
+npm run clip -- all                           # every feature clip
+bash ../../validate-media.sh                  # honesty + budget gate
 ```
 
-The motion scenes live in `scripts/media/motion/*.html` — deterministic
-HTML/SVG timelines rendered frame-by-frame in headless Chrome. The README hero
-has a checked-in production storyboard beside its scene. Open any scene in a
-browser to preview it live.
+The README film and the feature clips are code: every frame is a function of
+time, drawn with Skia (see [the film README](../scripts/media/motion/intent-to-proof/README.md)).
+The archived `intent-dag-proof` film is an HTML scene rendered in headless
+Chrome by `scripts/media/render-motion.mjs` (`npm ci` in `scripts/media`;
+`CHROME_PATH` selects a Chromium other than the system Chrome).
 
 Workflow fixtures live in `scripts/media/fixtures/` and are gated in both
 directions (a broken half must keep failing `nika check`, a fixed half must
@@ -89,15 +119,15 @@ stay clean).
 GitHub README → use the optimized GIF:
 
 ```md
-![alt text](media/gifs/<scene>.optimized.gif)
+![alt text](media/gifs/<clip>.optimized.gif)
 ```
 
 Docs (Mintlify) and the website → prefer video with the poster:
 
 ```html
-<video autoPlay muted loop playsInline poster="/images/posters/<scene>.png">
-  <source src="/videos/<scene>.webm" type="video/webm" />
-  <source src="/videos/<scene>.mp4" type="video/mp4" />
+<video autoPlay muted loop playsInline poster="/images/posters/<clip>.png">
+  <source src="/videos/<clip>.webm" type="video/webm" />
+  <source src="/videos/<clip>.mp4" type="video/mp4" />
 </video>
 ```
 

@@ -96,6 +96,10 @@ required=(
   media/videos/workflow-gallery.mp4
   media/videos/workflow-gallery.webm
   media/posters/workflow-gallery.png
+  media/social/github-social-preview-1280x640.png
+  media/social/og-card-1600x900.png
+  media/social/check-before-run-1600x900.png
+  media/social/chat-vs-keeping-1600x900.png
   media/posters/intent-to-proof.png
   media/storyboards/intent-to-proof.png
   scripts/media/motion/intent-to-proof/README.md
@@ -260,6 +264,21 @@ for p in sorted(pathlib.Path("scripts/media/motion").glob("*.html")):
     gif_t = last_commit(str(gif))
     if gif_t is not None and gif_t < scene_t:
         print(f" x {gif.name}: older than its scene {p.name} — re-render owed")
+        bad = 1
+# A clip (motion/intent-to-proof/clips/<name>.mjs) renders the GIF of the
+# same name: the GIF must not predate its clip. Code the clips share (the
+# kit, the engine) changes renders too; whoever changes it re-renders the
+# clips it touches, since a byte-identical re-render records no commit.
+for p in sorted(pathlib.Path("scripts/media/motion/intent-to-proof/clips").glob("*.mjs")):
+    if p.stem == "kit":
+        continue
+    src_t = last_commit(str(p))
+    gif = pathlib.Path("media/gifs") / (p.stem + ".optimized.gif")
+    if src_t is None or not gif.exists() or dirty(str(gif)):
+        continue
+    gif_t = last_commit(str(gif))
+    if gif_t is not None and gif_t < src_t:
+        print(f" x {gif.name}: older than its clip {p.name} — re-render owed")
         bad = 1
 sys.exit(bad)
 PY

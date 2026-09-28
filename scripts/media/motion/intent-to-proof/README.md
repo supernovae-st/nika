@@ -150,6 +150,45 @@ The committed exports are the web cut `media/videos/intent-to-proof.mp4`
 If you change the fixture program or `captured/plan.json`, run
 `python3 tools/hashes.py`. `src/facts.mjs` refuses to render with stale hashes.
 
+## Feature clips
+
+The same engine renders the short clips the ecosystem embeds: `nika-hero`
+(the audit-then-run story, also copied to `media/nika-hero.gif`, the path
+other repositories hotlink), `static-check-fix`, `permits-audit`,
+`on-error-recover`, `dag-execution`, `chat-to-workflow`,
+`editor-diagnostics`, `workflow-gallery` and `full-loop`. Each is one file
+in `clips/`, built from `clips/kit.mjs`: code cards that animate a real
+line diff, terminals that stream captured lines, row highlights and a
+camera.
+
+- Every program line, CLI line and diagnostic on screen is read from
+  `scripts/media/fixtures/` or `media/raw/`, captured from the binary and
+  its language server by `scripts/media/capture-transcripts.sh`. Where a
+  clip's story rests on a capture (the escape the check must catch, the
+  chain verify must read back), it checks it and refuses to render
+  otherwise. What is
+  illustration (the chat, the editor's chrome, the lighting of the DAG
+  waves, the phrase-to-task mapping) says so on the clip's plate.
+- The camera pushes in on what is being read, so reading moments land at
+  22 to 33 px on the 1920 px frame, and pulls back for the last frame. That
+  frame is the poster; for `static-check-fix` and `chat-to-workflow` it is
+  also a social card.
+- Outputs: `media/videos/<name>.mp4` (1600×900, 30 fps) and `.webm`,
+  `media/gifs/<name>.optimized.gif` (960 px, 12 fps, 128 colours) and
+  `media/posters/<name>.png`. A camera move repaints every pixel of a GIF
+  frame, so moves are short and holds are long (a held frame costs
+  almost nothing); every clip stays under the 8 MB budget.
+
+```sh
+npm run clip -- static-check-fix               # one clip, or `all`
+npm run clip-stills -- permits-audit 4,9.5     # QA stills → .cache/clips/<name>/
+npm run readability -- --clip dag-execution    # reading time, pushed-in text included
+```
+
+A change to shared code (`clips/kit.mjs`, `src/clip.mjs`, `src/engine/`)
+changes the clips drawn with it: re-render them in the same change.
+`validate-media.sh` compares each clip's GIF with its own clip file.
+
 ## Verification
 
 - `nika check scripts/media/fixtures/invoice-payments.nika` must stay clean. `scripts/media/validate-media.sh` enforces it.
