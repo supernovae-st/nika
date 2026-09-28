@@ -1,0 +1,13 @@
+  🦋 nika · gated-ship · 3 tasks
+     permits ✓ declared boundary · exec outside the fs bounds
+
+  ✔  build    exec · printf · untrusted input from build  7ms
+  3 tasks · 3 waves · 0 retries
+  ── 1/3 done · unmetered · elapsed 0.0s ─────────────────────────
+    wrote .nika/traces
+
+  ◇ paused · awaiting an answer for `approve`
+    answer: nika run --answer approve=true FILE  (boolean true/false, not yes)
+  explore: nika run gated-ship.nika --json > run.ndjson · nika trace outputs run.ndjson
+    trace: .nika/traces/2026-09-28T21-15-02Z-d309.ndjson · 9 events · chain 69b8e3e64229e0900db877c852f5f7fe932553b163365f2c7ff17c0ad0ff5ada
+    resume: nika run gated-ship.nika --resume .nika/traces/2026-09-28T21-15-02Z-d309.ndjson --answer approve=true · or false

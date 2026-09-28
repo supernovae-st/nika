@@ -1,0 +1,6 @@
+nika trace: reading .nika/traces/2026-09-28T21-15-02Z-5b91.ndjson (the workspace latest)
+  task     verb                   dur  tok  output
+  build    —                             —  "build ok" · 10B
+  approve  invoke · nika:prompt   0ms    —  true · 4B
+  ship     exec · printf         11ms    —  "shipped" · 9B · untrusted input from ship
+  3 tasks · 22ms · full value: nika trace peek .nika/traces/2026-09-28T21-15-02Z-5b91.ndjson <task>
