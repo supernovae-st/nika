@@ -197,6 +197,11 @@ if [ -f "${NIKA_ACTION:-../nika-action}/action.yml" ]; then
 else
   echo "no nika-action checkout (NIKA_ACTION) — keeping the committed pr-check-comment captures" >&2
 fi
+# typescript-client runs the TypeScript package's quick start from a built
+# nika-client checkout named by NIKA_CLIENT_DIR. Without one it keeps the
+# committed snapshot; a capture changes the run's hashes, so refreshing it
+# means re-rendering that clip, as for trace-proof.
+bash scripts/media/capture/typescript-client.sh
 
 # ── bundle for the motion renderer ──────────────────────────────────────
 node - <<'NODE'
