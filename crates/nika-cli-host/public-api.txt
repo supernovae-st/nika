@@ -3714,6 +3714,7 @@ impl<T> tracing::instrument::WithSubscriber for nika_cli_host::run_cost::RunCost
 impl<T> typenum::type_operators::Same for nika_cli_host::run_cost::RunCost
 pub type nika_cli_host::run_cost::RunCost::Output = T
 pub fn nika_cli_host::run_cost::review(root: &std::path::Path, file: &str, source: &str, invocation: alloc::string::String, wf: &nika_schema::raw::workflow::RawWorkflow, plan: &nika_providers::plan::ExecutionAccessPlan, inputs: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>, invocation_default: core::option::Option<f64>, channel: impl core::convert::Into<nika_cli_host::run_cost::ReviewChannel>) -> core::result::Result<core::option::Option<nika_cli_host::run_cost::RunCost>, alloc::string::String>
+pub fn nika_cli_host::run_cost::review_with_model(root: &std::path::Path, file: &str, source: &str, invocation: alloc::string::String, wf: &nika_schema::raw::workflow::RawWorkflow, model_override: core::option::Option<&str>, plan: &nika_providers::plan::ExecutionAccessPlan, inputs: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>, invocation_default: core::option::Option<f64>, channel: impl core::convert::Into<nika_cli_host::run_cost::ReviewChannel>) -> core::result::Result<core::option::Option<nika_cli_host::run_cost::RunCost>, alloc::string::String>
 pub mod nika_cli_host::run_protocol
 pub fn nika_cli_host::run_protocol::emit_diagnostic(text: &str, output_json: bool)
 pub fn nika_cli_host::run_protocol::envelope_message(text: &str) -> &str
