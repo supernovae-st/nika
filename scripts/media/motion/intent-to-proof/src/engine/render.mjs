@@ -50,7 +50,7 @@ export function makeR(surf, pass, t) {
   ctx.filter = 'none';
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
-  return { ctx, pass, glowPass: pass === 'glow', k, t, surf };
+  return { ctx, pass, glowPass: pass === 'glow', k, t, surf, audit: pass === 'main' ? surf.audit : undefined };
 }
 
 // Additive bloom from the emissive buffer.
@@ -136,6 +136,7 @@ export function text(R, str, x, y, st = {}) {
   const a = passAlpha(R, st.alpha ?? 1, st.glow || 0);
   if (!a || !str) return;
   const ctx = R.ctx;
+  if (R.audit) R.audit(str, x, y, st, a, ctx.getTransform()); // tools/readability.mjs
   if (st.blur && st.blur > 0.25 && !R.glowPass) return blurredText(R, str, x, y, st, a);
   setText(ctx, st);
   ctx.globalAlpha = a;
