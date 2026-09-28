@@ -170,6 +170,12 @@ impl UnknownCostChoice {
     pub fn endpoint(&self) -> &str {
         &self.endpoint
     }
+    /// The selected endpoint's origin ([`crate::route_origin`]): what a durable
+    /// record names in its place. `None` when it has none to project.
+    #[must_use]
+    pub fn origin(&self) -> Option<String> {
+        crate::route_origin(&self.endpoint)
+    }
     /// Attach an explicitly declared estimate. This does not turn unknown-cost
     /// authorization into a dollar guarantee or permit a hard-cap override.
     /// # Errors

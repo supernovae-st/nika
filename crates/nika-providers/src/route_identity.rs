@@ -12,19 +12,24 @@
 //! userinfo, percent-escapes and case.
 //!
 //! The runtime's trace writers call [`durable_calls`], [`durable_pricing`] and
-//! [`route_label`]. Pricing, consent and journal judgment keep the exact
-//! in-memory endpoint, and no admission, review, retry, wire, journal or session
-//! path calls this module yet. An origin groups every route of one origin for
-//! display only: it never admits, prices or consents.
+//! [`route_label`]. The account's observation has a durable form too
+//! ([`project_observation`], `InferenceReceipt::durable_observation`,
+//! `nika/inference-cost-observation@2`), which the admission reading law reads;
+//! no journal, trace or session writer emits it yet. Pricing, consent and
+//! journal judgment keep the exact in-memory endpoint. An origin groups every
+//! route of one origin for display only: it never admits, prices or consents.
 //!
 //! The durable projections follow a closed schema. Identity fields become
 //! origins. Money, counters, states, catalog constants and the selected provider
-//! and model are copied as their producer wrote them and never read. Only named
-//! free text is judged (a declared tariff's `billing_provider`, `provenance` and
-//! `version`, a call's `request_id` and `response_model`): one holding endpoint
-//! material becomes `null` with a `withheld` entry. A `withheld` entry names a
-//! field of this schema, never input text, so what it withholds cannot be echoed
-//! by its own diagnostic.
+//! and model are copied as their producer wrote them and never rewritten. Only
+//! named free text is judged (a declared tariff's `billing_provider`,
+//! `provenance` and `version`, a call's `request_id` and `response_model`, and
+//! in an observation also its `refusal` and each attempt's `note`): one holding
+//! endpoint material becomes `null` with a `withheld` entry. A `withheld` entry
+//! names a field of this schema by a pointer built from its static key names
+//! and array indices, never from input text, so what it withholds cannot be
+//! echoed by its own diagnostic. This is the whole privacy claim: text outside
+//! the named fields is its producer's.
 
 use std::borrow::Cow;
 use std::fmt::Write as _;
@@ -225,10 +230,15 @@ fn durable_call(call: &InferenceCall) -> Value {
 
 /// A pricing text's durable object, or why it is withheld whole.
 fn pricing_object(raw: &str, private: &[String]) -> Result<Value, &'static str> {
-    let Value::Object(fields) = serde_json::from_str::<Value>(raw).map_err(|_| UNREADABLE)? else {
+    pricing_value(&serde_json::from_str(raw).map_err(|_| UNREADABLE)?, private)
+}
+
+/// A pricing object's durable form (W2-W5), or why it is withheld whole.
+fn pricing_value(value: &Value, private: &[String]) -> Result<Value, &'static str> {
+    let Value::Object(fields) = value else {
         return Err(UNRECOGNIZED_KIND);
     };
-    let (copied, text) = pricing_shape(&fields).ok_or(UNRECOGNIZED_KIND)?;
+    let (copied, text) = pricing_shape(fields).ok_or(UNRECOGNIZED_KIND)?;
     let route = match fields.get("route") {
         None => None,
         Some(Value::Object(route)) => Some(route),
@@ -244,7 +254,7 @@ fn pricing_object(raw: &str, private: &[String]) -> Result<Value, &'static str> 
     let mut withheld = Withheld::default();
     let mut durable = Map::new();
     let mut dropped = 0;
-    for (key, value) in &fields {
+    for (key, value) in fields {
         if copied.contains(&key.as_str()) {
             durable.insert(key.clone(), value.clone());
         } else if let Some((name, field)) = text.iter().find(|(name, _)| *name == key.as_str()) {
@@ -299,19 +309,20 @@ fn durable_route(route: &Map<String, Value>, withheld: &mut Withheld) -> Value {
 }
 
 /// What one durable object withheld, as `(field, reason, dropped keys)`. A field
-/// is always one of this module's schema pointers, never input text.
+/// is always a pointer of this module's schema, made of its static key names and
+/// array indices, never of input text.
 #[derive(Default)]
-struct Withheld(Vec<(&'static str, &'static str, usize)>);
+struct Withheld(Vec<(String, &'static str, usize)>);
 
 impl Withheld {
-    fn note(&mut self, field: &'static str, reason: &'static str) {
-        self.0.push((field, reason, 0));
+    fn note(&mut self, field: impl Into<String>, reason: &'static str) {
+        self.0.push((field.into(), reason, 0));
     }
 
     /// Count the keys dropped from the object at `field`, without naming them.
-    fn dropped(&mut self, field: &'static str, count: usize) {
+    fn dropped(&mut self, field: impl Into<String>, count: usize) {
         if count > 0 {
-            self.0.push((field, UNRECOGNIZED_KEY, count));
+            self.0.push((field.into(), UNRECOGNIZED_KEY, count));
         }
     }
 
@@ -431,5 +442,475 @@ fn escaped(part: &str) -> String {
     encoded
 }
 
+/// The account's observation as it writes it, and its durable form.
+const OBSERVATION: &str = "nika/inference-cost-observation@1";
+const DURABLE_OBSERVATION: &str = "nika/inference-cost-observation@2";
+
+/// The counters `TokenUsage` serializes: a durable usage holds these only.
+const USAGE_KEYS: &[&str] = &[
+    "accepted_prediction_tokens",
+    "audio_input_tokens",
+    "audio_output_tokens",
+    "cache_creation_tokens",
+    "cache_read_tokens",
+    "cache_write_tokens",
+    "citation_tokens",
+    "image_input_tokens",
+    "image_output_tokens",
+    "input_tokens",
+    "num_requests",
+    "output_tokens",
+    "reasoning_tokens",
+    "rejected_prediction_tokens",
+    "search_context_tokens",
+    "thinking_tokens",
+    "total_tokens",
+    "video_input_tokens",
+];
+
+/// The type a copied field keeps: the account's own serialization.
+#[derive(Clone, Copy)]
+enum Kind {
+    /// A string.
+    Text,
+    /// A string or null.
+    OptText,
+    /// A decimal `i128` (nano-currency) written as a string.
+    Nano,
+    /// A decimal `i128` string, or null.
+    OptNano,
+    /// A non-negative integer.
+    Count,
+    /// A boolean.
+    Flag,
+    /// `true`: a key the account writes only when it holds.
+    Set,
+    /// `Open`, `Closed` or `Uncertain`.
+    State,
+    /// The two overridden defaults, each a decimal `i128` string or null.
+    Defaults,
+    /// Three non-negative integer rates.
+    Rates,
+    /// Token counters by their `TokenUsage` names, each an integer or null; or null.
+    Usage,
+}
+
+impl Kind {
+    fn fits(self, value: &Value) -> bool {
+        let nano = |value: &Value| value.as_str().is_some_and(|v| v.parse::<i128>().is_ok());
+        match self {
+            Self::Text => value.is_string(),
+            Self::OptText => value.is_string() || value.is_null(),
+            Self::Nano => nano(value),
+            Self::OptNano => value.is_null() || nano(value),
+            Self::Count => value.is_u64(),
+            Self::Flag => value.is_boolean(),
+            Self::Set => *value == Value::Bool(true),
+            Self::State => matches!(value.as_str(), Some("Open" | "Closed" | "Uncertain")),
+            Self::Defaults => value
+                .as_array()
+                .is_some_and(|d| d.len() == 2 && d.iter().all(|v| v.is_null() || nano(v))),
+            Self::Rates => value
+                .as_array()
+                .is_some_and(|r| r.len() == 3 && r.iter().all(Value::is_u64)),
+            Self::Usage => {
+                value.is_null()
+                    || value.as_object().is_some_and(|usage| {
+                        usage.iter().all(|(name, v)| {
+                            USAGE_KEYS.contains(&name.as_str()) && (v.is_null() || v.is_u64())
+                        })
+                    })
+            }
+        }
+    }
+}
+
+/// How the durable observation carries one known key.
+#[derive(Clone, Copy)]
+enum Carry {
+    /// The schema name, written `@2`.
+    Schema,
+    /// Copied as written, once it holds the account's own type.
+    Copy(Kind),
+    /// Named free text (F1, amendment A10): kept, or null with a `withheld`
+    /// entry when it holds endpoint material of the source observation.
+    Text,
+    /// The exact endpoint (`endpoint` at `@1`), written as its origin.
+    Origin,
+    /// A nested durable object; null too where the flag allows it.
+    Object(&'static [Field], bool),
+    /// A list of durable objects.
+    List(&'static [Field]),
+    /// A pricing provenance object (W2-W5), or null.
+    Pricing,
+}
+
+/// One known key: its durable name, how it is carried, whether it is always written.
+type Field = (&'static str, Carry, bool);
+
+/// W9 with amendment A1: the observation, its choice, a declared tariff, an
+/// unknown-cost attempt and a catalog attempt.
+const OBSERVATION_FIELDS: &[Field] = &[
+    ("schema", Carry::Schema, true),
+    ("known_subtotal_nano_usd", Carry::Copy(Kind::Nano), true),
+    ("unknown_calls", Carry::Copy(Kind::Count), true),
+    ("unknown_cost", Carry::Object(CHOICE_FIELDS, true), true),
+    ("unknown_attempts", Carry::List(UNKNOWN_FIELDS), true),
+    ("overridden_defaults", Carry::Copy(Kind::Defaults), true),
+    ("limit_nano_usd", Carry::Copy(Kind::OptNano), true),
+    ("billed_nano_usd", Carry::Copy(Kind::OptNano), true),
+    ("state", Carry::Copy(Kind::State), true),
+    ("refusal", Carry::Text, true),
+    ("attempts", Carry::List(CATALOG_FIELDS), true),
+    ("unbudgeted", Carry::Copy(Kind::Set), false),
+    ("scoped_to_declared_free", Carry::Copy(Kind::Set), false),
+];
+const CHOICE_FIELDS: &[Field] = &[
+    ("candidate", Carry::Copy(Kind::Text), true),
+    ("invocation", Carry::Copy(Kind::Text), true),
+    ("provider", Carry::Copy(Kind::Text), true),
+    ("model", Carry::Copy(Kind::Text), true),
+    ("origin", Carry::Origin, true),
+    ("max_requests", Carry::Copy(Kind::Count), true),
+    ("max_in_flight", Carry::Copy(Kind::Count), false),
+    ("authored_retry", Carry::Copy(Kind::Set), false),
+    ("max_output_tokens", Carry::Copy(Kind::Count), true),
+    ("timeout_ms", Carry::Copy(Kind::Count), true),
+    (
+        "declared_tariff",
+        Carry::Object(DECLARED_FIELDS, true),
+        true,
+    ),
+];
+const DECLARED_FIELDS: &[Field] = &[
+    ("provider", Carry::Copy(Kind::Text), true),
+    ("model", Carry::Copy(Kind::Text), true),
+    ("origin", Carry::Origin, true),
+    ("billing_provider", Carry::Text, true),
+    ("currency", Carry::Copy(Kind::Text), true),
+    ("unit", Carry::Copy(Kind::Text), true),
+    ("nano_per_token", Carry::Copy(Kind::Rates), true),
+    ("provenance", Carry::Text, true),
+    ("version", Carry::Text, true),
+];
+const UNKNOWN_FIELDS: &[Field] = &[
+    ("id", Carry::Copy(Kind::Count), true),
+    ("choice", Carry::Object(CHOICE_FIELDS, false), true),
+    ("pricing", Carry::Pricing, true),
+    ("sent", Carry::Copy(Kind::Flag), true),
+    ("usage", Carry::Copy(Kind::Usage), true),
+    ("estimated_nano_usd", Carry::Copy(Kind::OptNano), true),
+    ("native_estimated_nano", Carry::Copy(Kind::OptNano), true),
+    ("currency", Carry::Copy(Kind::OptText), true),
+    ("response_model", Carry::Text, true),
+    ("request_id", Carry::Text, true),
+    ("note", Carry::Text, true),
+];
+const CATALOG_FIELDS: &[Field] = &[
+    ("id", Carry::Copy(Kind::Count), true),
+    ("model", Carry::Copy(Kind::Text), true),
+    ("origin", Carry::Origin, true),
+    ("sent", Carry::Copy(Kind::Flag), true),
+    ("estimated_nano_usd", Carry::Copy(Kind::OptNano), true),
+    ("reserved_nano_usd", Carry::Copy(Kind::Nano), true),
+    ("usage", Carry::Copy(Kind::Usage), true),
+    ("billing_provider", Carry::Copy(Kind::Text), true),
+    ("currency", Carry::Copy(Kind::Text), true),
+    ("source", Carry::Copy(Kind::Text), true),
+    ("as_of", Carry::Copy(Kind::Text), true),
+    ("source_sha256", Carry::Copy(Kind::Text), true),
+    ("note", Carry::Text, true),
+];
+
+/// The durable form of a cost observation (`nika/inference-cost-observation@2`,
+/// W9 with amendments A1 and A8-A10).
+///
+/// An `@1` projects to the same closed schema with every endpoint written as its
+/// origin ([`route_origin`]), every money, counter, state and identity value
+/// copied as written, and the named free text (a declared tariff's
+/// `billing_provider`, `provenance` and `version`, each attempt's `request_id`,
+/// `response_model` and `note`, and the `refusal`) kept unless it holds material
+/// of an endpoint the observation names, then null. `withheld` lists each such
+/// field by its instance pointer (`/unknown_attempts/0/request_id`) and each
+/// object's count of unknown keys, which are dropped and never named.
+///
+/// An `@2` is returned unchanged only when it is exactly what a projection
+/// writes: its known keys with their types, canonical origins, and a sorted
+/// `withheld` that names only null text or objects it holds. Anything else,
+/// another schema or a malformed `@1` or `@2`, is `None`: a reader refuses it
+/// as unreadable, never repairs it.
+#[must_use]
+pub fn project_observation(observation: &Value) -> Option<Value> {
+    let schema = observation.get("schema").and_then(Value::as_str)?;
+    if schema == DURABLE_OBSERVATION {
+        let mut body = observation.clone();
+        let listed = body.as_object_mut()?.remove("withheld")?;
+        let mut walk = Walk::new(true, &[]);
+        walk.object(OBSERVATION_FIELDS, &body, "")?;
+        return lists(&listed, &walk.allowed).then(|| observation.clone());
+    }
+    if schema != OBSERVATION {
+        return None;
+    }
+    let mut private = Vec::new();
+    endpoints(observation, &mut private);
+    let mut walk = Walk::new(false, &private);
+    let mut durable = walk.object(OBSERVATION_FIELDS, observation, "")?;
+    durable["withheld"] = walk.withheld.into_value();
+    Some(durable)
+}
+
+/// A recorded route named by origin (W11): `{provider, model, endpoint}` becomes
+/// `{provider, model, origin}` and an origin route keeps its canonical origin.
+/// An origin that is not one, or none, is null; a non-object is null.
+#[must_use]
+pub fn project_route(route: &Value) -> Value {
+    let Value::Object(fields) = route else {
+        return Value::Null;
+    };
+    let origin = match (fields.get("endpoint"), fields.get("origin")) {
+        (Some(endpoint), _) => endpoint.as_str().and_then(route_origin),
+        (None, Some(origin)) => origin.as_str().filter(|o| is_origin(o)).map(str::to_owned),
+        (None, None) => None,
+    };
+    serde_json::json!({"provider": fields.get("provider"), "model": fields.get("model"),
+        "origin": origin})
+}
+
+impl crate::InferenceReceipt {
+    /// This receipt's observation in its durable form ([`project_observation`]):
+    /// what a journal row, a trace or a saved session may keep, while
+    /// [`Self::observation`] stays the exact `@1` in memory. Null when the account
+    /// wrote something outside the closed schema, a drift its producer tests fail
+    /// on and a record every reader refuses as unreadable.
+    #[must_use]
+    pub fn durable_observation(&self) -> Value {
+        project_observation(&self.observation()).unwrap_or(Value::Null)
+    }
+}
+
+/// Whether `origin` is exactly the origin [`route_origin`] writes for itself.
+fn is_origin(origin: &str) -> bool {
+    route_origin(origin).as_deref() == Some(origin)
+}
+
+/// The host-private parts of every endpoint an observation names, wherever it
+/// names one.
+fn endpoints(value: &Value, private: &mut Vec<String>) {
+    match value {
+        Value::Object(fields) => {
+            for (key, value) in fields {
+                if let Value::String(endpoint) = value
+                    && key == "endpoint"
+                {
+                    private_material(endpoint, private);
+                } else {
+                    endpoints(value, private);
+                }
+            }
+        }
+        Value::Array(items) => {
+            for item in items {
+                endpoints(item, private);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// One walk over an observation: the projection of an `@1`, or the check of an
+/// `@2`, which must already be exactly what a projection writes.
+struct Walk<'a> {
+    /// The input is `@2`: nothing is judged, dropped or rewritten.
+    durable: bool,
+    /// Endpoint material of the source observation (`@1` only).
+    private: &'a [String],
+    /// What an `@1` projection withholds.
+    withheld: Withheld,
+    /// The `withheld` entries an `@2` may carry: a null text or pricing field,
+    /// or an object that may have dropped keys.
+    allowed: Vec<(String, &'static str)>,
+}
+
+impl<'a> Walk<'a> {
+    fn new(durable: bool, private: &'a [String]) -> Self {
+        Self {
+            durable,
+            private,
+            withheld: Withheld::default(),
+            allowed: Vec::new(),
+        }
+    }
+
+    /// The durable object of `fields` at pointer `at`, or `None` when a known key
+    /// is missing or ill-typed, or an `@2` holds an unknown key.
+    fn object(&mut self, fields: &'static [Field], value: &Value, at: &str) -> Option<Value> {
+        let mut durable = Map::new();
+        let mut dropped = 0;
+        for (key, value) in value.as_object()? {
+            let written = |field: &&Field| self.key(field.0, field.1) == key.as_str();
+            let Some(&(name, carry, _)) = fields.iter().find(written) else {
+                dropped += 1;
+                continue;
+            };
+            let carried = self.carry(carry, value, &format!("{at}/{name}"))?;
+            durable.insert(name.to_owned(), carried);
+        }
+        if fields
+            .iter()
+            .any(|(name, _, always)| *always && !durable.contains_key(*name))
+        {
+            return None;
+        }
+        if self.durable {
+            if dropped > 0 {
+                return None;
+            }
+            self.allowed.push((at.to_owned(), UNRECOGNIZED_KEY));
+        } else {
+            self.withheld.dropped(at, dropped);
+        }
+        Some(Value::Object(durable))
+    }
+
+    /// The key an input names a field by: an `@1` names its origin `endpoint`.
+    fn key(&self, name: &'static str, carry: Carry) -> &'static str {
+        match carry {
+            Carry::Origin if !self.durable => "endpoint",
+            _ => name,
+        }
+    }
+
+    fn carry(&mut self, carry: Carry, value: &Value, at: &str) -> Option<Value> {
+        match carry {
+            Carry::Schema => Some(Value::from(DURABLE_OBSERVATION)),
+            Carry::Copy(kind) => kind.fits(value).then(|| value.clone()),
+            Carry::Text => self.text(value, at),
+            Carry::Origin => match value {
+                Value::String(endpoint) if !self.durable => {
+                    Some(route_origin(endpoint).map_or(Value::Null, Value::String))
+                }
+                Value::String(origin) => is_origin(origin).then(|| value.clone()),
+                Value::Null if self.durable => Some(Value::Null),
+                _ => None,
+            },
+            Carry::Object(_, true) if value.is_null() => Some(Value::Null),
+            Carry::Object(fields, _) => self.object(fields, value, at),
+            Carry::List(fields) => {
+                let items = value.as_array()?.iter().enumerate();
+                let durable: Option<Vec<Value>> = items
+                    .map(|(index, item)| self.object(fields, item, &format!("{at}/{index}")))
+                    .collect();
+                durable.map(Value::Array)
+            }
+            Carry::Pricing if value.is_null() => {
+                if self.durable {
+                    self.allowed.push((at.to_owned(), UNRECOGNIZED_KIND));
+                }
+                Some(Value::Null)
+            }
+            Carry::Pricing if self.durable => durable_pricing_reads(value).then(|| value.clone()),
+            Carry::Pricing => Some(pricing_value(value, self.private).unwrap_or_else(|reason| {
+                self.withheld.note(at, reason);
+                Value::Null
+            })),
+        }
+    }
+
+    /// Named free text: a string or null. At `@1` it is judged against the
+    /// observation's endpoint material; at `@2` a null may be listed as withheld.
+    fn text(&mut self, value: &Value, at: &str) -> Option<Value> {
+        match value {
+            Value::Null => {
+                if self.durable {
+                    self.allowed.push((at.to_owned(), ENDPOINT_MATERIAL));
+                }
+                Some(Value::Null)
+            }
+            Value::String(text) if !self.durable && holds(text, self.private) => {
+                self.withheld.note(at, ENDPOINT_MATERIAL);
+                Some(Value::Null)
+            }
+            Value::String(_) => Some(value.clone()),
+            _ => None,
+        }
+    }
+}
+
+/// Whether a durable pricing object (W2-W5) is one a projection writes: its
+/// kind's keys with scalar values, named text that is a string or null, a
+/// `{provider, model, origin}` route, and a `withheld` naming only its own fields.
+fn durable_pricing_reads(value: &Value) -> bool {
+    let Some(fields) = value.as_object() else {
+        return false;
+    };
+    let Some((copied, text)) = pricing_shape(fields) else {
+        return false;
+    };
+    let mut allowed = vec![(String::new(), UNRECOGNIZED_KEY)];
+    for (key, value) in fields {
+        let fits = if copied.contains(&key.as_str()) {
+            match key.as_str() {
+                "nano_per_token" => Kind::Rates.fits(value),
+                _ => !value.is_array() && !value.is_object(),
+            }
+        } else if let Some((_, pointer)) = text.iter().find(|(name, _)| *name == key.as_str()) {
+            if value.is_null() {
+                allowed.push(((*pointer).to_owned(), ENDPOINT_MATERIAL));
+            }
+            value.is_string() || value.is_null()
+        } else if key == "route" {
+            allowed.push(("/route".to_owned(), UNRECOGNIZED_KEY));
+            value.as_object().is_some_and(|route| {
+                route.len() == 3
+                    && ["provider", "model"]
+                        .iter()
+                        .all(|k| route.get(*k).is_some_and(|v| v.is_string() || v.is_null()))
+                    && route.get("origin").is_some_and(|origin| {
+                        origin.is_null() || origin.as_str().is_some_and(is_origin)
+                    })
+            })
+        } else {
+            key == "withheld"
+        };
+        if !fits {
+            return false;
+        }
+    }
+    fields
+        .get("withheld")
+        .is_some_and(|listed| lists(listed, &allowed))
+}
+
+/// Whether `listed` is a `withheld` list a projection writes: sorted, unique
+/// entries, each one `allowed`, a dropped-key entry with its positive count and
+/// any other entry with none.
+fn lists(listed: &Value, allowed: &[(String, &'static str)]) -> bool {
+    let Some(entries) = listed.as_array() else {
+        return false;
+    };
+    let mut previous: Option<(&str, &str)> = None;
+    entries.iter().all(|entry| {
+        let Some(entry) = entry.as_object() else {
+            return false;
+        };
+        let field = entry.get("field").and_then(Value::as_str);
+        let reason = entry.get("reason").and_then(Value::as_str);
+        let (Some(field), Some(reason)) = (field, reason) else {
+            return false;
+        };
+        let counted = reason == UNRECOGNIZED_KEY;
+        let arity = if counted { 3 } else { 2 };
+        let count = entry.get("count").and_then(Value::as_u64);
+        let shaped = entry.len() == arity && (!counted || count.is_some_and(|n| n > 0));
+        let known = allowed.iter().any(|(f, r)| f == field && *r == reason);
+        let ordered = previous.is_none_or(|before| before < (field, reason));
+        previous = Some((field, reason));
+        shaped && known && ordered
+    })
+}
+
+#[cfg(test)]
+mod observation_tests;
 #[cfg(test)]
 mod tests;

@@ -290,9 +290,11 @@ and a null limit. Every other receipt and observation keeps its exact shape.
 The observation has a reading law, and it lives beside its serializer, in
 `admission::observation` (E33, moved from nika-dap's cost journal, where it was
 written against this serializer). The functions:
-- `observation_readable`: whether a written observation reads at all. It checks
-  the schema, a known subtotal that parses, an unknown-call count, and one of the
-  three states.
+- `observation_readable`: whether a written observation reads at all. At `@1` it
+  checks a known subtotal that parses, an unknown-call count, and one of the
+  three states. At `@2` (the durable form, E35) it reads only a well-formed
+  observation, one `project_observation` returns unchanged. Any other schema
+  never reads.
 - `observation_consistent`: whether a readable observation is one its account
   could have written, and if so its state and whether any attempt moved it. An
   observation fails if any of the following holds; each failure has a fixed
@@ -304,6 +306,8 @@ written against this serializer). The functions:
   - the unknown-call count differs from its sent attempts.
 - `observation_route` and `observation_request_ids`: the route the unknown-cost
   choice names and every provider request id the attempts record, read by field.
+  The route is `{provider, model, endpoint}` at `@1` and `{provider, model,
+  origin}` at `@2`, read by the observation's schema.
 
 The cost journal keeps its own phase rules, transitions, leases and digests.
 
@@ -480,6 +484,40 @@ and its estimate, so the numbers survive. Exact tariff applicability needs the
 endpoint; it is not re-verifiable from durable data
 (`applicability_not_reverifiable`). An origin never prices, admits or consents,
 and no repricer exists.
+
+### Durable cost observation (E35 · W9 with amendments A1, A8-A10)
+
+`project_observation(observation)` is the durable form of an account's cost
+observation, `nika/inference-cost-observation@2`, and
+`InferenceReceipt::durable_observation()` is `project_observation` of the
+receipt's own `observation()`, which stays the exact `@1` in memory. The closed
+schema follows W9 with B12's `max_in_flight` and `authored_retry` (A1):
+- every endpoint (the choice's, a declared tariff's, a catalog attempt's, a
+  pricing route's) becomes its `origin`;
+- money, counters, states, ids, bounds, catalog constants and usage are copied as
+  written, after a type check against the account's own serialization;
+- the named free text is judged as above, and in an observation also its
+  `refusal` and each attempt's `note` (A10), against the material of every
+  endpoint the observation names; the account's own phrases are kept byte for
+  byte;
+- a pricing object follows the W2-W5 kinds and keeps its own `withheld`.
+
+`withheld` names each withheld field by its instance pointer
+(`/unknown_attempts/0/request_id`) and counts an object's unknown keys at that
+object (`/unknown_attempts/1`), never naming them (A8). A pointer is built from
+the schema's static key names and array indices only; no key needs escaping. An
+`@2` is returned unchanged only when it is exactly what a projection writes:
+known keys with their types, canonical origins, and a sorted `withheld` that
+lists null text, null pricing or objects it holds. Anything else, another schema
+or a malformed `@1` or `@2`, is `None`, which the reading law refuses as
+unreadable and never repairs (A9). `project_route(route)` names a recorded route
+by origin (W11). `UnknownCostChoice::origin`, `AttemptReceipt::origin` and
+`BillingRoute::origin` give an exact endpoint's origin.
+
+The claim is the bounded one above, on this schema: a lone path segment that is
+not the whole tail, and values copied by design, are their producer's. No
+journal, trace or session writer emits `@2` yet: the cost journal learns to judge
+and derive it first, and each writer moves in its own later change.
 
 The runtime's trace writers call `durable_calls`, `durable_pricing` and
 `route_label` (E32). Admission, review, retry, wire, the cost journal and

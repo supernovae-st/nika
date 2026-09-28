@@ -1,26 +1,39 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! What a written observation says about the account that wrote it: the reading
-//! law of [`InferenceReceipt::observation`](super::InferenceReceipt::observation),
-//! kept beside its serializer. The cost journal judges its rows with it; the
-//! journal's own law (phases, leases, digests, transitions) stays with the journal.
+//! law of [`InferenceReceipt::observation`](super::InferenceReceipt::observation)
+//! and of its durable form, kept beside the serializer. The cost journal judges
+//! its rows with it; the journal's own law (phases, leases, digests,
+//! transitions) stays with the journal.
 use super::AdmissionState;
 use serde_json::Value;
 
-/// Whether an observation reads as one this serializer writes: its schema, a
-/// known subtotal that parses, an unknown-call count and one of the three states.
+/// The observation as the account writes it, and its durable form.
+const WRITTEN: &str = "nika/inference-cost-observation@1";
+const DURABLE: &str = "nika/inference-cost-observation@2";
+
+/// Whether an observation reads as one this serializer writes: at `@1`, a known
+/// subtotal that parses, an unknown-call count and one of the three states; at
+/// `@2`, a well-formed durable form (one
+/// [`project_observation`](crate::route_identity::project_observation) returns
+/// unchanged). Any other schema never reads.
 #[must_use]
 pub fn observation_readable(observation: &Value) -> bool {
-    observation["schema"] == "nika/inference-cost-observation@1"
-        && observation["known_subtotal_nano_usd"]
-            .as_str()
-            .and_then(|v| v.parse::<i128>().ok())
-            .is_some()
-        && observation["unknown_calls"].as_u64().is_some()
-        && matches!(
-            observation["state"].as_str(),
-            Some("Open" | "Closed" | "Uncertain")
-        )
+    match observation["schema"].as_str() {
+        Some(WRITTEN) => {
+            observation["known_subtotal_nano_usd"]
+                .as_str()
+                .and_then(|v| v.parse::<i128>().ok())
+                .is_some()
+                && observation["unknown_calls"].as_u64().is_some()
+                && matches!(
+                    observation["state"].as_str(),
+                    Some("Open" | "Closed" | "Uncertain")
+                )
+        }
+        Some(DURABLE) => crate::route_identity::project_observation(observation).is_some(),
+        _ => false,
+    }
 }
 
 /// Whether a readable observation is one its account could have written, and
@@ -71,17 +84,22 @@ pub fn observation_consistent(observation: &Value) -> Result<(AdmissionState, bo
     Ok((state, !(priced.is_empty() && unpriced.is_empty())))
 }
 
-/// The route an observation's unknown-cost choice names, as it was written
-/// (`provider`, `model`, `endpoint`), or null when it names none.
+/// The route an observation's unknown-cost choice names, as it was written: at
+/// `@2` its origin (`provider`, `model`, `origin`), otherwise its endpoint
+/// (`provider`, `model`, `endpoint`); null when it names none.
 #[must_use]
 pub fn observation_route(observation: &Value) -> Value {
     let choice = &observation["unknown_cost"];
-    if choice.is_object() {
-        serde_json::json!({"provider": choice["provider"], "model": choice["model"],
-            "endpoint": choice["endpoint"]})
-    } else {
-        Value::Null
+    if !choice.is_object() {
+        return Value::Null;
     }
+    let named = if observation["schema"] == DURABLE {
+        "origin"
+    } else {
+        "endpoint"
+    };
+    let route = ["provider", "model", named].map(|key| (key.to_owned(), choice[key].clone()));
+    Value::Object(route.into_iter().collect())
 }
 
 /// Every provider request id the observation's attempts record, catalog

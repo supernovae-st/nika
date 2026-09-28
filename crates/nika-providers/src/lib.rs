@@ -82,5 +82,6 @@ pub use resolve_access::{
 };
 pub use retry::{Backoff, ClockBackoff, MAX_RETRIES, MAX_RETRY_AFTER, TransportReport};
 pub use route_identity::{
-    canonical_endpoint, durable_calls, durable_pricing, route_label, route_origin,
+    canonical_endpoint, durable_calls, durable_pricing, project_observation, project_route,
+    route_label, route_origin,
 };

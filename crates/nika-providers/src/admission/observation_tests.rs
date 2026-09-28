@@ -163,3 +163,84 @@ fn the_route_and_request_ids_read_by_field() {
         "catalog attempts first, in the order written"
     );
 }
+
+/// A durable observation (`@2`: W9 with amendments A1 and A8-A10), written by
+/// hand from the wire contract, never by the projection: one settled
+/// unknown-cost request to a gateway whose path it does not name.
+const DURABLE: &str = r#"{
+  "schema": "nika/inference-cost-observation@2",
+  "known_subtotal_nano_usd": "0", "unknown_calls": 1,
+  "unknown_cost": {"candidate": "c", "invocation": "i", "provider": "deepseek",
+    "model": "deepseek-chat", "origin": "https://gateway.example:443", "max_requests": 1,
+    "max_output_tokens": 64, "timeout_ms": 1000, "declared_tariff": null},
+  "unknown_attempts": [{"id": 0,
+    "choice": {"candidate": "c", "invocation": "i", "provider": "deepseek",
+      "model": "deepseek-chat", "origin": "https://gateway.example:443", "max_requests": 1,
+      "max_output_tokens": 64, "timeout_ms": 1000, "declared_tariff": null},
+    "pricing": {"kind": "unknown", "table_schema": "nika/inference-admission@1.1",
+      "route": {"provider": "deepseek", "model": "deepseek-chat",
+        "origin": "https://gateway.example:443"},
+      "billing_provider": null, "currency": null, "source": null, "route_source": null,
+      "limits_source": null, "as_of": null, "source_sha256": null,
+      "unit": "nano_currency_per_token", "input_rate": null, "output_rate": null,
+      "cached_rate": null, "usd_conversion": null, "withheld": []},
+    "sent": true, "usage": {"input_tokens": 10, "output_tokens": 2},
+    "estimated_nano_usd": null, "native_estimated_nano": null, "currency": null,
+    "response_model": "deepseek-chat", "request_id": "req-1",
+    "note": "completed; USD cost unknown"}],
+  "overridden_defaults": [null, null], "limit_nano_usd": null, "billed_nano_usd": null,
+  "state": "Closed", "refusal": "Run ended", "attempts": [], "withheld": []
+}"#;
+
+#[test]
+fn a_durable_observation_reads_by_the_same_law_and_names_its_origin() {
+    let durable: Value = serde_json::from_str(DURABLE).expect("the frozen @2");
+    assert!(observation_readable(&durable), "a well-formed @2 reads");
+    assert_eq!(
+        observation_consistent(&durable),
+        Ok((AdmissionState::Closed, true))
+    );
+    assert_eq!(
+        observation_route(&durable),
+        json!({"provider": "deepseek", "model": "deepseek-chat",
+            "origin": "https://gateway.example:443"})
+    );
+    assert_eq!(observation_request_ids(&durable), ["req-1"]);
+}
+
+#[test]
+fn a_malformed_durable_observation_does_not_read() {
+    type Break = fn(&mut Value);
+    let cases: [(&str, Break); 8] = [
+        ("an unknown key", |o| {
+            o["extra"] = json!(1);
+        }),
+        ("a leftover endpoint", |o| {
+            o["unknown_cost"]["endpoint"] = json!("https://gateway.example/p/v1");
+        }),
+        ("a path inside the origin", |o| {
+            o["unknown_cost"]["origin"] = json!("https://gateway.example:443/p");
+        }),
+        ("a subtotal written as a number", |o| {
+            o["known_subtotal_nano_usd"] = json!(0);
+        }),
+        ("a state the account has no word for", |o| {
+            o["state"] = json!("Paused");
+        }),
+        ("a counter written as text", |o| {
+            o["unknown_attempts"][0]["usage"]["input_tokens"] = json!("10");
+        }),
+        ("a withheld entry naming a kept field", |o| {
+            o["withheld"] = json!([{"field": "/refusal", "reason": "endpoint_material"}]);
+        }),
+        ("no withheld list", |o| {
+            o.as_object_mut().map(|fields| fields.remove("withheld"));
+        }),
+    ];
+    let base: Value = serde_json::from_str(DURABLE).expect("the frozen @2");
+    for (name, break_it) in cases {
+        let mut observation = base.clone();
+        break_it(&mut observation);
+        assert!(!observation_readable(&observation), "{name}");
+    }
+}

@@ -74,6 +74,14 @@ pub struct AttemptReceipt {
     /// Outcome, including unknown charge and pre-dispatch rejection.
     pub note: String,
 }
+impl AttemptReceipt {
+    /// The endpoint's origin ([`crate::route_origin`]): what a durable record
+    /// names in its place. `None` when it has none to project.
+    #[must_use]
+    pub fn origin(&self) -> Option<String> {
+        crate::route_origin(&self.endpoint)
+    }
+}
 /// A snapshot of actual local decisions. No field grants execution authority.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
@@ -483,8 +491,10 @@ mod wire_tests;
 mod zero_wire_tests;
 
 impl InferenceReceipt {
-    /// Durable observation for traces/recovery, NEVER restorable execution
-    /// authority. Old receipts are not recomputed against the current catalog.
+    /// The exact observation (`@1`), naming every endpoint whole, NEVER
+    /// restorable execution authority. `durable_observation` is its durable form
+    /// (`@2`, origins in place of endpoints) that a record should keep. Old
+    /// receipts are not recomputed against the current catalog.
     /// Nano-currency amounts are decimal strings to preserve the full i128 range.
     /// Only an unbudgeted receipt carries `"unbudgeted": true`, with a null limit.
     #[must_use]

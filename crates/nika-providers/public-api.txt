@@ -163,6 +163,8 @@ pub nika_providers::admission::AttemptReceipt::response_model: core::option::Opt
 pub nika_providers::admission::AttemptReceipt::sent: bool
 pub nika_providers::admission::AttemptReceipt::tariff: nika_catalog::admission::InferenceTariff
 pub nika_providers::admission::AttemptReceipt::usage: core::option::Option<nika_types::token_usage::TokenUsage>
+impl nika_providers::admission::AttemptReceipt
+pub fn nika_providers::admission::AttemptReceipt::origin(&self) -> core::option::Option<alloc::string::String>
 impl core::clone::Clone for nika_providers::admission::AttemptReceipt
 pub fn nika_providers::admission::AttemptReceipt::clone(&self) -> nika_providers::admission::AttemptReceipt
 impl core::cmp::Eq for nika_providers::admission::AttemptReceipt
@@ -502,6 +504,8 @@ pub nika_providers::admission::InferenceReceipt::unknown_attempts: alloc::vec::V
 pub nika_providers::admission::InferenceReceipt::unknown_calls: usize
 pub nika_providers::admission::InferenceReceipt::unknown_cost: core::option::Option<nika_providers::admission::UnknownCostChoice>
 impl nika_providers::admission::InferenceReceipt
+pub fn nika_providers::admission::InferenceReceipt::durable_observation(&self) -> serde_json::value::Value
+impl nika_providers::admission::InferenceReceipt
 pub fn nika_providers::admission::InferenceReceipt::observation(&self) -> serde_json::value::Value
 impl core::clone::Clone for nika_providers::admission::InferenceReceipt
 pub fn nika_providers::admission::InferenceReceipt::clone(&self) -> nika_providers::admission::InferenceReceipt
@@ -614,6 +618,7 @@ impl nika_providers::admission::UnknownCostChoice
 pub fn nika_providers::admission::UnknownCostChoice::endpoint(&self) -> &str
 pub fn nika_providers::admission::UnknownCostChoice::model(&self) -> &str
 pub fn nika_providers::admission::UnknownCostChoice::new(candidate: alloc::string::String, invocation: alloc::string::String, provider: alloc::string::String, model: alloc::string::String, endpoint: alloc::string::String, max_requests: u32, max_output_tokens: u32, timeout: core::time::Duration) -> core::result::Result<Self, nika_kernel_ai::provider::ProviderError>
+pub fn nika_providers::admission::UnknownCostChoice::origin(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_providers::admission::UnknownCostChoice::provider(&self) -> &str
 pub fn nika_providers::admission::UnknownCostChoice::with_authored_retry(self) -> Self
 pub fn nika_providers::admission::UnknownCostChoice::with_declared_tariff(self, tariff: nika_providers::admission::DeclaredTariff) -> core::result::Result<Self, nika_kernel_ai::provider::ProviderError>
@@ -1810,6 +1815,7 @@ pub nika_providers::retry::BillingRoute::provider: alloc::string::String
 impl nika_providers::retry::BillingRoute
 pub fn nika_providers::retry::BillingRoute::new(provider: alloc::string::String, model: alloc::string::String, endpoint: alloc::string::String) -> core::option::Option<Self>
 pub fn nika_providers::retry::BillingRoute::observation(&self) -> serde_json::value::Value
+pub fn nika_providers::retry::BillingRoute::origin(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_providers::retry::BillingRoute::tariff(&self) -> core::option::Option<nika_catalog::admission::InferenceTariff>
 impl core::clone::Clone for nika_providers::retry::BillingRoute
 pub fn nika_providers::retry::BillingRoute::clone(&self) -> nika_providers::retry::BillingRoute
@@ -1934,6 +1940,8 @@ pub mod nika_providers::route_identity
 pub fn nika_providers::route_identity::canonical_endpoint(endpoint: &str) -> bool
 pub fn nika_providers::route_identity::durable_calls(calls: &[nika_types::cost::inference::InferenceCall]) -> serde_json::value::Value
 pub fn nika_providers::route_identity::durable_pricing(pricing: &str, calls: &[nika_types::cost::inference::InferenceCall]) -> serde_json::value::Value
+pub fn nika_providers::route_identity::project_observation(observation: &serde_json::value::Value) -> core::option::Option<serde_json::value::Value>
+pub fn nika_providers::route_identity::project_route(route: &serde_json::value::Value) -> serde_json::value::Value
 pub fn nika_providers::route_identity::route_label(route: &nika_types::cost::inference::InferenceRoute) -> alloc::string::String
 pub fn nika_providers::route_identity::route_origin(endpoint: &str) -> core::option::Option<alloc::string::String>
 pub mod nika_providers::spend
@@ -2326,6 +2334,8 @@ pub nika_providers::AttemptReceipt::response_model: core::option::Option<alloc::
 pub nika_providers::AttemptReceipt::sent: bool
 pub nika_providers::AttemptReceipt::tariff: nika_catalog::admission::InferenceTariff
 pub nika_providers::AttemptReceipt::usage: core::option::Option<nika_types::token_usage::TokenUsage>
+impl nika_providers::admission::AttemptReceipt
+pub fn nika_providers::admission::AttemptReceipt::origin(&self) -> core::option::Option<alloc::string::String>
 impl core::clone::Clone for nika_providers::admission::AttemptReceipt
 pub fn nika_providers::admission::AttemptReceipt::clone(&self) -> nika_providers::admission::AttemptReceipt
 impl core::cmp::Eq for nika_providers::admission::AttemptReceipt
@@ -2500,6 +2510,8 @@ pub nika_providers::InferenceReceipt::unbudgeted: bool
 pub nika_providers::InferenceReceipt::unknown_attempts: alloc::vec::Vec<nika_providers::admission::UnknownAttemptReceipt>
 pub nika_providers::InferenceReceipt::unknown_calls: usize
 pub nika_providers::InferenceReceipt::unknown_cost: core::option::Option<nika_providers::admission::UnknownCostChoice>
+impl nika_providers::admission::InferenceReceipt
+pub fn nika_providers::admission::InferenceReceipt::durable_observation(&self) -> serde_json::value::Value
 impl nika_providers::admission::InferenceReceipt
 pub fn nika_providers::admission::InferenceReceipt::observation(&self) -> serde_json::value::Value
 impl core::clone::Clone for nika_providers::admission::InferenceReceipt
@@ -2991,6 +3003,8 @@ pub fn nika_providers::classify_key_value(prefixes: &[&str], value: &str) -> nik
 pub fn nika_providers::durable_calls(calls: &[nika_types::cost::inference::InferenceCall]) -> serde_json::value::Value
 pub fn nika_providers::durable_pricing(pricing: &str, calls: &[nika_types::cost::inference::InferenceCall]) -> serde_json::value::Value
 pub fn nika_providers::first_ready_harness(probes: &[nika_providers::probe::ProviderProbe]) -> core::option::Option<&str>
+pub fn nika_providers::project_observation(observation: &serde_json::value::Value) -> core::option::Option<serde_json::value::Value>
+pub fn nika_providers::project_route(route: &serde_json::value::Value) -> serde_json::value::Value
 pub fn nika_providers::provider_of(model: &str) -> &str
 pub fn nika_providers::refuse_pin<'m>(models: impl core::iter::traits::collect::IntoIterator<Item = &'m str>, probes: &[nika_providers::probe::ProviderProbe], pin: &str) -> core::option::Option<nika_providers::resolve_access::PinRefusal>
 pub fn nika_providers::refuse_pin_for_verbs<'m>(models: impl core::iter::traits::collect::IntoIterator<Item = &'m str>, probes: &[nika_providers::probe::ProviderProbe], pin: &str, has_infer: bool, has_agent: bool) -> core::option::Option<nika_providers::resolve_access::PinRefusal>
