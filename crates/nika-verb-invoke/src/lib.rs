@@ -251,13 +251,12 @@ where
             // tool failure (HTTP 503/429 · DNS · connection) stays
             // retryable. A text-only tool (no metadata) keeps the engine
             // `NIKA-451` code, non-transient (the prior behavior).
+            // Its typed failure details (`nika:fetch`'s status facts) ride
+            // with them, for the task error record.
             return Err(match result.error_meta {
-                Some(meta) => VerbInvokeError::tool_reported_coded(
-                    input.tool,
-                    &result.content,
-                    meta.spec_code,
-                    meta.transient,
-                ),
+                Some(meta) => {
+                    VerbInvokeError::tool_reported_meta(input.tool, &result.content, meta)
+                }
                 None => VerbInvokeError::tool_reported(input.tool, &result.content),
             });
         }
@@ -589,6 +588,34 @@ mod tests {
         .expect_err("is_error propagates");
         assert!(!err.is_transient(), "a 404 is not retryable");
         assert_eq!(err.spec_code(), "NIKA-BUILTIN-FETCH-001");
+    }
+
+    /// The tool's typed failure details survive the verb: a coded failure
+    /// that carries them is the detailed report, same text and codes.
+    #[tokio::test]
+    async fn a_tool_failures_typed_details_survive_the_verb() {
+        let details = nika_kernel::tool_executor::ToolErrorDetails::new()
+            .with_status_code(404)
+            .with_accepted(vec![404]);
+        let err = verb(MockTool::with(Ok(ToolResult::error(
+            "tc",
+            "NIKA-BUILTIN-FETCH-001 · response is not JSON (mode: jq)",
+        )
+        .with_error_meta(
+            ToolErrorMeta::new(Some("NIKA-BUILTIN-FETCH-001".to_owned()), false)
+                .with_details(details.clone()),
+        ))))
+        .run(InvokeInput::new("nika:fetch"))
+        .await
+        .expect_err("is_error propagates");
+        assert!(matches!(err, VerbInvokeError::ToolReportedDetailed { .. }));
+        assert_eq!(err.details(), Some(&details));
+        assert_eq!(err.spec_code(), "NIKA-BUILTIN-FETCH-001");
+        assert!(!err.is_transient());
+        assert_eq!(
+            err.to_string(),
+            "tool `nika:fetch` reported an error: NIKA-BUILTIN-FETCH-001 · response is not JSON (mode: jq)"
+        );
     }
 
     #[tokio::test]

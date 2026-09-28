@@ -390,7 +390,8 @@ invoke: { tool: "nika:fetch", args: { url: "https://example.com/article", mode: 
 | `multipart` | `multipart/form-data` parts array · `{name, value}` text XOR `{name, path, filename?, content_type?}` file · every `path` rides the `permits.fs` READ boundary (`NIKA-SEC-004` on escape) · ≤64 parts · ≤32 MiB total · body-bearing method required |
 | `mode` | extraction mode · see `extract-modes-v0.1.md` · default `markdown` |
 | `jq` | a jq expression · only with `mode: jq` (structured JSON extraction · replaces the former JSONPath mode) |
-| `traverse` | bounded same-origin crawl · `{ max_pages: 1..=25 (required), respect_robots?: bool (default true) }` · GET only · excludes `mode`/`selector`/`jq`/`body`/`form`/`multipart` |
+| `traverse` | bounded same-origin crawl · `{ max_pages: 1..=25 (required), respect_robots?: bool (default true) }` · GET only · excludes `mode`/`selector`/`jq`/`body`/`form`/`multipart`/`headers`/`response` |
+| `response` | optional closed object `{ accept: [200, 404] }` · `accept` is required: 1..=16 distinct integer final HTTP statuses in 200..=599 · no ranges, wildcards, strings, booleans or floats · excludes `traverse` |
 
 **Payload exclusivity (normative)** · at most ONE of `body` · `form` ·
 `multipart`; `form`/`multipart` require a body-bearing method (`POST` ·
@@ -438,7 +439,7 @@ transport retries; aggregate saturation is not a proven global bound.
 `crawl`/`http`/`website` are intentions, not
 tools — they all route HERE (no `nika:crawl`).
 
-**Non-2xx is failure (normative)** · a non-2xx response throws
+**Non-2xx is failure by default (normative)** · without `response`, a non-2xx response throws
 `NIKA-BUILTIN-FETCH-001` (`category: network_error` · `transient: true` for
 5xx/408/429 · `false` for other 4xx · `details.status_code` carries the
 status) — **with the effect-safe carve-out (normative · issue #1371)**: a
@@ -453,6 +454,63 @@ law](../spec/05-errors.md#the-effect-safe-retry-law-normative--issue-1371)).
 To poll a pending resource · the jq-error pattern
 ([08 H19](../spec/08-out-of-scope.md)), not status-code inspection.
 Redirects follow up to an engine cap · the FINAL status decides.
+
+**Status as data (normative)** · a present `response` opts into an exact
+accepted-status set. Every listed status produces the same output shape,
+including a 2xx only when explicitly listed:
+
+```json
+{"status_code":404,"url":"https://example.com/missing","body":"not found"}
+```
+
+`body` is the result of the existing `mode` extraction, with its existing
+failure rules. `url` identifies the final response route after redirects,
+serialized as an HTTP(S) URL without userinfo, query or fragment; it is
+`null` when that identity is unavailable or invalid. An engine MUST NOT
+substitute the requested URL for an unknown final destination. Response
+headers are not emitted. The presence of `response`, never the status
+itself, determines this output shape. Without `response`, the extracted
+body and existing diagnostics are unchanged.
+
+An unlisted status remains `NIKA-BUILTIN-FETCH-001`, with the existing
+effect-safe transient classification and `details.status_code`; an opted-in
+call additionally reports `details.accepted`. Transport, permission, SSRF,
+TLS, redirect-limit, body-limit and extraction failures do not become
+successful observations. An extraction failure after a received response
+also carries its known `details.status_code` and `details.accepted`; a
+transport failure MUST NOT fabricate a status. A missing final URL alone
+does not discard a known status or body.
+
+An accepted status is a successful observation, never a skipped or
+recovered failure, and does not trigger `retry:`. Successful sibling
+outputs therefore remain durable in the absence of another unhandled
+failure. An unaccepted status or other unhandled failure retains the
+engine's existing failure and output-quarantine behavior. Declaring a
+keyless effect-capable call's error status as data does not prove whether
+the server committed its effect, and does not relax the effect-safe retry
+law. Followed redirect statuses are intermediate responses; only the final
+status is compared with `accept`.
+
+Literal malformed policies refuse at check. Resolved policies, including
+agent tool calls, are revalidated before any HTTP request. Dynamic values
+are unknown at check, never permission: invalid literal siblings still
+refuse. Unknown keys, a present null, empty or oversized sets, duplicates,
+non-integers and out-of-range statuses are errors, never silently coerced,
+deduplicated or ignored.
+
+For a health probe, use `mode: raw` and `response: { accept: [200, 404] }`.
+A downstream task binds the observed status through `with` before its `when`
+condition reads it:
+
+```yaml
+with:
+  observed_status: ${{ tasks.probe.output.status_code }}
+when: ${{ with.observed_status == 404 }}
+```
+
+Its 404 follows the success edge; a failure edge is reserved for actual failures.
+JSON extraction of an HTML error body still fails, and a HEAD or 204
+response with an empty body remains an empty string under `mode: raw`.
 
 **Security (engine MUST)** · SSRF defense (reject private-net + cloud-metadata `169.254.169.254` unless configured) · honor task-level `timeout` · reject self-signed TLS by default.
 

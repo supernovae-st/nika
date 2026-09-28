@@ -98,7 +98,7 @@ compact JSON). One rendering, one seam.
 | uuid | `uuid` (workspace) | v7 default / v4 · tests pin FORMAT + version nibble (not value) |
 | date | `jiff` 0.2 (Unlicense OR MIT · bundles IANA tzdb — sovereign, zero system dependency) + `ClockDyn` | the spec's FULL six ops (now · add · subtract · format · parse · diff) · `op:now` rides `ClockDyn::system_now` (hermetic under MockClock) + IANA `tz:` · format/parse speak strftime · diff returns an integer in `unit:` (seconds default · ms/min/h/days) · `-001` |
 | hash | `blake3` + `sha2` (both workspace) | blake3 default · md5/sha1 → `-001` |
-| fetch | `HttpGetDyn`/`HttpPostDyn` + `nika-extract` (8 modes) + `data::jq` (mode jq) | non-2xx → `-001` with `BuiltinFailure.transient` per the normative status table (5xx/408/429 true · other 4xx false) · transport timeouts/connection failures transient too · SSRF lives in the L1 http effect (3-layer · s5 · verified) — this layer does NOT re-implement it · **the `mode:` surface is WIRED (step 13)**: 8 modes via `nika-extract` (default markdown) · `mode: jq` composes `data::jq` (the one jq engine · one-output law reused not re-implemented) · `raw`/`jq` strict-UTF-8 (non-UTF-8 → `-001` per spec raw contract) · extraction modes charset-aware decode from `Content-Type` (encoding_rs) · the whole parse runs on `spawn_blocking` (a 64 MiB HTML parse must not starve the executor · the `data::jq` precedent) |
+| fetch | `HttpGetDyn`/`HttpPostDyn` + `nika-extract` (8 modes) + `data::jq` (mode jq) | without `response.accept`, non-2xx → `-001`; an explicit exact set is parsed by `nika-cap` and observed by `net/response.rs` as status, sanitized final URL (nullable), and extracted body; unlisted statuses still fail with `BuiltinFailure.transient` per the normative status table (5xx/408/429 true · other 4xx false) · transport timeouts/connection failures transient too · SSRF lives in the L1 http effect (3-layer · s5 · verified) — this layer does NOT re-implement it · **the `mode:` surface is WIRED (step 13)**: 8 modes via `nika-extract` (default markdown) · `mode: jq` composes `data::jq` (the one jq engine · one-output law reused not re-implemented) · `raw`/`jq` strict-UTF-8 (non-UTF-8 → `-001` per spec raw contract) · extraction modes charset-aware decode from `Content-Type` (encoding_rs) · the whole parse runs on `spawn_blocking` (a 64 MiB HTML parse must not starve the executor · the `data::jq` precedent) |
 | notify | `HttpPostDyn` | `webhook` MUST · other channels `-001` unconfigured · non-2xx `-002` carries `transient` per the same status table |
 | inspect | `WorkflowIntrospect` | 4 views · `-001` unknown view |
 | image_generate | the image plane (`HttpPostDyn` · OPTIONAL) + `Fs*Dyn` + `ClockDyn` + `Emitter` + `FsBoundary` | stdlib §Media (ADR-105) · module family `src/image/` (args · sniff · mock · save · manifest · embed · openai · gemini · xai · local) · local compat wire (sovereign · engine-config base URL) / openai `gpt-image-2` native `n` / gemini `gemini-3.1-flash-image` n-sequential / xai `grok-imagine-image` aspect+resolution classes / deterministic mock (hand-rolled stored-deflate PNG · validated by the independent `png` dev-dep) · header-only decode validation (magic authority · no pixel decode) · boundary-gated atomic saves + collision probing + idempotent re-runs · `manifest_version: 1` provenance + in-PNG `nika` tEXt chunk (deterministic · survives cp) · exact `cost_usd` (xai ticks) metered into the run ledger · base64 never rides outputs (`debug:` echo sanitized) · keys = composition-root `ImageKeys` (env ladder · zeroizing) · codes `-001..-007` |
@@ -126,9 +126,15 @@ after an uncertain result.
   its running computation or bound its memory. A jaq step budget or
   process isolation with resource limits remains deferred (see
   `crates/nika-builtin/src/data.rs` and `route_jq` in `src/lib.rs`).
-- **`BuiltinFailure.transient`** is typed at the failure plane; the wire
-  `ToolResult` has no metadata slot yet — the flag projects when the kernel
-  grows one (both types `#[non_exhaustive]`, strictly additive).
+- **`BuiltinFailure.transient`** is typed at the failure plane and projects
+  onto the wire `ToolResult.error_meta` (`ToolErrorMeta`) with the spec code.
+  **`BuiltinFailure.details`** stays a free-form object at the failure plane;
+  `render()` is the one seam that decides what crosses: only the received
+  HTTP `status_code` (an integer 100..=999) and the call's `accepted` set
+  (re-read through `nika_cap::fetch_response_statuses`) become typed
+  `ToolErrorDetails` (stdlib §Status as data). Provider text, URLs, bodies,
+  wrapped causes and malformed values stay behind, and the model-facing
+  `content` text is unchanged.
 
 ## §5 · Testing strategy
 

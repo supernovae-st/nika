@@ -13,8 +13,8 @@
 //! the tool owns its schema today.
 
 use nika_error::codes::{self, NikaCode};
-use nika_error::traits::NikaErrorCode;
-use nika_kernel::tool_executor::ToolExecError;
+use nika_error::traits::{AsAny, NikaErrorCode};
+use nika_kernel::tool_executor::{ToolErrorDetails, ToolErrorMeta, ToolExecError};
 
 /// How much of a tool's error content the error carries.
 const CONTENT_TAIL_CAP: usize = 1024;
@@ -62,6 +62,26 @@ pub enum VerbInvokeError {
         #[source]
         source: ToolExecError,
     },
+
+    /// The tool ran, reported an error AND surfaced typed failure details
+    /// (`nika:fetch`: the status it received, the set it accepted). The same
+    /// report as [`Self::ToolReportedError`] (message, codes and retry class
+    /// are identical) plus the details a task error keeps
+    /// (`tasks.X.error.details`). A separate variant keeps that one's fields
+    /// source-compatible; read the details with [`Self::details`], or with
+    /// [`Self::details_of`] through the engine's `&dyn NikaErrorCode` seam.
+    #[error("tool `{tool}` reported an error: {content_tail}")]
+    #[diagnostic(code(nika::verb::invoke_tool_reported_error))]
+    #[non_exhaustive]
+    ToolReportedDetailed {
+        /// The tool id.
+        tool: String,
+        /// Tail of the tool's error content (capped).
+        content_tail: String,
+        /// The tool's own failure metadata: its spec code, its retry class
+        /// and its typed details (present on this variant by construction).
+        meta: ToolErrorMeta,
+    },
 }
 
 impl VerbInvokeError {
@@ -94,6 +114,43 @@ impl VerbInvokeError {
             transient,
         }
     }
+
+    /// Build the tool-reported error from the tool's whole failure metadata:
+    /// the detailed variant when the tool surfaced typed details, else the
+    /// coded report exactly as before.
+    pub(crate) fn tool_reported_meta(
+        tool: impl Into<String>,
+        content: &str,
+        meta: ToolErrorMeta,
+    ) -> Self {
+        if meta.details.is_none() {
+            return Self::tool_reported_coded(tool, content, meta.spec_code, meta.transient);
+        }
+        Self::ToolReportedDetailed {
+            tool: tool.into(),
+            content_tail: cap_tail(content),
+            meta,
+        }
+    }
+
+    /// The tool's typed failure details, when it surfaced any.
+    #[must_use]
+    pub fn details(&self) -> Option<&ToolErrorDetails> {
+        match self {
+            Self::ToolReportedDetailed { meta, .. } => meta.details.as_ref(),
+            _ => None,
+        }
+    }
+
+    /// [`Self::details`] through the engine's verb-agnostic seam: the runtime
+    /// settles every verb's error as a `&dyn NikaErrorCode`, and only an
+    /// invoke error can carry a tool's details (`None` for any other type).
+    #[must_use]
+    pub fn details_of(err: &dyn NikaErrorCode) -> Option<&ToolErrorDetails> {
+        AsAny::as_any(err)
+            .downcast_ref::<Self>()
+            .and_then(Self::details)
+    }
 }
 
 /// Keep the last `CONTENT_TAIL_CAP` bytes, walking to a char boundary.
@@ -112,7 +169,7 @@ impl NikaErrorCode for VerbInvokeError {
     fn nika_code(&self) -> NikaCode {
         match self {
             Self::UnresolvableTool { .. } => codes::NIKA_450,
-            Self::ToolReportedError { .. } => codes::NIKA_451,
+            Self::ToolReportedError { .. } | Self::ToolReportedDetailed { .. } => codes::NIKA_451,
             Self::Dispatch { .. } => codes::NIKA_452,
         }
     }
@@ -133,8 +190,18 @@ impl NikaErrorCode for VerbInvokeError {
             Self::ToolReportedError {
                 spec_code: Some(code),
                 ..
+            }
+            | Self::ToolReportedDetailed {
+                meta:
+                    ToolErrorMeta {
+                        spec_code: Some(code),
+                        ..
+                    },
+                ..
             } => code.clone(),
-            Self::ToolReportedError { .. } | Self::Dispatch { .. } => self.nika_code().to_string(),
+            Self::ToolReportedError { .. }
+            | Self::ToolReportedDetailed { .. }
+            | Self::Dispatch { .. } => self.nika_code().to_string(),
         }
     }
 
@@ -147,6 +214,7 @@ impl NikaErrorCode for VerbInvokeError {
             // SSRF-block · bad-scheme stay false. A text-only tool surfaced
             // no metadata → `transient: false` (the prior behavior).
             Self::ToolReportedError { transient, .. } => *transient,
+            Self::ToolReportedDetailed { meta, .. } => meta.transient,
             // Inherit the dispatcher's classification (a timeout MAY be
             // transient once the kernel marks it so · terminal today).
             Self::Dispatch { source } => source.is_transient(),
@@ -234,5 +302,72 @@ mod tests {
             VerbInvokeError::Dispatch { source: timeout() }.is_transient(),
             timeout().is_transient()
         );
+    }
+
+    /// The detailed report says exactly what the coded one says (same text,
+    /// codes and retry class) and carries the tool's typed details, readable
+    /// directly and through the engine's `&dyn NikaErrorCode` seam.
+    #[test]
+    fn a_detailed_report_is_the_coded_report_plus_its_details() {
+        let details = ToolErrorDetails::new()
+            .with_status_code(503)
+            .with_accepted(vec![200]);
+        let meta = ToolErrorMeta::new(Some("NIKA-BUILTIN-FETCH-001".to_owned()), true);
+        let content = "NIKA-BUILTIN-FETCH-001 · HTTP 503 from http://x.test/busy";
+        let coded = VerbInvokeError::tool_reported_meta("nika:fetch", content, meta.clone());
+        let detailed = VerbInvokeError::tool_reported_meta(
+            "nika:fetch",
+            content,
+            meta.with_details(details.clone()),
+        );
+        assert!(
+            matches!(coded, VerbInvokeError::ToolReportedError { .. }),
+            "without details the report is the variant it always was"
+        );
+        assert!(matches!(
+            detailed,
+            VerbInvokeError::ToolReportedDetailed { .. }
+        ));
+        assert_eq!(detailed.to_string(), coded.to_string());
+        assert_eq!(detailed.nika_code(), coded.nika_code());
+        assert_eq!(detailed.spec_code(), "NIKA-BUILTIN-FETCH-001");
+        assert_eq!(detailed.spec_code(), coded.spec_code());
+        assert_eq!(detailed.is_transient(), coded.is_transient());
+        assert_eq!(detailed.details(), Some(&details));
+        assert_eq!(coded.details(), None);
+        assert_eq!(VerbInvokeError::details_of(&detailed), Some(&details));
+        assert_eq!(VerbInvokeError::details_of(&coded), None);
+        // Without a tool code the engine code answers, exactly as for a coded report.
+        let uncoded = VerbInvokeError::tool_reported_meta(
+            "mcp:x/y",
+            "boom",
+            ToolErrorMeta::new(None, false)
+                .with_details(ToolErrorDetails::new().with_status_code(500)),
+        );
+        assert_eq!(uncoded.spec_code(), "NIKA-451");
+        assert!(!uncoded.is_transient());
+    }
+
+    /// Only an invoke error that carries details answers `details_of`: every
+    /// other verb's error, and every other invoke report, is `None`.
+    #[test]
+    fn details_of_is_none_for_every_other_error() {
+        #[derive(Debug, thiserror::Error, miette::Diagnostic)]
+        #[error("a foreign verb error")]
+        struct Foreign;
+        impl NikaErrorCode for Foreign {
+            fn nika_code(&self) -> NikaCode {
+                codes::NIKA_450
+            }
+        }
+        assert_eq!(VerbInvokeError::details_of(&Foreign), None);
+        let text_only = VerbInvokeError::tool_reported("nika:x", "boom");
+        assert_eq!(VerbInvokeError::details_of(&text_only), None);
+        let dispatch = VerbInvokeError::Dispatch {
+            source: ToolExecError::NotAvailable {
+                reason: "down".to_owned(),
+            },
+        };
+        assert_eq!(VerbInvokeError::details_of(&dispatch), None);
     }
 }

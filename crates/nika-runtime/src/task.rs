@@ -866,7 +866,7 @@ where
                                     max_attempts,
                                     &jitter_key,
                                 )
-                                .map_err(|failed| retain_failed_calls(failed, &failed_calls))?;
+                                .map_err(|failed| retain_failed_calls(*failed, &failed_calls))?;
                             retries.push(RetryStamp {
                                 attempt,
                                 max_attempts,

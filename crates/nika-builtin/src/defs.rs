@@ -329,7 +329,7 @@ fn net_defs() -> Vec<ToolDef> {
     vec![
         def(
             "fetch",
-            "HTTP request + content extraction · returns the extracted body (non-2xx is an error). SSRF-defended.",
+            "HTTP request + content extraction · default: extracted body, non-2xx is an error. response.accept opts into exact named statuses as {status_code, url, body}; no response headers. SSRF-defended.",
             serde_json::json!({
                 "url": s("the URL"),
                 "method": s("GET (default) | POST | PUT | DELETE | PATCH | HEAD"),
@@ -337,7 +337,12 @@ fn net_defs() -> Vec<ToolDef> {
                 "body": { "description": "request body (objects auto-JSON) · at most one of body/form/multipart" },
                 "form": { "type": "object", "description": "application/x-www-form-urlencoded scalar fields · POST/PUT/PATCH only" },
                 "multipart": { "type": "array", "description": "multipart/form-data parts · {name, value} text or {name, path, filename?, content_type?} file (path is permits.fs.read-gated · ≤32 MiB total) · POST/PUT/PATCH only" },
-                "traverse": { "type": "object", "description": "bounded same-origin crawl · { max_pages: 1..=25 (required), respect_robots?: bool (default true) } · GET only · excludes mode/selector/jq/body/form/multipart · emits { url, page_count, pages[], assets } page digests" },
+                "traverse": { "type": "object", "description": "bounded same-origin crawl · { max_pages: 1..=25 (required), respect_robots?: bool (default true) } · GET only · excludes mode/selector/jq/body/form/multipart/headers/response · emits { url, page_count, pages[], assets } page digests" },
+                "response": {
+                    "type": "object", "additionalProperties": false, "required": ["accept"],
+                    "description": "Observe exactly the accepted final HTTP statuses as {status_code, url, body}; body uses mode extraction, url omits userinfo/query/fragment, headers are absent. Unlisted statuses still fail. Excludes traverse.",
+                    "properties": { "accept": { "type": "array", "minItems": 1, "maxItems": nika_types::net::MAX_FETCH_RESPONSE_STATUSES, "uniqueItems": true, "items": { "type": "integer", "minimum": 200, "maximum": 599 } } }
+                },
                 "mode": s("markdown (default) | article | text | selector | jq | metadata | links | feed | sitemap | raw"),
                 "selector": s("CSS selector (mode: selector only)"),
                 "jq": s("a jq expression (mode: jq only · the one data language)")

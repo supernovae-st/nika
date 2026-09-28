@@ -62,7 +62,7 @@ use std::collections::VecDeque;
 
 use nika_extract::page_digest_discovering;
 use nika_kernel::io::http::{HttpGetDyn, HttpRequest};
-use nika_types::net::MAX_TRAVERSE_PAGES;
+use nika_types::net::{MAX_TRAVERSE_PAGES, TRAVERSE_EXCLUDED_KEYS};
 
 use crate::{Args, BuiltinFailure, BuiltinOutcome};
 
@@ -329,15 +329,7 @@ fn resolution_base(page_url: &str, final_url: &str) -> String {
 /// single-fetch extraction/payload families, forces GET, and its own
 /// shape is closed. All of it fails BEFORE any request is spent.
 fn parse_traverse_args(args: &Args) -> Result<TraverseSpec, BuiltinFailure> {
-    for key in [
-        "mode",
-        "selector",
-        "jq",
-        "body",
-        "form",
-        "multipart",
-        "headers",
-    ] {
+    for key in TRAVERSE_EXCLUDED_KEYS {
         if args.contains_key(key) {
             return Err(BuiltinFailure::new(
                 C,

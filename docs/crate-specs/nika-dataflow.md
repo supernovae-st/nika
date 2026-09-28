@@ -115,7 +115,15 @@ matching, fields, `Display`, `Diagnostic`, `spec_code()` and `nika_code()`
 remain intact. `RuntimeError::from_cel` still exists and delegates.
 
 The wire form a consumer sees (`tasks.X.error.code`, `on_codes:` filtering,
-the run report) is byte-identical to before the descent. The conversion and
+the run report) is byte-identical to before the descent.
+
+`TaskErrorRecord.details` (2026-09-28) carries a verb's typed facts beside its
+message: the spec error object's optional `details` object (`nika:fetch`: the
+received `status_code`, the declared `accepted` set). `new` leaves it absent,
+and `detailed` keeps only a non-empty object. `to_value` adds the `details` key
+only when present, so an error without details keeps its exact historical bytes
+in `tasks.X.error`, in the terminal outcome payload (`error`, `recovered_from`)
+and in the trace; with details, all of them carry the same object. The conversion and
 public-construction tests in `crates/nika-runtime/src/errors.rs` prove both
 directions of the compatibility seam: dataflow errors map to the old variants,
 and downstream code can still construct and match those variants directly.

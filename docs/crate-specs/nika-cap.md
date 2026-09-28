@@ -19,6 +19,13 @@
 
 ## 1. Purpose
 
+The current crate also owns pure builtin argument-shape checks. The
+`fetch_response` module validates the closed single-fetch response policy
+defined by `nika-spec stdlib/builtins-v0.1.md`: the checker defers unresolved
+expressions while still checking literal siblings, and the builtin consumes
+the strict resolved parser. A parsed status list grants no network authority.
+The shared size bound and traverse exclusions live in `nika-types::net`.
+
 `nika-cap` is the canonical home for the **declared capability boundary**
 vocabulary — the `permits:` block (spec `01-envelope.md` §permits): the
 workflow author's entire blast radius, declared in-file, as data (`Permits`,

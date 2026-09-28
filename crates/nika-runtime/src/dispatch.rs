@@ -251,7 +251,7 @@ impl Dispatched {
     fn verb_err(note: String, err: &dyn NikaErrorCode) -> Self {
         Self {
             note,
-            result: Err(FailedDispatch::unspent(TaskErrorRecord::new(
+            result: Err(FailedDispatch::unspent(TaskErrorRecord::detailed(
                 // The USER-FACING spec code (`NIKA-EXEC-001` · not the engine
                 // `NIKA-440`) — the identifier the author is forced (by `nika
                 // check`) to write in `on_codes:`, and the one `tasks.X.error
@@ -260,6 +260,9 @@ impl Dispatched {
                 err.spec_code(),
                 err.to_string(),
                 err.is_transient(),
+                // A tool's typed failure facts (`nika:fetch` · Status as data).
+                nika_verb_invoke::VerbInvokeError::details_of(err)
+                    .map(nika_kernel::tool_executor::ToolErrorDetails::to_value),
             ))),
         }
     }
@@ -272,21 +275,11 @@ impl Dispatched {
         err: &dyn NikaErrorCode,
         spend: (Option<f64>, Option<String>, Option<UnpricedReason>),
     ) -> Self {
-        let (cost_usd, cost_source, cost_unpriced) = spend;
-        Self {
-            note,
-            result: Err(FailedDispatch {
-                record: TaskErrorRecord::new(err.spec_code(), err.to_string(), err.is_transient()),
-                retry_forbidden: false,
-                cost_usd,
-                cost_source,
-                cost_unpriced,
-                evidence: None,
-                access: None,
-                usage: None,
-                access_refused: None,
-            }),
+        let mut dispatched = Self::verb_err(note, err);
+        if let Err(failed) = &mut dispatched.result {
+            (failed.cost_usd, failed.cost_source, failed.cost_unpriced) = spend;
         }
+        dispatched
     }
 
     /// Carry a resolved replay veto without changing the error or its evidence.

@@ -170,6 +170,10 @@ pub struct ToolErrorMeta {
     /// Whether retrying the call may succeed (HTTP 503/429 · DNS · connection
     /// reset are transient; 4xx-other · refusals are not).
     pub transient: bool,
+    /// The failed call's typed facts (`nika:fetch` · the status it received
+    /// and the set it accepted). `None` when the tool surfaced none: every
+    /// text-only tool, every transport failure.
+    pub details: Option<ToolErrorDetails>,
 }
 
 impl ToolErrorMeta {
@@ -180,7 +184,73 @@ impl ToolErrorMeta {
         Self {
             spec_code,
             transient,
+            details: None,
         }
+    }
+
+    /// Attach the failed call's typed facts. Empty details stay absent, so a
+    /// failure that observed nothing keeps the shape it always had.
+    #[must_use]
+    pub fn with_details(mut self, details: ToolErrorDetails) -> Self {
+        self.details = (!details.is_empty()).then_some(details);
+        self
+    }
+}
+
+/// What a failed tool call observed beside its failure, projected as the
+/// spec error object's `details` (spec 05 §error structure · for
+/// `nika:fetch`, stdlib §Status as data). Closed on purpose: only the facts
+/// named here cross the tool seam, never a tool's free-form data or a
+/// provider's text.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ToolErrorDetails {
+    /// The final HTTP status the call received. A transport failure received
+    /// none and never fabricates one.
+    pub status_code: Option<u16>,
+    /// The exact status set the call declared acceptable (`response.accept`).
+    pub accepted: Option<Vec<u16>>,
+}
+
+impl ToolErrorDetails {
+    /// No facts yet (INV-019 · `new()` on every `#[non_exhaustive]` struct).
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// The final HTTP status the failed call received.
+    #[must_use]
+    pub fn with_status_code(mut self, status: u16) -> Self {
+        self.status_code = Some(status);
+        self
+    }
+
+    /// The exact accepted-status set the failed call declared.
+    #[must_use]
+    pub fn with_accepted(mut self, accepted: Vec<u16>) -> Self {
+        self.accepted = Some(accepted);
+        self
+    }
+
+    /// Whether the call observed no fact at all.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.status_code.is_none() && self.accepted.is_none()
+    }
+
+    /// The `details` object of the error: only the facts present, keyed as
+    /// the spec names them (`status_code`, `accepted`).
+    #[must_use]
+    pub fn to_value(&self) -> serde_json::Value {
+        let mut details = serde_json::Map::new();
+        if let Some(status) = self.status_code {
+            details.insert("status_code".to_owned(), status.into());
+        }
+        if let Some(accepted) = &self.accepted {
+            details.insert("accepted".to_owned(), accepted.clone().into());
+        }
+        serde_json::Value::Object(details)
     }
 }
 
@@ -395,6 +465,37 @@ mod tests {
         assert!(err.to_string().contains("not available"));
     }
 
+    #[test]
+    fn error_meta_details_are_absent_unless_a_fact_was_observed() {
+        let plain = ToolErrorMeta::new(Some("NIKA-BUILTIN-FETCH-001".into()), true);
+        assert_eq!(plain.details, None);
+        // Empty details are no details: the shape of a failure that observed
+        // nothing never changes.
+        assert_eq!(plain.clone().with_details(ToolErrorDetails::new()), plain);
+        let observed = plain.with_details(ToolErrorDetails::new().with_status_code(503));
+        assert_eq!(
+            observed.details,
+            Some(ToolErrorDetails::new().with_status_code(503))
+        );
+    }
+
+    #[test]
+    fn error_details_project_only_the_facts_present() {
+        assert_eq!(
+            ToolErrorDetails::new().with_status_code(404).to_value(),
+            serde_json::json!({"status_code": 404})
+        );
+        assert_eq!(
+            ToolErrorDetails::new()
+                .with_status_code(503)
+                .with_accepted(vec![200, 404])
+                .to_value(),
+            serde_json::json!({"status_code": 503, "accepted": [200, 404]})
+        );
+        assert!(ToolErrorDetails::new().is_empty());
+        assert_eq!(ToolErrorDetails::new().to_value(), serde_json::json!({}));
+    }
+
     fn _assert_send_sync<T: Send + Sync>() {}
 
     #[test]
@@ -402,5 +503,6 @@ mod tests {
         _assert_send_sync::<ToolCallId>();
         _assert_send_sync::<ToolCall>();
         _assert_send_sync::<ToolResult>();
+        _assert_send_sync::<ToolErrorDetails>();
     }
 }

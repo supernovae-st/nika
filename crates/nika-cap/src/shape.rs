@@ -20,7 +20,7 @@
 //! claim — the runtime re-vets everything.
 
 use nika_types::extract::{EXTRACT_MODE_NAMES, ExtractMode};
-use nika_types::net::MAX_TRAVERSE_PAGES;
+use nika_types::net::{MAX_TRAVERSE_PAGES, TRAVERSE_EXCLUDED_KEYS};
 
 use crate::{HashAlgorithm, HashEncoding};
 
@@ -422,6 +422,11 @@ fn check_fetch_shape(args: Option<&serde_json::Value>, out: &mut Vec<String>) {
         check_fetch_traverse_shape(object, out);
         return; // traverse owns the whole surface — no mode pairing below
     }
+    if let Some(response) = object.and_then(|map| map.get("response"))
+        && let Err(finding) = crate::fetch_response::check(response)
+    {
+        out.push(finding);
+    }
     let mode = match object.and_then(|map| map.get("mode")) {
         // Absent → the spec default (markdown).
         None => Some(ExtractMode::Markdown),
@@ -500,7 +505,7 @@ fn check_fetch_traverse_shape(
     out: &mut Vec<String>,
 ) {
     let has = |key: &str| object.is_some_and(|map| map.contains_key(key));
-    for key in ["mode", "selector", "jq", "body", "form", "multipart"] {
+    for key in TRAVERSE_EXCLUDED_KEYS {
         if has(key) {
             out.push(format!(
                 "`traverse:` excludes `{key}:` — the crawl emits the fixed \

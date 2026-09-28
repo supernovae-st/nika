@@ -26,6 +26,7 @@ mod effect;
 mod effect_vocab;
 pub mod env;
 mod expr;
+mod fetch_response;
 mod file_plumbing;
 mod fit;
 mod harness_gate;
@@ -72,6 +73,7 @@ pub use file_plumbing::{
 pub use fit::{expand_home_grant, glob_admits, lexically_normalize};
 // P3 B5 · the harness permission-bridge judge (the pure half — the
 // wire facts' translation into the declared boundary's verdict).
+pub use fetch_response::fetch_response_statuses;
 pub use harness_gate::{HarnessAskFacts, HarnessGate, judge_harness_ask};
 pub use hash::{HashAlgorithm, HashEncoding};
 pub use sink::code_bearing_path_class;

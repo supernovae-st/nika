@@ -107,6 +107,7 @@ pub static ALL_BUILTINS: &[Builtin] = &[
             "form",
             "multipart",
             "traverse",
+            "response",
             "mode",
             "selector",
             "jq",
