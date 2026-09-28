@@ -49,10 +49,12 @@ fn unpriced_plan() -> nika_service_execution::ExecutionAccessPlan {
 }
 
 /// Runs a reviewed job the way production does with its authority: the
-/// account is the review's, and the backend settles it (nothing is sent).
+/// account is the review's, and the backend settles it (nothing is sent). It
+/// keeps each job's execution and the confirmed choice its account carries.
 #[derive(Default)]
-struct ReviewedBackend {
-    runs: Mutex<Vec<String>>,
+pub(super) struct ReviewedBackend {
+    pub(super) runs: Mutex<Vec<String>>,
+    pub(super) choices: Mutex<Vec<Value>>,
 }
 
 impl ExecutionBackend for ReviewedBackend {
@@ -72,6 +74,9 @@ impl ExecutionBackend for ReviewedBackend {
     ) -> Pin<Box<dyn Future<Output = ExecutionOutcome> + Send + 'a>> {
         let execution = context.execution_id().to_string();
         self.runs.lock().expect("runs").push(execution);
+        let receipt = authority.cost.account.snapshot().expect("receipt");
+        let choice = serde_json::to_value(receipt.unknown_cost).expect("choice");
+        self.choices.lock().expect("choices").push(choice);
         let settled = authority.cost.finish();
         Box::pin(async move {
             match settled {
@@ -83,7 +88,7 @@ impl ExecutionBackend for ReviewedBackend {
 }
 
 /// A server over `world`, the door seated or not, the review plan injected.
-async fn start(
+pub(super) async fn start(
     world: &TestWorld,
     backend: Arc<dyn ExecutionBackend>,
     limits: ServerLimits,
@@ -121,11 +126,11 @@ async fn start(
     (server, state)
 }
 
-fn disarmed() -> ServerLimits {
+pub(super) fn disarmed() -> ServerLimits {
     limits().with_default_max_cost_usd(None)
 }
 
-fn world() -> TestWorld {
+pub(super) fn world() -> TestWorld {
     let world = TestWorld::new();
     std::fs::write(world.workflows.join("review.nika"), REVIEWED).expect("workflow");
     world
@@ -139,7 +144,7 @@ fn review_request(body: &str, key: &str) -> String {
     )
 }
 
-fn decision_request(id: &str, witness: &str, decision: &str) -> String {
+pub(super) fn decision_request(id: &str, witness: &str, decision: &str) -> String {
     let body = json!({"witness_sha256": witness, "decision": decision}).to_string();
     format!(
         "POST /v1/cost-reviews/{id}/decision HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: {}\r\n{}\r\n{body}",
@@ -156,7 +161,7 @@ fn reviewed_job(review: &Value, key: &str) -> String {
 
 const REVIEW_BODY: &str = r#"{"workflow":"review.nika"}"#;
 
-fn rows(world: &TestWorld) -> Vec<Value> {
+pub(super) fn rows(world: &TestWorld) -> Vec<Value> {
     std::fs::read_to_string(world.workflows.join(".nika").join(JOURNAL))
         .unwrap_or_default()
         .lines()
@@ -164,7 +169,7 @@ fn rows(world: &TestWorld) -> Vec<Value> {
         .collect()
 }
 
-fn lease_is_free(world: &TestWorld) -> bool {
+pub(super) fn lease_is_free(world: &TestWorld) -> bool {
     let root = nika_fs::OwnedDir::open(&world.workflows).expect("root");
     nika_dap::cost_journal::clear(&root, "probe")
         .expect("journal")

@@ -450,6 +450,8 @@ mod cancel_race;
 mod compile;
 #[cfg(unix)]
 mod cost_review;
+#[cfg(unix)]
+mod cost_review_v2;
 #[cfg(test)]
 mod durable_queue;
 #[cfg(test)]

@@ -73,14 +73,18 @@ pub(crate) fn live(native: bool) -> Value {
     }
 }
 
-/// The cost-review door's contract, an RFC 7386 merge patch over the whole document.
-const COST_REVIEW: &str = include_str!("cost_review/openapi.json");
+/// The cost-review door's contract (version 1, then 2), RFC 7386 merge patches.
+const COST_REVIEW: [&str; 2] = [
+    include_str!("cost_review/openapi.json"),
+    include_str!("cost_review/openapi-v2.json"),
+];
 
 /// The document this server serves: [`live`], and on a server started with
-/// `--cost-review` the door's paths and schemas merged in (health `costReviewV1`).
+/// `--cost-review` the door's paths and schemas merged in (health `costReviewV1`/`V2`).
 pub(crate) fn served(native: bool, cost_review: bool) -> Value {
     let mut document = live(native);
-    if cost_review && let Ok(patch) = serde_json::from_str::<Value>(COST_REVIEW) {
+    let patches = COST_REVIEW.iter().filter(|_| cost_review);
+    for patch in patches.filter_map(|patch| serde_json::from_str::<Value>(patch).ok()) {
         super::compile::schema::merge(&mut document, patch);
     }
     document
