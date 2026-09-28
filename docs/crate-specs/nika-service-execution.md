@@ -162,6 +162,32 @@ unchanged refusal wording hosts render. It owns no NIKA registry range: it is a
 host-side static observation that never enters the workflow or verb plane (the
 `transport-surface` exemption of the error one-voice gate).
 
+`dispatch_bound(workflow, access_plan, unknown_routes, bindings)` (B12 ·
+2026-09-28) widens `request_bound` to finite fans and authored retries and
+returns the typed `DispatchBound`: the worst-case total of physical requests,
+the requests in flight at once, and one `TaskDispatch` row per infer task
+(items, authored attempts, calls per attempt, width, requests). It judges the
+workflow as the run seats it (`nika_runtime::effective_workflow` over the
+validated bindings: an operator's value before the declared default). The
+counts are the check's own cost law on that seat (`iterations × attempts`),
+each attempt carrying the stock schema re-asks, every product and sum checked
+(`Overflow`). A fan must iterate a literal list or a bare input/const array whose
+value the seat knows; a task output, a computed or navigated expression, or an
+input with no value or default refuses as `Cardinality`, even under a
+`max_items` cap. `on_error`, a fan or retry on a non-infer step, exec, agent and
+nested workflows stay refused. A task's width is its declared `max_parallel`
+(all items when absent, never more than its items). Waves run in order, so the
+Run's in-flight bound is the widest task. A zero total is a value, never an
+allowance: hosts route it to their no-paid-dispatch observer.
+
+`DispatchBound::authored_retry()` is true only when a task authored
+`retry.max_attempts` above one. It is the sole source of a choice's
+authored-retry law. Fan cardinality, the total and schema re-asks never imply
+it; a schema re-ask is an extra call inside one attempt, never a transport
+resend. `lines()` is the breakdown a fresh choice shows, one line per infer
+task, and is empty for a single sequential Run, which keeps its historical
+words.
+
 `declared_free_shape(workflow, access_plan, providers_config, model_override)`
 (C2 · 2026-09-28) says whether an admitted API lane is an exact
 catalog-declared-free route and refuses, with the typed `FreeShapeRefusal`
@@ -328,3 +354,7 @@ of the two spawn sites; it does not claim no-spawn parity.
 It shares the route, declared-free shape and finite-request laws with Run;
 unknown-cost work still needs a fresh choice. The observation admits no effects
 and obtains no spending authority. The Host adapter supplies its provider configuration.
+Since B12 it reads the same `dispatch_bound` at declared defaults: a fan or an
+authored retry names its total and in-flight bound. A zero total needs no choice,
+because the Run takes its no-paid-dispatch observer. A single sequential Run
+keeps its historical sentence.
