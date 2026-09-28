@@ -90,6 +90,7 @@ required=(
   media/raw/transcripts.json
   scripts/media/motion/intent-dag-proof.storyboard.md
   media/videos/intent-to-proof.mp4
+  media/gifs/intent-to-proof.optimized.gif
   media/posters/intent-to-proof.png
   media/storyboards/intent-to-proof.png
   scripts/media/motion/intent-to-proof/README.md

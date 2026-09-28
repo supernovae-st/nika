@@ -139,7 +139,9 @@ gradients: it debands in 16-bit precision, then dithers back to 8 bits
 with an ordered pattern and a static luma grain.
 
 The committed exports are the web cut `media/videos/intent-to-proof.mp4`
-(1600×900 at 30 fps like the other films, under 8 MB), the poster
+(1600×900 at 30 fps like the other films, under 8 MB), the README GIF
+`media/gifs/intent-to-proof.optimized.gif` (a 12-second cut of five beats,
+960 px at 12 fps, under the 8 MB GIF budget), the poster
 `media/posters/intent-to-proof.png`, and the contact sheet
 `media/storyboards/intent-to-proof.png`. Refresh them with
 `npm run exports` after a master. The same step writes the upload thumbnail

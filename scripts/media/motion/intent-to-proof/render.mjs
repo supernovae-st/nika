@@ -6,7 +6,7 @@
 //   node render.mjs sheet 2.0 3.2 12 [--scale 0.4]       contact sheet of a range
 //   node render.mjs video --scale 0.5 --fps 30 [--mb]    parallel preview MP4
 //   node render.mjs master [--resume]                    4K60 master + X cut (--resume keeps finished segments)
-//   node render.mjs exports                              web cut, poster, storyboard, hero, share copy, QA stills
+//   node render.mjs exports                              web cut, README GIF, poster, storyboard, hero, share copy, QA stills
 //
 // Every frame is a pure function of time, so N workers render disjoint
 // frame ranges and the segments are concatenated losslessly.
@@ -195,6 +195,17 @@ function exportsFromMaster() {
     '-map', '[o]', '-map', '2:a:0', '-c:v', 'libx264', '-preset', 'slow', '-crf', '23', '-x264-params', 'aq-mode=3',
     '-pix_fmt', 'yuv420p', '-profile:v', 'high', '-af', 'loudnorm=I=-14:TP=-2:LRA=11', '-ar', '48000', '-c:a', 'aac', '-b:a', '128k',
     '-t', String(DURATION), '-movflags', '+faststart', media('videos/intent-to-proof.mp4')]);
+  // README trailer GIF: five settled beats of the film, cut on its own cues
+  // (the full film does not fit the 8 MB README budget at a watchable frame
+  // rate). Built from the ungraded lossless master: grain would only cost
+  // palette bytes.
+  const beats = [[0, T.dive], [T.ring + 0.05, T.verified + 0.05], [T.question - 0.05, T.consent + 0.45],
+    [T.result + 0.05, T.reveal], [T.title, DURATION - 0.28]];
+  const pick = beats.map(([a, b]) => `between(t,${a.toFixed(3)},${b.toFixed(3)})`).join('+');
+  const lossless = path.join(CACHE, 'master_lossless.mkv');
+  ff(['-i', fs.existsSync(lossless) ? lossless : master, '-filter_complex',
+    `[0:v]fps=12,select='${pick}',setpts=N/12/TB,scale=960:-2:flags=lanczos,split[x][y];[y]palettegen=max_colors=128:stats_mode=diff[p];[x][p]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle`,
+    '-loop', '0', media('gifs/intent-to-proof.optimized.gif')]);
   // poster (1600×900, the README budget is 1 MB) and the storyboard contact sheet
   ff(['-ss', String(POSTER_T), '-i', master, '-frames:v', '1', '-vf', 'scale=1600:900:flags=lanczos', media('posters/intent-to-proof.png')]);
   ff(['-i', master, '-vf', 'fps=12/30,scale=480:270:flags=lanczos,tile=4x3', '-frames:v', '1', media('storyboards/intent-to-proof.png')]);
@@ -205,7 +216,7 @@ function exportsFromMaster() {
   ff(['-i', poster, '-vf', 'scale=1920:1080:flags=lanczos', '-q:v', '2', path.join(dist, 'intent-to-proof-poster.jpg')]);
   fs.copyFileSync(path.join(HERE, 'share-copy.txt'), path.join(dist, 'share-copy.txt'));
   for (const t of QA_T) ff(['-ss', String(t), '-i', master, '-frames:v', '1', '-vf', 'scale=1920:1080:flags=lanczos', path.join(dist, 'stills', `t${t.toFixed(2)}.png`)]);
-  for (const f of ['videos/intent-to-proof.mp4', 'posters/intent-to-proof.png', 'storyboards/intent-to-proof.png']) {
+  for (const f of ['videos/intent-to-proof.mp4', 'gifs/intent-to-proof.optimized.gif', 'posters/intent-to-proof.png', 'storyboards/intent-to-proof.png']) {
     console.log(f, (fs.statSync(media(f)).size / 1e6).toFixed(2), 'MB');
   }
 }

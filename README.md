@@ -30,26 +30,30 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg" alt="AGPL-3.0-or-later"></a>
 </p>
 
-## See the idea in one minute
+## See the idea in 30 seconds
 
-“Help more customers finish checkout. Read our feedback and sales data, compare
-three competitors, propose an improvement, then ask me before sharing it.”
+“Read my invoices. Ignore rejected ones. Sum by customer. Pay only after I approve.”
 
-The plan gathers CSV, Markdown and Linear context, processes three competitors
-in parallel, and waits for approval. The result is a saved brief, a GitHub issue,
-Telegram and Slack updates, and an updated Linear issue.
+That sentence becomes six obligations, grounded in fields Nika actually
+observed. Rust proves the plan, and the one unknown, the currency, is asked
+rather than guessed. The plan is lowered into a `.nika` program that passes
+`nika check`. A person approves that exact revision; one payment runs; the
+result comes back with its proof.
 
 <p align="center">
-  <a href="https://github.com/supernovae-st/nika/raw/refs/heads/main/media/videos/intent-to-impact.mp4">
-    <img src="media/gifs/intent-to-impact.optimized.gif" alt="One intention becomes reviewable YAML, a checked graph, a bounded parallel run and five concrete results after approval" width="960">
+  <a href="https://github.com/supernovae-st/nika/raw/refs/heads/main/media/videos/intent-to-proof.mp4">
+    <img src="media/gifs/intent-to-proof.optimized.gif" alt="A typed request becomes six obligations; Rust proves the plan and asks for the one unknown; a person approves the exact revision; the €228.00 result returns with a verified receipt" width="960">
   </a>
 </p>
 
-[Watch or download the 60-second MP4](https://github.com/supernovae-st/nika/raw/refs/heads/main/media/videos/intent-to-impact.mp4).
+[Watch the full 30-second film with sound (MP4)](https://github.com/supernovae-st/nika/raw/refs/heads/main/media/videos/intent-to-proof.mp4).
 
-*Illustrative product film, not a recording of the CLI. Fictional data and
-integrations are shown; no live messages are sent. The current starting point
-is a terminal and a workflow file, not a visual drag-and-drop editor.*
+*Architecture illustration with fixture data, not a recording of the CLI. The
+program it draws passes `nika check`, and its check rows, task durations and
+totals come from the real binary. The payment is illustrative, and some
+components carry their target-design names. The
+[film notes](scripts/media/motion/intent-to-proof/README.md) separate what is
+real from what is illustration.*
 
 ## How it works
 

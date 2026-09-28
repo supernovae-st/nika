@@ -4,33 +4,14 @@ Official visual assets for the README, docs, website and social surfaces.
 
 ## Current README film
 
-**From intent to impact:** [60-second MP4](videos/intent-to-impact.mp4),
-[full-length GIF](gifs/intent-to-impact.optimized.gif),
-[poster](posters/intent-to-impact.png) and
-[contact sheet](storyboards/intent-to-impact.png).
-
-The film demonstrates checkout research, a reviewable YAML file, preflight,
-bounded parallel work, approval and concrete results. Telegram and Slack both
-receive an update; Linear is updated too. Source review and folding are brief,
-while the final deliverables stay on screen long enough to read.
-
-This is an **illustrative product film**, with fictional data and no live
-integrations. It is not a recording of a shipping graphical editor. Its focused
-YAML excerpts are not a complete runnable workflow. The source, timing tests,
-font prerequisites and regeneration steps are in
-[the film README](../scripts/media/motion/intent-to-impact/README.md).
-
-The older `intent-dag-proof` film remains an archived alternative; it is no
-longer the README hero.
-
-## Architecture film
-
-**From intent to proof:** [30-second MP4](videos/intent-to-proof.mp4),
+**From intent to proof:** [30-second MP4 with sound](videos/intent-to-proof.mp4),
+[README GIF](gifs/intent-to-proof.optimized.gif) (a 12-second cut of five
+beats; the whole film does not fit the GIF budget at a watchable frame rate),
 [poster](posters/intent-to-proof.png) and
 [contact sheet](storyboards/intent-to-proof.png).
 
-One request travels the V9 target architecture: a sentence becomes six
-obligations; the observed world grounds them; a Foundry block is proposed;
+One request travels the target architecture. A sentence becomes six
+obligations, grounded in the observed world. A Foundry block is proposed, and
 Rust proves the semantic plan. The one unknown, a currency, is asked rather
 than guessed. The plan is then lowered deterministically into a `.nika`
 program, checked, and closed against the intent. A human consents to the exact
@@ -40,9 +21,21 @@ This is an **architecture illustration with fixture data**. The program it
 draws is `scripts/media/fixtures/invoice-payments.nika`, which passes `nika check`.
 The check rows, task durations, and computed totals (€228.00) are captured from
 the real binary. The payment itself is illustrative, and some components carry
-their V9 target names. The ledger of what is real, the 120 BPM timing system,
-and the render steps are in
+their target-design names. The ledger of what is real, the 120 BPM timing
+system, the reading-time audit, and the render steps are in
 [the film README](../scripts/media/motion/intent-to-proof/README.md).
+
+## Earlier films
+
+**From intent to impact** ([60-second MP4](videos/intent-to-impact.mp4),
+[GIF](gifs/intent-to-impact.optimized.gif), [poster](posters/intent-to-impact.png),
+[contact sheet](storyboards/intent-to-impact.png)) was the README film before.
+It is an illustrative product film with fictional data and no live
+integrations: checkout research, a reviewable file, preflight, bounded parallel
+work, approval and concrete results. Its source and timing tests are in
+[its README](../scripts/media/motion/intent-to-impact/README.md).
+
+The older `intent-dag-proof` film also remains an archived alternative.
 
 ## Rules
 
