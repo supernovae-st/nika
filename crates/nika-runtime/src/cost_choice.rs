@@ -6,6 +6,28 @@ pub use nika_providers::admission::{
     native_catalog_price_known,
 };
 
+/// Stamps the host account's receipt on the run's terminal frame: the one
+/// evidence trail every door shares. A declared-free observer's receipt says
+/// `scoped_to_declared_free`, so its subtotal never reads as the whole Run's.
+pub(crate) struct ObservedSink<'a>(
+    pub(crate) &'a mut dyn crate::EventSink,
+    pub(crate) Option<&'a nika_providers::InferenceAdmission>,
+);
+impl crate::EventSink for ObservedSink<'_> {
+    fn emit(&mut self, mut event: nika_event::Event) {
+        if let Some(account) = self.1.filter(|_| event.is_terminal()) {
+            // An unreadable account is said on the frame, never omitted.
+            let observed = account.snapshot().map_or_else(
+                |e| serde_json::json!({ "unreadable": e.to_string() }),
+                |receipt| receipt.observation(),
+            );
+            let value = crate::FieldValue::String(observed.to_string());
+            event = event.with_field(crate::KeyValue::new("inference_admission", value));
+        }
+        self.0.emit(event);
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::expect_used)]
 mod tests {

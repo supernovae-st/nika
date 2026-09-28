@@ -1014,7 +1014,8 @@ where
         // Secrets resolve once; misses stay unbound and fail closed.
         let secrets = secret::resolve_secrets(self.secrets.as_ref(), &wf.secrets);
         let mut scrub = secret::RedactingSink::new(sink, &secrets);
-        let sink: &mut dyn EventSink = &mut scrub;
+        let admission = self.config.inference_admission.as_ref();
+        let sink: &mut dyn EventSink = &mut cost_choice::ObservedSink(&mut scrub, admission);
         // Resume identities and leak guards are derived once per run.
         let resume_ctx = self.resume_context(wf, &secrets);
         // The declared capability boundary flows to every dispatch scope.

@@ -12,6 +12,7 @@ use super::*;
 
 mod access_refused;
 mod boot_manifest;
+mod declared_free_receipt;
 mod returns_contract;
 mod seated_receipt;
 mod tool_warning;

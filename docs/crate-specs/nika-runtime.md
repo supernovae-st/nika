@@ -472,3 +472,13 @@ Runtime environment boundary. Existing variable names, precedence, empty-value
 handling, cloud endpoint overrides and local URL normalization are unchanged.
 The pending cost review contract lives in provider admission; Runtime preserves
 the narrow `cost_choice` compatibility path and the configuration binding test.
+
+A host account that observes declared-free routes only
+(`observes_declared_free_only`) keeps the normal provider client for the
+registry and gets a separate single-attempt client through
+`with_inference_admission_http`; any other account keeps the all-bounded
+client. Whenever a host account is attached, `run` stamps its receipt
+observation as the JSON text field `inference_admission` on the terminal frame
+(`cost_choice::ObservedSink`, inside the secret scrub). A scoped receipt says
+`scoped_to_declared_free`: its subtotal is never the whole Run's. A run killed
+before its terminal frame leaves no receipt; that lifecycle stays open.
