@@ -223,7 +223,10 @@ fn counted(n: u32, noun: &str) -> String {
     }
 }
 
-/// Upper bound on requests for a checked, static, single-route text workflow.
+/// Upper bound on requests for a checked, static, single-route text workflow
+/// that neither fans out nor retries: [`dispatch_bound`] at declared defaults,
+/// refused as [`RunShapeError::Control`] when that bound is
+/// [`DispatchBound::multiplied`], so one law answers both.
 /// Includes every schema re-ask made by the stock production `InferVerb`.
 /// This observation grants no spending, filesystem or tool authority. The host
 /// must still obtain fresh scoped consent and re-observe its source and inputs;
@@ -236,44 +239,26 @@ pub fn request_bound(
     plan: &nika_providers::ExecutionAccessPlan,
     unknown_routes: usize,
 ) -> Result<u32, RunShapeError> {
-    if unknown_routes != 1 || plan.lanes.len() != 1 || !plan.is_admitted() {
-        return Err(RunShapeError::Route);
+    let bound = dispatch_bound(wf, plan, unknown_routes, &BTreeMap::new())?;
+    if bound.multiplied() {
+        return Err(RunShapeError::Control);
     }
-    if !wf.secrets.is_empty() {
-        return Err(RunShapeError::Secrets);
-    }
-    let consts = ConstStrings::of(wf);
-    let mut requests = 0_u32;
-    for task in &wf.tasks {
-        let task = &task.value;
-        if task.for_each.is_some() || task.retry.is_some() || task.on_error.is_some() {
-            return Err(RunShapeError::Control);
-        }
-        match &task.action {
-            RawAction::Infer(action) => {
-                requests = add_requests(requests, infer_bound(wf, action, plan)?)?;
-            }
-            other => other_step(&consts, other)?,
-        }
-    }
-    checked_waves(wf)?;
-    if requests == 0 {
-        return Err(RunShapeError::NoInfer);
-    }
-    Ok(requests)
+    Ok(bound.requests)
 }
 
-/// [`request_bound`] widened to finite fans and authored retries, over the
-/// workflow as the run binds it (`bindings`: the validated input values, the
-/// operator's value before the declared default, B11). The per-task counts are
-/// the check's own cost law (`iterations × attempts`) on that seated workflow,
+/// The finite physical-request bound of a checked, static, single-route text
+/// workflow, widened to finite fans and authored retries, over the workflow as
+/// the run binds it (`bindings`: the validated input values, the operator's
+/// value before the declared default, B11). The per-task counts are the
+/// check's own cost law (`iterations × attempts`) on that seated workflow,
 /// each attempt carrying the stock schema re-asks. A fan must read a literal
 /// list or an input/const array whose value is known
 /// ([`RunShapeError::Cardinality`]); `on_error`, exec, agent and nested
 /// workflows stay refused. A zero total is a value, never an allowance: the
 /// host routes it to the no-paid-dispatch path.
 /// # Errors
-/// A [`RunShapeError`], as for [`request_bound`].
+/// A [`RunShapeError`]: unsupported shape, invalid DAG/permits, a model
+/// outside the selected route, or a count only the run decides.
 pub fn dispatch_bound(
     wf: &RawWorkflow,
     plan: &nika_providers::ExecutionAccessPlan,

@@ -63,7 +63,7 @@ fn parallel_dynamic_mixed_unbounded_and_hidden_inference_are_refused() {
             "prompt: text",
             "prompt: text, vision: [{ source: file, path: './image.png' }]",
         ),
-        ONE.replace("    infer:", "    retry: { max_attempts: 1 }\n    infer:"),
+        ONE.replace("    infer:", "    retry: { max_attempts: 2 }\n    infer:"),
         ONE.replace("    infer:", "    for_each: { items: [a] }\n    infer:"),
         ONE.replace("    infer:", "    on_error: { skip: true }\n    infer:"),
         ONE.replace(
@@ -163,7 +163,7 @@ fn each_refusal_is_a_typed_reason_that_keeps_its_words() {
         ),
         (ONE.replace(", max_tokens: 32", ""), E::InferShape),
         (
-            ONE.replace("    infer:", "    retry: { max_attempts: 1 }\n    infer:"),
+            ONE.replace("    infer:", "    retry: { max_attempts: 2 }\n    infer:"),
             E::Control,
         ),
         (
@@ -949,5 +949,38 @@ fn the_bound_configures_a_review_with_its_whole_law() {
     assert!(
         empty.review(fresh()).is_err(),
         "zero work buys no allowance"
+    );
+}
+
+/// B12 r5 · one bound law: `request_bound` is `dispatch_bound` at declared
+/// defaults, refused as `Control` exactly when the bound multiplies. A single
+/// authored attempt is the sequential Run of one request with no retry law,
+/// and a fan whose count only the run decides keeps its own reason.
+#[test]
+fn request_bound_is_the_sequential_projection_of_the_one_law() {
+    let once = ONE.replace("    infer:", "    retry: { max_attempts: 1 }\n    infer:");
+    let bound = dispatch(&once, &[]).unwrap();
+    assert!(!bound.multiplied() && !bound.authored_retry());
+    assert_eq!(
+        request_bound(&parsed(&once), &plan(), 1),
+        Ok(bound.requests())
+    );
+    for multiplied in [
+        FAN.to_owned(),
+        FAN.replace("[a, b, c]", "[]"),
+        FAN.replace("    retry: { max_attempts: 2 }\n", ""),
+        ONE.replace("    infer:", "    retry: { max_attempts: 2 }\n    infer:"),
+    ] {
+        assert!(dispatch(&multiplied, &[]).unwrap().multiplied());
+        assert_eq!(
+            request_bound(&parsed(&multiplied), &plan(), 1),
+            Err(E::Control),
+            "{multiplied}"
+        );
+    }
+    let required = INPUT_FAN.replace(", default: [a]", ", required: true");
+    assert_eq!(
+        request_bound(&parsed(&required), &plan(), 1),
+        Err(E::Cardinality)
     );
 }

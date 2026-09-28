@@ -148,9 +148,15 @@ execution or a spending grant (the third, `declared_free_shape`, follows):
 - `request_bound(workflow, access_plan, unknown_routes)` returns the finite
   physical-request upper bound for static sequential direct text inference.
   Each schema task includes `1 + nika_verb_infer::DEFAULT_SCHEMA_RETRY_BUDGET`
-  requests. It rejects parallel inference, task retries, fan-out, recovery,
-  external secrets, exec, agent, vision and explicit thinking. Local read/write,
-  jq and the builtin pure boolean assertion remain subject to Check/permits.
+  requests. It rejects parallel inference, fan-out, more than one authored
+  attempt, recovery, external secrets, exec, agent, vision and explicit
+  thinking. Local read/write, jq and the builtin pure boolean assertion remain
+  subject to Check/permits. Since B12 r5 it is `dispatch_bound` at declared
+  defaults, refused as `Control` exactly when that bound is `multiplied()`. That
+  is the same predicate the host's review and Serve's version 1 use, so one law
+  answers all three. A single authored attempt (`retry: { max_attempts: 1 }`) is
+  therefore the sequential Run of its requests, with no retry law. A fan whose
+  count only the run decides refuses as `Cardinality`, not `Control`.
 - `project_file_path(consts, action)` resolves only literals or bare immutable
   string constants into a project-relative path. It performs no I/O; it cannot
   attest filesystem containment or grant access.
