@@ -911,7 +911,7 @@
     .to("#story, #masthead, #corner-note", { opacity: 0, duration: .55, ease: "power2.in" }, 18.62);
 
   timeline.duration(DURATION / 1000);
-  window.__scene = { name: "intent-dag-proof", duration: DURATION, fps: 30, gifFps: 20, gifWidth: 1200, gifColors: 160, width: 1600, height: 900, posterAt: 17600 };
+  window.__scene = { name: "intent-dag-proof", duration: DURATION, fps: 30, gifFps: 12, gifWidth: 1200, gifColors: 128, width: 1600, height: 900, posterAt: 17600 };
   window.__seek = (ms) => {
     timeline.totalTime(Math.max(0, Math.min(DURATION, ms)) / 1000, false);
   };
