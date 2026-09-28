@@ -1,0 +1,82 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
+//! Authoring grants bound actual requests, separately from repair preferences.
+
+use super::*;
+
+#[tokio::test(flavor = "multi_thread")]
+async fn absent_authority_never_buys_a_repair_request() {
+    let world = TestWorld::new();
+    let seat = Seat::start(vec![
+        Reply::Text(native_answer("nika: broken\ntasks: {}\n")),
+        Reply::Text(native_answer(&candidate(RUN_MODEL, false))),
+    ]);
+    let operator = NativeAuthoring::new(SEAT, seat.providers());
+    let (server, _) = start_native(&world, compile_limits(), operator).await;
+    let response = server.request(&compile_request(&fresh(&json!({})))).await;
+    assert_eq!(response.status, 200, "{}", response.body);
+    assert_eq!(seat.calls(), 1, "default repairs grant no extra request");
+    assert_ne!(response.json()["status"], "ready");
+    server.stop().await.expect("clean stop");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn absent_authority_never_hides_a_transport_retry() {
+    let world = TestWorld::new();
+    let seat = Seat::start(vec![
+        Reply::Busy,
+        Reply::Text(native_answer(&candidate(RUN_MODEL, false))),
+    ]);
+    let operator = NativeAuthoring::new(SEAT, seat.providers()).with_repairs(0);
+    let (server, _) = start_native(&world, compile_limits(), operator).await;
+    let response = server.request(&compile_request(&fresh(&json!({})))).await;
+    assert_eq!(response.status, 200, "{}", response.body);
+    assert_eq!(seat.calls(), 1, "a 503 never grants another wire request");
+    assert_ne!(response.json()["status"], "ready");
+    server.stop().await.expect("clean stop");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn explicit_authority_repairs_and_a_caller_can_narrow_but_never_widen_it() {
+    for (limits, expected_calls, ready) in [
+        (json!({}), 2, true),
+        (json!({"max_calls": 1, "repairs": 0}), 1, false),
+    ] {
+        let world = TestWorld::new();
+        let seat = Seat::start(vec![
+            Reply::Text(native_answer("nika: broken\ntasks: {}\n")),
+            Reply::Text(native_answer(&candidate(RUN_MODEL, false))),
+        ]);
+        let operator = NativeAuthoring::new(SEAT, seat.providers())
+            .with_max_calls(2)
+            .with_repairs(1);
+        let (server, _) = start_native(&world, compile_limits(), operator).await;
+        for refused in [
+            json!({"max_calls": 3}),
+            json!({"max_calls": 0}),
+            json!({"max_calls": 1}),
+        ] {
+            let response = server
+                .request(&compile_request(&fresh(&json!({"limits": refused}))))
+                .await;
+            assert_eq!(response.status, 422, "{}", response.body);
+            assert_eq!(seat.calls(), 0, "bad authority never contacts a provider");
+        }
+        let response = server
+            .request(&compile_request(&fresh(&json!({"limits": limits}))))
+            .await;
+        assert_eq!(response.status, 200, "{}", response.body);
+        let document = response.json();
+        assert_eq!(document["status"] == "ready", ready, "{document:#}");
+        assert_eq!(seat.calls(), expected_calls);
+        let backend = &document["provenance"]["authoring"]["backend"];
+        assert_eq!(backend["requested_model"], SEAT);
+        assert_eq!(
+            backend["authority"]["http_requests"]["sent"],
+            expected_calls
+        );
+        assert_eq!(backend["authority"]["invocations"]["sent"], expected_calls);
+        server.stop().await.expect("clean stop");
+    }
+}

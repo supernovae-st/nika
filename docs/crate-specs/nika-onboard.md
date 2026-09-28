@@ -7,6 +7,19 @@
 
 ## Contract
 
+`compile_config` owns the shared authoring strategy and knowledge-source
+configuration parser. Its former `nika_cli_host::compile::config` path remains
+as a re-export, including constructors, constants and error types. This pure
+resolution law remains shared by CLI, session and resident doors; the optional
+environment reader retains the same explicit precedence. Rust type names now
+originate in this member.
+
+`knowledge::redact_host_paths` projects a knowledge-pack identity for remote
+receipt consumers by removing its host directory and verification file root.
+Hashes, counts, selection and every other identity field remain unchanged.
+The resident compile door uses this shared knowledge projection before
+serializing authoring provenance.
+
 The onboarding surfaces share one law (questions before writes · the human
 keeps the hand · the proof inside the first minute):
 
@@ -27,6 +40,11 @@ keeps the hand · the proof inside the first minute):
 - **`routing`** — read-only gallery discovery shared by MCP; it cannot author.
 
 ## Shared authoring knowledge door
+
+`compile_config::AuthoringConfig::with_knowledge` applies the selected pack or
+snapshot to a request. Revision intent takes precedence over the caller's
+clarified fallback; snapshot exclusions and byte verification stay with the
+knowledge owner. CLI forwards to this shared door.
 
 `knowledge` owns the read-only Foundry snapshot/pack reader and bounded BM25/graph
 composition shared by CLI, Session and Serve. It is separate from the pure
@@ -123,9 +141,32 @@ Exact skeletons, EDIT and support clauses the bounded grammar resolves stay
 deterministic even through the provider seam: an opted-in provider interprets
 only what the grammar cannot, and a grammar-resolved outcome keeps generation 1.
 The CLI opts in with `--authoring-model`, optional `--authoring-max-tokens`
-(default 2048) and `--authoring-timeout` (default 30 seconds). Only then does
-its adapter use the established environment credential/endpoint ladder.
-Serve remains deterministic; it does not accept this authoring policy yet.
+(default 8192) and `--authoring-timeout` (default 120 seconds, 300 for an ACP
+harness). Only then does its adapter use the established environment
+credential/endpoint ladder.
+
+The CLI sends one authoring request unless `--authoring-max-calls N`
+authorizes more; a repair or sample count is not that authority. A request
+past it is refused before any byte leaves. A direct API seat is counted per
+physical HTTP request on a single-attempt transport that follows no redirect,
+so a transport retry is a request too. An ACP harness is counted per
+invocation, and its own requests stay unknown. Repairs, samples, or an
+escalate or sketch strategy typed beyond what the authority can honor under
+the resolved strategy are refused before any request. So is a count the
+compiler would run as another: repairs above 5, samples outside 1 to 5, a
+grant of 0. A typed value the strategy cannot apply is recorded as ignored,
+never refused. A seated `--decision-model` is outside this authority: it
+keeps its own client, protocol retries included, and the receipt says so.
+The authoring receipt's `backend` carries the account (`authority`, whose
+`http_requests` holds `sent`, `refused` and `unknown` in one shape),
+`requested_model`, `observed_models`, `unreported_models` (responses that
+named no model) and `usage_complete`. No dollar ceiling is claimed.
+
+Serve is deterministic by default. `nika serve --authoring-model` seats its
+own native authoring: strategy `only`, at most `1 + repairs` logical calls per
+request, and the provider transport may resend a call's request up to three
+more times after a 429, 503 or 529. The CLI's `--authoring-max-calls` does
+not apply to it, and Serve has no physical request bound yet.
 
 One authoring conversation is several requests of the same intent with more
 answers each round. `CompileRequest::with_plan(plan)` replays the private plan
@@ -146,8 +187,13 @@ under the same engine, and reads the intent again under `--fresh`.
 
 Deterministic outcomes retain the exact generation-1 wire shape. A provider
 attempt emits generation 2 with cognition `explicitProvider` and an
-`authoring` provenance receipt: model, calls, input/output token counts (null
-when unreported), and elapsed milliseconds. No plan IR is public. Generation-1
+`authoring` provenance receipt: model, calls (every attempt, including one a
+local authority refused before sending), input/output token totals (the
+usage the calls reported, null when none did), and elapsed milliseconds. The
+totals are complete only when every call's usage is known: a timeout, an
+unreported usage or a provider failure leaves them a lower bound, and a local
+refusal used none (`authority::usage_complete` reads it from the calls; the
+CLI states it as `backend.usage_complete`). No plan IR is public. Generation-1
 clients must not consume generation 2 until they explicitly support it.
 Authoring usage is not runtime execution proof or an asserted billing cost.
 The generation-2 receipt records `sampling` with null `temperature` and `seed`

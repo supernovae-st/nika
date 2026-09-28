@@ -47,6 +47,7 @@ use auth::BearerToken;
 use cancel::{ActiveCancellations, CancellationRegistration};
 pub use compile::{
     NativeAuthoring, NativeAuthoringArgs, NativeAuthoringError, seat_native_authoring,
+    seat_native_authoring_with_calls,
 };
 pub use config::{
     DEFAULT_MAX_COST_USD, ResidentClock, ResidentConfig, ServerConfig, ServerLimits,

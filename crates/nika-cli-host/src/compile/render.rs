@@ -35,6 +35,26 @@ pub(super) fn failure(code: &str, message: &str, exit: u8, json_output: bool) ->
     }
 }
 
+/// Where the authoring authority stopped the compile, when it refused a request: the stop is
+/// stated, never a silent reduction (the receipt holds the whole account).
+fn authority_stop(out: &CompileOutcome) -> Option<String> {
+    let account = &out.provenance.authoring.as_ref()?.backend.as_ref()?["authority"];
+    let invocations = account["invocations"]["refused"].as_u64().unwrap_or(0);
+    let requests = account["http_requests"]["refused"].as_u64();
+    // Two units, never summed: an invocation refused sent nothing, a request refused was one of
+    // an admitted invocation's own; a harness's requests are unknown, never zero.
+    (invocations > 0 || requests.is_some_and(|n| n > 0)).then(|| {
+        let requests = requests.map_or_else(
+            || "HTTP requests unknown".to_owned(),
+            |n| format!("{n} HTTP request(s)"),
+        );
+        format!(
+            "authority · {} authoring request(s) authorized · refused before sending: {invocations} invocation(s), {requests} · authorize more with --authoring-max-calls\n",
+            account["max_calls"]
+        )
+    })
+}
+
 pub(super) fn outcome(
     out: &CompileOutcome,
     written: Option<&str>,
@@ -82,6 +102,9 @@ pub(super) fn outcome(
         }
         for d in &out.diagnostics {
             let _ = writeln!(text, "{} · {} · {}", d.kind.word(), d.target, d.message);
+        }
+        if let Some(line) = authority_stop(out) {
+            text.push_str(&line);
         }
         match note {
             Some(Note::Recorded(path)) => {

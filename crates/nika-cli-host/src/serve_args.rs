@@ -1,0 +1,103 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
+//! The resident CLI vocabulary, shared without a dependency on the server.
+
+use std::path::PathBuf;
+
+/// `nika serve`'s explicit native authoring seat (the `nika compile` flag words, no
+/// environment fallback). Absent `--authoring-model`, nothing is read and nothing changes.
+#[derive(Debug, Clone, Default, clap::Args)]
+pub struct NativeAuthoringArgs {
+    /// Seat native authoring on POST /v1/compile generation 2 with this direct provider model
+    /// (`provider/name`); each caller still opts in (`cognition: "explicitProvider"`). Its key
+    /// and endpoint are read from the environment now, never per request. Requires `--bind`.
+    #[arg(
+        long = "authoring-model",
+        value_name = "PROVIDER/NAME",
+        requires = "bind"
+    )]
+    pub model: Option<String>,
+    /// Output tokens per call (1..=32768, default 8192); a caller may only narrow it.
+    #[arg(long = "authoring-max-tokens", value_name = "N", requires = "model")]
+    pub max_tokens: Option<u32>,
+    /// Seconds per model invocation (1..=600, default 120); resends consume the request grant.
+    #[arg(long = "authoring-timeout", value_name = "SECONDS", requires = "model")]
+    pub timeout: Option<u64>,
+    /// Seconds per request (1..=3600, default 300): the work stops and the request answers 408.
+    #[arg(
+        long = "authoring-deadline",
+        value_name = "SECONDS",
+        requires = "model"
+    )]
+    pub deadline: Option<u64>,
+    /// Desired repair rounds (0..=5, default 3), within the operator's explicit request grant.
+    #[arg(long = "authoring-repairs", value_name = "N", requires = "model")]
+    pub repairs: Option<u32>,
+    /// A Foundry knowledge snapshot directory, verified and pinned at start; the seat reads
+    /// the pack composed for each request's intent.
+    #[arg(long = "knowledge", value_name = "DIR", requires = "model")]
+    pub knowledge: Option<PathBuf>,
+    /// A corpus whose examples the knowledge door never recalls.
+    #[arg(
+        long = "knowledge-exclude",
+        value_name = "CORPUS",
+        requires = "knowledge"
+    )]
+    pub knowledge_exclude: Option<String>,
+}
+
+const SHUTDOWN_HELP: &str = "Shutdown (persistent mode): Ctrl-C/SIGINT and SIGTERM stop HTTP admissions \
+and new scheduling, then drain running AND queued jobs for up to 30 seconds \
+with four workers. On grace expiry, running jobs become interrupted and \
+jobs still queued remain queued. Restart with the same --state-root resumes queued \
+jobs from their captured snapshots; interrupted jobs are not retried. SIGKILL \
+skips cleanup: the next start interrupts ownerless running jobs and resumes \
+queued jobs. A completed drain exits 0; grace expiry exits 1. The 30-second \
+grace bounds execution draining, not filesystem cleanup or a stuck backend. \
+Allow extra time before a supervisor forces SIGKILL.";
+
+/// `nika serve` — the resident firer's args, plus the explicit HTTP pair.
+#[derive(Debug, Clone, Default, clap::Args)]
+#[non_exhaustive]
+#[command(after_long_help = SHUTDOWN_HELP)]
+pub struct ServeArgs {
+    /// Fire what is due once, then exit — the rehearsal.
+    #[arg(long)]
+    pub once: bool,
+    /// Say what WOULD fire, run nothing.
+    #[arg(long)]
+    pub dry: bool,
+    /// Inject the clock (RFC 3339 · D5) — the harness.
+    #[arg(long, hide = true, value_name = "RFC3339")]
+    pub now: Option<String>,
+    /// Stop the loop at this instant (RFC 3339) — the harness.
+    #[arg(long, hide = true, value_name = "RFC3339")]
+    pub until: Option<String>,
+    /// Bind an authenticated HTTP listener. Requires `--workflows` and `--token-file`.
+    #[arg(long, value_name = "ADDR")]
+    pub bind: Option<String>,
+    /// The served registry: the listener lists, schedules and ADMITS BY NAME
+    /// (`POST /v1/jobs {"workflow": "<name>"}`) only the `.nika` workflows
+    /// under this directory, named from the project root. A remote world
+    /// rides the snapshot `nika check <file> --json --sdk-snapshot` prints.
+    /// Requires `--bind`.
+    #[arg(long, value_name = "DIR")]
+    pub workflows: Option<PathBuf>,
+    /// Acknowledge a non-loopback `--bind`. Authentication is unchanged.
+    /// TLS is a reverse proxy — this process does not terminate it.
+    #[arg(long)]
+    pub allow_remote: bool,
+    /// Owner-only Bearer file (32–512 visible ASCII bytes, mode 0600). Never argv.
+    /// Mint: umask 077 && openssl rand -hex 24 > .nika/serve.token && chmod 600 .nika/serve.token
+    #[arg(long, value_name = "FILE")]
+    pub token_file: Option<PathBuf>,
+    /// Durable job-state root. Defaults to `<cwd>/.nika/serve`.
+    #[arg(long, value_name = "DIR")]
+    pub state_root: Option<PathBuf>,
+    #[command(flatten)]
+    pub authoring: NativeAuthoringArgs,
+    /// Explicit model invocation and physical-request ceiling per authoring round (default 1).
+    #[arg(long, value_name = "N", requires = "model")]
+    pub authoring_max_calls: Option<u32>,
+}

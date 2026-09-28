@@ -18,6 +18,7 @@ use nika_providers::ProvidersConfig;
 use super::*;
 use crate::NativeAuthoring;
 
+mod authority;
 mod lifecycle;
 mod openapi;
 mod refusals;
@@ -501,9 +502,13 @@ fn assert_first_round(foundry: &Foundry, world: &TestWorld, sent: &Value, docume
         sha256_hex(system.as_bytes()),
         "the receipt names the instruction the seat really read"
     );
+    assert_eq!(receipt["backend"]["kind"], "direct_api");
+    assert_eq!(receipt["backend"]["provider"], "vllm");
+    assert_eq!(receipt["backend"]["requested_model"], SEAT);
+    assert_eq!(receipt["backend"]["authority"]["http_requests"]["sent"], 1);
     assert_eq!(
-        receipt["backend"],
-        json!({"kind": "direct_api", "provider": "vllm", "cost_basis": "measured_by_tokens_at_catalog_price"})
+        receipt["backend"]["cost_basis"],
+        "provider_reported_usage; billing_unverified"
     );
     let identity = &provenance["decision"]["native"]["knowledge"]["identity"];
     let expected = &pack.identity;
@@ -548,6 +553,7 @@ async fn a_native_round_reads_the_pinned_pack_under_the_operators_seat_and_its_a
     let authoring = NativeAuthoring::new(SEAT, seat.providers())
         .with_knowledge(&foundry.snapshot, None)
         .with_max_tokens(4096)
+        .with_max_calls(2)
         .with_repairs(1);
     let (server, backend) = start_native(&world, compile_limits(), authoring).await;
     let health = server

@@ -41,8 +41,34 @@ pub(super) struct Bounds {
     pub(super) call_timeout: Duration,
     /// The whole round: calls, judging, assembly.
     pub(super) deadline: Duration,
-    /// Repair rounds: at most `1 + repairs` calls.
+    /// Desired repair rounds, bounded separately by explicit request authority.
     pub(super) repairs: u32,
+    /// Whether repairs were explicitly configured rather than defaulted.
+    pub(super) repairs_explicit: bool,
+    /// Explicit request authority, separate from repair preferences.
+    pub(super) max_calls: Option<u32>,
+    /// The operator or caller that narrowed the request grant.
+    pub(super) grant: &'static str,
+}
+
+impl Bounds {
+    pub(super) fn authority(
+        self,
+    ) -> Result<
+        nika_onboard::compile::authority::Authority,
+        nika_onboard::compile::authority::Refusal,
+    > {
+        use nika_onboard::compile::authority::{Authority, Door, Typed};
+        Authority::resolve(
+            self.max_calls,
+            nika_onboard::compile::NativeMode::Only,
+            Typed::new(false).with_repairs(self.repairs_explicit.then_some(self.repairs)),
+            Door::new(
+                self.grant,
+                "the operator must authorize sufficient max_calls; a request may only narrow its ceiling",
+            ),
+        )
+    }
 }
 
 #[derive(serde::Deserialize)]
@@ -74,6 +100,8 @@ struct Envelope {
 #[derive(serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Limits {
+    #[serde(default, deserialize_with = "present")]
+    max_calls: Option<u32>,
     #[serde(default, deserialize_with = "present")]
     repairs: Option<u32>,
     #[serde(default, deserialize_with = "present")]
@@ -295,8 +323,16 @@ fn within_limits(envelope: &Envelope, operator: Bounds) -> Result<Bounds, ApiErr
 /// may be zero) and at most the operator's; above is refused, never clamped.
 fn narrow(asked: &Limits, operator: Bounds) -> Option<Bounds> {
     let mut bounds = operator;
+    if let Some(max_calls) = asked.max_calls {
+        let ceiling = operator
+            .max_calls
+            .unwrap_or(nika_onboard::compile::authority::DEFAULT_MAX_CALLS);
+        bounds.max_calls = Some((1..=ceiling).contains(&max_calls).then_some(max_calls)?);
+        bounds.grant = "request: limits.max_calls within operator ceiling";
+    }
     if let Some(repairs) = asked.repairs {
         bounds.repairs = (repairs <= operator.repairs).then_some(repairs)?;
+        bounds.repairs_explicit = true;
     }
     if let Some(tokens) = asked.max_tokens {
         bounds.max_tokens = (1..=operator.max_tokens)
@@ -313,6 +349,7 @@ fn narrow(asked: &Limits, operator: Bounds) -> Option<Bounds> {
     if let Some(millis) = asked.deadline_ms {
         bounds.deadline = duration(millis, operator.deadline)?;
     }
+    bounds.authority().ok()?;
     Some(bounds)
 }
 

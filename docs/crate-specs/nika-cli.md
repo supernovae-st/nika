@@ -31,6 +31,12 @@ task selection and before composition/dispatch. The notice names retained
 task pins and child invocation sites; it does not choose models or access.
 Machine modes and Quiet retain their existing announcement policy.
 
+`nika serve --authoring-model` permits one authoring model request per round
+unless the operator explicitly grants more with `--authoring-max-calls`.
+Repair preferences consume that grant; they cannot enlarge it. The server's
+generation-2 request can only narrow the grant. No transport retry or redirect
+buys an additional request.
+
 ### Literal native inputs (#1683)
 
 `nika run <file> --inputs-json -` reads one UTF-8 JSON object from stdin,

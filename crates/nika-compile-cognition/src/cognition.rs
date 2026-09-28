@@ -29,7 +29,8 @@ use super::{
     record_retrieval, record_route, replay, unresolved,
 };
 use nika_kernel::ai::provider::{
-    ContentBlock, InferRequest, InferResponse, Message, ProviderInferDyn, ResponseFormat, Role,
+    ContentBlock, InferRequest, InferResponse, Message, ProviderError, ProviderInferDyn,
+    ResponseFormat, Role,
 };
 use serde_json::{Value, json};
 
@@ -576,7 +577,7 @@ pub(super) fn first_json_object(text: &str) -> Option<&str> {
 /// The unclosed braces a scan retries after, before it stops judging.
 const UNCLOSED_RETRIES: usize = 64;
 
-/// What the complete JSON objects of a seat's text come to, judged by the answer's own type.
+/// What the complete JSON objects of a seat's text come to, judged by the answer's own shape.
 pub(super) enum Objects<'a> {
     /// No complete, non-empty JSON object: the text keeps its syntax path.
     None,
@@ -586,15 +587,15 @@ pub(super) enum Objects<'a> {
         answer: &'a str,
         unread: Vec<&'a str>,
     },
-    /// Two different answers: neither is read.
-    Two,
+    /// Two or more different answers, which the journal keeps by digest: none is read.
+    Two(Vec<&'a str>),
     /// An object that never closes beside a complete one, or unclosed braces past the retry
-    /// bound: undecided, never read as one answer.
-    Undecided,
+    /// bound: undecided, never read as one answer. The complete objects, by digest.
+    Undecided(Vec<&'a str>),
 }
 
 /// Every complete JSON object of a seat's text, an identical repetition once; prose, template
-/// braces and empty objects are skipped. `is_answer` is the answer's own type: two answers are
+/// braces and empty objects are skipped. `is_answer` is the answer's own shape: two answers are
 /// never resolved by reading the first, and an example that cannot be one never kills it.
 pub(super) fn answer_objects(text: &str, is_answer: impl Fn(&str) -> bool) -> Objects<'_> {
     let mut objects: Vec<&str> = Vec::new();
@@ -629,13 +630,17 @@ pub(super) fn answer_objects(text: &str, is_answer: impl Fn(&str) -> bool) -> Ob
         return Objects::None;
     };
     if undecided {
-        return Objects::Undecided;
+        return Objects::Undecided(objects);
     }
-    let mut answers = objects.iter().copied().filter(|object| is_answer(object));
-    let answer = match (answers.next(), answers.next()) {
-        (Some(_), Some(_)) => return Objects::Two,
-        (Some(answer), None) => answer,
-        (None, _) => first,
+    let answers: Vec<&str> = objects
+        .iter()
+        .copied()
+        .filter(|object| is_answer(object))
+        .collect();
+    let answer = match answers.as_slice() {
+        [] => first,
+        [answer] => answer,
+        _ => return Objects::Two(answers),
     };
     let unread = objects
         .into_iter()
@@ -644,10 +649,27 @@ pub(super) fn answer_objects(text: &str, is_answer: impl Fn(&str) -> bool) -> Ob
     Objects::One { answer, unread }
 }
 
-/// The objects beside an answer that cannot be answers, recorded on the call that returned
-/// them by digest and length: never read, never silent.
-pub(super) fn record_unread(out: &mut CompileOutcome, unread: &[&str]) {
-    if unread.is_empty() {
+/// Whether an object is shaped like an answer of type `T`: it decodes as one, or it carries one
+/// of the `keys` only such an answer carries. A defect (an unknown key, a null field) never
+/// turns a competing answer into an example.
+pub(super) fn answer_shaped<T: serde::de::DeserializeOwned>(object: &str, keys: &[&str]) -> bool {
+    serde_json::from_str::<T>(object).is_ok()
+        || serde_json::from_str::<serde_json::Map<String, Value>>(object)
+            .is_ok_and(|map| keys.iter().any(|key| map.contains_key(*key)))
+}
+
+/// Objects by digest and length, as the journals keep them.
+pub(super) fn digests(objects: &[&str]) -> Value {
+    objects
+        .iter()
+        .map(|object| json!({"sha256": knowledge::sha256(object), "bytes": object.len()}))
+        .collect()
+}
+
+/// Objects of a seat's text recorded on the call that returned them, under `field`: the unread
+/// ones beside an answer, the competitors of a refused text. Never read, never silent.
+pub(super) fn record_objects(out: &mut CompileOutcome, field: &str, objects: &[&str]) {
+    if objects.is_empty() {
         return;
     }
     if let Some(call) = out
@@ -656,11 +678,29 @@ pub(super) fn record_unread(out: &mut CompileOutcome, unread: &[&str]) {
         .as_mut()
         .and_then(|receipt| receipt.context.last_mut())
     {
-        call["unread_objects"] = unread
-            .iter()
-            .map(|object| json!({"sha256": knowledge::sha256(object), "bytes": object.len()}))
-            .collect();
+        call[field] = digests(objects);
     }
+}
+
+/// The group the syntax path judges when no complete object is JSON: the first closed brace
+/// group that opens like a JSON object (`{` then `"`), so template or prose braces beside a
+/// broken answer are never the target of its diagnostic. None when no group opens so.
+pub(super) fn syntax_target(text: &str) -> Option<&str> {
+    let (mut from, mut retries) = (0, 0);
+    while let Some(group) = balanced_object(text, from) {
+        match group {
+            Ok(range) if text[range.start + 1..].trim_start().starts_with('"') => {
+                return Some(&text[range]);
+            }
+            Ok(range) => from = range.end,
+            Err(start) if retries < UNCLOSED_RETRIES => {
+                retries += 1;
+                from = start + 1;
+            }
+            Err(_) => return None,
+        }
+    }
+    None
 }
 
 /// The balanced `{…}` opening at the first `{` at or after byte `from` (braces inside JSON
@@ -845,6 +885,9 @@ async fn call_with_schema<P: ProviderInferDyn>(
                     "input_tokens": response.usage_reported.then_some(response.usage.input_tokens),
                     "output_tokens": response.usage_reported.then_some(response.usage.output_tokens),
                 }),
+                Ok(Err(ProviderError::AdmissionDenied { .. })) => {
+                    json!({"failure_kind": "admission_refused"})
+                }
                 Ok(Err(_)) => json!({"failure_kind": "provider_error"}),
                 Err(_) => json!({"failure_kind": "timeout"}),
             };
@@ -853,12 +896,12 @@ async fn call_with_schema<P: ProviderInferDyn>(
     let response = match result {
         Ok(Ok(response)) => response,
         Ok(Err(error)) => {
-            super::finding(
-                out,
-                DiagnosticKind::Unknown,
-                "authoring_provider",
-                error.to_string(),
-            );
+            // A local refusal says why in its own words; the kernel's prefix names another door.
+            let message = match error {
+                ProviderError::AdmissionDenied { reason } => reason,
+                other => other.to_string(),
+            };
+            super::finding(out, DiagnosticKind::Unknown, "authoring_provider", message);
             return None;
         }
         Err(_) => {
@@ -866,11 +909,13 @@ async fn call_with_schema<P: ProviderInferDyn>(
                 out,
                 DiagnosticKind::Unknown,
                 "authoring_provider",
-                "The single authorized authoring call timed out. No retry occurred.",
+                "An authorized authoring call timed out. No retry occurred.",
             );
             return None;
         }
     };
+    // The totals keep every usage a call reported; whether they are complete is read from the
+    // calls' own results (`authority::usage_complete`), never assumed from a partial sum.
     if let Some(receipt) = out.provenance.authoring.as_mut()
         && response.usage_reported
     {
@@ -1250,7 +1295,7 @@ mod tests {
             format!("{A} then {{ an unclosed brace, then {B}"),
         ] {
             assert!(
-                matches!(answer_objects(&text, is_plan), Objects::Two),
+                matches!(answer_objects(&text, is_plan), Objects::Two(ref objects) if objects.len() == 2),
                 "{text}"
             );
         }
@@ -1262,7 +1307,7 @@ mod tests {
             format!("{A}{}", " {".repeat(UNCLOSED_RETRIES + 1)),
         ] {
             assert!(
-                matches!(answer_objects(&text, is_plan), Objects::Undecided),
+                matches!(answer_objects(&text, is_plan), Objects::Undecided(ref objects) if objects == &[A]),
                 "{text}"
             );
         }
@@ -1304,5 +1349,61 @@ mod tests {
         let mut out = crate::initial();
         let one = response(format!("Plan:\n{plan}\nFor example {EXAMPLE}."));
         assert!(super::proposal::decode(&one, &mut out).is_some());
+    }
+
+    /// An outcome whose receipt holds one call, as `call_with_schema` leaves it.
+    fn called() -> crate::CompileOutcome {
+        let mut out = crate::initial();
+        let mut receipt = crate::AuthoringReceipt::new("mock/authoring".to_owned());
+        receipt.context.push(serde_json::json!({"call": "plan"}));
+        out.provenance.authoring = Some(receipt);
+        out
+    }
+
+    #[test]
+    fn a_competitor_with_a_defect_is_still_a_competitor_and_its_digest_is_kept() {
+        use super::proposal::Proposal;
+        let plan = r#"{"steps":[],"effects":[],"obligations":[],"constraints":[],"unknowns":[]}"#;
+        // An unknown key or a null field keeps it from decoding, never from competing.
+        for rival in [
+            r#"{"steps":[{"op":"draft","detail":"x","evidence":"x"}],"confidence":0.9}"#,
+            r#"{"steps":null,"effects":[]}"#,
+        ] {
+            assert!(
+                super::answer_shaped::<Proposal>(rival, &["steps"]),
+                "{rival}"
+            );
+            let text = format!("Draft:\n{plan}\nFinal:\n{rival}");
+            assert!(
+                matches!(answer_objects(&text, |o| super::answer_shaped::<Proposal>(o, &["steps"])), Objects::Two(ref o) if o == &[plan, rival]),
+                "{text}"
+            );
+            let mut out = called();
+            let response = InferResponse::new(
+                vec![ContentBlock::Text { text }],
+                TokenUsage::new(1, 1),
+                StopReason::EndTurn,
+            );
+            assert!(super::proposal::decode(&response, &mut out).is_none());
+            let call = &out.provenance.authoring.as_ref().unwrap().context[0];
+            assert_eq!(call["competing_objects"], super::digests(&[plan, rival]));
+        }
+        // An object that carries none of a plan's keys and does not decode is an example.
+        assert!(!super::answer_shaped::<Proposal>(EXAMPLE, &["steps"]));
+    }
+
+    #[test]
+    fn the_syntax_path_judges_the_broken_answer_never_a_template() {
+        let broken = r#"{"steps": !}"#;
+        for text in [
+            format!("It uses ${{{{ with.content }}}}, then {broken}"),
+            format!("{{name}} {broken} {{{{ x }}}}"),
+            broken.to_owned(),
+        ] {
+            assert_eq!(super::syntax_target(&text), Some(broken), "{text}");
+        }
+        for text in ["{{ a }} {name}", "{\"steps\": [", "no object"] {
+            assert_eq!(super::syntax_target(text), None, "{text}");
+        }
     }
 }

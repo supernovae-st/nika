@@ -76,7 +76,13 @@ impl LoopbackSeat {
                     .cloned()
                     .unwrap_or_default();
                 next += 1;
-                respond(&mut stream, &text);
+                if let Some(target) = text.strip_prefix("redirect ") {
+                    redirect(&mut stream, target);
+                } else if let Some(text) = text.strip_prefix("nomodel ") {
+                    respond(&mut stream, text, None);
+                } else {
+                    respond(&mut stream, &text, Some("loopback-served-model"));
+                }
             }
         });
         Self {
@@ -147,20 +153,36 @@ fn read_request(stream: &mut TcpStream) -> Option<Value> {
     serde_json::from_slice(buffer.get(header_end..header_end + length)?).ok()
 }
 
-fn respond(stream: &mut TcpStream, text: &str) {
-    let body = serde_json::json!({
+/// A completion answering `text`, reporting `model` as the served identity when it names one
+/// (a scripted `nomodel <text>` reports none).
+fn respond(stream: &mut TcpStream, text: &str, model: Option<&str>) {
+    let mut body = serde_json::json!({
         "id": "chatcmpl-loopback",
         "object": "chat.completion",
         "choices": [{"index": 0, "message": {"role": "assistant", "content": text}, "finish_reason": "stop"}],
         "usage": {"prompt_tokens": 1000, "completion_tokens": 200, "total_tokens": 1200},
-    })
-    .to_string();
+    });
+    if let Some(model) = model {
+        body["model"] = serde_json::json!(model);
+    }
+    let body = body.to_string();
     let head = format!(
         "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
         body.len()
     );
     let _ = stream.write_all(head.as_bytes());
     let _ = stream.write_all(body.as_bytes());
+    let _ = stream.flush();
+}
+
+/// A scripted `redirect <status> <location>` is answered as that redirect, with no body: were it
+/// followed, the redirected request would reach this same seat and be counted in its log.
+fn redirect(stream: &mut TcpStream, target: &str) {
+    let (status, location) = target.split_once(' ').expect("status and location");
+    let head = format!(
+        "HTTP/1.1 {status} Redirect\r\nLocation: {location}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+    );
+    let _ = stream.write_all(head.as_bytes());
     let _ = stream.flush();
 }
 
@@ -272,6 +294,8 @@ fn default_native_escalation_preserves_calls_and_honors_the_repair_bound() {
                 "vllm/loopback-seat",
                 "--authoring-repairs",
                 repairs_arg.as_str(),
+                "--authoring-max-calls",
+                "6",
                 "--authoring-timeout",
                 "2",
                 "--json",
@@ -284,6 +308,22 @@ fn default_native_escalation_preserves_calls_and_honors_the_repair_bound() {
         assert_eq!(doc["status"], "incomplete");
         assert!(doc["candidate"].is_null());
         let provenance = &doc["provenance"];
+        // Within the authority nothing is refused, and every request sent is one received.
+        let backend = &provenance["authoring"]["backend"];
+        let authority = &backend["authority"];
+        assert_eq!(authority["max_calls"], 6, "{doc}");
+        assert_eq!(authority["source"], "--authoring-max-calls");
+        assert_eq!(authority["http_requests"]["refused"], 0, "{doc}");
+        assert_eq!(
+            authority["http_requests"]["sent"].as_u64(),
+            Some(seat.bodies().len() as u64)
+        );
+        assert_eq!(backend["requested_model"], "vllm/loopback-seat");
+        assert_eq!(
+            backend["observed_models"],
+            serde_json::json!(["loopback-served-model"])
+        );
+        assert_eq!(backend["unreported_models"], 0, "{doc}");
         let context = provenance["authoring"]["context"]
             .as_array()
             .expect("calls");
@@ -322,6 +362,291 @@ fn default_native_escalation_preserves_calls_and_honors_the_repair_bound() {
         }
         assert_eq!(std::fs::read_dir(room.path()).expect("dir").count(), 0);
     }
+}
+
+/// `--authoring-model` alone authorizes ONE request: the escalation the default strategy would
+/// buy after the plan is refused before any byte leaves, and the outcome says so (the receipt's
+/// account and one human line), while the core's journal keeps the attempt it made.
+#[test]
+fn the_default_authority_sends_one_request_and_states_the_refusal() {
+    let room = tempfile::tempdir().expect("room");
+    let intent = "Review this customer request and harmonise the tone of the support reply";
+    let not_a_plan = serde_json::json!({"not": "a plan"}).to_string();
+    let native_answer =
+        serde_json::json!({"candidate": "not a workflow", "questions": [], "gaps": [], "notes": ""})
+            .to_string();
+    let seat = LoopbackSeat::start(vec![not_a_plan.clone(), native_answer.clone()]);
+    let flags = [
+        "--authoring-model",
+        "vllm/loopback-seat",
+        "--authoring-timeout",
+        "2",
+    ];
+    let json_out = command(room.path())
+        .env("NIKA_VLLM_BASE_URL", seat.base())
+        .args(["compile", intent])
+        .args(flags)
+        .arg("--json")
+        .output()
+        .expect("CLI");
+    let doc = result(&json_out);
+    assert_eq!(seat.bodies().len(), 1, "one request left: {doc}");
+    assert_eq!(doc["status"], "incomplete");
+    let authoring = &doc["provenance"]["authoring"];
+    let authority = &authoring["backend"]["authority"];
+    assert_eq!(authority["max_calls"], 1, "{doc}");
+    assert_eq!(authority["source"], "default: one request");
+    assert_eq!(
+        authority["invocations"],
+        serde_json::json!({"sent": 1, "refused": 1})
+    );
+    assert_eq!(
+        authority["http_requests"],
+        serde_json::json!({"sent": 1, "refused": 0, "unknown": null})
+    );
+    // The core's journal keeps its attempt; the refusal is recorded beside it, never over it.
+    assert_eq!(
+        authoring["context"].as_array().map(Vec::len),
+        Some(2),
+        "{doc}"
+    );
+    // A local refusal used nothing: the one answered call's usage is the complete total.
+    assert_eq!(authoring["input_tokens"], 1000, "{doc}");
+    assert_eq!(authoring["output_tokens"], 200, "{doc}");
+    assert_eq!(authoring["backend"]["usage_complete"], true, "{doc}");
+    assert!(
+        doc["diagnostics"]
+            .as_array()
+            .expect("diagnostics")
+            .iter()
+            .any(|d| d["message"]
+                .as_str()
+                .is_some_and(|m| m.contains("refused before any byte left"))),
+        "{doc}"
+    );
+    let seat = LoopbackSeat::start(vec![not_a_plan, native_answer]);
+    let human = command(room.path())
+        .env("NIKA_VLLM_BASE_URL", seat.base())
+        .args(["compile", intent])
+        .args(flags)
+        .output()
+        .expect("CLI");
+    let text = String::from_utf8_lossy(&human.stdout);
+    assert!(
+        text.contains(
+            "authority · 1 authoring request(s) authorized · refused before sending: 1 invocation(s), 0 HTTP request(s)"
+        ),
+        "{text}"
+    );
+    assert_eq!(seat.bodies().len(), 1);
+}
+
+/// A followed redirect is another request carrying the whole prompt, uncounted: the authoring
+/// wire never follows one. A seat answering 307 or 308 receives exactly the requests the
+/// authority counted (one under the default), never the redirected prompt, and the outcome
+/// names the refusal it got.
+#[test]
+fn a_redirecting_seat_receives_only_the_counted_requests() {
+    let room = tempfile::tempdir().expect("room");
+    let intent = "Review this customer request and harmonise the tone of the support reply";
+    for (status, calls) in [("307", None), ("308", None), ("307", Some("6"))] {
+        let seat = LoopbackSeat::start(vec![format!("redirect {status} /v1/moved")]);
+        let mut cmd = command(room.path());
+        cmd.env("NIKA_VLLM_BASE_URL", seat.base())
+            .args(["compile", intent, "--authoring-model", "vllm/loopback-seat"])
+            .args(["--authoring-timeout", "2", "--json"]);
+        if let Some(calls) = calls {
+            cmd.args(["--authoring-max-calls", calls]);
+        }
+        let doc = result(&cmd.output().expect("CLI"));
+        let authority = &doc["provenance"]["authoring"]["backend"]["authority"];
+        let counted = authority["http_requests"]["sent"]
+            .as_u64()
+            .expect("counted");
+        let received = seat.bodies().len() as u64;
+        assert_eq!(
+            received, counted,
+            "{status}: every physical request counted: {doc}"
+        );
+        if calls.is_none() {
+            assert_eq!(
+                received, 1,
+                "{status}: the default sends one request: {doc}"
+            );
+        }
+        assert_eq!(doc["status"], "incomplete", "{doc}");
+        // A provider failure may have been billed: the totals are stated incomplete.
+        let authoring = &doc["provenance"]["authoring"];
+        assert!(authoring["input_tokens"].is_null(), "{status}: {doc}");
+        assert_eq!(
+            authoring["backend"]["usage_complete"], false,
+            "{status}: {doc}"
+        );
+        let named = doc["diagnostics"]
+            .as_array()
+            .expect("diagnostics")
+            .iter()
+            .any(|d| d["message"].as_str().is_some_and(|m| m.contains(status)));
+        assert!(
+            named,
+            "{status}: the outcome names the redirect it refused: {doc}"
+        );
+    }
+}
+
+/// The decision seat is outside the authoring authority (its own client, protocol retries
+/// included): the receipt says so whenever one is seated, and never counts its requests as the
+/// authority's.
+#[test]
+fn a_seated_decision_model_is_stated_outside_the_authority() {
+    let room = tempfile::tempdir().expect("room");
+    let intent = "Review this customer request and harmonise the tone of the support reply";
+    let not_a_plan = serde_json::json!({"not": "a plan"}).to_string();
+    let seat = LoopbackSeat::start(vec![not_a_plan]);
+    let out = command(room.path())
+        .env("NIKA_VLLM_BASE_URL", seat.base())
+        .args(["compile", intent, "--authoring-model", "vllm/loopback-seat"])
+        .args(["--decision-model", "vllm/loopback-seat"])
+        .args(["--authoring-timeout", "2", "--json"])
+        .output()
+        .expect("CLI");
+    let doc = result(&out);
+    let authority = &doc["provenance"]["authoring"]["backend"]["authority"];
+    assert_eq!(
+        authority["decision_seat"],
+        "outside this authority: its own client, protocol retries included",
+        "{doc}"
+    );
+    let counted = authority["http_requests"]["sent"]
+        .as_u64()
+        .expect("counted");
+    assert!(seat.bodies().len() as u64 >= counted, "{doc}");
+    // Without a decision seat, nothing is stated about one.
+    let seat = LoopbackSeat::start(vec![serde_json::json!({"not": "a plan"}).to_string()]);
+    let out = command(room.path())
+        .env("NIKA_VLLM_BASE_URL", seat.base())
+        .args(["compile", intent, "--authoring-model", "vllm/loopback-seat"])
+        .args(["--authoring-timeout", "2", "--json"])
+        .output()
+        .expect("CLI");
+    let doc = result(&out);
+    let authority = &doc["provenance"]["authoring"]["backend"]["authority"];
+    assert!(authority.get("decision_seat").is_none(), "{doc}");
+}
+
+/// A response that reports no model identity leaves the identity unknown, never the model the
+/// operator requested: the receipt lists no observed model and counts the response apart.
+#[test]
+fn a_response_without_a_model_is_counted_as_unreported() {
+    let room = tempfile::tempdir().expect("room");
+    let intent = "Review this customer request and harmonise the tone of the support reply";
+    let not_a_plan = serde_json::json!({"not": "a plan"}).to_string();
+    let seat = LoopbackSeat::start(vec![format!("nomodel {not_a_plan}")]);
+    let out = command(room.path())
+        .env("NIKA_VLLM_BASE_URL", seat.base())
+        .args(["compile", intent, "--authoring-model", "vllm/loopback-seat"])
+        .args(["--authoring-timeout", "2", "--json"])
+        .output()
+        .expect("CLI");
+    let doc = result(&out);
+    assert_eq!(seat.bodies().len(), 1, "{doc}");
+    let backend = &doc["provenance"]["authoring"]["backend"];
+    assert_eq!(backend["requested_model"], "vllm/loopback-seat");
+    assert_eq!(backend["observed_models"], serde_json::json!([]), "{doc}");
+    assert_eq!(backend["unreported_models"], 1, "{doc}");
+}
+
+/// Repairs, samples or a two-request strategy (escalate, sketch) typed beyond the authority are
+/// refused before any request: the operator's explicit quality is never reduced in silence, and
+/// the number to authorize is named. A typed native-only answer without repairs needs one
+/// request and is never refused.
+#[test]
+fn a_typed_multiplicity_the_authority_cannot_honor_is_refused_before_any_request() {
+    let room = tempfile::tempdir().expect("room");
+    let intent = "Review this customer request and harmonise the tone of the support reply";
+    let answer =
+        serde_json::json!({"candidate": "not a workflow", "questions": [], "gaps": [], "notes": ""})
+            .to_string();
+    for (typed, needed) in [
+        (vec!["--authoring-repairs", "3"], "--authoring-max-calls 6"),
+        (vec!["--authoring-samples", "2"], "--authoring-max-calls 5"),
+        (
+            vec!["--authoring-strategy", "sketch"],
+            "--authoring-max-calls 2",
+        ),
+        (
+            vec!["--authoring-strategy", "escalate"],
+            "--authoring-max-calls 2",
+        ),
+    ] {
+        let seat = LoopbackSeat::start(vec![answer.clone()]);
+        let out = command(room.path())
+            .env("NIKA_VLLM_BASE_URL", seat.base())
+            .args(["compile", intent, "--authoring-model", "vllm/loopback-seat"])
+            .args(&typed)
+            .arg("--json")
+            .output()
+            .expect("CLI");
+        let doc = result(&out);
+        assert_eq!(out.status.code(), Some(2), "{typed:?}: {doc}");
+        assert_eq!(doc["error"]["code"], "authoring_authority", "{doc}");
+        let message = doc["error"]["message"].as_str().expect("message");
+        assert!(message.contains(needed), "{typed:?}: {message}");
+        assert!(
+            seat.bodies().is_empty(),
+            "no request before the refusal: {typed:?}"
+        );
+    }
+    // A typed count outside what the compiler runs is refused by the flag, never clamped.
+    for typed in [["--authoring-repairs", "9"], ["--authoring-samples", "0"]] {
+        let seat = LoopbackSeat::start(vec![answer.clone()]);
+        let out = command(room.path())
+            .env("NIKA_VLLM_BASE_URL", seat.base())
+            .args(["compile", intent, "--authoring-model", "vllm/loopback-seat"])
+            .args(typed)
+            .output()
+            .expect("CLI");
+        assert_eq!(out.status.code(), Some(2), "{typed:?}");
+        assert!(seat.bodies().is_empty(), "no request: {typed:?}");
+    }
+    let seat = LoopbackSeat::start(vec![answer.clone()]);
+    let out = command(room.path())
+        .env("NIKA_VLLM_BASE_URL", seat.base())
+        .args(["compile", intent, "--authoring-model", "vllm/loopback-seat"])
+        .args([
+            "--authoring-strategy",
+            "only",
+            "--authoring-repairs",
+            "0",
+            "--json",
+        ])
+        .output()
+        .expect("CLI");
+    let doc = result(&out);
+    assert_eq!(seat.bodies().len(), 1, "{doc}");
+    assert_eq!(
+        doc["provenance"]["authoring"]["backend"]["authority"]["http_requests"]["refused"],
+        0
+    );
+    // Repairs the strategy cannot apply (off writes no native candidate) change no request:
+    // nothing is refused, and the receipt records them as ignored.
+    let seat = LoopbackSeat::start(vec![answer]);
+    let out = command(room.path())
+        .env("NIKA_VLLM_BASE_URL", seat.base())
+        .args(["compile", intent, "--authoring-model", "vllm/loopback-seat"])
+        .args(["--authoring-strategy", "off", "--authoring-repairs", "3"])
+        .args(["--authoring-timeout", "2", "--json"])
+        .output()
+        .expect("CLI");
+    let doc = result(&out);
+    assert_ne!(doc["error"]["code"], "authoring_authority", "{doc}");
+    assert_eq!(seat.bodies().len(), 1, "{doc}");
+    let configured = &doc["provenance"]["authoring"]["backend"]["authority"]["configured"];
+    assert_eq!(
+        configured["ignored"],
+        serde_json::json!(["repairs"]),
+        "{doc}"
+    );
 }
 
 /// The authoring seat rides the PROVIDER client (the runtime's fixed endpoint allowlist,

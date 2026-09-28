@@ -282,7 +282,7 @@ enum Command {
     /// Compile a skeleton, bounded support intent or conservative edit into a reviewable workflow.
     /// No destination: preview only; unknown intent stays incomplete.
     #[command(display_order = 11, after_help = help_card::COMPILE_EXITS)]
-    Compile(verbs::compile::CompileArgs),
+    Compile(verbs::compile::CompileCommand),
     /// Generate shell completions (bash · zsh · fish · elvish · powershell).
     #[command(hide = true, display_order = 63)]
     Completions {
@@ -864,7 +864,7 @@ fn dispatch_verb(
         }),
         Command::Try(a) => try_args::listing(&a, plain_theme)
             .map_or_else(|| try_args::rehearse(&a, plain_theme), |o| emit(&o)),
-        Command::Compile(args) => emit(&verbs::compile::run(&args)),
+        Command::Compile(command) => emit(&command.run()),
         Command::Completions { shell } => {
             write_completions(shell, &mut std::io::stdout());
             0
@@ -1237,9 +1237,12 @@ mod tests {
             .expect("parses");
         assert!(matches!(
             cli.command,
-            Some(Command::Compile(verbs::compile::CompileArgs {
-                intent: Some(_),
-                dest: Some(_),
+            Some(Command::Compile(verbs::compile::CompileCommand {
+                args: verbs::compile::CompileArgs {
+                    intent: Some(_),
+                    dest: Some(_),
+                    ..
+                },
                 ..
             }))
         ));

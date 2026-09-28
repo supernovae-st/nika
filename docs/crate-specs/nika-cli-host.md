@@ -72,6 +72,20 @@ tests exercise the re-exported surface and actual process boundary; the
 quoting law itself is unit-tested here, beside `output::sh_word`. No new
 crate, authority boundary, or exception to the size budget is introduced.
 
+`serve_args` owns the resident command's clap vocabulary, including its optional
+native authoring seat. `nika_cli::verbs::serve::ServeArgs` and
+`nika_serve::NativeAuthoringArgs` retain their public paths through re-exports;
+the defining Rust type names now originate in this member. The existing closed
+native-seat flag structure retains its fields and literal-construction API.
+The resident arguments provide `Default`; dispatch and seating remain in their
+existing owners. `compile::authoring_http` shares the single-attempt authoring
+transport with the resident door.
+
+`compile::config` preserves the authoring configuration API as a re-export of
+`nika_onboard::compile_config`. The shared parser, constants, typed errors and
+their tests have one owner beside the authoring facade; existing import paths
+and resolution behavior remain available without a reverse dependency.
+
 ## Knowledge door
 
 `compile::knowledge` composes, per intent, the bounded authoring pack a seat reads

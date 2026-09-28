@@ -62,6 +62,7 @@ mod laws {
     pub(crate) use nika_compile::surface::{LINES, SELECT_BY_FIELD};
 }
 
+pub mod authority;
 mod cognition;
 mod compose;
 pub mod decide;

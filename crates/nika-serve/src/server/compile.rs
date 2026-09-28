@@ -36,6 +36,7 @@ pub(super) use author::settle;
 pub(super) use native::Seat;
 pub use native::{
     NativeAuthoring, NativeAuthoringArgs, NativeAuthoringError, seat_native_authoring,
+    seat_native_authoring_with_calls,
 };
 
 use super::AppState;

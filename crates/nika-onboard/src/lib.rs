@@ -38,12 +38,13 @@ pub mod compile {
         retrieve_by_ops, revise_intent, stated_destinations, stated_sources, text,
     };
     pub use nika_compile_cognition::{
-        Cognition, NoProvider, compile_with_cognition, compile_with_provider, decide,
+        Cognition, NoProvider, authority, compile_with_cognition, compile_with_provider, decide,
     };
     /// The Meaning view of an outcome's obligation ledger — what survived of the request,
     /// clause by clause — owned beside the ledger it reads (the session re-exports it).
     pub mod meaning;
 }
+pub mod compile_config;
 pub mod fixtures;
 pub mod founding;
 mod gitignore;

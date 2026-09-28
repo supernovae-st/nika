@@ -344,13 +344,18 @@ pub(super) fn decode(response: &InferResponse, out: &mut CompileOutcome) -> Opti
             return None;
         }
     };
-    let json = match super::answer_objects(text, |o| serde_json::from_str::<Proposal>(o).is_ok()) {
+    let json = match super::answer_objects(text, |o| {
+        super::answer_shaped::<Proposal>(o, &["steps"])
+    }) {
         super::Objects::One { answer, unread } => {
-            super::record_unread(out, &unread);
+            super::record_objects(out, "unread_objects", &unread);
             answer
         }
-        super::Objects::None => super::first_json_object(text).unwrap_or(text),
-        super::Objects::Two | super::Objects::Undecided => {
+        super::Objects::None => super::syntax_target(text)
+            .or_else(|| super::first_json_object(text))
+            .unwrap_or(text),
+        super::Objects::Two(objects) | super::Objects::Undecided(objects) => {
+            super::record_objects(out, "competing_objects", &objects);
             crate::finding(
                 out,
                 DiagnosticKind::Unknown,

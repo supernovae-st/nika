@@ -21,6 +21,7 @@ const WITHHELD: &str = "sk-withheld-S06-0123456789abcdef";
 pub(super) fn operator(seat: &Seat) -> NativeAuthoring {
     NativeAuthoring::new(SEAT, seat.providers())
         .with_max_tokens(4096)
+        .with_max_calls(2)
         .with_repairs(1)
 }
 
@@ -403,7 +404,7 @@ async fn provider_failures_reach_the_document_as_fixed_reasons_and_a_withheld_va
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn the_repair_rounds_are_the_call_budget_and_a_caller_can_only_narrow_them() {
+async fn explicit_repair_preferences_run_within_the_grant_and_a_caller_can_narrow_them() {
     let broken = native_answer("nika: broken\ntasks: {}\n");
     let fixed = native_answer(&candidate(RUN_MODEL, false));
     // The operator's one repair: the refused candidate, then the repaired one — two calls.
@@ -785,6 +786,7 @@ fn the_flags_seat_only_what_the_operator_names() {
         .expect("untouched")
         .expect("config");
     assert!(format!("{untouched:?}").contains("native_authoring: None"));
+    assert!(crate::seat_native_authoring_with_calls(Some(config()), &unnamed, Some(2)).is_err());
     assert_eq!(
         seat_native_authoring(None, &named).err(),
         Some(NativeAuthoringError::NeedsListener)
@@ -793,6 +795,10 @@ fn the_flags_seat_only_what_the_operator_names() {
         .expect("seated")
         .expect("config");
     let described = format!("{seated:?}");
+    let granted = crate::seat_native_authoring_with_calls(Some(config()), &named, Some(2))
+        .expect("seated with grant")
+        .expect("config");
+    assert!(format!("{granted:?}").contains("max_calls: Some(2)"));
     for part in [
         "model: \"vllm/s06-seat\"",
         "max_tokens: 1024",

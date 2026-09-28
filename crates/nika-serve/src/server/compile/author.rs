@@ -13,21 +13,21 @@
 //! provider call; an outcome that arrives once the round must stop is never answered or kept.
 //! The work revalidates the pinned snapshot, composes the pack for the request's intent (host
 //! paths stripped from the recorded identity), and calls the seat's provider through a gate
-//! that makes at most `1 + repairs` logical calls (the provider transport may resend one after
-//! a 429, 503 or 529) and hands the core only fixed, safe failure reasons. The answer is the
+//! that counts both model invocations and physical requests under the operator's explicit
+//! authority, with no redirect or uncounted resend, and hands the core fixed safe reasons. The answer is the
 //! core's own document; a document that carries a withheld value is refused whole. No job,
 //! run, approval, trace, file or permission is created.
 
 use std::collections::BTreeMap;
 use std::future::Future;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
 
 use bytes::Bytes;
 use hyper::header::{CACHE_CONTROL, CONTENT_TYPE, HeaderName, HeaderValue};
 use hyper::{Response, StatusCode};
 use nika_kernel::ai::provider::{InferRequest, InferResponse, ProviderError, ProviderInferDyn};
+use nika_onboard::compile::authority::{Seat as CountedSeat, Wire};
 use nika_onboard::compile::{
     AuthoringPolicy, Cognition, CompileOutcome, NativeMode, Strategy, compile_with_cognition,
     outcome_document, revise_intent,
@@ -238,17 +238,20 @@ async fn author(
             let mut pack = snapshot
                 .pack(&intent, exclude)
                 .map_err(|_| Refusal::Context)?;
-            public_identity(&mut pack.identity);
+            nika_onboard::knowledge::redact_host_paths(&mut pack.identity);
             request = request.with_authoring_knowledge(pack);
         }
     }
-    let http = nika_runtime::compose::provider_http().map_err(|_| Refusal::Machinery)?;
-    let provider = ProviderRegistry::new(Arc::new(http), seat.providers.clone())
+    let authority = bounds.authority().map_err(|_| Refusal::Machinery)?;
+    let invocations = authority.envelope();
+    let requests = authority.envelope();
+    let http = nika_cli_host::compile::authoring_http().map_err(|_| Refusal::Machinery)?;
+    let wire = Wire::new(http, Arc::clone(&requests));
+    let provider = ProviderRegistry::new(Arc::new(wire), seat.providers.clone())
         .resolve(&seat.model)
         .map_err(|_| Refusal::Machinery)?;
     let gate = Gate {
-        provider,
-        calls: AtomicU32::new(bounds.repairs.saturating_add(1)),
+        provider: CountedSeat::new(provider, Arc::clone(&invocations)),
         stop: stop.clone(),
     };
     let cognition = Cognition {
@@ -262,7 +265,11 @@ async fn author(
         receipt.backend = Some(serde_json::json!({
             "kind": "direct_api",
             "provider": seat.provider,
-            "cost_basis": "measured_by_tokens_at_catalog_price",
+            "cost_basis": "provider_reported_usage; billing_unverified",
+            "usage_complete": nika_onboard::compile::authority::usage_complete(&receipt.context),
+            "requested_model": seat.model,
+            "observed_models": gate.provider.observed(),
+            "authority": authority.record(&invocations, Some(&requests)),
         }));
     }
     Ok(outcome)
@@ -339,14 +346,12 @@ async fn replay(
     }
 }
 
-/// The ONE provider this request may reach, behind its stop and its call budget: once the
-/// round must stop, or past `1 + repairs` logical calls, nothing is sent; every failure reaches
-/// the core as a fixed reason — never the provider's own text, which can carry an endpoint, a
-/// request body or a credential. One logical call is one `infer`: the provider transport may
-/// resend its request after a 429, 503 or 529 inside it.
+/// Stop a round before another invocation and sanitize provider failures. The enclosed
+/// counted seat and wire enforce independent invocation and physical-request ceilings;
+/// provider retries consume the request grant; redirects are disabled. Provider text never reaches the core:
+/// it can contain an endpoint, request body or credential.
 struct Gate<P> {
     provider: P,
-    calls: AtomicU32,
     stop: Stop,
 }
 
@@ -356,17 +361,6 @@ impl<P: ProviderInferDyn> ProviderInferDyn for Gate<P> {
             return Err(ProviderError::Other {
                 reason: "this round stopped (its deadline passed or its server is stopping); nothing was sent"
                     .to_owned(),
-            });
-        }
-        if self
-            .calls
-            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |left| {
-                left.checked_sub(1)
-            })
-            .is_err()
-        {
-            return Err(ProviderError::Other {
-                reason: "this request's authoring calls are spent; nothing was sent".to_owned(),
             });
         }
         self.provider
@@ -398,20 +392,6 @@ fn safe_reason(error: &ProviderError) -> String {
                 .to_owned()
         }
         _ => "the authoring provider call failed".to_owned(),
-    }
-}
-
-/// The snapshot identity as an answer may carry it: every hash, count and selection, no host
-/// path (the snapshot directory, the files root).
-fn public_identity(identity: &mut serde_json::Value) {
-    if let Some(identity) = identity.as_object_mut() {
-        identity.remove("dir");
-        if let Some(verification) = identity
-            .get_mut("verification")
-            .and_then(serde_json::Value::as_object_mut)
-        {
-            verification.remove("files_root");
-        }
     }
 }
 

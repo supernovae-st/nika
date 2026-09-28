@@ -36,6 +36,7 @@ pub use nika_onboard::compile::Strategy
 pub use nika_onboard::compile::TriggerKind
 pub use nika_onboard::compile::TriggerRequirement
 pub use nika_onboard::compile::TriggerStatus
+pub use nika_onboard::compile::authority
 pub use nika_onboard::compile::compile
 pub use nika_onboard::compile::compile_with_cognition
 pub use nika_onboard::compile::compile_with_provider
@@ -169,6 +170,233 @@ pub fn nika_onboard::compile::meaning::clauses_of(ledger: &serde_json::value::Va
 pub fn nika_onboard::compile::meaning::delta(base: &serde_json::value::Value, revised: &serde_json::value::Value) -> core::option::Option<alloc::string::String>
 pub fn nika_onboard::compile::meaning::render(out: &nika_compile::types::CompileOutcome) -> core::option::Option<alloc::string::String>
 pub fn nika_onboard::compile::meaning::render_ledger(ledger: &serde_json::value::Value, candidate: core::option::Option<&str>) -> alloc::string::String
+pub mod nika_onboard::compile_config
+#[non_exhaustive] pub enum nika_onboard::compile_config::ConfigError
+pub nika_onboard::compile_config::ConfigError::ExclusionWithoutSnapshot
+pub nika_onboard::compile_config::ConfigError::ExclusionWithoutSnapshot::corpus: alloc::string::String
+pub nika_onboard::compile_config::ConfigError::KnowledgeUnread
+pub nika_onboard::compile_config::ConfigError::KnowledgeUnread::source: alloc::string::String
+pub nika_onboard::compile_config::ConfigError::UnknownStrategy(alloc::string::String)
+impl core::clone::Clone for nika_onboard::compile_config::ConfigError
+pub fn nika_onboard::compile_config::ConfigError::clone(&self) -> nika_onboard::compile_config::ConfigError
+impl core::cmp::Eq for nika_onboard::compile_config::ConfigError
+impl core::cmp::PartialEq for nika_onboard::compile_config::ConfigError
+pub fn nika_onboard::compile_config::ConfigError::eq(&self, other: &nika_onboard::compile_config::ConfigError) -> bool
+impl core::error::Error for nika_onboard::compile_config::ConfigError
+impl core::fmt::Debug for nika_onboard::compile_config::ConfigError
+pub fn nika_onboard::compile_config::ConfigError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_onboard::compile_config::ConfigError
+pub fn nika_onboard::compile_config::ConfigError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_onboard::compile_config::ConfigError
+impl<D> owo_colors::OwoColorize for nika_onboard::compile_config::ConfigError
+impl<Q, K> equivalent::Equivalent<K> for nika_onboard::compile_config::ConfigError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile_config::ConfigError::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_onboard::compile_config::ConfigError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile_config::ConfigError::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_onboard::compile_config::ConfigError where U: core::convert::From<T>
+pub fn nika_onboard::compile_config::ConfigError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile_config::ConfigError where U: core::convert::Into<T>
+pub type nika_onboard::compile_config::ConfigError::Error = core::convert::Infallible
+pub fn nika_onboard::compile_config::ConfigError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::compile_config::ConfigError where U: core::convert::TryFrom<T>
+pub type nika_onboard::compile_config::ConfigError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::compile_config::ConfigError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_onboard::compile_config::ConfigError where T: core::clone::Clone
+pub type nika_onboard::compile_config::ConfigError::Owned = T
+pub fn nika_onboard::compile_config::ConfigError::clone_into(&self, target: &mut T)
+pub fn nika_onboard::compile_config::ConfigError::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_onboard::compile_config::ConfigError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_onboard::compile_config::ConfigError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_onboard::compile_config::ConfigError where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::compile_config::ConfigError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::compile_config::ConfigError where T: ?core::marker::Sized
+pub fn nika_onboard::compile_config::ConfigError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::compile_config::ConfigError where T: ?core::marker::Sized
+pub fn nika_onboard::compile_config::ConfigError::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_onboard::compile_config::ConfigError where T: core::clone::Clone
+pub unsafe fn nika_onboard::compile_config::ConfigError::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_onboard::compile_config::ConfigError
+pub fn nika_onboard::compile_config::ConfigError::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_onboard::compile_config::ConfigError where T: core::clone::Clone
+pub fn nika_onboard::compile_config::ConfigError::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> iri_string::format::ToStringFallible for nika_onboard::compile_config::ConfigError where T: core::fmt::Display
+pub fn nika_onboard::compile_config::ConfigError::try_to_string(&self) -> core::result::Result<alloc::string::String, alloc::collections::TryReserveError>
+impl<T> nika_error::traits::AsAny for nika_onboard::compile_config::ConfigError where T: 'static
+pub fn nika_onboard::compile_config::ConfigError::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::compile_config::ConfigError where T: ?core::marker::Sized
+pub fn nika_onboard::compile_config::ConfigError::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::compile_config::ConfigError::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::compile_config::ConfigError
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile_config::ConfigError
+impl<T> typenum::type_operators::Same for nika_onboard::compile_config::ConfigError
+pub type nika_onboard::compile_config::ConfigError::Output = T
+#[non_exhaustive] pub enum nika_onboard::compile_config::KnowledgeSource
+pub nika_onboard::compile_config::KnowledgeSource::Pack
+pub nika_onboard::compile_config::KnowledgeSource::Pack::file: std::path::PathBuf
+pub nika_onboard::compile_config::KnowledgeSource::Snapshot
+pub nika_onboard::compile_config::KnowledgeSource::Snapshot::dir: std::path::PathBuf
+pub nika_onboard::compile_config::KnowledgeSource::Snapshot::exclude_corpus: core::option::Option<alloc::string::String>
+impl core::clone::Clone for nika_onboard::compile_config::KnowledgeSource
+pub fn nika_onboard::compile_config::KnowledgeSource::clone(&self) -> nika_onboard::compile_config::KnowledgeSource
+impl core::cmp::Eq for nika_onboard::compile_config::KnowledgeSource
+impl core::cmp::PartialEq for nika_onboard::compile_config::KnowledgeSource
+pub fn nika_onboard::compile_config::KnowledgeSource::eq(&self, other: &nika_onboard::compile_config::KnowledgeSource) -> bool
+impl core::fmt::Debug for nika_onboard::compile_config::KnowledgeSource
+pub fn nika_onboard::compile_config::KnowledgeSource::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_onboard::compile_config::KnowledgeSource
+impl<D> owo_colors::OwoColorize for nika_onboard::compile_config::KnowledgeSource
+impl<Q, K> equivalent::Equivalent<K> for nika_onboard::compile_config::KnowledgeSource where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile_config::KnowledgeSource::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_onboard::compile_config::KnowledgeSource where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile_config::KnowledgeSource::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_onboard::compile_config::KnowledgeSource where U: core::convert::From<T>
+pub fn nika_onboard::compile_config::KnowledgeSource::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile_config::KnowledgeSource where U: core::convert::Into<T>
+pub type nika_onboard::compile_config::KnowledgeSource::Error = core::convert::Infallible
+pub fn nika_onboard::compile_config::KnowledgeSource::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::compile_config::KnowledgeSource where U: core::convert::TryFrom<T>
+pub type nika_onboard::compile_config::KnowledgeSource::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::compile_config::KnowledgeSource::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_onboard::compile_config::KnowledgeSource where T: core::clone::Clone
+pub type nika_onboard::compile_config::KnowledgeSource::Owned = T
+pub fn nika_onboard::compile_config::KnowledgeSource::clone_into(&self, target: &mut T)
+pub fn nika_onboard::compile_config::KnowledgeSource::to_owned(&self) -> T
+impl<T> core::any::Any for nika_onboard::compile_config::KnowledgeSource where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::compile_config::KnowledgeSource::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::compile_config::KnowledgeSource where T: ?core::marker::Sized
+pub fn nika_onboard::compile_config::KnowledgeSource::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::compile_config::KnowledgeSource where T: ?core::marker::Sized
+pub fn nika_onboard::compile_config::KnowledgeSource::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_onboard::compile_config::KnowledgeSource where T: core::clone::Clone
+pub unsafe fn nika_onboard::compile_config::KnowledgeSource::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_onboard::compile_config::KnowledgeSource
+pub fn nika_onboard::compile_config::KnowledgeSource::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_onboard::compile_config::KnowledgeSource where T: core::clone::Clone
+pub fn nika_onboard::compile_config::KnowledgeSource::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_onboard::compile_config::KnowledgeSource where T: 'static
+pub fn nika_onboard::compile_config::KnowledgeSource::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::compile_config::KnowledgeSource where T: ?core::marker::Sized
+pub fn nika_onboard::compile_config::KnowledgeSource::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::compile_config::KnowledgeSource::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::compile_config::KnowledgeSource
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile_config::KnowledgeSource
+impl<T> typenum::type_operators::Same for nika_onboard::compile_config::KnowledgeSource
+pub type nika_onboard::compile_config::KnowledgeSource::Output = T
+#[non_exhaustive] pub struct nika_onboard::compile_config::AuthoringConfig
+pub nika_onboard::compile_config::AuthoringConfig::knowledge: core::option::Option<nika_onboard::compile_config::KnowledgeSource>
+pub nika_onboard::compile_config::AuthoringConfig::strategy: nika_compile::types::NativeMode
+impl nika_onboard::compile_config::AuthoringConfig
+pub fn nika_onboard::compile_config::AuthoringConfig::with_knowledge(&self, request: nika_compile::types::CompileRequest, fallback_intent: &str) -> core::result::Result<nika_compile::types::CompileRequest, nika_onboard::knowledge::KnowledgeError>
+impl core::clone::Clone for nika_onboard::compile_config::AuthoringConfig
+pub fn nika_onboard::compile_config::AuthoringConfig::clone(&self) -> nika_onboard::compile_config::AuthoringConfig
+impl core::cmp::Eq for nika_onboard::compile_config::AuthoringConfig
+impl core::cmp::PartialEq for nika_onboard::compile_config::AuthoringConfig
+pub fn nika_onboard::compile_config::AuthoringConfig::eq(&self, other: &nika_onboard::compile_config::AuthoringConfig) -> bool
+impl core::fmt::Debug for nika_onboard::compile_config::AuthoringConfig
+pub fn nika_onboard::compile_config::AuthoringConfig::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_onboard::compile_config::AuthoringConfig
+impl<D> owo_colors::OwoColorize for nika_onboard::compile_config::AuthoringConfig
+impl<Q, K> equivalent::Equivalent<K> for nika_onboard::compile_config::AuthoringConfig where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile_config::AuthoringConfig::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_onboard::compile_config::AuthoringConfig where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile_config::AuthoringConfig::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_onboard::compile_config::AuthoringConfig where U: core::convert::From<T>
+pub fn nika_onboard::compile_config::AuthoringConfig::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile_config::AuthoringConfig where U: core::convert::Into<T>
+pub type nika_onboard::compile_config::AuthoringConfig::Error = core::convert::Infallible
+pub fn nika_onboard::compile_config::AuthoringConfig::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::compile_config::AuthoringConfig where U: core::convert::TryFrom<T>
+pub type nika_onboard::compile_config::AuthoringConfig::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::compile_config::AuthoringConfig::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_onboard::compile_config::AuthoringConfig where T: core::clone::Clone
+pub type nika_onboard::compile_config::AuthoringConfig::Owned = T
+pub fn nika_onboard::compile_config::AuthoringConfig::clone_into(&self, target: &mut T)
+pub fn nika_onboard::compile_config::AuthoringConfig::to_owned(&self) -> T
+impl<T> core::any::Any for nika_onboard::compile_config::AuthoringConfig where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::compile_config::AuthoringConfig::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::compile_config::AuthoringConfig where T: ?core::marker::Sized
+pub fn nika_onboard::compile_config::AuthoringConfig::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::compile_config::AuthoringConfig where T: ?core::marker::Sized
+pub fn nika_onboard::compile_config::AuthoringConfig::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_onboard::compile_config::AuthoringConfig where T: core::clone::Clone
+pub unsafe fn nika_onboard::compile_config::AuthoringConfig::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_onboard::compile_config::AuthoringConfig
+pub fn nika_onboard::compile_config::AuthoringConfig::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_onboard::compile_config::AuthoringConfig where T: core::clone::Clone
+pub fn nika_onboard::compile_config::AuthoringConfig::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_onboard::compile_config::AuthoringConfig where T: 'static
+pub fn nika_onboard::compile_config::AuthoringConfig::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::compile_config::AuthoringConfig where T: ?core::marker::Sized
+pub fn nika_onboard::compile_config::AuthoringConfig::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::compile_config::AuthoringConfig::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::compile_config::AuthoringConfig
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile_config::AuthoringConfig
+impl<T> typenum::type_operators::Same for nika_onboard::compile_config::AuthoringConfig
+pub type nika_onboard::compile_config::AuthoringConfig::Output = T
+#[non_exhaustive] pub struct nika_onboard::compile_config::AuthoringSettings
+pub nika_onboard::compile_config::AuthoringSettings::knowledge: core::option::Option<std::path::PathBuf>
+pub nika_onboard::compile_config::AuthoringSettings::knowledge_exclude: core::option::Option<alloc::string::String>
+pub nika_onboard::compile_config::AuthoringSettings::knowledge_pack: core::option::Option<std::path::PathBuf>
+pub nika_onboard::compile_config::AuthoringSettings::strategy: core::option::Option<alloc::string::String>
+impl nika_onboard::compile_config::AuthoringSettings
+pub fn nika_onboard::compile_config::AuthoringSettings::from_env() -> Self
+pub fn nika_onboard::compile_config::AuthoringSettings::none() -> Self
+pub fn nika_onboard::compile_config::AuthoringSettings::with_knowledge(self, dir: impl core::convert::Into<std::path::PathBuf>, exclude: core::option::Option<alloc::string::String>) -> Self
+pub fn nika_onboard::compile_config::AuthoringSettings::with_knowledge_exclude(self, corpus: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_onboard::compile_config::AuthoringSettings::with_knowledge_pack(self, file: impl core::convert::Into<std::path::PathBuf>) -> Self
+pub fn nika_onboard::compile_config::AuthoringSettings::with_strategy(self, word: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_onboard::compile_config::AuthoringSettings
+pub fn nika_onboard::compile_config::AuthoringSettings::clone(&self) -> nika_onboard::compile_config::AuthoringSettings
+impl core::cmp::Eq for nika_onboard::compile_config::AuthoringSettings
+impl core::cmp::PartialEq for nika_onboard::compile_config::AuthoringSettings
+pub fn nika_onboard::compile_config::AuthoringSettings::eq(&self, other: &nika_onboard::compile_config::AuthoringSettings) -> bool
+impl core::default::Default for nika_onboard::compile_config::AuthoringSettings
+pub fn nika_onboard::compile_config::AuthoringSettings::default() -> nika_onboard::compile_config::AuthoringSettings
+impl core::fmt::Debug for nika_onboard::compile_config::AuthoringSettings
+pub fn nika_onboard::compile_config::AuthoringSettings::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_onboard::compile_config::AuthoringSettings
+impl<D> owo_colors::OwoColorize for nika_onboard::compile_config::AuthoringSettings
+impl<Q, K> equivalent::Equivalent<K> for nika_onboard::compile_config::AuthoringSettings where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile_config::AuthoringSettings::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_onboard::compile_config::AuthoringSettings where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile_config::AuthoringSettings::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_onboard::compile_config::AuthoringSettings where U: core::convert::From<T>
+pub fn nika_onboard::compile_config::AuthoringSettings::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile_config::AuthoringSettings where U: core::convert::Into<T>
+pub type nika_onboard::compile_config::AuthoringSettings::Error = core::convert::Infallible
+pub fn nika_onboard::compile_config::AuthoringSettings::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::compile_config::AuthoringSettings where U: core::convert::TryFrom<T>
+pub type nika_onboard::compile_config::AuthoringSettings::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::compile_config::AuthoringSettings::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_onboard::compile_config::AuthoringSettings where T: core::clone::Clone
+pub type nika_onboard::compile_config::AuthoringSettings::Owned = T
+pub fn nika_onboard::compile_config::AuthoringSettings::clone_into(&self, target: &mut T)
+pub fn nika_onboard::compile_config::AuthoringSettings::to_owned(&self) -> T
+impl<T> core::any::Any for nika_onboard::compile_config::AuthoringSettings where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::compile_config::AuthoringSettings::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::compile_config::AuthoringSettings where T: ?core::marker::Sized
+pub fn nika_onboard::compile_config::AuthoringSettings::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::compile_config::AuthoringSettings where T: ?core::marker::Sized
+pub fn nika_onboard::compile_config::AuthoringSettings::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_onboard::compile_config::AuthoringSettings where T: core::clone::Clone
+pub unsafe fn nika_onboard::compile_config::AuthoringSettings::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_onboard::compile_config::AuthoringSettings
+pub fn nika_onboard::compile_config::AuthoringSettings::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_onboard::compile_config::AuthoringSettings where T: core::clone::Clone
+pub fn nika_onboard::compile_config::AuthoringSettings::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_onboard::compile_config::AuthoringSettings where T: 'static
+pub fn nika_onboard::compile_config::AuthoringSettings::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::compile_config::AuthoringSettings where T: ?core::marker::Sized
+pub fn nika_onboard::compile_config::AuthoringSettings::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::compile_config::AuthoringSettings::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::compile_config::AuthoringSettings
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile_config::AuthoringSettings
+impl<T> typenum::type_operators::Same for nika_onboard::compile_config::AuthoringSettings
+pub type nika_onboard::compile_config::AuthoringSettings::Output = T
+pub const nika_onboard::compile_config::DEFAULT_STRATEGY: nika_compile::types::NativeMode
+pub const nika_onboard::compile_config::STRATEGY_WORDS: [&str; 4]
+pub fn nika_onboard::compile_config::native_mode(word: &str) -> core::option::Option<nika_compile::types::NativeMode>
+pub fn nika_onboard::compile_config::resolve(explicit: &nika_onboard::compile_config::AuthoringSettings, env: &nika_onboard::compile_config::AuthoringSettings) -> core::result::Result<nika_onboard::compile_config::AuthoringConfig, nika_onboard::compile_config::ConfigError>
 pub mod nika_onboard::fixtures
 pub fn nika_onboard::fixtures::fixture_prefixes(body: &str) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_onboard::fixtures::materialize(body: &str, dest: &std::path::Path) -> core::io::error::Result<(usize, usize)>
@@ -248,6 +476,7 @@ pub nika_onboard::knowledge::KnowledgeError::Stale::expected: alloc::string::Str
 pub nika_onboard::knowledge::KnowledgeError::Stale::file: alloc::string::String
 pub nika_onboard::knowledge::KnowledgeError::Stale::found: alloc::string::String
 pub nika_onboard::knowledge::KnowledgeError::Stale::version: alloc::string::String
+pub nika_onboard::knowledge::KnowledgeError::UnsupportedSource
 impl core::clone::Clone for nika_onboard::knowledge::KnowledgeError
 pub fn nika_onboard::knowledge::KnowledgeError::clone(&self) -> nika_onboard::knowledge::KnowledgeError
 impl core::cmp::Eq for nika_onboard::knowledge::KnowledgeError
@@ -341,6 +570,7 @@ pub type nika_onboard::knowledge::Snapshot::Output = T
 pub const nika_onboard::knowledge::PACK_BUILDER: &str
 pub fn nika_onboard::knowledge::pack_from_file(path: &std::path::Path) -> core::result::Result<core::option::Option<nika_compile::types::AuthoringKnowledge>, nika_onboard::knowledge::KnowledgeError>
 pub fn nika_onboard::knowledge::pack_sha256(pack: &nika_compile::types::AuthoringKnowledge) -> alloc::string::String
+pub fn nika_onboard::knowledge::redact_host_paths(identity: &mut serde_json::value::Value)
 pub mod nika_onboard::project_file
 #[non_exhaustive] pub enum nika_onboard::project_file::Outcome
 pub nika_onboard::project_file::Outcome::Created

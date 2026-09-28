@@ -869,6 +869,8 @@ fn serve_stops_a_pending_native_round_on_sigterm_without_a_repair() {
             "vllm/s06-seat",
             "--authoring-repairs",
             "1",
+            "--authoring-max-calls",
+            "2",
         ],
         &[("NIKA_VLLM_BASE_URL", base.as_str())],
     );

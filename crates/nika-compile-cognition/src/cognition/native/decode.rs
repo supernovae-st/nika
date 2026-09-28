@@ -2,7 +2,10 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! Syntax feedback consumes the existing native repair budget, never a transport retry.
 //! Every refused answer is journaled with its class (`failure_class`).
-use super::super::{Objects, answer_objects, first_json_object, record_unread};
+use super::super::{
+    Objects, answer_objects, answer_shaped, digests, first_json_object, record_objects,
+    syntax_target,
+};
 use super::answer::{Defect, WireAnswer};
 use super::{Answer, AuthoringPolicy, CompileOutcome, DiagnosticKind, Round, Talk, knowledge};
 use nika_kernel::ai::provider::{ContentBlock, InferResponse, Message, Role, StopReason};
@@ -13,6 +16,16 @@ const CONFLICTING: &str = "CONFLICTING_CANDIDATES";
 /// An answer beside an object that never closes: undecided.
 const AMBIGUOUS: &str = "AMBIGUOUS_ANSWER_TEXT";
 
+/// A kind of answer a decoder reads, and the keys only that kind carries: an object that
+/// carries one competes with the answer even when a defect keeps it from decoding.
+pub(in crate::cognition) trait Shaped: serde::de::DeserializeOwned {
+    const KEYS: &'static [&'static str];
+}
+
+impl Shaped for WireAnswer {
+    const KEYS: &'static [&'static str] = &["candidate", "candidate_lines"];
+}
+
 enum Decoded<T> {
     Answer(T, String),
     Invalid(String, serde_json::Error),
@@ -20,7 +33,7 @@ enum Decoded<T> {
 }
 
 /// Sketch callers retain their existing terminal decode behavior.
-pub(in crate::cognition) fn decode<T: serde::de::DeserializeOwned>(
+pub(in crate::cognition) fn decode<T: Shaped>(
     response: &InferResponse,
     what: &str,
     round: u32,
@@ -84,7 +97,7 @@ pub(super) fn native(
     Err(Round::Repair)
 }
 
-fn read<T: serde::de::DeserializeOwned>(
+fn read<T: Shaped>(
     response: &InferResponse,
     what: &str,
     round: u32,
@@ -122,14 +135,37 @@ fn read<T: serde::de::DeserializeOwned>(
             return Decoded::Stop;
         }
     };
-    let json = match answer_objects(&text, |object| serde_json::from_str::<T>(object).is_ok()) {
+    let json = match answer_objects(&text, |object| answer_shaped::<T>(object, T::KEYS)) {
         Objects::One { answer, unread } => {
-            record_unread(out, &unread);
+            record_objects(out, "unread_objects", &unread);
             answer
         }
-        Objects::None => first_json_object(&text).unwrap_or(&text),
-        Objects::Two => return beside(response, what, round, &text, CONFLICTING, talk, out),
-        Objects::Undecided => return beside(response, what, round, &text, AMBIGUOUS, talk, out),
+        // No complete object: the syntax path judges the broken answer, never a template.
+        Objects::None => syntax_target(&text)
+            .or_else(|| first_json_object(&text))
+            .unwrap_or(&text),
+        Objects::Two(objects) => {
+            return beside(
+                response,
+                what,
+                round,
+                &text,
+                (CONFLICTING, &objects),
+                talk,
+                out,
+            );
+        }
+        Objects::Undecided(objects) => {
+            return beside(
+                response,
+                what,
+                round,
+                &text,
+                (AMBIGUOUS, &objects),
+                talk,
+                out,
+            );
+        }
     };
     match serde_json::from_str(json) {
         Ok(answer) => {
@@ -149,13 +185,14 @@ fn read<T: serde::de::DeserializeOwned>(
 }
 
 /// A text carrying two different answers, or one beside an object that never closes: journaled
-/// with its class, nothing read or assembled, and no call bought to choose.
+/// with its class and every competing object by digest, nothing read or assembled, and no call
+/// bought to choose.
 fn beside<T>(
     response: &InferResponse,
     what: &str,
     round: u32,
     text: &str,
-    class: &str,
+    (class, objects): (&str, &[&str]),
     talk: &mut Talk,
     out: &mut CompileOutcome,
 ) -> Decoded<T> {
@@ -167,6 +204,7 @@ fn beside<T>(
     talk.rounds.push(json!({"round":round,
         "answer":format!("not a {what} answer: {class}: {why}"),
         "failure_class":class,
+        "objects":digests(objects),
         "response_sha256":knowledge::sha256(text),
         "usage_reported":response.usage_reported}));
     invalid(out, what, &format_args!("{class}: {why}"));
@@ -227,7 +265,10 @@ mod tests {
     //! The native door end to end over synthetic answers: what the seat sent, what the judge
     //! saw, how many calls it cost. No live seat is qualified here.
     use super::{AMBIGUOUS, CONFLICTING};
-    use crate::{AuthoringPolicy, CompileOutcome, CompileRequest, CompileStatus, NativeMode};
+    use crate::{
+        AuthoringPolicy, CompileOutcome, CompileRequest, CompileStatus, DiagnosticKind, NativeMode,
+        QuestionType,
+    };
     use nika_kernel::ai::provider::{
         ContentBlock, InferRequest, InferResponse, ProviderError, ProviderInferDyn, StopReason,
         TokenUsage,
@@ -257,15 +298,24 @@ tasks:
       args: { path: "./output.txt", content: "${{ with.content }}", overwrite: true }
 "#;
 
-    /// A seat that answers its texts in order (the last one repeats) and counts its calls.
+    /// A seat that answers its texts in order (the last one repeats), counts its calls and
+    /// keeps the last message each call carried.
     struct Seat {
         texts: Vec<String>,
         usage_reported: bool,
         calls: AtomicU32,
+        seen: std::sync::Mutex<Vec<String>>,
     }
 
     impl ProviderInferDyn for Seat {
-        async fn infer(&self, _: InferRequest) -> Result<InferResponse, ProviderError> {
+        async fn infer(&self, request: InferRequest) -> Result<InferResponse, ProviderError> {
+            if let Some(ContentBlock::Text { text }) = request
+                .messages
+                .last()
+                .and_then(|message| message.content.first())
+            {
+                self.seen.lock().unwrap().push(text.clone());
+            }
             let n = self.calls.fetch_add(1, Ordering::SeqCst) as usize;
             let text = self.texts[n.min(self.texts.len() - 1)].clone();
             Ok(InferResponse::new(
@@ -286,21 +336,35 @@ tasks:
         source.split('\n').collect()
     }
 
+    fn policy(repairs: u32) -> AuthoringPolicy {
+        AuthoringPolicy::new("mock/authoring", 4096, std::time::Duration::from_secs(2))
+            .with_native(NativeMode::Only)
+            .with_repairs(repairs)
+    }
+
     async fn author(texts: &[String], repairs: u32, usage_reported: bool) -> (CompileOutcome, u32) {
+        let request = CompileRequest::create(INTENT).with_authoring_policy(policy(repairs));
+        let (out, calls, _) = author_with(texts, &request, usage_reported).await;
+        (out, calls)
+    }
+
+    /// The door over one request; the calls, and the last message of each call.
+    async fn author_with(
+        texts: &[String],
+        request: &CompileRequest,
+        usage_reported: bool,
+    ) -> (CompileOutcome, u32, Vec<String>) {
         let seat = Seat {
             texts: texts.to_vec(),
             usage_reported,
             calls: AtomicU32::new(0),
+            seen: std::sync::Mutex::new(Vec::new()),
         };
-        let policy =
-            AuthoringPolicy::new("mock/authoring", 4096, std::time::Duration::from_secs(2))
-                .with_native(NativeMode::Only)
-                .with_repairs(repairs);
-        let request = CompileRequest::create(INTENT).with_authoring_policy(policy);
-        let out = Box::pin(crate::compile_with_provider(&request, &seat))
+        let out = Box::pin(crate::compile_with_provider(request, &seat))
             .await
             .unwrap();
-        (out, seat.calls.load(Ordering::SeqCst))
+        let seen = seat.seen.lock().unwrap().clone();
+        (out, seat.calls.load(Ordering::SeqCst), seen)
     }
 
     fn native(out: &CompileOutcome) -> Value {
@@ -460,6 +524,50 @@ tasks:
     }
 
     #[tokio::test]
+    async fn a_defective_competitor_conflicts_and_the_syntax_path_names_the_broken_answer() {
+        let good = envelope(SOURCE, &[]);
+        let other = SOURCE.replace("./output.txt", "./elsewhere.txt");
+        // A final answer with an unknown key or a null field still competes with the draft,
+        // and the journal keeps every competing object by digest.
+        for rival in [
+            json!({"candidate": other, "candidate_lines": [], "questions": [], "gaps": [],
+                "notes": "", "confidence": 0.9})
+            .to_string(),
+            json!({"candidate": other, "candidate_lines": null}).to_string(),
+        ] {
+            let text = format!("Draft:\n{good}\nFinal:\n{rival}");
+            let (out, calls) = author(&[text.clone(), good.clone()], 3, true).await;
+            assert_eq!(calls, 1, "{text}");
+            nothing_assembled(&out, &text);
+            let round = &native(&out)["rounds"][0];
+            assert_eq!(round["failure_class"], CONFLICTING, "{round}");
+            let competing = crate::cognition::digests(&[good.as_str(), rival.as_str()]);
+            assert_eq!(round["objects"], competing, "{round}");
+        }
+        // An undecided text keeps its complete objects by digest too.
+        let cut = format!("Draft:\n{good}\nFinal:\n{{\"candidate\": \"nika: b");
+        let (out, _) = author(&[cut], 3, true).await;
+        let round = &native(&out)["rounds"][0];
+        assert_eq!(round["failure_class"], AMBIGUOUS, "{round}");
+        assert_eq!(
+            round["objects"],
+            crate::cognition::digests(&[good.as_str()])
+        );
+        // Template braces before a broken answer: the paid repair names the broken answer.
+        let text = "It uses ${{ with.content }}, then {\"candidate\": !}".to_owned();
+        let request = CompileRequest::create(INTENT).with_authoring_policy(policy(1));
+        let (out, calls, seen) = author_with(&[text, good], &request, true).await;
+        assert_eq!(calls, 2);
+        assert_eq!(out.candidate.as_deref(), Some(SOURCE), "{out:#?}");
+        let round = &native(&out)["rounds"][0];
+        assert_eq!(round["failure_class"], "ANSWER_JSON_SYNTAX", "{round}");
+        for said in [round["answer"].as_str().unwrap(), seen[1].as_str()] {
+            assert!(said.contains("expected value"), "{said}");
+            assert!(!said.contains("key must be a string"), "{said}");
+        }
+    }
+
+    #[tokio::test]
     async fn typed_envelope_violations_stop_before_any_repair_call() {
         let good = envelope(SOURCE, &[]);
         let schema = ("ANSWER_SCHEMA", Value::Null);
@@ -549,5 +657,334 @@ tasks:
                 "the judge saw the empty candidate: {round}"
             );
         }
+    }
+
+    /// An answer that writes nothing and asks: its questions and gaps as the seat sends them.
+    fn ask_envelope(questions: &Value, gaps: &Value) -> String {
+        json!({"candidate": "", "candidate_lines": [], "questions": questions, "gaps": gaps, "notes": "ask"})
+            .to_string()
+    }
+
+    fn folder_question() -> Value {
+        json!({"key": "const.archive_folder", "label": "Which folder keeps the copies?",
+            "answer_type": "text", "why": "The request names no folder."})
+    }
+
+    fn keys(out: &CompileOutcome) -> Vec<&str> {
+        out.questions.iter().map(|q| q.key.as_str()).collect()
+    }
+
+    /// The door entered as an escalation enters it: the cold round left one business question.
+    async fn author_after_cold(texts: &[String], repairs: u32) -> (CompileOutcome, u32) {
+        let seat = Seat {
+            texts: texts.to_vec(),
+            usage_reported: true,
+            calls: AtomicU32::new(0),
+            seen: std::sync::Mutex::new(Vec::new()),
+        };
+        let request = CompileRequest::create(INTENT).with_authoring_policy(policy(repairs));
+        let mut cold = crate::initial();
+        crate::question(
+            &mut cold,
+            COLD,
+            "Who receives the copy?",
+            QuestionType::Text,
+        );
+        let out = Box::pin(super::super::author(
+            INTENT,
+            &crate::lexicon::read(INTENT),
+            request.authoring.as_ref().unwrap(),
+            &seat,
+            &request,
+            Vec::new(),
+            cold,
+        ))
+        .await
+        .unwrap();
+        (out, seat.calls.load(Ordering::SeqCst))
+    }
+
+    /// The cold round's question: a door that judged nothing restores it.
+    const COLD: &str = "const.recipient";
+
+    #[tokio::test]
+    async fn an_ask_without_a_candidate_is_asked_in_one_call_and_never_ready() {
+        let retention = json!({"key": "const.retention_days", "label": "How many days?",
+            "answer_type": "literal", "why": ""});
+        let ask = ask_envelope(
+            &json!([folder_question(), retention]),
+            &json!(["keep only the recent copies", " "]),
+        );
+        // A repair budget and a good next answer are available: the ask buys neither.
+        let (out, calls) = author(&[ask, envelope(SOURCE, &[])], 3, true).await;
+        assert_eq!(calls, 1);
+        assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
+        assert!(out.candidate.is_none(), "{out:#?}");
+        assert!(
+            out.provenance.plan.is_none(),
+            "nothing to replay: the answers re-author"
+        );
+        let recent = super::super::ask::gap_key("keep only the recent copies");
+        assert_eq!(
+            keys(&out),
+            [
+                "const.archive_folder",
+                "const.retention_days",
+                recent.as_str()
+            ]
+        );
+        let (folder, days, gap) = (&out.questions[0], &out.questions[1], &out.questions[2]);
+        assert_eq!(
+            (
+                folder.label.as_str(),
+                folder.why.as_str(),
+                folder.answer_type
+            ),
+            (
+                "Which folder keeps the copies?",
+                "The request names no folder.",
+                QuestionType::Text
+            )
+        );
+        assert_eq!(days.answer_type, QuestionType::Literal);
+        assert!(folder.mandatory && days.mandatory && gap.mandatory);
+        assert!(
+            out.diagnostics
+                .iter()
+                .any(|d| d.kind == DiagnosticKind::Missed
+                    && d.message.contains("« keep only the recent copies »"))
+        );
+        let native = native(&out);
+        assert_eq!(native["accepted"], false);
+        assert_eq!(
+            native["asked"],
+            json!(["const.archive_folder", "const.retention_days"])
+        );
+        let round = &native["rounds"][0];
+        assert!(
+            round.get("candidate_sha256").is_none(),
+            "nothing parsed: {round}"
+        );
+        assert!(out.diagnostics.iter().any(|d| {
+            d.message
+                .contains("round 0: asked 2 question(s), no candidate")
+        }));
+        // Gaps alone are an ask too: a finding and a question each, still no candidate.
+        let gaps_only = ask_envelope(&json!([]), &json!(["keep only the recent copies"]));
+        let (out, calls) = author(&[gaps_only, envelope(SOURCE, &[])], 3, true).await;
+        assert_eq!((calls, keys(&out)), (1, vec![recent.as_str()]), "{out:#?}");
+        assert!(out.candidate.is_none() && out.status == CompileStatus::Incomplete);
+        // Lines that join to whitespace alone write nothing: the ask is still an ask.
+        let blank = json!({"candidate": "", "candidate_lines": ["", ""],
+            "questions": [folder_question()], "gaps": [], "notes": ""})
+        .to_string();
+        let (out, calls) = author(&[blank, envelope(SOURCE, &[])], 3, true).await;
+        assert_eq!(
+            (calls, keys(&out)),
+            (1, vec!["const.archive_folder"]),
+            "{out:#?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn gaps_beyond_what_an_ask_carries_are_counted_never_lost() {
+        let gaps: Vec<String> = (0..10).map(|n| format!("settle clause {n}")).collect();
+        let (out, calls) = author(&[ask_envelope(&json!([]), &json!(gaps))], 0, true).await;
+        assert_eq!(calls, 1);
+        assert_eq!(out.questions.len(), 8, "{out:#?}");
+        assert!(
+            out.diagnostics
+                .iter()
+                .any(|d| d.message.contains("2 more gap(s) than one ask carries (8)")),
+            "{out:#?}"
+        );
+        assert_eq!(native(&out)["rounds"][0]["gaps_dropped"], 2);
+    }
+
+    /// A gap's key is its clause's (E10 FE10-5): renumbered gaps keep their keys, an answered
+    /// clause is never asked again, and a reworded clause is another question, so an answer
+    /// never settles a clause the human did not read when giving it.
+    #[tokio::test]
+    async fn an_asked_gap_is_keyed_by_its_clause_so_no_answer_settles_another() {
+        let (a, b) = ("keep only the recent copies", "notify the owner by mail");
+        // The key each clause was asked under, in either order the seat reports them.
+        let asked = |out: &CompileOutcome, clause: &str| {
+            out.questions
+                .iter()
+                .find(|q| q.label.contains(clause))
+                .map(|q| q.key.clone())
+                .expect("asked")
+        };
+        let (first, _) = author(&[ask_envelope(&json!([]), &json!([a, b]))], 0, true).await;
+        let (other, _) = author(&[ask_envelope(&json!([]), &json!([b, a]))], 0, true).await;
+        let key_a = asked(&first, a);
+        assert_eq!(
+            key_a,
+            asked(&other, a),
+            "renumbered, a clause keeps its key"
+        );
+        assert_eq!(asked(&first, b), asked(&other, b));
+        assert_ne!(key_a, asked(&first, b));
+        // The human answers the question asked for a; the seat reports b then a. The answered
+        // clause is the candidate's to carry, and the refusal names it, never b.
+        let request = CompileRequest::create(INTENT)
+            .answer(&key_a, "\"drop\"")
+            .with_authoring_policy(policy(0));
+        let renumbered = ask_envelope(&json!([]), &json!([b, a]));
+        let (out, calls, _) = author_with(&[renumbered], &request, true).await;
+        assert_eq!(calls, 1);
+        assert!(out.questions.is_empty(), "{out:#?}");
+        let refused = native(&out)["rounds"][0]["diagnostics"][0]["message"].clone();
+        let refused = refused.as_str().expect("a refusal");
+        assert!(refused.contains(a) && !refused.contains(b), "{refused}");
+        // Reworded, the clause is another question: the answer given for a never settles it.
+        let reworded = "keep only the most recent copies";
+        let ask = ask_envelope(&json!([]), &json!([reworded]));
+        let (out, calls, _) = author_with(&[ask], &request, true).await;
+        assert_eq!(calls, 1);
+        assert_ne!(asked(&out, reworded), key_a, "{out:#?}");
+        assert_eq!(out.questions.len(), 1, "{out:#?}");
+    }
+
+    #[tokio::test]
+    async fn an_open_column_asked_without_a_candidate_is_a_choice_among_the_observed_ones() {
+        let intent = "Additionne une colonne de ventes.csv dans total.txt.";
+        let world = json!({"observed": [{"path": "ventes.csv", "kind": "csv", "delimiter": ",",
+            "columns": ["montant", "autre"]}]});
+        let request = CompileRequest::create(intent)
+            .with_knowledge(world)
+            .with_authoring_policy(policy(0));
+        let ask = ask_envelope(
+            &json!([{"key": "const.sum_column", "label": "Quelle colonne ?", "answer_type": "text", "why": ""}]),
+            &json!([]),
+        );
+        let (out, calls, _) = author_with(&[ask], &request, true).await;
+        assert_eq!(calls, 1);
+        assert_eq!(keys(&out), ["const.sum_column"], "{out:#?}");
+        assert_eq!(out.questions[0].answer_type, QuestionType::Choice);
+        let offered: Vec<&str> = out.questions[0]
+            .options
+            .iter()
+            .map(|o| o.key.as_str())
+            .collect();
+        assert_eq!(offered, ["montant", "autre"]);
+    }
+
+    #[tokio::test]
+    async fn the_answers_to_an_ask_author_the_request_again() {
+        // The host's next round carries the answers and no plan: the seat reads them and writes.
+        let request = CompileRequest::create(INTENT)
+            .answer("const.archive_folder", "\"./archive\"")
+            .with_authoring_policy(policy(0));
+        let (out, calls, seen) = author_with(&[envelope(SOURCE, &[])], &request, true).await;
+        assert_eq!(calls, 1);
+        assert!(out.provenance.authoring.is_some(), "authored, not replayed");
+        assert_eq!(native(&out)["accepted"], true, "{out:#?}");
+        let opening = &seen[0];
+        assert!(
+            opening.contains("answers_already_given") && opening.contains("./archive"),
+            "{opening}"
+        );
+    }
+
+    #[tokio::test]
+    async fn an_ask_that_is_not_genuine_is_never_asked() {
+        let good = envelope(SOURCE, &[]);
+        let question = |key: &str, label: &str, answer_type: &str| json!({"key": key, "label": label, "answer_type": answer_type, "why": ""});
+        let nine: Vec<Value> = (0..9)
+            .map(|n| question(&format!("const.value_{n}"), "Which value?", "text"))
+            .collect();
+        let refused_asks = [
+            json!([question("archive_folder", "Which folder?", "text")]),
+            json!([question("const.source_glob", "Which files?", "text")]),
+            json!([question("const.archive_folder", "Which folder?", "number")]),
+            json!([question("const.archive_folder", " ", "text")]),
+            json!([folder_question(), folder_question()]),
+            json!(nine),
+        ];
+        for questions in refused_asks {
+            let ask = ask_envelope(&questions, &json!([]));
+            // Refused like a candidate's questions: diagnostics, never asked, no call at 0; the
+            // door judged nothing, so the cold round's question stands and none of the seat's.
+            let (out, calls) = author_after_cold(&[ask.clone(), good.clone()], 0).await;
+            assert_eq!(calls, 1, "{ask}");
+            let round = &native(&out)["rounds"][0];
+            assert!(
+                !round["diagnostics"].as_array().unwrap().is_empty(),
+                "{round}"
+            );
+            assert!(native(&out).get("asked").is_none(), "{ask}");
+            assert_eq!(keys(&out), [COLD], "{ask}");
+            assert!(out.candidate.is_none());
+            // The refused ask spent the budget: the exhaustion is stated, as a candidate's is.
+            let route = &out.provenance.decision.as_ref().unwrap()["route"];
+            let routed = route
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|r| r == "native: exhausted");
+            assert!(routed, "{ask}: {route}");
+            assert!(
+                out.diagnostics
+                    .iter()
+                    .any(|d| d.kind == DiagnosticKind::Unknown
+                        && d.message.starts_with("No candidate passed the checks")),
+                "{ask}"
+            );
+        }
+        // Within the repair budget the diagnostics buy one repair, as a candidate's would.
+        let ask = ask_envelope(
+            &json!([question("archive_folder", "Which folder?", "text")]),
+            &json!([]),
+        );
+        let (out, calls) = author(&[ask, good.clone()], 1, true).await;
+        assert_eq!(calls, 2);
+        assert_eq!(out.candidate.as_deref(), Some(SOURCE), "{out:#?}");
+        // An already answered value is the candidate's to carry, never asked again.
+        let request = CompileRequest::create(INTENT)
+            .answer("const.archive_folder", "\"./archive\"")
+            .with_authoring_policy(policy(0));
+        let ask = ask_envelope(&json!([folder_question()]), &json!([]));
+        let (out, calls, _) = author_with(&[ask], &request, true).await;
+        assert_eq!(calls, 1);
+        assert!(!keys(&out).contains(&"const.archive_folder"), "{out:#?}");
+        // Questions of the wrong shape are no answer at all: one call, the cold question stands.
+        for questions in [
+            json!("Which folder?"),
+            json!([{"key": "const.archive_folder"}]),
+        ] {
+            let ask = ask_envelope(&questions, &json!([]));
+            let (out, calls) = author_after_cold(&[ask.clone(), good.clone()], 3).await;
+            assert_eq!(calls, 1, "{ask}");
+            assert_eq!(native(&out)["rounds"][0]["failure_class"], "ANSWER_SCHEMA");
+            assert_eq!(keys(&out), [COLD], "{ask}");
+        }
+        // A genuine ask supersedes the cold plan: its questions are the seat's alone.
+        let ask = ask_envelope(&json!([folder_question()]), &json!([]));
+        let (out, calls) = author_after_cold(&[ask, good], 3).await;
+        assert_eq!((calls, keys(&out)), (1, vec!["const.archive_folder"]));
+    }
+
+    #[tokio::test]
+    async fn an_empty_answer_or_a_conflicting_one_takes_no_ask() {
+        let good = envelope(SOURCE, &[]);
+        // Nothing written and nothing asked: judged like any text that is not a workflow.
+        let (out, calls) = author(&[envelope("", &[]), good.clone()], 1, true).await;
+        assert_eq!(calls, 2);
+        assert_eq!(out.candidate.as_deref(), Some(SOURCE));
+        let round = &native(&out)["rounds"][0];
+        assert!(round.get("asked").is_none() && round.get("candidate_sha256").is_some());
+        // A conflicting dual with a genuine question: the conflict stops it, nothing is asked.
+        let other = SOURCE.replace("./output.txt", "./elsewhere.txt");
+        let conflict = json!({"candidate": SOURCE, "candidate_lines": lines(&other),
+            "questions": [folder_question()], "gaps": [], "notes": ""})
+        .to_string();
+        let (out, calls) = author_after_cold(&[conflict, good], 3).await;
+        assert_eq!(calls, 1);
+        assert_eq!(
+            native(&out)["rounds"][0]["failure_class"],
+            "CONFLICTING_CANDIDATES"
+        );
+        assert_eq!(keys(&out), [COLD], "{out:#?}");
     }
 }
