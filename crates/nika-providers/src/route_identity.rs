@@ -541,7 +541,8 @@ enum Carry {
     Object(&'static [Field], bool),
     /// A list of durable objects.
     List(&'static [Field]),
-    /// A pricing provenance object (W2-W5), or null.
+    /// A pricing provenance object (W2-W5), or null. At `@1`, one whose projection
+    /// the `@2` reader refuses (a key of another type) makes the input malformed.
     Pricing,
 }
 
@@ -638,7 +639,9 @@ const CATALOG_FIELDS: &[Field] = &[
 /// writes: its known keys with their types, canonical origins, and a sorted
 /// `withheld` that names only null text or objects it holds. Anything else,
 /// another schema or a malformed `@1` or `@2`, is `None`: a reader refuses it
-/// as unreadable, never repairs it.
+/// as unreadable, never repairs it. What an `@1` projects to is an `@2` this
+/// function returns unchanged: an `@1` whose pricing object projects to one the
+/// `@2` reading refuses (a key of another type) is malformed.
 #[must_use]
 pub fn project_observation(observation: &Value) -> Option<Value> {
     let schema = observation.get("schema").and_then(Value::as_str)?;
@@ -810,10 +813,14 @@ impl<'a> Walk<'a> {
                 Some(Value::Null)
             }
             Carry::Pricing if self.durable => durable_pricing_reads(value).then(|| value.clone()),
-            Carry::Pricing => Some(pricing_value(value, self.private).unwrap_or_else(|reason| {
-                self.withheld.note(at, reason);
-                Value::Null
-            })),
+            // A projection the `@2` reader would refuse is a malformed `@1`.
+            Carry::Pricing => match pricing_value(value, self.private) {
+                Ok(durable) => durable_pricing_reads(&durable).then_some(durable),
+                Err(reason) => {
+                    self.withheld.note(at, reason);
+                    Some(Value::Null)
+                }
+            },
         }
     }
 

@@ -16,6 +16,7 @@ use nika_kernel::ai::provider::{
     ContentBlock, InferResponse, StopReason, TokenUsage, UsageCompleteness,
 };
 use nika_types::cost::Cost;
+use proptest::prelude::*;
 use serde_json::json;
 use std::time::Duration;
 
@@ -967,6 +968,201 @@ fn a_malformed_durable_observation_projects_to_nothing() {
         break_it(&mut observation);
         assert_eq!(project_observation(&observation), None, "{name}");
         assert!(!observation_readable(&observation), "{name}");
+    }
+}
+
+/// Closure (W9, A9): what an `@1` projects to reads back as itself. A nested
+/// pricing value of a type no producer writes makes the `@1` malformed, never an
+/// `@2` its own reader refuses; a pricing of no known kind is still withheld whole
+/// (W2-W5), and a well-typed one is kept.
+#[test]
+fn a_projection_reads_back_as_itself_and_ill_typed_pricing_is_refused() {
+    let unknown = unknown_run(choice());
+    let tariffed = unknown_run(declared(choice()));
+    let plant = |written: &Value, pointer: &str, value: Value| {
+        let mut planted = written.clone();
+        *planted
+            .pointer_mut(pointer)
+            .expect("a key the producer writes") = value;
+        planted
+    };
+    for (written, pointer, value, whole) in [
+        (
+            &unknown,
+            "/unknown_attempts/0/pricing/currency",
+            json!("CHF"),
+            None,
+        ),
+        (
+            &unknown,
+            "/unknown_attempts/0/pricing/kind",
+            json!("invoice"),
+            Some("/unknown_attempts/0/pricing"),
+        ),
+        (
+            &tariffed,
+            "/unknown_attempts/1/pricing/route",
+            json!("https://gw.example/x"),
+            Some("/unknown_attempts/1/pricing"),
+        ),
+    ] {
+        let durable = project_observation(&plant(written, pointer, value)).expect("projects");
+        assert_eq!(
+            project_observation(&durable).as_ref(),
+            Some(&durable),
+            "{pointer}"
+        );
+        assert!(observation_readable(&durable), "{pointer}");
+        let withheld = entries(&durable)
+            .into_iter()
+            .find(|(_, reason, _)| reason == "unrecognized_kind");
+        let whole = whole.map(|field| (field.to_owned(), "unrecognized_kind".to_owned(), 0));
+        assert_eq!(withheld, whole, "{pointer}");
+    }
+    let ill_typed = [
+        (
+            &unknown,
+            "/unknown_attempts/0/pricing/currency",
+            json!({"code": "USD"}),
+        ),
+        (
+            &unknown,
+            "/unknown_attempts/1/pricing/input_rate",
+            json!([1]),
+        ),
+        (
+            &unknown,
+            "/unknown_attempts/0/pricing/route/provider",
+            json!({"id": "deepseek"}),
+        ),
+        (
+            &tariffed,
+            "/unknown_attempts/0/pricing/provenance",
+            json!({"sheet": "operator"}),
+        ),
+        (&tariffed, "/unknown_attempts/1/pricing/version", json!(7)),
+        (
+            &tariffed,
+            "/unknown_attempts/0/pricing/nano_per_token",
+            json!([500, 1000]),
+        ),
+    ];
+    let judged: Vec<(&str, bool, bool)> = ill_typed
+        .iter()
+        .map(|(written, pointer, value)| {
+            let durable = project_observation(&plant(written, pointer, value.clone()));
+            let reads_back = durable
+                .as_ref()
+                .is_none_or(|durable| project_observation(durable).as_ref() == Some(durable));
+            (*pointer, reads_back, durable.is_none())
+        })
+        .collect();
+    let expected: Vec<(&str, bool, bool)> = ill_typed
+        .iter()
+        .map(|(_, pointer, _)| (*pointer, true, true))
+        .collect();
+    assert_eq!(
+        judged, expected,
+        "(pointer, reads back, refused as malformed)"
+    );
+}
+
+/// Every pointer of `value` below its root: each object key and array index.
+fn pointers(value: &Value, at: &str, out: &mut Vec<String>) {
+    let children: Vec<(String, &Value)> = match value {
+        Value::Object(fields) => fields.iter().map(|(k, v)| (k.clone(), v)).collect(),
+        Value::Array(items) => items
+            .iter()
+            .enumerate()
+            .map(|(i, v)| (i.to_string(), v))
+            .collect(),
+        _ => Vec::new(),
+    };
+    for (step, child) in children {
+        let pointer = format!("{at}/{step}");
+        pointers(child, &pointer, out);
+        out.push(pointer);
+    }
+}
+
+/// A key name: one the schema knows, at any level, or any other.
+fn any_key() -> impl Strategy<Value = String> {
+    const KNOWN: &[&str] = &[
+        "endpoint",
+        "origin",
+        "withheld",
+        "kind",
+        "table_schema",
+        "route",
+        "provider",
+        "model",
+        "note",
+        "currency",
+        "pricing",
+        "nano_per_token",
+        "field",
+        "reason",
+        "count",
+    ];
+    prop_oneof![
+        prop::sample::select(KNOWN).prop_map(str::to_owned),
+        "[a-z_]{1,10}",
+    ]
+}
+
+/// JSON of every type, shallowly nested, with endpoint-like text.
+fn any_json() -> impl Strategy<Value = Value> {
+    let leaf = prop_oneof![
+        Just(Value::Null),
+        any::<bool>().prop_map(Value::from),
+        any::<i64>().prop_map(Value::from),
+        any::<u64>().prop_map(Value::from),
+        "[a-z0-9 ./:@%\\\\-]{0,24}".prop_map(Value::from),
+        Just(Value::from(gateway())),
+    ];
+    leaf.prop_recursive(2, 12, 3, |inner| {
+        prop_oneof![
+            prop::collection::vec(inner.clone(), 0..4).prop_map(Value::Array),
+            prop::collection::btree_map(any_key(), inner, 0..4)
+                .prop_map(|fields| Value::Object(fields.into_iter().collect())),
+        ]
+    })
+}
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(256))]
+
+    /// Closure (W9, A9) under arbitrary input: a value of any type written at any
+    /// pointer of a real `@1`, or a key of any name added to any of its objects,
+    /// projects to nothing or to an `@2` that reads back as itself.
+    #[test]
+    fn any_change_to_a_real_observation_projects_to_nothing_or_a_readable_at2(
+        base in 0..4usize,
+        at in any::<prop::sample::Index>(),
+        key in any_key(),
+        value in any_json(),
+        insert in any::<bool>(),
+    ) {
+        let mut written = match base {
+            0 => unknown_run(choice()),
+            1 => unknown_run(declared(widened())),
+            2 => answered_run(),
+            _ => catalog_run(&InferenceAdmission::new(Cost::new(2_000_000_000)).expect("account")),
+        };
+        let mut all = Vec::new();
+        pointers(&written, "", &mut all);
+        let pointer = all[at.index(all.len())].clone();
+        match (insert, written.pointer_mut(&pointer).expect("a listed pointer")) {
+            (true, Value::Object(fields)) => {
+                fields.insert(key, value);
+            }
+            (_, target) => *target = value,
+        }
+        if let Some(durable) = project_observation(&written) {
+            let again = project_observation(&durable);
+            prop_assert_eq!(again.as_ref(), Some(&durable), "{}", pointer);
+            prop_assert!(observation_readable(&durable), "{}", pointer);
+        }
     }
 }
 

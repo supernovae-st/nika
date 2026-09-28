@@ -503,7 +503,9 @@ schema follows W9 with B12's `max_in_flight` and `authored_retry` (A1):
   `refusal` and each attempt's `note` (A10), against the material of every
   endpoint the observation names; the account's own phrases are kept byte for
   byte;
-- a pricing object follows the W2-W5 kinds and keeps its own `withheld`.
+- a pricing object follows the W2-W5 kinds and keeps its own `withheld`; one
+  whose projection the `@2` reading refuses (a key of another type) makes the
+  `@1` malformed, so what an `@1` projects to always reads back as itself.
 
 `withheld` names each withheld field by its instance pointer
 (`/unknown_attempts/0/request_id`) and counts an object's unknown keys at that
