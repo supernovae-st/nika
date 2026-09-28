@@ -240,69 +240,6 @@
       "digest": "sha256:973723e768a80d713b4d7b09653bb9f64f7558f272b155e2d7663547ca8d2af0"
     },
     {
-      "path": "media/raw/check-broken.txt",
-      "category": "frozen",
-      "reason": "immutable captured bytes",
-      "owner": "media",
-      "digest": "sha256:b0c9405db0d19b0a476b32162df86cd6ebe42afe712709d35994b1d97157ec9f"
-    },
-    {
-      "path": "media/raw/check-fanout.txt",
-      "category": "frozen",
-      "reason": "immutable captured bytes",
-      "owner": "media",
-      "digest": "sha256:ecf87570a87a8ffaee8dd44e7b169d280bb5f2f3a03b914fd4f919e7af001ff7"
-    },
-    {
-      "path": "media/raw/check-fixed.txt",
-      "category": "frozen",
-      "reason": "immutable captured bytes",
-      "owner": "media",
-      "digest": "sha256:27c998207766915a5cf2ed40a851ff4ebfc9c4a30b5117209f7fde0626f4dcf9"
-    },
-    {
-      "path": "media/raw/check-meeting.txt",
-      "category": "frozen",
-      "reason": "immutable captured bytes",
-      "owner": "media",
-      "digest": "sha256:c98913d4b9e1896c20cc0023d4ef69188b2ea940f5a2dca1299afff43ede054a"
-    },
-    {
-      "path": "media/raw/check-permits-escape.txt",
-      "category": "frozen",
-      "reason": "immutable captured bytes",
-      "owner": "media",
-      "digest": "sha256:864b95e467cbc328748f4ce6b3e7c8f2e8d03024003ab8eb1e8c4dfde68e595d"
-    },
-    {
-      "path": "media/raw/check-permits-fits.txt",
-      "category": "frozen",
-      "reason": "immutable captured bytes",
-      "owner": "media",
-      "digest": "sha256:40309fc387cc07e29f56024247026456914b531dd5907f56fc6acbb5d33c7aac"
-    },
-    {
-      "path": "media/raw/fix-diff.txt",
-      "category": "frozen",
-      "reason": "immutable captured bytes",
-      "owner": "media",
-      "digest": "sha256:5ecb8ef82893c3c2e118e74db7af336d4177094a46eb1b317969c0ef992b89c7"
-    },
-    {
-      "path": "media/raw/permits-fix-diff.txt",
-      "category": "frozen",
-      "reason": "immutable captured bytes",
-      "owner": "media",
-      "digest": "sha256:e61a8f110905cd538e2618e722930233a9bb7e9f8329a0e19af4a9ec15209768"
-    },
-    {
-      "path": "media/raw/transcripts.json",
-      "category": "frozen",
-      "reason": "immutable captured bytes",
-      "owner": "media",
-      "digest": "sha256:0a9921fe42129477566f515ba164a0c1e2d1c8cfc65553dc9e43b916f740743f"
-    },
-    {
       "path": "scripts/hygiene/check-source-naming.py",
       "category": "ratchet",
       "reason": "forbidden-pattern data for this gate",
