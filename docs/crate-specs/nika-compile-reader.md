@@ -247,7 +247,11 @@ while `nika-compile` stood at its wall; they ascended to `nika-compile-fidelity`
   from `stages.rs` and `rules.rs` at 4bddf8a14 (`GROUP_PHRASES`, pairs, stays in Rust), and
   two tests pin every table against that frozen pre-edit list, word for word and in order.
   The assets hold words only, no executable string; their raw lines (523 + 48) are reported
-  beside the production count, which they do not enter.
+  beside the production count, which they do not enter. The six word tables of `shape.rs`
+  (headings, distributive cues and leads, leading quantifiers, structural and supplied cues,
+  135 entries) moved the same way to `assets/shape_words.txt` (146 raw lines) at 161e9e649,
+  pinned by their own frozen test; one section reader (`rule_tokens::section`) serves
+  `stage_words.txt` and `shape_words.txt`.
 - **A clause's lead is read, never dropped (R4 F1, V9 A10).** The words before a clause's
   field (before its relative marker, or before its last word) used to be discarded whole:
   « count the rows where status is paid » read as the filter alone, and the workflow wrote

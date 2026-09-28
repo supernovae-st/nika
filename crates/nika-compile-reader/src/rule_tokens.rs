@@ -127,6 +127,18 @@ pub(crate) fn hinted(name: &str, columns: &[String]) -> Option<String> {
     columns.iter().find(|c| normalized(c) == wanted).cloned()
 }
 
+/// The lines of the `[name]` section of a word asset, in file order: one closed table of
+/// words or phrases, ended by a blank line (data only: each owner's tests pin its sections).
+pub(crate) fn section(asset: &'static str, name: &str) -> Vec<&'static str> {
+    let header = format!("[{name}]");
+    asset
+        .lines()
+        .skip_while(|line| *line != header)
+        .skip(1)
+        .take_while(|line| !line.is_empty())
+        .collect()
+}
+
 // ── tokens ───────────────────────────────────────────────────────────────────────
 
 #[derive(Clone, Debug, PartialEq, Eq)]

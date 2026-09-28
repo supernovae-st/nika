@@ -10,7 +10,9 @@
 
 pub use super::objects::without_distributive_tail;
 use super::plan::{Op, Plan, Step};
+use super::rule_tokens::section;
 pub use super::rule_tokens::{ATTEMPT_UNITS, SIZE_UNITS, fold};
+use std::sync::LazyLock;
 
 /// Symbols that compare the number beside them.
 const COMPARISON_SYMBOLS: &[&str] = &[">=", "<=", "≥", "≤", ">", "<"];
@@ -195,99 +197,28 @@ pub fn promote_stated_rules(plan: &mut Plan, intent: &str) {
     }
 }
 
+/// The closed word tables of the plan shape, one `[name]` section each, entries in their
+/// order (data only: `tests::tables_are_the_frozen_lists` pins them).
+const SHAPE_WORDS: &str = include_str!("../assets/shape_words.txt");
+
+/// The entries of the `[name]` section of `shape_words.txt`, in file order.
+fn table(name: &str) -> Vec<&'static str> {
+    section(SHAPE_WORDS, name)
+}
+
 /// Words that name a heading (EN · FR · ES · IT · DE, folded).
-const HEADING_WORDS: &[&str] = &[
-    "heading",
-    "headings",
-    "header",
-    "headers",
-    "title",
-    "titles",
-    "titre",
-    "titres",
-    "intitule",
-    "en-tete",
-    "entete",
-    "titulo",
-    "titulos",
-    "encabezado",
-    "titolo",
-    "titoli",
-    "intestazione",
-    "uberschrift",
-    "uberschriften",
-    "cabecalho",
-    "cabecalhos",
-];
+static HEADING_WORDS: LazyLock<Vec<&str>> = LazyLock::new(|| table("heading_words"));
 
 /// Distributive words and file-name phrases that, beside a heading word, ask for one
 /// heading per item (folded, whole words or phrases).
-const DISTRIBUTIVE_CUES: &[&str] = &[
-    "each",
-    "every",
-    "per",
-    "chaque",
-    "chacun",
-    "chacune",
-    "cada",
-    "ogni",
-    "ciascun",
-    "ciascuno",
-    "jede",
-    "jeden",
-    "jedes",
-    "jeder",
-    "par fichier",
-    "par document",
-    "par note",
-    "named after the file",
-    "nom du fichier",
-    "file name",
-    "filename",
-    "nombre del archivo",
-    "nome del file",
-    "dateiname",
-    "dateinamen",
-    "por ficheiro",
-    "por arquivo",
-    "nome do ficheiro",
-    "nome do arquivo",
-];
+static DISTRIBUTIVE_CUES: LazyLock<Vec<&str>> = LazyLock::new(|| table("distributive_cues"));
 
 /// A quantifier that leads a clause and distributes the work over items.
-const LEADING_QUANTIFIERS: &[&str] = &[
-    "for each",
-    "for every",
-    "pour chaque",
-    "pour chacun",
-    "pour chacune",
-    "para cada",
-    "per ogni",
-    "per ciascun",
-    "fur jede",
-    "fur jeden",
-    "fur jedes",
-    "para cada um",
-    "para cada uma",
-];
+static LEADING_QUANTIFIERS: LazyLock<Vec<&str>> = LazyLock::new(|| table("leading_quantifiers"));
 
 /// Order and heading phrases the fan-in structure realizes itself, so they leave the
 /// prompts once the work is distributed.
-const STRUCTURAL_CUES: &[&str] = &[
-    "in exactly that order",
-    "in that order",
-    "in the listed order",
-    "in order",
-    "in the same order",
-    "dans l'ordre",
-    "dans cet ordre",
-    "dans le meme ordre",
-    "en ese orden",
-    "en el mismo orden",
-    "in quest'ordine",
-    "nello stesso ordine",
-    "in dieser reihenfolge",
-];
+static STRUCTURAL_CUES: LazyLock<Vec<&str>> = LazyLock::new(|| table("structural_cues"));
 
 /// The folded text with every non-alphanumeric run (apostrophes and hyphens kept) as one
 /// space, padded, so a phrase matches as whole words.
@@ -327,11 +258,11 @@ fn heading_beside_distributive(text: &str) -> bool {
         }
         found
     };
-    let headings = positions(HEADING_WORDS);
+    let headings = positions(&HEADING_WORDS);
     if headings.is_empty() {
         return false;
     }
-    let cues = positions(DISTRIBUTIVE_CUES);
+    let cues = positions(&DISTRIBUTIVE_CUES);
     headings
         .iter()
         .any(|h| cues.iter().any(|c| h.abs_diff(*c) <= 60))
@@ -398,10 +329,7 @@ pub fn per_item(intent: &str, plan: &Plan) -> bool {
 }
 
 /// Distributive words that lead an object ("each ticket", "chaque ligne", "every row").
-const DISTRIBUTIVE_LEADS: &[&str] = &[
-    "each", "every", "chaque", "chacun", "chacune", "cada", "ogni", "ciascun", "ciascuna", "jede",
-    "jeden", "jedes", "jeder",
-];
+static DISTRIBUTIVE_LEADS: LazyLock<Vec<&str>> = LazyLock::new(|| table("distributive_leads"));
 
 /// Whether an object distributes its work over items: led by a distributive word or a
 /// quantifier ("each ticket as bug or feature", "for each file …"), or scoped by a
@@ -441,54 +369,7 @@ pub fn per_record_classify(plan: &Plan) -> bool {
 
 /// Cues that the request supplies its material at invocation ("summarize the supplied
 /// text", "le texte ci-dessous", "each incoming request"), folded, whole words or phrases.
-const SUPPLIED_CUES: &[&str] = &[
-    "supplied",
-    "provided",
-    "attached",
-    "given",
-    "pasted",
-    "below",
-    "following",
-    "incoming",
-    "this text",
-    "the text",
-    "this document",
-    "the document",
-    "this message",
-    "the message",
-    "the input",
-    "each request",
-    "every request",
-    "fourni",
-    "fournie",
-    "fournis",
-    "fournies",
-    "ci-joint",
-    "ci-jointe",
-    "ci-dessous",
-    "suivant",
-    "suivante",
-    "entrant",
-    "entrante",
-    "ce texte",
-    "le texte",
-    "ce document",
-    "le document",
-    "ce message",
-    "le message",
-    "chaque demande",
-    "adjunto",
-    "proporcionado",
-    "este texto",
-    "el texto",
-    "allegato",
-    "fornito",
-    "questo testo",
-    "il testo",
-    "beigefugt",
-    "dieser text",
-    "der text",
-];
+static SUPPLIED_CUES: LazyLock<Vec<&str>> = LazyLock::new(|| table("supplied_cues"));
 
 /// Whether the request names material an invocation supplies, so a plan without a source
 /// step still works on something real.
@@ -667,6 +548,60 @@ impl Shape {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The shape tables before they became data (shape.rs at 161e9e649, sha256 83477f25…,
+    /// extracted mechanically): the asset holds exactly these entries, in this order, one
+    /// section each, and every table reads its own section. No entry was added or dropped.
+    const FROZEN: &[(&str, &str)] = &[
+        (
+            "heading_words",
+            "heading|headings|header|headers|title|titles|titre|titres|intitule|en-tete|entete|titulo|titulos|encabezado|titolo|titoli|intestazione|uberschrift|uberschriften|cabecalho|cabecalhos",
+        ),
+        (
+            "distributive_cues",
+            "each|every|per|chaque|chacun|chacune|cada|ogni|ciascun|ciascuno|jede|jeden|jedes|jeder|par fichier|par document|par note|named after the file|nom du fichier|file name|filename|nombre del archivo|nome del file|dateiname|dateinamen|por ficheiro|por arquivo|nome do ficheiro|nome do arquivo",
+        ),
+        (
+            "leading_quantifiers",
+            "for each|for every|pour chaque|pour chacun|pour chacune|para cada|per ogni|per ciascun|fur jede|fur jeden|fur jedes|para cada um|para cada uma",
+        ),
+        (
+            "structural_cues",
+            "in exactly that order|in that order|in the listed order|in order|in the same order|dans l'ordre|dans cet ordre|dans le meme ordre|en ese orden|en el mismo orden|in quest'ordine|nello stesso ordine|in dieser reihenfolge",
+        ),
+        (
+            "distributive_leads",
+            "each|every|chaque|chacun|chacune|cada|ogni|ciascun|ciascuna|jede|jeden|jedes|jeder",
+        ),
+        (
+            "supplied_cues",
+            "supplied|provided|attached|given|pasted|below|following|incoming|this text|the text|this document|the document|this message|the message|the input|each request|every request|fourni|fournie|fournis|fournies|ci-joint|ci-jointe|ci-dessous|suivant|suivante|entrant|entrante|ce texte|le texte|ce document|le document|ce message|le message|chaque demande|adjunto|proporcionado|este texto|el texto|allegato|fornito|questo testo|il testo|beigefugt|dieser text|der text",
+        ),
+    ];
+
+    #[test]
+    fn tables_are_the_frozen_lists() {
+        let statics: [(&str, &[&str]); 6] = [
+            ("heading_words", &HEADING_WORDS),
+            ("distributive_cues", &DISTRIBUTIVE_CUES),
+            ("leading_quantifiers", &LEADING_QUANTIFIERS),
+            ("structural_cues", &STRUCTURAL_CUES),
+            ("distributive_leads", &DISTRIBUTIVE_LEADS),
+            ("supplied_cues", &SUPPLIED_CUES),
+        ];
+        for ((name, entries), (read, held)) in FROZEN.iter().zip(statics) {
+            let frozen: Vec<&str> = entries.split('|').collect();
+            assert_eq!(name, &read, "the tables keep their order");
+            assert_eq!(super::table(name), frozen, "{name}");
+            assert_eq!(held, frozen.as_slice(), "{name}");
+        }
+        let sections = SHAPE_WORDS.lines().filter(|l| l.starts_with('[')).count();
+        assert_eq!(
+            sections,
+            FROZEN.len(),
+            "no section beyond the frozen tables"
+        );
+    }
 
     const CHAPTERS: &str = "For each of the four files ./chapters/01-intro.md, ./chapters/02-method.md, ./chapters/03-results.md and ./chapters/04-limits.md, at most 2 at a time, write a two-sentence summary. Then merge the summaries in exactly that order into ./out/digest.md, with one heading per file named after the file.";
     const CATALOG: &str = "For each of these four product slugs - solar-lamp, wind-chime, rain-barrel, compost-bin - read ./catalog/<slug>.md and draft one two-sentence marketing blurb in a warm, down-to-earth tone. Process at most 2 products at a time, then merge all four blurbs in the listed order into a single ./out/catalog-blurbs.md with the product name as a heading above each blurb.";

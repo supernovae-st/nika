@@ -1,0 +1,146 @@
+[heading_words]
+heading
+headings
+header
+headers
+title
+titles
+titre
+titres
+intitule
+en-tete
+entete
+titulo
+titulos
+encabezado
+titolo
+titoli
+intestazione
+uberschrift
+uberschriften
+cabecalho
+cabecalhos
+
+[distributive_cues]
+each
+every
+per
+chaque
+chacun
+chacune
+cada
+ogni
+ciascun
+ciascuno
+jede
+jeden
+jedes
+jeder
+par fichier
+par document
+par note
+named after the file
+nom du fichier
+file name
+filename
+nombre del archivo
+nome del file
+dateiname
+dateinamen
+por ficheiro
+por arquivo
+nome do ficheiro
+nome do arquivo
+
+[leading_quantifiers]
+for each
+for every
+pour chaque
+pour chacun
+pour chacune
+para cada
+per ogni
+per ciascun
+fur jede
+fur jeden
+fur jedes
+para cada um
+para cada uma
+
+[structural_cues]
+in exactly that order
+in that order
+in the listed order
+in order
+in the same order
+dans l'ordre
+dans cet ordre
+dans le meme ordre
+en ese orden
+en el mismo orden
+in quest'ordine
+nello stesso ordine
+in dieser reihenfolge
+
+[distributive_leads]
+each
+every
+chaque
+chacun
+chacune
+cada
+ogni
+ciascun
+ciascuna
+jede
+jeden
+jedes
+jeder
+
+[supplied_cues]
+supplied
+provided
+attached
+given
+pasted
+below
+following
+incoming
+this text
+the text
+this document
+the document
+this message
+the message
+the input
+each request
+every request
+fourni
+fournie
+fournis
+fournies
+ci-joint
+ci-jointe
+ci-dessous
+suivant
+suivante
+entrant
+entrante
+ce texte
+le texte
+ce document
+le document
+ce message
+le message
+chaque demande
+adjunto
+proporcionado
+este texto
+el texto
+allegato
+fornito
+questo testo
+il testo
+beigefugt
+dieser text
+der text

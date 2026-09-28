@@ -14,7 +14,7 @@
 
 use super::aggregate::{self, AggOp, Aggregation, COLUMN_WORDS, ROW_WORDS, Shape};
 use super::rule_cues::{COPULAS, NEGATIONS, RELATIVES};
-use super::rule_tokens::{fold, hinted};
+use super::rule_tokens::{fold, hinted, section};
 use std::sync::LazyLock;
 
 /// The closed word tables of the stages, one `[name]` section each, words in their order
@@ -23,13 +23,7 @@ const STAGE_WORDS: &str = include_str!("../assets/stage_words.txt");
 
 /// The words of the `[name]` section of `stage_words.txt`, in file order.
 fn table(name: &str) -> Vec<&'static str> {
-    let header = format!("[{name}]");
-    STAGE_WORDS
-        .lines()
-        .skip_while(|line| *line != header)
-        .skip(1)
-        .take_while(|line| !line.is_empty())
-        .collect()
+    section(STAGE_WORDS, name)
 }
 
 /// One word of a stated stage: as written, folded, and whether a comma followed it.
