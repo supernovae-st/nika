@@ -82,8 +82,8 @@ time — the caller sleeps, never the calculator) · host zone resolution
   determinism) · no `Vec` in public returns (FCI-014 — accessors hand
   out slices or iterators) · `#[non_exhaustive]` on public-field
   structs (FCI-016) · the project file's `nika:` is the project's NAME
-  (kebab-case, the workflow's own grammar); the retired schema tag
-  `nika: v1` (any whole `vN`) refuses as an identity fault in both readers
+  (kebab-case, the workflow's own grammar); a name matching a whole `vN`
+  refuses as an identity fault in both readers
   (`validate` here, `nika_vocab::project` first), so the same bytes can
   never silently change meaning; the version lives on the `$schema` line
   (FCI-003)

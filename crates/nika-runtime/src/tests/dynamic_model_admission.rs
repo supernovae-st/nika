@@ -99,7 +99,7 @@ impl Wires {
 /// carries every POST (the localhost-is-shared law).
 #[allow(clippy::disallowed_methods)] // test seam — the probe's own worker pattern
 fn owned_local_engine() -> String {
-    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind"); // seam-bypass-ok: test owns the real loopback liveness endpoint
     let port = listener.local_addr().expect("addr").port();
     std::thread::spawn(move || {
         while let Ok((mut stream, _)) = listener.accept() {
@@ -112,7 +112,7 @@ fn owned_local_engine() -> String {
 
 /// A loopback endpoint nothing listens on: bound, then released.
 fn released_local_endpoint() -> String {
-    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind"); // seam-bypass-ok: test reserves an unused loopback endpoint for refusal
     let port = listener.local_addr().expect("addr").port();
     drop(listener);
     format!("http://127.0.0.1:{port}/v1/chat/completions")
