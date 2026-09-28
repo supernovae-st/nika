@@ -462,9 +462,13 @@ pub fn project_file_path(
 
 /// Check's mirror of the Run's monetary admission (descended from the host's
 /// `run_cost::readiness`, C6): `None` when a Run of `wf` under `plan` needs no
-/// fresh choice, otherwise why it is not run ready. An unknown-cost route is
-/// never ready (it needs a fresh finite-call choice); a declared-free route is
-/// ready only in a shape its observation admits. It admits nothing itself.
+/// fresh choice, otherwise why it is not run ready. An unknown-cost route
+/// needs a fresh finite-call choice, except when its typed bound at declared
+/// defaults is zero physical requests. That is no blocker: such a Run sends no
+/// provider request, so it pays nothing, and the host binds the no-paid-dispatch
+/// observer, which grants no unknown-cost authority. A Run re-judges its own
+/// bindings before any effect. A declared-free route is ready only in a shape
+/// its observation admits. It admits nothing itself.
 #[must_use]
 pub fn readiness(
     wf: &RawWorkflow,

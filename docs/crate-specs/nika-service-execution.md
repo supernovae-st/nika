@@ -375,6 +375,9 @@ It shares the route, declared-free shape and finite-request laws with Run;
 unknown-cost work still needs a fresh choice. The observation admits no effects
 and obtains no spending authority. The Host adapter supplies its provider configuration.
 Since B12 it reads the same `dispatch_bound` at declared defaults: a fan or an
-authored retry names its total and in-flight bound. A zero total needs no choice,
-because the Run takes its no-paid-dispatch observer. A single sequential Run
-keeps its historical sentence.
+authored retry names its total and in-flight bound. A zero total is no blocker
+(`None`). Such a Run sends no provider request and so pays nothing: the host
+binds its no-paid-dispatch observer (nika-cli-host's `RunCostPlan::Zero`), which
+grants no unknown-cost authority. Readiness at declared defaults cannot see an
+operator's later bindings; the Run re-judges its own bindings before any effect.
+A single sequential Run keeps its historical sentence.
