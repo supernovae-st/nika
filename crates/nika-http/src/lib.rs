@@ -401,9 +401,7 @@ impl ReqwestHttp {
                     .ok_or_else(|| HttpError::Other {
                         reason: format!("redirect {status} without a Location header"),
                     })?;
-                let next = vetted.join(location).map_err(|e| HttpError::Other {
-                    reason: format!("invalid redirect Location {location:?}: {e}"),
-                })?;
+                let next = redirect_target(&vetted, location)?;
                 // Cross-origin hop: strip credential-bearing headers so a
                 // public host can not bounce an Authorization/Cookie to a
                 // DIFFERENT host (the SSRF layer only blocks PRIVATE
@@ -636,6 +634,23 @@ fn same_origin(a: &url::Url, b: &url::Url) -> bool {
     a.scheme() == b.scheme()
         && a.host_str() == b.host_str()
         && a.port_or_known_default() == b.port_or_known_default()
+}
+
+/// A response cannot introduce URL credentials on a different origin.
+/// Parse diagnostics deliberately omit the untrusted Location value.
+fn redirect_target(current: &url::Url, location: &str) -> Result<url::Url, HttpError> {
+    let mut next = current.join(location).map_err(|e| HttpError::Other {
+        reason: format!("invalid redirect Location: {e}"),
+    })?;
+    if !same_origin(current, &next) && (!next.username().is_empty() || next.password().is_some()) {
+        next.set_username("").map_err(|()| HttpError::Other {
+            reason: "cannot remove redirect URL credentials".to_owned(),
+        })?;
+        next.set_password(None).map_err(|()| HttpError::Other {
+            reason: "cannot remove redirect URL credentials".to_owned(),
+        })?;
+    }
+    Ok(next)
 }
 
 /// Bound on the SSRF DNS resolution per hop — a slow/hostile resolver

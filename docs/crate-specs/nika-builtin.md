@@ -186,3 +186,10 @@ MCP half (`mcp:server/*` via live `tools/list`) arrives with `nika-mcp`
 🦋 Nika — workflow engine for AI, AGPL, SuperNovae Studio.
 
 The version-1 tools projection includes additive `legal_contexts` and `standalone_invoke` fields. These derive from the same capability law as Check: `compose` and `done` are agent-tool-only; the remaining catalog builtins also support standalone invoke. Context eligibility does not grant permits or validate arguments.
+
+Single-page fetch extraction strips URL userinfo from the resolution base,
+matching traversal's existing law. The post-redirect landing path still resolves
+relative references, with the original request URL as the fallback when a
+transport supplies no final URL. This sanitizes inherited transport credentials;
+it does not rewrite arbitrary response content or query parameters. HTTP
+requests and their authentication remain the transport's responsibility.

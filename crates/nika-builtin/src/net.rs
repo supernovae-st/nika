@@ -195,11 +195,12 @@ pub(crate) async fn fetch_with_clock<H: HttpGetDyn + HttpPostDyn, F: FsReadDyn +
         body: response.body.clone(),
         content_type: response.headers.get("content-type").cloned(),
         link_header: response.headers.get("link").cloned(),
-        base_url: if response.final_url.is_empty() {
-            url.to_owned()
+        // Transport credentials authenticate the fetch, never its derived links.
+        base_url: crate::wire::redact_url(if response.final_url.is_empty() {
+            url
         } else {
-            response.final_url.clone()
-        },
+            &response.final_url
+        }),
         selector,
         jq: if mode == ExtractMode::Jq {
             Some(req_str(args, "jq", C)?.to_owned())
@@ -623,6 +624,10 @@ pub(crate) async fn notify<H: HttpPostDyn>(http: &H, args: &Args) -> BuiltinOutc
         )
     }
 }
+
+#[cfg(test)]
+#[path = "net_success_tests.rs"]
+mod success_tests;
 
 #[cfg(test)]
 mod tests;

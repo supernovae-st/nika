@@ -964,6 +964,86 @@ async fn authorization_kept_on_same_origin_redirect() {
     );
 }
 
+#[tokio::test]
+async fn redirect_location_never_introduces_cross_origin_basic_credentials() {
+    let _net = net_guard();
+    for streaming in [false, true] {
+        let (target, heads, _) = serve_recording_full(vec![ok_response("landed", "")]).await;
+        let hop = serve(vec![redirect_response(&format!(
+            "http://redirect-user:redirect-password@{target}/final"
+        ))])
+        .await;
+        let mut req = HttpRequest::get(format!("http://{hop}/start"));
+        req.headers
+            .insert("Authorization".into(), "Bearer original".into());
+        let client = mechanics_client();
+        if streaming {
+            client.send_streaming(req).await.unwrap();
+        } else {
+            assert_eq!(&client.get(req).await.unwrap().body[..], b"landed");
+        }
+        let captured = heads.lock().unwrap();
+        assert_eq!(captured.len(), 1);
+        assert!(
+            !has_auth_header(&captured[0]),
+            "a Location cannot restore credentials on a new origin"
+        );
+    }
+}
+
+#[tokio::test]
+async fn redirect_location_parse_errors_never_echo_response_secrets() {
+    let _net = net_guard();
+    for streaming in [false, true] {
+        let hop = serve(vec![redirect_response(
+            "http://redirect-user:redirect-password@[invalid-ipv6]/private?token=redirect-query",
+        )])
+        .await;
+        let req = HttpRequest::get(format!("http://{hop}/start"));
+        let client = mechanics_client();
+        let error = if streaming {
+            client
+                .send_streaming(req)
+                .await
+                .expect_err("invalid Location")
+        } else {
+            client.get(req).await.expect_err("invalid Location")
+        };
+        let diagnostic = format!("{error} {error:?}");
+        for secret in [
+            "redirect-user",
+            "redirect-password",
+            "redirect-query",
+            "/private",
+        ] {
+            assert!(
+                !diagnostic.contains(secret),
+                "response-derived secrets must not enter errors"
+            );
+        }
+        assert!(diagnostic.contains("invalid redirect Location"));
+    }
+}
+
+#[tokio::test]
+async fn url_basic_auth_survives_relative_same_origin_redirect() {
+    let _net = net_guard();
+    let (addr, heads, _) =
+        serve_recording_full(vec![redirect_response("/next"), ok_response("ok", "")]).await;
+    mechanics_client()
+        .get(HttpRequest::get(format!("http://user:pass@{addr}/start")))
+        .await
+        .unwrap();
+    let captured = heads.lock().unwrap();
+    assert_eq!(captured.len(), 2);
+    for head in captured.iter() {
+        assert!(
+            head.lines()
+                .any(|line| line.eq_ignore_ascii_case("authorization: Basic dXNlcjpwYXNz"))
+        );
+    }
+}
+
 // ─── TLS backend (https path · no fixture server) ───────────────────
 
 #[tokio::test]

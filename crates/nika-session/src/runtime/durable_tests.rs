@@ -155,12 +155,15 @@ fn reopening_restores_the_goal_and_dialogue_without_calling_the_reasoner() {
     drop(first);
 
     let (mut resumed, seen) = open(root.path(), &["A gentler ending."]);
+    let notice = resumed
+        .enable_history(home.path())
+        .expect("resume")
+        .expect("notice");
     assert!(
-        resumed
-            .enable_history(home.path())
-            .expect("resume")
-            .is_some()
+        notice.contains("Choose the closing line."),
+        "the historical label is named: {notice}"
     );
+    assert!(notice.contains("unanswered questions expired"), "{notice}");
     assert_eq!(resumed.intent.goal.as_deref(), Some(COPY));
     assert_eq!(resumed.intent.decisions.len(), 2, "{:?}", resumed.intent);
     assert_eq!(resumed.intent.decisions[0], "Use a calm tone.");
@@ -169,7 +172,10 @@ fn reopening_restores_the_goal_and_dialogue_without_calling_the_reasoner() {
         "{:?}",
         resumed.intent.decisions
     );
-    assert_eq!(resumed.intent.unresolved, ["Choose the closing line."]);
+    assert!(
+        resumed.intent.unresolved.is_empty(),
+        "no round can answer that historical label"
+    );
     assert!(
         seen.lock().expect("record").is_empty(),
         "opening is observation"
@@ -300,9 +306,9 @@ fn reopening_does_not_restore_the_authority_of_a_pending_proposal() {
 }
 
 /// The compiler's typed question is a recorded kind of the transcript and
-/// its label a fact of the durable intent; the round itself (the plan,
-/// the answers) never survives a close — the next line answers no
-/// question, and the work stated again asks again.
+/// its label remains in history. The round itself (the plan, the answers)
+/// never survives a close: the notice names that expiry and the current
+/// intent carries no question that cannot be answered. Restating asks again.
 #[test]
 fn an_authoring_question_is_recorded_and_reopening_restores_the_intent_not_the_round() {
     let root = project();
@@ -331,13 +337,22 @@ fn an_authoring_question_is_recorded_and_reopening_restores_the_intent_not_the_r
     );
 
     let (mut resumed, seen) = open(root.path(), &[ANSWER]);
-    resumed.enable_history(home.path()).expect("resume");
+    let notice = resumed
+        .enable_history(home.path())
+        .expect("resume")
+        .expect("notice");
     assert_eq!(resumed.intent.goal.as_deref(), Some(DRAFT));
-    assert_eq!(
-        resumed.intent.unresolved.len(),
-        1,
-        "the open question is a fact of the intent: {:?}",
-        resumed.intent
+    assert!(
+        resumed.intent.unresolved.is_empty(),
+        "a dropped round is not an active question"
+    );
+    assert!(notice.contains("unanswered questions expired"), "{notice}");
+    assert!(notice.contains("state the request again"), "{notice}");
+    assert!(
+        std::fs::read_to_string(history_dir(home.path(), root.path()).join("events.ndjson"))
+            .expect("history")
+            .contains("\"outcome\":\"question\""),
+        "historical evidence is retained"
     );
     assert!(
         resumed.pending_question().is_none(),
@@ -1318,3 +1333,52 @@ fn a_paused_run_leaves_its_gate_in_the_record_and_a_fresh_runtime_waits_on_it() 
 
 /// The kept-draft suite: evidence across a close, re-proposal, and the record's schema.
 mod draft_tests;
+
+/// A stale question in either durable store must not be projected as active
+/// after reopening and observing an unrelated local run. Opening never writes.
+#[test]
+fn restored_questions_expire_from_both_stores_without_rewriting_evidence() {
+    for history in [false, true] {
+        let root = project();
+        let home = tempfile::tempdir().expect("home");
+        let mut record = crate::state::SessionState::new("2026-09-20T00:00:00Z".into());
+        record.goal = Some(DRAFT.into());
+        record.decisions = vec!["a previous decision".into()];
+        record.unresolved = vec!["Which model?".into()];
+        record.save(root.path()).expect("record");
+        let state_path = root.path().join(".nika/session-state.json");
+        let before = std::fs::read(&state_path).expect("before");
+        if history {
+            let (mut first, _) = open(root.path(), &[]);
+            first.enable_history(home.path()).expect("history");
+            assert!(matches!(first.turn(DRAFT), TurnOutcome::Question { .. }));
+        }
+        let (mut resumed, seen) = open(root.path(), &[]);
+        if history {
+            resumed.enable_history(home.path()).expect("reopen");
+        }
+        let notice = resumed.restore_state().expect("restored state");
+        assert!(notice.contains("unanswered questions expired"), "{notice}");
+        assert!(notice.contains("Which model?"), "{notice}");
+        assert!(resumed.pending_question().is_none());
+        assert!(resumed.intent.unresolved.is_empty());
+        assert_eq!(resumed.intent.decisions, vec!["a previous decision"]);
+        assert_eq!(std::fs::read(&state_path).expect("unchanged"), before);
+        let _ = resumed.observe_run(0, None);
+        let after = crate::state::SessionState::load(root.path())
+            .expect("load")
+            .expect("record");
+        assert!(
+            after.unresolved.is_empty(),
+            "a new write cannot resurrect the old question"
+        );
+        assert!(
+            seen.lock().expect("calls").is_empty(),
+            "no inference on restore or observation"
+        );
+        assert!(
+            !root.path().join(LANDED).exists(),
+            "no implicit candidate/save"
+        );
+    }
+}

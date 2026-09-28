@@ -419,3 +419,12 @@ account is in `docs/usage/conversational-session.md`.
 The Session direct-API authoring descriptor uses `cost_basis: unpriced; billing_unverified`. Token observations and endpoint diagnostics do not establish a tariff or provider invoice.
 
 Direct API authoring endpoint metadata comes from the exact seated registry: `host` strips user info, path, query and fragment; `base_url_overridden` compares the effective URL with its profile seed when available. `endpoint_basis: operator_configuration` distinguishes this configuration from an authenticated remote identity or an observed model. Session host diagnostics use the same redaction.
+
+On reopening, authoring and input rounds are not restored. Their unanswered
+labels stay in the original transcript or structured record as historical
+facts, and the recovery notice names their expiry with a way to restate the
+request. The live intent's `unresolved` contains only questions it can still
+answer, so a later unrelated run observation cannot persist expired questions
+as current. Opening rewrites neither store, calls no model and grants no
+consent. Paused trace gates and conservative monetary restrictions retain
+their existing restoration laws.

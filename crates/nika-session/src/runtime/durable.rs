@@ -51,7 +51,7 @@ impl SessionRuntime {
         }
         self.history = HistoryMode::Blocked("conversation history did not open".to_owned());
         let history = History::open(home, &self.snapshot.root).map_err(history_refusal)?;
-        self.restore_intent(IntentDraft {
+        let expired = self.restore_intent(IntentDraft {
             goal: history.state.goal.clone(),
             decisions: history.state.decisions.clone(),
             unresolved: history.state.unresolved.clone(),
@@ -66,6 +66,7 @@ impl SessionRuntime {
         }
         let notice = history.restored.then(|| {
             let mut text = "conversation restored · previous proposals and gates require fresh validation".to_owned();
+            text.push_str(&expired);
             if history.uncertain {
                 text.push_str("\ninterrupted operation: its result may be unknown; inspect effects and receipts before retrying · nothing was replayed");
             }
@@ -231,7 +232,7 @@ impl SessionRuntime {
         {
             self.money.reconfirm = true;
         }
-        self.restore_intent(IntentDraft {
+        let expired = self.restore_intent(IntentDraft {
             goal: state.goal,
             decisions: state.decisions,
             unresolved: state.unresolved,
@@ -240,6 +241,7 @@ impl SessionRuntime {
             "session record restored (.nika/{STATE_FILE} · written {})",
             state.updated_at
         );
+        notice.push_str(&expired);
         for line in self
             .intent
             .decisions
@@ -276,7 +278,19 @@ impl SessionRuntime {
 
     // Conversation and structured state can have different last-write times.
     // Replace ordinary prose, but never erase independently recorded constraints.
-    fn restore_intent(&mut self, mut restored: IntentDraft) {
+    fn restore_intent(&mut self, mut restored: IntentDraft) -> String {
+        // Labels remain historical evidence, but no authoring/input round was
+        // restored to accept an answer. Name that expiry before dropping them
+        // from the current projection; opening neither calls nor writes.
+        let expired = if restored.unresolved.is_empty() {
+            String::new()
+        } else {
+            format!(
+                "\nprevious unanswered questions expired: {} · state the request again to continue",
+                restored.unresolved.join(" · ")
+            )
+        };
+        restored.unresolved.clear();
         for marker in self.intent.decisions.iter().filter(|d| is_money_marker(d)) {
             if !restored.decisions.contains(marker) {
                 restored.decisions.push(marker.clone());
@@ -288,6 +302,7 @@ impl SessionRuntime {
             .decisions
             .iter()
             .any(|d| d == RECONFIRM || d.starts_with(DISPATCH_PREFIX));
+        expired
     }
 
     fn restore_money_guards(&mut self) {
