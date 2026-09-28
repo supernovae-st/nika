@@ -8,7 +8,7 @@
 //! authority.
 
 use super::assemble::{Doc, Laws, emit};
-use super::bindings::{Bindings, Operation, RuleBinding, Witness, found, operations};
+use super::bindings::{Bindings, Operation, RuleBinding, Witness, found, operations, read_whole};
 use super::ledger::{Duty, DutyKind, DutyState, Ledger};
 use super::plan::{EffectPolicy, EffectVerb, Op, Plan};
 use super::shape::Shape;
@@ -312,7 +312,9 @@ fn type_computation(ledger: &mut Ledger, plan: &Plan, b: &Bindings, d: &Doc) {
     let generic = |duty: &Duty| duty.kind == DutyKind::Filter && duty.evidence == evidence;
     let stated = ledger.duties.iter().position(generic);
     let typed = match (b.rule.bound(), &b.witness) {
-        (Some(RuleBinding::Synthesized(rule)), Some(witness)) => typed_duties(rule, witness, d),
+        (Some(RuleBinding::Synthesized(rule)), Some(witness)) => {
+            typed_duties(rule, witness, d, &evidence)
+        }
         (Some(RuleBinding::Answered(_)), _) if stated.is_some() => vec![Duty::unverified(
             DutyKind::Filter,
             &evidence,
@@ -330,8 +332,15 @@ fn type_computation(ledger: &mut Ledger, plan: &Plan, b: &Bindings, d: &Doc) {
     ledger.duties.splice(at..at, typed);
 }
 
-/// The typed duties of a bound computation (R4 A3), realized against the emitted bytes.
-fn typed_duties(rule: &super::rules::Rule, witness: &Witness, d: &Doc) -> Vec<Duty> {
+/// The typed duties of a bound computation (R4 A3), realized against the emitted bytes. When
+/// every part is read, each operation shaping the rows that the bound rule runs beyond them is
+/// an unresolved duty on the step's `evidence`: an unstated operation is never harmless.
+fn typed_duties(
+    rule: &super::rules::Rule,
+    witness: &Witness,
+    d: &Doc,
+    evidence: &str,
+) -> Vec<Duty> {
     let expression = |task: &str| d.root["tasks"][task]["invoke"]["args"]["expression"].as_str();
     let lowered = super::laws::with_decimal(&rule.jq());
     let runs = expression("compute") == Some(lowered.as_str());
@@ -353,8 +362,18 @@ fn typed_duties(rule: &super::rules::Rule, witness: &Witness, d: &Doc) -> Vec<Du
         }
     }
     let wanted: Vec<Operation> = expected.iter().map(|(_, op)| op.clone()).collect();
-    let places = found(&operations(&witness.chosen), &wanted);
+    let chosen = operations(&witness.chosen);
+    let places = found(&chosen, &wanted);
     let mut duties = Vec::new();
+    let mut unstated = Vec::new();
+    if read_whole(&witness.parts) {
+        let matched: Vec<usize> = places.iter().flatten().copied().collect();
+        let extra = chosen
+            .iter()
+            .enumerate()
+            .filter(|(at, op)| op.shapes_rows() && !matched.contains(at));
+        unstated.extend(extra.map(|(_, op)| Duty::unstated(op.kind(), evidence, op.reads())));
+    }
     for (position, ((anchor, op), place)) in expected.into_iter().zip(places).enumerate() {
         let mut duty = Duty::typed(op.kind(), anchor, position, op.reads());
         let (task, emitted) = if op == Operation::Summary {
@@ -377,6 +396,7 @@ fn typed_duties(rule: &super::rules::Rule, witness: &Witness, d: &Doc) -> Vec<Du
         }
         duties.push(duty);
     }
+    duties.extend(unstated);
     duties.extend(unread);
     duties
 }
@@ -614,7 +634,7 @@ mod tests {
         let mut d = Doc::new("witness", false);
         let expression = emitted.unwrap_or(&lowered);
         d.root["tasks"]["compute"] = json!({"invoke": {"args": {"expression": expression}}});
-        typed_duties(&bound, &Witness::of(stated, bound.clone()), &d)
+        typed_duties(&bound, &Witness::of(stated, bound.clone()), &d, "the step")
     }
 
     fn states(duties: &[Duty]) -> Vec<(DutyKind, DutyState, Option<usize>)> {
@@ -625,8 +645,9 @@ mod tests {
     }
 
     /// A witness compares the parameters of each stated operation, never its kind alone (R4 A3):
-    /// with no reading to fall back on, each changed parameter leaves its own duty unresolved
-    /// and every other one realized (a missing operation never shifts the others).
+    /// with no reading to fall back on, each changed parameter leaves its own duty unresolved,
+    /// the changed operation is named as one the request does not state, and every other duty is
+    /// realized (a missing operation never shifts the others).
     #[test]
     fn a_witness_compares_the_parameters_of_each_stated_operation() {
         let both = [(Filter, Realized, Some(0)), (Count, Realized, Some(1))];
@@ -635,7 +656,11 @@ mod tests {
         let count_free = [(Filter, Realized, Some(0)), (Count, Unresolved, Some(1))];
         assert_eq!(states(&witnessed(&[COUNT], PAID, None)), count_free);
         // Another field, comparator or literal.
-        let filter = [(Filter, Unresolved, Some(0)), (Count, Realized, Some(1))];
+        let filter = [
+            (Filter, Unresolved, Some(0)),
+            (Count, Realized, Some(1)),
+            (Filter, Unresolved, None),
+        ];
         for other in [
             "count the rows where state is paid",
             "count the rows where status is not paid",
@@ -645,10 +670,18 @@ mod tests {
         }
         // A flipped direction, a cut of 3.
         let lowest = "keep the 2 rows with the lowest amount_usd";
-        let order = [(Order, Unresolved, Some(0)), (Limit, Realized, Some(1))];
+        let order = [
+            (Order, Unresolved, Some(0)),
+            (Limit, Realized, Some(1)),
+            (Order, Unresolved, None),
+        ];
         assert_eq!(states(&witnessed(&[TOP], lowest, None)), order);
         let three = "keep the 3 rows with the highest amount_usd";
-        let limit = [(Order, Realized, Some(0)), (Limit, Unresolved, Some(1))];
+        let limit = [
+            (Order, Realized, Some(0)),
+            (Limit, Unresolved, Some(1)),
+            (Limit, Unresolved, None),
+        ];
         assert_eq!(states(&witnessed(&[TOP], three, None)), limit);
         // A later step omitted, or moved before the cut; kept in the stated order, all hold.
         let later = [
@@ -658,7 +691,9 @@ mod tests {
         ];
         assert_eq!(states(&witnessed(&[TOP, PAID], TOP, None)), later);
         let moved = format!("{PAID} ; {TOP}");
-        assert_eq!(states(&witnessed(&[TOP, PAID], &moved, None)), later);
+        let first = states(&witnessed(&[TOP, PAID], &moved, None));
+        assert_eq!(first[..3], later);
+        assert_eq!(first[3..], [(Filter, Unresolved, None)]);
         let kept = format!("{TOP} ; {PAID}");
         let all = [
             (Order, Realized, Some(0)),
@@ -690,5 +725,34 @@ mod tests {
         assert_eq!(unread[0].realized_by.as_deref(), Some("compute"));
         let note = unread[0].note.as_deref().unwrap_or_default();
         assert!(note.starts_with("unverified: "), "{note}");
+    }
+
+    /// An operation the request does not state is never harmless (R4 A3): with every part read,
+    /// each operation the bound rule runs beyond them is an unresolved duty, even around a stated
+    /// order that still holds. With a part unread, its words may state it, and it is not judged.
+    #[test]
+    fn an_unstated_operation_is_an_unresolved_duty() {
+        let around = witnessed(&[TOP, PAID], &format!("{PAID} ; {TOP} ; {PAID}"), None);
+        let held = [
+            (Order, Realized, Some(0)),
+            (Limit, Realized, Some(1)),
+            (Filter, Realized, Some(2)),
+        ];
+        assert_eq!(states(&around)[..3], held);
+        assert_eq!(states(&around)[3..], [(Filter, Unresolved, None)]);
+        let why = around[3].note.as_deref().unwrap_or_default();
+        assert!(why.contains("the request does not state"), "{why}");
+        let over = "keep the rows where amount_usd is over 10";
+        let added = witnessed(&[TOP, PAID], &format!("{TOP} ; {PAID} ; {over}"), None);
+        assert_eq!(states(&added)[3..], [(Filter, Unresolved, None)]);
+        assert_eq!(added[3].reads, ["amount_usd"]);
+        let unread = ["tally whatever looks settled", TOP];
+        let open = witnessed(&unread, &format!("{PAID} ; {TOP}"), None);
+        let judged = [
+            (Order, Realized, Some(0)),
+            (Limit, Realized, Some(1)),
+            (Transformation, Realized, None),
+        ];
+        assert_eq!(states(&open), judged);
     }
 }

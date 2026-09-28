@@ -1209,23 +1209,22 @@ mod tests {
         }
     }
 
-    /// A false READY closed by the witness, run as the emitted program (R4 A3): a seat proposes
-    /// the top 2 and the paid filter as one computation, which lowers the filter first. Before
-    /// A3 that candidate was READY and wrote C and D on the discriminating rows (D is not in the
-    /// top 2); the reading of the request's own clauses now binds, and the program keeps the
-    /// paid rows among the top 2 only. The rows were stated before any run.
-    #[tokio::test]
-    async fn a_reordered_proposal_is_never_the_program_the_workflow_runs() {
+    /// The program a cold compile emits at `compute` for « keep the 2 rows with the highest
+    /// `amount_usd`, then keep the rows where status is paid » when the seat's one compute step is
+    /// labelled `detail` and proposes `computation` (none: the detail alone).
+    async fn seat_program(detail: &str, computation: Option<Value>) -> String {
         let stated =
             "keep the 2 rows with the highest amount_usd, then keep the rows where status is paid";
         let write = "write them to ./out/result.json";
         let intent = format!("read ./data/input.csv, {stated}, {write}");
-        let computation = json!({"present": true, "join": "and", "sort_by": "amount_usd", "order": "desc", "limit": "2",
-            "clauses": [{"field": "status", "op": "eq", "value": "paid", "value_field": ""}]});
+        let mut step = json!({"op": "compute", "detail": detail, "evidence": stated});
+        if let Some(computation) = computation {
+            step["computation"] = computation;
+        }
         let plan = json!({
             "steps": [
                 {"op": "read", "detail": "./data/input.csv", "evidence": "read ./data/input.csv"},
-                {"op": "compute", "detail": stated, "evidence": stated, "computation": computation}
+                step
             ],
             "effects": [{"verb": "write", "target": "./out/result.json", "policy": "automatic", "evidence": write}],
             "obligations": [], "constraints": [], "unknowns": [],
@@ -1248,26 +1247,56 @@ mod tests {
             .unwrap();
         assert_eq!(out.status, nika_compile::CompileStatus::Ready, "{out:#?}");
         let doc: Value = serde_yaml_bw::from_str(out.candidate.as_deref().unwrap()).unwrap();
-        let compute = doc["tasks"]["compute"]["invoke"]["args"]["expression"]
+        doc["tasks"]["compute"]["invoke"]["args"]["expression"]
             .as_str()
-            .unwrap();
-        let kept = |rows: &[(&str, &str, &str)]| -> Vec<(String, String)> {
-            let written = run(compute, &csv_records(rows)).unwrap();
-            written
-                .as_array()
-                .unwrap()
-                .iter()
-                .map(|r| {
-                    (
-                        r["id"].as_str().unwrap().to_owned(),
-                        r["amount_usd"].as_str().unwrap().to_owned(),
-                    )
-                })
-                .collect()
-        };
+            .unwrap()
+            .to_owned()
+    }
+
+    /// The rows (id, amount) a program keeps from the CSV `rows`.
+    fn kept(compute: &str, rows: &[(&str, &str, &str)]) -> Vec<(String, String)> {
+        let written = run(compute, &csv_records(rows)).unwrap();
+        written
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|r| {
+                (
+                    r["id"].as_str().unwrap().to_owned(),
+                    r["amount_usd"].as_str().unwrap().to_owned(),
+                )
+            })
+            .collect()
+    }
+
+    /// The paid rows among the top 2 by amount, on the frozen DEV rows (stated before any run).
+    fn keeps_the_paid_rows_among_the_top_2(compute: &str) {
         let pair = |id: &str, amount: &str| (id.to_owned(), amount.to_owned());
-        assert_eq!(kept(DISCRIMINATING), [pair("C", "100")]);
-        assert_eq!(kept(FRIENDLY), [pair("A", "20"), pair("B", "10")]);
-        assert_eq!(kept(NONE_PAID), Vec::<(String, String)>::new());
+        assert_eq!(kept(compute, DISCRIMINATING), [pair("C", "100")]);
+        assert_eq!(kept(compute, FRIENDLY), [pair("A", "20"), pair("B", "10")]);
+        assert_eq!(kept(compute, NONE_PAID), Vec::<(String, String)>::new());
+    }
+
+    /// A false READY closed by the witness, run as the emitted program (R4 A3): a seat proposes
+    /// the top 2 and the paid filter as one computation, which lowers the filter first. Before
+    /// A3 that candidate was READY and wrote C and D on the discriminating rows (D is not in the
+    /// top 2); the reading of the request's own clauses now binds.
+    #[tokio::test]
+    async fn a_reordered_proposal_is_never_the_program_the_workflow_runs() {
+        let stated =
+            "keep the 2 rows with the highest amount_usd, then keep the rows where status is paid";
+        let computation = json!({"present": true, "join": "and", "sort_by": "amount_usd", "order": "desc", "limit": "2",
+            "clauses": [{"field": "status", "op": "eq", "value": "paid", "value_field": ""}]});
+        keeps_the_paid_rows_among_the_top_2(&seat_program(stated, Some(computation)).await);
+    }
+
+    /// An operation the request does not state is never run (R4 A3, the primary's review
+    /// hypothesis): a seat's compute detail joins the request's own clauses with an extra filter
+    /// before the cut. Before this change the emitted program ranked only the paid rows and wrote
+    /// C and D; the reading of the stated clauses runs exactly them.
+    #[tokio::test]
+    async fn an_extra_filter_around_the_stated_clauses_is_never_run() {
+        let detail = "keep the rows where status is paid ; keep the 2 rows with the highest amount_usd ; keep the rows where status is paid";
+        keeps_the_paid_rows_among_the_top_2(&seat_program(detail, None).await);
     }
 }

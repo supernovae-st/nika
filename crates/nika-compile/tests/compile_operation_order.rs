@@ -450,3 +450,32 @@ fn an_unread_selection_of_the_rows_is_work_never_context() {
         ]
     );
 }
+
+/// An operation the request does not state is never run (R4 A3, the primary's review
+/// hypothesis, reproduced before this change): a seat's compute detail, or a replayed record's,
+/// joining the request's own clauses with an extra filter before the cut (« paid ; top 2 ;
+/// paid ») compiled READY, and its program ranked only the paid rows. Every part is read, so
+/// the rule bound runs exactly the stated operations: the reading of the request's clauses.
+#[tokio::test]
+async fn an_operation_the_request_does_not_state_is_never_run() {
+    let stated = format!("{TOP2}, then {PAID}");
+    let extra = format!("{PAID} ; {TOP2} ; {PAID}");
+    let top2 = "sort_by((.amount_usd | num) | dkey) | reverse | dtie(2; (.amount_usd | num) | dkey; .; \"`amount_usd`\") | .[:2]";
+    let reading = format!(".records | {top2} | map(select(.status == \"paid\"))");
+    let (intent, mut plan) = seat(&stated, THEM, &extra, &json!({}));
+    plan["steps"][1]
+        .as_object_mut()
+        .unwrap()
+        .remove("computation");
+    let out = cold((intent.clone(), plan)).await;
+    assert_eq!(bound_rule(&out), reading);
+    assert_eq!(typed_duties(&out).len(), 3);
+    let mut record = compiled(&intent).provenance.plan.clone().unwrap();
+    record["operations"][1]["detail"] = json!(extra);
+    let request = CompileRequest::create(&intent)
+        .with_knowledge(common::observed(&[CSV]))
+        .with_plan(record);
+    let out = compile(&request).unwrap();
+    assert_eq!(bound_rule(&out), reading);
+    assert_eq!(typed_duties(&out).len(), 3);
+}

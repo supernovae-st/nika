@@ -112,10 +112,13 @@ pub(super) fn synthesized_rule(
 }
 
 /// The rule that holds what the request's own words state (R4 A3): every operation the reader
-/// reads in each anchored part, in request order, with its parameters. A proposal missing one,
-/// reordering them or stating another field, comparator, literal, direction or count yields to
-/// a reading that holds them (the step's detail, its evidence, or its parts' excerpts joined in
-/// request order); with none, it stays bound and the ledger leaves what it misses unresolved.
+/// reads in each anchored part, in request order, with its parameters, and, when every part is
+/// read, no other operation shaping the rows (an extra filter around the stated ones changes
+/// them; the summary stage computes beside them and is judged only when stated). A proposal
+/// missing one, reordering them, adding one or stating another field, comparator, literal,
+/// direction or count yields to a reading that holds them (the step's detail, its evidence, or
+/// its parts' excerpts joined in request order); with none, it stays bound and the ledger leaves
+/// what it misses, or adds, unresolved.
 fn holding(
     stated: rules::Rule,
     plan: &Plan,
@@ -125,7 +128,13 @@ fn holding(
 ) -> rules::Rule {
     let parts = stated_parts(plan, step, intent, hint);
     let expected = expected_operations(&parts);
-    if holds(&operations(&stated), &expected) {
+    let exact = read_whole(&parts);
+    let shaping = |ops: &[Operation]| ops.iter().filter(|op| op.shapes_rows()).count();
+    let fits = |rule: &rules::Rule| {
+        let ops = operations(rule);
+        holds(&ops, &expected) && (!exact || shaping(&ops) == shaping(&expected))
+    };
+    if fits(&stated) {
         return stated;
     }
     let anchors: Vec<&str> = parts.iter().map(|part| part.anchor.as_str()).collect();
@@ -133,8 +142,14 @@ fn holding(
     [step.detail.trim(), step.evidence.trim(), joined.as_str()]
         .into_iter()
         .filter_map(|text| rules::synthesize(text, hint))
-        .find(|rule| holds(&operations(rule), &expected))
+        .find(|rule| fits(rule))
         .unwrap_or(stated)
+}
+
+/// Whether the parts account for every operation the computation may run: at least one part,
+/// and every part read by the grammar.
+pub(crate) fn read_whole(parts: &[Part]) -> bool {
+    !parts.is_empty() && parts.iter().all(|part| part.reading.is_some())
 }
 
 /// What the rule bound for the compute step is judged against (R4 A3): the step's parts, read
@@ -168,6 +183,11 @@ pub(crate) enum Operation {
 }
 
 impl Operation {
+    /// Whether the operation shapes the rows the rule writes: every one but the summary stage,
+    /// which computes its count and totals beside them, in its own task.
+    pub(crate) fn shapes_rows(&self) -> bool {
+        !matches!(self, Self::Summary)
+    }
     /// The duty an operation states.
     pub(crate) const fn kind(&self) -> DutyKind {
         match self {
@@ -302,8 +322,8 @@ impl Witness {
     }
 }
 
-/// The parts of the compute step: each distinct plan rule whose text is an exact excerpt of
-/// the request, else the step's own evidence, ordered by where the request states them and
+/// The parts of the compute step: each plan rule, the step's evidence and its detail whose text
+/// is an exact excerpt of the request, ordered by where the request states them and
 /// each re-read by the one grammar over the columns the binding reads with. Each word is read
 /// once: the widest readable excerpt stands for the excerpts inside it (a seat's rule over a
 /// whole clause beside the rules promoted from its parts), and an unreadable excerpt is a part
@@ -316,15 +336,14 @@ fn stated_parts(plan: &Plan, step: &Step, intent: &str, hint: &[String]) -> Vec<
         Some((start, start + excerpt.len(), excerpt))
     };
     // Every plan rule anchors its own words, a plain twin of a shaped rule included: the twin
-    // is the reader's reading of a clause the proposal may have moved.
-    let mut spans: Vec<(usize, usize, String)> = plan
-        .rules
-        .iter()
-        .filter_map(|rule| place(rule.text()))
+    // is the reader's reading of a clause the proposal may have moved. The step's evidence and
+    // its detail anchor theirs when they are request excerpts (a detail joined with ` ; ` is
+    // none): a detail may state more than its evidence (« … and how many rows were kept »).
+    let texts = plan.rules.iter().map(rules::Rule::text);
+    let mut spans: Vec<(usize, usize, String)> = texts
+        .chain([step.evidence.as_str(), step.detail.as_str()])
+        .filter_map(place)
         .collect();
-    if spans.is_empty() {
-        spans.extend(place(&step.evidence));
-    }
     spans.sort_by_key(|(start, end, _)| (*start, std::cmp::Reverse(*end)));
     spans.dedup();
     let read = |anchor: &str| {

@@ -22,7 +22,7 @@ use serde_json::{Value, json};
 use std::collections::BTreeSet;
 
 mod computation;
-pub(super) use computation::{Operation, Witness, found, operations};
+pub(super) use computation::{Operation, Witness, found, operations, read_whole};
 use computation::{stated_witness, synthesized_rule};
 mod write_path;
 

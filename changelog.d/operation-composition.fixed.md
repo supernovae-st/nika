@@ -33,6 +33,9 @@
     unpaid one. The reading of the request's own clauses now replaces such a proposal, and
     a program that misses a stated operation is never READY.
   - Words the compiler cannot read are listed as unverified, not as done.
+  - An operation the request does not state is never run: a proposal that added the paid
+    filter before the top 2 as well as after it ranked only the paid rows, READY. The reading of
+    the request's own clauses replaces it.
 - **A filter the compiler cannot read is never taken for a description of the data.**
   - « Keep the rows whose status is a » compiled READY into a workflow that wrote every row:
     the value `a` kept the compiler from reading the condition, and the clause was taken as

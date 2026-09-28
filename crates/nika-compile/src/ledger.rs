@@ -143,6 +143,18 @@ impl Duty {
         duty.realize(by, Some(&format!("unverified: {why}")));
         duty
     }
+    /// An operation the emitted computation runs that the request does not state (R4 A3): never
+    /// realized, so nothing is READY with it.
+    pub(super) fn unstated(kind: DutyKind, evidence: &str, reads: Vec<String>) -> Self {
+        Self {
+            reads,
+            ..Self::new(kind, evidence)
+        }
+        .with_state(
+            DutyState::Unresolved,
+            "the emitted computation runs this operation, which the request does not state",
+        )
+    }
     /// A typed operation of a computation, at its place in the order the request states it.
     pub(super) fn typed(
         kind: DutyKind,
