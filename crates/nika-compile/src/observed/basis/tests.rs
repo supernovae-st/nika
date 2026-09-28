@@ -356,3 +356,59 @@ fn a_decision_without_a_source_dependency_has_no_basis() {
     assert!(Basis::sources(recorded).is_empty());
     assert_eq!(basis(recorded, Some(&fresh), ""), Basis::None);
 }
+
+/// A decision that records no dependency is a legacy absence (`None`); a record that is present
+/// but that this law cannot read — not a list, an entry not an object, a decision not an object
+/// — is unjudged, never an absence that lets a proposal through as if it read nothing.
+#[test]
+fn a_present_record_this_law_cannot_read_is_unjudged_never_absent() {
+    let fresh = observed(&[(SOURCE, INPUT)]);
+    for absent in [json!({}), json!({"grounding": [], "numbers": []})] {
+        assert_eq!(
+            basis(Some(&absent), Some(&fresh), REQUEST),
+            Basis::None,
+            "{absent}"
+        );
+    }
+    for unreadable in [
+        json!({"grounding": {"field": "amount_usd"}}),
+        json!({"grounding": "amount_usd"}),
+        json!({"grounding": null}),
+        json!({"numbers": 7}),
+        json!({"grounding": ["amount_usd"]}),
+        json!({"numbers": [["observed numbers"]]}),
+        json!(["amount_usd"]),
+    ] {
+        assert!(
+            matches!(
+                basis(Some(&unreadable), Some(&fresh), REQUEST),
+                Basis::Unjudged(_)
+            ),
+            "{unreadable}"
+        );
+    }
+}
+
+/// The kinds a fresh observation counted must be counts: a negative, fractional or textual count
+/// cannot say the values are all numbers, so the policy chosen from them is unjudged. An empty
+/// count map (no sampled value) contradicts nothing and holds.
+#[test]
+fn kind_counts_this_law_cannot_read_leave_the_policy_unjudged() {
+    let recorded = decision(REQUEST, &observed(&[(SOURCE, INPUT)]));
+    let with_counts = |counts: Value| {
+        let mut fresh = observed(&[(SOURCE, INPUT)]);
+        fresh["kinds"][SOURCE]["keys"]["amount_usd"] = counts;
+        basis(Some(&recorded), Some(&fresh), REQUEST)
+    };
+    for counts in [
+        json!({"number_text": 4, "text": -1}),
+        json!({"number_text": 4, "text": 0.5}),
+        json!({"number_text": "4"}),
+    ] {
+        assert!(
+            matches!(with_counts(counts.clone()), Basis::Unjudged(_)),
+            "{counts}"
+        );
+    }
+    assert_eq!(with_counts(json!({})), Basis::Holds(2), "no sampled value");
+}

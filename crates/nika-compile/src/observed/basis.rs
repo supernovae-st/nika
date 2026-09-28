@@ -12,8 +12,11 @@
 //! Every recorded dependency is judged, whatever its labels say (a recorded grade or an
 //! `admissible` flag is never taken as evidence), each against the one fresh row of its exact
 //! source. A dependency the fresh observation does not cover, or a record this law cannot read,
-//! is unjudged, never assumed to hold. The canonical spellings a text equality matched
-//! (`decision.spellings`) stay the bounded sample law they are, not a basis.
+//! is unjudged, never assumed to hold: a decision that is not an object, a record present but not
+//! a list, an entry that is not an object, a field the law reads of another type, or a kind count
+//! that is not a count. A record that is absent is a legacy decision's, and no dependency. The
+//! canonical spellings a text equality matched (`decision.spellings`) stay the bounded sample law
+//! they are, not a basis.
 
 use super::grounding::{self, Grade};
 use serde_json::Value;
@@ -67,8 +70,10 @@ enum Verdict {
 #[must_use]
 pub fn basis(decision: Option<&Value>, fresh: Option<&Value>, intent: &str) -> Basis {
     let stated = crate::columns::columns_hint(intent);
-    let verdicts: Vec<Verdict> = keys(decision)
-        .map(|entry| key(entry, fresh, &stated))
+    let verdicts: Vec<Verdict> = unreadable(decision)
+        .into_iter()
+        .map(Verdict::Unjudged)
+        .chain(keys(decision).map(|entry| key(entry, fresh, &stated)))
         .chain(policies(decision).map(|entry| policy(entry, fresh)))
         .collect();
     if verdicts.is_empty() {
@@ -101,12 +106,61 @@ fn policies(decision: Option<&Value>) -> impl Iterator<Item = &Value> {
     listed(decision, "numbers").filter(|entry| entry["bound_by"] == "observed numbers")
 }
 
+/// The entries of one record that this law reads (objects); [`unreadable`] names the rest.
 fn listed<'a>(decision: Option<&'a Value>, record: &str) -> impl Iterator<Item = &'a Value> {
     decision
         .and_then(|d| d.get(record))
         .and_then(Value::as_array)
         .into_iter()
         .flatten()
+        .filter(|entry| entry.is_object())
+}
+
+/// A field this law reads from a recorded entry, and the JSON type it must have when present.
+type Typed = (&'static str, fn(&Value) -> bool);
+
+/// Why the records this law reads cannot be read, each once: a decision that is not an object, a
+/// record present but not a list, an entry that is not an object or holds a field this law reads
+/// with another type. An absent record is a legacy decision's, never unreadable.
+fn unreadable(decision: Option<&Value>) -> Vec<String> {
+    let Some(decision) = decision else {
+        return Vec::new();
+    };
+    let Some(records) = decision.as_object() else {
+        return vec!["the recorded decision is not an object".to_owned()];
+    };
+    let read: [(&str, &[Typed]); 2] = [
+        (
+            "grounding",
+            &[
+                ("grade", Value::is_string),
+                ("revision", Value::is_string),
+                ("in_every_sampled_record", Value::is_boolean),
+            ],
+        ),
+        ("numbers", &[("bound_by", Value::is_string)]),
+    ];
+    let mut why: Vec<String> = Vec::new();
+    for (record, fields) in read {
+        let Some(present) = records.get(record) else {
+            continue;
+        };
+        let Some(entries) = present.as_array() else {
+            why.push(format!("the recorded `{record}` is not a list"));
+            continue;
+        };
+        let bad = entries.iter().any(|entry| {
+            entry.as_object().is_none_or(|e| {
+                fields
+                    .iter()
+                    .any(|(field, typed)| e.get(*field).is_some_and(|v| !typed(v)))
+            })
+        });
+        if bad {
+            why.push(format!("a recorded `{record}` entry cannot be read"));
+        }
+    }
+    why
 }
 
 /// One grounded key, graded again on the fresh row of its source by [`grounding::grade`].
@@ -179,13 +233,18 @@ fn policy(entry: &Value, fresh: Option<&Value>) -> Verdict {
             "the kinds of `{field}` in `{source}` were not observed again"
         ));
     };
-    let others: Vec<String> = counts
-        .iter()
-        .filter(|(kind, n)| {
-            !NUMBER_KINDS.contains(&kind.as_str()) && n.as_u64().is_some_and(|n| n > 0)
-        })
-        .map(|(kind, n)| format!("{kind} {n}"))
-        .collect();
+    // A count is a whole number: anything else cannot say the values are all numbers.
+    let mut others: Vec<String> = Vec::new();
+    for (kind, n) in counts {
+        let Some(n) = n.as_u64() else {
+            return Verdict::Unjudged(format!(
+                "the kinds of `{field}` in `{source}` cannot be read"
+            ));
+        };
+        if n > 0 && !NUMBER_KINDS.contains(&kind.as_str()) {
+            others.push(format!("{kind} {n}"));
+        }
+    }
     if others.is_empty() {
         return Verdict::Holds;
     }
