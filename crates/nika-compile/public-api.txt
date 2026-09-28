@@ -620,6 +620,54 @@ impl<T> outref::AsOut<T> for nika_compile::AuthoringCognition where T: core::mar
 pub fn nika_compile::AuthoringCognition::as_out(&mut self) -> outref::Out<'_, T>
 impl<T> typenum::type_operators::Same for nika_compile::AuthoringCognition
 pub type nika_compile::AuthoringCognition::Output = T
+#[non_exhaustive] pub enum nika_compile::Basis
+pub nika_compile::Basis::Holds(usize)
+pub nika_compile::Basis::Moved(alloc::vec::Vec<alloc::string::String>)
+pub nika_compile::Basis::None
+pub nika_compile::Basis::Unjudged(alloc::vec::Vec<alloc::string::String>)
+impl nika_compile::Basis
+pub fn nika_compile::Basis::sources(decision: core::option::Option<&serde_json::value::Value>) -> alloc::vec::Vec<alloc::string::String>
+impl core::clone::Clone for nika_compile::Basis
+pub fn nika_compile::Basis::clone(&self) -> nika_compile::Basis
+impl core::cmp::Eq for nika_compile::Basis
+impl core::cmp::PartialEq for nika_compile::Basis
+pub fn nika_compile::Basis::eq(&self, other: &nika_compile::Basis) -> bool
+impl core::fmt::Debug for nika_compile::Basis
+pub fn nika_compile::Basis::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile::Basis
+impl<D> owo_colors::OwoColorize for nika_compile::Basis
+impl<Q, K> equivalent::Equivalent<K> for nika_compile::Basis where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile::Basis::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile::Basis where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile::Basis::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile::Basis where U: core::convert::From<T>
+pub fn nika_compile::Basis::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile::Basis where U: core::convert::Into<T>
+pub type nika_compile::Basis::Error = core::convert::Infallible
+pub fn nika_compile::Basis::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile::Basis where U: core::convert::TryFrom<T>
+pub type nika_compile::Basis::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile::Basis::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile::Basis where T: core::clone::Clone
+pub type nika_compile::Basis::Owned = T
+pub fn nika_compile::Basis::clone_into(&self, target: &mut T)
+pub fn nika_compile::Basis::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile::Basis where T: 'static + ?core::marker::Sized
+pub fn nika_compile::Basis::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile::Basis where T: ?core::marker::Sized
+pub fn nika_compile::Basis::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile::Basis where T: ?core::marker::Sized
+pub fn nika_compile::Basis::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile::Basis where T: core::clone::Clone
+pub unsafe fn nika_compile::Basis::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile::Basis
+pub fn nika_compile::Basis::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile::Basis where T: core::clone::Clone
+pub fn nika_compile::Basis::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile::Basis where T: 'static
+pub fn nika_compile::Basis::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile::Basis
+pub type nika_compile::Basis::Output = T
 #[non_exhaustive] pub enum nika_compile::CompileError
 pub nika_compile::CompileError::MissingSkeleton(alloc::string::String)
 pub nika_compile::CompileError::Registry(nika_schema::error::SchemaError)
@@ -1848,6 +1896,7 @@ pub fn nika_compile::TriggerRequirement::as_any(&self) -> &(dyn core::any::Any +
 impl<T> typenum::type_operators::Same for nika_compile::TriggerRequirement
 pub type nika_compile::TriggerRequirement::Output = T
 pub const nika_compile::COMPILE_WIRE_VERSION: u32
+pub fn nika_compile::basis(decision: core::option::Option<&serde_json::value::Value>, fresh: core::option::Option<&serde_json::value::Value>, intent: &str) -> nika_compile::Basis
 pub fn nika_compile::compile(request: &nika_compile::CompileRequest) -> core::result::Result<nika_compile::CompileOutcome, nika_compile::CompileError>
 pub fn nika_compile::finding(out: &mut nika_compile::CompileOutcome, kind: nika_compile::DiagnosticKind, target: &str, message: impl core::convert::Into<alloc::string::String>)
 pub fn nika_compile::finish(source: alloc::string::String, out: &mut nika_compile::CompileOutcome)

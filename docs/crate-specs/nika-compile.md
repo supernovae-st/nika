@@ -403,6 +403,32 @@ replacement intent. An optional initial output limit can increase after a report
 truncation, using the same repair count and never exceeding the original hard limit.
 Per-call receipts record the output limit, timeout, elapsed time, stop reason and usage.
 
+## Source basis of a candidate
+
+`basis(decision, fresh, intent)` (`observed/basis.rs`, C9 · F4) judges the source facts a
+candidate's decision recorded against a fresh host observation of the same sources, by the
+grounding law that admitted them; `Basis::sources(decision)` names the sources to observe again.
+A host calls it where a proposal is consented to, so the program consented to is still the one
+those facts justified. The dependencies are every `decision.grounding` key (whatever its
+`grade` or `admissible` labels say: each is graded again, never trusted) and every
+`decision.numbers` policy chosen from observed kinds alone (`bound_by: observed numbers`). A key
+renamed or removed from a declared header, a source now absent, unreadable, outside the project
+or showing no record, a key every sampled record held and some now lack, a key no longer seen in
+a partial sample, or a number field whose sampled values are no longer all numbers (`number`,
+`number_text`) moves the basis (`Basis::Moved`, each in words: source, key, then and now). New,
+removed or reordered rows, another column order and a new peek hash hold it (`Basis::Holds`,
+with how many dependencies were judged): that is data the program reads at run. A key the
+request asserted over a source never observed holds while the source is still not observed, and
+a bounded sample never disproves it. Each dependency is matched to the one fresh row of its
+exact source (`./a.csv` and `a.csv` are one path; two rows, no row or another source's row are
+no answer): a dependency the fresh observation does not cover, or a record naming no source or
+field, is `Basis::Unjudged`, never assumed to hold. A decision with no recorded dependency has
+no basis (`Basis::None`), which is not a proof that the candidate reads nothing. The recorded
+wire shapes are read as they are; the law adds no field to them. Not covered: the canonical
+spellings a text equality matched (`decision.spellings`, a bounded sample law), and anything a
+fresh observation cannot see (the unread tail, values that only appear at run): the use-time
+guards and number policies of the lowered program stay the last check.
+
 ## Door cognition, knowledge and reproducibility
 
 `provenance.cognition` names the cognition an outcome used. `deterministicOnly`

@@ -6,6 +6,8 @@ use grounding::Grade;
 pub(crate) use numbers::numbered;
 use serde_json::{Value, json};
 
+/// The recorded source facts of a candidate judged again against a fresh observation (C9 · F4).
+pub(crate) mod basis;
 mod grounding;
 mod numbers;
 mod spellings;
