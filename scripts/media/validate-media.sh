@@ -92,6 +92,10 @@ required=(
   media/videos/nika-hero.webm
   media/posters/nika-hero.png
   media/nika-hero.gif
+  media/gifs/workflow-gallery.optimized.gif
+  media/videos/workflow-gallery.mp4
+  media/videos/workflow-gallery.webm
+  media/posters/workflow-gallery.png
   media/posters/intent-to-proof.png
   media/storyboards/intent-to-proof.png
   scripts/media/motion/intent-to-proof/README.md
@@ -224,16 +228,13 @@ if re.search(r"\bnika try\b", readme):
     print(" x README.md: showroom `nika try` leaked into the ownership path")
     bad = 1
 
-# The gallery's count claims derive from the released pack, never typed
-# free-hand: "N ... business jobs" must equal the showcase family count.
-gal = pathlib.Path("scripts/media/motion/workflow-gallery.html").read_text(encoding="utf-8")
-claims = {int(n) for n in re.findall(r"(\d+)\s+(?:embedded\s+)?business jobs", gal)}
-listing = subprocess.run(["nika", "examples", "list"], capture_output=True, text=True)
-real = len(re.findall(r"showcase/", listing.stdout)) or len(
-    [ln for ln in listing.stdout.splitlines() if re.match(r"\s*│\s+t\d-", ln)]
-)
-if real and claims and claims != {real}:
-    print(f" x workflow-gallery.html: claims {sorted(claims)} jobs · released pack has {real}")
+# The gallery clip draws and counts what the captured `nika try` listing
+# says (never typed free-hand), so the capture must still be what this
+# binary prints.
+listing = subprocess.run(["nika", "try", "--color", "never"], capture_output=True, text=True)
+captured = pathlib.Path("media/raw/try-gallery.txt").read_text(encoding="utf-8")
+if listing.returncode != 0 or listing.stdout != captured:
+    print(" x media/raw/try-gallery.txt differs from `nika try` — recapture, then re-render workflow-gallery")
     bad = 1
 
 # Freshness: a scene edit without a re-render is how a fixed source keeps
