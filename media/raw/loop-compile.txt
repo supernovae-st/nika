@@ -1,0 +1,3 @@
+Compile ready · source-only Check preview; Run checks its environment again.
+wrote hello.nika
+next · nika run hello.nika

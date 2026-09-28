@@ -1,0 +1,10 @@
+model: mock/echo
+nika: hello
+outputs:
+  greeting: ${{ tasks.greet.output }}
+permits: {}
+tasks:
+  greet:
+    infer:
+      max_tokens: 128
+      prompt: Say hello in French, in one short sentence.

@@ -106,6 +106,22 @@ for (const f of process.argv.slice(1)) {
 rm -rf "$RECOVER_TMP"
 nika explain --color never NIKA-EXEC-001 >"$RAW/explain-exec-001.txt" 2>&1
 
+# ── full-loop ───────────────────────────────────────────────────────────
+# The README's front door, captured as it runs: compile the offline
+# `hello` skeleton, check it, run it (mock/echo: a rehearsal), verify the
+# trace. Run from a scratch dir by relative names, so no path of this
+# machine reaches a transcript.
+LOOP_TMP="$(mktemp -d)"
+(
+  cd "$LOOP_TMP"
+  nika compile --color never hello hello.nika >"$ROOT/$RAW/loop-compile.txt" 2>&1
+  cp hello.nika "$ROOT/$RAW/loop-hello.nika"
+  nika check --color never hello.nika >"$ROOT/$RAW/loop-check.txt" 2>&1
+  nika run --no-progress --color never hello.nika >"$ROOT/$RAW/loop-run.txt" 2>&1
+  nika trace verify --color never >"$ROOT/$RAW/loop-verify.txt" 2>&1
+)
+rm -rf "$LOOP_TMP"
+
 # ── editor-diagnostics ──────────────────────────────────────────────────
 # What the editor shows is what `nika lsp` publishes. The diagnostics are
 # captured for the broken fixture, for the same file once the `asses`
