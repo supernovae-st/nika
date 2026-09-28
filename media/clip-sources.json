@@ -14,5 +14,6 @@
   "spec-anatomy": "sha256:745d1434cf273e8aa03ddeb19ff458ec93a3e9c85fdd23f0aec3286206f9a8b6",
   "static-check-fix": "sha256:0e42863fc66dcd20229c3f29af60fc493ee8682ff45448aa372dff776ebb8f2d",
   "trace-proof": "sha256:5579dcf86858c048c5c2ce1253cb2ccb7d7916ae7faaf5cdbb2b54c8fde24030",
+  "typescript-client": "sha256:44e11fb995627fad1ac85cdbc4110e1fe410f027e3caf8c05abb0cdde62f5093",
   "workflow-gallery": "sha256:7f3b4bb4bd7805245fd7ed7f44690c46198329bd1f99103e3864c0097406713f"
 }

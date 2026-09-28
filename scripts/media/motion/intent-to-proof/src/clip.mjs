@@ -14,7 +14,7 @@ export const CLIPS = [
   'nika-hero', 'static-check-fix', 'chat-to-workflow', 'dag-execution', 'permits-audit',
   'on-error-recover', 'editor-diagnostics', 'workflow-gallery', 'full-loop', 'pr-check-comment',
   'trace-proof', 'spec-anatomy', 'agent-plugin', 'first-session', 'cost-ceiling',
-  'approval-gate',
+  'approval-gate', 'typescript-client',
 ];
 
 export async function loadClip(name) {
