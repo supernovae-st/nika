@@ -30,16 +30,9 @@ else
   say "✔ permits-escape fixture fails check (as shown)"
 fi
 
-if nika check "$FIX/broken-release-notes.nika" >/dev/null 2>&1; then
-  say "✖ broken-release-notes fixture PASSES check — the full-loop asset lies"
-  fail=1
-else
-  say "✔ broken-release-notes fixture fails check (as shown)"
-fi
-
 for wf in "$FIX/fixed-pr-review.nika" "$FIX/meeting-actions.nika" \
   "$FIX/permits-fits.nika" "$FIX/recover-fallback.nika" \
-  "$FIX/fixed-release-notes.nika" "$FIX/invoice-payments.nika" \
+  "$FIX/invoice-payments.nika" \
   "crates/nika-pack/pack/examples/pr-review-fanout.nika"; do
   if nika check "$wf" >/dev/null 2>&1; then
     say "✔ $(basename "$wf") clean (as shown)"
@@ -59,6 +52,9 @@ required=(
   media/brand/nika-logomark.svg
   media/gifs/intent-dag-proof.optimized.gif
   media/gifs/full-loop.optimized.gif
+  media/videos/full-loop.mp4
+  media/videos/full-loop.webm
+  media/posters/full-loop.png
   media/gifs/static-check-fix.optimized.gif
   media/gifs/chat-to-workflow.optimized.gif
   media/gifs/dag-execution.optimized.gif
@@ -263,15 +259,6 @@ for p in sorted(pathlib.Path("scripts/media/motion").glob("*.html")):
     gif_t = last_commit(str(gif))
     if gif_t is not None and gif_t < scene_t:
         print(f" x {gif.name}: older than its scene {p.name} — re-render owed")
-        bad = 1
-for tape in sorted(pathlib.Path("scripts/media/tapes").glob("*.tape")):
-    tape_t = last_commit(str(tape))
-    gif = pathlib.Path("media/gifs") / (tape.stem + ".optimized.gif")
-    if tape_t is None or not gif.exists() or dirty(str(gif)):
-        continue
-    gif_t = last_commit(str(gif))
-    if gif_t is not None and gif_t < tape_t:
-        print(f" x {gif.name}: older than its tape {tape.name} — re-render owed")
         bad = 1
 sys.exit(bad)
 PY

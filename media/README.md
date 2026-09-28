@@ -80,18 +80,9 @@ HTML/SVG timelines rendered frame-by-frame in headless Chrome. The README hero
 has a checked-in production storyboard beside its scene. Open any scene in a
 browser to preview it live.
 
-Terminal captures (the second lane) are VHS tapes in `scripts/media/tapes/`,
-rendered against the real installed binary in a staged workdir:
-
-```sh
-brew install vhs                              # once
-bash scripts/media/render-tape.sh full-loop   # → media/gifs/full-loop.optimized.gif
-bash scripts/media/validate-media.sh          # same honesty + budget gate
-```
-
-Their workflow fixtures live in `scripts/media/fixtures/` and are gated in
-both directions like everything else (the broken half must keep failing
-`nika check`, the fixed half must stay clean).
+Workflow fixtures live in `scripts/media/fixtures/` and are gated in both
+directions (a broken half must keep failing `nika check`, a fixed half must
+stay clean).
 
 ## Embedding
 

@@ -27,7 +27,7 @@ export const cw = (st = MONO) => measure('M', st);
 // a system fallback font would make the render depend on the machine. These
 // characters are drawn as vectors in their own monospace cell instead: the
 // text is unchanged, only how the glyph is painted.
-const VECTOR = new Set([...'✔✖⚠○↳▸╭╰━≥↔⋯🦋']);
+const VECTOR = new Set([...'✔✖⚠○↳▸╭╰━≥≤↔⋯🦋']);
 
 function glyph(R, ch, x0, y, st, color, alpha, glow) {
   const adv = cw(st), s = st.size;
@@ -52,6 +52,8 @@ function glyph(R, ch, x0, y, st, color, alpha, glow) {
     case '╰': poly(R, [[cx, y - s * 1.1], [cx, cy - s * 0.25], [cx + adv * 0.2, cy], [x0 + adv, cy]], S); break;
     case '━': line(R, x0, cy, x0 + adv, cy, { ...S, w: Math.max(2, s * 0.16) }); break;
     case '≥': poly(R, [[cx - adv * 0.25, cy - s * 0.3], [cx + adv * 0.25, cy - s * 0.1], [cx - adv * 0.25, cy + s * 0.1]], S);
+      line(R, cx - adv * 0.25, cy + s * 0.28, cx + adv * 0.25, cy + s * 0.28, S); break;
+    case '≤': poly(R, [[cx + adv * 0.25, cy - s * 0.3], [cx - adv * 0.25, cy - s * 0.1], [cx + adv * 0.25, cy + s * 0.1]], S);
       line(R, cx - adv * 0.25, cy + s * 0.28, cx + adv * 0.25, cy + s * 0.28, S); break;
     case '↔': line(R, x0 + adv * 0.1, cy, x0 + adv * 0.9, cy, S);
       poly(R, [[x0 + adv * 0.3, cy - s * 0.16], [x0 + adv * 0.1, cy], [x0 + adv * 0.3, cy + s * 0.16]], S);

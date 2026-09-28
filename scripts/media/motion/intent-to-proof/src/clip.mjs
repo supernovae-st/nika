@@ -12,7 +12,7 @@ import { background, vignette } from './hud.mjs';
 
 export const CLIPS = [
   'nika-hero', 'static-check-fix', 'chat-to-workflow', 'dag-execution', 'permits-audit',
-  'on-error-recover', 'editor-diagnostics', 'workflow-gallery',
+  'on-error-recover', 'editor-diagnostics', 'workflow-gallery', 'full-loop',
 ];
 
 export async function loadClip(name) {
