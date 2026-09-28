@@ -14,7 +14,7 @@ pub struct InferenceRoute {
     pub provider: String,
     /// Exact selected wire model; independent of the returned model.
     pub model: String,
-    /// Full final URL, including path. Never a normalized origin.
+    /// Full final URL, including path: exact in-memory identity. Durable forms name its origin.
     pub endpoint: String,
 }
 impl InferenceRoute {
@@ -35,7 +35,7 @@ impl InferenceRoute {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[non_exhaustive]
 pub struct InferenceCall {
-    /// Safe full endpoint handed to HTTP. It does not prove the final route.
+    /// Safe full endpoint handed to HTTP, held in memory. It does not prove the final route.
     pub requested_endpoint: Option<String>,
     /// Actual response endpoint and selected wire identity, when observed.
     pub route: Option<InferenceRoute>,
