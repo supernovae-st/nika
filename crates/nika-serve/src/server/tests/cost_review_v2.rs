@@ -296,6 +296,69 @@ async fn version_1_refuses_multiplied_runs_and_versions_never_cross() {
     server.stop().await.expect("stop");
 }
 
+const FREE: &str = "nika: free\nmodel: openrouter/qwen/qwen3.8-27b:free\npermits: {}\ntasks:\n  draft:\n    infer: { prompt: text, max_tokens: 64 }\n";
+
+/// An admitted API lane for the exact declared-free route `FREE` names.
+fn free_plan() -> nika_service_execution::ExecutionAccessPlan {
+    use nika_providers::probe::{ExecutionLocus, ProviderProbe, ProviderReadiness};
+    let ready = ProviderReadiness::new(
+        true,
+        true,
+        None,
+        None,
+        true,
+        ExecutionLocus::Cloud,
+        nika_types::access::AccessClass::Api,
+    );
+    nika_providers::resolve_execution_plan(
+        &[nika_providers::ModelNeed::new(
+            "openrouter/qwen/qwen3.8-27b:free",
+            true,
+            false,
+        )],
+        &[ProviderProbe::new(
+            "openrouter",
+            true,
+            true,
+            "OPENROUTER_API_KEY",
+            false,
+            ready,
+            "https://openrouter.ai/api/v1/chat/completions",
+        )],
+        Some("api"),
+    )
+}
+
+/// Zero work and an exact declared-free route both answer that no review is
+/// needed and bind an observer; each names its own reason, which the plan's
+/// variant decides, and neither holds the lease.
+#[tokio::test(flavor = "multi_thread")]
+async fn zero_work_and_a_declared_free_route_answer_their_own_reasons() {
+    let world = fan_world(&FAN.replace("[a, b, c]", "[]"));
+    std::fs::write(world.workflows.join("free.nika"), FREE).expect("workflow");
+    let backend = Arc::new(ReviewedBackend::default());
+    let (server, state) = start(&world, backend, disarmed(), true).await;
+    let zero = server.request(&request(2, &named("fan.nika"), "k-z")).await;
+    assert_eq!(zero.status, 200, "{}", zero.body);
+    let door = state.cost_review.as_ref().expect("door");
+    *door.plan.lock().expect("plan") = Some(free_plan());
+    let free = server
+        .request(&request(2, &named("free.nika"), "k-f"))
+        .await;
+    assert_eq!(free.status, 200, "{}", free.body);
+    for (answer, reason) in [
+        (zero.json(), "zero physical requests"),
+        (free.json(), "exact declared-free"),
+    ] {
+        let shown = (&answer["review_required"], &answer["observer"]);
+        assert_eq!(shown, (&json!(false), &json!(true)), "{answer}");
+        let said = answer["reason"].as_str().expect("reason");
+        assert!(said.starts_with(reason), "{said}");
+    }
+    assert!(lease_is_free(&world));
+    server.stop().await.expect("stop");
+}
+
 /// Under a present server ceiling, a v2 fan is refused by the cap and names
 /// its remedy; a count only the run decides is refused in its own words.
 #[tokio::test(flavor = "multi_thread")]

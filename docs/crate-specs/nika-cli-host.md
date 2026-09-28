@@ -215,14 +215,19 @@ Since B12 (2026-09-28) `prepare` frames the review from Service's typed
 the default) instead of `request_bound`. The review confirms its total
 (`for_run`), its in-flight bound (`with_concurrency`), its per-task breakdown
 (`with_breakdown`) and, only when a task authored `retry.max_attempts` above
-one, the retry law (`with_authored_retry`). `ReviewedRun::dispatch_bound()` and
-`RunCost::dispatch_bound()` expose the same typed value. The review's question
+one, the retry law (`with_authored_retry`). `ReviewedRun::dispatch_bound()`
+exposes the same typed value, the single positive-work value. The review's question
 (which the CLI challenge binds) and the Serve witness therefore cover exactly the
 reviewed limits. The order is unchanged: clear, then the host's `ask`, then a
 shape refusal in its own words (`Cardinality` for a count only the run decides).
-One addition comes before `ask`: a zero total binds the no-paid-dispatch observer
-(`observe_run`, no allowance, no lease kept) with a zero `dispatch_bound()`, so an
-empty fan runs and sends nothing, as B11 left it. Right before the review is
+One addition comes before `ask`: a zero total returns its own plan,
+`RunCostPlan::Zero(observer)`. That is the no-paid-dispatch observer
+(`observe_run`: no allowance, no lease kept), which grants no unknown-cost
+authority, so an empty fan runs and sends nothing, as B11 left it. The variant,
+never a field on the account, tells it from a declared-free `Observer`. It is
+decided before any cap judgment, because sending nothing needs none.
+`review_with_model` and Serve's unreviewed jobs bind it as they bind an observer.
+Serve's version-2 door answers it as no review; version 1 refuses it. Right before the review is
 framed, host evidence whose own `unknown_cost_refusal()` refuses every
 unknown-cost choice returns `RunCostPlan::HardCapped(words)`. The words are
 unchanged; that variant is the one refusal a host may teach its cap's remedy

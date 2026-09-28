@@ -318,7 +318,7 @@ fn unreviewed_cost(
         (evidence, &ask),
     )? {
         RunCostPlan::Unneeded => Ok(None),
-        RunCostPlan::Observer(cost) => Ok(Some(*cost)),
+        RunCostPlan::Observer(cost) | RunCostPlan::Zero(cost) => Ok(Some(*cost)),
         _ => Err(UNREVIEWED.to_owned()),
     }
 }

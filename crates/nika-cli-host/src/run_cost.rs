@@ -30,16 +30,8 @@ pub struct RunCost {
     pub account: InferenceAdmission,
     pub config: nika_runtime::RuntimeConfig,
     journal: Option<RunJournal>,
-    dispatch: Option<DispatchBound>,
 }
 impl RunCost {
-    /// The typed bound an unknown-cost Run was judged under: its confirmed
-    /// review's, or zero requests for one that sends nothing (its observer).
-    /// `None` for a declared-free or run-time observer.
-    #[must_use]
-    pub fn dispatch_bound(&self) -> Option<&DispatchBound> {
-        self.dispatch.as_ref()
-    }
     /// Append observation only; no callable authority is serialized.
     /// # Errors
     /// Unreadable account or unwritable descriptor-rooted journal.
@@ -85,6 +77,9 @@ pub enum RunCostPlan {
     Unneeded,
     /// Declared-free or run-time routes: the observer bound before any effect.
     Observer(Box<RunCost>),
+    /// An unknown-cost route whose typed bound is zero physical requests: the
+    /// no-paid-dispatch observer, bound before any question or allowance.
+    Zero(Box<RunCost>),
     /// One fresh review of an unknown-cost Run, holding this project's cost lease.
     Review(Box<ReviewedRun>),
     /// The host's own cap evidence refuses every unknown-cost choice, in the
@@ -140,12 +135,8 @@ pub fn prepare(
     // work buys no allowance: the no-paid-dispatch observer runs it.
     let dispatch =
         nika_service_execution::run_cost::dispatch_bound(wf, plan, unknown.len(), inputs);
-    if let Ok(bound) = &dispatch
-        && bound.requests() == 0
-    {
-        let mut observer = run_observer(wf);
-        observer.dispatch = Some(bound.clone());
-        return Ok(RunCostPlan::Observer(Box::new(observer)));
+    if dispatch.as_ref().is_ok_and(|bound| bound.requests() == 0) {
+        return Ok(RunCostPlan::Zero(Box::new(run_observer(wf))));
     }
     ask()?;
     // The host's own review stays a message: the typed reason renders its words.
@@ -272,7 +263,6 @@ impl ReviewedRun {
             account,
             config,
             journal: Some(journal),
-            dispatch: Some(self.dispatch),
         };
         cost.observe("prepared")?;
         Ok(cost)
@@ -350,7 +340,7 @@ pub fn review_with_model(
         (evidence, &ask),
     )? {
         RunCostPlan::Unneeded => return Ok(None),
-        RunCostPlan::Observer(cost) => return Ok(Some(*cost)),
+        RunCostPlan::Observer(cost) | RunCostPlan::Zero(cost) => return Ok(Some(*cost)),
         RunCostPlan::Review(review) => review,
         RunCostPlan::HardCapped(why) => return Err(why),
     };
@@ -394,7 +384,6 @@ fn run_observer(wf: &nika_schema::raw::RawWorkflow) -> RunCost {
         account,
         config,
         journal: None,
-        dispatch: None,
     }
 }
 
@@ -444,7 +433,6 @@ mod tests {
             account,
             config,
             journal: Some(journal),
-            dispatch: None,
         }
     }
     fn rows(root: &Path) -> Vec<serde_json::Value> {
@@ -1112,7 +1100,6 @@ mod tests {
         }
         let answer = review.challenge().response(true);
         let cost = review.confirm(&answer, &source).unwrap();
-        assert_eq!(cost.dispatch_bound().map(DispatchBound::requests), Some(6));
         let receipt = cost.account.snapshot().unwrap();
         let choice = serde_json::to_value(receipt.unknown_cost).unwrap();
         assert_eq!(choice["max_requests"], 6);
@@ -1130,8 +1117,9 @@ mod tests {
         assert!(!review.challenge().question.contains("Task retries"));
         assert!(!review.dispatch_bound().authored_retry());
     }
-    /// B12 · zero requests take the no-paid-dispatch observer before any
-    /// question: no allowance, no lease kept, and the operator's value counts.
+    /// B12 · zero requests take the no-paid-dispatch observer, as their own
+    /// plan, before any question: no allowance, no lease kept. The run's
+    /// validated inputs decide, the operator's value before the default.
     #[test]
     fn zero_work_binds_the_observer_before_any_question() {
         let bound_fan = "  ask:\n    for_each: { items: '${{ inputs.items }}' }\n    infer: { prompt: 'x ${{ item }}', max_tokens: 16 }\n";
@@ -1143,26 +1131,62 @@ mod tests {
             let inputs: Inputs = items.into_iter().map(|v| ("items".into(), v)).collect();
             let local = CostHostEvidence::unmanaged_interactive_local();
             let (plan, asked, _) = hosted(root.path(), &tasks, &inputs, local);
-            let Ok(RunCostPlan::Observer(cost)) = plan else {
+            let Ok(RunCostPlan::Zero(cost)) = plan else {
                 panic!("zero work never asks: {tasks}");
             };
             assert_eq!(asked, 0);
-            assert_eq!(cost.dispatch_bound().map(DispatchBound::requests), Some(0));
-            assert!(cost.account.observes_declared_free_only());
+            assert!(cost.account.observes_declared_free_only() && cost.journal.is_none());
             assert!(clear_exposure(root.path(), "next").is_ok(), "lease free");
         }
-        // The operator's value before the default: one bound item is reviewed.
+        // The operator's items are reviewed; the default alone is one item.
+        for (items, requests) in [(Some(serde_json::json!(["x", "y"])), 2), (None, 1)] {
+            let root = tempfile::tempdir().unwrap();
+            let inputs: Inputs = items.into_iter().map(|v| ("items".into(), v)).collect();
+            let local = CostHostEvidence::unmanaged_interactive_local();
+            let (plan, ..) = hosted(root.path(), bound_fan, &inputs, local);
+            let Ok(RunCostPlan::Review(review)) = plan else {
+                panic!("bound items are reviewed");
+            };
+            assert_eq!(review.bounds().0, requests);
+        }
+    }
+    /// B12 r5 · zero work and an exact declared-free route are distinct plans:
+    /// each binds an observer that grants no unknown-cost authority, and only
+    /// the plan's variant tells them apart, never a field on the account.
+    #[test]
+    fn zero_work_and_a_declared_free_route_are_distinct_plans() {
         let root = tempfile::tempdir().unwrap();
-        let inputs: Inputs = [("items".into(), serde_json::json!(["x", "y"]))].into();
+        let ask = || Ok(());
         let local = CostHostEvidence::unmanaged_interactive_local();
-        let (plan, ..) = hosted(root.path(), bound_fan, &inputs, local);
-        let Ok(RunCostPlan::Review(review)) = plan else {
-            panic!("bound items are reviewed");
+        let free = prepare(
+            root.path(),
+            Some(root.path()),
+            "nika: free\n",
+            "exe-free".into(),
+            &free_wf("", ""),
+            None,
+            &free_plan(),
+            &Inputs::new(),
+            None,
+            (local, &ask),
+        );
+        let Ok(RunCostPlan::Observer(free)) = free else {
+            panic!("an exact declared-free route binds the observer");
         };
-        assert_eq!(review.bounds().0, 2);
+        let empty = FAN.replace("[a, b, c]", "[]");
+        let local = CostHostEvidence::unmanaged_interactive_local();
+        let (zero, asked, _) = hosted(root.path(), &empty, &Inputs::new(), local);
+        let Ok(RunCostPlan::Zero(zero)) = zero else {
+            panic!("zero work is its own plan");
+        };
+        assert_eq!(asked, 0);
+        for cost in [&free, &zero] {
+            assert!(cost.account.observes_declared_free_only() && cost.journal.is_none());
+        }
     }
     /// B12 · a count only the run decides is refused after the host's gate,
-    /// in its own words; a hard cap is named as the cause only when it is.
+    /// in its own words; a hard cap is named as the cause only when it is, and
+    /// zero work under a cap stays zero (sending nothing needs no cap judgment).
     #[test]
     fn a_run_decided_count_refuses_and_a_hard_cap_names_only_itself() {
         let upstream = "  load:\n    invoke: { tool: 'nika:jq', args: { input: [1], expression: '.' } }\n  ask:\n    with: { list: '${{ tasks.load.output }}' }\n    for_each: { items: '${{ with.list }}' }\n    infer: { prompt: 'x ${{ item }}', max_tokens: 16 }\n";
@@ -1194,6 +1218,9 @@ mod tests {
             panic!("the cap is the cause");
         };
         assert_eq!(Some(why), capped().unknown_cost_refusal());
+        let empty = FAN.replace("[a, b, c]", "[]");
+        let (plan, asked, _) = hosted(root.path(), &empty, &Inputs::new(), capped());
+        assert!(matches!(plan, Ok(RunCostPlan::Zero(_))) && asked == 0);
         assert!(clear_exposure(root.path(), "next").is_ok(), "lease free");
     }
 }

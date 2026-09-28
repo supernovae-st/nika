@@ -339,8 +339,8 @@ fn frame(
     Ok(match prepared {
         RunCostPlan::Review(r) if v1 && r.dispatch_bound().multiplied() => return Err(refuse_v1()),
         RunCostPlan::Review(r) => Framed::Review(Box::new(((r, session, plan), execution))),
-        RunCostPlan::Observer(c) if v1 && c.dispatch_bound().is_some() => return Err(refuse_v1()),
-        RunCostPlan::Observer(c) if c.dispatch_bound().is_some() => Framed::NotRequired(true, ZERO),
+        RunCostPlan::Zero(_) if v1 => return Err(refuse_v1()),
+        RunCostPlan::Zero(_) => Framed::NotRequired(true, ZERO),
         RunCostPlan::Observer(_) => Framed::NotRequired(true, OBSERVED),
         RunCostPlan::HardCapped(why) => return Err(Refused::Capped(why)),
         _ => Framed::NotRequired(false, UNNEEDED),

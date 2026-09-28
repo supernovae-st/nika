@@ -552,7 +552,12 @@ task). The witness digests that document, so the approval confirms exactly the
 reviewed total, width and retry law. The job reference is unchanged: one
 `POST /v1/jobs` carrying the review id and witness. A zero-item fan answers
 200 `review_required: false`, `observer: true`, and its job binds the per-Run
-observer that sends nothing.
+observer that sends nothing. The answer comes from the evaluator's own
+`RunCostPlan::Zero` and carries the zero reason; an exact declared-free route's
+`Observer` keeps its own reason. An unreviewed job over the same zero-item fan
+binds that observer too (the one `Zero` arm of the production gate). The job's
+validated inputs decide: its declared default, or any item, refuses as
+unreviewed.
 
 Version 1 stays byte-for-byte closed. A fan or an authored retry (a zero-item
 fan included) refuses 422 `cost_review_refused` and names `POST /v2/cost-reviews`.

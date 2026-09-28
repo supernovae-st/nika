@@ -49,6 +49,12 @@ fn driver(root: &Path, model: &str, max_tokens: u32) -> ServiceExecutionDriver {
     let source = format!(
         "nika: gate\nmodel: {model}\npermits: {{}}\ntasks:\n  ask:\n    infer: {{ prompt: hi, max_tokens: {max_tokens} }}\n"
     );
+    admitted(root, &source)
+}
+
+/// A driver over `source`, admitted as the project's `gate.nika`.
+#[cfg(test)]
+fn admitted(root: &Path, source: &str) -> ServiceExecutionDriver {
     std::fs::write(root.join("gate.nika"), source).expect("workflow");
     let project = nika_fs::OwnedDir::open(root).expect("project");
     let service = nika_execution::ExecutionService::default();
@@ -146,6 +152,32 @@ fn the_unreviewed_refusal_keeps_its_review_route_in_the_job_record() {
         bounded.contains("admits POST /v1/cost-reviews, then one job"),
         "{bounded}"
     );
+}
+
+/// B12 r5 · an unreviewed job whose fan sends nothing binds the per-Run
+/// observer, as `nika run` does, and its validated inputs decide: the same
+/// workflow with its declared default or with items refuses before the worker.
+#[test]
+fn an_unreviewed_zero_fan_binds_the_observer_and_its_inputs_decide() {
+    let model = "openai/gpt-4.1-mini";
+    let plan = plan_with(model, "openai", AccessClass::Api, BillingClass::ApiMetered);
+    let source = format!(
+        "nika: gate\nmodel: {model}\ninputs:\n  items: {{ type: {{ array: string }}, default: [a] }}\npermits: {{}}\ntasks:\n  ask:\n    for_each: {{ items: '${{{{ inputs.items }}}}' }}\n    infer: {{ prompt: 'x ${{{{ item }}}}', max_tokens: 16 }}\n"
+    );
+    let judge = |items: Option<serde_json::Value>| {
+        let root = tempfile::tempdir().expect("root");
+        let inputs: BTreeMap<String, serde_json::Value> =
+            items.into_iter().map(|v| ("items".to_owned(), v)).collect();
+        unreviewed_cost(root.path(), &admitted(root.path(), &source), &plan, &inputs)
+    };
+    let zero = judge(Some(serde_json::json!([])))
+        .expect("zero work needs no review")
+        .expect("the observer");
+    assert!(zero.account.observes_declared_free_only());
+    for items in [None, Some(serde_json::json!(["a", "b"]))] {
+        let refused = judge(items).err().expect("positive work needs a review");
+        assert!(refused.contains("price unknown"), "{refused}");
+    }
 }
 
 /// C4 parity on the resident: an exact declared-free route binds the same
