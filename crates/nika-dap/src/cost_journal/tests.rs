@@ -88,6 +88,38 @@ fn settled_rows_clear_and_an_uncertain_settlement_blocks_without_a_new_row() {
     assert_eq!(journal(&root), before, "a settled Run is never re-derived");
 }
 
+/// B12 · the fold reads an observation by field: a choice widened to two
+/// requests in flight with the authored-retry law, and an answered 429, settle
+/// and block exactly as the historical rows above (nothing fails closed).
+#[test]
+fn a_widened_choice_and_an_answered_attempt_fold_as_before() {
+    let widened = |invocation: &str, phase: &str, state: &str, pid: u64| {
+        let mut row: serde_json::Value =
+            serde_json::from_str(&row(invocation, phase, state, Some((pid, HOST)))).unwrap();
+        row["observation"]["unknown_cost"] = json!({"candidate": "c", "invocation": invocation,
+            "provider": "deepseek", "model": "m", "endpoint": "https://api.deepseek.com/v1/chat/completions",
+            "max_requests": 6, "max_in_flight": 2, "authored_retry": true,
+            "max_output_tokens": 8192, "timeout_ms": 120_000, "declared_tariff": null});
+        if phase == "settled" {
+            row["observation"]["unknown_calls"] = json!(1);
+            row["observation"]["unknown_attempts"] = json!([{"id": 0, "sent": true,
+                "estimated_nano_usd": null, "note": "answered HTTP 429; usage and USD cost unknown"}]);
+        }
+        row.to_string()
+    };
+    let lines = [
+        widened("run-a", "prepared", "Open", 7),
+        widened("run-a", "settled", "Closed", 7),
+        widened("run-b", "prepared", "Open", 8),
+        widened("run-b", "settled", "Uncertain", 8),
+    ];
+    let (_root, nika) = project(&lines);
+    assert_eq!(
+        runs(&nika, HOST, "observer"),
+        vec![Blocker::new("run-b".into(), Exposure::Uncertain)]
+    );
+}
+
 /// P3 · the restart derives the killed Run's UNKNOWN once, from the exact
 /// `prepared` row its leased writer left, and appends it; a second fold
 /// reads the recorded UNKNOWN and appends nothing.
