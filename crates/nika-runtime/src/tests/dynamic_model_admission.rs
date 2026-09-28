@@ -79,6 +79,9 @@ impl HttpPostDyn for Wire {
 struct Wires {
     normal: Arc<Wire>,
     bounded: Arc<Wire>,
+    /// The `ollama` endpoint this test owns (CI 291): the B-5 run gate dials
+    /// it for real, so the host's port 11434 never decides a result.
+    local: Option<String>,
 }
 
 impl Wires {
@@ -86,8 +89,33 @@ impl Wires {
         Self {
             normal: Wire::new(false, completion),
             bounded: Wire::new(true, completion),
+            local: None,
         }
     }
+}
+
+/// A local engine this test owns. It answers the B-5 liveness `GET /` with a
+/// bare 404 (as alive as a 200) and nothing else; the injected wire still
+/// carries every POST (the localhost-is-shared law).
+#[allow(clippy::disallowed_methods)] // test seam — the probe's own worker pattern
+fn owned_local_engine() -> String {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
+    let port = listener.local_addr().expect("addr").port();
+    std::thread::spawn(move || {
+        while let Ok((mut stream, _)) = listener.accept() {
+            use std::io::Write as _;
+            let _ = stream.write_all(b"HTTP/1.0 404 Not Found\r\n\r\n");
+        }
+    });
+    format!("http://127.0.0.1:{port}/v1/chat/completions")
+}
+
+/// A loopback endpoint nothing listens on: bound, then released.
+fn released_local_endpoint() -> String {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
+    let port = listener.local_addr().expect("addr").port();
+    drop(listener);
+    format!("http://127.0.0.1:{port}/v1/chat/completions")
 }
 
 /// Run `source` with `m` bound as the operator's `--var`, over the registry
@@ -106,10 +134,13 @@ async fn run_with(
     )
     .expect("fixture parses");
     let report = nika_check::check(&wf);
-    let config = ProvidersConfig::new()
+    let mut config = ProvidersConfig::new()
         .with_key("openrouter", Secret::new("fixture"))
         .with_key("deepseek", Secret::new("fixture"))
         .with_key("mistral", Secret::new("fixture"));
+    if let Some(local) = &wires.local {
+        config = config.with_base_url("ollama", local.clone());
+    }
     let mut registry = ProviderRegistry::new(Arc::clone(&wires.normal), config);
     let mut runtime_config = RuntimeConfig::default();
     if let Some(account) = account {
@@ -236,15 +267,14 @@ async fn unsupported_free_shapes_and_unknown_cost_routes_never_reach_the_wire() 
 /// same observer: the normal client, protocol retries, no receipt attempt.
 #[tokio::test]
 async fn run_time_paid_local_and_mock_routes_keep_their_composition() {
+    let local = owned_local_engine();
     for (m, url) in [
         ("deepseek/deepseek-v4-pro", Some(DEEPSEEK)),
-        (
-            "ollama/llama3.2",
-            Some("http://127.0.0.1:11434/v1/chat/completions"),
-        ),
+        ("ollama/llama3.2", Some(local.as_str())),
         ("mock/echo", None),
     ] {
-        let wires = Wires::new(5);
+        let mut wires = Wires::new(5);
+        wires.local = Some(local.clone());
         let account = InferenceAdmission::observe_run();
         let (outcome, events) = run_with(&source(""), m, Some(&account), &wires, None).await;
         assert!(outcome.ok, "{m}: {outcome:?}");
@@ -277,6 +307,55 @@ async fn run_time_paid_local_and_mock_routes_keep_their_composition() {
     assert!(
         matches!(field(done, "cost_usd"), Some(FieldValue::Float(c)) if *c > 0.0),
         "the paid route keeps its tariff price"
+    );
+}
+
+/// CI 291's control: only the owned engine let the local route through. With
+/// nothing listening on its endpoint, the B-5 run gate still refuses before
+/// any wire call, whatever the host runs on 11434, and the ledger stays
+/// empty: a request never handed to the transport is known-not-sent.
+#[tokio::test]
+async fn a_run_time_local_route_with_no_server_is_refused_before_the_wire() {
+    // A released port can be re-bound by another process before the probe
+    // (the probe's own test meets the same race): try a few fresh ones.
+    let mut refused = false;
+    for _ in 0..5 {
+        let mut wires = Wires::new(5);
+        wires.local = Some(released_local_endpoint());
+        let account = InferenceAdmission::observe_run();
+        let (outcome, events) =
+            run_with(&source(""), "ollama/llama3.2", Some(&account), &wires, None).await;
+        let error = outcome.records.get("ask").and_then(|r| r.error.as_ref());
+        let Some(error) = error.filter(|e| e.message.contains("nothing answers there")) else {
+            continue;
+        };
+        assert!(!outcome.ok);
+        assert!(
+            error.message.contains("BEFORE any wire call"),
+            "{}",
+            error.message
+        );
+        assert!(
+            wires.normal.posts().is_empty(),
+            "the gate stops before the wire"
+        );
+        assert!(wires.bounded.posts().is_empty());
+        let observed = receipt(&events);
+        assert!(
+            observed["attempts"]
+                .as_array()
+                .expect("attempts")
+                .is_empty(),
+            "{observed}"
+        );
+        let terminal = events.iter().rfind(|e| e.is_terminal()).expect("terminal");
+        assert_eq!(field(terminal, "unpriced_calls"), Some(&FieldValue::Int(0)));
+        refused = true;
+        break;
+    }
+    assert!(
+        refused,
+        "a port nothing listens on is refused by the run gate"
     );
 }
 
