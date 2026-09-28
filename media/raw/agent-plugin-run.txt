@@ -1,0 +1,16 @@
+rehearsal: mock/echo answers by echoing the prompt — not a real answer · a real one: `--model <provider/model>` with its key, or `--access <seat>` (nika doctor lists them)
+  🦋 nika · release-notes · 3 tasks
+     permits ✓ declared boundary · default-deny
+
+  ✔  changes  invoke · nika:read  1ms
+  ✔  notes    infer · mock/echo  0ms
+  ✔  save     invoke · nika:write  1ms
+  3 tasks · 3 waves · 0 retries · 40 tok
+  ── 3/3 done · unpriced (1 call) · elapsed 0.0s ─────────────────
+    wrote ./release-notes.md (225B)
+    wrote .nika/traces
+    said "mock(echo) · Write this week's release note…"
+    see it whole: nika trace outputs
+    rehearsal · a mock model echoed the prompt — not a real answer
+  explore: nika run release-notes.nika --json > run.ndjson · nika trace outputs run.ndjson
+    trace: .nika/traces/2026-09-28T19-12-15Z-c3f2.ndjson · 15 events · chain c1b41d196ff423ed98569977035bcd2ed403827f376cfbfacb88e671f042638d
