@@ -412,3 +412,36 @@ fn kind_counts_this_law_cannot_read_leave_the_policy_unjudged() {
     }
     assert_eq!(with_counts(json!({})), Basis::Holds(2), "no sampled value");
 }
+
+#[test]
+fn an_unknown_or_missing_numeric_discriminator_is_unjudged() {
+    let fresh = observed(&[(SOURCE, INPUT)]);
+    for entry in [
+        json!({}),
+        json!({"source": SOURCE, "field": "amount_usd"}),
+        json!({"bound_by": "invented", "source": SOURCE, "field": "amount_usd"}),
+    ] {
+        let recorded = json!({"numbers": [entry]});
+        assert!(
+            matches!(
+                basis(Some(&recorded), Some(&fresh), REQUEST),
+                Basis::Unjudged(_)
+            ),
+            "a present numeric record must not disappear: {recorded}"
+        );
+    }
+    for bound_by in ["answer", "pending", "unobserved", "grounding", "default"] {
+        let recorded = json!({"numbers": [{"bound_by": bound_by}]});
+        assert_eq!(
+            basis(Some(&recorded), Some(&fresh), REQUEST),
+            Basis::None,
+            "a recognized policy not inferred from observed kinds creates no such dependency"
+        );
+    }
+    let observed = json!({"numbers": [{"bound_by": "observed numbers", "source": SOURCE,
+        "field": "amount_usd"}]});
+    assert_eq!(
+        basis(Some(&observed), Some(&fresh), REQUEST),
+        Basis::Holds(1)
+    );
+}

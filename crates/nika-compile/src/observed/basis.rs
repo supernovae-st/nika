@@ -154,6 +154,18 @@ fn unreadable(decision: Option<&Value>) -> Vec<String> {
                 fields
                     .iter()
                     .any(|(field, typed)| e.get(*field).is_some_and(|v| !typed(v)))
+                    || (record == "numbers"
+                        && !matches!(
+                            e.get("bound_by").and_then(Value::as_str),
+                            Some(
+                                "observed numbers"
+                                    | "answer"
+                                    | "pending"
+                                    | "unobserved"
+                                    | "grounding"
+                                    | "default"
+                            )
+                        ))
             })
         });
         if bad {
