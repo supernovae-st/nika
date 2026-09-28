@@ -371,11 +371,11 @@ fn rows_read(s: &Shape, reads: &[&str]) -> bool {
 }
 
 /// Where a segment's clauses go (R4 F5). They join the last step when a row filter reading
-/// `reads` keeps the same rows before its stages as after them: after a join (which always
-/// runs first), a stable sort with no cut, whole-row duplicates removed, a projection keeping
-/// the read columns, or a grouping on the one read key. Otherwise they open a step on the rows
-/// the last step wrote, or the text is not read (`None`): never a filter moved before a cut, a
-/// total or a grouping it does not commute with.
+/// `reads` keeps the same rows and the same failures before its stages as after them: after a
+/// join (which always runs first), whole-row duplicates removed, or a projection keeping the
+/// read columns, stages that neither drop a row nor read a number. Otherwise they open a step on
+/// the rows the last step wrote, or the text is not read (`None`): never a filter moved before a
+/// sort, a cut, a grouping or a total, whose numbers the stated order reads under their policy.
 pub(crate) fn place_clauses(
     steps: &mut Vec<Step>,
     clauses: Vec<Clause>,
@@ -395,7 +395,12 @@ pub(crate) fn place_clauses(
     let last = steps.last_mut()?;
     let s = &last.shape;
     let readable = rows_read(s, &reads);
-    let before = s.limit.is_none() && s.distinct_by.is_empty() && s.derived.is_empty();
+    let before = s.limit.is_none()
+        && s.distinct_by.is_empty()
+        && s.derived.is_empty()
+        && s.sort_by.is_none()
+        && s.group_by.is_none()
+        && s.aggregations.is_empty();
     if !(before && readable) {
         if !readable {
             return None;

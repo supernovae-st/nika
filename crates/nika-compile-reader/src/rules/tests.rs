@@ -602,20 +602,36 @@ fn stages_run_in_the_order_the_request_states() {
     assert_eq!(rule.fields(), ["amount_usd", "status"]);
 }
 
-/// A reorder needs a stated precondition (R4 F5): a filter moves before a stable sort with no
-/// cut, and before a grouping when it reads the key alone, and nothing else.
+/// A reorder needs a stated precondition (R4 F5): a filter moves only before stages that neither
+/// drop a row nor read a number (whole-row duplicates removed, a projection keeping what it
+/// reads). After a sort or a grouping it runs in a later step, so a number the stated order reads
+/// stays under its policy (reproduced on the emitted program in the cognition transform tests).
 #[test]
 fn a_filter_moves_before_a_stage_only_where_it_commutes() {
     assert_eq!(
+        jq("keep only the id and status of each ticket ; keep the tickets whose status is paid"),
+        Some(
+            "[.records[] | select(.status == \"paid\")] | map({\"id\": .id, \"status\": .status})"
+                .to_owned()
+        )
+    );
+    assert_eq!(
+        jq("remove the duplicate lines ; keep the rows whose status is paid"),
+        Some(format!(
+            "[.records[] | select(.status == \"paid\")] | {}",
+            crate::aggregate::DISTINCT
+        ))
+    );
+    assert_eq!(
         jq("sort the rows by amount ; keep the rows whose status is paid"),
         Some(
-            "[.records[] | select(.status == \"paid\")] | sort_by(.amount | tonumber? // .)"
+            ".records | sort_by(.amount | tonumber? // .) | map(select(.status == \"paid\"))"
                 .to_owned()
         )
     );
     assert_eq!(
         jq("count the rows per client ; keep the rows whose client is acme"),
-        Some("[.records[] | select(.client == \"acme\")] | group_by(.client) | map({\"client\": (.[0] | .client), \"count\": length})".to_owned())
+        Some(".records | group_by(.client) | map({\"client\": (.[0] | .client), \"count\": length}) | map(select(.client == \"acme\"))".to_owned())
     );
     // Nothing a later step could read: a produced count (HAVING), a filter after totals.
     for text in [

@@ -1145,4 +1145,46 @@ mod tests {
             }
         }
     }
+
+    /// A filter stated after a stage that reads numbers runs after it (R4 F5, the primary's A2
+    /// hypothesis): moved before the stage, it would drop a row whose malformed number the
+    /// stated order reads under the FAIL policy, and the run would write instead of stopping.
+    /// The sample the host observed holds numbers only; the malformed value is in a later row.
+    #[test]
+    fn a_filter_stated_after_a_stage_that_reads_numbers_keeps_its_failure_policy() {
+        let sample = [
+            json!({"name": "alpha", "points": 1}),
+            json!({"name": "beta", "points": 2}),
+        ];
+        let later = json!({"records": [
+            {"name": "alpha", "points": 1},
+            {"name": "beta", "points": "n/a"}
+        ]});
+        for intent in [
+            "Read ./rows.json, sort the rows by points, then keep the rows whose name is alpha, and write them to ./out.json",
+            "Read ./rows.json, compute the total of the points column per name, then keep the rows whose name is alpha, and write them to ./out.json",
+        ] {
+            let out = nika_compile::compile(&observed_rows(intent, &sample)).unwrap();
+            assert_eq!(
+                out.status,
+                nika_compile::CompileStatus::Ready,
+                "{intent}: {out:#?}"
+            );
+            let doc: Value = serde_yaml_bw::from_str(out.candidate.as_deref().unwrap()).unwrap();
+            let compute = doc["tasks"]["compute"]["invoke"]["args"]["expression"]
+                .as_str()
+                .unwrap()
+                .to_owned();
+            let rule = compute.rsplit('\n').next().unwrap_or_default().to_owned();
+            let ran = run(&compute, &later);
+            let Err(why) = ran else {
+                panic!("{intent}\n{rule}\nwrote {ran:?} where the stated order stops");
+            };
+            assert!(
+                why.0.contains("`points` is") && why.0.contains("not a number"),
+                "{intent}: {}",
+                why.0
+            );
+        }
+    }
 }

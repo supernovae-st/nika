@@ -285,10 +285,12 @@ while `nika-compile` stood at its wall; they ascended to `nika-compile-fidelity`
     `stages::place_stage` put a segment's clauses or stage into the last step only when the
     fixed per-step order (join, distinct by, grouping and aggregates, derived, sort, limit,
     projection, renames, distinct) reproduces the stated order, or when a stated commutation
-    holds: a filter after a stable sort with no cut, after whole-row duplicates removed,
-    after a projection keeping every column it reads, or after a grouping when it reads the
-    group key alone; a sort or a cut after a projection keeping its key. Otherwise a later
-    step opens on the rows the last step wrote.
+    holds: a filter after whole-row duplicates removed or after a projection keeping every
+    column it reads (stages that neither drop a row nor read a number); a sort or a cut after
+    a projection keeping its key. Otherwise a later step opens on the rows the last step
+    wrote. A filter stated after a sort, a grouping or a total runs after it, so a number
+    the stated order reads under a FAIL policy still stops the run: moved first, the filter
+    dropped that row and the run wrote (reproduced on the emitted program, then fixed).
   - « keep the 2 rows with the highest amount ; keep the rows where status is paid » ranks,
     then filters the two kept rows; the reverse order filters, then ranks, in one step; « keep
     the 2 … ; count them » counts the two rows.
