@@ -2,8 +2,14 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! Pure finite-call analysis for the production composer; never execution authority.
 use nika_check::analyzer::static_args::{ConstStrings, judgeable_arg};
+use nika_check::analyzer::static_literal_of;
 use nika_providers::InferenceAdmission;
-use nika_schema::raw::{RawAction, RawInferAction, RawInvokeAction, RawWorkflow};
+use nika_providers::admission::CostReview;
+use nika_schema::raw::{
+    ForEachValue, RawAction, RawInferAction, RawInvokeAction, RawTask, RawWorkflow,
+};
+use serde_json::Value;
+use std::collections::BTreeMap;
 use std::path::{Component, Path, PathBuf};
 
 /// Why a workflow has no finite unknown-cost Run shape. The variant is the
@@ -56,9 +62,171 @@ pub enum RunShapeError {
     /// A local file path is empty, absolute or leaves the project lexically.
     #[error("unknown-cost Run file paths must be static files confined to the project")]
     UnconfinedPath,
+    /// A fan whose item count only the run decides: a task output, a
+    /// computed or navigated expression, an input with no value or default.
+    #[error(
+        "unknown-cost Run fans only over a literal list or an input/const array; a count only the run decides has no finite bound"
+    )]
+    Cardinality,
 }
 
-/// Upper bound on requests for a checked, static, single-route text workflow.
+/// One infer task's physical dispatch bound, read through its accessors; only
+/// [`dispatch_bound`] makes one.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct TaskDispatch {
+    task: String,
+    items: Option<u32>,
+    attempts: u32,
+    calls_per_attempt: u32,
+    max_parallel: u32,
+    requests: u32,
+}
+impl TaskDispatch {
+    /// The task id.
+    #[must_use]
+    pub fn task(&self) -> &str {
+        &self.task
+    }
+    /// The fan's item count as the run binds it; `None` for a plain task.
+    #[must_use]
+    pub fn items(&self) -> Option<u32> {
+        self.items
+    }
+    /// Authored attempts per item (`retry.max_attempts`, 1 without one).
+    #[must_use]
+    pub fn attempts(&self) -> u32 {
+        self.attempts
+    }
+    /// Physical requests per attempt: the call and the stock schema re-asks.
+    #[must_use]
+    pub fn calls_per_attempt(&self) -> u32 {
+        self.calls_per_attempt
+    }
+    /// Requests of this task in flight at once (1 for a plain task).
+    #[must_use]
+    pub fn max_parallel(&self) -> u32 {
+        self.max_parallel
+    }
+    /// `items × attempts × calls_per_attempt`, checked.
+    #[must_use]
+    pub fn requests(&self) -> u32 {
+        self.requests
+    }
+}
+
+/// The typed law one fresh unknown-cost choice confirms: the worst-case total
+/// of physical requests, the requests in flight at once, and the per-task
+/// breakdown behind them. CLI and HTTP project this same value.
+///
+/// Only [`dispatch_bound`] makes one, and no holder can change it: its fields
+/// are private, so another crate can neither build a bound nor widen one. A
+/// bound is not authority either way: it only configures a review, whose
+/// question shows what the confirmed account then enforces. The first example
+/// compiles, so each of the two after it fails for that reason alone:
+/// ```
+/// fn shown(bound: &nika_service_execution::run_cost::DispatchBound) -> (u32, u32) {
+///     (bound.requests(), bound.max_in_flight())
+/// }
+/// ```
+/// ```compile_fail
+/// fn widen(bound: &mut nika_service_execution::run_cost::DispatchBound) {
+///     bound.requests = u32::MAX;
+/// }
+/// ```
+/// ```compile_fail
+/// let minted = nika_service_execution::run_cost::DispatchBound {
+///     requests: u32::MAX,
+///     max_in_flight: u32::MAX,
+///     tasks: Vec::new(),
+/// };
+/// ```
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct DispatchBound {
+    requests: u32,
+    max_in_flight: u32,
+    tasks: Vec<TaskDispatch>,
+}
+impl DispatchBound {
+    /// The worst-case total of physical requests.
+    #[must_use]
+    pub fn requests(&self) -> u32 {
+        self.requests
+    }
+    /// Requests in flight at once (one infer task per wave).
+    #[must_use]
+    pub fn max_in_flight(&self) -> u32 {
+        self.max_in_flight
+    }
+    /// One row per infer task, in document order.
+    #[must_use]
+    pub fn tasks(&self) -> &[TaskDispatch] {
+        &self.tasks
+    }
+    /// Whether any task fans out or retries: only then does a fresh choice
+    /// show a breakdown (a single sequential Run keeps its historical words).
+    #[must_use]
+    pub fn multiplied(&self) -> bool {
+        self.tasks
+            .iter()
+            .any(|t| t.items.is_some() || t.attempts > 1)
+    }
+    /// Whether a task authored `retry.max_attempts` above one: the only source
+    /// of the choice's authored-retry law. Fan cardinality, the total and
+    /// schema re-asks never imply it.
+    #[must_use]
+    pub fn authored_retry(&self) -> bool {
+        self.tasks.iter().any(|t| t.attempts > 1)
+    }
+    /// The breakdown a fresh choice shows, one line per infer task; empty
+    /// when nothing is [`Self::multiplied`].
+    #[must_use]
+    pub fn lines(&self) -> Vec<String> {
+        if !self.multiplied() {
+            return Vec::new();
+        }
+        let line = |t: &TaskDispatch| {
+            let items = t
+                .items
+                .map_or_else(String::new, |n| format!("{} × ", counted(n, "item")));
+            format!(
+                "`{}`: {items}{} × {} = {}, at most {} at once",
+                t.task,
+                counted(t.attempts, "attempt"),
+                counted(t.calls_per_attempt, "call"),
+                counted(t.requests, "request"),
+                t.max_parallel
+            )
+        };
+        self.tasks.iter().map(line).collect()
+    }
+    /// Configure a fresh unknown-cost review with this bound: its total, its
+    /// width, its breakdown and its authored-retry law, so every host's
+    /// question and confirmed choice carry this one value.
+    /// # Errors
+    /// A zero total (zero work buys no allowance) or a width the review refuses.
+    pub fn review(&self, review: CostReview) -> Result<CostReview, String> {
+        Ok(review
+            .for_run(self.requests)?
+            .with_concurrency(self.max_in_flight)?
+            .with_breakdown(self.lines())
+            .with_authored_retry(self.authored_retry()))
+    }
+}
+
+fn counted(n: u32, noun: &str) -> String {
+    if n == 1 {
+        format!("1 {noun}")
+    } else {
+        format!("{n} {noun}s")
+    }
+}
+
+/// Upper bound on requests for a checked, static, single-route text workflow
+/// that neither fans out nor retries: [`dispatch_bound`] at declared defaults,
+/// refused as [`RunShapeError::Control`] when that bound is
+/// [`DispatchBound::multiplied`], so one law answers both.
 /// Includes every schema re-ask made by the stock production `InferVerb`.
 /// This observation grants no spending, filesystem or tool authority. The host
 /// must still obtain fresh scoped consent and re-observe its source and inputs;
@@ -71,6 +239,32 @@ pub fn request_bound(
     plan: &nika_providers::ExecutionAccessPlan,
     unknown_routes: usize,
 ) -> Result<u32, RunShapeError> {
+    let bound = dispatch_bound(wf, plan, unknown_routes, &BTreeMap::new())?;
+    if bound.multiplied() {
+        return Err(RunShapeError::Control);
+    }
+    Ok(bound.requests)
+}
+
+/// The finite physical-request bound of a checked, static, single-route text
+/// workflow, widened to finite fans and authored retries, over the workflow as
+/// the run binds it (`bindings`: the validated input values, the operator's
+/// value before the declared default, B11). The per-task counts are the
+/// check's own cost law (`iterations × attempts`) on that seated workflow,
+/// each attempt carrying the stock schema re-asks. A fan must read a literal
+/// list or an input/const array whose value is known
+/// ([`RunShapeError::Cardinality`]); `on_error`, exec, agent and nested
+/// workflows stay refused. A zero total is a value, never an allowance: the
+/// host routes it to the no-paid-dispatch path.
+/// # Errors
+/// A [`RunShapeError`]: unsupported shape, invalid DAG/permits, a model
+/// outside the selected route, or a count only the run decides.
+pub fn dispatch_bound(
+    wf: &RawWorkflow,
+    plan: &nika_providers::ExecutionAccessPlan,
+    unknown_routes: usize,
+    bindings: &BTreeMap<String, Value>,
+) -> Result<DispatchBound, RunShapeError> {
     if unknown_routes != 1 || plan.lanes.len() != 1 || !plan.is_admitted() {
         return Err(RunShapeError::Route);
     }
@@ -78,28 +272,120 @@ pub fn request_bound(
         return Err(RunShapeError::Secrets);
     }
     let consts = ConstStrings::of(wf);
-    let mut requests = 0_u32;
+    let seated = nika_runtime::effective_workflow(wf, None, bindings);
+    let seated = seated.as_ref().unwrap_or(wf);
+    let cost = nika_check::check(seated).cost;
+    let (mut tasks, mut requests) = (Vec::new(), 0_u32);
     for task in &wf.tasks {
         let task = &task.value;
-        if task.for_each.is_some() || task.retry.is_some() || task.on_error.is_some() {
+        let infer = match &task.action {
+            RawAction::Infer(action) => Some(action),
+            _ => None,
+        };
+        let multiplied = task.for_each.is_some() || task.retry.is_some();
+        if task.on_error.is_some() || (infer.is_none() && multiplied) {
             return Err(RunShapeError::Control);
         }
-        match &task.action {
-            RawAction::Infer(action) => {
-                requests = add_requests(requests, infer_bound(wf, action, plan)?)?;
-            }
-            RawAction::Invoke(action) => match action.tool().map(|t| t.value.as_str()) {
-                Some("nika:read" | "nika:write") => {
-                    project_file_path(&consts, action)?;
-                }
-                // BuiltinDispatcher routes assert directly to core_tools::assert:
-                // a boolean check with no I/O. Canonical pure-call exemptions still apply.
-                Some("nika:jq" | "nika:assert") => {}
-                _ => return Err(RunShapeError::Tool),
-            },
-            _ => return Err(RunShapeError::Action),
-        }
+        let Some(action) = infer else {
+            other_step(&consts, &task.action)?;
+            continue;
+        };
+        let row = cost.tasks.iter().find(|t| t.task == task.id.value);
+        let row = row.ok_or(RunShapeError::Unchecked)?;
+        let dispatch = task_dispatch((wf, seated), (task, action), plan, row)?;
+        requests = add_requests(requests, dispatch.requests)?;
+        tasks.push(dispatch);
     }
+    checked_waves(wf)?;
+    if tasks.is_empty() {
+        return Err(RunShapeError::NoInfer);
+    }
+    let max_in_flight = tasks.iter().map(|t| t.max_parallel).max().unwrap_or(1);
+    Ok(DispatchBound {
+        requests,
+        max_in_flight,
+        tasks,
+    })
+}
+
+/// One infer task's row: the fan's count as the check's cost law gives it on
+/// the seated workflow (a literal list, or an input/const array whose value
+/// the seat knows), the authored attempts and the stock schema re-asks per
+/// attempt, all checked.
+fn task_dispatch(
+    (wf, seated): (&RawWorkflow, &RawWorkflow),
+    (task, action): (&RawTask, &RawInferAction),
+    plan: &nika_providers::ExecutionAccessPlan,
+    row: &nika_check::TaskCost,
+) -> Result<TaskDispatch, RunShapeError> {
+    let calls_per_attempt = infer_bound(wf, action, plan)?;
+    let items = match task.for_each.as_ref() {
+        None => None,
+        Some(_) if known_count(seated, &task.id.value) => {
+            Some(u32::try_from(row.iterations).map_err(|_| RunShapeError::Overflow)?)
+        }
+        Some(_) => return Err(RunShapeError::Cardinality),
+    };
+    let attempts = u32::try_from(row.attempts).map_err(|_| RunShapeError::Overflow)?;
+    let per_item = attempts
+        .checked_mul(calls_per_attempt)
+        .ok_or(RunShapeError::Overflow)?;
+    let requests = items
+        .unwrap_or(1)
+        .checked_mul(per_item)
+        .ok_or(RunShapeError::Overflow)?;
+    let max_parallel = items.map_or(1, |n| {
+        let declared = task.max_parallel.as_ref().map_or(n, |m| m.value);
+        declared.clamp(1, n.max(1))
+    });
+    Ok(TaskDispatch {
+        task: task.id.value.clone(),
+        items,
+        attempts,
+        calls_per_attempt,
+        max_parallel,
+        requests,
+    })
+}
+
+/// Whether the seated fan of task `id` iterates a value known before any
+/// effect: a literal list, or a bare input/const reference to an array.
+fn known_count(seated: &RawWorkflow, id: &str) -> bool {
+    let fan = seated
+        .tasks
+        .iter()
+        .find(|t| t.value.id.value == id)
+        .and_then(|t| t.value.for_each.as_ref());
+    match fan.map(|f| &f.value) {
+        Some(ForEachValue::List(_)) => true,
+        Some(ForEachValue::Expression(expr)) => {
+            static_literal_of(seated, expr).is_some_and(Value::is_array)
+        }
+        _ => false,
+    }
+}
+
+/// A non-infer step an unknown-cost Run admits: a confined local read/write,
+/// or jq/assert; anything else refuses.
+fn other_step(consts: &ConstStrings, action: &RawAction) -> Result<(), RunShapeError> {
+    match action {
+        RawAction::Invoke(action) => match action.tool().map(|t| t.value.as_str()) {
+            Some("nika:read" | "nika:write") => {
+                project_file_path(consts, action)?;
+                Ok(())
+            }
+            // BuiltinDispatcher routes assert directly to core_tools::assert:
+            // a boolean check with no I/O. Canonical pure-call exemptions still apply.
+            Some("nika:jq" | "nika:assert") => Ok(()),
+            _ => Err(RunShapeError::Tool),
+        },
+        _ => Err(RunShapeError::Action),
+    }
+}
+
+/// The workflow checks clean as one complete DAG with at most one infer per
+/// wave: the runtime runs waves in order, so infers of two tasks never overlap.
+fn checked_waves(wf: &RawWorkflow) -> Result<(), RunShapeError> {
     let report = nika_check::check(wf);
     if !report.is_clean() || report.waves.iter().flatten().count() != wf.tasks.len() {
         return Err(RunShapeError::Unchecked);
@@ -112,10 +398,7 @@ pub fn request_bound(
     }) {
         return Err(RunShapeError::Parallel);
     }
-    if requests == 0 {
-        return Err(RunShapeError::NoInfer);
-    }
-    Ok(requests)
+    Ok(())
 }
 
 fn add_requests(total: u32, requests: u32) -> Result<u32, RunShapeError> {
@@ -179,9 +462,13 @@ pub fn project_file_path(
 
 /// Check's mirror of the Run's monetary admission (descended from the host's
 /// `run_cost::readiness`, C6): `None` when a Run of `wf` under `plan` needs no
-/// fresh choice, otherwise why it is not run ready. An unknown-cost route is
-/// never ready (it needs a fresh finite-call choice); a declared-free route is
-/// ready only in a shape its observation admits. It admits nothing itself.
+/// fresh choice, otherwise why it is not run ready. An unknown-cost route
+/// needs a fresh finite-call choice, except when its typed bound at declared
+/// defaults is zero physical requests. That is no blocker: such a Run sends no
+/// provider request, so it pays nothing, and the host binds the no-paid-dispatch
+/// observer, which grants no unknown-cost authority. A Run re-judges its own
+/// bindings before any effect. A declared-free route is ready only in a shape
+/// its observation admits. It admits nothing itself.
 #[must_use]
 pub fn readiness(
     wf: &RawWorkflow,
@@ -199,11 +486,27 @@ pub fn readiness(
             .err()
             .map(|refusal| format!("Run cannot observe its declared-free route: {refusal}"));
     }
-    Some(match request_bound(wf, plan, routes.len()) {
-        Ok(bound) => format!(
-            "USD cost is unknown: Run requires a fresh finite-call choice for at most {bound} requests, including schema re-asks; Check has not admitted spend or effects"
-        ),
-        Err(why) => format!("USD cost is unknown; Run cannot obtain a bounded choice: {why}"),
+    // The same typed bound a Run's review confirms, at declared defaults: zero
+    // requests take the no-paid-dispatch path, so nothing awaits a choice.
+    let bound = match dispatch_bound(wf, plan, routes.len(), &BTreeMap::new()) {
+        Ok(bound) if bound.requests == 0 => return None,
+        Ok(bound) => bound,
+        Err(why) => {
+            return Some(format!(
+                "USD cost is unknown; Run cannot obtain a bounded choice: {why}"
+            ));
+        }
+    };
+    Some(if bound.multiplied() {
+        format!(
+            "USD cost is unknown: Run requires a fresh finite-call choice for at most {} requests, at most {} at once, including schema re-asks and authored retries; Check has not admitted spend or effects",
+            bound.requests, bound.max_in_flight
+        )
+    } else {
+        format!(
+            "USD cost is unknown: Run requires a fresh finite-call choice for at most {} requests, including schema re-asks; Check has not admitted spend or effects",
+            bound.requests
+        )
     })
 }
 

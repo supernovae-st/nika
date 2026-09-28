@@ -538,6 +538,42 @@ and nothing else changes.
   account at the end. An `Idempotency-Key` replay answers the existing job
   before the review is read.
 
+### Cost-review version 2 (B12 · 2026-09-28)
+
+The seated door also serves `POST /v2/cost-reviews`, `GET /v2/cost-reviews/{id}`
+and `POST /v2/cost-reviews/{id}/decision`. Health then lists `costReviewV1` and
+`costReviewV2`, and the served contract merges `cost_review/openapi-v2.json`
+beside the version-1 patch. A version-2 review frames a finite fan or an
+authored retry through the same shared evaluator (`ReviewedRun::dispatch_bound`,
+Service's `DispatchBound`). Its closed document is `cost_review_version: 2`,
+with `bounds` carrying `max_in_flight` and `transport_retries: 0`, and a typed
+`dispatch` (`requests`, `max_in_flight`, `authored_retry` and one row per infer
+task). The witness digests that document, so the approval confirms exactly the
+reviewed total, width and retry law. The job reference is unchanged: one
+`POST /v1/jobs` carrying the review id and witness. A zero-item fan answers
+200 `review_required: false`, `observer: true`, and its job binds the per-Run
+observer that sends nothing. The answer comes from the evaluator's own
+`RunCostPlan::Zero` and carries the zero reason; an exact declared-free route's
+`Observer` keeps its own reason. An unreviewed job over the same zero-item fan
+binds that observer too (the one `Zero` arm of the production gate). The job's
+validated inputs decide: its declared default, or any item, refuses as
+unreviewed.
+
+Version 1 stays byte-for-byte closed. A fan or an authored retry (a zero-item
+fan included) refuses 422 `cost_review_refused` and names `POST /v2/cost-reviews`.
+A single-attempt sequential Run keeps its version-1 document, whose question
+equals version 2's. The versions never cross. A review answers `GET` and
+`decision` only on the version that created it (404 `review_unknown`
+elsewhere), and an `Idempotency-Key` binds its version with its request bytes,
+so a replay on the other version answers 409 `idempotency_conflict`.
+
+Two C6 teaching defects are corrected in the same door. The per-run ceiling's
+remedy follows only the evaluator's `RunCostPlan::HardCapped` refusal, never an
+unrelated shape, project or lease refusal. The one shared `bound_message`
+(`server/error.rs`, used by job records too) keeps this server's exact closed
+route literals (`/v1/cost-reviews`, `/v2/cost-reviews`, `/v1/jobs`) once
+trailing punctuation is trimmed; every other path-like token is still dropped.
+
 ## Native authoring request authority
 
 The shared cognition authority bounds model invocations and physical HTTP requests separately.

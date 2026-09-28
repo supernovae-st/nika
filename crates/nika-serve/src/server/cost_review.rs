@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The cost-review door (C6 · R4 111): `POST /v1/cost-reviews`,
-//! `GET /v1/cost-reviews/{id}`, `POST /v1/cost-reviews/{id}/decision`, and the
+//! The cost-review door (C6 · R4 111 · B12): `POST /v{1,2}/cost-reviews`,
+//! `GET /v{1,2}/cost-reviews/{id}`, `POST /v{1,2}/cost-reviews/{id}/decision`, and the
 //! one job admission that consumes an approved review. A review is a fresh,
 //! single-use decision held in memory: it never creates a job, a run, a file or
 //! an effect. Its authority comes from this server's startup composition
@@ -141,7 +141,7 @@ fn unavailable() -> Response<ResponseBody> {
     json_error(
         StatusCode::FORBIDDEN,
         "cost_review_unavailable",
-        "this server's operator did not seat the cost-review door (nika serve --cost-review); health lists costReviewV1 when it is present",
+        "this server's operator did not seat the cost-review door (nika serve --cost-review); health lists costReviewV1 and costReviewV2 when it is present",
     )
 }
 
@@ -162,11 +162,12 @@ fn internal() -> Response<ResponseBody> {
     )
 }
 
-/// `POST /v1/cost-reviews`: capture the named world, judge it with the shared
-/// evaluator, and hold one pending review (or answer that none is needed).
+/// `POST /v{version}/cost-reviews`: capture the named world, judge it with the
+/// shared evaluator, and hold one pending review (or answer that none is needed).
 pub(super) async fn create(
     request: Request<Incoming>,
     state: Arc<AppState>,
+    version: u64,
 ) -> Response<ResponseBody> {
     let Some(door) = state.cost_review.clone() else {
         return unavailable();
@@ -175,9 +176,13 @@ pub(super) async fn create(
         Ok(parts) => parts,
         Err(response) => return response,
     };
-    let replay = door.store().replay(key.as_str(), digest.as_str());
+    // A key binds its version with its bytes: one key never answers across versions.
+    let digest = format!("v{version}:{}", digest.as_str());
+    let replay = door.store().replay(key.as_str(), &digest);
     match replay {
-        Some(Replay::Same(KeyAnswer::Review(id))) => return respond(&door, &id, StatusCode::OK),
+        Some(Replay::Same(KeyAnswer::Review(id))) => {
+            return respond(&door, &id, StatusCode::OK, version);
+        }
         Some(Replay::Same(KeyAnswer::NotRequired(answer))) => {
             return route::json_response(StatusCode::OK, &answer);
         }
@@ -187,16 +192,16 @@ pub(super) async fn create(
         }
         None => {}
     }
-    let answer = match open_review(&state, &door, &body).await {
+    let answer = match open_review(&state, &door, &body, version).await {
         Ok(answer) => answer,
         Err(response) => return response,
     };
-    let (key, digest) = (key.as_str().to_owned(), digest.as_str().to_owned());
+    let key = key.as_str().to_owned();
     match answer {
         Ok(id) => {
             let bound = KeyAnswer::Review(id.clone());
             door.store().bind_key(key, digest, bound);
-            respond(&door, &id, StatusCode::CREATED)
+            respond(&door, &id, StatusCode::CREATED, version)
         }
         Err(answer) => {
             let bound = KeyAnswer::NotRequired(answer.clone());
@@ -211,6 +216,7 @@ async fn open_review(
     state: &AppState,
     door: &Arc<Door>,
     body: &[u8],
+    version: u64,
 ) -> Result<Result<String, Value>, Response<ResponseBody>> {
     let job = match route::named_job(body) {
         Ok(Some(job)) if job.cost_review.is_none() => job,
@@ -236,24 +242,26 @@ async fn open_review(
     let forced = None;
     let framed = tokio::task::spawn_blocking(move || {
         let access = (access.as_deref(), forced);
-        frame(service, admitted, &root, ceiling, &inputs, access)
+        frame(service, admitted, &root, ceiling, &inputs, access, version)
     })
     .await
     .map_err(|_| internal())?;
-    let framed = framed.map_err(|why| {
-        let hint = ceiling.map_or(String::new(), |usd| format!(" · this server's per-run ceiling ({usd} USD) is a hard cap: an operator may disarm it explicitly at startup (--run-cost-ceiling none)"));
+    // Only the cap's own refusal teaches the cap's remedy (C6 defect 1).
+    let framed = framed.map_err(|refused| {
+        let (why, hint) = match refused {
+            Refused::Capped(why) => (why, ceiling.map_or(String::new(), |usd| format!(" · this server's per-run ceiling ({usd} USD) is a hard cap: an operator may disarm it explicitly at startup (--run-cost-ceiling none)"))),
+            Refused::Other(why) => (why, String::new()),
+        };
         json_error(StatusCode::UNPROCESSABLE_ENTITY, "cost_review_refused", &format!("{why}{hint}"))
     })?;
-    let Some((review, session, plan, execution)) = framed.0 else {
-        let reason = if framed.1 {
-            "exact declared-free or run-time routes: the job binds a per-Run observer account, as nika run does"
-        } else {
-            "no unknown-cost route: the job keeps its composition"
-        };
-        return Ok(Err(
-            json!({"cost_review_version": 1, "review_required": false,
-            "observer": framed.1, "reason": reason}),
-        ));
+    let ((review, session, plan), execution) = match framed {
+        Framed::Review(held) => *held,
+        Framed::NotRequired(observer, reason) => {
+            return Ok(Err(
+                json!({"cost_review_version": version, "review_required": false,
+                "observer": observer, "reason": reason}),
+            ));
+        }
     };
     let id = format!("rev-{}", uuid::Uuid::new_v4());
     let snapshot = session.context().snapshot().digest().to_owned();
@@ -262,7 +270,7 @@ async fn open_review(
         (&review, &plan),
         &request,
         (&execution, &snapshot),
-        door,
+        (door, version),
     ) else {
         let why = "no fresh private witness nonce could be drawn: nothing was held";
         return Err(json_error(
@@ -277,16 +285,25 @@ async fn open_review(
     Ok(Ok(id))
 }
 
-/// The reviewed Run in its world, or whether a no-review Run binds an observer.
-type Framed = (
-    Option<(
-        Box<ReviewedRun>,
-        ExecutionSession,
-        ExecutionAccessPlan,
-        String,
-    )>,
-    bool,
-);
+/// The reviewed Run in its world (and its execution), or no review: whether
+/// the job binds a per-Run observer, and why.
+enum Framed {
+    Review(Box<(Held, String)>),
+    NotRequired(bool, &'static str),
+}
+
+/// Version 1's answer to a Run only version 2 can show.
+const V1_MULTIPLIED: &str = "this Run fans out or retries: its finite dispatch bound is reviewed only at POST /v2/cost-reviews (health costReviewV2); version 1 reviews one sequential single-attempt Run";
+const OBSERVED: &str = "exact declared-free or run-time routes: the job binds a per-Run observer account, as nika run does";
+const ZERO: &str = "zero physical requests on its unknown-cost route: the job binds a per-Run observer account that sends nothing, as nika run does";
+const UNNEEDED: &str = "no unknown-cost route: the job keeps its composition";
+
+/// Why framing refused, in the evaluator's words: this server's own hard cap
+/// (the one refusal whose remedy it teaches) or any other cause.
+enum Refused {
+    Capped(String),
+    Other(String),
+}
 
 fn frame(
     service: ExecutionService,
@@ -295,10 +312,11 @@ fn frame(
     ceiling: Option<f64>,
     inputs: &BTreeMap<String, Value>,
     (access, forced): (Option<&str>, Option<ExecutionAccessPlan>),
-) -> Result<Framed, String> {
+    version: u64,
+) -> Result<Framed, Refused> {
     let session = service.begin(admitted);
     let driver = nika_service_execution::ServiceExecutionDriver::new(session.context(), root)
-        .ok_or("workflow world could not be composed")?;
+        .ok_or_else(|| Refused::Other("workflow world could not be composed".into()))?;
     let plan = forced.unwrap_or_else(|| driver.resolve_access_plan(None, access));
     let execution = session.context().execution_id().to_string();
     let ask = || Ok(());
@@ -313,11 +331,19 @@ fn frame(
         inputs,
         None,
         (evidence(ceiling), &ask),
-    )?;
+    )
+    .map_err(Refused::Other)?;
+    // Version 1 documents only a single-attempt sequential Run: a fan or an
+    // authored retry, and a fan that sends nothing, are version 2's.
+    let (v1, refuse_v1) = (version == 1, || Refused::Other(V1_MULTIPLIED.into()));
     Ok(match prepared {
-        RunCostPlan::Review(review) => (Some((review, session, plan, execution)), false),
-        RunCostPlan::Observer(_) => (None, true),
-        _ => (None, false),
+        RunCostPlan::Review(r) if v1 && r.dispatch_bound().multiplied() => return Err(refuse_v1()),
+        RunCostPlan::Review(r) => Framed::Review(Box::new(((r, session, plan), execution))),
+        RunCostPlan::Zero(_) if v1 => return Err(refuse_v1()),
+        RunCostPlan::Zero(_) => Framed::NotRequired(true, ZERO),
+        RunCostPlan::Observer(_) => Framed::NotRequired(true, OBSERVED),
+        RunCostPlan::HardCapped(why) => return Err(Refused::Capped(why)),
+        _ => Framed::NotRequired(false, UNNEEDED),
     })
 }
 
@@ -334,7 +360,7 @@ fn document(
     (review, plan): (&ReviewedRun, &ExecutionAccessPlan),
     request: &Value,
     (execution, snapshot): (&str, &str),
-    door: &Door,
+    (door, version): (&Door, u64),
 ) -> Option<Value> {
     let challenge = review.challenge();
     let (requests, tokens, timeout) = review.bounds();
@@ -349,7 +375,7 @@ fn document(
         .as_object()
         .map(|m| m.keys().collect())
         .unwrap_or_default();
-    let mut view = json!({"cost_review_version": 1, "review_id": id, "state": "pending",
+    let mut view = json!({"cost_review_version": version, "review_id": id, "state": "pending",
         "created_at": created.to_string(), "expires_at": expires.to_string(),
         "workflow": request["workflow"], "access": request["access"], "execution_id": execution,
         "project": {"root_fingerprint": nika_runtime::project_root_fingerprint(&door.root), "basis": PROJECT_BASIS},
@@ -368,6 +394,15 @@ fn document(
             "may create .nika/ and the cost journal", "may record an earlier Run whose writer the lease proves gone as UNKNOWN",
             "writes no Run row: the prepared row is written only at the accepted job admission"],
         "grants": "one explicit POST /v1/jobs of this exact witness and request; approving creates no job, run, file or effect"});
+    if version == 2 {
+        // The typed bound the approval confirms; the witness below covers it.
+        let d = review.dispatch_bound();
+        view["bounds"] = json!({"max_requests": requests, "max_in_flight": d.max_in_flight(), "max_output_tokens": tokens,
+            "request_timeout_seconds": timeout.as_secs(), "transport_retries": 0});
+        view["dispatch"] = json!({"requests": d.requests(), "max_in_flight": d.max_in_flight(), "authored_retry": d.authored_retry(),
+            "tasks": d.tasks().iter().map(|t| json!({"task": t.task(), "items": t.items(), "attempts": t.attempts(),
+                "calls_per_attempt": t.calls_per_attempt(), "max_parallel": t.max_parallel(), "requests": t.requests()})).collect::<Vec<_>>()});
+    }
     let mut nonce = [0_u8; 32];
     getrandom::fill(&mut nonce).ok()?;
     let private = json!([view, challenge.candidate, challenge.route.endpoint, request]);
@@ -386,17 +421,19 @@ fn custody(plan: &ExecutionAccessPlan, provider: &str) -> &'static str {
     }
 }
 
-fn respond(door: &Door, id: &str, status: StatusCode) -> Response<ResponseBody> {
+/// A review answers only at the version that created it: elsewhere its id is unknown.
+fn respond(door: &Door, id: &str, status: StatusCode, version: u64) -> Response<ResponseBody> {
     match door.store().view(id) {
-        Ok(view) => route::json_response(status, &view),
+        Ok(view) if view["cost_review_version"] == version => route::json_response(status, &view),
+        Ok(_) => refused(ReviewRefusal::Unknown),
         Err(refusal) => refused(refusal),
     }
 }
 
-/// `GET /v1/cost-reviews/{id}`: reading approves nothing.
-pub(super) fn get(id: &str, state: &AppState) -> Response<ResponseBody> {
+/// `GET /v{version}/cost-reviews/{id}`: reading approves nothing.
+pub(super) fn get(id: &str, state: &AppState, version: u64) -> Response<ResponseBody> {
     match &state.cost_review {
-        Some(door) => respond(door, id, StatusCode::OK),
+        Some(door) => respond(door, id, StatusCode::OK, version),
         None => unavailable(),
     }
 }
@@ -408,11 +445,12 @@ struct Decision {
     decision: String,
 }
 
-/// `POST /v1/cost-reviews/{id}/decision`: one explicit decision, never a job.
+/// `POST /v{version}/cost-reviews/{id}/decision`: one explicit decision, never a job.
 pub(super) async fn decide(
     request: Request<Incoming>,
     id: String,
     state: Arc<AppState>,
+    version: u64,
 ) -> Response<ResponseBody> {
     let Some(door) = state.cost_review.clone() else {
         return unavailable();
@@ -421,6 +459,11 @@ pub(super) async fn decide(
         Ok(((), _, body)) => body,
         Err(response) => return response,
     };
+    if let Ok(view) = door.store().view(&id)
+        && view["cost_review_version"] != version
+    {
+        return refused(ReviewRefusal::Unknown);
+    }
     let (approve, witness) = match serde_json::from_slice::<Decision>(&body) {
         Ok(d) if d.decision == "approve_once" => (true, d.witness_sha256),
         Ok(d) if d.decision == "decline" => (false, d.witness_sha256),

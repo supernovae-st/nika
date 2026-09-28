@@ -219,6 +219,29 @@ read, so no review is framed). A positive project ceiling stays an
 overridable default; a model-free plan never reads it (pinned in
 `run_cost::tests`).
 
+Since B12 (2026-09-28) `prepare` frames the review from Service's typed
+`dispatch_bound` over the Run's validated bindings (the operator's value before
+the default) instead of `request_bound`. The review confirms its total
+(`for_run`), its in-flight bound (`with_concurrency`), its per-task breakdown
+(`with_breakdown`) and, only when a task authored `retry.max_attempts` above
+one, the retry law (`with_authored_retry`). `ReviewedRun::dispatch_bound()`
+exposes the same typed value, the single positive-work value. The review's question
+(which the CLI challenge binds) and the Serve witness therefore cover exactly the
+reviewed limits. The order is unchanged: clear, then the host's `ask`, then a
+shape refusal in its own words (`Cardinality` for a count only the run decides).
+One addition comes before `ask`: a zero total returns its own plan,
+`RunCostPlan::Zero(observer)`. That is the no-paid-dispatch observer
+(`observe_run`: no allowance, no lease kept), which grants no unknown-cost
+authority, so an empty fan runs and sends nothing, as B11 left it. The variant,
+never a field on the account, tells it from a declared-free `Observer`. It is
+decided before any cap judgment, because sending nothing needs none.
+`review_with_model` and Serve's unreviewed jobs bind it as they bind an observer.
+Serve's version-2 door answers it as no review; version 1 refuses it. Right before the review is
+framed, host evidence whose own `unknown_cost_refusal()` refuses every
+unknown-cost choice returns `RunCostPlan::HardCapped(words)`. The words are
+unchanged; that variant is the one refusal a host may teach its cap's remedy
+for. `review_with_model` returns it as its refusal, as before.
+
 `lines::fresh_terminal` is the fresh-input boundary of both local spending doors:
 the plain session before its `continue once? ›` prompt, and `ReviewChannel::Terminal`
 before each answer (again after `details`). It flushes the question, then switches

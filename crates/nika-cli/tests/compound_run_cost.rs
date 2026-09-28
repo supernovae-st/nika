@@ -637,8 +637,6 @@ fn retained(root: &Path) -> nika_dap::cost_journal::Exposures {
 #[test]
 fn unsupported_shapes_refuse_before_any_model_or_output_effect() {
     let variants = [
-        ONE.replace("    infer:\n", "    retry: { max_attempts: 2, backoff_ms: 1 }\n    infer:\n"),
-        ONE.replace("    infer:\n", "    for_each: { items: [a, b] }\n    infer:\n"),
         ONE.replace("    infer:\n", "    agent:\n").replace("max_tokens:", "max_tokens_total:"),
         ONE.replace("      max_tokens: 32", "      max_tokens: 32\n      model: openai/gpt-4o-mini"),
         ONE.replace("      max_tokens: 32", "      max_tokens: 32\n      thinking: { enabled: true }"),
@@ -648,7 +646,7 @@ fn unsupported_shapes_refuse_before_any_model_or_output_effect() {
     for (index, source) in variants.into_iter().enumerate() {
         // Missing fetch permission and missing nested source are rejected by
         // the normal Check door before the child; other cases reach review.
-        let check_refuses = index >= 5;
+        let check_refuses = index >= 3;
         let root = new_root(&source);
         let mut p = spawn(root.path());
         p.send("run one.nika\r").unwrap();

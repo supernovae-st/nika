@@ -63,7 +63,7 @@ fn parallel_dynamic_mixed_unbounded_and_hidden_inference_are_refused() {
             "prompt: text",
             "prompt: text, vision: [{ source: file, path: './image.png' }]",
         ),
-        ONE.replace("    infer:", "    retry: { max_attempts: 1 }\n    infer:"),
+        ONE.replace("    infer:", "    retry: { max_attempts: 2 }\n    infer:"),
         ONE.replace("    infer:", "    for_each: { items: [a] }\n    infer:"),
         ONE.replace("    infer:", "    on_error: { skip: true }\n    infer:"),
         ONE.replace(
@@ -163,7 +163,7 @@ fn each_refusal_is_a_typed_reason_that_keeps_its_words() {
         ),
         (ONE.replace(", max_tokens: 32", ""), E::InferShape),
         (
-            ONE.replace("    infer:", "    retry: { max_attempts: 1 }\n    infer:"),
+            ONE.replace("    infer:", "    retry: { max_attempts: 2 }\n    infer:"),
             E::Control,
         ),
         (
@@ -696,4 +696,291 @@ fn a_decided_route_is_judged_as_its_literal() {
     let route = &judged.document["model_summary"]["routes"][0];
     assert_eq!(route["source"], "run_time");
     assert_eq!(route["task"], "ask");
+}
+
+/// B12 · the typed dispatch law over the workflow as the run binds it.
+fn dispatch(source: &str, bindings: &[(&str, serde_json::Value)]) -> Result<DispatchBound, E> {
+    let bound: std::collections::BTreeMap<String, serde_json::Value> = bindings
+        .iter()
+        .map(|(name, value)| ((*name).to_owned(), value.clone()))
+        .collect();
+    dispatch_bound(&parsed(source), &plan(), 1, &bound)
+}
+use RunShapeError as E;
+const FAN: &str = "nika: fan\nmodel: deepseek/unpriced-shape-fixture\ntasks:\n  review:\n    for_each: { items: [a, b, c], max_parallel: 2 }\n    retry: { max_attempts: 2 }\n    infer: { prompt: 'x ${{ item }}', max_tokens: 32 }\n";
+const INPUT_FAN: &str = "nika: fan\nmodel: deepseek/unpriced-shape-fixture\ninputs:\n  items: { type: { array: string }, default: [a] }\ntasks:\n  review:\n    for_each: { items: '${{ inputs.items }}' }\n    infer: { prompt: 'x ${{ item }}', max_tokens: 32 }\n";
+
+#[test]
+fn a_sequential_run_keeps_its_request_bound_and_one_request_in_flight() {
+    let structured = ONE.replace("prompt: text", "prompt: text, schema: { type: string }");
+    let two = format!(
+        "{ONE}  second:\n    after: {{ first: success }}\n    infer: {{ prompt: text, max_tokens: 16 }}\n"
+    );
+    for source in [ONE.to_owned(), structured, two] {
+        let bound = dispatch(&source, &[]).unwrap();
+        let historical = request_bound(&parsed(&source), &plan(), 1).unwrap();
+        assert_eq!((bound.requests, bound.max_in_flight), (historical, 1));
+        assert!(!bound.multiplied() && !bound.authored_retry(), "{source}");
+        assert!(bound.lines().is_empty());
+        assert!(
+            bound
+                .tasks
+                .iter()
+                .all(|t| t.items.is_none() && t.attempts == 1)
+        );
+    }
+}
+
+#[test]
+fn a_literal_fan_multiplies_items_attempts_and_schema_reasks() {
+    let bound = dispatch(FAN, &[]).unwrap();
+    assert_eq!((bound.requests, bound.max_in_flight), (6, 2));
+    assert!(bound.multiplied() && bound.authored_retry());
+    assert_eq!(
+        bound.lines(),
+        ["`review`: 3 items × 2 attempts × 1 call = 6 requests, at most 2 at once"]
+    );
+    let per_schema = 1 + u32::from(nika_verb_infer::DEFAULT_SCHEMA_RETRY_BUDGET);
+    let structured = FAN.replace("max_tokens: 32", "max_tokens: 32, schema: { type: string }");
+    let bound = dispatch(&structured, &[]).unwrap();
+    assert_eq!(bound.requests, 3 * 2 * per_schema);
+    assert_eq!(bound.tasks[0].calls_per_attempt, per_schema);
+    // Every item may be in flight without a declared width, never more than the fan.
+    let open = FAN.replace(", max_parallel: 2", "");
+    assert_eq!(dispatch(&open, &[]).unwrap().max_in_flight, 3);
+    let wide = FAN.replace("max_parallel: 2", "max_parallel: 10");
+    assert_eq!(dispatch(&wide, &[]).unwrap().max_in_flight, 3);
+    // The check's own cap law: a declared `max_items` never raises a count.
+    let capped = FAN.replace("max_parallel: 2", "max_parallel: 2, max_items: 5");
+    assert_eq!(dispatch(&capped, &[]).unwrap().requests, 6);
+    let unretried = dispatch(&FAN.replace("    retry: { max_attempts: 2 }\n", ""), &[]).unwrap();
+    assert_eq!(unretried.requests, 3);
+    assert!(unretried.multiplied() && !unretried.authored_retry());
+    let retried = ONE.replace("    infer:", "    retry: { max_attempts: 3 }\n    infer:");
+    let retried = dispatch(&retried, &[]).unwrap();
+    assert_eq!((retried.requests, retried.max_in_flight), (3, 1));
+    assert_eq!(
+        retried.lines(),
+        ["`first`: 3 attempts × 1 call = 3 requests, at most 1 at once"]
+    );
+}
+
+#[test]
+fn an_operator_bound_collection_counts_before_its_default() {
+    assert_eq!(dispatch(INPUT_FAN, &[]).unwrap().requests, 1, "the default");
+    let four = serde_json::json!(["a", "b", "c", "d"]);
+    let bound = dispatch(INPUT_FAN, &[("items", four)]).unwrap();
+    assert_eq!((bound.requests, bound.max_in_flight), (4, 4));
+    assert_eq!(bound.tasks[0].items, Some(4));
+    let empty = dispatch(INPUT_FAN, &[("items", serde_json::json!([]))]).unwrap();
+    assert_eq!(
+        empty.requests, 0,
+        "a zero total is a value, never an allowance"
+    );
+    // A bound value above a declared cap is refused before its first item:
+    // the cap stays the ceiling, as in the check's own law.
+    let capped = INPUT_FAN.replace("}' }", "}', max_items: 2 }");
+    let four = serde_json::json!(["a", "b", "c", "d"]);
+    assert_eq!(dispatch(&capped, &[("items", four)]).unwrap().requests, 2);
+    let required = INPUT_FAN.replace(", default: [a]", ", required: true");
+    assert_eq!(dispatch(&required, &[]), Err(E::Cardinality));
+    let two = serde_json::json!(["a", "b"]);
+    assert_eq!(dispatch(&required, &[("items", two)]).unwrap().requests, 2);
+    let from_const = INPUT_FAN
+        .replace(
+            "inputs:\n  items: { type: { array: string }, default: [a] }",
+            "const:\n  items: [a, b]",
+        )
+        .replace("inputs.items", "const.items");
+    assert_eq!(dispatch(&from_const, &[]).unwrap().requests, 2);
+}
+
+#[test]
+fn a_count_only_the_run_decides_is_refused_as_its_own_reason() {
+    let optional = INPUT_FAN.replace(", default: [a]", ", required: false");
+    let capped = optional.replace("}' }", "}', max_items: 3 }");
+    let navigated = INPUT_FAN.replace("inputs.items }}", "inputs.items.rest }}");
+    let upstream = "nika: fan\nmodel: deepseek/unpriced-shape-fixture\npermits:\n  tools: ['nika:read']\n  fs: { read: ['./items.json'] }\ntasks:\n  load:\n    invoke: { tool: 'nika:read', args: { path: './items.json' } }\n  review:\n    with: { list: '${{ tasks.load.output }}' }\n    for_each: { items: '${{ with.list }}', max_items: 3 }\n    infer: { prompt: 'x ${{ item }}', max_tokens: 32 }\n";
+    for source in [
+        optional.as_str(),
+        capped.as_str(),
+        navigated.as_str(),
+        upstream,
+    ] {
+        assert_eq!(dispatch(source, &[]), Err(E::Cardinality), "{source}");
+    }
+    assert_eq!(
+        E::Cardinality.to_string(),
+        "unknown-cost Run fans only over a literal list or an input/const array; a count only the run decides has no finite bound"
+    );
+}
+
+#[test]
+fn recovery_non_infer_multipliers_and_other_actions_stay_unsupported() {
+    let read = "nika: fan\nmodel: deepseek/unpriced-shape-fixture\npermits:\n  tools: ['nika:read']\n  fs: { read: ['./a.txt'] }\ntasks:\n  load:\n    for_each: { items: [a] }\n    invoke: { tool: 'nika:read', args: { path: './a.txt' } }\n";
+    let cases = [
+        (
+            FAN.replace("    retry:", "    on_error: { skip: true }\n    retry:"),
+            E::Control,
+        ),
+        (
+            format!("{read}  first:\n    infer: {{ prompt: text, max_tokens: 32 }}\n"),
+            E::Control,
+        ),
+        (
+            format!(
+                "{ONE}  shape:\n    retry: {{ max_attempts: 2 }}\n    invoke: {{ tool: 'nika:jq', args: {{ data: 1, expr: '.' }} }}\n"
+            ),
+            E::Control,
+        ),
+        (
+            format!("{ONE}  process:\n    exec: {{ command: ['echo', 'data'] }}\n"),
+            E::Action,
+        ),
+        (
+            ONE.replace("    infer:", "    agent:")
+                .replace("max_tokens:", "max_tokens_total:"),
+            E::Action,
+        ),
+        (
+            format!("{ONE}  nested:\n    invoke: {{ workflow: child.nika }}\n"),
+            E::Tool,
+        ),
+        (
+            format!(
+                "{FAN}  other:\n    for_each: {{ items: [x] }}\n    infer: {{ prompt: text, max_tokens: 32 }}\n"
+            ),
+            E::Parallel,
+        ),
+    ];
+    for (source, reason) in cases {
+        assert_eq!(dispatch(&source, &[]), Err(reason), "{source}");
+    }
+    let bound = std::collections::BTreeMap::new();
+    assert_eq!(
+        dispatch_bound(&parsed(FAN), &plan(), 2, &bound),
+        Err(E::Route)
+    );
+    let only_local = "nika: local\nmodel: deepseek/unpriced-shape-fixture\ntasks:\n  admit:\n    invoke: { tool: 'nika:assert', args: { condition: true } }\n";
+    assert_eq!(dispatch(only_local, &[]), Err(E::NoInfer));
+}
+
+#[test]
+fn every_product_and_sum_is_checked() {
+    let huge = FAN.replace("max_attempts: 2", "max_attempts: 4294967295");
+    assert_eq!(dispatch(&huge, &[]), Err(E::Overflow));
+    let half = ONE.replace(
+        "    infer:",
+        "    retry: { max_attempts: 2147483648 }\n    infer:",
+    );
+    assert_eq!(dispatch(&half, &[]).unwrap().requests, 2_147_483_648);
+    let twice = format!(
+        "{half}  second:\n    after: {{ first: terminal }}\n    retry: {{ max_attempts: 2147483648 }}\n    infer: {{ prompt: text, max_tokens: 16 }}\n"
+    );
+    assert_eq!(dispatch(&twice, &[]), Err(E::Overflow));
+}
+
+#[test]
+fn readiness_names_the_same_typed_bound_and_zero_needs_no_choice() {
+    let config = nika_providers::ProvidersConfig::new();
+    let fan = readiness(&parsed(FAN), &plan(), &config).unwrap();
+    assert_eq!(
+        fan,
+        "USD cost is unknown: Run requires a fresh finite-call choice for at most 6 requests, at most 2 at once, including schema re-asks and authored retries; Check has not admitted spend or effects"
+    );
+    let one = readiness(&parsed(ONE), &plan(), &config).unwrap();
+    assert_eq!(
+        one,
+        "USD cost is unknown: Run requires a fresh finite-call choice for at most 1 requests, including schema re-asks; Check has not admitted spend or effects"
+    );
+    let empty = FAN.replace("[a, b, c]", "[]");
+    assert_eq!(dispatch(&empty, &[]).unwrap().requests, 0);
+    assert_eq!(readiness(&parsed(&empty), &plan(), &config), None);
+}
+
+/// B12 r5 · the bound's owner configures a fresh review with its whole law:
+/// the question and the confirmed choice carry its total, width, breakdown
+/// and retry law; a sequential bound keeps the historical review, and a zero
+/// total configures nothing.
+#[test]
+fn the_bound_configures_a_review_with_its_whole_law() {
+    use nika_providers::admission::{CostHostEvidence, CostReview, CostRoute};
+    let route = CostRoute::observe(MODEL, nika_providers::ProvidersConfig::new()).unwrap();
+    let fresh = || {
+        let local = CostHostEvidence::unmanaged_interactive_local();
+        CostReview::new(
+            "candidate".into(),
+            "run".into(),
+            route.clone(),
+            local,
+            None,
+            None,
+        )
+        .unwrap()
+    };
+    let bound = dispatch(FAN, &[]).unwrap();
+    let review = bound.review(fresh()).unwrap();
+    assert_eq!((review.max_requests(), review.max_in_flight()), (6, 2));
+    let question = review.question();
+    for line in bound.lines() {
+        assert!(question.contains(&line), "{question}");
+    }
+    assert!(
+        question.contains("Task retries authored in the workflow"),
+        "{question}"
+    );
+    let account = review.confirm("candidate", &route).unwrap();
+    let choice = serde_json::to_value(account.snapshot().unwrap().unknown_cost).unwrap();
+    assert_eq!(
+        (
+            &choice["max_requests"],
+            &choice["max_in_flight"],
+            &choice["authored_retry"]
+        ),
+        (
+            &serde_json::json!(6),
+            &serde_json::json!(2),
+            &serde_json::json!(true)
+        )
+    );
+    let one = dispatch(ONE, &[]).unwrap().review(fresh()).unwrap();
+    assert_eq!(one.question(), fresh().for_run(1).unwrap().question());
+    let empty = dispatch(&FAN.replace("[a, b, c]", "[]"), &[]).unwrap();
+    assert!(
+        empty.review(fresh()).is_err(),
+        "zero work buys no allowance"
+    );
+}
+
+/// B12 r5 · one bound law: `request_bound` is `dispatch_bound` at declared
+/// defaults, refused as `Control` exactly when the bound multiplies. A single
+/// authored attempt is the sequential Run of one request with no retry law,
+/// and a fan whose count only the run decides keeps its own reason.
+#[test]
+fn request_bound_is_the_sequential_projection_of_the_one_law() {
+    let once = ONE.replace("    infer:", "    retry: { max_attempts: 1 }\n    infer:");
+    let bound = dispatch(&once, &[]).unwrap();
+    assert!(!bound.multiplied() && !bound.authored_retry());
+    assert_eq!(
+        request_bound(&parsed(&once), &plan(), 1),
+        Ok(bound.requests())
+    );
+    for multiplied in [
+        FAN.to_owned(),
+        FAN.replace("[a, b, c]", "[]"),
+        FAN.replace("    retry: { max_attempts: 2 }\n", ""),
+        ONE.replace("    infer:", "    retry: { max_attempts: 2 }\n    infer:"),
+    ] {
+        assert!(dispatch(&multiplied, &[]).unwrap().multiplied());
+        assert_eq!(
+            request_bound(&parsed(&multiplied), &plan(), 1),
+            Err(E::Control),
+            "{multiplied}"
+        );
+    }
+    let required = INPUT_FAN.replace(", default: [a]", ", required: true");
+    assert_eq!(
+        request_bound(&parsed(&required), &plan(), 1),
+        Err(E::Cardinality)
+    );
 }

@@ -253,6 +253,7 @@ impl<T> serde_core::de::DeserializeOwned for nika_providers::admission::CostChal
 #[non_exhaustive] pub struct nika_providers::admission::CostHostEvidence
 impl nika_providers::admission::CostHostEvidence
 pub fn nika_providers::admission::CostHostEvidence::new(allowed: bool, policy: nika_providers::admission::CapEvidence, machine: nika_providers::admission::CapEvidence, occurrence: nika_providers::admission::CapEvidence) -> Self
+pub fn nika_providers::admission::CostHostEvidence::unknown_cost_refusal(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_providers::admission::CostHostEvidence::unmanaged_interactive_local() -> Self
 pub fn nika_providers::admission::CostHostEvidence::view(&self) -> serde_json::value::Value
 impl core::clone::Clone for nika_providers::admission::CostHostEvidence
@@ -315,16 +316,21 @@ pub fn nika_providers::admission::CostResponse::as_any(&self) -> &(dyn core::any
 impl<T> serde_core::de::DeserializeOwned for nika_providers::admission::CostResponse where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub struct nika_providers::admission::CostReview
 impl nika_providers::admission::CostReview
+pub fn nika_providers::admission::CostReview::bounds(&self) -> (u32, u32, core::time::Duration)
 pub fn nika_providers::admission::CostReview::confirm(self, candidate: &str, route: &nika_providers::admission::CostRoute) -> core::result::Result<nika_providers::admission::InferenceAdmission, alloc::string::String>
 pub fn nika_providers::admission::CostReview::details(&self) -> alloc::string::String
 pub fn nika_providers::admission::CostReview::for_run(self, max_requests: u32) -> core::result::Result<Self, alloc::string::String>
 pub fn nika_providers::admission::CostReview::for_session(self) -> Self
+pub fn nika_providers::admission::CostReview::max_in_flight(&self) -> u32
 pub fn nika_providers::admission::CostReview::max_output_tokens(&self) -> u32
 pub fn nika_providers::admission::CostReview::max_requests(&self) -> u32
 pub fn nika_providers::admission::CostReview::new(candidate: alloc::string::String, invocation: alloc::string::String, route: nika_providers::admission::CostRoute, evidence: nika_providers::admission::CostHostEvidence, invocation_default: core::option::Option<nika_types::cost::Cost>, project_default: core::option::Option<nika_types::cost::Cost>) -> core::result::Result<Self, alloc::string::String>
 pub fn nika_providers::admission::CostReview::new_with_clock<C: nika_kernel_core::io::clock::ClockDyn + core::fmt::Debug + 'static>(candidate: alloc::string::String, invocation: alloc::string::String, route: nika_providers::admission::CostRoute, evidence: nika_providers::admission::CostHostEvidence, invocation_default: core::option::Option<nika_types::cost::Cost>, project_default: core::option::Option<nika_types::cost::Cost>, clock: alloc::sync::Arc<C>) -> core::result::Result<Self, alloc::string::String>
 pub fn nika_providers::admission::CostReview::question(&self) -> alloc::string::String
 pub fn nika_providers::admission::CostReview::request_timeout(&self) -> core::time::Duration
+pub fn nika_providers::admission::CostReview::with_authored_retry(self, authored: bool) -> Self
+pub fn nika_providers::admission::CostReview::with_breakdown(self, lines: alloc::vec::Vec<alloc::string::String>) -> Self
+pub fn nika_providers::admission::CostReview::with_concurrency(self, max_in_flight: u32) -> core::result::Result<Self, alloc::string::String>
 impl core::fmt::Debug for nika_providers::admission::CostReview
 pub fn nika_providers::admission::CostReview::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_providers::admission::CostReview
@@ -609,7 +615,9 @@ pub fn nika_providers::admission::UnknownCostChoice::endpoint(&self) -> &str
 pub fn nika_providers::admission::UnknownCostChoice::model(&self) -> &str
 pub fn nika_providers::admission::UnknownCostChoice::new(candidate: alloc::string::String, invocation: alloc::string::String, provider: alloc::string::String, model: alloc::string::String, endpoint: alloc::string::String, max_requests: u32, max_output_tokens: u32, timeout: core::time::Duration) -> core::result::Result<Self, nika_kernel_ai::provider::ProviderError>
 pub fn nika_providers::admission::UnknownCostChoice::provider(&self) -> &str
+pub fn nika_providers::admission::UnknownCostChoice::with_authored_retry(self) -> Self
 pub fn nika_providers::admission::UnknownCostChoice::with_declared_tariff(self, tariff: nika_providers::admission::DeclaredTariff) -> core::result::Result<Self, nika_kernel_ai::provider::ProviderError>
+pub fn nika_providers::admission::UnknownCostChoice::with_max_in_flight(self, n: u32) -> core::result::Result<Self, nika_kernel_ai::provider::ProviderError>
 impl core::clone::Clone for nika_providers::admission::UnknownCostChoice
 pub fn nika_providers::admission::UnknownCostChoice::clone(&self) -> nika_providers::admission::UnknownCostChoice
 impl core::cmp::Eq for nika_providers::admission::UnknownCostChoice

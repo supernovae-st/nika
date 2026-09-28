@@ -321,6 +321,12 @@ library hosts. When a bounded attempt's settlement refuses complete usage
 incompleteness), its per-dispatch `InferenceCall` drops `estimated_usd` and keeps
 the usage evidence: no frame prices a charge the account holds unknown (E13 F2).
 
+`CostHostEvidence::unknown_cost_refusal()` (B12 · 2026-09-28) returns the
+refusal the evidence itself gives every unknown-cost choice (a hard cap, a
+denied or unknown layer), in the words `CostReview::new` gives, or `None`. A
+host can therefore teach its own cap's remedy beside that refusal only, never
+beside an unrelated shape, lease or witness refusal.
+
 `CostChallenge::display` is the first screen of a fresh Run decision: the
 provider/model and the endpoint's origin, the review's own unknown-USD, request,
 output-token, time, default and hard-cap sentences, the native catalog line
@@ -332,9 +338,54 @@ nonce or any authority.
 
 `CostReview::for_session` applies the Session preparation bounds: at most seven
 requests, 32768 output tokens and 180 seconds per request. The displayed review
-and consuming admission use these same values. `CostReview::new` and
+and consuming admission use these same values. `CostReview::bounds()` answers
+the three together (requests, per-request output tokens, per-request deadline)
+so a host shows the owner's triple, which the confirmed choice enforces as
+`max_requests`, `max_output_tokens` and `timeout_ms`. `CostReview::new` and
 `with_run_requests` retain the Run per-request limits (8192 tokens, 120 seconds);
-unknown outcomes freeze their account and never grant a transport retry.
+unknown outcomes freeze their account and never grant a transport retry (for a
+Run that authored retries, a received 429 or 503 answers its attempt instead:
+see Dispatch multiplicity).
+
+### Dispatch multiplicity (B12 · 2026-09-28)
+
+A confirmed unknown-cost choice bounds two independent quantities: the original
+total of physical requests (`max_requests`) and the requests in flight at once.
+`UnknownCostChoice::with_max_in_flight(n)` and `CostReview::with_concurrency(n)`
+widen the second past its historical one (`0 < n <= total`, otherwise refused).
+Each reservation takes one of both under the account mutex; the total counts
+every reservation, sent or not, and is never recomputed from a remaining
+snapshot. A reservation's in-flight slot is released exactly once: by complete
+settlement, by an answered status, or by its drop. A sequential choice without
+authored retries serializes byte for byte as before; a widened one adds
+`max_in_flight` to its observation, and one whose Run authored retries adds
+`"authored_retry": true`.
+
+`UnknownCostChoice::with_authored_retry()` (`CostReview::with_authored_retry`)
+records that the Run authored retries inside its total. The authorization law
+is explicit: only a typed authored `retry.max_attempts` above one sets it (the
+host's `DispatchBound::authored_retry`). Fan cardinality, the total and schema
+re-asks never set it, and a schema re-ask, being an extra call inside one
+attempt, is never a transport resend. The flag is part of the confirmed choice
+and its observation. The human approves it through the question (the retry
+line), which the CLI challenge and the Serve witness bind. Only for such a
+choice does a 429 or 503 received from the unchanged reserved endpoint answer
+its attempt. Its usage and USD cost stay unknown: it counts in `unknown_calls`
+and is never marked as not billed. The attempt count and the account state are
+kept; in particular, an answer never lifts an Uncertain left by a sibling. An
+authored retry inside the original total may then reserve again, and only while
+the account is Open. Without authored retries the historical law holds and the
+attempt leaves the account Uncertain. Session reviews, and Run reviews with
+single attempts (every legacy V1 review), keep this conservative law explicitly. Any other status, a changed endpoint, an ambiguous transport
+outcome, a cancelled or timed-out send and an identity contradiction always
+leave the account Uncertain. After that, reserved siblings cannot send, new
+reservations are refused whatever slots are free, and responses already in
+flight are still recorded.
+
+`CostReview::with_breakdown(lines)` adds the host's per-task lines to the
+question, followed by the in-flight bound and, for authored retries, the retry
+rule. A review with neither a breakdown, concurrency nor authored retries keeps
+its historical question bytes.
 
 `ExecutionAccessPlan::admits_api_lane(provider)` (C6, descended from Serve's
 cost-review door) answers whether an admitted lane of that canonical provider,
