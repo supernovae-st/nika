@@ -91,7 +91,10 @@ unavailable/unsupported harness capabilities refuse visibly. No intelligence
 continues to compile deterministic requests without calling a model.
 
 Initial authoring, recorded clarification continuations and revisions use the
-same native Compiler and the same pinned authoring context. Revisions retain
+same native Compiler and the same pinned authoring context. An answer round adopts
+the plan the Compiler re-anchored to a changed source and drops every answer the outcome asks
+again (`AuthoringRound::absorb`, R4 A6): the same goal keeps its round, only a fresh explicit
+answer binds, and a verified or pending transform is never carried to another source. Revisions retain
 the exact base bytes, original request and raw change. A failed edit keeps the
 previous proposal or saved workflow; Session never substitutes a model
 paraphrase as the source of a fresh Create request. The adapter passes
@@ -176,16 +179,49 @@ Session reads explicit monetary intent before the compiler, classifier or
 reasoner sees new work, including Prepare. Currency or a monetary anchor gives
 a number that meaning; times, quantities, quoted data and path tokens do not.
 Amounts must be finite and nonnegative. Decimal comma is accepted, explicit
-zero is distinct from unset, and conflicting amounts refuse. Compact forms
-such as `budget=0`, `budget:0,50` and `2USD` accept sentence punctuation;
-malformed amounts refuse before cognition. Explicit money
-replaces a project default; the default is not an independent cap. A stated
-default being replaced must match the observed default. Project discovery
-errors remain visible and refuse admission instead of silently becoming an
-absent default. The original intent reaches the compiler unchanged.
+zero is distinct from unset, and conflicting amounts refuse. Compact forms such
+as `budget=0`, `budget:0,50` and `2USD` accept sentence punctuation; malformed
+amounts refuse before cognition. Explicit money replaces a project default; the
+default is not an independent cap. A stated default being replaced must match
+the observed default. Project discovery errors remain visible and refuse
+admission instead of silently becoming an absent default. The original intent
+reaches the compiler unchanged. A work request is read by its monetary
+directives only (R4 A6): a word inside a business clause, a field named
+`budget`, a quoted value or a path is never money and never refused as money;
+Run, gate and consent lines keep the whole-line reading. The directives the
+gate admitted ride with the authoring round (`AuthoringRound::money`), so the
+compiler's deterministic door reads the rest of the request without them: « ….
+Budget: $0. » keeps the business round (READY or a field question, zero calls)
+where the unresolved clause used to need a seat the zero ceiling refused. A
+line that still does not settle is routed as written (conversation stays
+conversation, unread work stays work); UNKNOWN, exposure and reconfirmation are
+never reset by it. When the ceiling refuses the seat, such a line is refused
+with the compiler's reasons, never the bare ceiling: « budget=0 » over a file
+with a `budget` column reads both ways and is the human's to restate. The
+unknown-cost gate's own deterministic check reads a line the same way: on a
+route whose USD cost the catalog cannot qualify (a gateway), a stated ceiling
+never turns deterministic work into a cost review, a route refusal or a
+zero-constraint refusal; a malformed ceiling is left to the money gate. An
+explicit zero stages no cost review at all, since nothing can be sent under it
+on any route: the deterministic reading, a question, or a refusal with the
+reader's reasons follows.
 Once attached currency is recognized, amount validation cannot fall back to
 filename handling: `budget=0.5oopsUSD` refuses, while `budget=0.txt` and quoted
 or explicit path data retain their data meaning.
+Compact anchors also open trailing currency directives (`… budget=0.5USD`).
+An unanchored currency needs its own sentence or comma segment (`…, 2USD`);
+`and 2USD` or `et 2USD` could finish a business range and is never stripped as
+a ceiling. Currency inside a business predicate remains business data. A
+standalone malformed currency segment is refused.
+Monetary conjunctions are read together, so `budget 1 USD and cap 2 USD`
+refuses instead of selecting the last amount. An empty monetary anchor and
+an invalid non-path amount between an anchor and currency also refuse.
+An explicit old-default reference remains part of the admission decision
+and must match the observed project default.
+The lexical reader is the compile unit's `money` module (R4 A6), moved
+unchanged from `runtime/money_parse.rs` and re-exported as
+`nika_onboard::compile::money`: the compiler and Session read one law;
+admission, its account and its refusals stay Session's.
 
 `SessionRuntime::monetary_decision()` exposes the actual decision, original
 intent, monetary input, amount token, effective USD amount, source, project

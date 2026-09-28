@@ -257,7 +257,12 @@ pub fn run_with(args: &CompileArgs, authority: &AuthoringAuthority) -> VerbOutpu
             },
         );
     }
-    render::outcome(&outcome, written, note.as_ref(), args.json)
+    // A named destination this compile did not write (R4 A6): what is there remains; only its
+    // presence is read, never through a link, never its bytes.
+    let existing = dest
+        .filter(|path| written.is_none() && Path::new(path.as_str()).symlink_metadata().is_ok())
+        .map(String::as_str);
+    render::outcome(&outcome, written, existing, note.as_ref(), args.json)
 }
 
 /// What a seated compile reads before any file is observed or any request sent: the authoring

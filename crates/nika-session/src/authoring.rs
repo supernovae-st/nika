@@ -312,6 +312,9 @@ pub struct AuthoringRound {
     /// A revision's EDIT — the exact base, the human's change, the request the base answered:
     /// every request of the round is that EDIT, never a fresh CREATE.
     pub(crate) edit: Option<(String, String, Option<String>)>,
+    /// The monetary directives of `intent` the money gate admitted (R4 A6): every request of the
+    /// round tells the compiler they are the Session's ceiling, never business clauses.
+    pub(crate) money: Vec<std::ops::Range<usize>>,
 }
 
 impl AuthoringRound {
@@ -328,6 +331,7 @@ impl AuthoringRound {
             knowledge: None,
             authoring_receipt: None,
             edit: None,
+            money: Vec::new(),
         }
     }
 
@@ -387,6 +391,9 @@ impl AuthoringRound {
         if let Some(plan) = &self.continuation {
             request = request.with_plan(plan.clone());
         }
+        if !self.money.is_empty() {
+            request = request.with_admitted_money(self.money.clone());
+        }
         request
     }
 
@@ -396,6 +403,11 @@ impl AuthoringRound {
     /// presented a pack, the mandatory questions in the compiler's order (a
     /// revision's clause dispositions too), its reasons.
     pub fn absorb(&mut self, out: &CompileOutcome) {
+        if let Some(plan) = reanchored(self.continuation.as_ref(), out) {
+            // The compiler re-anchored the plan to a changed source (R4 A6): the next answer
+            // binds against the observation its question showed; no approval rides along.
+            self.continuation = Some(plan);
+        }
         if self.continuation.is_none() && out.provenance.strategy.is_some() {
             self.continuation.clone_from(&out.provenance.plan);
             if self.continuation.is_some() {
@@ -428,6 +440,10 @@ impl AuthoringRound {
             .filter(|d| matches!(d.kind, DiagnosticKind::Unknown | DiagnosticKind::Missed))
             .map(|d| d.message.clone())
             .collect();
+        // An answer the compiler asks for again (stale, refused) is no answer (R4 A6).
+        let asked = &self.questions;
+        self.answers
+            .retain(|key, _| !asked.iter().any(|q| &q.key == key));
     }
 
     fn carry_subscription_receipt(&self, out: &mut CompileOutcome) {
@@ -999,6 +1015,20 @@ fn carried_record(record: &Value) -> Value {
         map.insert("carried".to_owned(), Value::Bool(true));
     }
     carried
+}
+
+/// The plan an answer round's outcome re-anchored to a changed source (its observation or
+/// the keys it asked again moved, R4 A6), when neither plan carries an approval: a verified
+/// or pending transform stays bound to the plan that authored it.
+fn reanchored(recorded: Option<&Value>, out: &CompileOutcome) -> Option<Value> {
+    let (recorded, plan) = (recorded?, out.provenance.plan.as_ref()?);
+    let moved = ["observed_world", "reasked"]
+        .iter()
+        .any(|k| recorded.get(*k) != plan.get(*k));
+    let approval = ["verified_transform", "pending_transform"]
+        .iter()
+        .any(|k| recorded.get(*k).is_some() || plan.get(*k).is_some());
+    (moved && !approval).then(|| plan.clone())
 }
 
 /// The session's knowledge record in an outcome when the native door

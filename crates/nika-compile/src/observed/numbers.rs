@@ -66,14 +66,19 @@ fn answered(
 ) -> Option<NumberPolicy> {
     request.answers.get(key)?;
     if stale(request, path) {
-        crate::finding(
-            out,
-            DiagnosticKind::Missed,
-            key,
+        // A plan recorded before kinds were observed (R4 A6): the file need not have changed.
+        let recorded = request.plan.as_ref().and_then(|p| p.get("observed_world"));
+        let predates = entry(recorded, path).is_none() && !grounding::stale(request, path);
+        let message = if predates {
+            format!(
+                "The plan recorded for `{path}` predates the value kinds this question counts, so it is asked over them now. Answer again."
+            )
+        } else {
             format!(
                 "`{path}` changed since this question was asked (its values or their kinds), so its answer is for another revision. Answer again."
-            ),
-        );
+            )
+        };
+        crate::finding(out, DiagnosticKind::Missed, key, message);
         return None;
     }
     let raw = request.answers.get(key).map(String::as_str);

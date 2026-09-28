@@ -184,7 +184,18 @@ impl SessionRuntime {
             && self.authoring.is_none()
             && !crate::authoring::is_greeting(input)
         {
-            let round = crate::authoring::AuthoringRound::new(input);
+            // The line's own monetary directives, read as its round reads them once admitted
+            // (R4 A6); a malformed ceiling is the money gate's to refuse, precisely, next. An
+            // explicit zero forbids every call on any route: no review is staged for it, and its
+            // deterministic reading, question or refusal with the reader's reasons follows.
+            let Ok(found) = super::money_parse::directives(input) else {
+                return Ok(());
+            };
+            if found.money.amount == Some(0.0) {
+                return Ok(());
+            }
+            let mut round = crate::authoring::AuthoringRound::new(input);
+            round.money = found.found.into_iter().map(|d| d.span).collect();
             if let Ok(out) = crate::authoring::compile_deterministic(&round.request())
                 && matches!(
                     crate::authoring::Reading::of(out),

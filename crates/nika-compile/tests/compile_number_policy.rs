@@ -338,3 +338,54 @@ fn a_legacy_numeric_plan_replays_canonical_and_is_grounded_again() {
     let out = compile(&CompileRequest::create(FILTER).with_plan(forged)).unwrap();
     assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
 }
+
+/// Exponent notation is a JSON number (R4 A6 · E27 R3): « 1.5e2 », « 1E+3 », « -1e3 » read as
+/// numbers in the observation and in the law the candidate runs, so a file of them asks nothing
+/// and is compared and ranked by value; an overflowing text (« 1e999 ») is no number and asked.
+#[test]
+fn exponent_texts_are_numbers_and_an_overflow_is_not() {
+    let amounts = ["1.5e2", "1e2", "-1e3", "1E+3", "0.1e3"];
+    let rows: Vec<Value> = amounts
+        .iter()
+        .enumerate()
+        .map(|(i, a)| json!({"id": i + 1, "amount": a}))
+        .collect();
+    let out = run(FILTER, &world("./tickets.json", &rows), &[]);
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert!(question(&out, "const.rule_number_1").is_none(), "{out:#?}");
+    let record = &numbers_record(&out)[0];
+    assert_eq!(record["kinds"], json!({"number_text": 5}), "{record}");
+    assert_eq!(record["bound_by"], "observed numbers", "{record}");
+    // The candidate reads the law (the exponent grammar and its finiteness test, folded to `num`).
+    let candidate = out.candidate.as_deref().unwrap();
+    assert_eq!(
+        common::compute(candidate),
+        "[.records[] | select((.amount | num) > 100)]"
+    );
+    assert!(
+        candidate.contains("([eE][+-]?[0-9]+)?")
+            && candidate.contains("(tonumber | isinfinite or isnan | not)"),
+        "{candidate}"
+    );
+    let points = ["1.5e2", "-2e1", "99", "1e3", "0.5"];
+    let players: Vec<Value> = points
+        .iter()
+        .map(|p| json!({"name": p, "points": p}))
+        .collect();
+    let ranked = run(TOP, &world("./players.json", &players), &[]);
+    assert_eq!(ranked.status, CompileStatus::Ready, "{ranked:#?}");
+    assert!(
+        question(&ranked, "const.rule_number_1").is_none(),
+        "{ranked:#?}"
+    );
+    let mut overflow = rows.clone();
+    overflow.push(json!({"id": 6, "amount": "1e999"}));
+    let asked = run(FILTER, &world("./tickets.json", &overflow), &[]);
+    assert_ne!(asked.status, CompileStatus::Ready, "{asked:#?}");
+    let q = question(&asked, "const.rule_number_1").expect("the overflow is asked");
+    assert!(
+        q.label.contains("1 of 6") && q.label.contains("text 1"),
+        "{}",
+        q.label
+    );
+}

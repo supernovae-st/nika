@@ -34,7 +34,7 @@ pub mod compile {
         CompilePreview, CompileProvenance, CompileQuestion, CompileRequest, CompileStatus,
         DiagnosticKind, Hit, HitKind, HotPolicy, KnowledgeReference, MaterializeError, NativeMode,
         PreviewScope, QuestionType, RepresentationError, Strategy, TriggerKind, TriggerRequirement,
-        TriggerStatus, compile, fold, intent_sha256, materialize_ready, observation,
+        TriggerStatus, compile, fold, intent_sha256, materialize_ready, money, observation,
         outcome_document, retrieve, retrieve_by_ops, revise_intent, stated_destinations,
         stated_sources, text,
     };

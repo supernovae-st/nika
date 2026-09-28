@@ -175,11 +175,19 @@ fn child() {
         ] {
             let mut session = provider(root);
             let input = format!("{verb} {clause}?");
-            assert!(matches!(session.turn(&input), TurnOutcome::Refusal(_)));
+            let out = session.turn(&input);
+            // A6 permits the deterministic copy to reach review under a valid ceiling;
+            // cognition, save and execution are still unauthorized by this turn.
+            let deterministic = verb.starts_with("Prépare") && amount.is_some();
+            if deterministic {
+                assert!(matches!(out, TurnOutcome::Proposal { .. }), "{out:?}");
+            } else {
+                assert!(matches!(out, TurnOutcome::Refusal(_)), "{out:?}");
+            }
             let money = session.monetary_decision().expect("money");
             assert_eq!(money.input, input);
             assert_eq!(money.effective_usd, amount);
-            assert!(session.pending_proposal().is_none());
+            assert_eq!(session.pending_proposal().is_some(), deterministic);
             assert!(session.pending_question().is_none());
         }
         for (addressed, start_with_zero) in

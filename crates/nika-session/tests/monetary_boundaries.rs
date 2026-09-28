@@ -587,7 +587,13 @@ fn attached_currency_validation_keeps_decimal_and_data_controls() {
     ] {
         let dir = tempfile::tempdir().expect("fixture");
         let (mut session, calls) = open(dir.path());
-        let input = format!("What can you tell me about stars and {clause}?");
+        // R4 A6 reads a bare currency as a separate monetary segment. A bare
+        // `and 2USD` could instead finish a business range; it is not a ceiling.
+        let input = if clause == "2USD" {
+            format!("What can you tell me about stars, {clause}?")
+        } else {
+            format!("What can you tell me about stars and {clause}?")
+        };
         session.turn(&input);
         let money = session.monetary_decision().expect("money or data");
         assert_eq!(money.original_intent, input);

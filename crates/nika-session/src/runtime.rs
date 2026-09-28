@@ -39,7 +39,8 @@ mod durable_tests;
 mod history;
 mod inference;
 mod money_gate;
-mod money_parse;
+// The lexical money reader grants no authority; admission stays here.
+use nika_onboard::compile::money as money_parse;
 mod protocol;
 mod question;
 mod recovery;
@@ -854,9 +855,9 @@ impl SessionRuntime {
             self.remember(input, &fact);
             return TurnOutcome::Facts(fact);
         }
-        if !self.local_run_line(original)
-            && let Err(refusal) = self.admit_money(original, false)
-        {
+        if self.local_run_line(original) {
+            self.money.admitted.clear();
+        } else if let Err(refusal) = self.admit_money(original, false) {
             return refusal;
         }
         if let Some(outcome) = self.run_turn(original) {

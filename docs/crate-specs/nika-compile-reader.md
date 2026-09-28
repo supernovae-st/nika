@@ -203,20 +203,22 @@ while `nika-compile` stood at its wall; they ascended to `nika-compile-fidelity`
   computes. A change that means something still changes the identity, and a changed
   identity never authorizes a changed context.
 - One number law (R4 A5, `rules/numbers.rs`): a value a rule reads as a number is a finite
-  JSON number or a text `text::NUMBER_TEXT` accepts (an optional minus, `0` or digits without
-  a leading zero, an optional fraction, blanks around; no plus, exponent, comma, `Infinity`,
-  `NaN` or empty text), parsed; anything else follows the field's stated `NumberPolicy`. FAIL
-  stops the run naming the field and the value; SKIP makes the comparison false for that
-  record and leaves it out of a ranking or a total, and a ranking or total left with no
-  number stops the run. Under either policy an average, a minimum or a maximum over no number
-  is no value, never 0 or null: it stops the run, from an empty input too, and an average
-  divides by the numbers it kept. A rule with no stated policy renders exactly as a recorded
-  plan always rendered it (`tonumber`, `tonumber? // .` for a sort), so every plan record
-  stays canonical under the strict replay and its identity unchanged; the compiler states a
-  policy on the rule it binds (`nika-compile`). The bounded canonical-spelling expansion of a
-  text equality (`Rule::with_spellings`) matches exactly the extra spellings the compiler
-  grounded; it is never a normalization at run. Policies and spellings are serialized only
-  when stated, and a plan record carrying either is refused, never read without them.
+  JSON number or a text `text::NUMBER_TEXT` accepts (the JSON number grammar: an optional
+  minus, `0` or digits without a leading zero, an optional fraction, an optional exponent
+  since R4 A6, blanks around; no plus in front, bare or trailing point, comma, `Infinity`,
+  `NaN` or empty text) whose value is finite (`1e999` is no number), parsed; anything else
+  follows the field's stated `NumberPolicy`. FAIL stops the run naming the field and the
+  value; SKIP makes the comparison false for that record and leaves it out of a ranking or a
+  total, and a ranking or total left with no number stops the run. Under either policy an
+  average, a minimum or a maximum over no number is no value, never 0 or null: it stops the
+  run, from an empty input too, and an average divides by the numbers it kept. A rule with no
+  stated policy renders exactly as a recorded plan always rendered it (`tonumber`, `tonumber?
+  // .` for a sort), so every plan record stays canonical under the strict replay and its
+  identity unchanged; the compiler states a policy on the rule it binds (`nika-compile`). The
+  bounded canonical-spelling expansion of a text equality (`Rule::with_spellings`) matches
+  exactly the extra spellings the compiler grounded; it is never a normalization at run.
+  Policies and spellings are serialized only when stated, and a plan record carrying either
+  is refused, never read without them.
 - The 12 ADR-003 gates were passed by `nika-onboard` at its admission; this member inherits
   them as the third member of the same unit (the ADR-115 and ADR-137 precedent). Mutation
   and property attestations for the reader are owed as pending evidence, tracked with the

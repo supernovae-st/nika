@@ -52,10 +52,12 @@ pub(super) fn replay(
     (request, None)
 }
 
-/// After the compile: a replay keeps its note and rewrites nothing; a fresh compile that
+/// After the compile: a replay keeps its note and rewrites nothing, unless the compiler
+/// re-anchored its plan to a changed source (R4 A6): the record is then replaced, atomically,
+/// so the next answer binds against the observation the question showed; a fresh compile that
 /// settled a plan records it; anything else records nothing.
 pub(super) fn keep(sha: Option<&str>, note: Option<Note>, out: &CompileOutcome) -> Option<Note> {
-    if note.is_some() {
+    if note.is_some() && !sha.is_some_and(|sha| reanchored(sha, out)) {
         return note;
     }
     let sha = sha.filter(|_| recordable(out))?;
@@ -87,6 +89,22 @@ pub(super) fn load(sha: &str) -> Option<Value> {
         plan["strategy"] = json!(strategy);
     }
     Some(plan)
+}
+
+/// Whether the compiler re-anchored the recorded plan: its observation or the keys it asked
+/// again moved, and neither plan carries an approval (a verified or pending transform stays
+/// bound to the plan that authored it, never carried to another source).
+fn reanchored(sha: &str, out: &CompileOutcome) -> bool {
+    let (Some(recorded), Some(plan)) = (load(sha), out.provenance.plan.as_ref()) else {
+        return false;
+    };
+    let moved = ["observed_world", "reasked"]
+        .iter()
+        .any(|k| recorded.get(*k) != plan.get(*k));
+    let approval = ["verified_transform", "pending_transform"]
+        .iter()
+        .any(|k| recorded.get(*k).is_some() || plan.get(*k).is_some());
+    moved && !approval
 }
 
 /// Only a settled general-path plan is worth replaying: skeletons and the support

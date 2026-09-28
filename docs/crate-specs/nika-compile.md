@@ -119,6 +119,32 @@ answer and the question stays. Weekly, weekday, daily and dividing-interval
 schedules are unchanged. A clause the reader does not take as a trigger stays
 an unresolved clause, never READY.
 
+## Money words
+
+`money` is the one lexical money reader (R4 A6, moved unchanged from `nika-session`):
+what a line states about a USD ceiling, its exact amount token, a default it replaces,
+whether it states money only. Quotes and path tokens are data; only a currency or a
+monetary anchor gives a number monetary meaning. It recognizes; it never admits: the
+caller's money gate decides what an amount allows.
+
+A work request states money only in its directives (`money::directives`, R4 A6): a whole
+sentence or comma segment made of money words that states an amount beside an anchor or a
+currency (« Budget: $0 », « budget=0 », « --max-cost-usd 0 »), or a trailing phrase that names
+an anchor, a currency and an amount (« … with a budget of $1 », « hello budget 2 USD »). A word
+inside a business clause (« rows whose budget is 15 », « price under $5 »), an anchor followed
+by a plain word, quoted text and paths are data; malformed, negative, non-finite and
+conflicting amounts refuse. Run, gate and consent lines keep the whole-line reading.
+
+A caller that admitted directives as its own ceiling names their exact spans
+(`CompileRequest::with_admitted_money`). The deterministic door then reads the request with
+them blanked (same bytes, same offsets), never as business clauses; `decision.money` records
+each directive and `decision.intent_sha256` stays the original request's; a diagnostic says the
+ceiling is the caller's and that the compiler certifies no cap. A span that is no directive of
+the request refuses. A directive with no currency whose anchor names an observed field
+(« budget=0 » over a `budget` column) is not blanked and is asked. A request that names a
+skeleton only once blanked (« hello budget 2 USD ») is read as written. The seat door reads
+the request as written, as before; without an admission (the CLI) nothing changes.
+
 ## Numbers a bound rule reads
 
 Every field a bound rule reads as a number (a numeric comparison, a sum, an average, a
@@ -138,17 +164,17 @@ Over one observed source the policy is grounded in the raw kinds the host counte
 (`world.kinds`, `observation.rs`, R4 A5): a numeric field whose sampled values include
 anything that is not a number (null, missing, true/false, text, empty, a list, an object)
 asks a mandatory closed choice before READY (`const.rule_number_<n>`: `skip` or `fail`),
-naming how many sampled records hold what; a field observed as numbers only (a JSON
-number, a decimal text, zero) asks nothing and reads under FAIL, so a value the bounded
-sample did not show stops the run by name. The answer binds the source's revision: a
-changed row or changed kinds (a type-only change included) asks it again. That question
-also answers what S1's partial-presence obligation would ask for a missing numeric key, so
-it is never asked twice. A plain sort over a key observed as numbers only reads the law;
-over any other key it keeps its legacy reading. `decision.numbers` records per field the
+naming how many sampled records hold what; a field observed as numbers only (a JSON number, a
+decimal or exponent text such as « 1.5e2 », zero) asks nothing and reads under FAIL, so a
+value the bounded sample did not show stops the run by name. The answer binds the source's
+revision: a changed row or changed kinds (a type-only change included) asks it again. That
+question also answers what S1's partial-presence obligation would ask for a missing numeric
+key, so it is never asked twice. A plain sort over a key observed as numbers only reads the
+law; over any other key it keeps its legacy reading. `decision.numbers` records per field the
 source, revision, sampled count, kinds, policy and what bound it (`answer`, `pending`,
-`observed numbers`, `unobserved`). A recorded plan is grounded again on every replay:
-over observed non-numbers it is asked, never READY without a stated policy. A verified
-seat program (a pending transform's) keeps its own bytes and reads no policy.
+`observed numbers`, `unobserved`). A recorded plan is grounded again on every replay: over
+observed non-numbers it is asked, never READY without a stated policy. A verified seat
+program (a pending transform's) keeps its own bytes and reads no policy.
 
 ## Canonical spellings of a stated text
 
@@ -186,7 +212,14 @@ names is asked for its exact spelling, never lowered, unless the request lists i
 word the observed keys do not hold is a closed choice over every observed key (the partial ones
 included); no synonym, spelling or similarity maps it. An answer counts only against the
 revision it was asked for: a replay whose fresh observation differs from the recorded one
-refuses it as stale and asks again. A key some sampled records lack is grounded, but what the
+refuses it as stale and asks again. The answer to a question the conversation asked (the recorded observation held
+no admissible key for the word, or the plan's `reasked` names its key) is read before the fresh
+observation's own words (R4 A6): a column renamed to the request's word is asked again over
+the fresh keys, never taken silently, and an answer no question asked stays unowned. The
+outcome's plan is re-anchored to the observation the question showed (`observed_world`,
+`reasked`): a caller that replays it binds the next explicit answer there, and a later change
+asks again. A number-policy answer over a plan recorded before kinds were observed says so
+and is asked over them. A key some sampled records lack is grounded, but what the
 rule does with those records (missing or null values compare, sort and total differently) is an
 operator law the request must state: the rule stays pending with that obligation named, never
 a default. The world is an input, never a CLI exception: a host supplies what it observed

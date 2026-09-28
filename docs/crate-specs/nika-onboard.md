@@ -61,6 +61,12 @@ into columns, categorical values and the counted raw kinds the compiler grounds
 a rule's numbers in. The host observer (`nika-cli-host::compile::observe`) is
 its one I/O caller, for the CLI and the Session alike.
 
+## The lexical money reader
+
+`compile::money` re-exports the one lexical money reader of the compile unit (R4 A6):
+what a line states about a USD ceiling. Admission stays with the caller (Session's money
+gate); the reader grants nothing.
+
 ## The Meaning projection (read by Session)
 
 `compile::meaning` projects an outcome's obligation ledger

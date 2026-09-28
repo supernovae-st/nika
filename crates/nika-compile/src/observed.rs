@@ -148,11 +148,14 @@ pub(crate) fn ground_rule(
             })
             .to_json()
         };
-        if grade != Grade::Inferred && bound_by.is_some() {
+        let key = format!("const.rule_field_{}", index + 1);
+        // The answer to a question this conversation asked is read before the fresh
+        // observation's own words: stale after a change, it is asked again (R4 A6 · D6-S1).
+        let owned = !approved && owned(request, &key, &field, path, &stated);
+        if grade != Grade::Inferred && bound_by.is_some() && !owned {
             entries.push(entry(&field, grade, everywhere, bound_by));
             continue;
         }
-        let key = format!("const.rule_field_{}", index + 1);
         recognized.insert(key.clone());
         let answered = mapped(request, out, &key, &rule, &field, path, seen.as_ref());
         let rebound = answered
@@ -216,6 +219,15 @@ fn mapped(
                 "`{path}` changed since this question was asked, so its answer maps another revision. Answer again."
             ),
         );
+        // The plan this outcome re-anchors to the fresh observation owns the next answer.
+        let mut decision = out.provenance.decision.take().unwrap_or_else(|| json!({}));
+        let reasked = decision["reasked"].as_array_mut();
+        match reasked {
+            Some(keys) if !keys.iter().any(|k| k == key) => keys.push(json!(key)),
+            Some(_) => {}
+            None => decision["reasked"] = json!([key]),
+        }
+        out.provenance.decision = Some(decision);
         let mut fresh = request.clone();
         fresh.answers.remove(key);
         return mapped(&fresh, out, key, rule, field, path, seen);
@@ -293,10 +305,43 @@ pub fn world(request: &CompileRequest) -> Option<&Value> {
         .or_else(|| request.plan.as_ref()?.get("observed_world"))
 }
 
-/// Keep field questions closed on a zero-call answer round, including library callers.
+/// Whether this round's answer for `key` answers a question the conversation asked about
+/// `field`: the recorded round saw no admissible key for the word, or it asked the key again
+/// after the source changed (`reasked`, R4 A6). An answer no question asked stays unowned.
+fn owned(request: &CompileRequest, key: &str, field: &str, path: &str, stated: &[String]) -> bool {
+    let Some(plan) = request
+        .plan
+        .as_ref()
+        .filter(|_| request.answers.contains_key(key))
+    else {
+        return false;
+    };
+    let reasked = plan["reasked"]
+        .as_array()
+        .is_some_and(|keys| keys.iter().any(|k| k == key));
+    let recorded = grounding::seen(grounding::row(plan.get("observed_world"), path));
+    reasked || grounding::grade(field, recorded.as_ref(), stated).0 == Grade::Inferred
+}
+
+/// Keep field questions closed on a zero-call answer round, including library callers. The plan
+/// is re-anchored to this round's observation, with every key asked again after a source change.
 pub fn record(request: &CompileRequest, out: &mut CompileOutcome) {
     if let (Some(world), Some(plan)) = (world(request), out.provenance.plan.as_mut()) {
         plan["observed_world"] = world.clone();
+    }
+    let mut reasked: Vec<Value> = request
+        .plan
+        .as_ref()
+        .and_then(|plan| plan["reasked"].as_array().cloned())
+        .unwrap_or_default();
+    let now = out.provenance.decision.as_ref().map(|d| &d["reasked"]);
+    for key in now.and_then(Value::as_array).into_iter().flatten() {
+        if !reasked.contains(key) {
+            reasked.push(key.clone());
+        }
+    }
+    if let Some(plan) = out.provenance.plan.as_mut().filter(|_| !reasked.is_empty()) {
+        plan["reasked"] = Value::Array(reasked);
     }
     if let (Some(record), Some(plan)) = (request.plan.as_ref(), out.provenance.plan.as_mut())
         && let Some(verified) = record.get("verified_transform")

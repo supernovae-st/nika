@@ -68,6 +68,7 @@
 
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
+mod admitted;
 mod approval;
 mod assemble;
 mod binding;
@@ -78,6 +79,7 @@ mod edit_source;
 mod laws;
 mod ledger;
 mod materialize;
+pub mod money;
 mod network;
 pub mod observation;
 mod observed;
@@ -129,6 +131,17 @@ pub mod surface;
 /// failure. Missing values, invalid answers and unsupported user requests are outcomes.
 #[must_use = "the candidate and its authoring questions must be reviewed"]
 pub fn compile(request: &CompileRequest) -> Result<CompileOutcome, CompileError> {
+    // The monetary directives the caller admitted are read as its ceiling, never as business
+    // clauses (R4 A6): the reading has none left, so this recursion is one step deep.
+    match admitted::read(request) {
+        Ok(Some((reading, money))) => {
+            let mut outcome = compile(&reading)?;
+            admitted::record(request, money, &mut outcome);
+            return Ok(outcome);
+        }
+        Ok(None) => {}
+        Err(why) => return Ok(admitted::refused(&why)),
+    }
     let mut outcome = initial();
     if let Some(record) = request
         .plan

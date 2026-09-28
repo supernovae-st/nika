@@ -380,3 +380,93 @@ fn a_seated_session_round_is_told_the_project_under_its_own_root() {
         Some(s.snapshot.root.as_path())
     );
 }
+
+#[test]
+fn a_renamed_header_reasks_the_field_without_losing_the_round() {
+    let dir = tempfile::tempdir().unwrap();
+    tickets(dir.path(), "");
+    let mut s = deterministic_session(dir.path());
+    assert!(matches!(s.turn(TICKETS_WORD), TurnOutcome::Question { .. }));
+    std::fs::write(
+        dir.path().join("tickets.csv"),
+        "id,state,amount\n1,open,10\n2,closed,20\n3,open,30\n",
+    )
+    .unwrap();
+    let outcome = s.turn("status");
+    let TurnOutcome::Question { question, .. } = outcome else {
+        panic!("the stale answer must leave a fresh question: {outcome:?}");
+    };
+    assert!(question.contains("state"), "{question}");
+    assert!(s.pending_question().is_some());
+    assert_eq!(s.intent.goal.as_deref(), Some(TICKETS_WORD));
+    assert!(s.pending_proposal().is_none());
+    assert!(!dir.path().join("open.csv").exists());
+    assert!(matches!(s.turn("state"), TurnOutcome::Proposal { .. }));
+}
+
+/// The refreshed question is bound to the observation it showed (R4 A6): the refused answer
+/// leaves the round, an aside beside the question changes nothing, and a second change before
+/// the fresh answer asks again; only an answer for the current file proposes.
+#[test]
+fn a_second_change_before_the_fresh_answer_asks_again() {
+    let dir = tempfile::tempdir().unwrap();
+    tickets(dir.path(), "");
+    let header = |line: &str| {
+        let rows = "1,open,10\n2,closed,20\n3,open,30\n";
+        std::fs::write(dir.path().join("tickets.csv"), format!("{line}\n{rows}")).unwrap();
+    };
+    let mut s = deterministic_session(dir.path());
+    assert!(matches!(s.turn(TICKETS_WORD), TurnOutcome::Question { .. }));
+    header("id,state,amount");
+    let TurnOutcome::Question { question, .. } = s.turn("status") else {
+        panic!("the stale answer is asked again");
+    };
+    assert!(question.contains("state"), "{question}");
+    let round = s.authoring.as_ref().expect("the round is kept");
+    assert!(
+        !round.answers.contains_key("const.rule_field_1"),
+        "{round:?}"
+    );
+    assert_eq!(round.intent, TICKETS_WORD);
+    assert!(matches!(s.turn("why?"), TurnOutcome::Aside(_)));
+    assert!(s.pending_question().is_some());
+    header("id,etat,amount");
+    let outcome = s.turn("state");
+    let TurnOutcome::Question { question, .. } = outcome else {
+        panic!("an answer for the first rename is stale again: {outcome:?}");
+    };
+    assert!(question.contains("etat"), "{question}");
+    assert!(s.pending_proposal().is_none());
+    assert!(matches!(s.turn("etat"), TurnOutcome::Proposal { .. }));
+    assert!(!dir.path().join("open.csv").exists());
+}
+
+#[test]
+fn a_zero_budget_work_request_keeps_the_deterministic_business_round() {
+    for (intent, ask) in [(TICKETS, false), (TICKETS_WORD, true)] {
+        let peer = Peer::start(vec![]);
+        let _transport = test_transport::install(&peer.url);
+        let dir = tempfile::tempdir().unwrap();
+        tickets(dir.path(), "");
+        let mut s = open(dir.path());
+        let request = format!("{intent}. Budget: $0.");
+        let outcome = s.turn(&request);
+        if ask {
+            assert!(
+                matches!(outcome, TurnOutcome::Question { ref key, .. } if key == "const.rule_field_1"),
+                "the business field is asked without cognition: {outcome:?}"
+            );
+            assert!(matches!(s.turn("status"), TurnOutcome::Proposal { .. }));
+        } else {
+            assert!(
+                matches!(outcome, TurnOutcome::Proposal { .. }),
+                "{outcome:?}"
+            );
+        }
+        assert!(s.money_blocks_cognition());
+        assert_eq!(s.monetary_decision().unwrap().original_intent, request);
+        assert!(peer.bodies().is_empty(), "no provider request");
+        assert!(!dir.path().join("open.csv").exists());
+        assert!(!dir.path().join("compiled-workflow.nika").exists());
+    }
+}

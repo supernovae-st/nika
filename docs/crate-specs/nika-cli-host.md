@@ -67,6 +67,15 @@ typed Compile core; this adapter does not own compiler semantics or runtime
 admission. Shell-word quoting is shared through `output::sh_word` so the
 Compile next step and Run resume teaching use the same escaping law.
 
+Only a Ready compile writes. When a compile that is not Ready was given a
+destination that already holds a file or link (R4 A6), the JSON document adds
+`existing_destination` (that caller-named path, beside `written: null`) and
+the human text ends « existing destination remains at <path>; this compile did
+not write or remove it ». Presence is read with no-follow metadata: the file is
+never read, followed, removed or rewritten (`--force` included), never shown
+as this round's output or judged a workflow, and status, exit code and the
+absent `nika run` next step are unchanged.
+
 The binary and all dispatch remain in `nika-cli`. Existing CLI integration
 tests exercise the re-exported surface and actual process boundary; the
 quoting law itself is unit-tested here, beside `output::sh_word`. No new
@@ -282,6 +291,12 @@ so the CLI and the Session, which share this observer, share one law. The world
 carries the kinds beside the rows (`kinds`, keyed by path: counts only, never a
 value); a row keeps exactly the bytes it had, so a plan or a verified transform
 bound to a recorded row stays bound to it.
+
+`compile::sidecar` records the plan an answer round replays. A replay whose outcome
+re-anchors the plan to a changed source (its observation or the keys asked again moved, R4 A6)
+replaces the record atomically once the compile succeeded, so the next `--answer` binds against
+the observation the question showed; a write failure keeps the old record and names the error,
+and a verified or pending transform is never re-recorded over another source.
 
 `compile::typesafe::session` carries the bounded operator-selected decision
 adapter and its observation journal beside the one TypeSafe transport. Session
