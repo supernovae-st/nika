@@ -1,0 +1,37 @@
+  ▷ build ───▶ · approve ───▶ · ship
+
+  🦋 nika · gated-ship · 3 tasks
+     permits ✓ declared boundary · exec outside the fs bounds
+
+  ✔  ▷ build    exec · printf · untrusted input from build  [11ms]  → "build ok" · 10B
+  ◇  · approve  awaiting a `nika:prompt` answer — resume with `--resume <trace> --answer <task>=<value>`
+  ○  · ship
+  ── 1/3 done · unmetered · elapsed 0.0s ─────────────────────────
+  ━━━━━━━━╸─────────────── 1/3
+
+  ◇ paused · awaiting an answer for `approve`
+    answer: nika run --answer approve=true FILE  (boolean true/false, not yes)
+  explore: nika run gated-ship.nika --json > run.ndjson · nika trace outputs run.ndjson
+    trace: .nika/traces/2026-09-28T21-15-02Z-4e64.ndjson · 9 events · chain aa6a6d6ad7c48d6bc443106bf9daa68d2306c7a9a7f736bda9f7918025ad507a
+    resume: nika run gated-ship.nika --resume .nika/traces/2026-09-28T21-15-02Z-4e64.ndjson --answer approve=true · or false
+
+  ◇ approve · Ship this build to production?  [y/N]
+  ▷ build ───▶ ◆ approve ───▶ ⊘ ship
+
+  🦋 nika · gated-ship · 3 tasks
+     permits ✓ declared boundary · exec outside the fs bounds
+
+  ↷  · build    cache hit (resume)          → "build ok" · 10B
+  ✔  ◆ approve  invoke · nika:prompt      [0ms]  → false · 5B
+  ↷  · ship     when: closed (post-gate)
+  ── 3/3 done · unmetered · elapsed 0.0s ─────────────────────────
+  ━━━━━━━━━━━━━━━━━━━━━━━━ 3/3
+  ╭─ nika ✓ gated-ship ──────────────────────────╮
+  │  ◆ ⇉ ◆ ⇉ ◆    3 tasks · 3 waves · 0 retries  │
+  │  6ms · unmetered                             │
+  │  wrote .nika/traces                          │
+  ╰──────────────────────────────────────────────╯
+  explore: nika run gated-ship.nika --json > run.ndjson · nika trace outputs run.ndjson
+    trace: .nika/traces/2026-09-28T21-15-02Z-9902.ndjson · 11 events · chain a2b7ab843ebb219b7cc02491b5103c175f34df306a091d716d674968ba9a372f
+
+  resumed · 1 skipped (cache hit) · 1 ran live

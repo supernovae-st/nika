@@ -186,6 +186,9 @@ rm -rf "$LSP_TMP"
 bash scripts/media/capture/agent-plugin.sh
 bash scripts/media/capture/spec-anatomy.sh
 bash scripts/media/capture/trace-proof.sh
+bash scripts/media/capture/first-session.sh
+bash scripts/media/capture/cost-ceiling.sh
+bash scripts/media/capture/approval-gate.sh
 # pr-check-comment replays nika-action's own comment renderer. Without a
 # checkout of that repository, keep the committed snapshot, as the
 # nika-hero run does without an Ollama server.
@@ -194,6 +197,11 @@ if [ -f "${NIKA_ACTION:-../nika-action}/action.yml" ]; then
 else
   echo "no nika-action checkout (NIKA_ACTION) — keeping the committed pr-check-comment captures" >&2
 fi
+# typescript-client runs the TypeScript package's quick start from a built
+# nika-client checkout named by NIKA_CLIENT_DIR. Without one it keeps the
+# committed snapshot; a capture changes the run's hashes, so refreshing it
+# means re-rendering that clip, as for trace-proof.
+bash scripts/media/capture/typescript-client.sh
 
 # ── bundle for the motion renderer ──────────────────────────────────────
 node - <<'NODE'

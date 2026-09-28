@@ -59,6 +59,7 @@ can verify. One Rust binary, local-first, open source (AGPL-3.0).
 
 <p align="center">
   <a href="#see-it-in-four-steps"><b>See it</b></a> ·
+  <a href="#you-stay-in-control"><b>Control</b></a> ·
   <a href="#try-it-in-two-minutes"><b>Try it</b></a> ·
   <a href="#what-you-can-hand-to-nika"><b>Examples</b></a> ·
   <a href="#why-a-file-and-not-a-chat"><b>Why a file</b></a> ·
@@ -71,15 +72,16 @@ can verify. One Rust binary, local-first, open source (AGPL-3.0).
 
 ### 1 · Say it
 
-Describe the job in plain words. Nika keeps it as a `.nika` file you can
-read, change and run again, instead of a chat you retype every week.
+Describe the job in plain words. Nika writes it as a `.nika` file, shows
+you what it will do and what it can touch, and saves it only when you say
+`yes`. Nothing runs until you ask.
 
 <p align="center">
-  <a href="media/gifs/chat-to-workflow.optimized.gif">
-    <img src="media/gifs/chat-to-workflow.optimized.gif" alt="A request retyped into a chat every week, beside the same request kept as a .nika file that runs" width="860">
+  <a href="media/gifs/first-session.optimized.gif">
+    <img src="media/gifs/first-session.optimized.gif" alt="Nika's Session in four moments: a sentence typed in plain words, a checked workflow file saved only after yes, one run under a $0.25 ceiling that keeps the two paid rows, and /proof with its chain, permit checks and what it does not prove" width="860">
   </a>
 </p>
-<p align="center"><sub>The same request, retyped into a chat every Monday, then kept once as a file that runs. The chat is an illustration; the file and its run are real.</sub></p>
+<p align="center"><sub>One sentence becomes a checked file; <code>yes</code> saves it, <code>run it</code> keeps the two paid rows, and <code>/proof</code> shows what the run recorded. The real Session, restyled; no AI model involved.</sub></p>
 
 ### 2 · Check it
 
@@ -118,6 +120,34 @@ breaks.
   </a>
 </p>
 <p align="center"><sub>The chain read back intact, then one changed byte refused at the next line. A <code>mock/echo</code> rehearsal captured from the real CLI; the scan is an illustration.</sub></p>
+
+## You stay in control
+
+### It tells you the cost before the first token
+
+`nika check` prices a workflow from its model's catalog price and the
+output limit each step declares. Set a budget below that ceiling and the
+run refuses to start: no model is called and nothing is spent.
+
+<p align="center">
+  <a href="media/gifs/cost-ceiling.optimized.gif">
+    <img src="media/gifs/cost-ceiling.optimized.gif" alt="nika check caps a Claude Sonnet workflow at ≤ $0.0614 once max_tokens is declared, and nika run with a $0.05 budget refuses to start: the ceiling past the budget line, a REFUSED TO START stamp, $0 spent" width="860">
+  </a>
+</p>
+<p align="center"><sub>Unbounded until one line declares <code>max_tokens</code>, then a hard ceiling of $0.0614; a $0.05 budget refuses the run (exit 2). Prices are catalog estimates, not invoices; no model was called.</sub></p>
+
+### It asks before it acts
+
+A step can wait for a person. At your terminal it asks; in CI, where
+nobody can answer, the run pauses safely with exit 4 and prints the one
+line that resumes it.
+
+<p align="center">
+  <a href="media/gifs/approval-gate.optimized.gif">
+    <img src="media/gifs/approval-gate.optimized.gif" alt="A workflow of build, a human gate drawn as a door, then ship: at a terminal Nika asks Ship this build to production? [y/N] and y opens the door; in CI the run pauses with exit 4 and prints a line that, pasted and run, reuses the build and ships" width="860">
+  </a>
+</p>
+<p align="center"><sub>Nothing ships without a yes: asked at a terminal, paused in CI, resumed by the printed line with the finished build reused. Every terminal line is captured from the real CLI; the door is an illustration.</sub></p>
 
 ## Try it in two minutes
 
@@ -223,7 +253,7 @@ an AI answer.
 
 | You say | Nika keeps | Watch |
 |---|---|---|
-| *"Read `./data/orders.csv`, keep only the rows whose status is paid, and write them to `./out/paid.csv`."* | A workflow that reads one file and writes one file. No AI model is involved. | [Try it above](#try-it-in-two-minutes) |
+| *"Read `./data/orders.csv`, keep only the rows whose status is paid, and write them to `./out/paid.csv`."* | A workflow that reads one file and writes one file. No AI model is involved. | [▶ The Session](media/gifs/first-session.optimized.gif) |
 | *"Pull the action items out of my meeting notes."* | A workflow that asks a local model and writes the items as typed JSON. | [▶ A local run](media/gifs/nika-hero.optimized.gif) |
 | *"Every Friday, turn `CHANGELOG.md` into release notes."* | A workflow your coding agent writes with the Nika plugin; the check catches its mistake before anything runs. | [▶ With your agent](media/gifs/agent-plugin.optimized.gif) |
 | *"Rate the risk of each pull request."* | A workflow the Nika GitHub Action checks whenever a pull request changes it: one comment carries the verdict. | [▶ In your pull requests](media/gifs/pr-check-comment.optimized.gif) |
@@ -234,6 +264,9 @@ A chat answer is gone when the conversation ends, and the next one can
 differ. A `.nika` file stays: you read it, check it, run it again and
 review its changes like any other file in your project.
 
+- **Say it once.** The request you would retype in a chat every week is
+  kept as a file that runs again.
+  ▶ [Watch a weekly request become a file](media/gifs/chat-to-workflow.optimized.gif)
 - **Read it before it runs.** Every workflow has the same shape: nine
   sections and four kinds of step, in a file you can open and review.
   ▶ [Watch one taken apart](media/gifs/spec-anatomy.optimized.gif)
@@ -270,7 +303,7 @@ file for you, and the check keeps it honest:
 | **Your coding agent** · [nika-plugins](https://github.com/supernovae-st/nika-plugins) | Claude Code, Codex, Cursor and others learn to write a workflow, check it and repair what the check finds. | ▶ [above](media/gifs/agent-plugin.optimized.gif) |
 | **Your editor** · [nika-vscode](https://github.com/supernovae-st/nika-vscode) | Errors as you type, and your workflow as a live graph. | ▶ [The audit, as you type](media/gifs/editor-diagnostics.optimized.gif) |
 | **Your pull requests** · [nika-action](https://github.com/supernovae-st/nika-action) | One comment with the verdict, before anyone spends a token. | ▶ [Every pull request gets a verdict](media/gifs/pr-check-comment.optimized.gif) |
-| **Your app** · [nika-client](https://github.com/supernovae-st/nika-client) | Run a workflow from TypeScript, get a typed result and verify its receipt. | [The package](https://www.npmjs.com/package/@supernovae-st/nika) |
+| **Your app** · [nika-client](https://github.com/supernovae-st/nika-client) | Run a workflow from TypeScript ([the package](https://www.npmjs.com/package/@supernovae-st/nika)), get a typed result and verify its receipt. | ▶ [Run it from your app, prove what ran](media/gifs/typescript-client.optimized.gif) |
 
 ## Know the limits
 

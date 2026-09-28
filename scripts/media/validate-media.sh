@@ -43,6 +43,7 @@ fi
 for wf in "$FIX/fixed-pr-review.nika" "$FIX/meeting-actions.nika" \
   "$FIX/permits-fits.nika" "$FIX/recover-fallback.nika" \
   "$FIX/invoice-payments.nika" "$FIX/release-notes.nika" "$FIX/ship-notes.nika" \
+  "$FIX/cost-unbounded.nika" "$FIX/cost-ceiling.nika" "$FIX/gated-ship.nika" \
   "crates/nika-pack/pack/examples/pr-review-fanout.nika"; do
   if nika check "$wf" >/dev/null 2>&1; then
     say "✔ $(basename "$wf") clean (as shown)"

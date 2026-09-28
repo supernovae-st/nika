@@ -1,0 +1,1 @@
+nika run gated-ship.nika --resume .nika/traces/2026-09-28T21-15-02Z-d309.ndjson --answer approve=true

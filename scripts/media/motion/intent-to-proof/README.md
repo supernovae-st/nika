@@ -157,9 +157,11 @@ The same engine renders the short clips the ecosystem embeds: `nika-hero`
 other repositories hotlink), `static-check-fix`, `permits-audit`,
 `on-error-recover`, `dag-execution`, `chat-to-workflow`,
 `editor-diagnostics`, `workflow-gallery`, `full-loop`, `pr-check-comment`,
-`trace-proof`, `spec-anatomy` and `agent-plugin`. Each is one file in
-`clips/`, built from `clips/kit.mjs`: code cards that animate a real line
-diff, terminals that stream captured lines, row highlights and a camera.
+`trace-proof`, `spec-anatomy`, `agent-plugin`, `first-session`,
+`cost-ceiling`, `approval-gate` and `typescript-client`. Each is one file
+in `clips/`, built from `clips/kit.mjs`: code cards that animate a real
+line diff, terminals that stream captured lines, row highlights and a
+camera.
 
 - Every program line, CLI line and diagnostic on screen is read from
   `scripts/media/fixtures/` or `media/raw/`, captured from the binary and

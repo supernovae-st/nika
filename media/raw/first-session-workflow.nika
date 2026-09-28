@@ -1,0 +1,97 @@
+const:
+  output_path: ./out/paid.csv
+  source_path: ./data/orders.csv
+nika: compiled-workflow
+outputs:
+  computed: ${{ tasks.compute.output }}
+  write_status: ${{ tasks.write_output.status }}
+permits:
+  fs:
+    read:
+    - ./data/orders.csv
+    write:
+    - ./out/paid.csv
+  tools:
+  - nika:assert
+  - nika:convert
+  - nika:jq
+  - nika:read
+  - nika:write
+tasks:
+  compute:
+    after:
+      compute_admit: success
+    invoke:
+      args:
+        expression: '[.records[] | select(.status == "paid")]'
+        input:
+          records: ${{ with.records }}
+      tool: nika:jq
+    with:
+      records: ${{ tasks.parse_source.output }}
+  compute_admit:
+    invoke:
+      args:
+        condition: ${{ with.ok }}
+        message: The rule `keep only the rows whose status is paid` reads the column(s) `status`, but the first parsed record has no such field; check the source header.
+      tool: nika:assert
+    with:
+      ok: ${{ tasks.compute_guard.output }}
+  compute_guard:
+    after:
+      parse_source: success
+    invoke:
+      args:
+        expression: (.records | type) == "array" and ((.records | length) == 0 or (.records[0] | type == "object" and has("status")))
+        input:
+          records: ${{ with.records }}
+      tool: nika:jq
+    with:
+      records: ${{ tasks.parse_source.output }}
+  paid_csv:
+    after:
+      compute: success
+    invoke:
+      args:
+        columns: ${{ with.columns }}
+        from: json
+        input: ${{ with.data }}
+        to: csv
+      tool: nika:convert
+    with:
+      columns: ${{ tasks.source_columns.output }}
+      data: ${{ tasks.compute.output }}
+  parse_source:
+    invoke:
+      args:
+        from: csv
+        input: ${{ with.document }}
+        to: json
+      tool: nika:convert
+    with:
+      document: ${{ tasks.read_source.output }}
+  read_source:
+    invoke:
+      args:
+        path: ${{ const.source_path }}
+      tool: nika:read
+  source_columns:
+    invoke:
+      args:
+        expression: split("\n") | .[0] | rtrimstr("\r") | split(",") | map(ltrimstr("\"") | rtrimstr("\""))
+        input: ${{ with.document }}
+      tool: nika:jq
+    with:
+      document: ${{ tasks.read_source.output }}
+  write_output:
+    after:
+      paid_csv: success
+    invoke:
+      args:
+        content: ${{ with.content }}
+        create_dirs: true
+        overwrite: true
+        path: ${{ const.output_path }}
+      tool: nika:write
+    with:
+      content: ${{ tasks.paid_csv.output }}

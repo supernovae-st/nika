@@ -1,8 +1,11 @@
 {
   "agent-plugin": "sha256:53cc4f23469608b7ae5924a87dda4aed9e1ac687de4b7fa7a9dc99e69dc7d538",
+  "approval-gate": "sha256:a0a34b1eff789deabc6bff2ffd327a246c72ca45b519f9325fe21ab9eb25086c",
   "chat-to-workflow": "sha256:425949cd40a60673617f27feb2dda815bb8b4af7296be398e76c7c5f9d07d7eb",
+  "cost-ceiling": "sha256:9fe2d92fb6c3a8087a09468a84f3d18055063b7cf6107e05abda43abeeda1089",
   "dag-execution": "sha256:8176162aab6c6c491b80f448f1730c891989621089407b0675ef044f6c1dc6c8",
   "editor-diagnostics": "sha256:3130f97adc7629f6007487e0ac9dfafe5703a147fbdc981b9c3f8b6b54e659e5",
+  "first-session": "sha256:9de1529b488aa70542416d2deb2986244a52c0af52d6303dafad7bf1a58b8412",
   "full-loop": "sha256:aecd5b5408f68f3e153cddbbf1a2f6ccdd5917344752c1b183a4fee90d977bf2",
   "nika-hero": "sha256:70885ba713085368082a2d40d0766795915e9c63337718941a7f7fd06d48f6ec",
   "on-error-recover": "sha256:70bc006d010eb5c019c3d79ae5b69c0de50ae726dbfcde7d0684756aa72b83f1",
@@ -11,5 +14,6 @@
   "spec-anatomy": "sha256:745d1434cf273e8aa03ddeb19ff458ec93a3e9c85fdd23f0aec3286206f9a8b6",
   "static-check-fix": "sha256:0e42863fc66dcd20229c3f29af60fc493ee8682ff45448aa372dff776ebb8f2d",
   "trace-proof": "sha256:5579dcf86858c048c5c2ce1253cb2ccb7d7916ae7faaf5cdbb2b54c8fde24030",
+  "typescript-client": "sha256:44e11fb995627fad1ac85cdbc4110e1fe410f027e3caf8c05abb0cdde62f5093",
   "workflow-gallery": "sha256:7f3b4bb4bd7805245fd7ed7f44690c46198329bd1f99103e3864c0097406713f"
 }

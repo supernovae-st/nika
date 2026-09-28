@@ -1,0 +1,32 @@
+[
+ {
+  "kind": "workflow_started",
+  "chain": "7466341540fd02fca9ec21937862176b7821a52495b86d81bb5f30d16c8462dc",
+  "hash": "09e6033c69a463def41f621a18fe5867c2ea6391132418fc784f44cb36027da7"
+ },
+ {
+  "kind": "task_scheduled",
+  "chain": "09e6033c69a463def41f621a18fe5867c2ea6391132418fc784f44cb36027da7",
+  "hash": "300e9fc026a8f7ca6b4510cd9c90d9a04bdbeaf5316b3c952b32bc0ca24cd239"
+ },
+ {
+  "kind": "task_started",
+  "chain": "300e9fc026a8f7ca6b4510cd9c90d9a04bdbeaf5316b3c952b32bc0ca24cd239",
+  "hash": "2f825b61a668720f40e47643746df5210d4afba22a81b47b2e3f226353b202d1"
+ },
+ {
+  "kind": "task_completed",
+  "chain": "2f825b61a668720f40e47643746df5210d4afba22a81b47b2e3f226353b202d1",
+  "hash": "7c4238fc2747a35e2c5fb25b5599359480be31865abb47acce869930cc21f462"
+ },
+ {
+  "kind": "workflow_completed",
+  "chain": "7c4238fc2747a35e2c5fb25b5599359480be31865abb47acce869930cc21f462",
+  "hash": "54450f974685ed25e18bb0a22013d5b525e1af68929ada6a185c7064d676d20e"
+ },
+ {
+  "kind": "run_sealed",
+  "chain": "54450f974685ed25e18bb0a22013d5b525e1af68929ada6a185c7064d676d20e",
+  "hash": "ac0bc63f871270d5a0688cc34714d7d51e5065a2294aa42181d1dfe05e713e78"
+ }
+]
