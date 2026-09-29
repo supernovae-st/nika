@@ -445,6 +445,98 @@ async fn with_no_repair_the_refused_program_stays_incomplete() {
     assert_eq!(transforms[0]["accepted"], false, "{transforms:#}");
 }
 
+/// A program that returns a value on the stated spelling and fails on the observed one (the branch
+/// the observed spelling reaches feeds its text to `tonumber`) escapes nothing: an asymmetric
+/// error is a spelling difference. It is refused, repaired from that defect within the
+/// allowance, and the repaired program sums the delivered rows.
+#[tokio::test]
+async fn an_observed_spelling_the_program_fails_on_is_refused() {
+    let jq = format!(
+        ".records | map(if .status == {} then (.qty | tonumber) elif (.status | length) > 6 then 0 else (.status | tonumber) end) | add // 0",
+        json!(LIVRE_NFC)
+    );
+    let seat = Seat::new(vec![
+        request_of(&livre()).1.to_string(),
+        program(&jq, &["status", "qty"], &json!(40)),
+        summing(&[LIVRE_NFC, LIVRE_NFD]),
+    ]);
+    let world = spelled(&[LIVRE_NFD, "en attente"], &["x", "y"]);
+    let out = compiled(&seat, &livre(), world, 1).await;
+    assert_eq!(
+        authored(&out),
+        ["plan", "transform", "transform_repair"],
+        "{out:#?}"
+    );
+    let program = compute(&out);
+    assert_eq!(run(&program, &delivered(LIVRE_NFD)), json!(42), "{program}");
+}
+
+/// A program that transforms the value's text (it embeds it in a longer label, or changes its
+/// case) is not read back: only an exact value or key equal to the observed spelling is. The
+/// bounded law refuses it rather than inferring what the text became, a possible false refusal
+/// it reports; with no repair granted the request stays INCOMPLETE, naming both spellings.
+#[tokio::test]
+async fn a_program_transforming_the_value_text_is_refused() {
+    let both = format!(
+        ".status == {} or .status == {}",
+        json!(LIVRE_NFC),
+        json!(LIVRE_NFD)
+    );
+    let label = format!(
+        ".records | map(select({both})) | {{labels: (map(.status + \" rows\") | unique), total: (map(.qty | tonumber) | add // 0)}}"
+    );
+    let upper = format!(
+        ".records | map(select({both})) | {{labels: (map(.status | ascii_upcase) | unique), total: (map(.qty | tonumber) | add // 0)}}"
+    );
+    let answers = [
+        program(
+            &label,
+            &["status", "qty"],
+            &json!({"labels": [format!("{LIVRE_NFC} rows")], "total": 40}),
+        ),
+        program(
+            &upper,
+            &["status", "qty"],
+            &json!({"labels": ["LIVR\u{e9}"], "total": 40}),
+        ),
+    ];
+    for answer in answers {
+        let seat = Seat::new(vec![request_of(&livre()).1.to_string(), answer]);
+        let world = spelled(&[LIVRE_NFD, "en attente"], &["x", "y"]);
+        let out = compiled(&seat, &livre(), world, 0).await;
+        assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
+        assert_eq!(authored(&out), ["plan", "transform"], "{out:#?}");
+        assert!(
+            out.diagnostics.iter().any(
+                |d| d.target == "authoring_transform" && d.message.contains(&points(LIVRE_NFD))
+            ),
+            "{out:#?}"
+        );
+    }
+}
+
+/// A row the program fails on whatever the spelling (here an odd quantity) is no spelling
+/// difference: the program is equally undefined for both, so the law compares nothing there and
+/// the value laws and the run own that error. The other rows agree; the program is admitted as
+/// it is.
+#[tokio::test]
+async fn a_row_failing_whatever_the_spelling_is_no_spelling_difference() {
+    let jq = format!(
+        ".records | map(select(.status == {} or .status == {}) | if (.qty | tonumber) % 2 == 1 then error(.qty) else (.qty | tonumber) end) | add // 0",
+        json!(LIVRE_NFC),
+        json!(LIVRE_NFD)
+    );
+    let seat = Seat::new(vec![
+        request_of(&livre()).1.to_string(),
+        program(&jq, &["status", "qty"], &json!(40)),
+    ]);
+    let world = spelled(&[LIVRE_NFD, "en attente"], &["x", "y"]);
+    let out = compiled(&seat, &livre(), world, 1).await;
+    let program = compute(&out);
+    assert_eq!(authored(&out), ["plan", "transform"], "{out:#?}");
+    assert_eq!(run(&program, &delivered(LIVRE_NFD)), json!(42), "{program}");
+}
+
 /// The binding and the law, as the core states them: a literal at exact token boundaries only,
 /// never inside another word nor a column name, never a byte-identical spelling, and no case or
 /// compatibility (NFKC) folding.

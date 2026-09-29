@@ -101,13 +101,17 @@ categorical values spell, with other bytes, a literal the clause states at exact
 boundaries (`stated_spellings`: never inside another word, never a column name, never a
 byte-identical spelling; no case or compatibility folding). A program reading a bound column
 treats both spellings alike: on each one-row source of its own example with the column set to
-the stated literal, then to the observed spelling, its outputs agree once the observed spelling
-is read back as the stated one in every string and key, so a program that echoes or groups the
-value holds. A program comparing bytes to one spelling is refused naming the column, both
-spellings and their code points, and goes back to the seat within the same one allowance
-(`transform_repair`); with none left the request stays INCOMPLETE. The stated literal stays the
-request's, the program's bytes are never rewritten, and the observed spelling of a stated
-literal is no invented literal. The transform state carries the host's categorical values
+the stated literal, then to the observed spelling, both runs return a value, and they agree once
+every string value and key exactly equal to the observed spelling is read back as the stated
+one, so a program that echoes or groups the value holds. A value on one spelling and an error on
+the other is a spelling difference; an error on both is none (the row errs whatever the
+spelling, and the value laws and the run own that error). A program that transforms the value's
+text (a longer label, another case) is not read back and is refused: a possible false refusal
+the law reports rather than infers what the text became. A refused program is named with the
+column, both spellings and their code points, and goes back to the seat within the same one
+allowance (`transform_repair`); with none left the request stays INCOMPLETE. The stated literal
+stays the request's, the program's bytes are never rewritten, and the observed spelling of a
+stated literal is no invented literal. The transform state carries the host's categorical values
 (`observed_values`), so a first program can compare the source's own spelling. The offline
 counterexample « …status is livré » over an observed e + U+0301 was READY and summed nothing
 (H1, RED frozen before the fix); it is now refused, then repaired or INCOMPLETE, and a program
