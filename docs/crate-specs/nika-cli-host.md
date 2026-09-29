@@ -325,8 +325,14 @@ the records' keys, the short categorical values, the raw kind of every sampled
 value) is the compile unit's law, `nika_onboard::compile::observation` (R4 A5),
 so the CLI and the Session, which share this observer, share one law. The world
 carries the kinds beside the rows (`kinds`, keyed by path: counts only, never a
-value); a row keeps exactly the bytes it had, so a plan or a verified transform
-bound to a recorded row stays bound to it.
+value). A small JSON file parsed whole within the bound states its keys as
+complete evidence, keyless records included, so a request that asserts a field
+no record carries is not READY; the kinds still come from the first 200 sampled
+values, and nothing here validates every value. An empty array or no records, a
+failed whole read, a head over the bound and JSONL remain partial evidence.
+That completeness is the one change a row of a whole-parsed JSON file carries;
+otherwise a row keeps the bytes it had, so a plan or a verified transform bound
+to a recorded row stays bound to it.
 
 `--authoring-reasoning low|high|max` (else `NIKA_AUTHORING_REASONING`, read only
 when a seat is named) is the reasoning effort every authoring and decision call
