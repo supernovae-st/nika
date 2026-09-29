@@ -110,6 +110,28 @@ answered `intent.clarification` puts in place of the request, `asks_for_syntax`
 and `clause_of` read a question that would ask a human for code and the clause
 it quotes, and `clauses_understood` counts the outcome's ledger. They
 descended from `nika-session`, which re-exports the ones its runtime calls.
+The words an outcome gives a human before a host's own protocol words descended
+too (C11): `question_words` (the label, why the value cannot be invented, what
+could not be settled), `syntax_question` (a rule asked in words, never as code) and
+`incomplete_words` (what the reader could not settle and the next safe step). The
+host appends its own reply, cancel and help words. `KnowledgePin::status_words`
+gives a pin's identity in the words a status line says. `compile::AuthoringReasoning`
+re-exports the compiler's explicit effort level beside its policy. `reading::receipt_words`
+gives the authoring receipt as a human reads it: the backend, the calls, tokens and time,
+where the calls went, and the cost basis. The host passes its own words for where a run's
+cost is read. `reasoning_words` gives one explicit-effort call's facts, each apart:
+configured, the keys read back from the sent body (`unobserved` when none was), served
+unknown, the tokens, usage and model reported. A call naming no level adds nothing.
+`compile::seat` (C11, from `nika-session`) holds what the catalog says of a named model or
+an offered seat:
+- `unpriced_cloud`: a cloud model the catalog does not price, which a run under a spending
+  ceiling would refuse (NIKA-1709), with the priced models of its provider;
+- `unpriced_warning` and `priced_words`: the neutral words for that fact;
+- `stronger_model(_under)`: the static table of each provider's stronger authoring model.
+  It is written in the module, never read from the catalog when called, and grants no
+  model anything.
+
+The host keeps its gestures and registry reads.
 
 `compile::{Basis, basis, basis_for}` re-export the compiler's source basis law
 (C9 · F4, `nika_compile::basis`) at the path a host reads the compile unit from:

@@ -1,4 +1,5 @@
 pub mod nika_verb_infer
+pub use nika_verb_infer::ReasoningEffort
 #[non_exhaustive] pub enum nika_verb_infer::InferValue
 pub nika_verb_infer::InferValue::Structured(serde_json::value::Value)
 pub nika_verb_infer::InferValue::Text(alloc::string::String)
@@ -150,6 +151,7 @@ pub fn nika_verb_infer::VisionPart::as_any(&self) -> &(dyn core::any::Any + 'sta
 pub nika_verb_infer::InferInput::max_tokens: core::option::Option<u32>
 pub nika_verb_infer::InferInput::model: core::option::Option<alloc::string::String>
 pub nika_verb_infer::InferInput::prompt: alloc::string::String
+pub nika_verb_infer::InferInput::reasoning_effort: core::option::Option<nika_kernel_ai::provider::ReasoningEffort>
 pub nika_verb_infer::InferInput::schema: core::option::Option<serde_json::value::Value>
 pub nika_verb_infer::InferInput::system: core::option::Option<alloc::string::String>
 pub nika_verb_infer::InferInput::temperature: core::option::Option<f32>

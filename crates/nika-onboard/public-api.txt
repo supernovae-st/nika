@@ -9,6 +9,7 @@ pub mod nika_onboard::compile
 pub use nika_onboard::compile::AuthoringCognition
 pub use nika_onboard::compile::AuthoringKnowledge
 pub use nika_onboard::compile::AuthoringPolicy
+pub use nika_onboard::compile::AuthoringReasoning
 pub use nika_onboard::compile::AuthoringReceipt
 pub use nika_onboard::compile::Basis
 pub use nika_onboard::compile::COMPILE_WIRE_VERSION
@@ -221,8 +222,13 @@ pub fn nika_onboard::compile::reading::clarified(answers: &alloc::collections::b
 pub fn nika_onboard::compile::reading::clause_of(label: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_onboard::compile::reading::clauses_understood(out: &nika_compile::types::CompileOutcome) -> core::option::Option<usize>
 pub fn nika_onboard::compile::reading::human_reasons(reasons: alloc::vec::Vec<alloc::string::String>) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_onboard::compile::reading::incomplete_words(out: &nika_compile::types::CompileOutcome, why: core::option::Option<&str>) -> alloc::string::String
 pub fn nika_onboard::compile::reading::literal_for(question: &nika_compile::types::CompileQuestion, line: &str) -> alloc::string::String
+pub fn nika_onboard::compile::reading::question_words(question: &nika_compile::types::CompileQuestion, reasons: &[alloc::string::String]) -> alloc::string::String
+pub fn nika_onboard::compile::reading::reasoning_words(call: &serde_json::value::Value) -> core::option::Option<alloc::string::String>
 pub fn nika_onboard::compile::reading::reasons(out: &nika_compile::types::CompileOutcome) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_onboard::compile::reading::receipt_words(receipt: &nika_compile::types::AuthoringReceipt, run_cost: &str) -> alloc::string::String
+pub fn nika_onboard::compile::reading::syntax_question(clause: &str) -> alloc::string::String
 pub mod nika_onboard::compile::round
 #[non_exhaustive] pub enum nika_onboard::compile::round::RoundReading
 pub nika_onboard::compile::round::RoundReading::Unreadable
@@ -856,6 +862,12 @@ pub fn nika_onboard::compile::round::open(out: &nika_compile::types::CompileOutc
 pub fn nika_onboard::compile::round::reanchored(recorded: core::option::Option<&serde_json::value::Value>, out: &nika_compile::types::CompileOutcome) -> core::option::Option<serde_json::value::Value>
 pub fn nika_onboard::compile::round::request(intent: &str, edit: core::option::Option<&(alloc::string::String, alloc::string::String, core::option::Option<alloc::string::String>)>, answers: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>, plan: core::option::Option<&serde_json::value::Value>, money: &[core::ops::range::Range<usize>]) -> nika_compile::types::CompileRequest
 pub fn nika_onboard::compile::round::settled(out: &nika_compile::types::CompileOutcome) -> core::option::Option<nika_onboard::compile::round::Settled>
+pub mod nika_onboard::compile::seat
+pub fn nika_onboard::compile::seat::priced_words(row: &str, priced: &[alloc::string::String]) -> alloc::string::String
+pub fn nika_onboard::compile::seat::stronger_model(model: &str) -> core::option::Option<&'static str>
+pub fn nika_onboard::compile::seat::stronger_model_under(model: &str, openai_base_overridden: bool) -> core::option::Option<&'static str>
+pub fn nika_onboard::compile::seat::unpriced_cloud(name: &str) -> core::option::Option<(alloc::string::String, alloc::string::String, alloc::vec::Vec<alloc::string::String>)>
+pub fn nika_onboard::compile::seat::unpriced_warning(shown: &str) -> alloc::string::String
 pub mod nika_onboard::compile_config
 #[non_exhaustive] pub enum nika_onboard::compile_config::ConfigError
 pub nika_onboard::compile_config::ConfigError::ExclusionWithoutSnapshot
@@ -1085,9 +1097,6 @@ impl<T> tracing::instrument::Instrument for nika_onboard::compile_config::Author
 impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile_config::AuthoringSettings
 impl<T> typenum::type_operators::Same for nika_onboard::compile_config::AuthoringSettings
 pub type nika_onboard::compile_config::AuthoringSettings::Output = T
-impl<T> zvariant::optional::NoneValue for nika_onboard::compile_config::AuthoringSettings where T: core::default::Default
-pub type nika_onboard::compile_config::AuthoringSettings::NoneType = T
-pub fn nika_onboard::compile_config::AuthoringSettings::null_value() -> T
 pub const nika_onboard::compile_config::DEFAULT_CALL_TIMEOUT: core::time::Duration
 pub const nika_onboard::compile_config::DEFAULT_MAX_TOKENS: u32
 pub const nika_onboard::compile_config::DEFAULT_REPAIRS: u32
@@ -1183,6 +1192,7 @@ pub fn nika_onboard::knowledge::pin::KnowledgePin::moved(&self, snapshot: &nika_
 pub fn nika_onboard::knowledge::pin::KnowledgePin::of(snapshot: &nika_onboard::knowledge::Snapshot) -> (core::option::Option<&str>, core::option::Option<&str>, &str, alloc::string::String)
 pub fn nika_onboard::knowledge::pin::KnowledgePin::open(dir: std::path::PathBuf, exclude_corpus: core::option::Option<alloc::string::String>) -> core::result::Result<Self, nika_onboard::knowledge::KnowledgeError>
 pub fn nika_onboard::knowledge::pin::KnowledgePin::record(&self) -> serde_json::value::Value
+pub fn nika_onboard::knowledge::pin::KnowledgePin::status_words(&self) -> alloc::string::String
 pub fn nika_onboard::knowledge::pin::KnowledgePin::words(version: core::option::Option<&str>, digest: core::option::Option<&str>, manifest: &str, rows: &str) -> alloc::string::String
 impl core::clone::Clone for nika_onboard::knowledge::pin::KnowledgePin
 pub fn nika_onboard::knowledge::pin::KnowledgePin::clone(&self) -> nika_onboard::knowledge::pin::KnowledgePin

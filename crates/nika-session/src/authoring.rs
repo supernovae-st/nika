@@ -56,33 +56,9 @@ pub use decision::{DECISION_ENV, DECISION_SCHEMA, DecisionSetup, MAX_DECISION_CA
 use nika_onboard::compile::reading::{CLARIFICATION_KEY, clarified};
 pub use nika_onboard::compile::reading::{Reading, literal_for, reasons};
 pub use nika_onboard::knowledge::pin::KnowledgePin;
-
-/// The stronger authoring model of a provider, when the catalog holds one
-/// the preflight proved — the escalation the product law permits (quality
-/// first): `None` when the model already is the strongest, or unknown.
-#[must_use]
-pub fn stronger_model(model: &str) -> Option<&'static str> {
-    stronger_model_under(model, false)
-}
-
-/// The table behind [`stronger_model`], with the gateway fact explicit: an
-/// OpenAI-compatible base URL (Scaleway's gateway, a local server) serves
-/// its OWN models under the `openai` provider id — the provider's flagship
-/// is not there, so no escalation is offered across it.
-#[must_use]
-pub fn stronger_model_under(model: &str, openai_base_overridden: bool) -> Option<&'static str> {
-    let (provider, name) = model.split_once('/')?;
-    let strongest = match provider {
-        "openai" if openai_base_overridden => return None,
-        "openai" => "openai/gpt-5.2",
-        "xai" => "xai/grok-4.7",
-        "deepseek" => "deepseek/deepseek-v4-pro",
-        "gemini" => "gemini/gemini-2.5-pro",
-        "mistral" => "mistral/mistral-large-latest",
-        _ => return None,
-    };
-    (format!("{provider}/{name}") != strongest).then_some(strongest)
-}
+// The static flagship table lives beside the seat facts it sits with (C11); the gateway fact it
+// takes is read here, through the engine's registry.
+pub use nika_onboard::compile::seat::{stronger_model, stronger_model_under};
 
 /// Whether the `openai` provider's base URL is overridden in this
 /// environment (an OpenAI-compatible gateway), read through the engine's
@@ -725,17 +701,26 @@ fn compile_attached(
                     "a subscription is not a billed-provider admission account".into(),
                 ));
             }
+            // Its adapter cannot carry an explicit effort: said, never silently dropped (R4 B16).
+            if let Some(level) = context.reasoning() {
+                return Err(AuthoringError::Seat(format!(
+                    "the subscription seat `{seat}` cannot carry the explicit reasoning effort `{}` · nothing was sent",
+                    level.word()
+                )));
+            }
             model.clone().unwrap_or_else(|| format!("{seat}/default"))
         }
     };
     if let Some(why) = context.refusal() {
         return Err(AuthoringError::Context(why.clone()));
     }
-    request = request.with_authoring_policy(session_policy(
-        &model,
-        matches!(seat, AuthoringSeat::Harness { .. }),
-        context.strategy(),
-    ));
+    let harness = matches!(seat, AuthoringSeat::Harness { .. });
+    let policy = session_policy(&model, harness, context.strategy());
+    // Every authoring and repair call asks the named effort; the caps stay the policy's (R4 B16).
+    request = request.with_authoring_policy(match context.reasoning() {
+        Some(level) => policy.with_reasoning(level),
+        None => policy,
+    });
     let pack = match attach {
         Attach::Compose(intent) => context.compose(intent)?,
         Attach::Carried(..) => None,

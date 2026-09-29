@@ -126,6 +126,8 @@ pub use nika_session::authoring::MAX_DECISION_CALLS
 pub use nika_session::authoring::Reading
 pub use nika_session::authoring::literal_for
 pub use nika_session::authoring::reasons
+pub use nika_session::authoring::stronger_model
+pub use nika_session::authoring::stronger_model_under
 #[non_exhaustive] pub enum nika_session::authoring::AuthoringContextError
 pub nika_session::authoring::AuthoringContextError::Changed
 pub nika_session::authoring::AuthoringContextError::Changed::found: alloc::string::String
@@ -311,6 +313,7 @@ pub fn nika_session::authoring::AuthoringContext::from_settings(explicit: &nika_
 pub fn nika_session::authoring::AuthoringContext::knowledge(&self) -> core::option::Option<&nika_onboard::knowledge::pin::KnowledgePin>
 pub fn nika_session::authoring::AuthoringContext::line(&self) -> alloc::string::String
 pub fn nika_session::authoring::AuthoringContext::project_root(&self) -> core::option::Option<&std::path::Path>
+pub fn nika_session::authoring::AuthoringContext::reasoning(&self) -> core::option::Option<nika_compile::types::AuthoringReasoning>
 pub fn nika_session::authoring::AuthoringContext::refusal(&self) -> core::option::Option<&nika_session::authoring::AuthoringContextError>
 pub fn nika_session::authoring::AuthoringContext::source(&self) -> &'static str
 pub fn nika_session::authoring::AuthoringContext::strategy(&self) -> nika_compile::types::NativeMode
@@ -364,9 +367,6 @@ impl<T> tracing::instrument::Instrument for nika_session::authoring::AuthoringCo
 impl<T> tracing::instrument::WithSubscriber for nika_session::authoring::AuthoringContext
 impl<T> typenum::type_operators::Same for nika_session::authoring::AuthoringContext
 pub type nika_session::authoring::AuthoringContext::Output = T
-impl<T> zvariant::optional::NoneValue for nika_session::authoring::AuthoringContext where T: core::default::Default
-pub type nika_session::authoring::AuthoringContext::NoneType = T
-pub fn nika_session::authoring::AuthoringContext::null_value() -> T
 pub struct nika_session::authoring::AuthoringRound
 pub nika_session::authoring::AuthoringRound::answers: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
 pub nika_session::authoring::AuthoringRound::authoring_receipt: core::option::Option<nika_compile::types::AuthoringReceipt>
@@ -444,8 +444,6 @@ pub fn nika_session::authoring::is_what_happened(line: &str) -> bool
 pub fn nika_session::authoring::is_why(line: &str) -> bool
 pub fn nika_session::authoring::openai_base_overridden() -> bool
 pub fn nika_session::authoring::session_policy(model: &str, harness: bool, strategy: nika_compile::types::NativeMode) -> nika_compile::types::AuthoringPolicy
-pub fn nika_session::authoring::stronger_model(model: &str) -> core::option::Option<&'static str>
-pub fn nika_session::authoring::stronger_model_under(model: &str, openai_base_overridden: bool) -> core::option::Option<&'static str>
 pub mod nika_session::broker
 #[non_exhaustive] pub struct nika_session::broker::ContextBroker
 pub nika_session::broker::ContextBroker::max_snippet_bytes: usize
@@ -1726,9 +1724,6 @@ impl<T> tracing::instrument::Instrument for nika_session::lifecycle::RunFact
 impl<T> tracing::instrument::WithSubscriber for nika_session::lifecycle::RunFact
 impl<T> typenum::type_operators::Same for nika_session::lifecycle::RunFact
 pub type nika_session::lifecycle::RunFact::Output = T
-impl<T> zvariant::optional::NoneValue for nika_session::lifecycle::RunFact where T: core::default::Default
-pub type nika_session::lifecycle::RunFact::NoneType = T
-pub fn nika_session::lifecycle::RunFact::null_value() -> T
 #[non_exhaustive] pub enum nika_session::lifecycle::Stage
 pub nika_session::lifecycle::Stage::Attention
 pub nika_session::lifecycle::Stage::Declared
@@ -1906,9 +1901,6 @@ impl<T> tracing::instrument::Instrument for nika_session::lifecycle::LifecycleFa
 impl<T> tracing::instrument::WithSubscriber for nika_session::lifecycle::LifecycleFacts
 impl<T> typenum::type_operators::Same for nika_session::lifecycle::LifecycleFacts
 pub type nika_session::lifecycle::LifecycleFacts::Output = T
-impl<T> zvariant::optional::NoneValue for nika_session::lifecycle::LifecycleFacts where T: core::default::Default
-pub type nika_session::lifecycle::LifecycleFacts::NoneType = T
-pub fn nika_session::lifecycle::LifecycleFacts::null_value() -> T
 pub mod nika_session::money
 #[non_exhaustive] pub enum nika_session::money::CapKnowledge
 pub nika_session::money::CapKnowledge::Unknown
@@ -2466,6 +2458,7 @@ pub fn nika_session::reasoner::HarnessReasoner::authoring_harness(&self) -> core
 pub fn nika_session::reasoner::HarnessReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::reasoner::HarnessReasoner::name(&self) -> alloc::string::String
 pub fn nika_session::reasoner::HarnessReasoner::reason(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::HarnessReasoner::reason_effort(&mut self, _prompt: &str, _label: bool, _account: core::option::Option<&nika_providers::admission::InferenceAdmission>, effort: nika_compile::types::AuthoringReasoning) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::HarnessReasoner::reason_label(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::HarnessReasoner::reason_label_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::HarnessReasoner::reason_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
@@ -2504,6 +2497,7 @@ pub fn nika_session::reasoner::NoReasoner::authoring_harness(&self) -> core::opt
 pub fn nika_session::reasoner::NoReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::reasoner::NoReasoner::name(&self) -> alloc::string::String
 pub fn nika_session::reasoner::NoReasoner::reason(&mut self, _prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::NoReasoner::reason_effort(&mut self, _prompt: &str, _label: bool, _account: core::option::Option<&nika_providers::admission::InferenceAdmission>, effort: nika_compile::types::AuthoringReasoning) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::NoReasoner::reason_label(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::NoReasoner::reason_label_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::NoReasoner::reason_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
@@ -2544,6 +2538,7 @@ pub fn nika_session::reasoner::ProviderReasoner::authoring_harness(&self) -> cor
 pub fn nika_session::reasoner::ProviderReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::reasoner::ProviderReasoner::name(&self) -> alloc::string::String
 pub fn nika_session::reasoner::ProviderReasoner::reason(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::ProviderReasoner::reason_effort(&mut self, prompt: &str, label: bool, account: core::option::Option<&nika_providers::admission::InferenceAdmission>, effort: nika_compile::types::AuthoringReasoning) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::ProviderReasoner::reason_label(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::ProviderReasoner::reason_label_with_admission(&mut self, prompt: &str, account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::ProviderReasoner::reason_with_admission(&mut self, prompt: &str, account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
@@ -2634,6 +2629,7 @@ pub fn nika_session::reasoner::ScriptedReasoner::authoring_harness(&self) -> cor
 pub fn nika_session::reasoner::ScriptedReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::reasoner::ScriptedReasoner::name(&self) -> alloc::string::String
 pub fn nika_session::reasoner::ScriptedReasoner::reason(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::ScriptedReasoner::reason_effort(&mut self, _prompt: &str, _label: bool, _account: core::option::Option<&nika_providers::admission::InferenceAdmission>, effort: nika_compile::types::AuthoringReasoning) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::ScriptedReasoner::reason_label(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::ScriptedReasoner::reason_label_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::ScriptedReasoner::reason_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
@@ -2669,6 +2665,7 @@ pub fn nika_session::reasoner::SessionReasoner::authoring_harness(&self) -> core
 pub fn nika_session::reasoner::SessionReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::reasoner::SessionReasoner::name(&self) -> alloc::string::String
 pub fn nika_session::reasoner::SessionReasoner::reason(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::SessionReasoner::reason_effort(&mut self, _prompt: &str, _label: bool, _account: core::option::Option<&nika_providers::admission::InferenceAdmission>, effort: nika_compile::types::AuthoringReasoning) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::SessionReasoner::reason_label(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::SessionReasoner::reason_label_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::SessionReasoner::reason_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
@@ -2678,6 +2675,7 @@ pub fn nika_session::reasoner::HarnessReasoner::authoring_harness(&self) -> core
 pub fn nika_session::reasoner::HarnessReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::reasoner::HarnessReasoner::name(&self) -> alloc::string::String
 pub fn nika_session::reasoner::HarnessReasoner::reason(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::HarnessReasoner::reason_effort(&mut self, _prompt: &str, _label: bool, _account: core::option::Option<&nika_providers::admission::InferenceAdmission>, effort: nika_compile::types::AuthoringReasoning) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::HarnessReasoner::reason_label(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::HarnessReasoner::reason_label_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::HarnessReasoner::reason_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
@@ -2687,6 +2685,7 @@ pub fn nika_session::reasoner::NoReasoner::authoring_harness(&self) -> core::opt
 pub fn nika_session::reasoner::NoReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::reasoner::NoReasoner::name(&self) -> alloc::string::String
 pub fn nika_session::reasoner::NoReasoner::reason(&mut self, _prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::NoReasoner::reason_effort(&mut self, _prompt: &str, _label: bool, _account: core::option::Option<&nika_providers::admission::InferenceAdmission>, effort: nika_compile::types::AuthoringReasoning) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::NoReasoner::reason_label(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::NoReasoner::reason_label_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::NoReasoner::reason_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
@@ -2696,6 +2695,7 @@ pub fn nika_session::reasoner::ProviderReasoner::authoring_harness(&self) -> cor
 pub fn nika_session::reasoner::ProviderReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::reasoner::ProviderReasoner::name(&self) -> alloc::string::String
 pub fn nika_session::reasoner::ProviderReasoner::reason(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::ProviderReasoner::reason_effort(&mut self, prompt: &str, label: bool, account: core::option::Option<&nika_providers::admission::InferenceAdmission>, effort: nika_compile::types::AuthoringReasoning) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::ProviderReasoner::reason_label(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::ProviderReasoner::reason_label_with_admission(&mut self, prompt: &str, account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::ProviderReasoner::reason_with_admission(&mut self, prompt: &str, account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
@@ -2705,6 +2705,7 @@ pub fn nika_session::reasoner::ScriptedReasoner::authoring_harness(&self) -> cor
 pub fn nika_session::reasoner::ScriptedReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::reasoner::ScriptedReasoner::name(&self) -> alloc::string::String
 pub fn nika_session::reasoner::ScriptedReasoner::reason(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::ScriptedReasoner::reason_effort(&mut self, _prompt: &str, _label: bool, _account: core::option::Option<&nika_providers::admission::InferenceAdmission>, effort: nika_compile::types::AuthoringReasoning) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::ScriptedReasoner::reason_label(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::ScriptedReasoner::reason_label_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::ScriptedReasoner::reason_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
@@ -2896,9 +2897,6 @@ impl<T> tracing::instrument::Instrument for nika_session::runtime::IntentDraft
 impl<T> tracing::instrument::WithSubscriber for nika_session::runtime::IntentDraft
 impl<T> typenum::type_operators::Same for nika_session::runtime::IntentDraft
 pub type nika_session::runtime::IntentDraft::Output = T
-impl<T> zvariant::optional::NoneValue for nika_session::runtime::IntentDraft where T: core::default::Default
-pub type nika_session::runtime::IntentDraft::NoneType = T
-pub fn nika_session::runtime::IntentDraft::null_value() -> T
 pub struct nika_session::runtime::SessionRuntime
 pub nika_session::runtime::SessionRuntime::intelligence: nika_session::intelligence::ResolvedSessionIntelligence
 pub nika_session::runtime::SessionRuntime::intent: nika_session::runtime::IntentDraft
@@ -3440,11 +3438,9 @@ impl<T> tracing::instrument::Instrument for nika_session::turn::ConservativeFall
 impl<T> tracing::instrument::WithSubscriber for nika_session::turn::ConservativeFallback
 impl<T> typenum::type_operators::Same for nika_session::turn::ConservativeFallback
 pub type nika_session::turn::ConservativeFallback::Output = T
-impl<T> zvariant::optional::NoneValue for nika_session::turn::ConservativeFallback where T: core::default::Default
-pub type nika_session::turn::ConservativeFallback::NoneType = T
-pub fn nika_session::turn::ConservativeFallback::null_value() -> T
 pub struct nika_session::turn::ReasonerClassifier
 impl nika_session::turn::ReasonerClassifier
+pub fn nika_session::turn::ReasonerClassifier::asking(self, effort: core::option::Option<nika_compile::types::AuthoringReasoning>) -> Self
 pub fn nika_session::turn::ReasonerClassifier::new(reasoner: alloc::boxed::Box<dyn nika_session::reasoner::SessionReasoner>) -> Self
 impl nika_session::turn::TurnClassifier for nika_session::turn::ReasonerClassifier
 pub fn nika_session::turn::ReasonerClassifier::classify(&mut self, context: &nika_session::turn::TurnContext, raw: &str) -> nika_session::turn::TurnDecision
@@ -4262,9 +4258,6 @@ impl<T> tracing::instrument::Instrument for nika_session::lifecycle::RunFact
 impl<T> tracing::instrument::WithSubscriber for nika_session::lifecycle::RunFact
 impl<T> typenum::type_operators::Same for nika_session::lifecycle::RunFact
 pub type nika_session::lifecycle::RunFact::Output = T
-impl<T> zvariant::optional::NoneValue for nika_session::lifecycle::RunFact where T: core::default::Default
-pub type nika_session::lifecycle::RunFact::NoneType = T
-pub fn nika_session::lifecycle::RunFact::null_value() -> T
 #[non_exhaustive] pub enum nika_session::Stage
 pub nika_session::Stage::Attention
 pub nika_session::Stage::Declared
@@ -4963,9 +4956,6 @@ impl<T> tracing::instrument::Instrument for nika_session::lifecycle::LifecycleFa
 impl<T> tracing::instrument::WithSubscriber for nika_session::lifecycle::LifecycleFacts
 impl<T> typenum::type_operators::Same for nika_session::lifecycle::LifecycleFacts
 pub type nika_session::lifecycle::LifecycleFacts::Output = T
-impl<T> zvariant::optional::NoneValue for nika_session::lifecycle::LifecycleFacts where T: core::default::Default
-pub type nika_session::lifecycle::LifecycleFacts::NoneType = T
-pub fn nika_session::lifecycle::LifecycleFacts::null_value() -> T
 pub struct nika_session::PendingGate
 pub nika_session::PendingGate::message: alloc::string::String
 pub nika_session::PendingGate::mode: alloc::string::String
@@ -5464,6 +5454,7 @@ pub fn nika_session::reasoner::ScriptedReasoner::authoring_harness(&self) -> cor
 pub fn nika_session::reasoner::ScriptedReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::reasoner::ScriptedReasoner::name(&self) -> alloc::string::String
 pub fn nika_session::reasoner::ScriptedReasoner::reason(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::ScriptedReasoner::reason_effort(&mut self, _prompt: &str, _label: bool, _account: core::option::Option<&nika_providers::admission::InferenceAdmission>, effort: nika_compile::types::AuthoringReasoning) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::ScriptedReasoner::reason_label(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::ScriptedReasoner::reason_label_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::ScriptedReasoner::reason_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
@@ -5920,6 +5911,7 @@ pub fn nika_session::SessionReasoner::authoring_harness(&self) -> core::option::
 pub fn nika_session::SessionReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::SessionReasoner::name(&self) -> alloc::string::String
 pub fn nika_session::SessionReasoner::reason(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::SessionReasoner::reason_effort(&mut self, _prompt: &str, _label: bool, _account: core::option::Option<&nika_providers::admission::InferenceAdmission>, effort: nika_compile::types::AuthoringReasoning) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::SessionReasoner::reason_label(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::SessionReasoner::reason_label_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::SessionReasoner::reason_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
@@ -5929,6 +5921,7 @@ pub fn nika_session::reasoner::HarnessReasoner::authoring_harness(&self) -> core
 pub fn nika_session::reasoner::HarnessReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::reasoner::HarnessReasoner::name(&self) -> alloc::string::String
 pub fn nika_session::reasoner::HarnessReasoner::reason(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::HarnessReasoner::reason_effort(&mut self, _prompt: &str, _label: bool, _account: core::option::Option<&nika_providers::admission::InferenceAdmission>, effort: nika_compile::types::AuthoringReasoning) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::HarnessReasoner::reason_label(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::HarnessReasoner::reason_label_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::HarnessReasoner::reason_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
@@ -5938,6 +5931,7 @@ pub fn nika_session::reasoner::NoReasoner::authoring_harness(&self) -> core::opt
 pub fn nika_session::reasoner::NoReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::reasoner::NoReasoner::name(&self) -> alloc::string::String
 pub fn nika_session::reasoner::NoReasoner::reason(&mut self, _prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::NoReasoner::reason_effort(&mut self, _prompt: &str, _label: bool, _account: core::option::Option<&nika_providers::admission::InferenceAdmission>, effort: nika_compile::types::AuthoringReasoning) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::NoReasoner::reason_label(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::NoReasoner::reason_label_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::NoReasoner::reason_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
@@ -5947,6 +5941,7 @@ pub fn nika_session::reasoner::ProviderReasoner::authoring_harness(&self) -> cor
 pub fn nika_session::reasoner::ProviderReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::reasoner::ProviderReasoner::name(&self) -> alloc::string::String
 pub fn nika_session::reasoner::ProviderReasoner::reason(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::ProviderReasoner::reason_effort(&mut self, prompt: &str, label: bool, account: core::option::Option<&nika_providers::admission::InferenceAdmission>, effort: nika_compile::types::AuthoringReasoning) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::ProviderReasoner::reason_label(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::ProviderReasoner::reason_label_with_admission(&mut self, prompt: &str, account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::ProviderReasoner::reason_with_admission(&mut self, prompt: &str, account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
@@ -5956,6 +5951,7 @@ pub fn nika_session::reasoner::ScriptedReasoner::authoring_harness(&self) -> cor
 pub fn nika_session::reasoner::ScriptedReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::reasoner::ScriptedReasoner::name(&self) -> alloc::string::String
 pub fn nika_session::reasoner::ScriptedReasoner::reason(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
+pub fn nika_session::reasoner::ScriptedReasoner::reason_effort(&mut self, _prompt: &str, _label: bool, _account: core::option::Option<&nika_providers::admission::InferenceAdmission>, effort: nika_compile::types::AuthoringReasoning) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::ScriptedReasoner::reason_label(&mut self, prompt: &str) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::ScriptedReasoner::reason_label_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::ScriptedReasoner::reason_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>

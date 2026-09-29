@@ -77,17 +77,21 @@ impl SessionRuntime {
         // A door's classifier names no route: without money it keeps its path.
         let reads = self.reads_answers();
         let routes = !blocked && self.classifier.is_none() && reads;
+        // A named level the session cannot ask refuses the label before any reasoner, record or
+        // byte: it is never read as no level (R4 B16).
+        let effort = self.authoring_context.reasoning_asked();
+        let refused = routes && effort.is_err();
         let fresh = self
             .factory
             .as_ref()
-            .filter(|_| routes)
+            .filter(|_| routes && !refused)
             .map(|factory| factory(&self.intelligence));
         let model = fresh
             .as_ref()
             .filter(|reasoner| reasoner.supports_admission())
             .and_then(|reasoner| reasoner.authoring_model());
         // A paid label request may leave only after the record says it might.
-        let entered = if blocked {
+        let entered = if blocked || refused {
             Ok((None, false))
         } else {
             self.enter_dispatch(model.as_deref())
@@ -112,15 +116,17 @@ impl SessionRuntime {
                 crate::activity::Phase::Understanding,
                 "reading your line",
             ));
-            match fresh {
-                Some(reasoner) => {
-                    let mut classifier = crate::turn::ReasonerClassifier::new(reasoner);
+            match (fresh, effort) {
+                (_, Err(why)) => TurnDecision::failed(&format!("nothing was sent · {why}")),
+                (Some(reasoner), Ok(effort)) => {
+                    let mut classifier =
+                        crate::turn::ReasonerClassifier::new(reasoner).asking(effort);
                     match &account {
                         Some(a) => classifier.classify_with_admission(&context, raw, a),
                         None => classifier.classify(&context, raw),
                     }
                 }
-                None => TurnDecision::new(TurnAct::Unknown, RoutingMethod::Fallback),
+                (None, Ok(_)) => TurnDecision::new(TurnAct::Unknown, RoutingMethod::Fallback),
             }
         } else {
             TurnDecision::new(TurnAct::Unknown, RoutingMethod::Fallback)

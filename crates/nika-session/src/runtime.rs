@@ -1381,6 +1381,9 @@ mod authoring_tests;
 mod choice_tests;
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
+mod reasoning_effort_tests;
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
 mod restore_tests;
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]

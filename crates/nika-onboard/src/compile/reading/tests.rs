@@ -168,3 +168,100 @@ fn a_question_quotes_its_clause_and_says_when_it_asks_for_code() {
         "an empty ledger says nothing"
     );
 }
+
+/// C11 · an outcome's words a host reads before its own protocol words: the question as a human
+/// reads it, the syntax question in words, the honest incomplete. No host command rides them.
+#[test]
+fn an_outcomes_words_leave_the_hosts_protocol_to_the_host() {
+    let skeleton = compile(&CompileRequest::create("bounded-batch")).expect("compiles");
+    let mut question = skeleton.questions[0].clone();
+    question.label = "Which column holds the amount?".to_owned();
+    question.why = "the request names no column".to_owned();
+    assert_eq!(
+        question_words(&question, &["no column is named".to_owned()]),
+        "Which column holds the amount?\n  (the request names no column)\n  what I could not settle:\n    · no column is named"
+    );
+    question.why.clear();
+    assert_eq!(
+        question_words(&question, &[]),
+        "Which column holds the amount?"
+    );
+    let asked = syntax_question("sum of amount");
+    assert!(
+        asked.contains("how to do « sum of amount »") && asked.ends_with("No code is needed."),
+        "{asked}"
+    );
+    let out = compile(&CompileRequest::create("do the thing with the stuff")).expect("compiles");
+    let incomplete = incomplete_words(&out, None);
+    assert!(
+        incomplete.starts_with("I read this as work but cannot build it yet:")
+            && incomplete.ends_with("write it to ./digest.md »"),
+        "{incomplete}"
+    );
+    assert!(incomplete_words(&out, Some("the way on")).ends_with("\n  the way on"));
+    for words in [&asked, &incomplete] {
+        assert!(
+            !words.contains("cancel") && !words.contains("why?"),
+            "{words}"
+        );
+    }
+}
+
+/// C11 · the authoring receipt's words: a call that asked no level adds nothing (the metered and
+/// subscription bytes as `/details` said them before); a call that asked one says each fact apart
+/// (configured, the keys read back from the sent body, served unknown, the reported usage and
+/// model), and a body never read back is `unobserved`, never the level.
+#[test]
+fn a_receipt_says_each_explicit_effort_fact_apart_and_nothing_for_none() {
+    use serde_json::json;
+    let mut receipt = AuthoringReceipt::new("deepseek/deepseek-v4-pro");
+    receipt.calls = 2;
+    receipt.input_tokens = Some(300);
+    receipt.output_tokens = Some(90);
+    receipt.elapsed_ms = 1500;
+    receipt.backend = Some(json!({"kind": "direct_api", "provider": "deepseek",
+        "host": "api.deepseek.com", "base_url_overridden": false}));
+    let unnamed = json!({"call": "plan", "result": {"usage_reported": true, "input_tokens": 100,
+        "output_tokens": 30}, "reasoning": {"configured": null, "transmitted": {"thinking": null,
+        "effort": "low"}, "served": "unknown", "reasoning_tokens": null,
+        "response_model": "deepseek-v4-pro"}});
+    receipt.context = vec![unnamed.clone(), unnamed];
+    let head = "\n  authoring backend: deepseek/deepseek-v4-pro · 2 calls · 1500 ms · 300 in / 90 out tokens\n  sent to: deepseek · host api.deepseek.com";
+    let tail = "\n  cost: the compiler meters tokens, not money · the host's own words";
+    assert_eq!(
+        receipt_words(&receipt, "the host's own words"),
+        format!("{head}{tail}")
+    );
+    receipt.context = vec![
+        json!({"call": "plan", "result": {"usage_reported": true, "input_tokens": 100,
+            "output_tokens": 30}, "reasoning": {"configured": "max", "transmitted":
+            {"thinking": "enabled", "effort": "max"}, "served": "unknown",
+            "reasoning_tokens": 812, "response_model": "deepseek-v4-pro"}}),
+        json!({"call": "repair", "result": {"failure_kind": "admission_refused"}, "reasoning":
+            {"configured": "max", "transmitted": "unobserved", "served": "unknown",
+            "reasoning_tokens": null, "response_model": null}}),
+    ];
+    assert_eq!(
+        receipt_words(&receipt, "the host's own words"),
+        format!(
+            "{head}\n    plan call · reasoning effort max configured · keys read back from the sent body: thinking enabled · effort max · effort served unknown · reasoning tokens 812 · usage 100 in / 30 out tokens · response model deepseek-v4-pro\n    repair call · reasoning effort max configured · keys read back from the sent body: unobserved · effort served unknown · reasoning tokens not reported · no answer (admission_refused) · response model not reported{tail}"
+        )
+    );
+    receipt.backend = Some(json!({"kind": "direct_api", "provider": "openai",
+        "host": "gateway.invalid", "base_url_overridden": true}));
+    assert!(
+        receipt_words(&receipt, "")
+            .contains("sent to: openai · host gateway.invalid (base URL overridden: a gateway or a local server, not the provider's own API)")
+    );
+    let mut subscription = AuthoringReceipt::new("claude-code");
+    subscription.calls = 1;
+    subscription.elapsed_ms = 20;
+    subscription.backend = Some(json!({"kind": "harness_infer", "adapter": "claude-code",
+        "requested_model": null, "carried_from_authoring_round": true, "observed": [
+        {"status": "returned", "observed_model": "opus", "usage_observed": true},
+        {"status": "failed"}]}));
+    assert_eq!(
+        receipt_words(&subscription, "the host's own words"),
+        "\n  authoring backend: subscription claude-code · requested harness default · 1 compiler calls · 20 ms\n    receipt carried from the authoring round; this clarification replay made zero calls\n    responding model: opus · usage marker true\n  cost: subscription invoice unknown · no numeric token meter reported · no paid provider fallback"
+    );
+}

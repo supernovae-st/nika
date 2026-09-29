@@ -15,9 +15,12 @@ use nika_onboard::compile::round::{change_money, compiled};
 use nika_onboard::compile::{CompileOutcome, CompileQuestion, CompileRequest, revise_intent};
 // The compiler's reasons in a human's words and its questions' own grammar live beside the
 // reading they refine (C10).
-use nika_onboard::compile::reading::clauses_understood;
 pub(crate) use nika_onboard::compile::reading::human_reasons;
 pub(super) use nika_onboard::compile::reading::{asks_for_syntax, clause_of};
+use nika_onboard::compile::reading::{
+    clauses_understood, incomplete_words, question_words, syntax_question,
+};
+use nika_onboard::compile::seat::{priced_words, unpriced_cloud, unpriced_warning};
 
 use super::{SessionRuntime, TurnOutcome, ceiling_in, named_files};
 use crate::activity::{Activity, Phase};
@@ -110,15 +113,12 @@ impl SessionRuntime {
             Ok(out) => out,
             Err(e) => return Some(self.machinery(&e)),
         };
-        // What the reading understood, from the compiler's own ledger —
-        // never a count invented from the prose.
+        // What the compiler's ledger recorded of the reading — a count,
+        // never a claim that it was verified.
         if let Some(n) = clauses_understood(&out) {
             self.activity(&Activity::done(
                 Phase::Understanding,
-                format!(
-                    "understood {n} requirement{}",
-                    if n == 1 { "" } else { "s" }
-                ),
+                format!("recorded {n} requirement{}", if n == 1 { "" } else { "s" }),
             ));
         }
         let reading = as_written(Reading::of(out), &round, &context, intent);
@@ -184,7 +184,7 @@ impl SessionRuntime {
                     self.machinery(&AuthoringError::Seat(why.clone()))
                 }
                 AuthoringSeat::Deterministic { why } => {
-                    let text = honest_incomplete(&out, why.as_deref());
+                    let text = incomplete_words(&out, why.as_deref());
                     self.last_outcome = Some(out);
                     TurnOutcome::Facts(text)
                 }
@@ -196,7 +196,7 @@ impl SessionRuntime {
     /// Work the reader could not settle, under a ceiling that refuses the seat (R4 A6): the
     /// refusal says the compiler's reasons, never the bare ceiling; `why` keeps the outcome.
     fn refused_unsettled(&mut self, out: CompileOutcome) -> TurnOutcome {
-        let text = honest_incomplete(&out, Some(&self.cognition_blocked()));
+        let text = incomplete_words(&out, Some(&self.cognition_blocked()));
         self.last_outcome = Some(out);
         TurnOutcome::Refusal(Refusal::new(RefusalClass::NotAllowed, text))
     }
@@ -516,7 +516,7 @@ impl SessionRuntime {
             Reading::Questions(out) => {
                 round.absorb(&out);
                 let Some(question) = round.current() else {
-                    return TurnOutcome::Facts(honest_incomplete(&out, None));
+                    return TurnOutcome::Facts(incomplete_words(&out, None));
                 };
                 let key = question.key.clone();
                 // A rule the compiler can only ask as code is never asked
@@ -536,7 +536,8 @@ impl SessionRuntime {
                         self.remember(&round.intent, &text);
                         return TurnOutcome::Facts(text);
                     }
-                    let text = syntax_question_text(clause.as_deref().unwrap_or_default());
+                    let clause = clause.as_deref().unwrap_or_default();
+                    let text = format!("{}{REPLY_HINT}", syntax_question(clause));
                     self.intent.unresolved = vec![text.clone()];
                     self.remember(&round.intent, &text);
                     self.questions.ask();
@@ -565,7 +566,7 @@ impl SessionRuntime {
                 }
             }
             Reading::Unsettled(out) | Reading::NotWork(out) => {
-                TurnOutcome::Facts(honest_incomplete(&out, None))
+                TurnOutcome::Facts(incomplete_words(&out, None))
             }
             // A turn the session could not finish: the recovery card (what
             // is kept · what did not happen · the ways on), never a bare
@@ -1067,27 +1068,14 @@ fn input_question(workflow: &std::path::Path, name: &str, remaining: usize) -> S
     )
 }
 
-/// The question as the human reads it: the compiler's label, why it
-/// cannot invent the value, what it could not settle, how to abandon.
+/// How a human answers a question, abandons it or asks why: the raw key stays out of the human's
+/// line (« why? » names it, with what the value is for); the prompt that follows (`reply ›`) says
+/// whose turn it is.
+const REPLY_HINT: &str = "\n  reply on the next line · `cancel` drops this · `why?` explains";
+
+/// The question as the human reads it ([`question_words`]), then how to answer or abandon it.
 pub(super) fn question_text(question: &CompileQuestion, reasons: &[String]) -> String {
-    let mut text = question.label.clone();
-    if !question.why.is_empty() {
-        text.push_str("\n  (");
-        text.push_str(&question.why);
-        text.push(')');
-    }
-    if !reasons.is_empty() {
-        text.push_str("\n  what I could not settle:");
-        for reason in reasons {
-            text.push_str("\n    · ");
-            text.push_str(reason);
-        }
-    }
-    // The raw key stays out of the human's line: « why? » names it, with
-    // what the value is for; the prompt that follows (`reply ›`) says whose
-    // turn it is.
-    text.push_str("\n  reply on the next line · `cancel` drops this · `why?` explains");
-    text
+    format!("{}{REPLY_HINT}", question_words(question, reasons))
 }
 
 /// The card when nothing could be built, in the reading's own truth: a
@@ -1139,57 +1127,30 @@ pub(super) fn cannot_express_text(out: &CompileOutcome) -> String {
     text
 }
 
-/// The words when a run model names a CLOUD model the catalog does not
-/// price: a run under a spending ceiling would refuse it (NIKA-1709), so
-/// the question says so now and names the priced models of that provider.
-/// `None` when the model is priced, when the provider is a local engine
-/// (unpriced by nature, never refused), or when the line is not
-/// `provider/model` (the compiler judges it).
 /// Is `line` the seat the human already chose (`<provider>/<model>`,
 /// spacing aside)? The seat is never refused at the model question.
 pub(super) fn is_own_seat(seat: &AuthoringSeat, line: &str) -> bool {
     matches!(seat, AuthoringSeat::Provider { model } if model.trim() == line.trim())
 }
 
+/// The words when a run model names a CLOUD model the catalog does not
+/// price: a run under a spending ceiling would refuse it (NIKA-1709), so
+/// the question says so now and names the priced models of that provider.
+/// `None` when the model is priced, when the provider is a local engine
+/// (unpriced by nature, never refused), or when the line is not
+/// `provider/model` (the compiler judges it).
 pub(super) fn unpriced_model_text(answer: &str) -> Option<String> {
     let (row, model, priced) = unpriced_cloud(answer)?;
-    let mut text = format!(
-        "`{row}/{model}` is not priced in Nika's catalog: a run under a spending ceiling would refuse it (NIKA-1709 · unpriced cloud spend cannot be bounded)."
-    );
-    if priced.is_empty() {
-        let _ = write!(
-            text,
-            "\n  no priced model is known for `{row}` yet — name a priced <provider>/<model>, or `cancel`"
-        );
+    let way = if priced.is_empty() {
+        "name a priced <provider>/<model>, or `cancel`"
     } else {
-        let _ = write!(
-            text,
-            "\n  priced for `{row}`: {} — name one of them (the question still waits)",
-            priced.join(" · ")
-        );
-    }
-    Some(text)
-}
-
-/// A CLOUD model the catalog does not price, as (the provider's row id,
-/// the model, the priced models of that provider). `None` when the model
-/// is priced, when the provider is a local engine (unpriced by nature,
-/// never refused), or when the line is not `provider/model`.
-fn unpriced_cloud(answer: &str) -> Option<(String, String, Vec<String>)> {
-    let (provider, model) = answer.trim().split_once('/')?;
-    let row = nika_catalog::all_providers()
-        .iter()
-        .find(|p| p.id == provider || p.aliases.contains(&provider))?;
-    if !row.requires_key || nika_catalog::find_pricing_scoped(row.id, model).is_some() {
-        return None;
-    }
-    let priced = row
-        .models
-        .iter()
-        .filter(|m| nika_catalog::find_pricing_scoped(row.id, m.model).is_some())
-        .map(|m| format!("{}/{}", row.id, m.model))
-        .collect();
-    Some((row.id.to_owned(), model.to_owned(), priced))
+        "name one of them (the question still waits)"
+    };
+    Some(format!(
+        "{} (NIKA-1709 · unpriced cloud spend cannot be bounded).\n  {} — {way}",
+        unpriced_warning(&format!("{row}/{model}")),
+        priced_words(&row, &priced)
+    ))
 }
 
 /// The seat's offer under the model question: Enter takes it, or another
@@ -1207,13 +1168,10 @@ pub(super) fn seat_offer(seat: &AuthoringSeat) -> Option<String> {
     if let Some((row, _, priced)) = unpriced_cloud(model) {
         let _ = write!(
             offer,
-            "\n  `{model}` is not priced in Nika's catalog: a run under a spending ceiling would refuse it (NIKA-1709)"
+            "\n  {} (NIKA-1709) · {}",
+            unpriced_warning(model),
+            priced_words(&row, &priced)
         );
-        if priced.is_empty() {
-            let _ = write!(offer, " · no priced model is known for `{row}` yet");
-        } else {
-            let _ = write!(offer, " · priced for `{row}`: {}", priced.join(" · "));
-        }
     }
     Some(offer)
 }
@@ -1227,14 +1185,6 @@ impl SessionRuntime {
             AuthoringSeat::Deterministic { .. } => "authoring".to_owned(),
         }
     }
-}
-
-/// The clause asked in words — never a syntax — with what to say and
-/// what Nika does with it.
-fn syntax_question_text(clause: &str) -> String {
-    format!(
-        "One thing I need from you, in words: how to do « {clause} ». Say it as you would to a colleague — what to keep, what to compute, over which column (e.g. « the total of the amount column » · « the rows whose status is paid »); your words take the place of « {clause} » in your request and Nika reads it again. No code is needed.\n  reply on the next line · `cancel` drops this · `why?` explains"
-    )
 }
 
 /// The honest incomplete when the rule stays code after the human's words
@@ -1265,25 +1215,6 @@ fn as_written(
         }
         reading => reading,
     }
-}
-
-/// An incomplete the human can act on: what the reader could not settle,
-/// and the next safe step — never a substitute workflow.
-fn honest_incomplete(out: &CompileOutcome, why: Option<&str>) -> String {
-    let mut text = "I read this as work but cannot build it yet:".to_owned();
-    let reasons = human_reasons(reasons(out));
-    if reasons.is_empty() {
-        text.push_str("\n  · the request names no operation I can read");
-    }
-    for reason in reasons {
-        text.push_str("\n  · ");
-        text.push_str(&reason);
-    }
-    text.push_str("\n  ");
-    text.push_str(why.unwrap_or(
-        "say what to read, what to produce and where to write it, e.g. « read ./docs, draft a digest and write it to ./digest.md »",
-    ));
-    text
 }
 
 /// The first word of an explicit run line (EN/FR). The French imperative

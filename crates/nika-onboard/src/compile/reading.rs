@@ -9,9 +9,13 @@
 //! prose back into state. Pure: an outcome or a line in, a reading out — nothing here calls,
 //! reads or decides for a host, and a host's own protocol words stay with the host.
 
+use std::fmt::Write as _;
+
 use serde_json::Value;
 
-use super::{CompileOutcome, CompileQuestion, CompileStatus, DiagnosticKind, QuestionType};
+use super::{
+    AuthoringReceipt, CompileOutcome, CompileQuestion, CompileStatus, DiagnosticKind, QuestionType,
+};
 
 /// The compiler's question for a whole replacement request (its own key).
 pub const CLARIFICATION_KEY: &str = "intent.clarification";
@@ -237,8 +241,8 @@ fn human_reason(raw: &str) -> String {
     r.to_owned()
 }
 
-/// How many clauses the compiler's ledger holds for this reading —
-/// « understood N requirements » — `None` when the outcome carries no ledger.
+/// How many clauses the compiler's ledger records for this reading (« recorded N
+/// requirements »): a count, never a verification; `None` when it carries no ledger.
 #[must_use]
 pub fn clauses_understood(out: &CompileOutcome) -> Option<usize> {
     let ledger = out
@@ -248,6 +252,55 @@ pub fn clauses_understood(out: &CompileOutcome) -> Option<usize> {
         .get("ledger")?
         .as_array()?;
     (!ledger.is_empty()).then_some(ledger.len())
+}
+
+/// A question as a human reads it, before a host's own protocol words: the compiler's label, why it
+/// cannot invent the value, and what it could not settle.
+#[must_use]
+pub fn question_words(question: &CompileQuestion, reasons: &[String]) -> String {
+    let mut text = question.label.clone();
+    if !question.why.is_empty() {
+        text.push_str("\n  (");
+        text.push_str(&question.why);
+        text.push(')');
+    }
+    if !reasons.is_empty() {
+        text.push_str("\n  what I could not settle:");
+        for reason in reasons {
+            text.push_str("\n    · ");
+            text.push_str(reason);
+        }
+    }
+    text
+}
+
+/// The question in words for a rule the compiler could only ask as code ([`asks_for_syntax`]):
+/// the clause, asked as a colleague would say it — never code.
+#[must_use]
+pub fn syntax_question(clause: &str) -> String {
+    format!(
+        "One thing I need from you, in words: how to do « {clause} ». Say it as you would to a colleague — what to keep, what to compute, over which column (e.g. « the total of the amount column » · « the rows whose status is paid »); your words take the place of « {clause} » in your request and Nika reads it again. No code is needed."
+    )
+}
+
+/// An incomplete a human can act on: what the reader could not settle, in a human's words, and the
+/// next safe step (`why` when a host names its own) — never a substitute workflow.
+#[must_use]
+pub fn incomplete_words(out: &CompileOutcome, why: Option<&str>) -> String {
+    let mut text = "I read this as work but cannot build it yet:".to_owned();
+    let reasons = human_reasons(reasons(out));
+    if reasons.is_empty() {
+        text.push_str("\n  · the request names no operation I can read");
+    }
+    for reason in reasons {
+        text.push_str("\n  · ");
+        text.push_str(&reason);
+    }
+    text.push_str("\n  ");
+    text.push_str(why.unwrap_or(
+        "say what to read, what to produce and where to write it, e.g. « read ./docs, draft a digest and write it to ./digest.md »",
+    ));
+    text
 }
 
 /// A question that asks the human for code (a jq or CEL expression, a
@@ -269,6 +322,128 @@ pub fn clause_of(label: &str) -> Option<String> {
     let end = start + label[start..].find('`')?;
     let clause = label[start..end].trim();
     (!clause.is_empty()).then(|| clause.to_owned())
+}
+
+/// The authoring receipt as a human reads it (descended from `nika-session`'s `/details`, C11):
+/// the backend and model, the calls, tokens and time, where the calls really went (the
+/// provider's own API, or the gateway its base URL is overridden to) and the cost basis the
+/// receipt states; `run_cost` is the host's own words for where a metered run's cost is read.
+/// A call that asked an explicit reasoning effort adds one line of its own facts
+/// ([`reasoning_words`]); a call that asked none adds nothing.
+#[must_use]
+pub fn receipt_words(receipt: &AuthoringReceipt, run_cost: &str) -> String {
+    let mut text = String::new();
+    if let Some(backend) = receipt
+        .backend
+        .as_ref()
+        .filter(|b| b["kind"] == "harness_infer")
+    {
+        let _ = write!(
+            text,
+            "\n  authoring backend: subscription {} · requested {} · {} compiler calls · {} ms",
+            backend["adapter"].as_str().unwrap_or("unknown"),
+            backend["requested_model"]
+                .as_str()
+                .unwrap_or("harness default"),
+            receipt.calls,
+            receipt.elapsed_ms
+        );
+        if backend["carried_from_authoring_round"] == true {
+            text.push_str("\n    receipt carried from the authoring round; this clarification replay made zero calls");
+        }
+        if let Some(calls) = backend["observed"].as_array() {
+            for call in calls.iter().filter(|c| c["status"] == "returned") {
+                let _ = write!(
+                    text,
+                    "\n    responding model: {} · usage marker {}",
+                    call["observed_model"].as_str().unwrap_or("not reported"),
+                    call["usage_observed"].as_bool().unwrap_or(false)
+                );
+            }
+        }
+        text.push_str("\n  cost: subscription invoice unknown · no numeric token meter reported · no paid provider fallback");
+        return text;
+    }
+
+    let _ = write!(
+        text,
+        "\n  authoring backend: {} · {} call{} · {} ms",
+        receipt.model,
+        receipt.calls,
+        if receipt.calls == 1 { "" } else { "s" },
+        receipt.elapsed_ms
+    );
+    if let (Some(i), Some(o)) = (receipt.input_tokens, receipt.output_tokens) {
+        let _ = write!(text, " · {i} in / {o} out tokens");
+    }
+    if let Some(backend) = &receipt.backend {
+        let _ = write!(
+            text,
+            "\n  sent to: {} · host {}{}",
+            backend["provider"].as_str().unwrap_or("unknown provider"),
+            backend["host"].as_str().unwrap_or("unknown"),
+            if backend["base_url_overridden"].as_bool() == Some(true) {
+                " (base URL overridden: a gateway or a local server, not the provider's own API)"
+            } else {
+                ""
+            }
+        );
+    }
+    for call in &receipt.context {
+        text.push_str(&reasoning_words(call).unwrap_or_default());
+    }
+    let _ = write!(
+        text,
+        "\n  cost: the compiler meters tokens, not money · {run_cost}"
+    );
+    text
+}
+
+/// One authoring call's explicit reasoning effort, each fact apart (R4 B16 · C11): the level the
+/// policy configured, the keys read back from the body the provider client sent (`unobserved`
+/// when none was read back: never assumed from the level), the effort the provider served (not
+/// observable here), the reasoning tokens and usage it reported, or why it gave no answer, and
+/// the model it named. `None` for a call that asked no level.
+#[must_use]
+pub fn reasoning_words(call: &Value) -> Option<String> {
+    let reasoning = &call["reasoning"];
+    let configured = reasoning["configured"].as_str()?;
+    let reported = |value: &Value| {
+        value
+            .as_str()
+            .map(str::to_owned)
+            .or_else(|| value.as_u64().map(|n| n.to_string()))
+            .unwrap_or_else(|| "not reported".to_owned())
+    };
+    let sent = match &reasoning["transmitted"] {
+        Value::Object(keys) => format!(
+            "thinking {} · effort {}",
+            keys.get("thinking")
+                .and_then(Value::as_str)
+                .unwrap_or("absent"),
+            keys.get("effort")
+                .and_then(Value::as_str)
+                .unwrap_or("absent")
+        ),
+        _ => "unobserved".to_owned(),
+    };
+    let result = &call["result"];
+    let answer = match result["failure_kind"].as_str() {
+        Some(kind) => format!("no answer ({kind})"),
+        None if result["usage_reported"] == true => format!(
+            "usage {} in / {} out tokens",
+            reported(&result["input_tokens"]),
+            reported(&result["output_tokens"])
+        ),
+        None => "usage not reported".to_owned(),
+    };
+    Some(format!(
+        "\n    {} call · reasoning effort {configured} configured · keys read back from the sent body: {sent} · effort served {} · reasoning tokens {} · {answer} · response model {}",
+        call["call"].as_str().unwrap_or("authoring"),
+        reasoning["served"].as_str().unwrap_or("unknown"),
+        reported(&reasoning["reasoning_tokens"]),
+        reported(&reasoning["response_model"])
+    ))
 }
 
 #[cfg(test)]

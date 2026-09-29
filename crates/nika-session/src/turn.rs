@@ -227,6 +227,7 @@ impl TurnClassifier for ConservativeFallback {
 /// label read whole; a path that cannot answer is the fallback (UNKNOWN).
 pub struct ReasonerClassifier {
     reasoner: Box<dyn crate::reasoner::SessionReasoner>,
+    effort: Option<nika_onboard::compile::AuthoringReasoning>,
 }
 
 impl ReasonerClassifier {
@@ -234,7 +235,26 @@ impl ReasonerClassifier {
     /// conversation's, so the route follows the chosen intelligence).
     #[must_use]
     pub fn new(reasoner: Box<dyn crate::reasoner::SessionReasoner>) -> Self {
-        Self { reasoner }
+        Self {
+            reasoner,
+            effort: None,
+        }
+    }
+
+    /// Every label asks this explicit reasoning effort (R4 B16), on the same label call; a
+    /// reasoner that cannot carry it refuses the label before any call.
+    #[must_use]
+    pub fn asking(mut self, effort: Option<nika_onboard::compile::AuthoringReasoning>) -> Self {
+        self.effort = effort;
+        self
+    }
+}
+
+/// A label's reply as the route it decides; a path that cannot answer is the fallback.
+fn decided(reply: Result<crate::reasoner::Reply, crate::reasoner::ReasonError>) -> TurnDecision {
+    match reply {
+        Ok(reply) => TurnDecision::new(TurnAct::parse(&reply.text), RoutingMethod::Model),
+        Err(e) => TurnDecision::failed(&e.to_string()),
     }
 }
 
@@ -245,20 +265,19 @@ impl TurnClassifier for ReasonerClassifier {
         raw: &str,
         account: &nika_providers::InferenceAdmission,
     ) -> TurnDecision {
-        match self
-            .reasoner
-            .reason_label_with_admission(&routing_prompt(context, raw), account)
-        {
-            Ok(reply) => TurnDecision::new(TurnAct::parse(&reply.text), RoutingMethod::Model),
-            Err(e) => TurnDecision::failed(&e.to_string()),
-        }
+        let prompt = routing_prompt(context, raw);
+        decided(match self.effort {
+            Some(effort) => (self.reasoner).reason_effort(&prompt, true, Some(account), effort),
+            None => self.reasoner.reason_label_with_admission(&prompt, account),
+        })
     }
 
     fn classify(&mut self, context: &TurnContext, raw: &str) -> TurnDecision {
-        match self.reasoner.reason_label(&routing_prompt(context, raw)) {
-            Ok(reply) => TurnDecision::new(TurnAct::parse(&reply.text), RoutingMethod::Model),
-            Err(e) => TurnDecision::failed(&e.to_string()),
-        }
+        let prompt = routing_prompt(context, raw);
+        decided(match self.effort {
+            Some(effort) => self.reasoner.reason_effort(&prompt, true, None, effort),
+            None => self.reasoner.reason_label(&prompt),
+        })
     }
 }
 

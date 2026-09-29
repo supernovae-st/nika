@@ -114,6 +114,19 @@ impl KnowledgePin {
             short(rows)
         )
     }
+
+    /// The identity in the words a status line says: the declared version, the declared digest,
+    /// and the digests of the manifest and the rows as read (cut at twelve).
+    #[must_use]
+    pub fn status_words(&self) -> String {
+        format!(
+            "knowledge {} · declared digest {} · manifest {} · rows {}",
+            self.version.as_deref().unwrap_or("unversioned"),
+            short(self.digest.as_deref().unwrap_or("none")),
+            short(&self.manifest_sha256),
+            short(&self.rows_sha256)
+        )
+    }
 }
 
 /// The first twelve characters of a digest.

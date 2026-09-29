@@ -29,14 +29,14 @@ pub mod briefs;
 /// ADR-138 · ADR-140).
 pub mod compile {
     pub use nika_compile::{
-        AuthoringCognition, AuthoringKnowledge, AuthoringPolicy, AuthoringReceipt, Basis,
-        COMPILE_WIRE_VERSION, ChoiceOffer, CompileDiagnostic, CompileError, CompileOutcome,
-        CompilePreview, CompileProvenance, CompileQuestion, CompileRequest, CompileStatus,
-        DiagnosticKind, Hit, HitKind, HotPolicy, KnowledgeReference, MaterializeError, NativeMode,
-        PreviewScope, QuestionType, RepresentationError, Strategy, TriggerKind, TriggerRequirement,
-        TriggerStatus, basis, basis_for, compile, fold, intent_sha256, materialize_ready, money,
-        observation, outcome_document, retrieve, retrieve_by_ops, revise_intent,
-        stated_destinations, stated_sources, text,
+        AuthoringCognition, AuthoringKnowledge, AuthoringPolicy, AuthoringReasoning,
+        AuthoringReceipt, Basis, COMPILE_WIRE_VERSION, ChoiceOffer, CompileDiagnostic,
+        CompileError, CompileOutcome, CompilePreview, CompileProvenance, CompileQuestion,
+        CompileRequest, CompileStatus, DiagnosticKind, Hit, HitKind, HotPolicy, KnowledgeReference,
+        MaterializeError, NativeMode, PreviewScope, QuestionType, RepresentationError, Strategy,
+        TriggerKind, TriggerRequirement, TriggerStatus, basis, basis_for, compile, fold,
+        intent_sha256, materialize_ready, money, observation, outcome_document, retrieve,
+        retrieve_by_ops, revise_intent, stated_destinations, stated_sources, text,
     };
     pub use nika_compile_cognition::{
         Cognition, NoProvider, authority, compile_with_cognition, compile_with_provider, decide,
@@ -50,6 +50,9 @@ pub mod compile {
     /// The authoring round a host keeps across a close (C7): the request, the settled
     /// answers and the question that waited, as evidence — never authority.
     pub mod round;
+    /// What the catalog says of a named model or an offered seat: unpriced cloud, and the
+    /// priced models of its provider (the session reads it, C11).
+    pub mod seat;
 }
 pub mod compile_config;
 pub mod fixtures;

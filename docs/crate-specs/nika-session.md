@@ -473,6 +473,7 @@ a workflow, a reply or retrieved context.
 | `NIKA_<PROVIDER>_API_KEY` or the catalog's variable (`DEEPSEEK_API_KEY` …) | Presence only, for the census; the provider client reads the value when it calls |
 | `~/.nika/session-intelligence.json` | The kept choice (kind · model · time); a corrupt file reads as never chosen |
 | `NIKA_AUTHORING_STRATEGY` · `NIKA_KNOWLEDGE` · `NIKA_KNOWLEDGE_EXCLUDE` | The authoring context, through the parser `nika compile` uses; a named snapshot is opened and pinned now. `NIKA_KNOWLEDGE_PACK` is refused: a pack was composed for one request |
+| `NIKA_AUTHORING_REASONING` | The explicit reasoning effort every seated authoring call asks (`low` · `high` · `max`), through the same parser; a host's typed word outranks it |
 | `NIKA_SESSION_DECISION_MODEL` with `TYPESAFE_API_KEY` | The optional decision seat (`typesafe/<jev>` only) |
 | `NIKA_TUI` | `0` · `off` · `false` · `no` · `plain` keep bare `nika` on the plain loop |
 
@@ -481,6 +482,50 @@ clean install therefore presents no snapshot: native authoring composes the
 embedded language card, the request, answers and observed world. Release
 archives carry no snapshot. An operator who wants these values in every
 session sets them in the login environment.
+
+## Explicit authoring reasoning (R4 B16 · C11)
+
+The session resolves an explicit reasoning effort once, through the shared parser
+(`compile_config::reasoning`), apart from the rest of the configuration: another refusal
+(a strategy word, a snapshot) never drops a valid level. A host's typed word
+(`AuthoringSettings::with_reasoning`) outranks `NIKA_AUTHORING_REASONING` and never
+falls back to it. Any word other than `low`, `high` or `max` is refused at the first
+seated turn, as an unknown strategy is, and every label and conversational turn
+refuses it before any reasoner, dispatch record or byte: a refused word is never read
+as no level. `AuthoringContext::reasoning()` keeps the level. Its Debug appends it only
+when one is named, so every question identity and unknown-cost binding hashed without
+one keeps its bytes, and a named level binds them. `/status` says « reasoning effort
+<w> asked ».
+
+On a provider seat every authoring call asks it through the one policy
+(`AuthoringPolicy::with_reasoning`): the plan, its evidence repair, the native
+candidate and its repairs, a sketch, a transform. The provider writes `thinking`
+enabled and `reasoning_effort` only on a direct route whose catalog lists the level
+(`deepseek/deepseek-v4-pro`), and refuses before any byte elsewhere (another model or
+provider, a gateway, a base-URL override). The caps stay the policy's: an effort never
+changes a cap and a cap never chooses an effort. A subscription seat refuses a named
+level before any call, since its adapter cannot carry it. The TypeSafe/Jev decision
+seat is untouched. The receipt records, per call, the level configured, the keys read
+back from the bytes sent, and `served: unknown`: what the provider spent internally
+is not observable here.
+
+The conversation's own calls ask it too: every turn-routing label (from the fresh
+reasoner the factory builds for each routed turn, `ReasonerClassifier::asking`) and every
+conversational turn. Each call reads the level the session holds when it is made, so a
+host's `set_authoring_context` after open takes effect at the next call. They go through
+`SessionReasoner::reason_effort`. `ProviderReasoner` makes the same call it makes
+without a level, with the same ceiling, temperature and words, and carries the level
+through the verb's conduit (`InferInput.reasoning_effort` in `nika-verb-infer`), so the
+provider's route qualification above applies unchanged. Any other reasoner refuses a
+named level before calling (the trait's default): the level is never dropped. A session
+naming none makes the calls it made before.
+
+`/details` reads the receipt: every authoring call that asked a level gets one line, each
+fact apart. The line gives the level configured and the keys read back from the body
+sent (`unobserved` when none was read back, never assumed from the level). It also says
+the served effort is unknown, and gives the reasoning tokens, the usage reported (or why
+no answer came) and the model the response named. A call that asked no level adds
+nothing, and the subscription lines are unchanged.
 
 ## Persisted state and version compatibility
 

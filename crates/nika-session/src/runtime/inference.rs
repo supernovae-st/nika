@@ -203,6 +203,9 @@ impl SessionRuntime {
         if self.money_blocks_cognition() {
             return Err(ReasonError::Provider(self.inference_line()));
         }
+        // A named level the session cannot ask refuses the turn before any record or byte (R4 B16).
+        let effort = (self.authoring_context.reasoning_asked())
+            .map_err(|why| ReasonError::Provider(format!("{why} · nothing was sent")))?;
         let model = if self.reasoner.supports_admission() {
             self.reasoner.authoring_model()
         } else {
@@ -211,11 +214,15 @@ impl SessionRuntime {
         let (account, entered) = self
             .enter_dispatch(model.as_deref())
             .map_err(|e| ReasonError::Provider(format!("{UNRECORDED}: {e}")))?;
-        let reply = match &account {
-            Some(a) if label => self.reasoner.reason_label_with_admission(prompt, a),
-            Some(a) => self.reasoner.reason_with_admission(prompt, a),
-            None if label => self.reasoner.reason_label(prompt),
-            None => self.reasoner.reason(prompt),
+        // The session's explicit effort rides every call it names one for (R4 B16).
+        let reply = match (&account, effort) {
+            (_, Some(effort)) => {
+                (self.reasoner).reason_effort(prompt, label, account.as_ref(), effort)
+            }
+            (Some(a), None) if label => self.reasoner.reason_label_with_admission(prompt, a),
+            (Some(a), None) => self.reasoner.reason_with_admission(prompt, a),
+            (None, None) if label => self.reasoner.reason_label(prompt),
+            (None, None) => self.reasoner.reason(prompt),
         };
         self.leave_paid_dispatch(entered);
         reply

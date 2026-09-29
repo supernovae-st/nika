@@ -166,3 +166,21 @@ fn the_seat_receipt_is_stamped_beside_the_record_and_kept_by_the_stamp() {
     let created = bare.provenance.decision.expect("created");
     assert_eq!(created["session"]["decision_seat"]["model"], "m");
 }
+
+/// C11 · a pin's identity in the words the status line says: the declared version and digest, and
+/// the manifest and rows as read, cut at twelve.
+#[test]
+fn a_pin_says_its_identity_as_the_status_line_reads_it() {
+    let dir = tempfile::tempdir().expect("a snapshot");
+    let manifest = json!({"knowledge_version": "k1", "digest": "d1", "files": {}});
+    std::fs::write(dir.path().join("manifest.json"), manifest.to_string()).expect("manifest");
+    let pin = KnowledgePin::open(dir.path().to_path_buf(), None).expect("pinned");
+    assert_eq!(
+        pin.status_words(),
+        format!(
+            "knowledge k1 · declared digest d1 · manifest {} · rows {}",
+            short(&pin.manifest_sha256),
+            short(&pin.rows_sha256)
+        )
+    );
+}

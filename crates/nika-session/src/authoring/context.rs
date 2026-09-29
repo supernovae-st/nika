@@ -20,9 +20,9 @@ use nika_cli_host::compile::config::{
     self, AuthoringConfig, AuthoringSettings, ConfigError, DEFAULT_STRATEGY, KnowledgeSource,
 };
 use nika_cli_host::compile::knowledge::{KnowledgeError, Snapshot};
-use nika_onboard::compile::{AuthoringKnowledge, NativeMode};
+use nika_onboard::compile::{AuthoringKnowledge, AuthoringReasoning, NativeMode};
 // The pin owns its identity beside the snapshot door (C7 · D1); the policy stays here.
-use nika_onboard::knowledge::pin::{KnowledgePin, short};
+use nika_onboard::knowledge::pin::KnowledgePin;
 
 use super::DecisionSetup;
 
@@ -72,7 +72,7 @@ pub enum AuthoringContextError {
 
 /// The session's authoring configuration: the strategy the one policy carries, the knowledge
 /// snapshot pinned for the session, or the reason the configuration cannot be honored.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct AuthoringContext {
     strategy: NativeMode,
@@ -81,6 +81,30 @@ pub struct AuthoringContext {
     source: &'static str,
     decision: Option<DecisionSetup>,
     project: Option<PathBuf>,
+    /// The explicit reasoning effort every seated call asks for, when one is named, or the word
+    /// the parser refused: resolved apart from the rest, so no other refusal drops it (R4 B16).
+    reasoning: Result<Option<AuthoringReasoning>, ConfigError>,
+}
+
+impl std::fmt::Debug for AuthoringContext {
+    /// The derived form, the reasoning effort appended only when one is named (R4 B16): a context
+    /// naming none keeps the bytes every question identity and cost binding hashed.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut debug = f.debug_struct("AuthoringContext");
+        debug
+            .field("strategy", &self.strategy)
+            .field("knowledge", &self.knowledge)
+            .field("refusal", &self.refusal)
+            .field("source", &self.source)
+            .field("decision", &self.decision)
+            .field("project", &self.project);
+        match &self.reasoning {
+            Ok(Some(level)) => debug.field("reasoning", level),
+            Err(refused) => debug.field("reasoning", refused),
+            Ok(None) => &mut debug,
+        };
+        debug.finish()
+    }
 }
 
 impl Default for AuthoringContext {
@@ -92,6 +116,7 @@ impl Default for AuthoringContext {
             source: "default",
             decision: None,
             project: None,
+            reasoning: Ok(None),
         }
     }
 }
@@ -157,6 +182,8 @@ impl AuthoringContext {
         } else {
             "default"
         };
+        // The level resolves apart, through the same parser: no other refusal drops it (R4 B16).
+        let reasoning = config::reasoning(explicit, env);
         match Self::pin(explicit, env) {
             Ok((strategy, knowledge)) => Self {
                 strategy,
@@ -165,10 +192,12 @@ impl AuthoringContext {
                 source,
                 decision: None,
                 project: None,
+                reasoning,
             },
             Err(error) => Self {
                 refusal: Some(error),
                 source,
+                reasoning,
                 ..Self::default()
             },
         }
@@ -222,6 +251,18 @@ impl AuthoringContext {
         self.source
     }
 
+    /// The explicit reasoning effort every seated call asks for, when one is named (R4 B16).
+    #[must_use]
+    pub fn reasoning(&self) -> Option<AuthoringReasoning> {
+        self.reasoning.as_ref().ok().copied().flatten()
+    }
+
+    /// The level every call of the conversation asks, or why none may be asked: a word the parser
+    /// refused is never read as no level (R4 B16).
+    pub(crate) fn reasoning_asked(&self) -> Result<Option<AuthoringReasoning>, ConfigError> {
+        self.reasoning.clone()
+    }
+
     /// The `/status` line: the strategy and its source, the pinned knowledge, or the refusal —
     /// and the operator-selected decision seat, when one is named.
     #[must_use]
@@ -236,7 +277,10 @@ impl AuthoringContext {
                 self.source
             );
         }
-        format!("{}{decision}", self.base_line())
+        let effort = self.reasoning().map_or_else(String::new, |r| {
+            format!(" · reasoning effort {} asked", r.word())
+        });
+        format!("{}{effort}{decision}", self.base_line())
     }
 
     /// The strategy and knowledge words of the `/status` line.
@@ -248,12 +292,9 @@ impl AuthoringContext {
                 self.source
             ),
             Some(pin) => format!(
-                "authoring context · strategy {strategy} ({}) · knowledge {} · declared digest {} · manifest {} · rows {} · presented only under a selected model seat",
+                "authoring context · strategy {strategy} ({}) · {} · presented only under a selected model seat",
                 self.source,
-                pin.version.as_deref().unwrap_or("unversioned"),
-                short(pin.digest.as_deref().unwrap_or("none")),
-                short(&pin.manifest_sha256),
-                short(&pin.rows_sha256)
+                pin.status_words()
             ),
         }
     }
@@ -280,3 +321,7 @@ impl AuthoringContext {
         Ok(Some(snapshot.pack(intent, pin.exclude_corpus.as_deref())?))
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod tests;

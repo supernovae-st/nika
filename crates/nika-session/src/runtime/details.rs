@@ -12,6 +12,7 @@
 
 use std::fmt::Write as _;
 
+use nika_onboard::compile::reading::receipt_words;
 use serde_json::Value;
 
 use super::SessionRuntime;
@@ -138,68 +139,14 @@ fn seat_line(seat: &Value, text: &mut String) {
     );
 }
 
-/// The authoring receipt's lines: the model, the calls, tokens and time, where the calls really
-/// went (the provider's own API, or the gateway its base URL is overridden to), the cost basis.
+/// The authoring receipt's lines in the compile unit's own words ([`receipt_words`]: the model,
+/// the calls, tokens and time, where the calls really went, each explicit reasoning effort, the
+/// cost basis), with where this host reads a run's cost.
 pub(super) fn receipt_lines(receipt: &nika_onboard::compile::AuthoringReceipt, text: &mut String) {
-    if let Some(backend) = receipt
-        .backend
-        .as_ref()
-        .filter(|b| b["kind"] == "harness_infer")
-    {
-        let _ = write!(
-            text,
-            "\n  authoring backend: subscription {} · requested {} · {} compiler calls · {} ms",
-            backend["adapter"].as_str().unwrap_or("unknown"),
-            backend["requested_model"]
-                .as_str()
-                .unwrap_or("harness default"),
-            receipt.calls,
-            receipt.elapsed_ms
-        );
-        if backend["carried_from_authoring_round"] == true {
-            text.push_str("\n    receipt carried from the authoring round; this clarification replay made zero calls");
-        }
-        if let Some(calls) = backend["observed"].as_array() {
-            for call in calls.iter().filter(|c| c["status"] == "returned") {
-                let _ = write!(
-                    text,
-                    "\n    responding model: {} · usage marker {}",
-                    call["observed_model"].as_str().unwrap_or("not reported"),
-                    call["usage_observed"].as_bool().unwrap_or(false)
-                );
-            }
-        }
-        text.push_str("\n  cost: subscription invoice unknown · no numeric token meter reported · no paid provider fallback");
-        return;
-    }
-
-    let _ = write!(
-        text,
-        "\n  authoring backend: {} · {} call{} · {} ms",
-        receipt.model,
-        receipt.calls,
-        if receipt.calls == 1 { "" } else { "s" },
-        receipt.elapsed_ms
-    );
-    if let (Some(i), Some(o)) = (receipt.input_tokens, receipt.output_tokens) {
-        let _ = write!(text, " · {i} in / {o} out tokens");
-    }
-    if let Some(backend) = &receipt.backend {
-        let _ = write!(
-            text,
-            "\n  sent to: {} · host {}{}",
-            backend["provider"].as_str().unwrap_or("unknown provider"),
-            backend["host"].as_str().unwrap_or("unknown"),
-            if backend["base_url_overridden"].as_bool() == Some(true) {
-                " (base URL overridden: a gateway or a local server, not the provider's own API)"
-            } else {
-                ""
-            }
-        );
-    }
-    text.push_str(
-        "\n  cost: the compiler meters tokens, not money · a run's cost is in its result and `/proof`",
-    );
+    text.push_str(&receipt_words(
+        receipt,
+        "a run's cost is in its result and `/proof`",
+    ));
 }
 
 impl SessionRuntime {
