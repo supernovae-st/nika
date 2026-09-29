@@ -15,6 +15,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Widget};
 use unicode_width::UnicodeWidthStr;
 
+use super::text::{fit_tail, marks};
 use crate::visual::icon::Icon;
 use crate::visual::role;
 
@@ -80,11 +81,7 @@ impl Place {
 #[must_use]
 pub fn lines(place: &Place, width: u16, rows: u16, ascii: bool, color: bool) -> Vec<Line<'static>> {
     let width = usize::from(width);
-    let (sep, cut) = if ascii {
-        (" - ", "...")
-    } else {
-        (" · ", "…")
-    };
+    let (sep, cut) = marks(ascii);
     let dim = role::style(Role::Dim, color);
     let strong = role::style(Role::Strong, color);
     let icon = Icon::Project.glyph(ascii);
@@ -129,38 +126,6 @@ pub fn lines(place: &Place, width: u16, rows: u16, ascii: bool, color: bool) -> 
 /// Draw the header into `area`.
 pub fn render(place: &Place, area: Rect, buf: &mut Buffer, ascii: bool, color: bool) {
     Paragraph::new(lines(place, area.width, area.height, ascii, color)).render(area, buf);
-}
-
-/// `text` fitted to `width` cells: its first `keep` characters stay, then the
-/// `cut` mark, then as much of its end as fits; empty when not even the kept
-/// start and the mark fit.
-fn fit_tail(text: &str, width: usize, keep: usize, cut: &str) -> String {
-    if text.width() <= width {
-        return text.to_owned();
-    }
-    let head: String = text.chars().take(keep).collect();
-    if width < head.width() + cut.width() {
-        return String::new();
-    }
-    let budget = width - head.width() - cut.width();
-    let mut tail: Vec<char> = Vec::new();
-    let mut used = 0;
-    for c in text
-        .chars()
-        .skip(keep)
-        .collect::<Vec<_>>()
-        .into_iter()
-        .rev()
-    {
-        let w = unicode_width::UnicodeWidthChar::width(c).unwrap_or(0);
-        if used + w > budget {
-            break;
-        }
-        used += w;
-        tail.push(c);
-    }
-    tail.reverse();
-    format!("{head}{cut}{}", tail.into_iter().collect::<String>())
 }
 
 #[cfg(test)]

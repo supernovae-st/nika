@@ -1384,7 +1384,173 @@ pub fn nika_tui::visual::logomark::revealing(elapsed: core::time::Duration, redu
 pub mod nika_tui::visual::role
 pub fn nika_tui::visual::role::style(role: nika_display::theme::Role, color: bool) -> ratatui_core::style::Style
 pub fn nika_tui::visual::role::verb(word: &str, color: bool) -> ratatui_core::style::Style
+pub mod nika_tui::visual::state
+pub const nika_tui::visual::state::STATES: [nika_display::state::TaskState; 8]
+pub const fn nika_tui::visual::state::cell(state: nika_display::state::TaskState, ascii: bool) -> (&'static str, nika_display::theme::Role)
 pub mod nika_tui::workspace
+pub mod nika_tui::workspace::aside
+#[non_exhaustive] pub enum nika_tui::workspace::aside::Tab
+pub nika_tui::workspace::aside::Tab::Files
+pub nika_tui::workspace::aside::Tab::Nika
+impl core::clone::Clone for nika_tui::workspace::aside::Tab
+pub fn nika_tui::workspace::aside::Tab::clone(&self) -> nika_tui::workspace::aside::Tab
+impl core::cmp::Eq for nika_tui::workspace::aside::Tab
+impl core::cmp::PartialEq for nika_tui::workspace::aside::Tab
+pub fn nika_tui::workspace::aside::Tab::eq(&self, other: &nika_tui::workspace::aside::Tab) -> bool
+impl core::fmt::Debug for nika_tui::workspace::aside::Tab
+pub fn nika_tui::workspace::aside::Tab::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_tui::workspace::aside::Tab
+impl core::marker::StructuralPartialEq for nika_tui::workspace::aside::Tab
+impl<D> owo_colors::OwoColorize for nika_tui::workspace::aside::Tab
+impl<Q, K> equivalent::Equivalent<K> for nika_tui::workspace::aside::Tab where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_tui::workspace::aside::Tab::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_tui::workspace::aside::Tab where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_tui::workspace::aside::Tab::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_tui::workspace::aside::Tab where U: core::convert::From<T>
+pub fn nika_tui::workspace::aside::Tab::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui::workspace::aside::Tab where U: core::convert::Into<T>
+pub type nika_tui::workspace::aside::Tab::Error = core::convert::Infallible
+pub fn nika_tui::workspace::aside::Tab::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui::workspace::aside::Tab where U: core::convert::TryFrom<T>
+pub type nika_tui::workspace::aside::Tab::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui::workspace::aside::Tab::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tui::workspace::aside::Tab where T: core::clone::Clone
+pub type nika_tui::workspace::aside::Tab::Owned = T
+pub fn nika_tui::workspace::aside::Tab::clone_into(&self, target: &mut T)
+pub fn nika_tui::workspace::aside::Tab::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tui::workspace::aside::Tab where T: 'static + ?core::marker::Sized
+pub fn nika_tui::workspace::aside::Tab::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui::workspace::aside::Tab where T: ?core::marker::Sized
+pub fn nika_tui::workspace::aside::Tab::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui::workspace::aside::Tab where T: ?core::marker::Sized
+pub fn nika_tui::workspace::aside::Tab::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tui::workspace::aside::Tab where T: core::clone::Clone
+pub unsafe fn nika_tui::workspace::aside::Tab::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tui::workspace::aside::Tab
+pub fn nika_tui::workspace::aside::Tab::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_tui::workspace::aside::Tab where T: core::clone::Clone
+pub fn nika_tui::workspace::aside::Tab::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> either::into_either::IntoEither for nika_tui::workspace::aside::Tab
+impl<T> nika_error::traits::AsAny for nika_tui::workspace::aside::Tab where T: 'static
+pub fn nika_tui::workspace::aside::Tab::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_tui::workspace::aside::Tab where T: core::marker::Copy
+pub fn nika_tui::workspace::aside::Tab::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_tui::workspace::aside::Tab where T: ?core::marker::Sized
+pub fn nika_tui::workspace::aside::Tab::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_tui::workspace::aside::Tab::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_tui::workspace::aside::Tab
+impl<T> tracing::instrument::WithSubscriber for nika_tui::workspace::aside::Tab
+impl<T> typenum::type_operators::Same for nika_tui::workspace::aside::Tab
+pub type nika_tui::workspace::aside::Tab::Output = T
+#[non_exhaustive] pub struct nika_tui::workspace::aside::Aside
+pub nika_tui::workspace::aside::Aside::complete: bool
+pub nika_tui::workspace::aside::Aside::entries: alloc::vec::Vec<nika_tui::workspace::aside::Entry>
+pub nika_tui::workspace::aside::Aside::project: alloc::string::String
+pub nika_tui::workspace::aside::Aside::tab: nika_tui::workspace::aside::Tab
+impl core::clone::Clone for nika_tui::workspace::aside::Aside
+pub fn nika_tui::workspace::aside::Aside::clone(&self) -> nika_tui::workspace::aside::Aside
+impl core::cmp::Eq for nika_tui::workspace::aside::Aside
+impl core::cmp::PartialEq for nika_tui::workspace::aside::Aside
+pub fn nika_tui::workspace::aside::Aside::eq(&self, other: &nika_tui::workspace::aside::Aside) -> bool
+impl core::fmt::Debug for nika_tui::workspace::aside::Aside
+pub fn nika_tui::workspace::aside::Aside::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_tui::workspace::aside::Aside
+impl<D> owo_colors::OwoColorize for nika_tui::workspace::aside::Aside
+impl<Q, K> equivalent::Equivalent<K> for nika_tui::workspace::aside::Aside where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_tui::workspace::aside::Aside::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_tui::workspace::aside::Aside where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_tui::workspace::aside::Aside::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_tui::workspace::aside::Aside where U: core::convert::From<T>
+pub fn nika_tui::workspace::aside::Aside::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui::workspace::aside::Aside where U: core::convert::Into<T>
+pub type nika_tui::workspace::aside::Aside::Error = core::convert::Infallible
+pub fn nika_tui::workspace::aside::Aside::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui::workspace::aside::Aside where U: core::convert::TryFrom<T>
+pub type nika_tui::workspace::aside::Aside::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui::workspace::aside::Aside::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tui::workspace::aside::Aside where T: core::clone::Clone
+pub type nika_tui::workspace::aside::Aside::Owned = T
+pub fn nika_tui::workspace::aside::Aside::clone_into(&self, target: &mut T)
+pub fn nika_tui::workspace::aside::Aside::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tui::workspace::aside::Aside where T: 'static + ?core::marker::Sized
+pub fn nika_tui::workspace::aside::Aside::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui::workspace::aside::Aside where T: ?core::marker::Sized
+pub fn nika_tui::workspace::aside::Aside::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui::workspace::aside::Aside where T: ?core::marker::Sized
+pub fn nika_tui::workspace::aside::Aside::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tui::workspace::aside::Aside where T: core::clone::Clone
+pub unsafe fn nika_tui::workspace::aside::Aside::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tui::workspace::aside::Aside
+pub fn nika_tui::workspace::aside::Aside::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_tui::workspace::aside::Aside where T: core::clone::Clone
+pub fn nika_tui::workspace::aside::Aside::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> either::into_either::IntoEither for nika_tui::workspace::aside::Aside
+impl<T> nika_error::traits::AsAny for nika_tui::workspace::aside::Aside where T: 'static
+pub fn nika_tui::workspace::aside::Aside::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_tui::workspace::aside::Aside where T: ?core::marker::Sized
+pub fn nika_tui::workspace::aside::Aside::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_tui::workspace::aside::Aside::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_tui::workspace::aside::Aside
+impl<T> tracing::instrument::WithSubscriber for nika_tui::workspace::aside::Aside
+impl<T> typenum::type_operators::Same for nika_tui::workspace::aside::Aside
+pub type nika_tui::workspace::aside::Aside::Output = T
+#[non_exhaustive] pub struct nika_tui::workspace::aside::Entry
+pub nika_tui::workspace::aside::Entry::depth: u8
+pub nika_tui::workspace::aside::Entry::icon: nika_tui::visual::icon::Icon
+pub nika_tui::workspace::aside::Entry::label: alloc::string::String
+pub nika_tui::workspace::aside::Entry::open: bool
+impl nika_tui::workspace::aside::Entry
+pub fn nika_tui::workspace::aside::Entry::at(self, depth: u8) -> Self
+pub fn nika_tui::workspace::aside::Entry::new(icon: nika_tui::visual::icon::Icon, label: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_tui::workspace::aside::Entry::opened(self) -> Self
+impl core::clone::Clone for nika_tui::workspace::aside::Entry
+pub fn nika_tui::workspace::aside::Entry::clone(&self) -> nika_tui::workspace::aside::Entry
+impl core::cmp::Eq for nika_tui::workspace::aside::Entry
+impl core::cmp::PartialEq for nika_tui::workspace::aside::Entry
+pub fn nika_tui::workspace::aside::Entry::eq(&self, other: &nika_tui::workspace::aside::Entry) -> bool
+impl core::fmt::Debug for nika_tui::workspace::aside::Entry
+pub fn nika_tui::workspace::aside::Entry::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_tui::workspace::aside::Entry
+impl<D> owo_colors::OwoColorize for nika_tui::workspace::aside::Entry
+impl<Q, K> equivalent::Equivalent<K> for nika_tui::workspace::aside::Entry where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_tui::workspace::aside::Entry::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_tui::workspace::aside::Entry where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_tui::workspace::aside::Entry::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_tui::workspace::aside::Entry where U: core::convert::From<T>
+pub fn nika_tui::workspace::aside::Entry::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui::workspace::aside::Entry where U: core::convert::Into<T>
+pub type nika_tui::workspace::aside::Entry::Error = core::convert::Infallible
+pub fn nika_tui::workspace::aside::Entry::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui::workspace::aside::Entry where U: core::convert::TryFrom<T>
+pub type nika_tui::workspace::aside::Entry::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui::workspace::aside::Entry::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tui::workspace::aside::Entry where T: core::clone::Clone
+pub type nika_tui::workspace::aside::Entry::Owned = T
+pub fn nika_tui::workspace::aside::Entry::clone_into(&self, target: &mut T)
+pub fn nika_tui::workspace::aside::Entry::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tui::workspace::aside::Entry where T: 'static + ?core::marker::Sized
+pub fn nika_tui::workspace::aside::Entry::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui::workspace::aside::Entry where T: ?core::marker::Sized
+pub fn nika_tui::workspace::aside::Entry::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui::workspace::aside::Entry where T: ?core::marker::Sized
+pub fn nika_tui::workspace::aside::Entry::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tui::workspace::aside::Entry where T: core::clone::Clone
+pub unsafe fn nika_tui::workspace::aside::Entry::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tui::workspace::aside::Entry
+pub fn nika_tui::workspace::aside::Entry::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_tui::workspace::aside::Entry where T: core::clone::Clone
+pub fn nika_tui::workspace::aside::Entry::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> either::into_either::IntoEither for nika_tui::workspace::aside::Entry
+impl<T> nika_error::traits::AsAny for nika_tui::workspace::aside::Entry where T: 'static
+pub fn nika_tui::workspace::aside::Entry::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_tui::workspace::aside::Entry where T: ?core::marker::Sized
+pub fn nika_tui::workspace::aside::Entry::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_tui::workspace::aside::Entry::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_tui::workspace::aside::Entry
+impl<T> tracing::instrument::WithSubscriber for nika_tui::workspace::aside::Entry
+impl<T> typenum::type_operators::Same for nika_tui::workspace::aside::Entry
+pub type nika_tui::workspace::aside::Entry::Output = T
+pub fn nika_tui::workspace::aside::lines(aside: &nika_tui::workspace::aside::Aside, width: u16, height: u16, ascii: bool, color: bool) -> alloc::vec::Vec<ratatui_core::text::line::Line<'static>>
 pub mod nika_tui::workspace::geometry
 #[non_exhaustive] pub struct nika_tui::workspace::geometry::Geometry
 pub nika_tui::workspace::geometry::Geometry::aside: core::option::Option<ratatui_core::layout::rect::Rect>
@@ -1510,3 +1676,62 @@ impl<T> typenum::type_operators::Same for nika_tui::workspace::header::Place
 pub type nika_tui::workspace::header::Place::Output = T
 pub fn nika_tui::workspace::header::lines(place: &nika_tui::workspace::header::Place, width: u16, rows: u16, ascii: bool, color: bool) -> alloc::vec::Vec<ratatui_core::text::line::Line<'static>>
 pub fn nika_tui::workspace::header::render(place: &nika_tui::workspace::header::Place, area: ratatui_core::layout::rect::Rect, buf: &mut ratatui_core::buffer::buffer::Buffer, ascii: bool, color: bool)
+pub mod nika_tui::workspace::pinned
+#[non_exhaustive] pub struct nika_tui::workspace::pinned::Pinned
+pub nika_tui::workspace::pinned::Pinned::action: core::option::Option<alloc::string::String>
+pub nika_tui::workspace::pinned::Pinned::project: alloc::string::String
+pub nika_tui::workspace::pinned::Pinned::run: alloc::string::String
+pub nika_tui::workspace::pinned::Pinned::state: nika_display::state::TaskState
+pub nika_tui::workspace::pinned::Pinned::words: alloc::string::String
+pub nika_tui::workspace::pinned::Pinned::workflow: alloc::string::String
+impl nika_tui::workspace::pinned::Pinned
+pub fn nika_tui::workspace::pinned::Pinned::new(project: impl core::convert::Into<alloc::string::String>, workflow: impl core::convert::Into<alloc::string::String>, run: impl core::convert::Into<alloc::string::String>, state: nika_display::state::TaskState, words: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_tui::workspace::pinned::Pinned::offering(self, action: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_tui::workspace::pinned::Pinned
+pub fn nika_tui::workspace::pinned::Pinned::clone(&self) -> nika_tui::workspace::pinned::Pinned
+impl core::cmp::Eq for nika_tui::workspace::pinned::Pinned
+impl core::cmp::PartialEq for nika_tui::workspace::pinned::Pinned
+pub fn nika_tui::workspace::pinned::Pinned::eq(&self, other: &nika_tui::workspace::pinned::Pinned) -> bool
+impl core::fmt::Debug for nika_tui::workspace::pinned::Pinned
+pub fn nika_tui::workspace::pinned::Pinned::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_tui::workspace::pinned::Pinned
+impl<D> owo_colors::OwoColorize for nika_tui::workspace::pinned::Pinned
+impl<Q, K> equivalent::Equivalent<K> for nika_tui::workspace::pinned::Pinned where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_tui::workspace::pinned::Pinned::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_tui::workspace::pinned::Pinned where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_tui::workspace::pinned::Pinned::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_tui::workspace::pinned::Pinned where U: core::convert::From<T>
+pub fn nika_tui::workspace::pinned::Pinned::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui::workspace::pinned::Pinned where U: core::convert::Into<T>
+pub type nika_tui::workspace::pinned::Pinned::Error = core::convert::Infallible
+pub fn nika_tui::workspace::pinned::Pinned::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui::workspace::pinned::Pinned where U: core::convert::TryFrom<T>
+pub type nika_tui::workspace::pinned::Pinned::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui::workspace::pinned::Pinned::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tui::workspace::pinned::Pinned where T: core::clone::Clone
+pub type nika_tui::workspace::pinned::Pinned::Owned = T
+pub fn nika_tui::workspace::pinned::Pinned::clone_into(&self, target: &mut T)
+pub fn nika_tui::workspace::pinned::Pinned::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tui::workspace::pinned::Pinned where T: 'static + ?core::marker::Sized
+pub fn nika_tui::workspace::pinned::Pinned::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui::workspace::pinned::Pinned where T: ?core::marker::Sized
+pub fn nika_tui::workspace::pinned::Pinned::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui::workspace::pinned::Pinned where T: ?core::marker::Sized
+pub fn nika_tui::workspace::pinned::Pinned::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tui::workspace::pinned::Pinned where T: core::clone::Clone
+pub unsafe fn nika_tui::workspace::pinned::Pinned::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tui::workspace::pinned::Pinned
+pub fn nika_tui::workspace::pinned::Pinned::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_tui::workspace::pinned::Pinned where T: core::clone::Clone
+pub fn nika_tui::workspace::pinned::Pinned::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> either::into_either::IntoEither for nika_tui::workspace::pinned::Pinned
+impl<T> nika_error::traits::AsAny for nika_tui::workspace::pinned::Pinned where T: 'static
+pub fn nika_tui::workspace::pinned::Pinned::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_tui::workspace::pinned::Pinned where T: ?core::marker::Sized
+pub fn nika_tui::workspace::pinned::Pinned::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_tui::workspace::pinned::Pinned::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_tui::workspace::pinned::Pinned
+impl<T> tracing::instrument::WithSubscriber for nika_tui::workspace::pinned::Pinned
+impl<T> typenum::type_operators::Same for nika_tui::workspace::pinned::Pinned
+pub type nika_tui::workspace::pinned::Pinned::Output = T
+pub fn nika_tui::workspace::pinned::line(pinned: &nika_tui::workspace::pinned::Pinned, width: u16, ascii: bool, color: bool) -> ratatui_core::text::line::Line<'static>

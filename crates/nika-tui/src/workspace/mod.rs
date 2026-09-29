@@ -17,5 +17,8 @@
 //! grants an access: a project, a file or a connection on screen is never an
 //! authority. The inline presentation and the plain loop stay as they are.
 
+pub mod aside;
 pub mod geometry;
 pub mod header;
+pub mod pinned;
+mod text;

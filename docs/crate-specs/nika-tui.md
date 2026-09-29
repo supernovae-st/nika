@@ -93,6 +93,17 @@ and the inline presentation and the plain loop are unchanged.
   unobserved fact is not written, a missing project reads `no project`. A narrow
   row cuts the location from its start, never the project name; the ASCII column
   replaces glyphs, separators and the ellipsis.
+- `workspace::aside` lists what the project holds in two projections, Nika and
+  Files (the chosen one underlined), with the object in view marked; an overflow
+  ends on a `+N more` row and a listing the Session marks partial says so on its
+  last row instead of pretending to show the whole disk.
+- `workspace::pinned` paints the pinned run: its owning project, workflow and
+  run, its state as the theme's glyph and role with the Session's words, and the
+  one useful action offered. A narrow row drops the action, then cuts the
+  workflow's end; the run and its state words stay.
+- `visual::state` re-reads the theme's task-state column (glyph and role, both
+  glyph columns) as data for Ratatui; a test pins every state to what
+  `nika_display::theme::Theme::glyph` paints.
 
 ## 3. What is ported as is (the map, §5 · planned)
 

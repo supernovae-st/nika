@@ -15,7 +15,9 @@
 //!   conversation, run…), each with a label that is always shown, a Unicode
 //!   glyph only where the terminal cell is certain, and an ASCII twin;
 //! - [`logomark`]: the Supernovae butterfly, the only brand mark drawn, sampled
-//!   from the repository's own logomark and revealed once, never looped.
+//!   from the repository's own logomark and revealed once, never looped;
+//! - [`state`]: a task or run state as the seam's own glyph and role, re-read
+//!   as data for Ratatui and pinned to what the seam paints.
 //!
 //! A glyph decorates a label and never replaces it; a colour never carries a
 //! meaning alone; nothing here reads the clock, the environment or a file.
@@ -23,3 +25,4 @@
 pub mod icon;
 pub mod logomark;
 pub mod role;
+pub mod state;
