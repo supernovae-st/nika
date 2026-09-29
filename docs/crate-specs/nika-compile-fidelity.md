@@ -100,6 +100,25 @@ needs keeps its default.
   candidate that drafts and writes nothing is refused by name (`UNWRITTEN DESTINATION`), at the
   native and sketch doors as at the assembler's emission. Law 1 witnesses stated paths only,
   and Law 22 leaves writes to their paths, so such a write was judged by neither.
+- Added after the move, Law 1's observed placement (`fidelity::laws_observed`, the door that
+  also takes the host's observation; `laws` runs it with none and is unchanged). It applies to
+  a bare file name the request states (`orders.csv`: one component, with no directory, home,
+  glob or placeholder) that no `permits.fs` entry covers. Its source occurrences are realized
+  by the one file the compile request's knowledge places under that name, when three things
+  hold:
+  - exactly one positive row (`state: observed`) has a path whose last component is that name,
+    byte for byte (`./data/orders.csv`);
+  - `permits.fs.read` covers that file;
+  - a `nika:read` path or a `nika:glob` pattern opens it, literally or through a bare
+    `${{ const.<name> }}`.
+
+  The refusal (`UNREALIZED PATH`, unchanged) stands otherwise: no observation, only absent,
+  unreadable or outside rows, two observed files of that name, another name (`orders_old.csv`,
+  `Orders.csv`), or no task opening it. A destination occurrence keeps its own law. The law
+  reads only the rows it is given (the knowledge the host's observer builds, `nika-cli-host`
+  `compile/observe.rs`), never the disk. The native door passes its observation. The sketch
+  door's structural law admits only stated paths, and the deterministic door reads the stated
+  literal, so neither ever reads an observed path, and both keep `laws`.
 - The reader's modules are bound at the crate root under the names the moved files always
   used (`crate::plan`, `super::hot::fold`, `crate::lexicon::GATE_WITHOUT_EFFECT`); the member
   re-exports nothing of the reader.

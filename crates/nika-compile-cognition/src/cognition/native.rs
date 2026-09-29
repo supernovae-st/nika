@@ -903,13 +903,14 @@ pub(super) fn judge(
     let Some(doc) = admit(candidate, questions, &mut out) else {
         return out;
     };
-    fidelity::laws(
+    fidelity::laws_observed(
         intent,
         &reading.plan,
         &doc,
         allowed,
         waived,
         clarified,
+        observed,
         &mut out,
     );
     if let Err(diagnostic) = admitted_questions(intent, candidate, questions, observed) {

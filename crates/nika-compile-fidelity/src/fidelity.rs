@@ -140,9 +140,25 @@ pub fn laws(
     clarified: &[String],
     out: &mut Vec<Diagnostic>,
 ) {
+    laws_observed(intent, plan, doc, allowed, waived, clarified, None, out);
+}
+
+/// The fidelity laws with the host's observation of the paths the request names (the
+/// compile request's knowledge, `{"observed": [{path, state, …}]}`): [`laws`], where a bare
+/// file name the request states is also realized where that observation places it (Law 1).
+pub fn laws_observed(
+    intent: &str,
+    plan: &Plan,
+    doc: &Value,
+    allowed: &[String],
+    waived: &[String],
+    clarified: &[String],
+    world: Option<&Value>,
+    out: &mut Vec<Diagnostic>,
+) {
     let mut literals = Vec::new();
     strings(doc, &mut literals);
-    stated_paths(intent, doc, waived, clarified, out);
+    stated_paths_in(intent, doc, waived, clarified, world, out);
     approvals(plan, doc, out);
     invented_gates(plan, doc, out);
     dropped_effects(plan, doc, out);
@@ -244,11 +260,29 @@ fn granted(doc: &Value, axis: &str, path: &str) -> bool {
 ///   (`dans Copie équipe.txt`), never by a source answer.
 ///
 /// An occurrence outside all of them is a file of its own (a separately named `équipe.txt`).
+/// [`laws_observed`] also realizes a bare file name's source occurrences where the host's
+/// observation places it.
 pub fn stated_paths(
     intent: &str,
     doc: &Value,
     waived: &[String],
     clarified: &[String],
+    out: &mut Vec<Diagnostic>,
+) {
+    stated_paths_in(intent, doc, waived, clarified, None, out);
+}
+
+/// [`stated_paths`] over the host's observation `world` (the compile request's knowledge): a
+/// source occurrence of a bare file name (`orders.csv`) is also realized by the one file the
+/// observation places under that name (`./data/orders.csv`), when `permits.fs.read` covers it
+/// and a task opens it. No observation, two observed files of that name, another name, or no
+/// task opening it leaves the path unrealized; a destination keeps its own law.
+fn stated_paths_in(
+    intent: &str,
+    doc: &Value,
+    waived: &[String],
+    clarified: &[String],
+    world: Option<&Value>,
     out: &mut Vec<Diagnostic>,
 ) {
     let mut stated = crate::hot::stated_sources(intent);
@@ -297,6 +331,8 @@ pub fn stated_paths(
             intent,
             stated.iter().filter(|other| other.len() > path.len()),
         );
+        let observed = placed(world, path)
+            .is_some_and(|file| granted(doc, "read", &file) && opens(doc, &file));
         let realized = |at: usize| {
             let held = |places: &[(usize, usize)]| {
                 places
@@ -307,7 +343,12 @@ pub fn stated_paths(
             // prefix's length, never `at`.
             let lowered = intent.get(..at).map_or(0, |head| head.to_lowercase().len());
             let destination = objects::destination_at(&lower, lowered).is_some();
-            held(&owners) || held(if destination { &written } else { &typed })
+            held(&owners)
+                || if destination {
+                    held(&written)
+                } else {
+                    observed || held(&typed)
+                }
         };
         let found = occurrences(intent, path);
         if found.is_empty() || found.iter().any(|&at| !realized(at)) {
@@ -343,6 +384,54 @@ fn occurrences(text: &str, literal: &str) -> Vec<usize> {
             !before.is_some_and(char::is_alphanumeric) && !after.is_some_and(char::is_alphanumeric)
         })
         .collect()
+}
+
+/// The one file the host's observation places under a bare file name the request states (no
+/// directory, home, glob or placeholder): the path of the single positive observation (state
+/// `observed`) whose last component is that name, byte for byte. `None` without one, for
+/// another name, and when two observed files share it: the request does not say which.
+fn placed(world: Option<&Value>, name: &str) -> Option<String> {
+    if matches!(name, "" | "." | "..")
+        || name.starts_with('~')
+        || name.contains(['/', '\\', '*', '?', '[', '{', '<', '>', '$'])
+    {
+        return None;
+    }
+    let mut found: Vec<&str> = world?
+        .get("observed")?
+        .as_array()?
+        .iter()
+        .filter(|row| row.get("state").and_then(Value::as_str) == Some("observed"))
+        .filter_map(|row| row.get("path").and_then(Value::as_str))
+        .filter(|path| path.rsplit('/').next() == Some(name))
+        .map(|path| path.strip_prefix("./").unwrap_or(path))
+        .collect();
+    found.sort_unstable();
+    found.dedup();
+    match found.as_slice() {
+        [one] => Some((*one).to_owned()),
+        _ => None,
+    }
+}
+
+/// Whether a task opens `file`: a `nika:read` whose `path`, or a `nika:glob` whose `pattern`,
+/// is that file or covers it, written literally or through a bare `${{ const.<name> }}`.
+fn opens(doc: &Value, file: &str) -> bool {
+    doc.get("tasks")
+        .and_then(Value::as_object)
+        .into_iter()
+        .flatten()
+        .any(|(_, task)| {
+            let arg = match task.pointer("/invoke/tool").and_then(Value::as_str) {
+                Some("nika:read") => "path",
+                Some("nika:glob") => "pattern",
+                _ => return false,
+            };
+            task.pointer(&format!("/invoke/args/{arg}"))
+                .and_then(Value::as_str)
+                .and_then(|value| resolved(doc, value))
+                .is_some_and(|entry| covers(&entry, file))
+        })
 }
 
 /// Law 3: a stated approval gates the effect family it names (a send · a notify · a publish;
@@ -637,8 +726,14 @@ fn written_path(doc: &Value, task: &str) -> Option<String> {
         .get("tasks")?
         .get(task)?
         .pointer("/invoke/args/path")?
-        .as_str()?
-        .trim();
+        .as_str()?;
+    resolved(doc, arg)
+}
+
+/// A path argument's literal: the argument itself, or the `const:` value a bare
+/// `${{ const.<name> }}` argument reads (`None` when that value is no string).
+fn resolved(doc: &Value, arg: &str) -> Option<String> {
+    let arg = arg.trim();
     match arg
         .strip_prefix("${{")
         .and_then(|rest| rest.strip_suffix("}}"))
