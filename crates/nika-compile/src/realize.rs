@@ -96,10 +96,11 @@ pub(super) struct Judged<'a> {
 
 /// The pending duties of an emitted candidate (R4 A11). A judgment settles the duty whose
 /// excerpt and span it names, only under the binding the core recomputes from the request, the
-/// stated plan and these very bytes (context and bytes, not a round nonce); asking for no
-/// operation is never admitted on a clause an element claims, nor on one that restricts or
-/// conditions the material. A record's serialized judgment is data, never one: whatever stays
-/// pending keeps READY closed, named in a finding with its next action.
+/// stated plan and these very bytes (context and bytes, not a round nonce); a clause the request
+/// states several times is settled only when each statement is judged. Asking for no operation
+/// is never admitted on a clause an element claims, nor on one that restricts or conditions the
+/// material. A record's serialized judgment is data, never one: whatever stays pending keeps
+/// READY closed, named in a finding with its next action.
 fn settle_pending(
     ledger: &mut Ledger,
     intent: &str,
@@ -121,34 +122,48 @@ fn settle_pending(
         .iter_mut()
         .filter(|d| d.state == DutyState::Pending)
     {
-        let span = intent
-            .find(&duty.evidence)
-            .map(|at| (at, at + duty.evidence.len()));
-        let admitted = |j: &&Judgment| {
+        let admitted = |span: (usize, usize), j: &Judgment| {
             j.binding == bound
                 && j.clause == duty.evidence
-                && Some(j.span) == span
+                && j.span == span
                 && match j.disposition {
                     Disposition::Carried => true,
                     Disposition::NoOperation => {
                         duty.witness.is_none()
-                            && span != Some((0, intent.len()))
+                            && span != (0, intent.len())
                             && !super::structure::restricts(&duty.evidence)
                     }
                 }
         };
-        if let Some(j) = judged.judgments.iter().find(admitted) {
+        // Each statement of the excerpt is judged: one of them settles no other (R4 A11).
+        let found: Option<Vec<&Judgment>> = statements(intent, &duty.evidence)
+            .into_iter()
+            .map(|span| judged.judgments.iter().find(|j| admitted(span, j)))
+            .collect();
+        if let Some(j) = found.as_ref().and_then(|found| found.first().copied()) {
             let what = match j.disposition {
                 Disposition::Carried => "carried by the candidate",
                 Disposition::NoOperation => "asking for no operation",
             };
-            let note = format!("judged {what} by {} ({})", j.seat, j.question);
+            let questions: Vec<&str> = found
+                .iter()
+                .flatten()
+                .map(|j| j.question.as_str())
+                .collect();
+            let note = format!("judged {what} by {} ({})", j.seat, questions.join(", "));
             duty.judge(&j.seat, note);
         }
     }
     let open: Vec<Value> = ledger
         .pending()
-        .map(|d| json!({"clause": d.evidence, "witness": d.witness.map(WitnessKind::word)}))
+        .map(|d| {
+            let spans: Vec<[usize; 2]> = statements(intent, &d.evidence)
+                .into_iter()
+                .map(|(start, end)| [start, end])
+                .collect();
+            let witness = d.witness.map(WitnessKind::word);
+            json!({"clause": d.evidence, "witness": witness, "spans": spans})
+        })
         .collect();
     for duty in ledger.pending() {
         let why = match duty.witness {
@@ -174,6 +189,18 @@ fn settle_pending(
     if !open.is_empty() && out.status == CompileStatus::Ready {
         out.status = CompileStatus::Incomplete;
     }
+}
+
+/// Every statement of `excerpt` in the request, in order, as byte spans: a pending duty is
+/// settled only when each is judged (R4 A11). An empty excerpt states nothing.
+fn statements(intent: &str, excerpt: &str) -> Vec<(usize, usize)> {
+    if excerpt.is_empty() {
+        return Vec::new();
+    }
+    intent
+        .match_indices(excerpt)
+        .map(|(at, _)| (at, at + excerpt.len()))
+        .collect()
 }
 
 /// A kebab-case file name for the candidate: the first written file's stem (`open-sorted`),

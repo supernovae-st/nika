@@ -97,8 +97,10 @@ A candidate a model's plan shaped is judged against the whole request before REA
 (`cognition::verify`, R4 A11). The core names what no law reads from the bytes: a duty a
 step's words only restate (a label), a task carrying words no law reads (unverified), a clause
 no element of the plan names, and, for the first candidate of a WARM or COLD plan, the whole
-request. The judge answers one closed question per pending clause (`carried` · `missing` ·
-`no_operation` when no element claims it, or NONE) and then the whole request (`faithful` ·
+request. The judge answers one closed question per pending clause at each place the request
+states it (`carried` · `missing` · `no_operation` when no element claims it, or NONE): the core
+names every statement's span under `decision.pending.open[].spans` and settles a clause the
+request repeats only when each statement is judged. It then answers the whole request (`faithful` ·
 `unfaithful`, then the part it misses, located over the request's own text). Each question
 shows the request as compiled and as first stated, its answers, the observed world and the
 candidate's own bytes; labels, task names, comments and generator confidence are claims, never

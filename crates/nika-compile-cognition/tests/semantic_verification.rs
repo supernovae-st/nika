@@ -913,3 +913,127 @@ async fn only_an_active_judgment_bound_to_its_candidate_settles_its_clause() {
     assert_eq!(replay(&elsewhere, false).status, CompileStatus::Incomplete);
     assert_eq!(replay(&right, true).status, CompileStatus::Incomplete);
 }
+
+/// The request of SUM with its computation stated a second time, and the seat's plan naming
+/// every part of it (the second statement a region of its own).
+fn repeated() -> (String, Value) {
+    let (x, write) = SUM;
+    let text = format!("read ./data/input.csv, {x}, {write}, then {x} again");
+    let proposal = json!({
+        "steps": [
+            {"op": "read", "detail": "./data/input.csv", "evidence": "read ./data/input.csv"},
+            {"op": "compute", "detail": x, "evidence": x, "computation": {"present": false}}
+        ],
+        "effects": [{"verb": "write", "target": "./out/result.json", "policy": "automatic", "evidence": write}],
+        "obligations": [], "constraints": [], "unknowns": [],
+        "regions": [
+            {"text": "read ./data/input.csv,", "role": "operation"},
+            {"text": format!("{x},"), "role": "operation"},
+            {"text": format!("{write},"), "role": "effect"},
+            {"text": format!("then {x} again"), "role": "operation"}
+        ],
+        "approval_bypass": {"present": false, "evidence": ""}
+    });
+    (text, proposal)
+}
+
+/// The repeated request compiled COLD by `judge` over its seat, with the request it compiled.
+async fn compiled_repeated<P: ProviderInferDyn>(judge: &P) -> (CompileOutcome, CompileRequest) {
+    let observed = json!({"observed": [{"path": "./data/input.csv", "state": "observed", "complete": false, "kind": "csv", "columns": ["id", "item", "status", "qty"]}]});
+    let policy =
+        AuthoringPolicy::new("mock/authoring", 1024, Duration::from_secs(2)).with_repairs(0);
+    let request = CompileRequest::create(repeated().0)
+        .with_knowledge(observed)
+        .with_hot_policy(HotPolicy::Off)
+        .with_authoring_policy(policy);
+    (
+        compile_with_provider(&request, judge).await.unwrap(),
+        request,
+    )
+}
+
+/// Every statement of `clause` in `text`, in order.
+fn statements(text: &str, clause: &str) -> Vec<(usize, usize)> {
+    text.match_indices(clause)
+        .map(|(at, _)| (at, at + clause.len()))
+        .collect()
+}
+
+/// A clause the request states twice is settled only when each statement is judged (R4 A11),
+/// through the core's own replay door: a judgment of the first statement settles nothing of
+/// the second, which is no context the material realizes; judgments of both are READY (the
+/// positive control), and the open duty names each statement.
+#[tokio::test]
+async fn a_judgment_of_one_statement_settles_no_other() {
+    let sum = format!("{GENERATED} // 0");
+    let seat = Scripted::new(vec![repeated().1.to_string(), program(&sum)]);
+    let judge = Judging::new(&seat, approve);
+    let (out, _) = compiled_repeated(&judge).await;
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    let (record, candidate) = (out.provenance.plan.clone().unwrap(), out.candidate.unwrap());
+    let text = repeated().0;
+    let request = CompileRequest::create(text.clone()).with_plan(record.clone());
+    let replay = |judgments: &[Judgment]| {
+        let mut out = nika_compile::surface::initial();
+        nika_compile::surface::replay_judged(&text, &record, &request, judgments, false, &mut out)
+            .unwrap();
+        out
+    };
+    let mut plan = Plan::from_json(&record).unwrap();
+    promote_stated_rules(&mut plan, &text);
+    let bound = Binding::of(&text, &request, &plan, &candidate);
+    let at = statements(&text, SUM.0);
+    assert_eq!(at.len(), 2, "{text}");
+    let judgment = |span: (usize, usize)| {
+        Judgment::new(
+            SUM.0,
+            span,
+            Disposition::Carried,
+            "a/judge",
+            "q",
+            bound.clone(),
+        )
+    };
+    let first = replay(&[judgment(at[0])]);
+    assert_eq!(first.status, CompileStatus::Incomplete, "{first:#?}");
+    let every: Vec<Judgment> = at.iter().map(|span| judgment(*span)).collect();
+    assert_eq!(replay(&every).status, CompileStatus::Ready);
+    let unjudged = replay(&[]);
+    let open = &unjudged.provenance.decision.as_ref().unwrap()["pending"]["open"];
+    let named: Vec<&Value> = open
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|duty| duty["clause"] == json!(SUM.0))
+        .collect();
+    let spans: Vec<[usize; 2]> = at.iter().map(|(start, end)| [*start, *end]).collect();
+    assert_eq!(named.len(), 1, "{open:#}");
+    assert_eq!(named[0]["spans"], json!(spans), "{open:#}");
+}
+
+/// The judge is asked at each statement of a clause the request repeats (R4 A11): the first
+/// candidate of a seat's plan shows it the clause at every span the request states it, then
+/// the whole request.
+#[tokio::test]
+async fn a_clause_stated_twice_is_asked_at_each_statement() {
+    let sum = format!("{GENERATED} // 0");
+    let seat = Scripted::new(vec![repeated().1.to_string(), program(&sum)]);
+    let judge = Judging::new(&seat, approve);
+    let (out, _) = compiled_repeated(&judge).await;
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    let asked: Vec<Value> = judge
+        .states()
+        .iter()
+        .filter(|state| state["clause"]["text"] == json!(SUM.0))
+        .map(|state| state["clause"]["span"].clone())
+        .collect();
+    let spans: Vec<Value> = statements(&repeated().0, SUM.0)
+        .into_iter()
+        .map(|(start, end)| json!([start, end]))
+        .collect();
+    assert_eq!(asked, spans, "{:#?}", judge.states());
+    assert_eq!(
+        judged(&out).last().map(String::as_str),
+        Some("judge_request")
+    );
+}

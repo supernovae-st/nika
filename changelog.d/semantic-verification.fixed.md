@@ -4,7 +4,8 @@
     words a step restated, were checked. Every clause no deterministic law reads from the
     workflow's bytes, and the whole request, is now judged against the workflow's own bytes
     by a bounded judge that reads the full request, its answers and the observed files; task
-    names, labels and the model's confidence count for nothing.
+    names, labels and the model's confidence count for nothing. A clause the request states
+    more than once is judged at each place it is stated.
   - A part the judge finds missing is sent back to the model with the judge's findings,
     within `--authoring-repairs`, and a computation the repaired plan still needs is
     regenerated with them. A judge that abstains or fails, or repairs that do not settle it,

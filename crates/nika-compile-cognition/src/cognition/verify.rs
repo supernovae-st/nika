@@ -228,31 +228,73 @@ async fn verdict_on<P: ProviderInferDyn>(
     let mut assembled = plan.clone();
     crate::shape::promote_stated_rules(&mut assembled, intent);
     let binding = Binding::of(intent, request, &assembled, candidate);
-    let open: Vec<(String, bool)> = settled
+    let open: Vec<Open> = settled
         .provenance
         .decision
         .as_ref()
         .and_then(|d| d["pending"]["open"].as_array().cloned())
         .unwrap_or_default()
         .iter()
-        .filter_map(|item| {
-            Some((
-                item["clause"].as_str()?.to_owned(),
-                item["witness"].is_null(),
-            ))
-        })
+        .filter_map(Open::read)
         .collect();
     let base = state(intent, request, candidate);
-    for (k, (clause, unclaimed)) in open.iter().enumerate() {
-        let Some(at) = intent.find(clause.as_str()) else {
-            verdict.unknown.push(clause.clone());
-            continue;
-        };
-        let span = (at, at + clause.len());
-        if span == (0, intent.len()) {
+    for (k, open) in open.iter().enumerate() {
+        if open.spans.is_empty() {
+            verdict.unknown.push(open.clause.clone());
+        } else if open.spans == [(0, intent.len())] {
             whole(intent, &base, judge, &binding, &mut verdict, out).await;
-            continue;
+        } else {
+            judge_clause(open, (k, &base, &binding), judge, &mut verdict, out).await;
         }
+    }
+    verdict.defects.dedup();
+    verdict.unknown.dedup();
+    let calls = &journal(out)[journaled.min(journal(out).len())..];
+    verdict.usage = usage(judge, &verdict, calls);
+    verdict
+}
+
+/// A pending clause the core named: its text, whether no element claims it, and each statement
+/// of it the core found in the request. A clause the request repeats has several statements; a
+/// clause with none is asked nowhere and named as unsettled.
+struct Open {
+    clause: String,
+    unclaimed: bool,
+    spans: Vec<(usize, usize)>,
+}
+
+impl Open {
+    fn read(item: &Value) -> Option<Self> {
+        let at = |span: &Value, k: usize| usize::try_from(span[k].as_u64()?).ok();
+        let spans = item["spans"]
+            .as_array()
+            .map(|spans| {
+                spans
+                    .iter()
+                    .filter_map(|span| at(span, 0).zip(at(span, 1)))
+                    .collect()
+            })
+            .unwrap_or_default();
+        Some(Self {
+            clause: item["clause"].as_str()?.to_owned(),
+            unclaimed: item["witness"].is_null(),
+            spans,
+        })
+    }
+}
+
+/// One pending clause judged at each of its statements (R4 A11): a judgment per statement
+/// carried or asking for nothing, a defect when a statement misses it, an unknown when one is
+/// not settled. `asked` is the clause's index, the base state and the candidate's binding.
+async fn judge_clause<P: ProviderInferDyn>(
+    open: &Open,
+    (k, base, binding): (usize, &Value, &Binding),
+    judge: &Judge<'_, P>,
+    verdict: &mut Verdict,
+    out: &mut CompileOutcome,
+) {
+    let clause = &open.clause;
+    for (n, &span) in open.spans.iter().enumerate() {
         let mut options = vec![
             ChoiceOption::new(
                 "carried",
@@ -260,14 +302,18 @@ async fn verdict_on<P: ProviderInferDyn>(
             ),
             ChoiceOption::new("missing", "the candidate omits it or does it differently"),
         ];
-        if *unclaimed {
+        if open.unclaimed {
             options.push(ChoiceOption::new("no_operation", NO_OPERATION));
         }
         let mut asked = base.clone();
         asked["clause"] = json!({"text": clause, "span": [span.0, span.1]});
-        let id = format!("verify-clause-{k}");
+        let id = if n == 0 {
+            format!("verify-clause-{k}")
+        } else {
+            format!("verify-clause-{k}.{n}")
+        };
         let question = ChoiceQuestion::new(&id, CLAUSE, asked, options);
-        let disposition = match ask(judge, &question, "judge_clause", &mut verdict, out)
+        let disposition = match ask(judge, &question, "judge_clause", verdict, out)
             .await
             .as_deref()
         {
@@ -296,9 +342,6 @@ async fn verdict_on<P: ProviderInferDyn>(
             verdict.judgments.push(judgment);
         }
     }
-    let calls = &journal(out)[journaled.min(journal(out).len())..];
-    verdict.usage = usage(judge, &verdict, calls);
-    verdict
 }
 
 /// The whole request against the candidate: faithful settles it; unfaithful names the part it
