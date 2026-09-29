@@ -321,7 +321,7 @@
       "cognition": "deterministicOnly",
       "compiler_version": "0.121.0",
       "skeleton": "classify-and-route",
-      "spec_pin": "1b0cce5055bc2b516229acef522227f14b2efb0b",
+      "spec_pin": "0275d4b3b6088cb7807467beff067964006a4473",
       "strategy": "skeleton",
       "suggested_file": null
     },
