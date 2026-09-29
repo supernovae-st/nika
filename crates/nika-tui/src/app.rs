@@ -253,6 +253,104 @@ fn busy_text_with(last_done: Option<&str>, base: Option<&str>, secs: u64, armed:
     }
 }
 
+/// How long the tail of a typing burst under way is still read as typed
+/// ahead once a turn ends (keys in flight, over SSH too), before the
+/// decision is painted.
+const DEFUSE_WINDOW: std::time::Duration = std::time::Duration::from_millis(150);
+/// One look at the input during [`DEFUSE_WINDOW`].
+const DEFUSE_SLICE: std::time::Duration = std::time::Duration::from_millis(10);
+
+/// What one event typed while Nika worked becomes once a decision is on
+/// screen: it may fill the draft, never answer.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Defused {
+    /// An edit of the draft: a character, a correction, a line break.
+    Edit(KeyEvent),
+    /// Pasted text, data for the draft.
+    Text(String),
+    /// A key that would send the draft or recall history: dropped.
+    Drop,
+    /// Everything else, handled as usual once the decision is on screen.
+    Keep(UiEvent),
+}
+
+/// Whether a turn's beats leave the session waiting on the human (a
+/// question, a proposal, a gate, a choice): the last wait they name is not
+/// the free prompt.
+fn ends_on_decision(beats: &[Beat]) -> bool {
+    beats
+        .iter()
+        .rev()
+        .find_map(|beat| match beat {
+            Beat::Wait(waiting) => Some(*waiting != Waiting::Free),
+            _ => None,
+        })
+        .unwrap_or(false)
+}
+
+/// Sort one typed-ahead event by the typeahead law.
+fn defuse(event: UiEvent) -> Defused {
+    let key = match event {
+        UiEvent::Key(key) => key,
+        UiEvent::Paste(text) => return Defused::Text(text),
+        other => return Defused::Keep(other),
+    };
+    let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
+    let alt = key.modifiers.contains(KeyModifiers::ALT);
+    let shift = key.modifiers.contains(KeyModifiers::SHIFT);
+    match key.code {
+        // A line break is an edit; a bare `Enter` would send.
+        KeyCode::Enter if alt || shift || ctrl => Defused::Edit(key),
+        KeyCode::Char('j') if ctrl => Defused::Edit(key),
+        KeyCode::Enter | KeyCode::Up | KeyCode::Down | KeyCode::Tab => Defused::Drop,
+        KeyCode::Char(_) if !ctrl && !alt => Defused::Edit(key),
+        KeyCode::Backspace
+        | KeyCode::Delete
+        | KeyCode::Left
+        | KeyCode::Right
+        | KeyCode::Home
+        | KeyCode::End => Defused::Edit(key),
+        _ => Defused::Keep(UiEvent::Key(key)),
+    }
+}
+
+/// Set typed-ahead events in `composer` by the typeahead law: edits and
+/// pastes land in the draft, sending and recall are dropped. Returns the
+/// events that keep their ordinary handling, in order.
+fn set_aside(composer: &mut Composer, typed: Vec<UiEvent>) -> Vec<UiEvent> {
+    let mut kept = Vec::new();
+    for event in typed {
+        match defuse(event) {
+            Defused::Edit(key) => {
+                // An edit key never submits: a bare `Enter` was dropped.
+                let _ = composer.handle(key);
+            }
+            Defused::Text(text) => composer.paste(&text),
+            Defused::Drop => {}
+            Defused::Keep(event) => kept.push(event),
+        }
+    }
+    kept
+}
+
+/// The notice that says where the typeahead went: what is in the box (the
+/// start of a long draft, on one line), and that it was not sent. The
+/// renderer's own marks take their ASCII twins under `ascii`.
+fn typed_notice(draft: &str, ascii: bool) -> String {
+    const SHOWN: usize = 40;
+    let words = draft.split_whitespace().collect::<Vec<_>>().join(" ");
+    let mut shown: String = words.chars().take(SHOWN).collect();
+    let (open, close, sep, cut) = if ascii {
+        ("\"", "\"", " - ", "...")
+    } else {
+        ("« ", " »", " · ", "…")
+    };
+    if words.chars().count() > SHOWN {
+        shown.push_str(cut);
+    }
+    format!("you typed {open}{shown}{close} while Nika worked{sep}it is in the box, not sent")
+}
+
 impl<C: Conversation + 'static> Shell<C> {
     fn conversation(&mut self) -> io::Result<&mut C> {
         self.conversation.as_mut().ok_or_else(conversation_left)
@@ -425,11 +523,24 @@ impl<C: Conversation + 'static> Shell<C> {
             out.write_all(b"\x07")?;
             out.flush()?;
         }
+        // The typeahead law: what was typed while Nika worked is taken now,
+        // before anything of the turn's answer is painted, so a key sent in
+        // answer to what is on screen is never mistaken for it.
+        let fresh = self.conversation()?.fresh_input_required();
+        let typed = if !fresh && ends_on_decision(&turn.beats) {
+            Some(self.take_typeahead(broker)?)
+        } else {
+            None
+        };
         self.apply_all(turn.beats)?;
-        if self.conversation()?.fresh_input_required()
-            && let Some(exit) = self.fresh_input(broker)?
-        {
-            return Ok(Submitted::Left(exit));
+        if fresh {
+            if let Some(exit) = self.fresh_input(broker)? {
+                return Ok(Submitted::Left(exit));
+            }
+        } else if let Some(typed) = typed {
+            // A decision is on screen: what was typed while Nika worked
+            // fills the box and never answers it.
+            self.set_aside_typeahead(typed)?;
         }
         if self.options.exit_after == Some(self.submitted) {
             self.state.quit = true;
@@ -464,6 +575,52 @@ impl<C: Conversation + 'static> Shell<C> {
             self.apply_all(beats)?;
         }
         Ok(None)
+    }
+
+    /// The typeahead law, first half: everything typed while Nika worked
+    /// and not yet read (the events set aside during the turn, and what the
+    /// terminal already delivered), taken before anything of the turn's
+    /// answer is painted; when a typing burst was under way, its tail that
+    /// arrives in the next [`DEFUSE_WINDOW`] too, still before the paint. No
+    /// key taken here can be a reply to the decision, and every key read
+    /// after the paint is one.
+    fn take_typeahead(&mut self, broker: &mut Broker) -> io::Result<Vec<UiEvent>> {
+        let mut typed: Vec<UiEvent> = self.deferred.drain(..).collect();
+        typed.extend(broker.discard_typeahead()?);
+        if typed
+            .iter()
+            .any(|event| matches!(event, UiEvent::Key(_) | UiEvent::Paste(_)))
+        {
+            let window = std::time::Instant::now();
+            while window.elapsed() < DEFUSE_WINDOW {
+                match broker.try_recv() {
+                    Some(event) => typed.push(event),
+                    None => std::thread::sleep(DEFUSE_SLICE),
+                }
+            }
+        }
+        Ok(typed)
+    }
+
+    /// The typeahead law, second half, once the turn ends on a decision (a
+    /// question, a proposal, a gate, a choice): what was typed while Nika
+    /// worked goes into the box and is never sent. Words and pastes land in
+    /// the draft, `Enter` and history recall are dropped, and every other
+    /// event keeps its ordinary handling (`Ctrl+C`, `SIGTERM`, a closed
+    /// reader, a resize). One dim notice says what is in the box. The two
+    /// spending questions keep their stricter discard ([`Self::fresh_input`]).
+    fn set_aside_typeahead(&mut self, typed: Vec<UiEvent>) -> io::Result<()> {
+        let kept = set_aside(&mut self.composer, typed);
+        self.deferred.extend(kept);
+        let draft = self.composer.text();
+        if !draft.trim().is_empty() {
+            let notice = typed_notice(&draft, self.state.ascii);
+            self.state
+                .transcript
+                .push(Committed::new(Kind::Notice, notice));
+            self.commit_inline()?;
+        }
+        Ok(())
     }
 
     /// Hand the terminal back for one piece of work and take it again. The
@@ -732,6 +889,139 @@ fn fresh_screen(presentation: Presentation) -> io::Result<Screen> {
         CrosstermBackend::new(io::stdout()),
         TerminalOptions { viewport },
     )
+}
+
+#[cfg(test)]
+mod typeahead_tests {
+    //! The typeahead law: `yes⏎` typed while Nika worked lands in the box
+    //! once a decision is on screen, and is never sent.
+
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+    use super::{Defused, defuse, set_aside, typed_notice};
+    use crate::composer::Composer;
+    use crate::events::{Signal, UiEvent};
+
+    fn key(code: KeyCode, modifiers: KeyModifiers) -> UiEvent {
+        UiEvent::Key(KeyEvent::new(code, modifiers))
+    }
+
+    fn plain(code: KeyCode) -> UiEvent {
+        key(code, KeyModifiers::NONE)
+    }
+
+    #[test]
+    fn words_are_edits_sending_and_recall_are_dropped_the_rest_is_kept() {
+        for edit in [
+            plain(KeyCode::Char('y')),
+            key(KeyCode::Char('Y'), KeyModifiers::SHIFT),
+            plain(KeyCode::Backspace),
+            plain(KeyCode::Left),
+            key(KeyCode::Enter, KeyModifiers::ALT),
+            key(KeyCode::Char('j'), KeyModifiers::CONTROL),
+        ] {
+            assert!(matches!(defuse(edit.clone()), Defused::Edit(_)), "{edit:?}");
+        }
+        for code in [KeyCode::Enter, KeyCode::Up, KeyCode::Down, KeyCode::Tab] {
+            assert_eq!(defuse(plain(code)), Defused::Drop, "{code:?}");
+        }
+        assert_eq!(
+            defuse(UiEvent::Paste("yes".to_owned())),
+            Defused::Text("yes".to_owned())
+        );
+        for kept in [
+            key(KeyCode::Char('c'), KeyModifiers::CONTROL),
+            key(KeyCode::Char('t'), KeyModifiers::CONTROL),
+            plain(KeyCode::Esc),
+            plain(KeyCode::PageUp),
+            UiEvent::Resize(80, 24),
+            UiEvent::Signal(Signal::Terminate),
+            UiEvent::Signal(Signal::Interrupt),
+            UiEvent::Closed,
+        ] {
+            assert_eq!(defuse(kept.clone()), Defused::Keep(kept));
+        }
+    }
+
+    /// `yes⏎` typed ahead is in the box, the `Enter` is gone, and the keys
+    /// that keep their handling come back in order.
+    #[test]
+    fn yes_enter_typed_ahead_lands_in_the_box_and_is_never_sent() {
+        let mut composer = Composer::new();
+        let interrupt = key(KeyCode::Char('c'), KeyModifiers::CONTROL);
+        let typed = vec![
+            plain(KeyCode::Char('y')),
+            plain(KeyCode::Char('e')),
+            plain(KeyCode::Char('s')),
+            plain(KeyCode::Enter),
+            UiEvent::Resize(100, 30),
+            interrupt.clone(),
+        ];
+        let kept = set_aside(&mut composer, typed);
+        assert_eq!(composer.text(), "yes");
+        assert_eq!(kept, [UiEvent::Resize(100, 30), interrupt]);
+        let mut pasted = Composer::new();
+        let kept = set_aside(
+            &mut pasted,
+            vec![UiEvent::Paste("run it".to_owned()), plain(KeyCode::Enter)],
+        );
+        assert!(kept.is_empty());
+        assert_eq!(pasted.text(), "run it");
+        let mut corrected = Composer::new();
+        set_aside(
+            &mut corrected,
+            vec![
+                plain(KeyCode::Char('n')),
+                plain(KeyCode::Char('o')),
+                plain(KeyCode::Char('o')),
+                plain(KeyCode::Backspace),
+            ],
+        );
+        assert_eq!(
+            corrected.text(),
+            "no",
+            "a correction typed ahead is kept too"
+        );
+    }
+
+    /// A turn ends on a decision when the last wait its beats name is not
+    /// the free prompt; a turn that names no wait (a handoff) does not.
+    #[test]
+    fn a_turn_ends_on_a_decision_when_its_last_wait_is_not_free() {
+        use super::ends_on_decision;
+        use crate::model::{Beat, Committed, Kind, Waiting};
+        let say = Beat::Say(Committed::new(Kind::Reply, "x"));
+        assert!(ends_on_decision(&[
+            say.clone(),
+            Beat::Wait(Waiting::Proposal)
+        ]));
+        assert!(ends_on_decision(&[
+            Beat::Wait(Waiting::Free),
+            Beat::Wait(Waiting::Gate)
+        ]));
+        assert!(ends_on_decision(&[Beat::Wait(Waiting::Choosing)]));
+        assert!(!ends_on_decision(&[
+            Beat::Wait(Waiting::Gate),
+            Beat::Wait(Waiting::Free)
+        ]));
+        assert!(!ends_on_decision(&[say]));
+        assert!(!ends_on_decision(&[]));
+    }
+
+    #[test]
+    fn the_notice_says_what_is_in_the_box_in_the_glyph_column() {
+        assert_eq!(
+            typed_notice("yes", false),
+            "you typed « yes » while Nika worked · it is in the box, not sent"
+        );
+        assert_eq!(
+            typed_notice("yes", true),
+            "you typed \"yes\" while Nika worked - it is in the box, not sent"
+        );
+        assert!(typed_notice("two\nlines", false).contains("« two lines »"));
+        let long = typed_notice(&"word ".repeat(20), true);
+        assert!(long.is_ascii() && long.contains("...\" while"), "{long}");
+    }
 }
 
 #[cfg(test)]
