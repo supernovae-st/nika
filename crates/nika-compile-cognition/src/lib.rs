@@ -24,7 +24,8 @@ use nika_compile_fidelity::{fidelity, sketch};
 
 use nika_compile::surface::{
     admit_hot, finding, initial, lexical_rest_is_explicit, literal_answer, native_apply, parse,
-    plan_record, question, record_ledger, record_retrieval, record_route, replay, unresolved,
+    plan_record, question, record_ledger, record_retrieval, record_route, replay, replay_judged,
+    unresolved,
 };
 use nika_compile::{
     AuthoringCognition, AuthoringPolicy, AuthoringReceipt, CompileDiagnostic, CompileError,

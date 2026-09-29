@@ -31,7 +31,7 @@ pub(crate) async fn resume<P: ProviderInferDyn>(
     let program = answer.as_ref().map(|proposed| proposed.jq.clone()).ok();
     let verdict = answer.and_then(|proposed| regenerated(intent, &pending, proposed));
     // The same repair as the first synthesis, within this request's allowance (R4 A11).
-    let mut repairs = super::domain::Repairs::granted(policy);
+    let mut repairs = super::domain::Repairs::granted(policy, &out);
     let verdict = match (verdict, program) {
         (Err(why), Some(jq)) => {
             let (state, clause) = (pending.context(), pending.detail().to_owned());
@@ -58,7 +58,12 @@ pub(crate) async fn resume<P: ProviderInferDyn>(
             assembly_request.plan = Some(verified.clone());
             // Assembly consumes the verified field receipt; it never executes the workflow.
             out.provenance.plan = None;
-            crate::replay(intent, &verified, &assembly_request, &mut out)?;
+            // The first candidate of the seat's plan (its first round suspended before any):
+            // the whole request is judged with the remainder, by the authoring provider
+            // through the journaled call (R4 A11).
+            let judges = (None, Some((policy, provider)));
+            let verify = super::super::verify::replayed;
+            out = verify(intent, &verified, &assembly_request, judges, true, out).await?;
             let regeneration = kept_or_refused(&mut out, &verified);
             let mut decision = out.provenance.decision.take().unwrap_or_else(|| json!({}));
             decision["transform_regeneration"] = regeneration;

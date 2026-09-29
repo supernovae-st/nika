@@ -8,11 +8,14 @@
 use jaq_core::load::{Arena, File, Loader};
 use jaq_core::{Compiler, Ctx, Vars, data as jaq_data};
 use jaq_json::{Val, read};
+use nika_compile::surface::{Binding, Disposition, Judgment};
 use nika_compile::{AuthoringPolicy, CompileOutcome, CompileRequest, CompileStatus, HotPolicy};
 use nika_compile_cognition::compile_with_provider;
+use nika_compile_reader::plan::Plan;
+use nika_compile_reader::shape::promote_stated_rules;
 use nika_kernel::ai::provider::{
-    ContentBlock, InferRequest, InferResponse, ProviderError, ProviderInferDyn, StopReason,
-    TokenUsage,
+    ContentBlock, InferRequest, InferResponse, ProviderError, ProviderInferDyn, ResponseFormat,
+    StopReason, TokenUsage,
 };
 use serde_json::{Value, json};
 use std::sync::Mutex;
@@ -65,6 +68,10 @@ impl Scripted {
     fn asked(&self, at: usize) -> Value {
         serde_json::from_str(&self.asked.lock().unwrap()[at]).unwrap()
     }
+    /// The text of the last message the seat read in its call `at`.
+    fn said(&self, at: usize) -> String {
+        self.asked.lock().unwrap()[at].clone()
+    }
 }
 
 impl ProviderInferDyn for Scripted {
@@ -98,6 +105,107 @@ impl ProviderInferDyn for Scripted {
         Ok(InferResponse::new(
             vec![ContentBlock::Text { text }],
             TokenUsage::new(1, 1),
+            StopReason::EndTurn,
+        ))
+    }
+}
+
+/// A named judge double over a scripted seat (R4 A11): each verifier question (a closed choice
+/// offering `faithful` or `carried`) is answered by `verdict` from the keys it offers and kept;
+/// every other call goes to the scripted seat unchanged. A test names the verdict it opts into.
+struct Judging<'a> {
+    inner: &'a Scripted,
+    verdict: fn(&[String]) -> &'static str,
+    judged: Mutex<Vec<Vec<String>>>,
+    states: Mutex<Vec<Value>>,
+}
+
+impl<'a> Judging<'a> {
+    fn new(inner: &'a Scripted, verdict: fn(&[String]) -> &'static str) -> Self {
+        Self {
+            inner,
+            verdict,
+            judged: Mutex::new(Vec::new()),
+            states: Mutex::new(Vec::new()),
+        }
+    }
+    /// The state each verifier question showed the judge (the JSON of its STATE section).
+    fn states(&self) -> Vec<Value> {
+        self.states.lock().unwrap().clone()
+    }
+    /// The keys of each verifier question judged, in order.
+    fn judged(&self) -> Vec<Vec<String>> {
+        self.judged.lock().unwrap().clone()
+    }
+}
+
+/// The approving verdict: the whole request faithful, each clause carried.
+fn approve(keys: &[String]) -> &'static str {
+    if keys.iter().any(|k| k == "faithful") {
+        "faithful"
+    } else {
+        "carried"
+    }
+}
+
+/// The verdict of a judge that finds every clause missing and the request unfaithful.
+fn refuse(keys: &[String]) -> &'static str {
+    if keys.iter().any(|k| k == "unfaithful") {
+        "unfaithful"
+    } else if keys.iter().any(|k| k == "missing") {
+        "missing"
+    } else {
+        "another_part"
+    }
+}
+
+/// The verdict of a judge that abstains on every question.
+fn abstain(_: &[String]) -> &'static str {
+    "none"
+}
+
+impl ProviderInferDyn for Judging<'_> {
+    async fn infer(&self, request: InferRequest) -> Result<InferResponse, ProviderError> {
+        let keys: Vec<String> = match &request.response_format {
+            ResponseFormat::JsonSchema(schema) => schema["properties"]["choice"]["enum"]
+                .as_array()
+                .map(|keys| {
+                    keys.iter()
+                        .filter_map(|k| k.as_str().map(str::to_owned))
+                        .collect()
+                })
+                .unwrap_or_default(),
+            _ => Vec::new(),
+        };
+        let verifier = keys
+            .iter()
+            .any(|k| k == "faithful" || k == "carried" || k == "another_part");
+        if !verifier {
+            return self.inner.infer(request).await;
+        }
+        let choice = (self.verdict)(&keys);
+        self.judged.lock().unwrap().push(keys);
+        let said = request
+            .messages
+            .last()
+            .and_then(|message| {
+                message.content.iter().find_map(|block| match block {
+                    ContentBlock::Text { text } => Some(text.clone()),
+                    _ => None,
+                })
+            })
+            .unwrap_or_default();
+        let state = said
+            .strip_prefix("STATE:\n")
+            .and_then(|rest| rest.split("\n\nOPTIONS:").next())
+            .and_then(|json| serde_json::from_str(json).ok())
+            .unwrap_or(Value::Null);
+        self.states.lock().unwrap().push(state);
+        Ok(InferResponse::new(
+            vec![ContentBlock::Text {
+                text: json!({"choice": choice}).to_string(),
+            }],
+            TokenUsage::new(3, 1),
             StopReason::EndTurn,
         ))
     }
@@ -184,7 +292,11 @@ fn program(jq: &str) -> String {
 }
 
 /// The request of `clause` compiled by `seat` under a policy granting `repairs` repair rounds.
-async fn compiled_as(seat: &Scripted, clause: (&str, &str), repairs: u32) -> CompileOutcome {
+async fn compiled_as<P: ProviderInferDyn>(
+    seat: &P,
+    clause: (&str, &str),
+    repairs: u32,
+) -> CompileOutcome {
     let observed = json!({"observed": [{"path": "./data/input.csv", "state": "observed", "complete": false, "kind": "csv", "columns": ["id", "item", "status", "qty"]}]});
     let policy =
         AuthoringPolicy::new("mock/authoring", 1024, Duration::from_secs(2)).with_repairs(repairs);
@@ -196,7 +308,7 @@ async fn compiled_as(seat: &Scripted, clause: (&str, &str), repairs: u32) -> Com
 }
 
 /// The live request under the default policy (three repair rounds).
-async fn compiled(seat: &Scripted) -> CompileOutcome {
+async fn compiled<P: ProviderInferDyn>(seat: &P) -> CompileOutcome {
     compiled_as(seat, SUM, 3).await
 }
 
@@ -217,6 +329,22 @@ fn roles(out: &CompileOutcome) -> Vec<String> {
         .context
         .iter()
         .filter_map(|c| c["call"].as_str().map(str::to_owned))
+        .collect()
+}
+
+/// The roles of the authoring calls the receipt journals, the judge's apart (R4 A11).
+fn authored(out: &CompileOutcome) -> Vec<String> {
+    roles(out)
+        .into_iter()
+        .filter(|role| !role.starts_with("judge_"))
+        .collect()
+}
+
+/// The roles of the judge's calls the receipt journals, in call order (R4 A11).
+fn judged(out: &CompileOutcome) -> Vec<String> {
+    roles(out)
+        .into_iter()
+        .filter(|role| role.starts_with("judge_"))
         .collect()
 }
 
@@ -294,11 +422,13 @@ async fn a_program_null_on_an_empty_source_is_repaired_from_its_defect() {
         program(GENERATED),
         program(&repaired),
     ]);
-    let out = compiled(&seat).await;
+    // Judged by the explicit approving double (R4 A11): this test reads the emitted program.
+    let judge = Judging::new(&seat, approve);
+    let out = compiled(&judge).await;
     let expression = compute(&out);
     assert!(expression.ends_with(&repaired), "{expression}");
     assert_eq!(seat.calls(), 3);
-    assert_eq!(roles(&out), ["plan", "transform", "transform_repair"]);
+    assert_eq!(authored(&out), ["plan", "transform", "transform_repair"]);
     let verifier = &seat.asked(2)["verifier"];
     assert_eq!(verifier["your_program"], json!(GENERATED));
     let refused = verifier["refused"].as_str().unwrap();
@@ -415,7 +545,9 @@ async fn equivalent_sums_are_admitted_as_proposed() {
         "[.records[] | select(.status == \"shipped\") | .qty | tonumber] | add // 0".to_owned(),
     ] {
         let seat = Scripted::new(vec![plan(SUM).to_string(), program(&sum)]);
-        let out = compiled(&seat).await;
+        // Judged by the explicit approving double (R4 A11): this test reads the emitted program.
+        let judge = Judging::new(&seat, approve);
+        let out = compiled(&judge).await;
         let expression = compute(&out);
         assert!(expression.ends_with(&sum), "{sum}");
         assert_eq!(seat.calls(), 2, "{sum}");
@@ -439,10 +571,12 @@ async fn a_minimum_null_on_no_kept_row_is_repaired_to_a_stated_error() {
         program(&nulled),
         program(&error),
     ]);
-    let out = compiled_as(&seat, minimum, 3).await;
+    // Judged by the explicit approving double (R4 A11): this test reads the emitted program.
+    let judge = Judging::new(&seat, approve);
+    let out = compiled_as(&judge, minimum, 3).await;
     let expression = compute(&out);
     assert!(expression.ends_with(&error), "{expression}");
-    assert_eq!(roles(&out), ["plan", "transform", "transform_repair"]);
+    assert_eq!(authored(&out), ["plan", "transform", "transform_repair"]);
     let verifier = &seat.asked(2)["verifier"];
     assert_eq!(verifier["your_program"], json!(nulled));
     let refused = verifier["refused"].as_str().unwrap();
@@ -474,7 +608,12 @@ async fn pending_on_a_field() -> (Value, String) {
 
 /// The answer round: the field answered `qty`, the regeneration call, and the repair its policy
 /// may buy.
-async fn answered(record: Value, key: &str, seat: &Scripted, repairs: u32) -> CompileOutcome {
+async fn answered<P: ProviderInferDyn>(
+    record: Value,
+    key: &str,
+    seat: &P,
+    repairs: u32,
+) -> CompileOutcome {
     let policy =
         AuthoringPolicy::new("mock/authoring", 1024, Duration::from_secs(2)).with_repairs(repairs);
     let request = CompileRequest::create(intent(SUM))
@@ -492,11 +631,13 @@ async fn a_regenerated_program_is_held_to_the_same_laws_and_repair() {
     let (record, key) = pending_on_a_field().await;
     let repaired = format!("{GENERATED} // 0");
     let seat = Scripted::new(vec![program(GENERATED), program(&repaired)]);
-    let out = answered(record, &key, &seat, 3).await;
+    // Judged by the explicit approving double (R4 A11): this test reads the emitted program.
+    let judge = Judging::new(&seat, approve);
+    let out = answered(record, &key, &judge, 3).await;
     let expression = compute(&out);
     assert!(expression.ends_with(&repaired), "{expression}");
     assert_eq!(seat.calls(), 2);
-    assert_eq!(roles(&out), ["transform", "transform_repair"]);
+    assert_eq!(authored(&out), ["transform", "transform_repair"]);
     let verifier = &seat.asked(1)["verifier"];
     assert_eq!(verifier["your_program"], json!(GENERATED));
     let refused = verifier["refused"].as_str().unwrap();
@@ -516,4 +657,205 @@ async fn a_regenerated_program_buys_no_repair_when_none_is_granted() {
     assert_eq!(regeneration["accepted"], json!(false));
     let why = regeneration["why"].as_str().unwrap();
     assert!(why.contains("the number 0"), "{why}");
+}
+
+/// The first candidate of a seat's plan is judged whole on the full state (R4 A11): each
+/// question shows the judge the request as compiled, its answers, the observed world and the
+/// candidate's own bytes; the clauses no law reads from the bytes come first, the whole request
+/// last. Approved, it is READY, and the judge's calls ride the receipt with the others.
+#[tokio::test]
+async fn the_first_cold_candidate_is_judged_whole_on_the_full_state() {
+    let sum = format!("{GENERATED} // 0");
+    let seat = Scripted::new(vec![plan(SUM).to_string(), program(&sum)]);
+    let judge = Judging::new(&seat, approve);
+    let out = compiled(&judge).await;
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    let candidate = out.candidate.clone().unwrap();
+    let asked = judged(&out);
+    assert_eq!(
+        asked.last().map(String::as_str),
+        Some("judge_request"),
+        "{asked:?}"
+    );
+    assert_eq!(asked.len(), judge.judged().len());
+    for state in judge.states() {
+        assert_eq!(state["request"], json!(intent(SUM)), "{state:#}");
+        assert_eq!(state["candidate_nika"], json!(candidate), "{state:#}");
+        assert_eq!(state["observed"]["observed"][0]["columns"][3], json!("qty"));
+        assert!(state["answers"].is_object(), "{state:#}");
+    }
+    let receipt = out.provenance.authoring.as_ref().unwrap();
+    assert_eq!(receipt.calls as usize, 2 + asked.len());
+    let usage = &out.provenance.decision.as_ref().unwrap()["semantic_verification"][0]["usage"];
+    assert_eq!(usage["calls"], json!(asked.len()), "{usage:#}");
+    assert_eq!(usage["complete"], json!(true), "{usage:#}");
+}
+
+/// A part the judge finds missing is repaired from with the state the judge read (R4 A11): the
+/// repair call carries the request, its answers, the observed world and the candidate's bytes;
+/// the repaired plan's computation goes through the transform seat again with the judge's
+/// defects; a judge that still finds it missing leaves the request INCOMPLETE naming it, with
+/// no question to the human.
+#[tokio::test]
+async fn a_part_the_judge_finds_missing_is_repaired_from_the_whole_state_then_named() {
+    let sum = format!("{GENERATED} // 0");
+    let seat = Scripted::new(vec![
+        plan(SUM).to_string(),
+        program(&sum),
+        plan(SUM).to_string(),
+        program(&sum),
+    ]);
+    let judge = Judging::new(&seat, refuse);
+    let out = compiled_as(&judge, SUM, 1).await;
+    assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
+    assert_eq!(authored(&out), ["plan", "transform", "repair", "transform"]);
+    let repair = seat.said(2);
+    assert!(repair.starts_with("VERIFIER:"), "{repair}");
+    for part in [
+        intent(SUM).as_str(),
+        "candidate_nika",
+        "observed",
+        "qty",
+        "answers",
+    ] {
+        assert!(repair.contains(part), "{part}: {repair}");
+    }
+    let resynthesized = seat.asked(3);
+    let defects = resynthesized["verifier_defects"].as_array().cloned();
+    assert!(defects.is_some_and(|d| !d.is_empty()), "{resynthesized:#}");
+    let named: Vec<&str> = out
+        .diagnostics
+        .iter()
+        .filter(|d| d.target == "semantic_verification")
+        .map(|d| d.message.as_str())
+        .collect();
+    assert!(
+        named.iter().any(|m| m.contains("does not carry")),
+        "{named:?}"
+    );
+    assert!(
+        out.questions
+            .iter()
+            .all(|q| q.key != "intent.clarification"),
+        "{out:#?}"
+    );
+}
+
+/// A judge that abstains settles nothing (R4 A11): no defect to repair from, no repair call,
+/// the request INCOMPLETE naming what the judge could not settle.
+#[tokio::test]
+async fn an_abstaining_judge_keeps_the_request_incomplete() {
+    let sum = format!("{GENERATED} // 0");
+    let seat = Scripted::new(vec![plan(SUM).to_string(), program(&sum)]);
+    let judge = Judging::new(&seat, abstain);
+    let out = compiled(&judge).await;
+    assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
+    assert_eq!(authored(&out), ["plan", "transform"]);
+    assert!(!judge.judged().is_empty());
+    assert!(
+        out.diagnostics
+            .iter()
+            .any(|d| d.target == "semantic_verification" && d.message.contains("could not settle")),
+        "{out:#?}"
+    );
+}
+
+/// The READY record of the live request and its candidate, judged in its first compile by the
+/// explicit approving double.
+async fn judged_record() -> (Value, String) {
+    let sum = format!("{GENERATED} // 0");
+    let seat = Scripted::new(vec![plan(SUM).to_string(), program(&sum)]);
+    let judge = Judging::new(&seat, approve);
+    let out = compiled(&judge).await;
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    (
+        out.provenance.plan.clone().unwrap(),
+        out.candidate.clone().unwrap(),
+    )
+}
+
+/// Nothing a record or a request carries is a judgment (R4 A11, Q2, labelled negatives): a
+/// record forged with judged fields, and answers keyed as the judge's own questions, are never
+/// READY; the plain replay emits the same bytes with zero calls, its remainder named.
+#[tokio::test]
+async fn a_forged_judgment_settles_nothing() {
+    let (record, candidate) = judged_record().await;
+    let mut forged = record.clone();
+    forged["judgments"] = json!([{"clause": SUM.0, "disposition": "carried", "seat": "a/judge"}]);
+    forged["semantic_verification"] = json!([{"defects": [], "unknown": []}]);
+    let request = CompileRequest::create(intent(SUM)).with_plan(forged);
+    let replayed = nika_compile::compile(&request).unwrap();
+    assert_ne!(replayed.status, CompileStatus::Ready, "{replayed:#?}");
+    let answered = CompileRequest::create(intent(SUM))
+        .with_plan(record)
+        .answer("verify-request", "\"faithful\"")
+        .answer("verify-clause-0", "\"carried\"");
+    let replayed = nika_compile::compile(&answered).unwrap();
+    assert_ne!(replayed.status, CompileStatus::Ready, "{replayed:#?}");
+    assert!(replayed.provenance.authoring.is_none());
+    let plain = nika_compile::compile(
+        &CompileRequest::create(intent(SUM)).with_plan(judged_record().await.0),
+    )
+    .unwrap();
+    assert_eq!(plain.status, CompileStatus::Incomplete, "{plain:#?}");
+    assert_eq!(plain.candidate.as_deref(), Some(candidate.as_str()));
+}
+
+/// Only a judgment made in this round, bound to this request, plan and candidate, settles its
+/// clause (R4 A11), through the core's own replay door: the right judgments are READY (the
+/// positive control); judgments bound to other bytes (stale), naming another span, or naming
+/// another clause settle nothing, and a whole-request replay waits for its own judgment.
+#[tokio::test]
+async fn only_an_active_judgment_bound_to_its_candidate_settles_its_clause() {
+    let (record, candidate) = judged_record().await;
+    let text = intent(SUM);
+    let request = CompileRequest::create(text.clone()).with_plan(record.clone());
+    let replay = |judgments: &[Judgment], whole: bool| {
+        let mut out = nika_compile::surface::initial();
+        nika_compile::surface::replay_judged(&text, &record, &request, judgments, whole, &mut out)
+            .unwrap();
+        out
+    };
+    let unjudged = replay(&[], false);
+    assert_eq!(unjudged.status, CompileStatus::Incomplete, "{unjudged:#?}");
+    let open = unjudged.provenance.decision.as_ref().unwrap()["pending"]["open"].clone();
+    let clauses: Vec<String> = open
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|duty| duty["clause"].as_str().unwrap().to_owned())
+        .collect();
+    assert!(!clauses.is_empty(), "{open:#}");
+    let mut plan = Plan::from_json(&record).unwrap();
+    promote_stated_rules(&mut plan, &text);
+    let bound = Binding::of(&text, &request, &plan, &candidate);
+    let judge = |clause: &str, binding: &Binding| {
+        let at = text.find(clause).unwrap();
+        let span = (at, at + clause.len());
+        Judgment::new(
+            clause,
+            span,
+            Disposition::Carried,
+            "a/judge",
+            "q",
+            binding.clone(),
+        )
+    };
+    let right: Vec<Judgment> = clauses.iter().map(|c| judge(c, &bound)).collect();
+    assert_eq!(replay(&right, false).status, CompileStatus::Ready);
+    let other = Binding::of(&text, &request, &plan, "nika: another-candidate\n");
+    let stale: Vec<Judgment> = clauses.iter().map(|c| judge(c, &other)).collect();
+    assert_eq!(replay(&stale, false).status, CompileStatus::Incomplete);
+    let moved: Vec<Judgment> = right
+        .iter()
+        .cloned()
+        .map(|mut j| {
+            j.span = (0, 4);
+            j
+        })
+        .collect();
+    assert_eq!(replay(&moved, false).status, CompileStatus::Incomplete);
+    let elsewhere = vec![judge(SUM.1, &bound)];
+    assert_eq!(replay(&elsewhere, false).status, CompileStatus::Incomplete);
+    assert_eq!(replay(&right, true).status, CompileStatus::Incomplete);
 }

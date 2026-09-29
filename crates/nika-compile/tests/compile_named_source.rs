@@ -12,7 +12,7 @@ use nika_compile_cognition::compile_with_provider;
 use serde_json::{Value, json};
 
 mod common;
-use common::{Provider, keys, policy};
+use common::{Judged, Provider, keys, policy};
 
 const MONDAY: &str =
     "Chaque lundi matin, envoie-moi un récapitulatif des tickets ouverts de ./tickets.json";
@@ -84,7 +84,10 @@ async fn a_destination_and_an_hour_the_compiler_binds_do_not_end_in_a_clarificat
             "const.send_endpoint",
             r#""https://hooks.example.invalid/recap""#,
         );
-    let out = compile_with_provider(&req, &provider).await.unwrap();
+    // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
+    let out = compile_with_provider(&req, &Judged::approving(&provider))
+        .await
+        .unwrap();
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     let candidate = out.candidate.as_deref().expect("a candidate");
     assert!(

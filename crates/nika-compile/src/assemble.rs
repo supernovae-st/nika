@@ -26,11 +26,12 @@ use super::laws::{
     draft_law, draft_schema, extract_schema, guarded_lookup, guarded_parse, per_item_extract_law,
     per_item_law, per_item_translation_law, translation, translation_law, with_decimal,
 };
-use super::ledger::{DutyKind, Ledger};
+use super::ledger::{DutyKind, Judgment, Ledger};
 use super::paths::{self, Structured};
 use super::plan::{EffectPolicy, Op, Plan, Step};
 use super::realize::{
-    record_ledger, refused_contradiction, repeated_effect_asked, settle_candidate, shared_approval,
+    Judged, record_ledger, refused_contradiction, repeated_effect_asked, settle_candidate,
+    shared_approval,
 };
 use super::shape;
 use super::support::invoke;
@@ -339,6 +340,25 @@ pub fn assemble(
     request: &CompileRequest,
     out: &mut CompileOutcome,
 ) -> Result<(), CompileError> {
+    assemble_judged(plan, intent, request, &[], false, out)
+}
+
+/// The same assembly under the judgments a judge's seat made in this compile over the
+/// candidate's pending clauses (R4 A11): each settles its clause only under the binding the
+/// core recomputes from the request, the stated plan and the bytes it emits. With `whole` (a
+/// model's plan), the whole request waits for its judgment too.
+///
+/// # Errors
+/// Returns the same machinery failures as [`assemble`].
+pub fn assemble_judged(
+    plan: &Plan,
+    intent: &str,
+    request: &CompileRequest,
+    judgments: &[Judgment],
+    whole: bool,
+    out: &mut CompileOutcome,
+) -> Result<(), CompileError> {
+    let given = plan;
     // The requester's decisions over the plan come first (a money movement's approval):
     // the assembler works on the decided plan; the recorded plan stays as it was read.
     let mut recognized: BTreeSet<String> = BTreeSet::new();
@@ -399,18 +419,7 @@ pub fn assemble(
     emit_revision_check(&mut d, plan, &b);
     // One approval clause covering several effects is one gate: the human answers once and
     // every gated effect waits for that answer, instead of one prompt per effect.
-    d.gated_actions = b
-        .writes
-        .iter()
-        .filter(|w| w.gated)
-        .map(|w| format!("write {}", w.path))
-        .chain(
-            b.wired
-                .iter()
-                .filter(|w| w.gated)
-                .map(|w| format!("{} · {}", w.verb.word(), w.target.trim())),
-        )
-        .collect();
+    d.gated_actions = gated_actions(&b);
     d.share_gates = d.gated_actions.len() >= 2 && shared_approval(intent, plan);
     if !emit_writes(&mut d, &b.writes, out) || !super::network::emit_endpoints(&mut d, &b, out) {
         return Ok(());
@@ -428,8 +437,30 @@ pub fn assemble(
             plan,
             answers: &request.answers,
         },
+        &Judged {
+            request,
+            stated: given,
+            judgments,
+            whole,
+        },
         out,
     )
+}
+
+/// The actions an approval gates, the writes then the wired effects, each named as the one gate
+/// they share names it.
+fn gated_actions(b: &bindings::Bindings) -> Vec<String> {
+    b.writes
+        .iter()
+        .filter(|w| w.gated)
+        .map(|w| format!("write {}", w.path))
+        .chain(
+            b.wired
+                .iter()
+                .filter(|w| w.gated)
+                .map(|w| format!("{} · {}", w.verb.word(), w.target.trim())),
+        )
+        .collect()
 }
 
 /// A trigger the request names is deployment, not workflow: stated beside the candidate

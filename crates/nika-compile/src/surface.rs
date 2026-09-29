@@ -5,11 +5,11 @@
 
 pub use crate::doors::{
     lexical_rest_is_explicit, native_apply, plan_record, record_ledger, record_retrieval,
-    record_route, replay, unresolved,
+    record_route, replay, replay_judged, unresolved,
 };
 pub use crate::edit::literal_projection;
 pub use crate::laws::{LINES, SELECT_BY_FIELD};
-pub use crate::ledger::Ledger;
+pub use crate::ledger::{Binding, Disposition, Judgment, Ledger};
 pub use crate::seat_cap::output_caps;
 pub use crate::types::{EditChange, Input};
 
@@ -63,9 +63,10 @@ pub fn admit_hot(
     crate::doors::admit_hot(intent, reading, hot).map_err(AdmissionError::new)
 }
 
-/// The assembler's entry, its unfed-plan law and its contradiction refusal.
+/// The assembler's entry (also under the judgments made in this compile, R4 A11), its
+/// unfed-plan law and its contradiction refusal.
 pub mod assemble {
-    pub use crate::assemble::{assemble, refuse_contradiction, unfed};
+    pub use crate::assemble::{assemble, assemble_judged, refuse_contradiction, unfed};
 }
 
 /// The bounded support clauses: resolution and assembly.

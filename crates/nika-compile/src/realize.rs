@@ -9,11 +9,15 @@
 
 use super::assemble::{Doc, Laws, emit};
 use super::bindings::{Bindings, Operation, RuleBinding, Witness, found, operations, read_whole};
-use super::ledger::{Duty, DutyKind, DutyState, Ledger};
+use super::ledger::{
+    Binding, Disposition, Duty, DutyKind, DutyState, Judgment, Ledger, WitnessKind,
+};
 use super::plan::{EffectPolicy, EffectVerb, Op, Plan};
 use super::shape::Shape;
-use super::{CompileError, CompileOutcome, DiagnosticKind, QuestionType};
-use serde_json::json;
+use super::{
+    CompileError, CompileOutcome, CompileRequest, CompileStatus, DiagnosticKind, QuestionType,
+};
+use serde_json::{Value, json};
 
 /// The realized topology and the READY law, then emission: every duty the request states is
 /// carried by a named element, or the candidate is not emitted. The ledger rides in the
@@ -23,6 +27,7 @@ pub(super) fn settle_candidate(
     b: &Bindings,
     d: Doc,
     laws: &Laws<'_>,
+    judged: &Judged<'_>,
     out: &mut CompileOutcome,
 ) -> Result<(), CompileError> {
     // The realized topology, recorded beside the route: observational, never authority.
@@ -42,6 +47,7 @@ pub(super) fn settle_candidate(
     let mut ledger = Ledger::extract(plan);
     type_computation(&mut ledger, plan, b, &d);
     realize(&mut ledger, plan, b, &d, out.requested_trigger.is_some());
+    ledger.cover(laws.intent, plan);
     let silent: Vec<(DutyKind, String, Option<String>)> = ledger
         .silent()
         .map(|duty| (duty.kind, duty.evidence.clone(), duty.note.clone()))
@@ -71,7 +77,103 @@ pub(super) fn settle_candidate(
         return Ok(());
     }
     out.provenance.suggested_file = Some(suggested_file(plan, b));
-    emit(d, laws, out)
+    emit(d, laws, out)?;
+    settle_pending(&mut ledger, laws.intent, judged, out);
+    record_ledger(out, &ledger);
+    Ok(())
+}
+
+/// What the READY law holds a candidate's pending duties to (R4 A11): the request, the plan as
+/// the caller stated it (before the requester's decisions), the judgments a judge's seat made
+/// in this very compile, and whether a model's plan produced the candidate: then the whole
+/// request is pending too, and no single candidate is READY without its judgment.
+pub(super) struct Judged<'a> {
+    pub(super) request: &'a CompileRequest,
+    pub(super) stated: &'a Plan,
+    pub(super) judgments: &'a [Judgment],
+    pub(super) whole: bool,
+}
+
+/// The pending duties of an emitted candidate (R4 A11). A judgment made in this compile settles
+/// the duty whose excerpt and span it names, only under the binding the core recomputes from
+/// the request, the stated plan and these very bytes; asking for no operation is never admitted
+/// on a clause an element claims, nor on one that restricts or conditions the material. A
+/// record's serialized judgment is data, never one: whatever stays pending keeps READY closed,
+/// named in a finding with its next action.
+fn settle_pending(
+    ledger: &mut Ledger,
+    intent: &str,
+    judged: &Judged<'_>,
+    out: &mut CompileOutcome,
+) {
+    let Some(candidate) = out.candidate.as_deref() else {
+        return;
+    };
+    if judged.whole {
+        ledger.duties.push(Duty::whole(intent));
+    }
+    if ledger.pending().next().is_none() {
+        return;
+    }
+    let bound = Binding::of(intent, judged.request, judged.stated, candidate);
+    for duty in ledger
+        .duties
+        .iter_mut()
+        .filter(|d| d.state == DutyState::Pending)
+    {
+        let span = intent
+            .find(&duty.evidence)
+            .map(|at| (at, at + duty.evidence.len()));
+        let admitted = |j: &&Judgment| {
+            j.binding == bound
+                && j.clause == duty.evidence
+                && Some(j.span) == span
+                && match j.disposition {
+                    Disposition::Carried => true,
+                    Disposition::NoOperation => {
+                        duty.witness.is_none()
+                            && span != Some((0, intent.len()))
+                            && !super::structure::restricts(&duty.evidence)
+                    }
+                }
+        };
+        if let Some(j) = judged.judgments.iter().find(admitted) {
+            let what = match j.disposition {
+                Disposition::Carried => "carried by the candidate",
+                Disposition::NoOperation => "asking for no operation",
+            };
+            let note = format!("judged {what} by {} ({})", j.seat, j.question);
+            duty.judge(&j.seat, note);
+        }
+    }
+    let open: Vec<Value> = ledger
+        .pending()
+        .map(|d| json!({"clause": d.evidence, "witness": d.witness.map(WitnessKind::word)}))
+        .collect();
+    for duty in ledger.pending() {
+        let why = match duty.witness {
+            Some(WitnessKind::Label) => "only the words of a step restate it",
+            Some(WitnessKind::Unverified) => "a task carries words no law reads",
+            _ => "no element of the plan names it",
+        };
+        super::finding(
+            out,
+            DiagnosticKind::Unknown,
+            "semantic_verification",
+            format!(
+                "The request states `{}` and {why}: no law reads from candidate {} that it carries it, and no judgment made in this compile settles it. Nothing is READY on a pending clause: a bounded judge's seat judges it against the whole request, or it stays INCOMPLETE.",
+                duty.evidence,
+                &bound.candidate[..12]
+            ),
+        );
+    }
+    let mut decision = out.provenance.decision.take().unwrap_or_else(|| json!({}));
+    decision["pending"] =
+        json!({"candidate_sha256": bound.candidate, "plan_sha256": bound.plan, "open": open});
+    out.provenance.decision = Some(decision);
+    if !open.is_empty() && out.status == CompileStatus::Ready {
+        out.status = CompileStatus::Incomplete;
+    }
 }
 
 /// A kebab-case file name for the candidate: the first written file's stem (`open-sorted`),
@@ -259,7 +361,10 @@ fn realize(ledger: &mut Ledger, plan: &Plan, b: &Bindings, d: &Doc, trigger_stat
                 }
             }
             DutyKind::Structure => realize_structure(duty, b, d),
-            DutyKind::Work => realize_selection(duty, plan, has_task("compute")),
+            DutyKind::Work => {
+                let answered = matches!(b.rule.bound(), Some(RuleBinding::Answered(_)));
+                realize_selection(duty, plan, has_task("compute"), answered);
+            }
             DutyKind::Transformation
             | DutyKind::Filter
             | DutyKind::Count
@@ -272,10 +377,13 @@ fn realize(ledger: &mut Ledger, plan: &Plan, b: &Bindings, d: &Doc, trigger_stat
     }
 }
 
-/// A selection of rows stated as a constraint (R4 A10) is carried by the compute task when the
+/// A selection of rows stated as a constraint (R4 A10) is claimed by the compute task when the
 /// compute step states each of its clauses (in its detail, its evidence or one of its rules):
-/// the constraint restates the computation. Anywhere else it stays unresolved work.
-fn realize_selection(duty: &mut Duty, plan: &Plan, computes: bool) {
+/// the constraint restates the computation. Words restating it are a label, not what the
+/// program does: the claim waits for a judgment of the candidate (R4 A11). A program the human
+/// answered for that step is the human's own and closes it as every answered duty is closed.
+/// Anywhere else it stays unresolved work.
+fn realize_selection(duty: &mut Duty, plan: &Plan, computes: bool, answered: bool) {
     let Some(step) = plan.step(Op::Compute) else {
         return;
     };
@@ -289,10 +397,20 @@ fn realize_selection(duty: &mut Duty, plan: &Plan, computes: bool) {
                 || step.evidence.contains(clause)
                 || plan.rules.iter().any(|rule| rule.text().contains(clause)))
     };
-    if duty.evidence.split([',', ';']).all(stated) {
+    if !duty.evidence.split([',', ';']).all(stated) {
+        return;
+    }
+    if answered {
         duty.realize(
             "compute",
-            Some("restates the computation the compute step runs"),
+            Some("the human's answered program runs the computation that restates it"),
+        );
+        duty.witness = Some(WitnessKind::Answered);
+    } else {
+        duty.claim(
+            "compute",
+            "restates the computation the compute step runs",
+            WitnessKind::Label,
         );
     }
 }
@@ -315,12 +433,9 @@ fn type_computation(ledger: &mut Ledger, plan: &Plan, b: &Bindings, d: &Doc) {
         (Some(RuleBinding::Synthesized(rule)), Some(witness)) => {
             typed_duties(rule, witness, d, &evidence)
         }
-        (Some(RuleBinding::Answered(_)), _) if stated.is_some() => vec![Duty::unverified(
-            DutyKind::Filter,
-            &evidence,
-            "compute",
-            "the answered program runs as written; no typed reading checks it",
-        )],
+        (Some(RuleBinding::Answered(_)), _) if stated.is_some() => {
+            vec![Duty::answered(DutyKind::Filter, &evidence, "compute")]
+        }
         // Nothing bound: the stated duty stays as the plan states it.
         _ => return,
     };
@@ -353,12 +468,20 @@ fn typed_duties(
     let summarizes = expression("compute_summary") == Some(super::laws::SUMMARY);
     let mut expected: Vec<(&str, Operation)> = Vec::new();
     let mut unread = Vec::new();
+    // An identity the reader's conversion law states from these very words (the law a replay
+    // binds it by) is read, with no operation to hold (R4 A11).
+    let converts = !rule.filters()
+        && !rule.shaped()
+        && !rule.summary()
+        && !rule.lines()
+        && super::lexicon::read(rule.text()).plan.rules.contains(rule);
     for part in &witness.parts {
         match &part.reading {
             Some(reading) => {
                 let anchor = part.anchor.as_str();
                 expected.extend(operations(reading).into_iter().map(|op| (anchor, op)));
             }
+            None if converts => unread.push(Duty::conversion(&part.anchor, "compute", runs)),
             None => unread.push(Duty::unverified(
                 DutyKind::Transformation,
                 &part.anchor,
@@ -388,7 +511,10 @@ fn typed_duties(
             ("compute", runs)
         };
         match (place, emitted) {
-            (Some(_), true) => duty.realize(task, None),
+            (Some(_), true) => {
+                duty.realize(task, None);
+                duty.witness = Some(WitnessKind::Typed);
+            }
             (Some(_), false) => {
                 duty.note = Some(format!(
                     "`{task}` does not run the lowering of the bound rule"
@@ -626,7 +752,7 @@ mod tests {
     use super::*;
     use crate::rules::synthesize;
     use DutyKind::{Count, Filter, Limit, Order, Transformation};
-    use DutyState::{Realized, Unresolved};
+    use DutyState::{Pending, Realized, Unresolved};
 
     const COUNT: &str = "count the rows where status is paid";
     const PAID: &str = "keep the rows where status is paid";
@@ -711,7 +837,7 @@ mod tests {
 
     /// A label realizes nothing (R4 A3): a task named `compute` that runs another program leaves
     /// every duty unresolved. Words the grammar cannot read state no typed duty; they stay in the
-    /// ledger, carried by the task and said to be unverified.
+    /// ledger, claimed by the task, said to be unverified, pending a judgment (R4 A11).
     #[test]
     fn only_the_emitted_computation_realizes_a_typed_duty() {
         let other = witnessed(
@@ -727,7 +853,7 @@ mod tests {
             "{other:?}"
         );
         let unread = witnessed(&["tally whatever looks settled"], COUNT, None);
-        assert_eq!(states(&unread), [(Transformation, Realized, None)]);
+        assert_eq!(states(&unread), [(Transformation, Pending, None)]);
         assert_eq!(unread[0].realized_by.as_deref(), Some("compute"));
         let note = unread[0].note.as_deref().unwrap_or_default();
         assert!(note.starts_with("unverified: "), "{note}");
@@ -757,7 +883,7 @@ mod tests {
         let judged = [
             (Order, Realized, Some(0)),
             (Limit, Realized, Some(1)),
-            (Transformation, Realized, None),
+            (Transformation, Pending, None),
         ];
         assert_eq!(states(&open), judged);
     }

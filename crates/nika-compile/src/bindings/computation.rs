@@ -377,7 +377,9 @@ fn stated_parts(plan: &Plan, step: &Step, intent: &str, hint: &[String]) -> Vec<
             .filter(|(at, _)| !covered.iter().any(|c| (c.0..c.1).contains(at)))
             .map(|(_, c)| c)
             .collect();
-        if !crate::structure::only_function_words(&rest) {
+        if !crate::structure::only_function_words(&rest)
+            && !crate::structure::only_a_compute_head(&rest)
+        {
             kept.push(part);
         }
     }

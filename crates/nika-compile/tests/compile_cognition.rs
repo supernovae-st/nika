@@ -15,7 +15,7 @@ use nika_kernel::ai::provider::{
 use serde_json::{Value, json};
 
 mod common;
-use common::{INTENT, Provider, keys, plan, policy, request};
+use common::{INTENT, Judged, JudgedSeat, Provider, keys, plan, policy, request};
 use std::{
     sync::{Mutex, atomic::Ordering},
     time::Duration,
@@ -39,6 +39,8 @@ async fn provider_opt_in_returns_real_questions_and_versioned_usage() {
         "human_first"
     );
     assert_eq!(provider.calls.load(Ordering::SeqCst), 1);
+    // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
+    let judged = Judged::approving(&provider);
     let out = compile_with_provider(
         &request()
             .answer("model", r#""mock/echo""#)
@@ -51,7 +53,7 @@ async fn provider_opt_in_returns_real_questions_and_versioned_usage() {
                 "const.refund_endpoint",
                 r#""https://refund.example.invalid/refunds""#,
             ),
-        &provider,
+        &judged,
     )
     .await
     .unwrap();
@@ -585,9 +587,11 @@ async fn warm_lookup_over_a_located_read_binds_the_read_file_and_asks_only_the_i
         choice: "lookup",
         asked: Mutex::new(Vec::new()),
     };
+    // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
+    let judged = JudgedSeat::approving(&seat);
     let cognition = Cognition::<NoProvider> {
         provider: None,
-        seat: Some(&seat),
+        seat: Some(&judged),
     };
     let out = compile_with_cognition(&CompileRequest::create(intent), cognition)
         .await

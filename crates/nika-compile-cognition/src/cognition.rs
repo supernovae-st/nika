@@ -45,6 +45,7 @@ use receipt::call_with_schema;
 pub(crate) use receipt::{effort, reasoning_record};
 mod sketch;
 mod transform;
+mod verify;
 use proposal::{Proposal, decode, merge};
 pub(super) use proposal::{ProposedRegion, nullable_default};
 
@@ -273,22 +274,28 @@ async fn resolve_create<P: ProviderInferDyn>(
             );
             return Ok(out);
         }
-        replay(intent, record, assembly_request, &mut out)?;
-        if record.get("pending_transform").is_some()
-            && let (Some(policy), Some(provider)) = (&request.authoring, cognition.provider)
-        {
-            if !policy_bounded(policy, intent) {
-                super::finding(
-                    &mut out,
-                    DiagnosticKind::Missed,
-                    "authoring_policy",
-                    POLICY_BOUNDS,
-                );
-                return Ok(out);
+        if record.get("pending_transform").is_some() {
+            replay(intent, record, assembly_request, &mut out)?;
+            if let (Some(policy), Some(provider)) = (&request.authoring, cognition.provider) {
+                if !policy_bounded(policy, intent) {
+                    super::finding(
+                        &mut out,
+                        DiagnosticKind::Missed,
+                        "authoring_policy",
+                        POLICY_BOUNDS,
+                    );
+                    return Ok(out);
+                }
+                return transform::resume(intent, assembly_request, policy, provider, out).await;
             }
-            return transform::resume(intent, assembly_request, policy, provider, out).await;
+            return Ok(out);
         }
-        return Ok(out);
+        // The remainder a record leaves unverified is judged in this round, or named (R4 A11).
+        let provider = (request.authoring.as_ref())
+            .filter(|policy| policy_bounded(policy, intent))
+            .zip(cognition.provider);
+        let judges = (cognition.seat, provider);
+        return verify::replayed(intent, record, assembly_request, judges, false, out).await;
     }
     // The exact grammar keeps its zero-call, fail-closed path when a provider is permitted.
     if let Ok(Some(plan)) = super::support::resolve(intent) {
@@ -467,7 +474,7 @@ async fn choose_create<P: ProviderInferDyn>(
         if settled_all {
             route.push("warm".to_owned());
             record_route(&mut out, &route);
-            return settle(Strategy::Warm, &reading.plan, intent, assembly_request, out);
+            return verify::judged_warm(intent, &reading.plan, seat, assembly_request, out).await;
         }
         route.push("warm: none".to_owned());
         reading.ambiguous.clear();
@@ -764,6 +771,20 @@ fn settle(
     plan: &Plan,
     intent: &str,
     request: &CompileRequest,
+    out: CompileOutcome,
+) -> Result<CompileOutcome, CompileError> {
+    settle_judged(strategy, plan, intent, request, &[], out)
+}
+
+/// The deterministic assembly of a plan under the judgments a judge's seat made in this compile
+/// (R4 A11): a plan a model shaped (WARM, COLD) is held to the whole request too, so no single
+/// candidate of it is READY before its judgment.
+fn settle_judged(
+    strategy: Strategy,
+    plan: &Plan,
+    intent: &str,
+    request: &CompileRequest,
+    judgments: &[nika_compile::surface::Judgment],
     mut out: CompileOutcome,
 ) -> Result<CompileOutcome, CompileError> {
     if !plan.anchored(intent) {
@@ -786,7 +807,15 @@ fn settle(
         out.provenance.plan = Some(plan_record(&plan, Some(strategy)));
         return Ok(out);
     }
-    super::assemble::assemble(&plan, intent, request, &mut out)?;
+    // The reader's own HOT plan assembles as it always did; a plan a model shaped waits for the
+    // judgment of the whole request as well.
+    if strategy == Strategy::Hot {
+        super::assemble::assemble(&plan, intent, request, &mut out)?;
+    } else {
+        nika_compile::surface::assemble::assemble_judged(
+            &plan, intent, request, judgments, true, &mut out,
+        )?;
+    }
     record_retrieval(&mut out, intent, Some(&plan));
     out.provenance.strategy = Some(strategy);
     out.provenance.plan = Some(plan_record(&plan, Some(strategy)));
@@ -1064,13 +1093,14 @@ async fn sampled<P: ProviderInferDyn>(
         // program (treatment B), once, on the plan that will be assembled: the seat's own
         // example is the test, the runtime's jq the judge, the receipt counts the call.
         if let Some(mut pending) =
-            transform::synthesize(intent, &mut plan, policy, provider, request, &mut out).await
+            transform::synthesize(intent, &mut plan, policy, provider, request, &[], &mut out).await
         {
             pending.answer(request, &mut out);
             pending.suspend(&plan, &mut out);
             return Ok(out);
         }
-        return settle(Strategy::Cold, &plan, intent, request, out);
+        return verify::judged_cold(intent, plan, policy, provider, seat, reading, request, out)
+            .await;
     }
     if seat_declined {
         // The seat said none of the readings is faithful: a human settles the disagreement.

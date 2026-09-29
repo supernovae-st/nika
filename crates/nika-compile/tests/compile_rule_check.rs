@@ -11,7 +11,7 @@ use nika_compile_cognition::compile_with_provider;
 use serde_json::{Value, json};
 
 mod common;
-use common::{Provider, policy};
+use common::{Judged, Provider, policy};
 
 const INTENT: &str =
     "Read ./data/orders.csv. Harmonise the totals per country and write them to ./out/totals.json.";
@@ -29,7 +29,10 @@ async fn answered(rule: &str) -> nika_compile::CompileOutcome {
     let req = CompileRequest::create(INTENT)
         .with_authoring_policy(policy())
         .answer("const.rule_expression", format!("{rule:?}"));
-    compile_with_provider(&req, &provider).await.unwrap()
+    // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
+    compile_with_provider(&req, &Judged::approving(&provider))
+        .await
+        .unwrap()
 }
 
 #[tokio::test]

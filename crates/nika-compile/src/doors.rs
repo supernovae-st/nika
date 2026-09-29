@@ -141,6 +141,26 @@ pub fn replay(
     request: &CompileRequest,
     out: &mut CompileOutcome,
 ) -> Result<(), CompileError> {
+    replay_judged(intent, record, request, &[], false, out)
+}
+
+/// The same replay under the judgments a judge made in THIS round (R4 A11): each settles its
+/// clause only under the binding the core recomputes from the request, the recorded plan and
+/// the bytes it emits, so a judgment of another clause, request or candidate settles nothing.
+/// A judged field the record carries is never read. With `whole`, the whole request waits for
+/// its own judgment too (the first candidate of a model's plan). Every gate of [`replay`]
+/// (anchoring, binding, unknown work, unfed plan) runs before, unchanged.
+///
+/// # Errors
+/// Returns representation failures while replaying an admitted record through assembly.
+pub fn replay_judged(
+    intent: &str,
+    record: &Value,
+    request: &CompileRequest,
+    judgments: &[super::ledger::Judgment],
+    whole: bool,
+    out: &mut CompileOutcome,
+) -> Result<(), CompileError> {
     let folded = lexicon::fold_apostrophes(intent);
     let intent = folded.as_str();
     if super::pending_transform::replay(intent, record, request, out) {
@@ -227,7 +247,7 @@ pub fn replay(
         out.provenance.plan = Some(plan_record(&plan, strategy));
         return Ok(());
     }
-    super::assemble::assemble(&plan, intent, request, out)?;
+    super::assemble::assemble_judged(&plan, intent, request, judgments, whole, out)?;
     record_retrieval(out, intent, Some(&plan));
     out.provenance.strategy = strategy;
     out.provenance.plan = Some(plan_record(&plan, strategy));

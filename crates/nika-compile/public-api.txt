@@ -192,6 +192,7 @@ pub fn nika_compile::surface::admitted::refused(why: &str) -> nika_compile::Comp
 pub fn nika_compile::surface::admitted::replacement(request: &nika_compile::CompileRequest, text: &str) -> core::result::Result<core::option::Option<(alloc::string::String, serde_json::value::Value)>, alloc::string::String>
 pub mod nika_compile::surface::assemble
 pub fn nika_compile::surface::assemble::assemble(plan: &nika_compile_reader::plan::Plan, intent: &str, request: &nika_compile::CompileRequest, out: &mut nika_compile::CompileOutcome) -> core::result::Result<(), nika_compile::CompileError>
+pub fn nika_compile::surface::assemble::assemble_judged(plan: &nika_compile_reader::plan::Plan, intent: &str, request: &nika_compile::CompileRequest, judgments: &[nika_compile::surface::Judgment], whole: bool, out: &mut nika_compile::CompileOutcome) -> core::result::Result<(), nika_compile::CompileError>
 pub fn nika_compile::surface::assemble::refuse_contradiction(plan: &nika_compile_reader::plan::Plan, out: &mut nika_compile::CompileOutcome) -> bool
 pub fn nika_compile::surface::assemble::unfed(plan: &nika_compile_reader::plan::Plan, intent: &str, out: &mut nika_compile::CompileOutcome) -> bool
 pub mod nika_compile::surface::observed
@@ -381,6 +382,53 @@ impl<T> typenum::type_operators::Same for nika_compile::surface::support::Resolv
 pub type nika_compile::surface::support::ResolveError::Output = T
 pub fn nika_compile::surface::support::assemble(plan: &nika_compile::surface::support::Plan, request: &nika_compile::CompileRequest, out: &mut nika_compile::CompileOutcome) -> core::result::Result<(), nika_compile::CompileError>
 pub fn nika_compile::surface::support::resolve(intent: &str) -> core::result::Result<core::option::Option<nika_compile::surface::support::Plan>, nika_compile::surface::support::ResolveError>
+#[non_exhaustive] pub enum nika_compile::surface::Disposition
+pub nika_compile::surface::Disposition::Carried
+pub nika_compile::surface::Disposition::NoOperation
+impl core::clone::Clone for nika_compile::surface::Disposition
+pub fn nika_compile::surface::Disposition::clone(&self) -> nika_compile::surface::Disposition
+impl core::cmp::Eq for nika_compile::surface::Disposition
+impl core::cmp::PartialEq for nika_compile::surface::Disposition
+pub fn nika_compile::surface::Disposition::eq(&self, other: &nika_compile::surface::Disposition) -> bool
+impl core::fmt::Debug for nika_compile::surface::Disposition
+pub fn nika_compile::surface::Disposition::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile::surface::Disposition
+impl core::marker::StructuralPartialEq for nika_compile::surface::Disposition
+impl<D> owo_colors::OwoColorize for nika_compile::surface::Disposition
+impl<Q, K> equivalent::Equivalent<K> for nika_compile::surface::Disposition where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile::surface::Disposition::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile::surface::Disposition where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile::surface::Disposition::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile::surface::Disposition where U: core::convert::From<T>
+pub fn nika_compile::surface::Disposition::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile::surface::Disposition where U: core::convert::Into<T>
+pub type nika_compile::surface::Disposition::Error = core::convert::Infallible
+pub fn nika_compile::surface::Disposition::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile::surface::Disposition where U: core::convert::TryFrom<T>
+pub type nika_compile::surface::Disposition::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile::surface::Disposition::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile::surface::Disposition where T: core::clone::Clone
+pub type nika_compile::surface::Disposition::Owned = T
+pub fn nika_compile::surface::Disposition::clone_into(&self, target: &mut T)
+pub fn nika_compile::surface::Disposition::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile::surface::Disposition where T: 'static + ?core::marker::Sized
+pub fn nika_compile::surface::Disposition::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile::surface::Disposition where T: ?core::marker::Sized
+pub fn nika_compile::surface::Disposition::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile::surface::Disposition where T: ?core::marker::Sized
+pub fn nika_compile::surface::Disposition::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile::surface::Disposition where T: core::clone::Clone
+pub unsafe fn nika_compile::surface::Disposition::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile::surface::Disposition
+pub fn nika_compile::surface::Disposition::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile::surface::Disposition where T: core::clone::Clone
+pub fn nika_compile::surface::Disposition::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile::surface::Disposition where T: 'static
+pub fn nika_compile::surface::Disposition::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_compile::surface::Disposition where T: core::marker::Copy
+pub fn nika_compile::surface::Disposition::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_compile::surface::Disposition
+pub type nika_compile::surface::Disposition::Output = T
 #[non_exhaustive] pub enum nika_compile::surface::EditChange
 pub nika_compile::surface::EditChange::Constant
 pub nika_compile::surface::EditChange::Constant::literal_json: alloc::string::String
@@ -507,6 +555,106 @@ impl<T> nika_error::traits::AsAny for nika_compile::surface::AdmissionError wher
 pub fn nika_compile::surface::AdmissionError::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_compile::surface::AdmissionError
 pub type nika_compile::surface::AdmissionError::Output = T
+#[non_exhaustive] pub struct nika_compile::surface::Binding
+pub nika_compile::surface::Binding::answers: alloc::string::String
+pub nika_compile::surface::Binding::candidate: alloc::string::String
+pub nika_compile::surface::Binding::observed: alloc::string::String
+pub nika_compile::surface::Binding::original: core::option::Option<alloc::string::String>
+pub nika_compile::surface::Binding::plan: alloc::string::String
+pub nika_compile::surface::Binding::request: alloc::string::String
+impl nika_compile::surface::Binding
+pub fn nika_compile::surface::Binding::of(intent: &str, request: &nika_compile::CompileRequest, plan: &nika_compile_reader::plan::Plan, candidate: &str) -> Self
+impl core::clone::Clone for nika_compile::surface::Binding
+pub fn nika_compile::surface::Binding::clone(&self) -> nika_compile::surface::Binding
+impl core::cmp::Eq for nika_compile::surface::Binding
+impl core::cmp::PartialEq for nika_compile::surface::Binding
+pub fn nika_compile::surface::Binding::eq(&self, other: &nika_compile::surface::Binding) -> bool
+impl core::fmt::Debug for nika_compile::surface::Binding
+pub fn nika_compile::surface::Binding::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile::surface::Binding
+impl<D> owo_colors::OwoColorize for nika_compile::surface::Binding
+impl<Q, K> equivalent::Equivalent<K> for nika_compile::surface::Binding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile::surface::Binding::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile::surface::Binding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile::surface::Binding::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile::surface::Binding where U: core::convert::From<T>
+pub fn nika_compile::surface::Binding::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile::surface::Binding where U: core::convert::Into<T>
+pub type nika_compile::surface::Binding::Error = core::convert::Infallible
+pub fn nika_compile::surface::Binding::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile::surface::Binding where U: core::convert::TryFrom<T>
+pub type nika_compile::surface::Binding::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile::surface::Binding::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile::surface::Binding where T: core::clone::Clone
+pub type nika_compile::surface::Binding::Owned = T
+pub fn nika_compile::surface::Binding::clone_into(&self, target: &mut T)
+pub fn nika_compile::surface::Binding::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile::surface::Binding where T: 'static + ?core::marker::Sized
+pub fn nika_compile::surface::Binding::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile::surface::Binding where T: ?core::marker::Sized
+pub fn nika_compile::surface::Binding::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile::surface::Binding where T: ?core::marker::Sized
+pub fn nika_compile::surface::Binding::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile::surface::Binding where T: core::clone::Clone
+pub unsafe fn nika_compile::surface::Binding::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile::surface::Binding
+pub fn nika_compile::surface::Binding::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile::surface::Binding where T: core::clone::Clone
+pub fn nika_compile::surface::Binding::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile::surface::Binding where T: 'static
+pub fn nika_compile::surface::Binding::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile::surface::Binding
+pub type nika_compile::surface::Binding::Output = T
+#[non_exhaustive] pub struct nika_compile::surface::Judgment
+pub nika_compile::surface::Judgment::binding: nika_compile::surface::Binding
+pub nika_compile::surface::Judgment::clause: alloc::string::String
+pub nika_compile::surface::Judgment::disposition: nika_compile::surface::Disposition
+pub nika_compile::surface::Judgment::question: alloc::string::String
+pub nika_compile::surface::Judgment::seat: alloc::string::String
+pub nika_compile::surface::Judgment::span: (usize, usize)
+impl nika_compile::surface::Judgment
+pub fn nika_compile::surface::Judgment::new(clause: &str, span: (usize, usize), disposition: nika_compile::surface::Disposition, seat: &str, question: &str, binding: nika_compile::surface::Binding) -> Self
+impl core::clone::Clone for nika_compile::surface::Judgment
+pub fn nika_compile::surface::Judgment::clone(&self) -> nika_compile::surface::Judgment
+impl core::cmp::Eq for nika_compile::surface::Judgment
+impl core::cmp::PartialEq for nika_compile::surface::Judgment
+pub fn nika_compile::surface::Judgment::eq(&self, other: &nika_compile::surface::Judgment) -> bool
+impl core::fmt::Debug for nika_compile::surface::Judgment
+pub fn nika_compile::surface::Judgment::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile::surface::Judgment
+impl<D> owo_colors::OwoColorize for nika_compile::surface::Judgment
+impl<Q, K> equivalent::Equivalent<K> for nika_compile::surface::Judgment where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile::surface::Judgment::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile::surface::Judgment where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile::surface::Judgment::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile::surface::Judgment where U: core::convert::From<T>
+pub fn nika_compile::surface::Judgment::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile::surface::Judgment where U: core::convert::Into<T>
+pub type nika_compile::surface::Judgment::Error = core::convert::Infallible
+pub fn nika_compile::surface::Judgment::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile::surface::Judgment where U: core::convert::TryFrom<T>
+pub type nika_compile::surface::Judgment::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile::surface::Judgment::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile::surface::Judgment where T: core::clone::Clone
+pub type nika_compile::surface::Judgment::Owned = T
+pub fn nika_compile::surface::Judgment::clone_into(&self, target: &mut T)
+pub fn nika_compile::surface::Judgment::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile::surface::Judgment where T: 'static + ?core::marker::Sized
+pub fn nika_compile::surface::Judgment::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile::surface::Judgment where T: ?core::marker::Sized
+pub fn nika_compile::surface::Judgment::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile::surface::Judgment where T: ?core::marker::Sized
+pub fn nika_compile::surface::Judgment::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile::surface::Judgment where T: core::clone::Clone
+pub unsafe fn nika_compile::surface::Judgment::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile::surface::Judgment
+pub fn nika_compile::surface::Judgment::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile::surface::Judgment where T: core::clone::Clone
+pub fn nika_compile::surface::Judgment::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile::surface::Judgment where T: 'static
+pub fn nika_compile::surface::Judgment::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile::surface::Judgment
+pub type nika_compile::surface::Judgment::Output = T
 #[non_exhaustive] pub struct nika_compile::surface::Ledger
 impl nika_compile::surface::Ledger
 pub fn nika_compile::surface::Ledger::extract(plan: &nika_compile_reader::plan::Plan) -> Self
@@ -572,6 +720,7 @@ pub fn nika_compile::surface::record_ledger(out: &mut nika_compile::CompileOutco
 pub fn nika_compile::surface::record_retrieval(out: &mut nika_compile::CompileOutcome, intent: &str, plan: core::option::Option<&nika_compile_reader::plan::Plan>)
 pub fn nika_compile::surface::record_route(out: &mut nika_compile::CompileOutcome, route: &[alloc::string::String])
 pub fn nika_compile::surface::replay(intent: &str, record: &serde_json::value::Value, request: &nika_compile::CompileRequest, out: &mut nika_compile::CompileOutcome) -> core::result::Result<(), nika_compile::CompileError>
+pub fn nika_compile::surface::replay_judged(intent: &str, record: &serde_json::value::Value, request: &nika_compile::CompileRequest, judgments: &[nika_compile::surface::Judgment], whole: bool, out: &mut nika_compile::CompileOutcome) -> core::result::Result<(), nika_compile::CompileError>
 pub fn nika_compile::surface::sha256(text: &str) -> alloc::string::String
 pub fn nika_compile::surface::spec_pin() -> &'static str
 pub fn nika_compile::surface::unresolved(reading: &nika_compile_reader::lexicon::Reading, out: &mut nika_compile::CompileOutcome)

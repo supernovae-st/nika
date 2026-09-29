@@ -17,7 +17,7 @@ use serde_json::{Value, json};
 use std::sync::atomic::Ordering;
 
 mod common;
-use common::{Provider, keys, policy};
+use common::{Judged, Provider, keys, policy};
 
 const COPY: &str = "Lis Notes équipe.txt et écris son contenu à l'identique dans Copie équipe.txt.";
 
@@ -430,7 +430,10 @@ async fn a_proposed_cold_plan_reads_the_whole_name_and_its_record_replays_it() {
     let request = CompileRequest::create(STOCK)
         .with_authoring_policy(policy())
         .answer("model", r#""mock/echo""#);
-    let out = compile_with_provider(&request, &provider).await.unwrap();
+    // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
+    let out = compile_with_provider(&request, &Judged::approving(&provider))
+        .await
+        .unwrap();
     assert_eq!(provider.calls.load(Ordering::SeqCst), 1);
     assert_eq!(out.provenance.strategy, Some(Strategy::Cold), "{out:#?}");
     let doc = document(&out);

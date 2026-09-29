@@ -315,13 +315,15 @@ fn seat(evidence: &str, write: &str, detail: &str, computation: &Value) -> (Stri
     (intent, plan)
 }
 
-/// A cold compile of `intent` whose one seat answer is `plan` (HOT is off, so the seat plans).
+/// A cold compile of `intent` whose one seat answer is `plan` (HOT is off, so the seat plans),
+/// judged by the explicit approving double (R4 A11): these tests read the bound rule.
 async fn cold((intent, plan): (String, Value)) -> CompileOutcome {
     let request = CompileRequest::create(&intent)
         .with_knowledge(common::observed(&[CSV]))
         .with_hot_policy(HotPolicy::Off)
         .with_authoring_policy(common::policy());
-    compile_with_provider(&request, &common::Provider::new(plan))
+    let provider = common::Provider::new(plan);
+    compile_with_provider(&request, &common::Judged::approving(&provider))
         .await
         .unwrap()
 }
@@ -501,7 +503,10 @@ async fn a_configured_seat_carries_the_selection_the_grammar_cannot_read() {
         .with_knowledge(common::observed(&[CSV]))
         .with_authoring_policy(common::policy());
     let provider = common::Provider::new(plan);
-    let out = compile_with_provider(&request, &provider).await.unwrap();
+    // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
+    let out = compile_with_provider(&request, &common::Judged::approving(&provider))
+        .await
+        .unwrap();
     assert!(provider.calls.load(std::sync::atomic::Ordering::SeqCst) >= 1);
     let route = out.provenance.decision.as_ref().unwrap()["route"].clone();
     assert_eq!(route[0], "hot rejected: 1 unresolved clause(s)", "{route}");
@@ -527,6 +532,10 @@ async fn a_configured_seat_carries_the_selection_the_grammar_cannot_read() {
         .filter(|d| d["evidence"] == stated)
         .collect();
     assert_eq!(same.len(), 1, "one duty per excerpt: {ledger:#}");
+    // No law reads these words from the bytes: the duty waited, unverified, for the judgment
+    // this round made over the candidate (R4 A11), which settled it.
+    assert_eq!(same[0]["witness"], "judged", "{ledger:#}");
+    assert_eq!(same[0]["state"], "realized", "{ledger:#}");
     let note = same[0]["note"].as_str().unwrap_or_default();
-    assert!(note.starts_with("unverified: "), "{ledger:#}");
+    assert!(note.starts_with("judged carried by "), "{ledger:#}");
 }

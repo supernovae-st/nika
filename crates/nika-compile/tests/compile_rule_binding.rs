@@ -17,6 +17,19 @@ use serde_json::{Value, json};
 mod common;
 use common::{Provider, keys, policy};
 
+/// An answer round under this round's judge, the explicit approving double over a seat that
+/// settles no other choice (R4 A11).
+async fn judged_replay(request: &CompileRequest) -> CompileOutcome {
+    let judge = common::JudgedSeat::approving(&common::NoChoice);
+    let cognition = nika_compile_cognition::Cognition::<nika_compile_cognition::NoProvider> {
+        provider: None,
+        seat: Some(&judge),
+    };
+    nika_compile_cognition::compile_with_cognition(request, cognition)
+        .await
+        .unwrap()
+}
+
 const TEXT: &str = "Every weekday at 8, read ./tickets.json, keep only the rows whose status is open and write them to ./out.json";
 const NUM: &str = "Every weekday at 8, read ./tickets.json, keep only the rows whose amount is strictly greater than 50 and write them to ./out.json";
 const BOTH: &str = "Every weekday at 8, read ./tickets.json, keep only the rows whose status is open and whose amount is strictly greater than 50 and write them to ./out.json";
@@ -357,11 +370,19 @@ fn till_record() -> Value {
 }
 
 /// A seat's typed computation is the fixpoint of the law that admitted it (R4 S0 B3): the
-/// record as written replays; an element that law would never admit is refused by name.
-#[test]
-fn a_seat_typed_rule_replays_only_as_the_law_that_admitted_it() {
+/// record as written replays; an element that law would never admit is refused by name. No law
+/// reads the typed meaning from the words, so a plain replay names it INCOMPLETE and a round's
+/// judge settles it (Q2, R4 A11).
+#[tokio::test]
+async fn a_seat_typed_rule_replays_only_as_the_law_that_admitted_it() {
     let out = replay(TILL, till_record());
-    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
+    let open = &out.provenance.decision.as_ref().unwrap()["pending"]["open"];
+    assert_eq!(open[0]["witness"], "unverified", "{open:#}");
+    let request = CompileRequest::create(TILL).with_plan(till_record());
+    let judged = judged_replay(&request).await;
+    assert_eq!(judged.status, CompileStatus::Ready, "{judged:#?}");
+    assert_eq!(judged.candidate, out.candidate);
     let aggregation = |record: &mut Value, key: &str, value: Value| {
         record["rules"][0]["shape"]["aggregations"][1][key] = value;
     };
@@ -389,16 +410,18 @@ fn a_seat_typed_rule_replays_only_as_the_law_that_admitted_it() {
         );
     }
     // OPEN, stated as such (not closed by this law, see the crate spec): an aggregate or a
-    // listed column the law admits can replace the recorded one unseen, because the law
-    // grounds a field only among the request's columns and an aggregate nowhere. Grounding
-    // literals in their clause (option 2) closes values and numbers, not these.
+    // listed column the law admits can replace the recorded one, because the law grounds a
+    // field only among the request's columns and an aggregate nowhere. Grounding literals in
+    // their clause (option 2) closes values and numbers, not these. Narrowed by R4 A11 (Q2):
+    // no longer READY unseen, it replays INCOMPLETE, the seat's typed meaning a remainder the
+    // round's judge reads against the whole request.
     for (key, value) in [("op", json!("max")), ("field", json!("ticket"))] {
         let mut record = till_record();
         aggregation(&mut record, key, value);
         let out = replay(TILL, record);
         assert_eq!(
             out.status,
-            CompileStatus::Ready,
+            CompileStatus::Incomplete,
             "OPEN hole moved: {key}: {out:#?}"
         );
     }

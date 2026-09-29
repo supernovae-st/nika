@@ -15,13 +15,15 @@
 //!   is never anchored, even two letters away.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 use nika_compile::{CompileOutcome, CompileRequest, CompileStatus, DiagnosticKind, compile};
-use nika_compile_cognition::compile_with_provider;
+use nika_compile_cognition::{
+    Cognition, NoProvider, compile_with_cognition, compile_with_provider,
+};
 use nika_compile_reader::plan::Plan;
 use serde_json::{Value, json};
 use std::sync::atomic::Ordering;
 
 mod common;
-use common::{Rotating, keys, policy};
+use common::{Judged, JudgedSeat, NoChoice, Rotating, keys, policy};
 
 const SHARED: &str = "Read ./data/people.json (name, email), keep the people whose email domain appears more than once, and write them to ./out/shared.json";
 const F7: &str = "Read ./data/people.json (name, email, status), keep only the rows whose status is active, keep the people whose email domain appears more than once, and write them to ./out/shared.json";
@@ -80,15 +82,28 @@ async fn pending(intent: &str, plan: Value, columns: &[&str]) -> Value {
     record
 }
 
-/// The answer round: the field answered, one regeneration call.
+/// The answer round: the field answered, one regeneration call, its first candidate judged by
+/// the explicit approving double (R4 A11).
 async fn continued(intent: &str, record: Value) -> (CompileOutcome, u32) {
     let provider = Rotating::new(vec![address_program().to_string()]);
     let request = CompileRequest::create(intent)
         .with_plan(record)
         .with_authoring_policy(policy())
         .answer("const.rule_field_1", "\"address\"");
-    let out = compile_with_provider(&request, &provider).await.unwrap();
+    let judged = Judged::approving(&provider);
+    let out = compile_with_provider(&request, &judged).await.unwrap();
     (out, provider.calls.load(Ordering::SeqCst))
+}
+
+/// A plain answer round under this round's judge, the explicit approving double over a seat
+/// that settles no other choice (R4 A11).
+async fn judged_replay(request: &CompileRequest) -> CompileOutcome {
+    let judge = JudgedSeat::approving(&NoChoice);
+    let cognition = Cognition::<NoProvider> {
+        provider: None,
+        seat: Some(&judge),
+    };
+    compile_with_cognition(request, cognition).await.unwrap()
 }
 
 /// The continuation findings that say the record no longer matches its request.
@@ -108,9 +123,9 @@ fn regeneration(out: &CompileOutcome) -> Value {
         .unwrap_or(Value::Null)
 }
 
-/// What the fcf290a7b compiler answered for each record (E14 `old-consumes-old-r3`): the
-/// paraphrased computation is READY; the detail two computations share asks for its expression
-/// (the assembler binds one computation), which is no staleness.
+/// What the fcf290a7b compiler answered for each record (E14 `old-consumes-old-r3`), in a round
+/// that judges: the paraphrased computation is READY; the detail two computations share asks
+/// for its expression (the assembler binds one computation), which is no staleness.
 fn as_it_replayed_there(name: &str, out: &CompileOutcome) {
     assert!(stale(out).is_empty(), "{name}: {out:#?}");
     if name.starts_with("para") {
@@ -126,14 +141,41 @@ fn as_it_replayed_there(name: &str, out: &CompileOutcome) {
     }
 }
 
-#[test]
-fn historical_verified_records_replay_at_zero_calls_as_they_did() {
+/// The same records in a plain replay (Q2, R4 A11): readable and never stale, no grandfathered
+/// READY. The seat's program is a clause no law reads from the bytes, so the paraphrased record
+/// emits its program and names that remainder INCOMPLETE; the joined one asks as before.
+fn as_q2_replays_it(name: &str, out: &CompileOutcome) {
+    assert!(stale(out).is_empty(), "{name}: {out:#?}");
+    assert_eq!(out.status, CompileStatus::Incomplete, "{name}: {out:#?}");
+    if name.starts_with("para") {
+        let candidate = out.candidate.as_deref().unwrap();
+        assert!(
+            candidate.contains("group_by(.address"),
+            "{name}: {candidate}"
+        );
+        let open = &out.provenance.decision.as_ref().unwrap()["pending"]["open"];
+        assert_eq!(open[0]["witness"], "unverified", "{name}: {open:#}");
+    } else {
+        assert_eq!(keys(out), ["const.rule_expression"], "{name}: {out:#?}");
+    }
+}
+
+#[tokio::test]
+async fn historical_verified_records_replay_at_zero_calls_as_they_did() {
     for name in ["para-verified", "f7-verified"] {
         let record = historical(name);
         let intent = record["verified_transform"]["intent"].as_str().unwrap();
-        let out = compile(&CompileRequest::create(intent).with_plan(record.clone())).unwrap();
-        as_it_replayed_there(name, &out);
+        let request = CompileRequest::create(intent).with_plan(record.clone());
+        let out = compile(&request).unwrap();
+        as_q2_replays_it(name, &out);
         assert!(out.provenance.authoring.is_none(), "{name}: a paid replay");
+        // A round that judges settles the remainder, and answers as the old compiler did.
+        let judged = judged_replay(&request).await;
+        as_it_replayed_there(name, &judged);
+        assert!(
+            judged.provenance.authoring.is_none(),
+            "{name}: a paid judge"
+        );
     }
 }
 
@@ -168,9 +210,10 @@ async fn historical_pending_records_continue_after_their_field_answer() {
             "{name}: {out:#?}"
         );
         as_it_replayed_there(name, &out);
-        // The verified record it wrote replays at zero calls, to the same outcome.
+        // The verified record it wrote replays at zero calls, the same bytes, its remainder
+        // INCOMPLETE until a round judges it (Q2).
         let replay = compile(&CompileRequest::create(intent).with_plan(verified)).unwrap();
-        as_it_replayed_there(name, &replay);
+        as_q2_replays_it(name, &replay);
         assert!(
             replay.provenance.authoring.is_none(),
             "{name}: a paid replay"
@@ -321,7 +364,10 @@ async fn seat_compile(intent: &str, constraint: &str) -> CompileOutcome {
     let request = CompileRequest::create(intent)
         .with_authoring_policy(policy())
         .with_knowledge(observed(&["name", "email", "status"]));
-    compile_with_provider(&request, &provider).await.unwrap()
+    // Judged by the explicit approving double (R4 A11): these tests read the emitted workflow.
+    compile_with_provider(&request, &Judged::approving(&provider))
+        .await
+        .unwrap()
 }
 
 /// E14 `seat-*-r2`: the fcf290a7b compiler compiled these READY; the rule anchoring made the
@@ -329,10 +375,21 @@ async fn seat_compile(intent: &str, constraint: &str) -> CompileOutcome {
 #[tokio::test]
 async fn a_rule_in_the_requests_words_is_anchored_whatever_their_spacing() {
     let folded = "keep only the rows whose status is active";
-    for intent in [
-        "Read ./data/people.json (name, email, status), keep only the rows whose status is active, and write them to ./out/active.json",
-        "Read ./data/people.json (name, email, status), keep only the rows whose status  is active, and write them to ./out/active.json",
-        "Read ./data/people.json (name, email, status), keep only the rows whose status\nis active, and write them to ./out/active.json",
+    // Whether the plain replay is closed with no judge: a line break the reader reads as a
+    // boundary leaves a fragment across two named elements, a remainder a round judges (Q2).
+    for (intent, closed) in [
+        (
+            "Read ./data/people.json (name, email, status), keep only the rows whose status is active, and write them to ./out/active.json",
+            true,
+        ),
+        (
+            "Read ./data/people.json (name, email, status), keep only the rows whose status  is active, and write them to ./out/active.json",
+            true,
+        ),
+        (
+            "Read ./data/people.json (name, email, status), keep only the rows whose status\nis active, and write them to ./out/active.json",
+            false,
+        ),
     ] {
         let out = seat_compile(intent, folded).await;
         assert_eq!(out.status, CompileStatus::Ready, "{intent:?}: {out:#?}");
@@ -341,15 +398,27 @@ async fn a_rule_in_the_requests_words_is_anchored_whatever_their_spacing() {
             candidate.contains("select(.status == \"active\")"),
             "{candidate}"
         );
-        // Its record replays at zero calls to the same candidate.
+        // Its record replays at zero calls to the same candidate: READY when its duties are
+        // closed, else INCOMPLETE until a round judges its remainder.
         let record = out.provenance.plan.clone().unwrap();
-        let replay = compile(&CompileRequest::create(intent).with_plan(record)).unwrap();
-        assert_eq!(
-            replay.status,
-            CompileStatus::Ready,
-            "{intent:?}: {replay:#?}"
-        );
+        let request = CompileRequest::create(intent).with_plan(record);
+        let replay = compile(&request).unwrap();
+        let status = if closed {
+            CompileStatus::Ready
+        } else {
+            CompileStatus::Incomplete
+        };
+        assert_eq!(replay.status, status, "{intent:?}: {replay:#?}");
         assert_eq!(replay.candidate, out.candidate, "{intent:?}");
+        if !closed {
+            let judged = judged_replay(&request).await;
+            assert_eq!(
+                judged.status,
+                CompileStatus::Ready,
+                "{intent:?}: {judged:#?}"
+            );
+            assert_eq!(judged.candidate, out.candidate, "{intent:?}");
+        }
     }
 }
 

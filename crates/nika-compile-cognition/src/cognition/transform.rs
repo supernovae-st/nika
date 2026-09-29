@@ -237,12 +237,15 @@ fn unstated_computations<'a>(plan: &'a Plan, hint: &[String]) -> Vec<&'a Step> {
 /// Ask the seat for a verified program on every computation the typed stages could not
 /// state, at most [`MAX_CALLS`] per request; a verified program joins the plan's rules, a
 /// refused one is recorded with its counterexample and leaves the assembler's own question.
+/// After a verifier repair the seat also reads the parts the judge found missing
+/// (`verifier_defects`, R4 A11): a repaired plan never keeps the program of the plan it replaced.
 pub(super) async fn synthesize<P: ProviderInferDyn>(
     intent: &str,
     plan: &mut Plan,
     policy: &AuthoringPolicy,
     provider: &P,
     request: &crate::CompileRequest,
+    defects: &[String],
     out: &mut CompileOutcome,
 ) -> Option<PendingTransform> {
     // An explicit answer to the rule question wins: nothing is asked of the seat.
@@ -260,14 +263,17 @@ pub(super) async fn synthesize<P: ProviderInferDyn>(
         .collect();
     let mut records = Vec::new();
     let mut pending_state = None;
-    let mut repairs = domain::Repairs::granted(policy);
+    let mut repairs = domain::Repairs::granted(policy, out);
     for step in pending {
-        let state = json!({
+        let mut state = json!({
             "request": intent,
             "clause": step.evidence,
             "computation": step.detail,
             "columns": hint,
         });
+        if !defects.is_empty() {
+            state["verifier_defects"] = json!(defects);
+        }
         let answer = propose(policy, provider, state.clone(), out).await;
         let program = answer.as_ref().map(|proposed| proposed.jq.clone()).ok();
         let verdict = answer.and_then(|proposed| {
@@ -321,11 +327,7 @@ pub(super) async fn synthesize<P: ProviderInferDyn>(
             break;
         }
     }
-    if !records.is_empty() {
-        let mut decision = out.provenance.decision.take().unwrap_or_else(|| json!({}));
-        decision["transforms"] = json!(records);
-        out.provenance.decision = Some(decision);
-    }
+    domain::record(out, "transforms", records);
     pending_state
 }
 
@@ -1247,21 +1249,40 @@ mod tests {
         }
     }
 
-    /// A seat that answers every authoring call with one fixed plan.
-    struct Planned(String);
+    /// A seat that answers every authoring call with one fixed plan. It answers the judge's
+    /// closed choice (R4 A11) only as [`Planned::approving`], a test's explicit opt-in: these
+    /// tests read the emitted program; the semantic suites judge for real.
+    struct Planned(String, bool);
+
+    impl Planned {
+        fn approving(plan: String) -> Self {
+            Self(plan, true)
+        }
+    }
 
     impl ProviderInferDyn for Planned {
         async fn infer(
             &self,
-            _: nika_kernel::ai::provider::InferRequest,
+            request: nika_kernel::ai::provider::InferRequest,
         ) -> Result<
             nika_kernel::ai::provider::InferResponse,
             nika_kernel::ai::provider::ProviderError,
         > {
+            let choice = match &request.response_format {
+                nika_kernel::ai::provider::ResponseFormat::JsonSchema(schema) if self.1 => {
+                    schema["properties"]["choice"]["enum"]
+                        .as_array()
+                        .and_then(|keys| {
+                            ["faithful", "carried"]
+                                .into_iter()
+                                .find(|key| keys.iter().any(|k| k == key))
+                        })
+                }
+                _ => None,
+            };
+            let text = choice.map_or_else(|| self.0.clone(), |c| json!({"choice": c}).to_string());
             Ok(nika_kernel::ai::provider::InferResponse::new(
-                vec![ContentBlock::Text {
-                    text: self.0.clone(),
-                }],
+                vec![ContentBlock::Text { text }],
                 nika_kernel::ai::provider::TokenUsage::new(1, 1),
                 StopReason::EndTurn,
             ))
@@ -1301,7 +1322,7 @@ mod tests {
             .with_knowledge(observed)
             .with_hot_policy(nika_compile::HotPolicy::Off)
             .with_authoring_policy(policy);
-        let out = crate::compile_with_provider(&request, &Planned(plan.to_string()))
+        let out = crate::compile_with_provider(&request, &Planned::approving(plan.to_string()))
             .await
             .unwrap();
         assert_eq!(out.status, nika_compile::CompileStatus::Ready, "{out:#?}");
@@ -1390,7 +1411,7 @@ mod tests {
         let request = nika_compile::CompileRequest::create(&intent)
             .with_knowledge(observed)
             .with_authoring_policy(policy);
-        let out = crate::compile_with_provider(&request, &Planned(plan.to_string()))
+        let out = crate::compile_with_provider(&request, &Planned::approving(plan.to_string()))
             .await
             .unwrap();
         assert_eq!(out.status, nika_compile::CompileStatus::Ready, "{out:#?}");
@@ -1441,7 +1462,7 @@ mod tests {
             .with_knowledge(observed)
             .with_hot_policy(nika_compile::HotPolicy::Off)
             .with_authoring_policy(policy);
-        let out = crate::compile_with_provider(&request, &Planned(plan.to_string()))
+        let out = crate::compile_with_provider(&request, &Planned::approving(plan.to_string()))
             .await
             .unwrap();
         assert!(

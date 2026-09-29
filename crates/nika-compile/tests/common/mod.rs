@@ -47,6 +47,94 @@ impl ProviderInferDyn for Provider {
         ))
     }
 }
+/// An explicit judge double (R4 A11): the verifier's closed choices (the whole request, a clause)
+/// are answered with an approval and counted; every other call goes to the wrapped provider
+/// unchanged. A suite that reads the emitted program, not the judgment, opts in by naming it;
+/// without it the provider's own text answers the judge, and no model-shaped plan is READY.
+pub(crate) struct Judged<'a, P> {
+    pub(crate) inner: &'a P,
+    pub(crate) judged: AtomicU32,
+}
+impl<'a, P> Judged<'a, P> {
+    pub(crate) fn approving(inner: &'a P) -> Self {
+        Self {
+            inner,
+            judged: AtomicU32::new(0),
+        }
+    }
+}
+impl<P: ProviderInferDyn> ProviderInferDyn for Judged<'_, P> {
+    async fn infer(&self, request: InferRequest) -> Result<InferResponse, ProviderError> {
+        if let Some(key) = approval(&request) {
+            self.judged.fetch_add(1, Ordering::SeqCst);
+            return Ok(InferResponse::new(
+                vec![ContentBlock::Text {
+                    text: json!({"choice": key}).to_string(),
+                }],
+                TokenUsage::new(1, 1),
+                StopReason::EndTurn,
+            ));
+        }
+        self.inner.infer(request).await
+    }
+}
+/// The same explicit judge double over a decision seat (R4 A11): the verifier's questions are
+/// approved and counted; every other closed choice goes to the wrapped seat unchanged.
+pub(crate) struct JudgedSeat<'a> {
+    pub(crate) inner: &'a dyn DecisionSeat,
+    pub(crate) judged: AtomicU32,
+}
+impl<'a> JudgedSeat<'a> {
+    pub(crate) fn approving(inner: &'a dyn DecisionSeat) -> Self {
+        Self {
+            inner,
+            judged: AtomicU32::new(0),
+        }
+    }
+}
+impl DecisionSeat for JudgedSeat<'_> {
+    fn name(&self) -> &str {
+        self.inner.name()
+    }
+    fn choose<'b>(&'b self, question: &'b ChoiceQuestion) -> ChoiceFuture<'b> {
+        let keys = question.keys();
+        let Some(key) = ["faithful", "carried"]
+            .into_iter()
+            .find(|key| keys.iter().any(|k| k == key))
+        else {
+            return self.inner.choose(question);
+        };
+        self.judged.fetch_add(1, Ordering::SeqCst);
+        Box::pin(async move { Ok(ChoiceAnswer::new(key, self.inner.name())) })
+    }
+}
+/// A decision seat that settles no choice of its own: the inner seat of a judge double where a
+/// test permits no other decision.
+pub(crate) struct NoChoice;
+impl DecisionSeat for NoChoice {
+    fn name(&self) -> &'static str {
+        "test/no-choice"
+    }
+    fn choose<'b>(&'b self, _: &'b ChoiceQuestion) -> ChoiceFuture<'b> {
+        Box::pin(async {
+            Err(nika_compile_cognition::decide::DecisionError(
+                "this seat settles no choice".to_owned(),
+            ))
+        })
+    }
+}
+/// The approval a verifier question offers: `faithful` for the whole request, `carried` for a
+/// clause; `None` for any other call.
+fn approval(request: &InferRequest) -> Option<&'static str> {
+    let nika_kernel::ai::provider::ResponseFormat::JsonSchema(schema) = &request.response_format
+    else {
+        return None;
+    };
+    let keys = schema["properties"]["choice"]["enum"].as_array()?;
+    ["faithful", "carried"]
+        .into_iter()
+        .find(|key| keys.iter().any(|k| k == key))
+}
 pub(crate) fn policy() -> AuthoringPolicy {
     AuthoringPolicy::new("mock/authoring", 1024, Duration::from_secs(2))
 }

@@ -93,6 +93,34 @@ clause's predicate, or returns another shape, holds them), which stays the whole
 verifier's; the scalar reading rests on the example the seat chose, so it proves neither that
 the request asked a scalar nor that the sum is complete.
 
+A candidate a model's plan shaped is judged against the whole request before READY
+(`cognition::verify`, R4 A11). The core names what no law reads from the bytes: a duty a
+step's words only restate (a label), a task carrying words no law reads (unverified), a clause
+no element of the plan names, and, for the first candidate of a WARM or COLD plan, the whole
+request. The judge answers one closed question per pending clause (`carried` · `missing` ·
+`no_operation` when no element claims it, or NONE) and then the whole request (`faithful` ·
+`unfaithful`, then the part it misses, located over the request's own text). Each question
+shows the request as compiled and as first stated, its answers, the observed world and the
+candidate's own bytes; labels, task names, comments and generator confidence are claims, never
+evidence. A judgment is admitted by the core only under the binding it recomputes (request,
+original request, answers, observed world, stated plan, candidate bytes, clause and span), so a
+judgment of other bytes, another clause or another round settles nothing, and `no_operation`
+never settles a claimed, whole or restrictive clause. The judge is the caller's decision seat,
+else the authoring provider asked through the journaled authoring call: its calls, usage and
+failures ride the authoring receipt with every other call, under the same physical ceiling,
+and `usage_complete` covers them; each attempt records its own usage under
+`semantic_verification`. A part found missing is a concrete defect: COLD repairs from it within
+the policy's repairs, the repair call carrying the judge's own state, and a repaired plan's
+computations go through the transform seat again with the judge's defects, so no program of the
+plan it replaced survives; WARM makes no proposal and stays INCOMPLETE. An abstention, a failed
+judge or exhausted repairs leave the request INCOMPLETE naming the clause and the next action,
+never a question for what the request already says. An answer round replays its record through
+`replay_judged`: deterministically closed duties replay as they are, with no call; the remainder
+the core names is judged by the round's judge, or stays INCOMPLETE when the round has none; a
+field answer's regeneration is the first candidate of its plan and is judged whole. Nothing a
+record or a request carries is read as a judgment. The judge is a model: its approval is bounded
+evidence, not proof; a clause a line break splits across two named elements is judged, not read.
+
 An observed world states names; it does not answer a choice the request leaves open. The
 judge refuses a question for a column, field, key or value an observed file states, except
 one: a `const.<x>_column` · `_col` · `_field` · `_header` question when the request speaks of

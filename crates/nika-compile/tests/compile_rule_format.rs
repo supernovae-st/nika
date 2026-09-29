@@ -10,7 +10,7 @@ use nika_compile_cognition::compile_with_provider;
 use serde_json::{Value, json};
 
 mod common;
-use common::{Provider, keys, policy};
+use common::{Judged, Provider, keys, policy};
 
 const PODIO: &str = "./carrera/resultados.csv → los tres corredores más rápidos (menor tiempo_seg), del más rápido al más lento, mismas columnas → ./out/podio.csv";
 
@@ -32,7 +32,10 @@ async fn a_format_the_rule_states_is_carried_by_the_compute_task() {
     let seen: &[&str] = &["corredor", "dorsal", "tiempo_seg"];
     let req = (CompileRequest::create(PODIO).with_authoring_policy(policy()))
         .with_knowledge(common::observed(&[("./carrera/resultados.csv", seen)]));
-    let out = compile_with_provider(&req, &provider).await.unwrap();
+    // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
+    let out = compile_with_provider(&req, &Judged::approving(&provider))
+        .await
+        .unwrap();
     assert!(
         !out.diagnostics
             .iter()

@@ -110,8 +110,18 @@ fn probes(example: &[Value]) -> impl Iterator<Item = Value> + '_ {
 pub(super) struct Repairs(u32);
 
 impl Repairs {
-    pub(super) fn granted(policy: &AuthoringPolicy) -> Self {
-        Self(policy.repairs.min(5))
+    /// What the policy still grants this request: its repairs, less the attempts the request
+    /// already recorded (a synthesis re-entered after a verifier repair spends the same
+    /// allowance, never a new one).
+    pub(super) fn granted(policy: &AuthoringPolicy, out: &CompileOutcome) -> Self {
+        let spent = out
+            .provenance
+            .decision
+            .as_ref()
+            .and_then(|d| d["transform_repairs"].as_array())
+            .map_or(0, Vec::len);
+        let spent = u32::try_from(spent).unwrap_or(u32::MAX);
+        Self(policy.repairs.min(5).saturating_sub(spent))
     }
 
     /// A program a domain law refused is repaired from once while the allowance lasts: the seat
@@ -166,20 +176,27 @@ impl Repairs {
                 clause.trim()
             ),
         );
-        let mut decision = out.provenance.decision.take().unwrap_or_else(|| json!({}));
-        let mut attempts = decision["transform_repairs"]
-            .as_array()
-            .cloned()
-            .unwrap_or_default();
-        attempts.push(json!({"clause": clause, "refused_jq": program, "why": why, "call": call}));
-        decision["transform_repairs"] = json!(attempts);
-        out.provenance.decision = Some(decision);
+        let attempt = json!({"clause": clause, "refused_jq": program, "why": why, "call": call});
+        record(out, "transform_repairs", vec![attempt]);
         answer.map_err(|Refusal(none)| {
             Refusal(format!(
                 "{why}; the repair from it got no answer ({told}: {none})"
             ))
         })
     }
+}
+
+/// Append `entries` to the decision's `key` list: a request keeps every synthesis and every
+/// repair attempt it made, in order, never only the last.
+pub(super) fn record(out: &mut CompileOutcome, key: &str, entries: Vec<Value>) {
+    if entries.is_empty() {
+        return;
+    }
+    let mut decision = out.provenance.decision.take().unwrap_or_else(|| json!({}));
+    let mut kept = decision[key].as_array().cloned().unwrap_or_default();
+    kept.extend(entries);
+    decision[key] = json!(kept);
+    out.provenance.decision = Some(decision);
 }
 
 /// The calls the receipt journaled so far, in call order.

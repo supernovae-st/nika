@@ -16,8 +16,8 @@ use serde_json::{Value, json};
 
 mod common;
 use common::{
-    ChoosePlan, INTENT, Provider, Rotating, disagreeing_provider, keys, plan, policy, request,
-    route,
+    ChoosePlan, INTENT, Judged, Provider, Rotating, disagreeing_provider, keys, plan, policy,
+    request, route,
 };
 use std::sync::{
     Mutex,
@@ -47,13 +47,17 @@ async fn cold_best_of_three_keeps_the_plan_the_others_agree_with() {
             "const.refund_endpoint",
             r#""https://refund.example.invalid/refunds""#,
         );
-    let out = compile_with_provider(&req, &provider).await.unwrap();
+    // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
+    let judged = Judged::approving(&provider);
+    let out = compile_with_provider(&req, &judged).await.unwrap();
     assert_eq!(provider.calls.load(Ordering::SeqCst), 3);
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     assert_eq!(out.provenance.strategy, Some(Strategy::Cold));
+    // The three samples, then the judge's one whole-request question, journaled with them.
+    assert_eq!(judged.judged.load(Ordering::SeqCst), 1);
     let receipt = out.provenance.authoring.as_ref().unwrap();
-    assert_eq!(receipt.calls, 3);
-    assert_eq!(receipt.input_tokens, Some(300));
+    assert_eq!(receipt.calls, 3 + 1);
+    assert_eq!(receipt.input_tokens, Some(300 + 1));
     let doc = outcome_document(&out);
     assert_eq!(
         doc["provenance"]["decision"]["cold_samples"]["requested"],
@@ -149,14 +153,18 @@ async fn cold_repairs_an_unanchored_excerpt_with_one_bounded_call() {
             "const.refund_endpoint",
             r#""https://refund.example.invalid/refunds""#,
         );
-    let out = compile_with_provider(&req, &provider).await.unwrap();
+    // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
+    let judged = Judged::approving(&provider);
+    let out = compile_with_provider(&req, &judged).await.unwrap();
     assert_eq!(provider.calls.load(Ordering::SeqCst), 2);
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     assert_eq!(out.provenance.strategy, Some(Strategy::Cold));
+    // The opening and its repair, then the judge's one whole-request question.
+    assert_eq!(judged.judged.load(Ordering::SeqCst), 1);
     let receipt = out.provenance.authoring.as_ref().unwrap();
-    assert_eq!(receipt.calls, 2);
-    assert_eq!(receipt.input_tokens, Some(200));
-    assert_eq!(receipt.output_tokens, Some(100));
+    assert_eq!(receipt.calls, 2 + 1);
+    assert_eq!(receipt.input_tokens, Some(200 + 1));
+    assert_eq!(receipt.output_tokens, Some(100 + 1));
     let doc = outcome_document(&out);
     assert!(route(&doc).contains("cold: repair 1"), "{}", route(&doc));
     assert_eq!(
