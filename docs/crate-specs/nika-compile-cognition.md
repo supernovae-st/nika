@@ -99,30 +99,32 @@ A11), under the bounded canonical-spelling law of R4 A5, defined once
 seat's programs. A binding is a column of the request's one stated source whose host-observed
 categorical values spell, with other bytes, a literal the clause states at exact token
 boundaries (`stated_spellings`: never inside another word, never a column name, never a
-byte-identical spelling; no case or compatibility folding). A program reading a bound column
-must not drop either spelling: on each one-row source of its own example with the column set to
-the stated literal, to the observed spelling, and to a text neither spells (U+2400), it must not
-treat exactly one of the two spellings as it treats that unmatched text (a byte comparison drops
-the rows spelled the other way), nor return a value on one spelling and fail on the other. Every
-string value and key exactly equal to a probe's own text reads back to one placeholder, so
-echoing or grouping the value is no difference; an error on both spellings is none (the row errs
-whatever the spelling, and the value laws and the run own that error). What the program makes of
-the value itself (a label, ASCII uppercase, a code-point length, an encoding of its bytes) may
-differ between the spellings by its very definition: that is the request's to ask and the
-whole-request verifier's to judge, never this law's to refuse (those four valid intents were
-refused by an earlier output comparison, measured with a frozen RED). A refused program is named
-with the column, both spellings and their code points, and goes back to the seat within the same
-one allowance (`transform_repair`); with none left the request stays INCOMPLETE. The stated
-literal stays the request's, the program's bytes are never rewritten, and the observed spelling
-of a stated literal is no invented literal. The transform state carries the host's categorical
-values (`observed_values`), so a first program can compare the source's own spelling. The
-offline counterexample « …status is livré » over an observed e + U+0301 was READY and summed
-nothing (H1, RED frozen before the fix); it is now refused, then repaired or INCOMPLETE, and a
-program matching both spellings is no longer refused as an invented literal. The law covers the
-seat's own example rows and the host's bounded sample: a spelling the sample did not show, a
-column without categorical values and a literal the clause does not state bind nothing, a
-program treating the observed spelling some third way (neither as the stated one nor as
-unmatched) is left to the verifier, and passing it proves no equivalence of meaning.
+byte-identical spelling; no case or compatibility folding). A program must not drop either
+spelling of a bound column, whatever columns its `columns_read` declares (a bracket read escapes
+a declaration, and a column the program never reads moves none of its outputs): on each one-row
+source of its own example with the column set to the stated literal, to the observed spelling,
+and to a text neither spells (U+2400), it must not treat exactly one of the two spellings as it
+treats that unmatched text (a byte comparison drops the rows spelled the other way), nor return
+a value on one spelling and fail on the other. Every string value and key exactly equal to a
+probe's own text reads back to one placeholder, so echoing or grouping the value is no
+difference; an error on both spellings is none (the row errs whatever the spelling, and the
+value laws and the run own that error). What the program makes of the value itself (a label,
+ASCII uppercase, a code-point length, an encoding of its bytes) may differ between the spellings
+by its very definition: that is the request's to ask and the whole-request verifier's to judge,
+never this law's to refuse (those four valid intents were refused by an earlier output
+comparison, measured with a frozen RED). A refused program is named with the column, both
+spellings and their code points, and goes back to the seat within the same one allowance
+(`transform_repair`); with none left the request stays INCOMPLETE. The stated literal stays the
+request's, the program's bytes are never rewritten, and the observed spelling of a stated
+literal is no invented literal. The transform state carries the host's categorical values
+(`observed_values`), so a first program can compare the source's own spelling. The offline
+counterexample « …status is livré » over an observed e + U+0301 was READY and summed nothing
+(H1, RED frozen before the fix); it is now refused, then repaired or INCOMPLETE, and a program
+matching both spellings is no longer refused as an invented literal. The law covers the seat's
+own example rows and the host's bounded sample: a spelling the sample did not show, a column
+without categorical values and a literal the clause does not state bind nothing, a program
+treating the observed spelling some third way (neither as the stated one nor as unmatched) is
+left to the verifier, and passing it proves no equivalence of meaning.
 
 A candidate a model's plan shaped is judged against the whole request before READY
 (`cognition::verify`, R4 A11). The core names what no law reads from the bytes: a duty a

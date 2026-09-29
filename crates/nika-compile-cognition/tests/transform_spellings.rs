@@ -605,6 +605,68 @@ async fn a_requested_transformation_dropping_the_observed_spelling_is_refused() 
     }
 }
 
+/// A program reading the bound column without declaring it (a bracket read, its `columns_read`
+/// naming only `qty`) is held to the law all the same: every bound column is probed, whatever the
+/// seat declares. Comparing bytes there drops the observed spelling: it is refused, repaired from
+/// that defect, and the repaired program sums the delivered rows.
+#[tokio::test]
+async fn an_undeclared_read_of_a_bound_column_is_probed() {
+    let jq = format!(
+        ".records | map(select(.[\"status\"] == {}) | .qty | tonumber) | add // 0",
+        json!(LIVRE_NFC)
+    );
+    let seat = Seat::new(vec![
+        request_of(&livre()).1.to_string(),
+        program(&jq, &["qty"], &json!(40)),
+        summing(&[LIVRE_NFC, LIVRE_NFD]),
+    ]);
+    let world = spelled(&[LIVRE_NFD, "en attente"], &["x", "y"]);
+    let out = compiled(&seat, &livre(), world, 1).await;
+    assert_eq!(
+        authored(&out),
+        ["plan", "transform", "transform_repair"],
+        "{out:#?}"
+    );
+    let program = compute(&out);
+    assert_eq!(run(&program, &delivered(LIVRE_NFD)), json!(42), "{program}");
+}
+
+/// A program that truly does not use the bound column (it sums every row, reading only `qty`) is
+/// admitted as it is: the probes move none of its outputs. Whether it answers the request is the
+/// verifier's to judge, never the spelling law's.
+#[tokio::test]
+async fn a_program_not_using_the_bound_column_is_admitted() {
+    let jq = ".records | map(.qty | tonumber) | add // 0";
+    let seat = Seat::new(vec![
+        request_of(&livre()).1.to_string(),
+        program(jq, &["qty"], &json!(55)),
+    ]);
+    let world = spelled(&[LIVRE_NFD, "en attente"], &["x", "y"]);
+    let out = compiled(&seat, &livre(), world, 1).await;
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert_eq!(authored(&out), ["plan", "transform"], "{out:#?}");
+}
+
+/// An undeclared read that treats both spellings alike is admitted as it is: the law refuses a
+/// dropped spelling, never an undeclared column as such.
+#[tokio::test]
+async fn an_undeclared_read_honoring_both_spellings_is_admitted() {
+    let jq = format!(
+        ".records | map(select(.[\"status\"] == {} or .[\"status\"] == {}) | .qty | tonumber) | add // 0",
+        json!(LIVRE_NFC),
+        json!(LIVRE_NFD)
+    );
+    let seat = Seat::new(vec![
+        request_of(&livre()).1.to_string(),
+        program(&jq, &["qty"], &json!(40)),
+    ]);
+    let world = spelled(&[LIVRE_NFD, "en attente"], &["x", "y"]);
+    let out = compiled(&seat, &livre(), world, 1).await;
+    let program = compute(&out);
+    assert_eq!(authored(&out), ["plan", "transform"], "{out:#?}");
+    assert_eq!(run(&program, &delivered(LIVRE_NFD)), json!(42), "{program}");
+}
+
 /// The binding and the law, as the core states them: a literal at exact token boundaries only,
 /// never inside another word nor a column name, never a byte-identical spelling, and no case or
 /// compatibility (NFKC) folding.

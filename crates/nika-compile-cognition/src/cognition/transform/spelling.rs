@@ -7,7 +7,9 @@
 //! categorical values spell, with other bytes, a literal the clause states at exact token
 //! boundaries ([`nika_compile::surface::observed::stated_spellings`]).
 //!
-//! A program reading a bound column must not drop either spelling: on each one-row source of the
+//! A program must not drop either spelling of a bound column, whether or not its `columns_read`
+//! declares that column (a bracket read escapes a declaration; a column the program never reads
+//! moves none of its outputs, so probing it refuses nothing): on each one-row source of the
 //! seat's own example with the column set to the stated literal, to the observed spelling, and
 //! to a text neither spells ([`UNMATCHED`]), it must not treat exactly one of the two spellings
 //! as it treats that unmatched text (the rows spelled that way would be dropped, as a byte
@@ -91,16 +93,15 @@ impl Spelled {
         self.bound.iter().any(|b| b.observed == literal)
     }
 
-    /// The law over `proposed`: each binding of a column it reads, on each one-row source of its
-    /// own example (the module's law).
+    /// The law over `proposed`: every binding, whatever columns it declares, on each one-row
+    /// source of its own example (the module's law).
     pub(super) fn honored(&self, proposed: &ProposedTransform) -> Result<(), Refusal> {
         let program = proposed.jq.trim();
         let example = proposed
             .example_input
             .as_array()
             .map_or(&[][..], Vec::as_slice);
-        let read = |b: &&Bound| proposed.columns_read.contains(&b.column);
-        for bound in self.bound.iter().filter(read) {
+        for bound in &self.bound {
             for row in example.iter().filter(|row| row.is_object()) {
                 let probe = |text: &str| {
                     let mut row = row.clone();
