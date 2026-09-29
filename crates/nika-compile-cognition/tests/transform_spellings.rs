@@ -471,50 +471,6 @@ async fn an_observed_spelling_the_program_fails_on_is_refused() {
     assert_eq!(run(&program, &delivered(LIVRE_NFD)), json!(42), "{program}");
 }
 
-/// A program that transforms the value's text (it embeds it in a longer label, or changes its
-/// case) is not read back: only an exact value or key equal to the observed spelling is. The
-/// bounded law refuses it rather than inferring what the text became, a possible false refusal
-/// it reports; with no repair granted the request stays INCOMPLETE, naming both spellings.
-#[tokio::test]
-async fn a_program_transforming_the_value_text_is_refused() {
-    let both = format!(
-        ".status == {} or .status == {}",
-        json!(LIVRE_NFC),
-        json!(LIVRE_NFD)
-    );
-    let label = format!(
-        ".records | map(select({both})) | {{labels: (map(.status + \" rows\") | unique), total: (map(.qty | tonumber) | add // 0)}}"
-    );
-    let upper = format!(
-        ".records | map(select({both})) | {{labels: (map(.status | ascii_upcase) | unique), total: (map(.qty | tonumber) | add // 0)}}"
-    );
-    let answers = [
-        program(
-            &label,
-            &["status", "qty"],
-            &json!({"labels": [format!("{LIVRE_NFC} rows")], "total": 40}),
-        ),
-        program(
-            &upper,
-            &["status", "qty"],
-            &json!({"labels": ["LIVR\u{e9}"], "total": 40}),
-        ),
-    ];
-    for answer in answers {
-        let seat = Seat::new(vec![request_of(&livre()).1.to_string(), answer]);
-        let world = spelled(&[LIVRE_NFD, "en attente"], &["x", "y"]);
-        let out = compiled(&seat, &livre(), world, 0).await;
-        assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
-        assert_eq!(authored(&out), ["plan", "transform"], "{out:#?}");
-        assert!(
-            out.diagnostics.iter().any(
-                |d| d.target == "authoring_transform" && d.message.contains(&points(LIVRE_NFD))
-            ),
-            "{out:#?}"
-        );
-    }
-}
-
 /// A row the program fails on whatever the spelling (here an odd quantity) is no spelling
 /// difference: the program is equally undefined for both, so the law compares nothing there and
 /// the value laws and the run own that error. The other rows agree; the program is admitted as
@@ -535,6 +491,118 @@ async fn a_row_failing_whatever_the_spelling_is_no_spelling_difference() {
     let program = compute(&out);
     assert_eq!(authored(&out), ["plan", "transform"], "{out:#?}");
     assert_eq!(run(&program, &delivered(LIVRE_NFD)), json!(42), "{program}");
+}
+
+/// The request of the sum with each kept status also transformed as `suffix` states, compiled with
+/// no repair granted over a status observed as e + U+0301; the seat's program keeps the rows of
+/// `spellings` and applies `transform` to each kept status, as the request asks.
+async fn requested(
+    suffix: &str,
+    spellings: &[&str],
+    transform: &str,
+    kept: &Value,
+) -> CompileOutcome {
+    let clause = format!("{}{suffix}", livre());
+    let test: Vec<String> = spellings
+        .iter()
+        .map(|s| format!(".status == {}", json!(s)))
+        .collect();
+    let jq = format!(
+        ".records | map(select({})) | {{kept: map(.status | {transform}), total: (map(.qty | tonumber) | add // 0)}}",
+        test.join(" or ")
+    );
+    let answer = program(
+        &jq,
+        &["status", "qty"],
+        &json!({"kept": [kept], "total": 40}),
+    );
+    let seat = Seat::new(vec![request_of(&clause).1.to_string(), answer]);
+    let world = spelled(&[LIVRE_NFD, "en attente"], &["x", "y"]);
+    compiled(&seat, &clause, world, 0).await
+}
+
+/// The valid intents the law must not erase: each request asks for a text or byte transformation
+/// of the kept status (a suffix label, ASCII uppercase, the code-point length, the percent
+/// encoding of its UTF-8 bytes), which answers differently for the two spellings by its very
+/// definition. The program keeps both spellings and transforms as asked: it is admitted with no
+/// repair, and on rows carrying the observed spelling it keeps them and sums them.
+const INTENTS: [(&str, &str, &str, &str); 4] = [
+    (
+        " and list each kept status with the suffix rows",
+        ". + \" rows\"",
+        "livr\u{e9} rows",
+        "livre\u{301} rows",
+    ),
+    (
+        " and list each kept status in ASCII uppercase",
+        "ascii_upcase",
+        "LIVR\u{e9}",
+        "LIVRE\u{301}",
+    ),
+    (
+        " and list each kept status percent-encoded",
+        "@uri",
+        "livr%C3%A9",
+        "livre%CC%81",
+    ),
+    (
+        " and list the code-point length of each kept status",
+        "length",
+        "5",
+        "6",
+    ),
+];
+
+/// The kept value of an intent's expected text: the code-point length is a number.
+fn kept(text: &str) -> Value {
+    text.parse::<u64>()
+        .map_or_else(|_| json!(text), |n| json!(n))
+}
+
+#[tokio::test]
+async fn a_requested_transformation_of_the_value_is_admitted() {
+    let mut refused = Vec::new();
+    for (suffix, transform, stated, observed) in INTENTS {
+        let both = [LIVRE_NFC, LIVRE_NFD];
+        let out = requested(suffix, &both, transform, &kept(stated)).await;
+        if out.status != CompileStatus::Ready {
+            let why: Vec<&str> = out
+                .diagnostics
+                .iter()
+                .filter(|d| d.target == "authoring_transform")
+                .map(|d| d.message.as_str())
+                .collect();
+            refused.push(format!("{suffix}: {:?} {why:?}", out.status));
+            continue;
+        }
+        assert_eq!(authored(&out), ["plan", "transform"], "{suffix}");
+        let program = compute(&out);
+        let result = run(&program, &delivered(LIVRE_NFD));
+        assert_eq!(result["total"], json!(42), "{suffix}: {program}");
+        assert_eq!(
+            result["kept"],
+            json!([kept(observed), kept(observed)]),
+            "{suffix}"
+        );
+    }
+    assert!(refused.is_empty(), "{refused:#?}");
+}
+
+/// Control: the same requested transformations over a program that keeps only the stated
+/// spelling drop the rows the source spells the other way: each is refused naming both
+/// spellings, and with no repair granted the request stays INCOMPLETE.
+#[tokio::test]
+async fn a_requested_transformation_dropping_the_observed_spelling_is_refused() {
+    for (suffix, transform, stated, _) in INTENTS {
+        let out = requested(suffix, &[LIVRE_NFC], transform, &kept(stated)).await;
+        assert_eq!(out.status, CompileStatus::Incomplete, "{suffix}: {out:#?}");
+        assert!(
+            out.diagnostics.iter().any(
+                |d| d.target == "authoring_transform" && d.message.contains(&points(LIVRE_NFD))
+            ),
+            "{suffix}: {out:#?}"
+        );
+    }
 }
 
 /// The binding and the law, as the core states them: a literal at exact token boundaries only,

@@ -7,24 +7,27 @@
 //! categorical values spell, with other bytes, a literal the clause states at exact token
 //! boundaries ([`nika_compile::surface::observed::stated_spellings`]).
 //!
-//! A program reading a bound column must treat both spellings alike: on each one-row source of
-//! the seat's own example with the column set to the stated literal, then to the observed
-//! spelling, both runs return a value, and they agree once every string value and key exactly
-//! equal to the observed spelling is read back as the stated one (a program that echoes or
-//! groups by the value is not refused for echoing it). A value on one spelling and an error on
-//! the other is a spelling difference; an error on both is none: the row errs whatever the
-//! spelling, the program is equally undefined there, and the value laws and the run own that
-//! error. A program that compares bytes selects no row the source spells the other way: it is
-//! refused naming the column, both spellings and their code points, for the request's one
-//! repair allowance. The literal stays the request's and the program's bytes are never
-//! rewritten; the observed spelling of a stated literal is no invented literal.
+//! A program reading a bound column must not drop either spelling: on each one-row source of the
+//! seat's own example with the column set to the stated literal, to the observed spelling, and
+//! to a text neither spells ([`UNMATCHED`]), it must not treat exactly one of the two spellings
+//! as it treats that unmatched text (the rows spelled that way would be dropped, as a byte
+//! comparison drops them), and it must not return a value on one spelling and fail on the other.
+//! Every string value and key exactly equal to a probe's own text reads back to one placeholder,
+//! so echoing or grouping the row's value is no difference. An error on both spellings is no
+//! spelling difference: the row errs whatever the spelling, and the value laws and the run own
+//! that error. What the program makes of the value itself may differ between the two spellings
+//! (a label, a case, a code-point length, an encoding answer differently by their very
+//! definition): that is the request's to ask and the whole-request verifier's to judge, never
+//! this law's to refuse. A refused program is named with the column, both spellings and their
+//! code points, for the request's one repair allowance. The literal stays the request's and the
+//! program's bytes are never rewritten; the observed spelling of a stated literal is no invented
+//! literal.
 //!
 //! A bounded law over the seat's own example rows and the host's bounded sample, never a proof
 //! that two programs mean the same: a spelling the sample did not show, a column without
 //! categorical values, a literal the clause does not state, case and compatibility forms bind
-//! nothing. A program that transforms the value's text (embeds it in a longer text, changes its
-//! case) is not read back and is refused: a possible false refusal the law reports rather than
-//! infers what the text became.
+//! nothing, and a program treating the observed spelling some third way (neither as the stated
+//! one nor as unmatched) is left to the verifier.
 
 use super::{ProposedTransform, Refusal, run};
 use nika_compile::surface::observed::{for_intent, stated_spellings};
@@ -89,8 +92,7 @@ impl Spelled {
     }
 
     /// The law over `proposed`: each binding of a column it reads, on each one-row source of its
-    /// own example. A value on one spelling and an error on the other is refused; an error on
-    /// both is no spelling difference (the module's law).
+    /// own example (the module's law).
     pub(super) fn honored(&self, proposed: &ProposedTransform) -> Result<(), Refusal> {
         let program = proposed.jq.trim();
         let example = proposed
@@ -100,18 +102,22 @@ impl Spelled {
         let read = |b: &&Bound| proposed.columns_read.contains(&b.column);
         for bound in self.bound.iter().filter(read) {
             for row in example.iter().filter(|row| row.is_object()) {
-                let source = |spelling: &str| {
+                let probe = |text: &str| {
                     let mut row = row.clone();
-                    row[bound.column.as_str()] = json!(spelling);
-                    json!({"records": [row]})
+                    row[bound.column.as_str()] = json!(text);
+                    let output = run(program, &json!({"records": [row]}));
+                    output.map(|value| read_back(value, text))
                 };
-                let as_stated = run(program, &source(&bound.stated));
-                let as_observed = run(program, &source(&bound.observed));
-                let how = match (as_stated, as_observed) {
-                    (Ok(stated), Ok(observed)) => {
-                        let read = read_back(observed, &bound.observed, &bound.stated);
-                        (read != stated).then_some(OTHER)
-                    }
+                let unmatched = probe(UNMATCHED).ok();
+                let how = match (probe(&bound.stated), probe(&bound.observed)) {
+                    (Ok(stated), Ok(observed)) => unmatched.and_then(|none| {
+                        let (kept, spelled) = (stated != none, observed != none);
+                        match (kept, spelled) {
+                            (true, false) => Some(DROPS_OBSERVED),
+                            (false, true) => Some(DROPS_STATED),
+                            _ => None,
+                        }
+                    }),
                     (Ok(_), Err(_)) => Some(FAILS_OBSERVED),
                     (Err(_), Ok(_)) => Some(FAILS_STATED),
                     (Err(_), Err(_)) => None,
@@ -125,9 +131,13 @@ impl Spelled {
     }
 }
 
-/// What the program does with the other spelling: another result.
-const OTHER: &str =
-    "comparing bytes to one of them selects no row the source spells with the other";
+/// The probe text neither spelling is: what the program does with a value the clause does not
+/// state (U+2400, the symbol for null, which no categorical value of a source spells).
+const UNMATCHED: &str = "\u{2400}";
+/// What the program does with the other spelling: the observed one treated as unmatched.
+const DROPS_OBSERVED: &str = "the program treats the observed spelling as a value the clause does not state, so it drops the rows the source spells that way";
+/// What the program does with the other spelling: the stated one treated as unmatched.
+const DROPS_STATED: &str = "the program treats the stated spelling as a value the clause does not state, so it drops the rows spelled as the request states them";
 /// What the program does with the other spelling: an error on the observed one.
 const FAILS_OBSERVED: &str =
     "the program fails on the observed spelling where it returns a value on the stated one";
@@ -159,28 +169,31 @@ fn points(text: &str) -> String {
     points.join(" ")
 }
 
-/// `value` with every string value and key exactly equal to the observed spelling read back as the
-/// stated one: an echoed or grouped value, never a text built from it.
-fn read_back(value: Value, observed: &str, stated: &str) -> Value {
-    let exact = |text: String| {
-        if text == observed {
-            stated.to_owned()
+/// The one placeholder every probe's own text reads back to.
+const ECHOED: &str = "\u{0}echoed probe text\u{0}";
+
+/// `value` with every string value and key exactly equal to the probe's own `text` read back to
+/// one placeholder: an echoed or grouped value is no difference, a text built from it is.
+fn read_back(value: Value, text: &str) -> Value {
+    let exact = |found: String| {
+        if found == text {
+            ECHOED.to_owned()
         } else {
-            text
+            found
         }
     };
     match value {
-        Value::String(text) => Value::String(exact(text)),
+        Value::String(found) => Value::String(exact(found)),
         Value::Array(items) => Value::Array(
             items
                 .into_iter()
-                .map(|item| read_back(item, observed, stated))
+                .map(|item| read_back(item, text))
                 .collect(),
         ),
         Value::Object(fields) => Value::Object(
             fields
                 .into_iter()
-                .map(|(key, item)| (exact(key), read_back(item, observed, stated)))
+                .map(|(key, item)| (exact(key), read_back(item, text)))
                 .collect(),
         ),
         other => other,
