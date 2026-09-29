@@ -8,7 +8,7 @@
 //! READY behind a judge alone. The seat's stages now complete the reader's plain filter; a seat
 //! filter that disagrees with the reader's is asked, never silently dropped.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-use nika_compile::{CompileOutcome, CompileRequest, CompileStatus};
+use nika_compile::{CompileOutcome, CompileRequest, CompileStatus, DiagnosticKind};
 use nika_compile_cognition::compile_with_provider;
 use serde_json::{Value, json};
 
@@ -98,13 +98,23 @@ async fn the_seat_stages_over_a_filter_the_reader_reads_are_kept() {
         json!(["amount"]),
         "{record:#}"
     );
-    // The one rule of the clause is the seat's: the reader's filter with the stages stated over it
-    // (the merge's own Applied finding says so where the merge's findings surface).
+    // The one rule of the clause is the seat's: the reader's filter with the stages stated over it,
+    // and the outcome's own Applied finding says so, once (E39 challenge of the DSR live proof: the
+    // merge's finding stayed in a scratch outcome no door returns).
     assert_eq!(
         record["rules"][0]["clauses"][0]["value"],
         json!("north"),
         "{record:#}"
     );
+    let kept: Vec<&str> = out
+        .diagnostics
+        .iter()
+        .filter(|d| d.kind == DiagnosticKind::Applied && d.target == "authoring_plan")
+        .map(|d| d.message.as_str())
+        .filter(|m| m.contains("the stages the proposal states over it are kept"))
+        .collect();
+    assert_eq!(kept.len(), 1, "{:#?}", out.diagnostics);
+    assert!(kept[0].contains(COMPUTED), "{kept:?}");
 }
 
 #[tokio::test]

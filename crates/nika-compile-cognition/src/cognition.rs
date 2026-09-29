@@ -817,6 +817,7 @@ fn settle_judged(
         nika_compile::surface::assemble::assemble_judged(
             &plan, intent, request, judgments, true, &mut out,
         )?;
+        proposal::told(intent, &plan, &mut out);
     }
     record_retrieval(&mut out, intent, Some(&plan));
     out.provenance.strategy = Some(strategy);
