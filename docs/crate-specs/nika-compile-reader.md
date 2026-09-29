@@ -251,7 +251,23 @@ while `nika-compile` stood at its wall; they ascended to `nika-compile-fidelity`
   (headings, distributive cues and leads, leading quantifiers, structural and supplied cues,
   135 entries) moved the same way to `assets/shape_words.txt` (146 raw lines) at 161e9e649,
   pinned by their own frozen test; one section reader (`rule_tokens::section`) serves
-  `stage_words.txt` and `shape_words.txt`.
+  `stage_words.txt` and `shape_words.txt`. The line grammar's two tables (`ONE_OR_MORE`, its
+  quantity words, and `BY_CONSTRUCTION`, its by-construction tails, 82 production lines of
+  `rules/lines.rs`) moved exact and in order to `assets/line_words.txt` (81 raw lines) at
+  fc8a0feba (V9 A11), read through the same section reader and pinned with the section count
+  by `lines::tests::tables_are_the_frozen_lists`: 14,974 production lines before, 14,901
+  after (`scripts/ci/prod-loc.py`). The grammar reads the same words.
+- **A stated sort orders every row; only a ranking asks its count (V9 A11).** A descending
+  sort under a ranking word with no stated count asks `const.top_n`
+  (`Rule::ranking_without_count`): « the top-selling items by units » keeps n rows, and n is
+  the requester's to state. « sort them by amount_usd, most expensive first » used to ask it
+  too, a count the request never implied, and the correct descending plan stayed INCOMPLETE.
+  Since bbbc721e6 a clause led by a sort verb that states no keep lead and no only word
+  (`stages::sorts_every_row`, over the grammar's own `SORT_VERBS`, `KEEP_LEADS` and
+  `ONLY_WORDS`) orders every row: its superlative is the direction, and no count is asked.
+  « sort them by amount and keep the most expensive » still asks it. Limits: the reading is
+  this closed form, the clause's first word a sort verb; it is no general understanding of
+  rankings, and a superlative the grammar does not lead with a sort verb keeps its question.
 - **A clause's lead is read, never dropped (R4 F1, V9 A10).** The words before a clause's
   field (before its relative marker, or before its last word) used to be discarded whole:
   « count the rows where status is paid » read as the filter alone, and the workflow wrote
