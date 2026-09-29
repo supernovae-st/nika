@@ -1449,8 +1449,10 @@ pub nika_compile_reader::rules::Shape::distinct_by: alloc::vec::Vec<alloc::strin
 pub nika_compile_reader::rules::Shape::group_by: core::option::Option<alloc::string::String>
 pub nika_compile_reader::rules::Shape::join_on: core::option::Option<alloc::string::String>
 pub nika_compile_reader::rules::Shape::limit: core::option::Option<u32>
+pub nika_compile_reader::rules::Shape::numbers: alloc::vec::Vec<alloc::string::String>
 pub nika_compile_reader::rules::Shape::renames: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
 pub nika_compile_reader::rules::Shape::sort_by: core::option::Option<(alloc::string::String, bool)>
+pub nika_compile_reader::rules::Shape::ties_first_in_file: bool
 impl core::clone::Clone for nika_compile_reader::aggregate::Shape
 pub fn nika_compile_reader::aggregate::Shape::clone(&self) -> nika_compile_reader::aggregate::Shape
 impl core::cmp::Eq for nika_compile_reader::aggregate::Shape
