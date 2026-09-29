@@ -527,6 +527,7 @@ pub struct nika_cli_host::compile::CompileArgs
 pub nika_cli_host::compile::CompileArgs::answers: alloc::vec::Vec<alloc::string::String>
 pub nika_cli_host::compile::CompileArgs::authoring_max_tokens: core::option::Option<u32>
 pub nika_cli_host::compile::CompileArgs::authoring_model: core::option::Option<alloc::string::String>
+pub nika_cli_host::compile::CompileArgs::authoring_reasoning: core::option::Option<alloc::string::String>
 pub nika_cli_host::compile::CompileArgs::authoring_repairs: core::option::Option<u32>
 pub nika_cli_host::compile::CompileArgs::authoring_samples: core::option::Option<u32>
 pub nika_cli_host::compile::CompileArgs::authoring_strategy: core::option::Option<alloc::string::String>
@@ -631,6 +632,7 @@ pub nika_cli_host::compile::NativeAuthoringArgs::knowledge: core::option::Option
 pub nika_cli_host::compile::NativeAuthoringArgs::knowledge_exclude: core::option::Option<alloc::string::String>
 pub nika_cli_host::compile::NativeAuthoringArgs::max_tokens: core::option::Option<u32>
 pub nika_cli_host::compile::NativeAuthoringArgs::model: core::option::Option<alloc::string::String>
+pub nika_cli_host::compile::NativeAuthoringArgs::reasoning: core::option::Option<alloc::string::String>
 pub nika_cli_host::compile::NativeAuthoringArgs::repairs: core::option::Option<u32>
 pub nika_cli_host::compile::NativeAuthoringArgs::timeout: core::option::Option<u64>
 impl clap_builder::derive::Args for nika_cli_host::serve_args::NativeAuthoringArgs
@@ -3871,6 +3873,7 @@ pub nika_cli_host::serve_args::NativeAuthoringArgs::knowledge: core::option::Opt
 pub nika_cli_host::serve_args::NativeAuthoringArgs::knowledge_exclude: core::option::Option<alloc::string::String>
 pub nika_cli_host::serve_args::NativeAuthoringArgs::max_tokens: core::option::Option<u32>
 pub nika_cli_host::serve_args::NativeAuthoringArgs::model: core::option::Option<alloc::string::String>
+pub nika_cli_host::serve_args::NativeAuthoringArgs::reasoning: core::option::Option<alloc::string::String>
 pub nika_cli_host::serve_args::NativeAuthoringArgs::repairs: core::option::Option<u32>
 pub nika_cli_host::serve_args::NativeAuthoringArgs::timeout: core::option::Option<u64>
 impl clap_builder::derive::Args for nika_cli_host::serve_args::NativeAuthoringArgs

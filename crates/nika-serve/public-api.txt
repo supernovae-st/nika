@@ -1795,6 +1795,7 @@ pub const fn nika_serve::NativeAuthoring::with_deadline(self, deadline: core::ti
 pub fn nika_serve::NativeAuthoring::with_knowledge(self, dir: impl core::convert::Into<std::path::PathBuf>, exclude_corpus: core::option::Option<alloc::string::String>) -> Self
 pub const fn nika_serve::NativeAuthoring::with_max_calls(self, max_calls: u32) -> Self
 pub const fn nika_serve::NativeAuthoring::with_max_tokens(self, tokens: u32) -> Self
+pub fn nika_serve::NativeAuthoring::with_reasoning(self, word: impl core::convert::Into<alloc::string::String>) -> Self
 pub const fn nika_serve::NativeAuthoring::with_repairs(self, repairs: u32) -> Self
 pub const fn nika_serve::NativeAuthoring::with_replay(self, entries: usize, ttl: core::time::Duration) -> Self
 pub fn nika_serve::NativeAuthoring::with_withheld(self, secret: nika_kernel_core::infra::secret::Secret) -> Self
@@ -3822,6 +3823,7 @@ pub const fn nika_serve::NativeAuthoring::with_deadline(self, deadline: core::ti
 pub fn nika_serve::NativeAuthoring::with_knowledge(self, dir: impl core::convert::Into<std::path::PathBuf>, exclude_corpus: core::option::Option<alloc::string::String>) -> Self
 pub const fn nika_serve::NativeAuthoring::with_max_calls(self, max_calls: u32) -> Self
 pub const fn nika_serve::NativeAuthoring::with_max_tokens(self, tokens: u32) -> Self
+pub fn nika_serve::NativeAuthoring::with_reasoning(self, word: impl core::convert::Into<alloc::string::String>) -> Self
 pub const fn nika_serve::NativeAuthoring::with_repairs(self, repairs: u32) -> Self
 pub const fn nika_serve::NativeAuthoring::with_replay(self, entries: usize, ttl: core::time::Duration) -> Self
 pub fn nika_serve::NativeAuthoring::with_withheld(self, secret: nika_kernel_core::infra::secret::Secret) -> Self
