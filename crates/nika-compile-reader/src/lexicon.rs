@@ -1028,6 +1028,14 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, money: &mut [
             push_rule(original, rule, reading);
             return true;
         }
+        // A selection of the material the grammar cannot read (« keep the rows whose status is
+        // a ») is requested work: unresolved as well, so HOT is never READY on it and a
+        // configured cognition attempts it. Its constraint stays the policy floor a proposal
+        // joins (a recorded plan keeps its identity); a keep of something else (« keep the tone
+        // formal ») is a constraint alone (R4 A10).
+        if super::structure::selection_demand(original) {
+            reading.unresolved.push(original.to_owned());
+        }
         reading.plan.constraints.push(original.to_owned());
         return true;
     }

@@ -1299,4 +1299,55 @@ mod tests {
         let detail = "keep the rows where status is paid ; keep the 2 rows with the highest amount_usd ; keep the rows where status is paid";
         keeps_the_paid_rows_among_the_top_2(&seat_program(detail, None).await);
     }
+
+    /// A configured cognition carries a selection the grammar cannot read (R4 A10): « keep the rows
+    /// whose status is a » is unresolved for HOT; the seat's typed filter over the request's own
+    /// literal is bound beside the sort the grammar reads, and the emitted program keeps the rows
+    /// whose status is a, in amount order (the rows and the outcome were stated before the run).
+    #[tokio::test]
+    async fn a_seat_carries_the_selection_the_grammar_cannot_read_into_the_program() {
+        let stated = "sort the rows by amount_usd, then keep the rows whose status is a";
+        let write = "write them to ./out/result.json";
+        let intent = format!("read ./data/input.csv, {stated}, {write}");
+        let computation = json!({"present": true, "join": "and", "sort_by": "amount_usd", "order": "asc",
+            "clauses": [{"field": "status", "op": "eq", "value": "a", "value_field": ""}]});
+        let plan = json!({
+            "steps": [
+                {"op": "read", "detail": "./data/input.csv", "evidence": "read ./data/input.csv"},
+                {"op": "compute", "detail": stated, "evidence": stated, "computation": computation}
+            ],
+            "effects": [{"verb": "write", "target": "./out/result.json", "policy": "automatic", "evidence": write}],
+            "obligations": [], "constraints": [], "unknowns": [],
+            "regions": [
+                {"text": "read ./data/input.csv,", "role": "operation"},
+                {"text": format!("{stated},"), "role": "operation"},
+                {"text": write, "role": "effect"}
+            ],
+            "approval_bypass": {"present": false, "evidence": ""}
+        });
+        let observed = json!({"observed": [{"path": "./data/input.csv", "state": "observed", "complete": false, "kind": "csv", "columns": ["id", "amount_usd", "status"]}]});
+        let policy =
+            AuthoringPolicy::new("mock/authoring", 1024, std::time::Duration::from_secs(2));
+        let request = nika_compile::CompileRequest::create(&intent)
+            .with_knowledge(observed)
+            .with_authoring_policy(policy);
+        let out = crate::compile_with_provider(&request, &Planned(plan.to_string()))
+            .await
+            .unwrap();
+        assert_eq!(out.status, nika_compile::CompileStatus::Ready, "{out:#?}");
+        let doc: Value = serde_yaml_bw::from_str(out.candidate.as_deref().unwrap()).unwrap();
+        let compute = doc["tasks"]["compute"]["invoke"]["args"]["expression"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        let rows = [
+            ("A", "20", "a"),
+            ("B", "10", "paid"),
+            ("C", "5", "a"),
+            ("D", "30", "open"),
+        ];
+        let pair = |id: &str, amount: &str| (id.to_owned(), amount.to_owned());
+        assert_eq!(kept(&compute, &rows), [pair("C", "5"), pair("A", "20")]);
+        assert_eq!(kept(&compute, NONE_PAID), Vec::<(String, String)>::new());
+    }
 }

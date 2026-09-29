@@ -313,8 +313,13 @@ while `nika-compile` stood at its wall; they ascended to `nika-compile-fidelity`
   constraint then restates the computation): such a clause compiled READY with its filter
   dropped, taken for a description the material realizes. The leads are the grammar's own
   tables (`stages::keep_lead`, `rules::exclusion_lead`); the context sentences of every
-  language keep their reading. The lexicon still files the clause as a constraint, so HOT
-  names it in a question rather than routing it to cognition.
+  language keep their reading. The lexicon files such a clause as unresolved beside its
+  constraint (« keep the tone formal » stays a constraint alone): HOT is rejected and a
+  configured cognition carries it, its proposal bound beside what the grammar reads; with
+  none, the door names the clause and needs cognition. The constraint stays the policy floor a
+  proposal joins, so a recorded plan keeps its identity, and the deterministic ledger names
+  the clause once. `structure::only_function_words` (the reader's closed function
+  words) tells the compile witness which words between two read clauses state nothing.
 - The 12 ADR-003 gates were passed by `nika-onboard` at its admission; this member inherits
   them as the third member of the same unit (the ADR-115 and ADR-137 precedent). Mutation
   and property attestations for the reader are owed as pending evidence, tracked with the

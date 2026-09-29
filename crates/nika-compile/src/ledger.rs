@@ -320,6 +320,16 @@ impl Ledger {
     pub fn extract_reading(reading: &Reading) -> Self {
         let mut ledger = Self::extract(&reading.plan);
         for clause in &reading.unresolved {
+            // An unread selection is filed as a constraint, whose duty is already the unresolved
+            // work it names, and as unresolved so HOT defers it (R4 A10): one duty.
+            let named = |duty: &Duty| {
+                duty.kind == DutyKind::Work
+                    && duty.state == DutyState::Unresolved
+                    && duty.evidence == clause.trim()
+            };
+            if ledger.duties.iter().any(named) {
+                continue;
+            }
             ledger.duties.push(Duty::new(DutyKind::Work, clause));
         }
         for ambiguity in &reading.ambiguous {
@@ -560,6 +570,31 @@ mod tests {
         assert_eq!(json[0]["state"], "unresolved");
         assert_eq!(json[0]["evidence"], "do the thing");
         assert!(json[0]["realized_by"].is_null());
+    }
+
+    /// An unread selection is filed both as a constraint and as unresolved (R4 A10): the ledger
+    /// names it once, with the constraint's reason; other unresolved work stays its own duty.
+    #[test]
+    fn an_unread_selection_filed_twice_is_one_duty() {
+        let clause = "keep the rows whose status is a";
+        let mut reading = Reading::default();
+        reading.plan.constraints.push(clause.to_owned());
+        reading.unresolved.push(clause.to_owned());
+        reading.unresolved.push("do the thing".to_owned());
+        let ledger = Ledger::extract_reading(&reading);
+        assert_eq!(
+            kinds(&ledger),
+            [
+                (DutyKind::Work, DutyState::Unresolved),
+                (DutyKind::Work, DutyState::Unresolved),
+            ]
+        );
+        let json = ledger.to_json();
+        assert_eq!(json[0]["evidence"], clause);
+        let note = json[0]["note"].as_str().unwrap_or_default();
+        assert!(note.starts_with("a selection of the rows"), "{json:#}");
+        assert_eq!(json[1]["evidence"], "do the thing");
+        assert!(json[1]["note"].is_null());
     }
 
     #[test]

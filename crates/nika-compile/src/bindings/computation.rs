@@ -327,7 +327,8 @@ impl Witness {
 /// each re-read by the one grammar over the columns the binding reads with. Each word is read
 /// once: the widest readable excerpt stands for the excerpts inside it (a seat's rule over a
 /// whole clause beside the rules promoted from its parts), and an unreadable excerpt is a part
-/// only where no readable one overlaps it.
+/// unless the readable ones state all of its words but function words (the « , then » between
+/// two read clauses; never « keep the rows whose status is a » beside a read sort).
 fn stated_parts(plan: &Plan, step: &Step, intent: &str, hint: &[String]) -> Vec<Part> {
     let columns = crate::columns::columns_hint(intent);
     let place = |text: &str| {
@@ -363,14 +364,21 @@ fn stated_parts(plan: &Plan, step: &Step, intent: &str, hint: &[String]) -> Vec<
         })
         .collect();
     let mut kept: Vec<&(usize, usize, Part)> = Vec::new();
-    for readable in [true, false] {
-        for part in parts.iter().filter(|p| p.2.reading.is_some() == readable) {
-            let (start, end) = (part.0, part.1);
-            let inside = kept.iter().any(|k| k.0 <= start && end <= k.1);
-            let overlaps = kept.iter().any(|k| start < k.1 && k.0 < end);
-            if (readable && !inside) || (!readable && !overlaps) {
-                kept.push(part);
-            }
+    for part in parts.iter().filter(|p| p.2.reading.is_some()) {
+        if !kept.iter().any(|k| k.0 <= part.0 && part.1 <= k.1) {
+            kept.push(part);
+        }
+    }
+    let covered: Vec<(usize, usize)> = kept.iter().map(|k| (k.0, k.1)).collect();
+    for part in parts.iter().filter(|p| p.2.reading.is_none()) {
+        let rest: String = intent
+            .char_indices()
+            .filter(|(at, _)| (part.0..part.1).contains(at))
+            .filter(|(at, _)| !covered.iter().any(|c| (c.0..c.1).contains(at)))
+            .map(|(_, c)| c)
+            .collect();
+        if !crate::structure::only_function_words(&rest) {
+            kept.push(part);
         }
     }
     kept.sort_by_key(|k| (k.0, k.1));

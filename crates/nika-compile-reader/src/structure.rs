@@ -123,6 +123,16 @@ pub fn selection_demand(text: &str) -> bool {
         && hit_lines(&padded, MATERIAL)
 }
 
+/// Whether every word of a text is a function word of the reader's closed table (an article,
+/// a preposition, a connective such as « then », « et », « und »): words that state no operation
+/// of their own. An empty text has none.
+#[must_use]
+pub fn only_function_words(text: &str) -> bool {
+    text.split(|c: char| !(c.is_alphanumeric() || c == '\''))
+        .filter(|word| !word.is_empty())
+        .all(super::paths::function_word)
+}
+
 /// Whether a constraint needs no operation to carry it: a context statement or a structure
 /// law. The composer's carrier rule and the deterministic door's admission skip it.
 #[must_use]

@@ -311,7 +311,7 @@ fn type_computation(ledger: &mut Ledger, plan: &Plan, b: &Bindings, d: &Doc) {
     let evidence = super::ledger::step_evidence(step).trim().to_owned();
     let generic = |duty: &Duty| duty.kind == DutyKind::Filter && duty.evidence == evidence;
     let stated = ledger.duties.iter().position(generic);
-    let typed = match (b.rule.bound(), &b.witness) {
+    let mut typed = match (b.rule.bound(), &b.witness) {
         (Some(RuleBinding::Synthesized(rule)), Some(witness)) => {
             typed_duties(rule, witness, d, &evidence)
         }
@@ -325,6 +325,12 @@ fn type_computation(ledger: &mut Ledger, plan: &Plan, b: &Bindings, d: &Doc) {
         _ => return,
     };
     let carried = |duty: &Duty| duty.kind == DutyKind::Transformation && duty.evidence == evidence;
+    // The step's own words unread: its transformation duty says so, never a second duty.
+    if let Some(unread) = typed.iter().position(carried)
+        && let Some(own) = ledger.duties.iter_mut().find(|duty| carried(duty))
+    {
+        *own = typed.remove(unread);
+    }
     let at = stated
         .or_else(|| ledger.duties.iter().position(carried).map(|at| at + 1))
         .unwrap_or(ledger.duties.len());

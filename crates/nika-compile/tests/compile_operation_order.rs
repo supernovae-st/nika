@@ -413,8 +413,9 @@ async fn a_proposal_changing_a_parameter_is_never_the_rule_bound() {
 /// A selection of the rows the rule grammar cannot read is named work, never context (R4 A10).
 /// « keep the rows whose status is a » compiled READY with its filter dropped: the literal
 /// defeated the grammar, and the clause was recorded as context the material realizes. It is
-/// now an unresolved work duty and nothing is READY; the same selection over a literal the
-/// grammar reads still runs as the program's filter, after the sort.
+/// now an unresolved clause: HOT is rejected and the door, with no cognition configured, names
+/// it and says it needs cognition. The same selection over a literal the grammar reads still
+/// runs as the program's filter, after the sort.
 #[test]
 fn an_unread_selection_of_the_rows_is_work_never_context() {
     let clause = "keep the rows whose status is a";
@@ -433,7 +434,13 @@ fn an_unread_selection_of_the_rows_is_work_never_context() {
         stated.is_some_and(|d| d["kind"] == "work" && d["state"] == "unresolved"),
         "{ledger:#}"
     );
-    assert!(format!("{out:?}").contains(&format!("The request states `{clause}` (work)")));
+    let decision = out.provenance.decision.as_ref().unwrap();
+    assert_eq!(
+        decision["route"],
+        json!(["hot rejected: 1 unresolved clause(s)", "needs cognition"])
+    );
+    let unresolved = format!("Unresolved clause: {clause}. No requested operation was dropped");
+    assert!(format!("{out:?}").contains(&unresolved), "{out:#?}");
     let sorted = "sort the rows by amount_usd";
     let paid = compiled(&format!(
         "read ./data/input.csv, {sorted}, then {PAID}, write them to ./out/result.json"
@@ -478,4 +485,48 @@ async fn an_operation_the_request_does_not_state_is_never_run() {
     let out = compile(&request).unwrap();
     assert_eq!(bound_rule(&out), reading);
     assert_eq!(typed_duties(&out).len(), 3);
+}
+
+/// A configured cognition carries the selection the grammar cannot read (R4 A10): HOT is
+/// rejected on the unresolved clause, the seat is actually called, and its typed filter over the
+/// request's own literal is bound beside the sort the grammar reads (the order duty realized;
+/// the unread words carried unverified, never a closure claim).
+#[tokio::test]
+async fn a_configured_seat_carries_the_selection_the_grammar_cannot_read() {
+    let stated = "sort the rows by amount_usd, then keep the rows whose status is a";
+    let computation = json!({"present": true, "join": "and", "sort_by": "amount_usd", "order": "asc",
+        "clauses": [{"field": "status", "op": "eq", "value": "a", "value_field": ""}]});
+    let (intent, plan) = seat(stated, THEM, stated, &computation);
+    let request = CompileRequest::create(&intent)
+        .with_knowledge(common::observed(&[CSV]))
+        .with_authoring_policy(common::policy());
+    let provider = common::Provider::new(plan);
+    let out = compile_with_provider(&request, &provider).await.unwrap();
+    assert!(provider.calls.load(std::sync::atomic::Ordering::SeqCst) >= 1);
+    let route = out.provenance.decision.as_ref().unwrap()["route"].clone();
+    assert_eq!(route[0], "hot rejected: 1 unresolved clause(s)", "{route}");
+    assert!(route.to_string().contains("cold"), "{route}");
+    assert_eq!(
+        bound_rule(&out),
+        "[.records[] | select(.status == \"a\")] | sort_by(.amount_usd | tonumber? // .)"
+    );
+    assert_eq!(
+        typed_duties(&out),
+        [duty(
+            "order",
+            "sort the rows by amount_usd",
+            0,
+            &["amount_usd"]
+        )]
+    );
+    let ledger = out.provenance.decision.as_ref().unwrap()["ledger"].clone();
+    let same: Vec<&Value> = ledger
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|d| d["evidence"] == stated)
+        .collect();
+    assert_eq!(same.len(), 1, "one duty per excerpt: {ledger:#}");
+    let note = same[0]["note"].as_str().unwrap_or_default();
+    assert!(note.starts_with("unverified: "), "{ledger:#}");
 }
