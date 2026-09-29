@@ -13,7 +13,6 @@ use super::grounding;
 use crate::CompileOutcome;
 use crate::rules::Rule;
 use serde_json::{Value, json};
-use unicode_normalization::UnicodeNormalization;
 
 /// The law's name, as the decision records it.
 const LAW: &str = "bounded canonical-spelling expansion: observed spellings canonically \
@@ -28,7 +27,6 @@ pub(crate) fn ground(
     out: &mut CompileOutcome,
 ) -> Rule {
     let row = grounding::row(world, path);
-    let canonical = |text: &str| text.nfc().collect::<String>();
     let mut records = Vec::new();
     for (field, literal) in rule.text_equalities() {
         let Some(values) = row
@@ -37,13 +35,13 @@ pub(crate) fn ground(
         else {
             continue;
         };
-        let target = canonical(&literal);
-        let spellings: Vec<String> = values
+        let observed: Vec<String> = values
             .iter()
             .filter_map(Value::as_str)
-            .filter(|v| *v != literal && canonical(v) == target)
             .map(str::to_owned)
             .collect();
+        // One law for the typed equalities and the programs a seat writes (R4 A11).
+        let spellings = crate::surface::observed::equivalent_spellings(&literal, &observed);
         if spellings.is_empty() {
             continue;
         }

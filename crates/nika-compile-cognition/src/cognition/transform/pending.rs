@@ -29,7 +29,12 @@ pub(crate) async fn resume<P: ProviderInferDyn>(
         .retain(|d| d.target != "authoring_transform");
     let answer = super::propose(policy, provider, pending.context(), &mut out).await;
     let program = answer.as_ref().map(|proposed| proposed.jq.clone()).ok();
-    let verdict = answer.and_then(|proposed| regenerated(intent, &pending, proposed));
+    // The clause's own words bind the observed spellings its program must honor (R4 A11).
+    let context = pending.context();
+    let evidence = context["clause"].as_str().unwrap_or_default();
+    let world = nika_compile::surface::observed::world(request);
+    let spelled = super::spelling::Spelled::of(world, intent, evidence);
+    let verdict = answer.and_then(|proposed| regenerated(intent, &pending, &spelled, proposed));
     // The same repair as the first synthesis, within this request's allowance (R4 A11).
     let mut repairs = super::domain::Repairs::granted(policy, &out);
     let verdict = match (verdict, program) {
@@ -38,7 +43,7 @@ pub(crate) async fn resume<P: ProviderInferDyn>(
             repairs
                 .repair(policy, provider, &state, &clause, (jq, why), &mut out)
                 .await
-                .and_then(|repaired| regenerated(intent, &pending, repaired))
+                .and_then(|repaired| regenerated(intent, &pending, &spelled, repaired))
         }
         (verdict, _) => verdict,
     };
@@ -90,6 +95,7 @@ pub(crate) async fn resume<P: ProviderInferDyn>(
 fn regenerated(
     intent: &str,
     pending: &PendingTransform,
+    spelled: &super::spelling::Spelled,
     proposed: ProposedTransform,
 ) -> Result<ProposedTransform, Refusal> {
     if proposed
@@ -106,7 +112,8 @@ fn regenerated(
             "the regenerated program does not use the answered fields".into(),
         ));
     }
-    super::verified(intent, pending.detail(), pending.columns(), &proposed).map(|()| proposed)
+    let (detail, columns) = (pending.detail(), pending.columns());
+    super::verified(intent, detail, columns, spelled, &proposed).map(|()| proposed)
 }
 
 /// The regeneration's verdict once the replay of its verified record ran: the program is

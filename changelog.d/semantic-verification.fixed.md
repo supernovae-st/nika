@@ -28,5 +28,13 @@
     `--authoring-repairs` for the whole request; with no repair allowed, or when the call
     limit refuses the repair before sending it, the request stays incomplete. A program
     regenerated after a field answer is held to the same checks and repair.
+  - A computation the model writes now compares text as the file spells it. When the observed
+    file spells a value the request states with other bytes for the same text (« é » as one
+    character, or as « e » followed by a combining accent), the program must match both, as
+    the compiler's own filters already do; otherwise it goes back to the model naming both
+    spellings, within `--authoring-repairs`, and with no repair left the request stays
+    incomplete. A program matching both spellings is no longer refused as inventing a value.
+    Case differences and look-alike characters are not the same text.
   - Limits: the judge is a model, so its approval is bounded evidence, not proof. The empty
-    checks read values on the model's own example rows, not on every source.
+    checks read values on the model's own example rows, not on every source; the spelling
+    check reads the values the file observation sampled.

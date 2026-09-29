@@ -93,6 +93,29 @@ clause's predicate, or returns another shape, holds them), which stays the whole
 verifier's; the scalar reading rests on the example the seat chose, so it proves neither that
 the request asked a scalar nor that the sum is complete.
 
+A seat's program also answers for the spelling the host observed (`transform::spelling`, R4
+A11), under the bounded canonical-spelling law of R4 A5, defined once
+(`nika_compile::surface::observed::equivalent_spellings`) for the typed equalities and the
+seat's programs. A binding is a column of the request's one stated source whose host-observed
+categorical values spell, with other bytes, a literal the clause states at exact token
+boundaries (`stated_spellings`: never inside another word, never a column name, never a
+byte-identical spelling; no case or compatibility folding). A program reading a bound column
+treats both spellings alike: on each one-row source of its own example with the column set to
+the stated literal, then to the observed spelling, its outputs agree once the observed spelling
+is read back as the stated one in every string and key, so a program that echoes or groups the
+value holds. A program comparing bytes to one spelling is refused naming the column, both
+spellings and their code points, and goes back to the seat within the same one allowance
+(`transform_repair`); with none left the request stays INCOMPLETE. The stated literal stays the
+request's, the program's bytes are never rewritten, and the observed spelling of a stated
+literal is no invented literal. The transform state carries the host's categorical values
+(`observed_values`), so a first program can compare the source's own spelling. The offline
+counterexample « …status is livré » over an observed e + U+0301 was READY and summed nothing
+(H1, RED frozen before the fix); it is now refused, then repaired or INCOMPLETE, and a program
+matching both spellings is no longer refused as an invented literal. The law covers the seat's
+own example rows and the host's bounded sample: a spelling the sample did not show, a column
+without categorical values and a literal the clause does not state bind nothing, and passing it
+proves no equivalence of meaning.
+
 A candidate a model's plan shaped is judged against the whole request before READY
 (`cognition::verify`, R4 A11). The core names what no law reads from the bytes: a duty a
 step's words only restate (a label), a task carrying words no law reads (unverified), a clause

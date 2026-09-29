@@ -23,10 +23,10 @@ pub(super) const EMPTY_DOMAIN: &str = "on a source with no row, or no row the pr
 /// The identity refusal of a sum or a count, repaired from as it is stated.
 pub(super) const EMPTY_SUM: &str = "the clause is a sum or a count: on a source with no row it must return the number 0 (the sum or the count of nothing), and a number on every source, never null and never an error";
 
-/// Whether a refusal is a domain law's: the refusals a seat is sent back, within the request's
-/// repairs.
+/// Whether a refusal is a domain law's or the observed spelling law's ([`super::spelling`]): the
+/// refusals a seat is sent back, within the request's repairs.
 fn repairable(why: &str) -> bool {
-    why == EMPTY_DOMAIN || why == EMPTY_SUM
+    why == EMPTY_DOMAIN || why == EMPTY_SUM || why.starts_with(super::spelling::LEAD)
 }
 
 /// The floor, for every clause: the program returns no null on a probe, which the workflow
@@ -124,12 +124,12 @@ impl Repairs {
         Self(policy.repairs.min(5).saturating_sub(spent))
     }
 
-    /// A program a domain law refused is repaired from once while the allowance lasts: the seat
-    /// reads its own program and the stated defect, never the human. Any other refusal stands
-    /// as it is. The attempt is told and recorded under `transform_repairs` only once the
-    /// receipt shows what became of its call ([`transport`]): a call the ceiling refused was
-    /// requested, never sent. The caller admits an answer under the same laws; no answer keeps
-    /// the defect, named with what became of the repair.
+    /// A program a domain law or the spelling law refused is repaired from once while the
+    /// allowance lasts: the seat reads its own program and the stated defect, never the human.
+    /// Any other refusal stands as it is. The attempt is told and recorded under
+    /// `transform_repairs` only once the receipt shows what became of its call ([`transport`]):
+    /// a call the ceiling refused was requested, never sent. The caller admits an answer under
+    /// the same laws; no answer keeps the defect, named with what became of the repair.
     pub(super) async fn repair<P: ProviderInferDyn>(
         &mut self,
         policy: &AuthoringPolicy,

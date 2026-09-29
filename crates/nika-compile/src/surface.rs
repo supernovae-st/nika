@@ -16,6 +16,67 @@ pub use crate::types::{EditChange, Input};
 /// Host-supplied field observations; this module performs no I/O.
 pub mod observed {
     pub use crate::observed::{columns, field_answer, for_intent, record, world};
+    use unicode_normalization::UnicodeNormalization;
+
+    /// The observed spellings canonically equivalent (Unicode NFC) to `literal` and not
+    /// byte-identical to it, in the order observed: the bounded canonical-spelling law (R4 A5).
+    /// A typed text equality also matches each exactly beside its literal (`decision.spellings`);
+    /// a program a seat writes must treat each as the literal (R4 A11). No case folding, no
+    /// compatibility (NFKC) folding, no accent stripping.
+    #[must_use]
+    pub fn equivalent_spellings(literal: &str, observed: &[String]) -> Vec<String> {
+        let canonical = |text: &str| text.nfc().collect::<String>();
+        let target = canonical(literal);
+        observed
+            .iter()
+            .filter(|value| value.as_str() != literal && canonical(value) == target)
+            .cloned()
+            .collect()
+    }
+
+    /// The literals `clause` states that the host observed spelled with other bytes, as
+    /// `(stated, observed)` pairs in the order observed (R4 A11): a canonical form (NFC or NFD)
+    /// of an observed value other than its own bytes, found in `clause` at exact token boundaries
+    /// (neither a letter, a digit nor a combining mark on either side), never a column name, and
+    /// equivalent under [`equivalent_spellings`]. A value only inside another word, a column
+    /// name, or a clause stating the observed bytes themselves binds nothing.
+    #[must_use]
+    pub fn stated_spellings(
+        clause: &str,
+        observed: &[String],
+        columns: &[String],
+    ) -> Vec<(String, String)> {
+        let mut bound = Vec::new();
+        for value in observed {
+            let forms = [
+                value.nfc().collect::<String>(),
+                value.nfd().collect::<String>(),
+            ];
+            let stated = forms.into_iter().find(|form| {
+                !columns.contains(form)
+                    && token(clause, form)
+                    && !equivalent_spellings(form, std::slice::from_ref(value)).is_empty()
+            });
+            if let Some(stated) = stated {
+                bound.push((stated, value.clone()));
+            }
+        }
+        bound
+    }
+
+    /// Whether `word` occurs in `text` bounded on both sides by neither a letter, a digit nor a
+    /// combining mark.
+    fn token(text: &str, word: &str) -> bool {
+        let open = |c: Option<char>| {
+            c.is_none_or(|c| {
+                !c.is_alphanumeric() && !unicode_normalization::char::is_combining_mark(c)
+            })
+        };
+        !word.is_empty()
+            && text.match_indices(word).any(|(at, _)| {
+                open(text[..at].chars().next_back()) && open(text[at + word.len()..].chars().next())
+            })
+    }
 }
 
 /// The money a caller admitted or its operator stated, read before any strategy (R4 B15).

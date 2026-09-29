@@ -200,13 +200,14 @@ use nika_kernel::ai::provider::{ContentBlock, Message, ProviderInferDyn, Role, S
 use serde_json::json;
 mod domain;
 mod pending;
+mod spelling;
 pub(super) use pending::resume;
 
 /// The most transform calls one request may buy: two clauses the typed stages cannot state.
 const MAX_CALLS: usize = 2;
 
 /// The instruction of the transform call: the input shape, the closed rules, the answer.
-const INSTRUCTION: &str = "You write ONE jq program for a workflow compiler. The program receives {records: [...]}: the parsed rows of the source file, JSON objects keyed by the request's own column names exactly as the file spells them (a CSV cell is text). It must return exactly one JSON value: the rows or the result the clause asks for, in the source order unless the request states a sort. Use only the supplied columns, and honor explicit field_choices when supplied; never invent a column, a literal, a default or an ordering; never use env, input, now, halt, any I/O, and never call a model. Return only one JSON object {jq, columns_read, example_input, expected_output}: jq is the program; columns_read lists every column it reads, as the file spells them; example_input is an array of 3 to 5 example records exercising the clause (duplicates, boundary values, the order kept) using those columns; expected_output is exactly what the program returns on example_input.";
+const INSTRUCTION: &str = "You write ONE jq program for a workflow compiler. The program receives {records: [...]}: the parsed rows of the source file, JSON objects keyed by the request's own column names exactly as the file spells them (a CSV cell is text). It must return exactly one JSON value: the rows or the result the clause asks for, in the source order unless the request states a sort. Use only the supplied columns, and honor explicit field_choices when supplied; never invent a column, a literal, a default or an ordering; never use env, input, now, halt, any I/O, and never call a model. Return only one JSON object {jq, columns_read, example_input, expected_output}: jq is the program; columns_read lists every column it reads, as the file spells them; example_input is an array of 3 to 5 example records exercising the clause (duplicates, boundary values, the order kept) using those columns; expected_output is exactly what the program returns on example_input. observed_values, when present, holds the categorical values the host observed in the source, as it spells them: compare text exactly as the source spells it.";
 
 /// The JSON schema of the transform answer.
 fn schema() -> serde_json::Value {
@@ -256,6 +257,7 @@ pub(super) async fn synthesize<P: ProviderInferDyn>(
     let hint = observed
         .clone()
         .unwrap_or_else(|| crate::columns::columns_hint(intent));
+    let observed = observed.as_deref();
     let pending: Vec<Step> = unstated_computations(plan, &hint)
         .into_iter()
         .take(MAX_CALLS)
@@ -274,22 +276,24 @@ pub(super) async fn synthesize<P: ProviderInferDyn>(
         if !defects.is_empty() {
             state["verifier_defects"] = json!(defects);
         }
+        let spelled = spelling::Spelled::of(request.knowledge.as_ref(), intent, &step.evidence);
+        spelled.inform(&mut state);
         let answer = propose(policy, provider, state.clone(), out).await;
         let program = answer.as_ref().map(|proposed| proposed.jq.clone()).ok();
         let verdict = answer.and_then(|proposed| {
-            let missing = unobserved(observed.as_deref(), &proposed);
+            let missing = unobserved(observed, &proposed);
             if let Some(field) = missing.first() {
                 let why = format!("`{field}` is not among the source's observed fields");
                 pending_state = PendingTransform::new(intent, plan, &step, &missing, request);
                 return Err(Refusal(why));
             }
-            verified(intent, &step.detail, &hint, &proposed).map(|()| proposed)
+            verified(intent, &step.detail, &hint, &spelled, &proposed).map(|()| proposed)
         });
         let verdict = match (verdict, program) {
             (Err(why), Some(jq)) => repairs
                 .repair(policy, provider, &state, &step.detail, (jq, why), out)
                 .await
-                .and_then(|p| admitted(intent, &step.detail, &hint, observed.as_deref(), p)),
+                .and_then(|p| admitted(intent, &step.detail, &hint, observed, &spelled, p)),
             (verdict, _) => verdict,
         };
         match verdict {
@@ -377,6 +381,7 @@ fn admitted(
     clause: &str,
     hint: &[String],
     observed: Option<&[String]>,
+    spelled: &spelling::Spelled,
     proposed: ProposedTransform,
 ) -> Result<ProposedTransform, Refusal> {
     if let Some(field) = unobserved(observed, &proposed).first() {
@@ -384,26 +389,28 @@ fn admitted(
             "`{field}` is not among the source's observed fields"
         )));
     }
-    verified(intent, clause, hint, &proposed).map(|()| proposed)
+    verified(intent, clause, hint, spelled, &proposed).map(|()| proposed)
 }
 
-/// The laws a program for a computation clause is held to: every law of [`verify`], then the
-/// domain laws (R4 A11): the identity of a sum or a count the clause states, whose refusal
-/// names the value due, before the floor of every clause.
+/// The laws a program for a computation clause is held to: every law of [`verify`], then the domain
+/// laws (R4 A11): the identity of a sum or a count the clause states, whose refusal names the value
+/// due, before the floor of every clause; then the [`spelling`] law.
 fn verified(
     intent: &str,
     clause: &str,
     hint: &[String],
+    spelled: &spelling::Spelled,
     proposed: &ProposedTransform,
 ) -> Result<(), Refusal> {
-    verify(intent, hint, proposed)?;
+    verify(intent, hint, spelled, proposed)?;
     let (program, expected) = (proposed.jq.trim(), &proposed.expected_output);
     let example = proposed
         .example_input
         .as_array()
         .map_or(&[][..], Vec::as_slice);
     domain::identity(clause, program, example, expected)?;
-    domain::floor(program, example)
+    domain::floor(program, example)?;
+    spelled.honored(proposed)
 }
 
 /// The columns a program reads that the observed source does not carry, in the program's own
@@ -424,12 +431,14 @@ fn unobserved(observed: Option<&[String]>, proposed: &ProposedTransform) -> Vec<
 /// the runtime's policy; every declared column is a column the request names and the example
 /// records carry it; every `.name` it reads is declared (or one of jq's own `key`/`value`
 /// and the input's `records`/`slots`); every quoted string it carries is a word of the
-/// request or a declared column; every number of two digits or more, or with a fraction, is
-/// written in the request; and it returns, on the seat's own example, exactly the output the
-/// seat expects — a program the seat cannot predict is not understood.
+/// request, a declared column or its observed [`spelling`]; every number of two digits or
+/// more, or with a fraction, is written in the request; and it returns, on the seat's own
+/// example, exactly the output the seat expects — a program the seat cannot predict is not
+/// understood.
 pub(super) fn verify(
     intent: &str,
     hint: &[String],
+    spelled: &spelling::Spelled,
     proposed: &ProposedTransform,
 ) -> Result<(), Refusal> {
     let program = proposed.jq.trim();
@@ -497,7 +506,7 @@ pub(super) fn verify(
         if structural || columns.iter().any(|c| c.eq_ignore_ascii_case(&literal)) {
             continue;
         }
-        if !lower.contains(&literal.to_lowercase()) {
+        if !lower.contains(&literal.to_lowercase()) && !spelled.observes(&literal) {
             return Err(Refusal(format!(
                 "the literal `{literal}` is not in the request"
             )));
