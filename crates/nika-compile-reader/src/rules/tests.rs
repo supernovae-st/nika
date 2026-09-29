@@ -703,3 +703,44 @@ fn a_stated_sort_is_no_ranking_without_its_count() {
         assert_eq!(rule.ranking_without_count(), ranking, "{text}");
     }
 }
+
+/// A text comparison reads the field as text and applies its jq function to the operand read
+/// as text; a denied one is its complement. The bytes are pinned for every operand kind: the
+/// slot a request alludes to, a literal (escaped), a number, a truth and another column.
+#[test]
+fn a_text_comparison_reads_its_operand_as_text() {
+    let numbers = numbers::Numbers::new();
+    let slot = || Operand::Slot("who".into());
+    for (clause, expected) in [
+        (
+            Clause::new("name", Comparator::Contains, slot()),
+            "(.name | tostring | contains($in.slots.who | tostring))",
+        ),
+        (
+            Clause::new("unit price", Comparator::NotStartsWith, slot()),
+            "((.[\"unit price\"] | tostring | startswith($in.slots.who | tostring)) | not)",
+        ),
+        (
+            Clause::new("name", Comparator::EndsWith, Operand::Text("a\"b".into())),
+            "(.name | tostring | endswith(\"a\\\"b\"))",
+        ),
+        (
+            Clause::new("name", Comparator::NotContains, Operand::Number("5".into())),
+            "((.name | tostring | contains(\"5\")) | not)",
+        ),
+        (
+            Clause::new("name", Comparator::Contains, Operand::Bool(true)),
+            "(.name | tostring | contains(\"true\"))",
+        ),
+        (
+            Clause::new(
+                "name",
+                Comparator::NotEndsWith,
+                Operand::Column("other".into()),
+            ),
+            "((.name | tostring | endswith((.other | tostring))) | not)",
+        ),
+    ] {
+        assert_eq!(clause.jq(&numbers), expected, "{clause:?}");
+    }
+}
