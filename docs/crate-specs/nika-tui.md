@@ -123,6 +123,16 @@ and the inline presentation and the plain loop are unchanged.
   a rule column and a blank column separate the panel; under it, the panel's
   title is a rule across. Below 60×16 it draws nothing and returns `false`, so
   the caller keeps the inline presentation.
+- `workspace::focus` says which region holds the keyboard. The composer has
+  it by default, so typing never needs a first move; `F6` moves to the next
+  region and `Shift+F6` back (a folded aside is skipped), `Esc` returns to the
+  composer, and `Tab` stays the composer's completion key. In the aside the
+  arrows move a reversed selection (a weight, readable without colour) that
+  the listing always shows, and `Enter` opens the entry: the object in view
+  changes, the conversation does not, and nothing is attached to the next
+  message. In the object the arrows and page keys scroll its lines under a
+  title row that stays. `screen::extent` gives the key handler what the
+  regions hold at the current size.
 - The ASCII glyph column is the theme's decision (`--ascii`, CI logs, a legacy
   console), passed by the CLI door as `app::Options::ascii` and held in
   `UiState::ascii`. Under it every glyph the renderer writes takes its twin in

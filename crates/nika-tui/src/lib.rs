@@ -40,7 +40,8 @@
 //! butterfly sampled from the repository's own logomark. The full-terminal
 //! workspace screen ([`workspace`]) is being built on fixtures: its geometry,
 //! header, project aside, object in view, conversation panel and pinned row
-//! compose one frame ([`workspace::screen::draw`]), and nothing opens it yet.
+//! compose one frame ([`workspace::screen::draw`]), the keyboard moves between
+//! them ([`workspace::focus`]), and nothing opens it yet.
 
 pub mod app;
 pub mod composer;

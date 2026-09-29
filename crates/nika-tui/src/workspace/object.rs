@@ -73,9 +73,34 @@ pub fn welcome_mark(width: u16, height: u16, words: usize) -> Option<Size> {
 /// The lines of the region, `width` × `height` cells.
 #[must_use]
 pub fn lines(object: &Object, width: u16, height: u16, paint: Paint) -> Vec<Line<'static>> {
+    lines_from(object, width, height, paint, 0)
+}
+
+/// The lines of the region with an open object scrolled to its line `scroll`
+/// (the title row stays); the welcome never scrolls.
+#[must_use]
+pub fn lines_from(
+    object: &Object,
+    width: u16,
+    height: u16,
+    paint: Paint,
+    scroll: usize,
+) -> Vec<Line<'static>> {
     match object {
         Object::Welcome { words } => welcome(words, width, height, paint),
-        Object::Shown { icon, name, lines } => shown(*icon, name, lines, width, height, paint),
+        Object::Shown { icon, name, lines } => {
+            let from = scroll.min(lines.len());
+            shown(*icon, name, &lines[from..], width, height, paint)
+        }
+    }
+}
+
+/// The lines an open object holds (none for the welcome): what a scroll runs over.
+#[must_use]
+pub fn length(object: &Object) -> usize {
+    match object {
+        Object::Welcome { .. } => 0,
+        Object::Shown { lines, .. } => lines.len(),
     }
 }
 
@@ -130,7 +155,12 @@ fn shown(
 
 /// Draw the region into `area`.
 pub fn render(object: &Object, area: Rect, buf: &mut Buffer, paint: Paint) {
-    let text = lines(object, area.width, area.height, paint);
+    render_from(object, area, buf, paint, 0);
+}
+
+/// Draw the region into `area`, an open object scrolled to its line `scroll`.
+pub fn render_from(object: &Object, area: Rect, buf: &mut Buffer, paint: Paint, scroll: usize) {
+    let text = lines_from(object, area.width, area.height, paint, scroll);
     let alignment = match object {
         Object::Welcome { .. } => Alignment::Center,
         Object::Shown { .. } => Alignment::Left,
@@ -226,5 +256,15 @@ mod tests {
         let ascii = text(&lines(&object, 24, 4, paint(true)));
         assert_eq!(ascii[0], "[W] release.nika");
         assert_eq!(ascii[3], "  gate: { invoke: { t...");
+        let scrolled = text(&lines_from(&object, 24, 3, paint(false), 1));
+        assert_eq!(
+            scrolled,
+            ["⑂ release.nika", "tasks:", "  gate: { invoke: { too…"]
+        );
+        assert_eq!(length(&object), 3);
+        assert_eq!(
+            text(&lines_from(&object, 24, 3, paint(false), 9)),
+            ["⑂ release.nika"]
+        );
     }
 }

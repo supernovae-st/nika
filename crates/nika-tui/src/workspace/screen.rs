@@ -17,6 +17,7 @@ use ratatui::widgets::Paragraph;
 
 use super::aside::{self, Aside};
 use super::conversation::{self, Thread};
+use super::focus::{Extent, Focus, Region};
 use super::geometry::Geometry;
 use super::header::{self, Place};
 use super::object::{self, Object, Paint};
@@ -63,13 +64,29 @@ impl Screen {
     }
 }
 
-/// Draw the workspace on the whole frame. Returns `false`, drawing nothing,
-/// when the terminal is below [`super::geometry::MIN_SIZE`]: the caller keeps
-/// the inline presentation.
+/// What the regions hold on a frame of `area`, for [`Focus::handle`]; none
+/// when the terminal is below [`super::geometry::MIN_SIZE`].
+#[must_use]
+pub fn extent(screen: &Screen, area: Rect) -> Option<Extent> {
+    let geometry = Geometry::of(area, screen.pinned.is_some())?;
+    Some(Extent {
+        aside_shown: geometry.aside.is_some(),
+        aside_entries: screen.aside.entries.len(),
+        object_lines: object::length(&screen.object),
+        // The title row stays; the rest scrolls.
+        object_rows: geometry.object.height.saturating_sub(1),
+    })
+}
+
+/// Draw the workspace on the whole frame, the aside selection and the object
+/// scroll following `focus`. Returns `false`, drawing nothing, when the
+/// terminal is below [`super::geometry::MIN_SIZE`]: the caller keeps the
+/// inline presentation.
 pub fn draw(
     frame: &mut Frame<'_>,
     screen: &Screen,
     paint: Paint,
+    focus: &Focus,
     state: &UiState,
     composer: &Composer,
 ) -> bool {
@@ -87,11 +104,25 @@ pub fn draw(
     if let Some(area) = geometry.aside {
         let [list, edge] =
             Layout::horizontal([Constraint::Min(1), Constraint::Length(1)]).areas(area);
-        let rows = aside::lines(&screen.aside, list.width, list.height, ascii, color);
+        let selected = (focus.region == Region::Aside).then_some(focus.selected);
+        let rows = aside::lines_selecting(
+            &screen.aside,
+            list.width,
+            list.height,
+            ascii,
+            color,
+            selected,
+        );
         frame.render_widget(Paragraph::new(rows), list);
         rule_column(edge, ascii, color, frame.buffer_mut());
     }
-    object::render(&screen.object, geometry.object, frame.buffer_mut(), paint);
+    object::render_from(
+        &screen.object,
+        geometry.object,
+        frame.buffer_mut(),
+        paint,
+        focus.scroll,
+    );
     panel(frame, screen, &geometry, paint, state, composer);
     if let (Some(run), Some(area)) = (&screen.pinned, geometry.pinned) {
         let row = pinned::line(run, area.width, ascii, color);
@@ -210,6 +241,18 @@ mod tests {
 
     /// Draw `screen` at `width` × `height` after the demo exchange.
     fn draw_at(screen: &Screen, width: u16, height: u16, paint: Paint) -> (bool, Vec<String>) {
+        let (drawn, rows, _) = draw_focused(screen, width, height, paint, &Focus::composing());
+        (drawn, rows)
+    }
+
+    /// Draw `screen` with the keyboard at `focus`; the buffer keeps the styles.
+    fn draw_focused(
+        screen: &Screen,
+        width: u16,
+        height: u16,
+        paint: Paint,
+        focus: &Focus,
+    ) -> (bool, Vec<String>, ratatui::buffer::Buffer) {
         let mut state = UiState::new(Presentation::Focus, false, (width, height));
         // One glyph column for the whole frame: the caller sets both from its theme.
         state.ascii = paint.ascii;
@@ -225,9 +268,9 @@ mod tests {
         let mut terminal = Terminal::new(TestBackend::new(width, height)).expect("test backend");
         let mut drawn = false;
         terminal
-            .draw(|frame| drawn = draw(frame, screen, paint, &state, &composer))
+            .draw(|frame| drawn = draw(frame, screen, paint, focus, &state, &composer))
             .expect("draw");
-        let buffer = terminal.backend().buffer();
+        let buffer = terminal.backend().buffer().clone();
         let rows = (0..height)
             .map(|y| {
                 (0..width)
@@ -235,7 +278,7 @@ mod tests {
                     .collect()
             })
             .collect();
-        (drawn, rows)
+        (drawn, rows, buffer)
     }
 
     fn find(rows: &[String], needle: &str) -> Option<usize> {
@@ -329,6 +372,62 @@ mod tests {
             assert!(rows[y].is_ascii(), "row {y}: {}", rows[y]);
         }
         assert!(rows[2].contains('|'), "the aside edge: {}", rows[2]);
+    }
+
+    #[test]
+    fn the_keyboard_selects_in_the_aside_and_scrolls_the_object() {
+        use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+        use ratatui::style::Modifier;
+        let lines: Vec<String> = (1..=60).map(|n| format!("line {n}")).collect();
+        let object = Object::Shown {
+            icon: Icon::Workflow,
+            name: "release.nika".to_owned(),
+            lines,
+        };
+        let screen = screen(object);
+        let area = Rect::new(0, 0, 120, 40);
+        let room = extent(&screen, area).expect("fits");
+        assert!(room.aside_shown && room.aside_entries == 3 && room.object_lines == 60);
+        let mut focus = Focus::composing();
+        let press = |code| KeyEvent::new(code, KeyModifiers::NONE);
+        focus.handle(press(KeyCode::F(6)), room);
+        focus.handle(press(KeyCode::Down), room);
+        let (_, rows, buffer) = draw_focused(&screen, 120, 40, paint(false), &focus);
+        // The aside holds the first 20 columns at 120 (its rule is the 21st).
+        let aside_part = |row: &String| row.chars().take(20).collect::<String>();
+        let at = rows
+            .iter()
+            .position(|r| aside_part(r).contains("release.nika"))
+            .expect("aside row");
+        let column = aside_part(&rows[at])
+            .chars()
+            .position(|c| c == 'r')
+            .expect("label");
+        let (x, y) = (
+            u16::try_from(column).expect("x"),
+            u16::try_from(at).expect("y"),
+        );
+        assert!(
+            buffer[(x, y)].modifier.contains(Modifier::REVERSED),
+            "{}",
+            rows[at]
+        );
+        let opened = rows
+            .iter()
+            .position(|r| aside_part(r).contains("release checklist"))
+            .expect("open row");
+        let (ox, oy) = (x, u16::try_from(opened).expect("y"));
+        assert!(!buffer[(ox, oy)].modifier.contains(Modifier::REVERSED));
+        // The object scrolls when it has the keys; its title row stays.
+        focus.handle(press(KeyCode::F(6)), room);
+        focus.handle(press(KeyCode::PageDown), room);
+        let (_, rows, _) = draw_focused(&screen, 120, 40, paint(false), &focus);
+        assert!(find(&rows, "⑂ release.nika").is_some());
+        assert!(
+            find(&rows, "line 1 ").is_none() && find(&rows, "line 37").is_some(),
+            "{rows:#?}"
+        );
+        assert!(extent(&screen, Rect::new(0, 0, 59, 40)).is_none());
     }
 
     #[test]

@@ -19,6 +19,7 @@
 
 pub mod aside;
 pub mod conversation;
+pub mod focus;
 pub mod geometry;
 pub mod header;
 pub mod object;

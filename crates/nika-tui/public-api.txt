@@ -1553,6 +1553,7 @@ impl<T> tracing::instrument::WithSubscriber for nika_tui::workspace::aside::Entr
 impl<T> typenum::type_operators::Same for nika_tui::workspace::aside::Entry
 pub type nika_tui::workspace::aside::Entry::Output = T
 pub fn nika_tui::workspace::aside::lines(aside: &nika_tui::workspace::aside::Aside, width: u16, height: u16, ascii: bool, color: bool) -> alloc::vec::Vec<ratatui_core::text::line::Line<'static>>
+pub fn nika_tui::workspace::aside::lines_selecting(aside: &nika_tui::workspace::aside::Aside, width: u16, height: u16, ascii: bool, color: bool, selected: core::option::Option<usize>) -> alloc::vec::Vec<ratatui_core::text::line::Line<'static>>
 pub mod nika_tui::workspace::conversation
 #[non_exhaustive] pub struct nika_tui::workspace::conversation::Thread
 pub nika_tui::workspace::conversation::Thread::attached: alloc::vec::Vec<alloc::string::String>
@@ -1613,6 +1614,228 @@ pub type nika_tui::workspace::conversation::Thread::Output = T
 pub fn nika_tui::workspace::conversation::context(thread: &nika_tui::workspace::conversation::Thread, width: u16, ascii: bool, color: bool) -> ratatui_core::text::line::Line<'static>
 pub fn nika_tui::workspace::conversation::placeholder(thread: &nika_tui::workspace::conversation::Thread) -> alloc::string::String
 pub fn nika_tui::workspace::conversation::title(thread: &nika_tui::workspace::conversation::Thread, width: u16, ascii: bool, color: bool, rule: bool) -> ratatui_core::text::line::Line<'static>
+pub mod nika_tui::workspace::focus
+#[non_exhaustive] pub enum nika_tui::workspace::focus::Action
+pub nika_tui::workspace::focus::Action::Compose
+pub nika_tui::workspace::focus::Action::Ignored
+pub nika_tui::workspace::focus::Action::Moved
+pub nika_tui::workspace::focus::Action::Open(usize)
+impl core::clone::Clone for nika_tui::workspace::focus::Action
+pub fn nika_tui::workspace::focus::Action::clone(&self) -> nika_tui::workspace::focus::Action
+impl core::cmp::Eq for nika_tui::workspace::focus::Action
+impl core::cmp::PartialEq for nika_tui::workspace::focus::Action
+pub fn nika_tui::workspace::focus::Action::eq(&self, other: &nika_tui::workspace::focus::Action) -> bool
+impl core::fmt::Debug for nika_tui::workspace::focus::Action
+pub fn nika_tui::workspace::focus::Action::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_tui::workspace::focus::Action
+impl core::marker::StructuralPartialEq for nika_tui::workspace::focus::Action
+impl<D> owo_colors::OwoColorize for nika_tui::workspace::focus::Action
+impl<Q, K> equivalent::Equivalent<K> for nika_tui::workspace::focus::Action where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_tui::workspace::focus::Action::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_tui::workspace::focus::Action where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_tui::workspace::focus::Action::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_tui::workspace::focus::Action where U: core::convert::From<T>
+pub fn nika_tui::workspace::focus::Action::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui::workspace::focus::Action where U: core::convert::Into<T>
+pub type nika_tui::workspace::focus::Action::Error = core::convert::Infallible
+pub fn nika_tui::workspace::focus::Action::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui::workspace::focus::Action where U: core::convert::TryFrom<T>
+pub type nika_tui::workspace::focus::Action::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui::workspace::focus::Action::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tui::workspace::focus::Action where T: core::clone::Clone
+pub type nika_tui::workspace::focus::Action::Owned = T
+pub fn nika_tui::workspace::focus::Action::clone_into(&self, target: &mut T)
+pub fn nika_tui::workspace::focus::Action::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tui::workspace::focus::Action where T: 'static + ?core::marker::Sized
+pub fn nika_tui::workspace::focus::Action::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui::workspace::focus::Action where T: ?core::marker::Sized
+pub fn nika_tui::workspace::focus::Action::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui::workspace::focus::Action where T: ?core::marker::Sized
+pub fn nika_tui::workspace::focus::Action::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tui::workspace::focus::Action where T: core::clone::Clone
+pub unsafe fn nika_tui::workspace::focus::Action::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tui::workspace::focus::Action
+pub fn nika_tui::workspace::focus::Action::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_tui::workspace::focus::Action where T: core::clone::Clone
+pub fn nika_tui::workspace::focus::Action::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> either::into_either::IntoEither for nika_tui::workspace::focus::Action
+impl<T> nika_error::traits::AsAny for nika_tui::workspace::focus::Action where T: 'static
+pub fn nika_tui::workspace::focus::Action::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_tui::workspace::focus::Action where T: core::marker::Copy
+pub fn nika_tui::workspace::focus::Action::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_tui::workspace::focus::Action where T: ?core::marker::Sized
+pub fn nika_tui::workspace::focus::Action::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_tui::workspace::focus::Action::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_tui::workspace::focus::Action
+impl<T> tracing::instrument::WithSubscriber for nika_tui::workspace::focus::Action
+impl<T> typenum::type_operators::Same for nika_tui::workspace::focus::Action
+pub type nika_tui::workspace::focus::Action::Output = T
+#[non_exhaustive] pub enum nika_tui::workspace::focus::Region
+pub nika_tui::workspace::focus::Region::Aside
+pub nika_tui::workspace::focus::Region::Conversation
+pub nika_tui::workspace::focus::Region::Object
+impl core::clone::Clone for nika_tui::workspace::focus::Region
+pub fn nika_tui::workspace::focus::Region::clone(&self) -> nika_tui::workspace::focus::Region
+impl core::cmp::Eq for nika_tui::workspace::focus::Region
+impl core::cmp::PartialEq for nika_tui::workspace::focus::Region
+pub fn nika_tui::workspace::focus::Region::eq(&self, other: &nika_tui::workspace::focus::Region) -> bool
+impl core::fmt::Debug for nika_tui::workspace::focus::Region
+pub fn nika_tui::workspace::focus::Region::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_tui::workspace::focus::Region
+impl core::marker::StructuralPartialEq for nika_tui::workspace::focus::Region
+impl<D> owo_colors::OwoColorize for nika_tui::workspace::focus::Region
+impl<Q, K> equivalent::Equivalent<K> for nika_tui::workspace::focus::Region where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_tui::workspace::focus::Region::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_tui::workspace::focus::Region where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_tui::workspace::focus::Region::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_tui::workspace::focus::Region where U: core::convert::From<T>
+pub fn nika_tui::workspace::focus::Region::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui::workspace::focus::Region where U: core::convert::Into<T>
+pub type nika_tui::workspace::focus::Region::Error = core::convert::Infallible
+pub fn nika_tui::workspace::focus::Region::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui::workspace::focus::Region where U: core::convert::TryFrom<T>
+pub type nika_tui::workspace::focus::Region::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui::workspace::focus::Region::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tui::workspace::focus::Region where T: core::clone::Clone
+pub type nika_tui::workspace::focus::Region::Owned = T
+pub fn nika_tui::workspace::focus::Region::clone_into(&self, target: &mut T)
+pub fn nika_tui::workspace::focus::Region::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tui::workspace::focus::Region where T: 'static + ?core::marker::Sized
+pub fn nika_tui::workspace::focus::Region::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui::workspace::focus::Region where T: ?core::marker::Sized
+pub fn nika_tui::workspace::focus::Region::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui::workspace::focus::Region where T: ?core::marker::Sized
+pub fn nika_tui::workspace::focus::Region::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tui::workspace::focus::Region where T: core::clone::Clone
+pub unsafe fn nika_tui::workspace::focus::Region::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tui::workspace::focus::Region
+pub fn nika_tui::workspace::focus::Region::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_tui::workspace::focus::Region where T: core::clone::Clone
+pub fn nika_tui::workspace::focus::Region::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> either::into_either::IntoEither for nika_tui::workspace::focus::Region
+impl<T> nika_error::traits::AsAny for nika_tui::workspace::focus::Region where T: 'static
+pub fn nika_tui::workspace::focus::Region::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_tui::workspace::focus::Region where T: core::marker::Copy
+pub fn nika_tui::workspace::focus::Region::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_tui::workspace::focus::Region where T: ?core::marker::Sized
+pub fn nika_tui::workspace::focus::Region::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_tui::workspace::focus::Region::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_tui::workspace::focus::Region
+impl<T> tracing::instrument::WithSubscriber for nika_tui::workspace::focus::Region
+impl<T> typenum::type_operators::Same for nika_tui::workspace::focus::Region
+pub type nika_tui::workspace::focus::Region::Output = T
+pub struct nika_tui::workspace::focus::Extent
+pub nika_tui::workspace::focus::Extent::aside_entries: usize
+pub nika_tui::workspace::focus::Extent::aside_shown: bool
+pub nika_tui::workspace::focus::Extent::object_lines: usize
+pub nika_tui::workspace::focus::Extent::object_rows: u16
+impl core::clone::Clone for nika_tui::workspace::focus::Extent
+pub fn nika_tui::workspace::focus::Extent::clone(&self) -> nika_tui::workspace::focus::Extent
+impl core::cmp::Eq for nika_tui::workspace::focus::Extent
+impl core::cmp::PartialEq for nika_tui::workspace::focus::Extent
+pub fn nika_tui::workspace::focus::Extent::eq(&self, other: &nika_tui::workspace::focus::Extent) -> bool
+impl core::fmt::Debug for nika_tui::workspace::focus::Extent
+pub fn nika_tui::workspace::focus::Extent::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_tui::workspace::focus::Extent
+impl core::marker::StructuralPartialEq for nika_tui::workspace::focus::Extent
+impl<D> owo_colors::OwoColorize for nika_tui::workspace::focus::Extent
+impl<Q, K> equivalent::Equivalent<K> for nika_tui::workspace::focus::Extent where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_tui::workspace::focus::Extent::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_tui::workspace::focus::Extent where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_tui::workspace::focus::Extent::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_tui::workspace::focus::Extent where U: core::convert::From<T>
+pub fn nika_tui::workspace::focus::Extent::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui::workspace::focus::Extent where U: core::convert::Into<T>
+pub type nika_tui::workspace::focus::Extent::Error = core::convert::Infallible
+pub fn nika_tui::workspace::focus::Extent::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui::workspace::focus::Extent where U: core::convert::TryFrom<T>
+pub type nika_tui::workspace::focus::Extent::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui::workspace::focus::Extent::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tui::workspace::focus::Extent where T: core::clone::Clone
+pub type nika_tui::workspace::focus::Extent::Owned = T
+pub fn nika_tui::workspace::focus::Extent::clone_into(&self, target: &mut T)
+pub fn nika_tui::workspace::focus::Extent::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tui::workspace::focus::Extent where T: 'static + ?core::marker::Sized
+pub fn nika_tui::workspace::focus::Extent::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui::workspace::focus::Extent where T: ?core::marker::Sized
+pub fn nika_tui::workspace::focus::Extent::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui::workspace::focus::Extent where T: ?core::marker::Sized
+pub fn nika_tui::workspace::focus::Extent::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tui::workspace::focus::Extent where T: core::clone::Clone
+pub unsafe fn nika_tui::workspace::focus::Extent::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tui::workspace::focus::Extent
+pub fn nika_tui::workspace::focus::Extent::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_tui::workspace::focus::Extent where T: core::clone::Clone
+pub fn nika_tui::workspace::focus::Extent::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> either::into_either::IntoEither for nika_tui::workspace::focus::Extent
+impl<T> nika_error::traits::AsAny for nika_tui::workspace::focus::Extent where T: 'static
+pub fn nika_tui::workspace::focus::Extent::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_tui::workspace::focus::Extent where T: core::marker::Copy
+pub fn nika_tui::workspace::focus::Extent::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_tui::workspace::focus::Extent where T: ?core::marker::Sized
+pub fn nika_tui::workspace::focus::Extent::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_tui::workspace::focus::Extent::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_tui::workspace::focus::Extent
+impl<T> tracing::instrument::WithSubscriber for nika_tui::workspace::focus::Extent
+impl<T> typenum::type_operators::Same for nika_tui::workspace::focus::Extent
+pub type nika_tui::workspace::focus::Extent::Output = T
+#[non_exhaustive] pub struct nika_tui::workspace::focus::Focus
+pub nika_tui::workspace::focus::Focus::region: nika_tui::workspace::focus::Region
+pub nika_tui::workspace::focus::Focus::scroll: usize
+pub nika_tui::workspace::focus::Focus::selected: usize
+impl nika_tui::workspace::focus::Focus
+pub const fn nika_tui::workspace::focus::Focus::composing() -> Self
+pub fn nika_tui::workspace::focus::Focus::handle(&mut self, key: crossterm::event::KeyEvent, extent: nika_tui::workspace::focus::Extent) -> nika_tui::workspace::focus::Action
+impl core::clone::Clone for nika_tui::workspace::focus::Focus
+pub fn nika_tui::workspace::focus::Focus::clone(&self) -> nika_tui::workspace::focus::Focus
+impl core::cmp::Eq for nika_tui::workspace::focus::Focus
+impl core::cmp::PartialEq for nika_tui::workspace::focus::Focus
+pub fn nika_tui::workspace::focus::Focus::eq(&self, other: &nika_tui::workspace::focus::Focus) -> bool
+impl core::fmt::Debug for nika_tui::workspace::focus::Focus
+pub fn nika_tui::workspace::focus::Focus::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_tui::workspace::focus::Focus
+impl core::marker::StructuralPartialEq for nika_tui::workspace::focus::Focus
+impl<D> owo_colors::OwoColorize for nika_tui::workspace::focus::Focus
+impl<Q, K> equivalent::Equivalent<K> for nika_tui::workspace::focus::Focus where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_tui::workspace::focus::Focus::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_tui::workspace::focus::Focus where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_tui::workspace::focus::Focus::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_tui::workspace::focus::Focus where U: core::convert::From<T>
+pub fn nika_tui::workspace::focus::Focus::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui::workspace::focus::Focus where U: core::convert::Into<T>
+pub type nika_tui::workspace::focus::Focus::Error = core::convert::Infallible
+pub fn nika_tui::workspace::focus::Focus::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui::workspace::focus::Focus where U: core::convert::TryFrom<T>
+pub type nika_tui::workspace::focus::Focus::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui::workspace::focus::Focus::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tui::workspace::focus::Focus where T: core::clone::Clone
+pub type nika_tui::workspace::focus::Focus::Owned = T
+pub fn nika_tui::workspace::focus::Focus::clone_into(&self, target: &mut T)
+pub fn nika_tui::workspace::focus::Focus::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tui::workspace::focus::Focus where T: 'static + ?core::marker::Sized
+pub fn nika_tui::workspace::focus::Focus::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui::workspace::focus::Focus where T: ?core::marker::Sized
+pub fn nika_tui::workspace::focus::Focus::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui::workspace::focus::Focus where T: ?core::marker::Sized
+pub fn nika_tui::workspace::focus::Focus::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tui::workspace::focus::Focus where T: core::clone::Clone
+pub unsafe fn nika_tui::workspace::focus::Focus::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tui::workspace::focus::Focus
+pub fn nika_tui::workspace::focus::Focus::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_tui::workspace::focus::Focus where T: core::clone::Clone
+pub fn nika_tui::workspace::focus::Focus::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> either::into_either::IntoEither for nika_tui::workspace::focus::Focus
+impl<T> nika_error::traits::AsAny for nika_tui::workspace::focus::Focus where T: 'static
+pub fn nika_tui::workspace::focus::Focus::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_tui::workspace::focus::Focus where T: core::marker::Copy
+pub fn nika_tui::workspace::focus::Focus::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_tui::workspace::focus::Focus where T: ?core::marker::Sized
+pub fn nika_tui::workspace::focus::Focus::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_tui::workspace::focus::Focus::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_tui::workspace::focus::Focus
+impl<T> tracing::instrument::WithSubscriber for nika_tui::workspace::focus::Focus
+impl<T> typenum::type_operators::Same for nika_tui::workspace::focus::Focus
+pub type nika_tui::workspace::focus::Focus::Output = T
 pub mod nika_tui::workspace::geometry
 #[non_exhaustive] pub struct nika_tui::workspace::geometry::Geometry
 pub nika_tui::workspace::geometry::Geometry::aside: core::option::Option<ratatui_core::layout::rect::Rect>
@@ -1848,8 +2071,11 @@ impl<T> tracing::instrument::Instrument for nika_tui::workspace::object::Paint
 impl<T> tracing::instrument::WithSubscriber for nika_tui::workspace::object::Paint
 impl<T> typenum::type_operators::Same for nika_tui::workspace::object::Paint
 pub type nika_tui::workspace::object::Paint::Output = T
+pub fn nika_tui::workspace::object::length(object: &nika_tui::workspace::object::Object) -> usize
 pub fn nika_tui::workspace::object::lines(object: &nika_tui::workspace::object::Object, width: u16, height: u16, paint: nika_tui::workspace::object::Paint) -> alloc::vec::Vec<ratatui_core::text::line::Line<'static>>
+pub fn nika_tui::workspace::object::lines_from(object: &nika_tui::workspace::object::Object, width: u16, height: u16, paint: nika_tui::workspace::object::Paint, scroll: usize) -> alloc::vec::Vec<ratatui_core::text::line::Line<'static>>
 pub fn nika_tui::workspace::object::render(object: &nika_tui::workspace::object::Object, area: ratatui_core::layout::rect::Rect, buf: &mut ratatui_core::buffer::buffer::Buffer, paint: nika_tui::workspace::object::Paint)
+pub fn nika_tui::workspace::object::render_from(object: &nika_tui::workspace::object::Object, area: ratatui_core::layout::rect::Rect, buf: &mut ratatui_core::buffer::buffer::Buffer, paint: nika_tui::workspace::object::Paint, scroll: usize)
 pub fn nika_tui::workspace::object::welcome_mark(width: u16, height: u16, words: usize) -> core::option::Option<nika_tui::visual::logomark::Size>
 pub mod nika_tui::workspace::pinned
 #[non_exhaustive] pub struct nika_tui::workspace::pinned::Pinned
@@ -1967,4 +2193,5 @@ impl<T> tracing::instrument::Instrument for nika_tui::workspace::screen::Screen
 impl<T> tracing::instrument::WithSubscriber for nika_tui::workspace::screen::Screen
 impl<T> typenum::type_operators::Same for nika_tui::workspace::screen::Screen
 pub type nika_tui::workspace::screen::Screen::Output = T
-pub fn nika_tui::workspace::screen::draw(frame: &mut ratatui_core::terminal::frame::Frame<'_>, screen: &nika_tui::workspace::screen::Screen, paint: nika_tui::workspace::object::Paint, state: &nika_tui::model::UiState, composer: &nika_tui::composer::Composer) -> bool
+pub fn nika_tui::workspace::screen::draw(frame: &mut ratatui_core::terminal::frame::Frame<'_>, screen: &nika_tui::workspace::screen::Screen, paint: nika_tui::workspace::object::Paint, focus: &nika_tui::workspace::focus::Focus, state: &nika_tui::model::UiState, composer: &nika_tui::composer::Composer) -> bool
+pub fn nika_tui::workspace::screen::extent(screen: &nika_tui::workspace::screen::Screen, area: ratatui_core::layout::rect::Rect) -> core::option::Option<nika_tui::workspace::focus::Extent>

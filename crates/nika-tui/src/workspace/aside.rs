@@ -82,7 +82,7 @@ pub struct Aside {
     pub complete: bool,
 }
 
-/// The aside lines for a `width` × `height` region.
+/// The aside lines for a `width` × `height` region, nothing selected.
 #[must_use]
 pub fn lines(
     aside: &Aside,
@@ -90,6 +90,20 @@ pub fn lines(
     height: u16,
     ascii: bool,
     color: bool,
+) -> Vec<Line<'static>> {
+    lines_selecting(aside, width, height, ascii, color, None)
+}
+
+/// The aside lines with the entry at `selected` reversed (the keyboard is in
+/// the aside); the listing slides so the selected entry is always shown.
+#[must_use]
+pub fn lines_selecting(
+    aside: &Aside,
+    width: u16,
+    height: u16,
+    ascii: bool,
+    color: bool,
+    selected: Option<usize>,
 ) -> Vec<Line<'static>> {
     let (width, height) = (usize::from(width), usize::from(height));
     let (sep, cut) = marks(ascii);
@@ -118,7 +132,11 @@ pub fn lines(
     } else {
         room
     };
-    for entry in aside.entries.iter().take(listed) {
+    let start = match selected {
+        Some(at) if listed > 0 && at >= listed => at + 1 - listed,
+        _ => 0,
+    };
+    for (index, entry) in aside.entries.iter().enumerate().skip(start).take(listed) {
         let indent = "  ".repeat(usize::from(entry.depth));
         let glyph = entry.icon.glyph(ascii);
         let marker = if entry.open {
@@ -129,10 +147,13 @@ pub fn lines(
         let head = format!("{marker}{indent}{glyph} ");
         let label = fit_head(&entry.label, width.saturating_sub(head.width()), cut);
         let style = if entry.open { strong } else { Style::default() };
-        out.push(Line::from(vec![
-            Span::styled(head, dim),
-            Span::styled(label, style),
-        ]));
+        let row = Line::from(vec![Span::styled(head, dim), Span::styled(label, style)]);
+        // A weight, never a hue: the selection reads without colour too.
+        out.push(if selected == Some(index) {
+            row.patch_style(Style::default().add_modifier(Modifier::REVERSED))
+        } else {
+            row
+        });
     }
     if hidden > 0 && room > 0 {
         let more = aside.entries.len() - listed;
@@ -223,5 +244,18 @@ mod tests {
             "{rows:?}"
         );
         assert_eq!(rows[4], ">  [W] rele...");
+    }
+
+    #[test]
+    fn the_selected_entry_is_reversed_and_always_listed() {
+        let reversed = |line: &Line<'_>| line.style.add_modifier.contains(Modifier::REVERSED);
+        let all = lines_selecting(&studio(), 28, 20, false, false, Some(1));
+        assert!(reversed(&all[3]) && !reversed(&all[2]), "{all:?}");
+        // Five entries in three listed rows: selecting the last slides the list.
+        let tight = lines_selecting(&studio(), 28, 6, false, false, Some(4));
+        let rows = text(&tight);
+        assert_eq!(rows[5], "  +2 more");
+        assert!(rows[4].ends_with("weekly digest"), "{rows:?}");
+        assert!(reversed(&tight[4]) && !reversed(&tight[3]));
     }
 }
