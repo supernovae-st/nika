@@ -40,28 +40,37 @@
 //! as a special case still escapes: the observed value is a stand-in, not a proof.
 //!
 //! Every unmatched text is paired with itself repeated twice, including the synthetic probe.
-//! Both answers must agree before comparing that treatment with the two spellings. Exchanging
-//! the two exact canonical string literals in a private probe copy of the program must also
-//! reverse which spelling matches a confirmed unmatched pair. Parenthesized additions of constant
-//! strings count as one literal. All occurrences are exchanged together, then each individually;
-//! a separate literal self-guard must not hide selection. This checks the literals' effect through
-//! pipes, variables, string operations and lookup without confusing a constant output label or
-//! an irrelevant comparison with selection. The emitted program is never changed. This avoids
+//! Both answers must agree before comparing that treatment with the two spellings. This avoids
 //! a singleton collision (B23 R2: a code-point length, where « annulé » and the decomposed
 //! « livré » both count 6), without letting a special case of the synthetic probe hide the drop
 //! shown by the observed pair (B24 S3: no ASCII letter, or length < 2, answers 1 instead of 0).
 //! A text the program names as its own string is a special case, excluded from the comparison
-//! (B23 F3 names `"␀"`; the observed pair still exposes its byte comparison). No pair can prove
-//! arbitrary equivalence: shared variables may couple a comparison with literal self-inspection,
-//! expressions may compute the literal, a value transform can collide twice, and a program can evade both
-//! companions. These remain bounded observations, open to independent challenge.
+//! (B23 F3 names `"␀"`; the observed pair still exposes its byte comparison).
+//!
+//! A confirmed pair shows a drop; one operation-level counterfactual decides whether a BYTE
+//! COMPARISON causes it ([`relations`], B24 V6.1 §4.4). A private copy of the program is run in
+//! which every string relation (equality, ordering, containment, prefix and suffix, position,
+//! regular expressions, keys and lookups) compares canonical (NFC) forms while every value
+//! operation (a length, a code point, a slice, a case, an encoding, what the program builds)
+//! keeps its exact bytes; no literal is edited and the emitted program is never changed. Proof
+//! domain: when the drop disappears there, a relation told canonically equivalent texts apart on
+//! the probed row, and the program is refused, however the compared text was written (split,
+//! concatenated, interpolated, bound to a variable that also inspects its own bytes, or a
+//! fragment of the spelling). Signal domain: when the drop persists, a value the program computes
+//! decides it (a requested length or encoding and a value used as a proxy for equality alike),
+//! and the law records it for the judges, never a pass. A copy the parser tree cannot print
+//! faithfully, a definition shadowing a relation, an error, or an identity copy that does not
+//! reproduce the program's own answers is inconclusive and recorded the same way. A request about
+//! the encoding itself (« the rows spelled with a combining accent ») is still refused, as the
+//! law's premise decides: canonical equivalents are one text unless the request says otherwise.
 //!
 //! When no drop is shown yet the program treats the two spellings apart, the law cannot tell
 //! whether the request means that difference. The notes distinguish `treated_apart`, varying
 //! unmatched answers (`unmatched_varies`), an unconfirmed singleton (`probe_unconfirmed`), no
-//! answers (`every_probe_errs`), only named probes answering (`probe_named`), and a literal exchange
-//! that does not confirm the difference (`literal_unconfirmed`). The judges read
-//! the exact tried texts and these limitations, never a claim that a probe proves the intent.
+//! answers (`every_probe_errs`), only named probes answering (`probe_named`), a drop the
+//! canonical relations leave in place (`relation_unconfirmed`) and a probe that could not be
+//! evaluated (`relation_inconclusive`). The judges read the exact tried texts and these
+//! limitations, never a claim that a probe proves the intent.
 //!
 //! A bounded law over the seat's own example rows and the host's bounded sample, never a proof
 //! that two programs mean the same: a spelling the sample did not show, a column without
@@ -69,7 +78,7 @@
 //! nothing, and a program treating the observed spelling some third way (neither as the stated
 //! one nor as unmatched) is left to the verifier, with the note that says so.
 
-mod literals;
+mod relations;
 
 use super::super::verify::UNJUDGED_SPELLINGS as UNJUDGED_KEY;
 use super::{CompileOutcome, DiagnosticKind, ProposedTransform, Refusal, run};
@@ -202,8 +211,8 @@ impl Spelled {
             .as_array()
             .map_or(&[][..], Vec::as_slice);
         let mut unjudged: Vec<Unheld<'_>> = Vec::new();
+        let copies = relations::copies(program);
         for bound in &self.bound {
-            let exchanged = literals::exchange(program, [&bound.stated, &bound.observed]);
             for row in example.iter().filter(|row| row.is_object()) {
                 let probe = |text: &str| {
                     let mut row = row.clone();
@@ -238,19 +247,8 @@ impl Spelled {
                                     .map(|how| (texts, first, how))
                             })
                             .collect();
-                        let drop = exchanged.as_ref().and_then(|exchange| {
-                            exchange.programs().find_map(|counterfactual| {
-                                pairs.iter().find_map(|(texts, none, how)| {
-                                    (bound.exchanges(
-                                        &counterfactual,
-                                        row,
-                                        texts,
-                                        [&stated, &observed, none],
-                                    ) == Some(true))
-                                    .then_some(*how)
-                                })
-                            })
-                        });
+                        let (drop, inconclusive) =
+                            bound.confirm(copies.as_ref(), row, &pairs, [&stated, &observed]);
                         let varies = answered.windows(2).any(|pair| pair[0] != pair[1]);
                         let unconfirmed = answered
                             .iter()
@@ -260,8 +258,11 @@ impl Spelled {
                             (Some(_), _) => None,
                             (None, true) if named => Some(Unjudged::ProbeNamed),
                             (None, true) => Some(Unjudged::EveryProbeErrs),
+                            (None, false) if !pairs.is_empty() && inconclusive => {
+                                apart.then_some(Unjudged::RelationInconclusive)
+                            }
                             (None, false) if !pairs.is_empty() => {
-                                apart.then_some(Unjudged::LiteralUnconfirmed)
+                                apart.then_some(Unjudged::RelationUnconfirmed)
                             }
                             (None, false) if varies => apart.then_some(Unjudged::UnmatchedVaries),
                             (None, false) if unconfirmed => {
@@ -359,8 +360,10 @@ const UNMATCHED_VARIES: &str = "the program answers unmatched texts differently,
 const PROBE_NAMED: &str = "the program names the text the law tried as a value the clause does not state and stops with an error on every other text tried, or the host observed none, so no treatment of such a value is left to compare; the judges settle the clause";
 /// A singleton answer resembles a dropped spelling, but its changed text could not confirm it.
 const PROBE_UNCONFIRMED: &str = "an answered unmatched text shares one spelling's output, but its paired changed text did not confirm that treatment, so the spelling law cannot establish a dropped spelling; the judges settle the clause";
-/// A value transform can collide on a whole pair without comparing a categorical literal.
-const LITERAL_UNCONFIRMED: &str = "a matching unmatched pair alone does not establish categorical selection: exchanging exact canonical string literals in a private probe program did not reverse which spelling matches a confirmed unmatched pair, or no such literal could be exchanged; the spelling law cannot judge this difference, and the judges settle the clause";
+/// A value the program computes can collide on a whole pair without any byte comparison.
+const RELATION_UNCONFIRMED: &str = "a matching unmatched pair alone does not establish categorical selection: with every string relation of a private probe copy comparing canonical (NFC) forms and every value kept exact, the observed spelling is still treated otherwise than the stated one, so a value the program computes (a length, a code point, an encoding, a case) decides the difference; the spelling law cannot judge whether the request means it, and the judges settle the clause";
+/// The canonical-relation probe could not be evaluated: it proves nothing either way.
+const RELATION_INCONCLUSIVE: &str = "a matching unmatched pair alone does not establish categorical selection, and the canonical-relation probe could not be evaluated (a construct without a faithful copy, a definition shadowing a relation, an error, or a copy that does not reproduce the program's own answers); an inconclusive probe proves nothing either way, and the judges settle the clause";
 
 /// Why the law could not judge a program over a binding, named in its note and finding.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -377,8 +380,10 @@ enum Unjudged {
     ProbeNamed,
     /// An answered text resembles a drop, but its pair did not confirm the treatment.
     ProbeUnconfirmed,
-    /// Exchanging exact spelling literals did not confirm their effect on the output difference.
-    LiteralUnconfirmed,
+    /// Canonical relations left the drop in place: a computed value decides the difference.
+    RelationUnconfirmed,
+    /// The canonical-relation probe could not be evaluated.
+    RelationInconclusive,
 }
 
 impl Unjudged {
@@ -390,7 +395,8 @@ impl Unjudged {
             Self::UnmatchedVaries => "unmatched_varies",
             Self::ProbeNamed => "probe_named",
             Self::ProbeUnconfirmed => "probe_unconfirmed",
-            Self::LiteralUnconfirmed => "literal_unconfirmed",
+            Self::RelationUnconfirmed => "relation_unconfirmed",
+            Self::RelationInconclusive => "relation_inconclusive",
         }
     }
     /// The reason in words.
@@ -401,7 +407,8 @@ impl Unjudged {
             Self::UnmatchedVaries => UNMATCHED_VARIES,
             Self::ProbeNamed => PROBE_NAMED,
             Self::ProbeUnconfirmed => PROBE_UNCONFIRMED,
-            Self::LiteralUnconfirmed => LITERAL_UNCONFIRMED,
+            Self::RelationUnconfirmed => RELATION_UNCONFIRMED,
+            Self::RelationInconclusive => RELATION_INCONCLUSIVE,
         }
     }
 }
@@ -420,37 +427,54 @@ impl Bound {
             .collect()
     }
 
-    /// Exchanging canonical literals must reverse which spelling matches a confirmed unmatched
-    /// pair. Kept rows may transform their text, so their full outputs need not exchange. Exact
-    /// spelling-valued keys and values are normalized throughout, so constant labels alone are
-    /// not a dependency. Every counterfactual execution uses the same capability-filtered engine.
-    fn exchanges(
+    /// Whether a confirmed pair's drop DISAPPEARS once every string relation compares canonical
+    /// forms while every value keeps its bytes ([`relations`]): the drop's way when it does
+    /// (proof domain), and whether the probe was inconclusive when it does not (no faithful copy,
+    /// an error, a pair the copy does not answer alike, or an identity copy that does not
+    /// reproduce the program's own answers on the texts compared).
+    fn confirm(
         &self,
-        program: &str,
+        copies: Option<&(String, String)>,
         row: &Value,
-        unmatched: &[String],
-        original: [&Value; 3],
-    ) -> Option<bool> {
-        let normalize = |value| read_back(read_back(value, &self.stated), &self.observed);
-        let probe = |text: &str| {
+        pairs: &[(&[String], &Value, &'static str)],
+        [stated, observed]: [&Value; 2],
+    ) -> (Option<&'static str>, bool) {
+        let Some((identity, canonical)) = copies else {
+            return (None, true);
+        };
+        let probe = |program: &str, text: &str| {
             let mut input = row.clone();
             input[&self.column] = json!(text);
-            run(program, &json!({"records": [input]}))
+            relations::run(program, &json!({"records": [input]}))
                 .ok()
-                .map(|value| normalize(read_back(value, text)))
+                .map(|value| read_back(value, text))
         };
-        let [stated, observed, none] = original.map(|v| normalize(v.clone()));
-        let before = dropped(stated != none, observed != none)?;
-        let first = probe(unmatched.first()?)?;
-        let second = probe(unmatched.get(1)?)?;
-        if first != second {
-            return None;
+        let mut inconclusive = false;
+        for (texts, none, how) in pairs {
+            let [first, second] = &texts[..] else {
+                inconclusive = true;
+                continue;
+            };
+            let faithful = probe(identity, &self.stated).as_ref() == Some(stated)
+                && probe(identity, &self.observed).as_ref() == Some(observed)
+                && probe(identity, first).as_ref() == Some(*none)
+                && probe(identity, second).as_ref() == Some(*none);
+            let after = faithful.then(|| {
+                let unmatched = probe(canonical, first)?;
+                (probe(canonical, second)? == unmatched).then_some(())?;
+                let kept = probe(canonical, &self.stated)? != unmatched;
+                Some(dropped(
+                    kept,
+                    probe(canonical, &self.observed)? != unmatched,
+                ))
+            });
+            match after.flatten() {
+                Some(None) => return (Some(*how), false),
+                Some(Some(_)) => {}
+                None => inconclusive = true,
+            }
         }
-        let after = dropped(
-            probe(&self.stated)? != first,
-            probe(&self.observed)? != first,
-        )?;
-        Some(before != after)
+        (None, inconclusive)
     }
 
     /// The note on `program`, which the law could not judge over this binding after trying
