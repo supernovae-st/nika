@@ -148,20 +148,36 @@ verifier is no longer silent.
 
 Each unmatched text is paired with that text repeated twice. The synthetic U+2400 probe is
 paired too: a one-character literal's requested length can collide with that probe. A spelling
-is treated as dropped only when both members of a pair answer alike, exactly one spelling
-shares their output, and exchanging the two canonical string constants in a private probe
-program reverses which spelling matches a confirmed unmatched pair. The execution lexer's
-complete strings and parenthesized pure constant-string additions are recognized, including
-nested parentheses. The constants are exchanged together, then each occurrence separately;
-a separate literal self-guard must not hide the comparison. Only private probes change: the
-emitted program keeps its bytes.
+is treated as dropped only when both members of a pair answer alike and exactly one spelling
+shares their output. One operation-level counterfactual then decides the drop's cause (B24,
+`transform/spelling/relations.rs`): a private copy of the program, printed back from the
+execution parser's tree, in which every string relation compares canonical (NFC) forms while
+every value operation keeps its exact bytes. Relations are equality and ordering (with the
+orderings of `sort`, `unique`, `group_by`, `min`, `max` and their `_by` forms), containment,
+prefix and suffix, trimming, position, separators, keys and lookups by a key that is not a
+constant ASCII name, and regular expressions; values are everything else (a length, a code
+point, a slice, a case, an encoding, arithmetic, what the program builds). No literal is edited
+and the emitted program keeps its bytes.
 
-This observed reversal covers direct comparisons, pipes, variables, string operations and
-lookup tables without relying on a direct field-equality syntax. Exact spelling-valued keys
-and values read back to one placeholder in the counterfactual comparison, so a constant label
-alone does not establish selection. Kept rows may transform their values; membership reversal
-does not require their complete outputs to exchange. A dead comparison whose branches perform
-the same value transformation establishes no reversal.
+Proof domain: when the drop disappears in the canonical copy, a relation told canonically
+equivalent texts apart on the probed row, and the program is refused, however the compared text
+is written (split or concatenated with or without parentheses, interpolated, a fragment of the
+spelling, or one literal bound to a variable that also inspects its own bytes, which the earlier
+literal exchange could not confirm). Signal domain: when the drop persists, a value the program
+computes decides it: a requested length, threshold or encoding, and a value used as a proxy for
+equality alike. The law records it (`relation_unconfirmed`) for the judges, never as a pass. An
+identity copy must reproduce the program's own answers on the probed texts; a construct without
+a faithful copy, a definition shadowing a relation, an error or an unpaired answer is recorded
+`relation_inconclusive`. A dead comparison whose branches perform the same value transformation
+leaves the drop in place. Requests about the encoding itself (« the rows spelled with a
+combining accent ») stay refused under the law's premise: canonical equivalents are one text
+unless the request says otherwise.
+
+The verifier and its probes share one jq language (`transform/engine.rs`): the runtime mirror
+of `nika:jq` (jaq core, the capability-filtered std, jaq-json, the runtime shadows of
+`transform/stdlib.jq`, the fixed run-start clock and the input-bound variables), assembled
+once. The probe adds two private natives through `run_with`; they are never installed for an
+emitted program, and a program that names one does not compile in the verifier.
 
 Agreement across unrelated pairs is not required: a special case of the synthetic probe must
 not hide a drop exposed by the observed stand-in and its companion. A text named by the program
@@ -171,20 +187,23 @@ cases and the original D1 and F3 controls remain regression obligations.
 
 B23 R2, every status's code-point length, was refused because « annulé » counts 6 code points
 like the decomposed « livré ». A requested rounded length can collide on both members of a pair
-too. Without a confirming literal intervention these programs are left to the judges, with
-`unmatched_varies` or `literal_unconfirmed` as observed; a constant output label does not change
-that judgment. The ordinary length program is due [6, 6, 6], and the rounded length is due
+too. Canonical relations leave these differences in place, so these programs are left to the
+judges, with `unmatched_varies` or `relation_unconfirmed` as observed; a constant output label
+does not change that judgment. The ordinary length program is due [6, 6, 6], and the rounded length is due
 [3, 3, 3]. These are distinct user intents, not evidence that arbitrary byte comparisons are safe.
 
 The record names every text actually tried. A singleton answer whose companion fails or is
 excluded cannot establish a drop (`probe_unconfirmed`); `probe_named`, `every_probe_errs`,
 `unmatched_varies` and `treated_apart` retain their separate reasons. These finite observations
-do not prove semantic equivalence. A shared variable can couple selection with inspection of
-the literal's own bytes; an expression can compute a literal outside the recognized constant
-forms; a program can special-case both companions. An unconfirmed intervention is explicitly
-`literal_unconfirmed`, shown to the whole-request judges, never a pass from the spelling law.
-Such counterexamples remain subject to independent challenge; the law neither forbids
-legitimate literal transformations nor rewrites the requested literal.
+do not prove semantic equivalence: the probed rows and the host's sample bound them, NFC is the
+only equivalence (no compatibility forms), regular-expression patterns are canonicalized on a
+best-effort basis, orderings go unexercised on one-row probes, and the canonical copy's JSON
+round trip may reorder object keys. A value used as a proxy for equality with the stated literal
+is not refused by this law; it reaches the judges with its note. The law never rewrites the
+requested literal. It refuses a requested transformation only when a relation, not the value,
+separates the two spellings; the earlier literal exchange also refused requested values of the
+literal itself (B24 S8C: a per-row code-point threshold, refused by the exchange), which this
+law leaves to the judges.
 
 A candidate a model's plan shaped is judged against the whole request before READY
 (`cognition::verify`, R4 A11). The core names what no law reads from the bytes: a duty a

@@ -13,9 +13,6 @@
 //! whose jq is visible at the task. A human is never asked for a jq expression; a refused
 //! program leaves the question the assembler already asks, and the receipt says why.
 
-use jaq_core::load::{Arena, Error as LoadError, File, Loader};
-use jaq_core::{Compiler, Ctx, Vars, data as jaq_data};
-use jaq_json::{Val, read};
 use serde_json::Value;
 
 /// The seat's answer to the transform question, decoded from its JSON.
@@ -34,160 +31,6 @@ pub(super) struct ProposedTransform {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct Refusal(pub(super) String);
 
-/// The most output bytes a verification run may produce (the runtime's own ceiling is
-/// larger; an example is small by construction).
-const MAX_OUTPUT_BYTES: usize = 65_536;
-
-/// Run `program` over `input` exactly as the runtime builtin would, with the run-start
-/// clock bound to a fixed instant: the one value it emits, or the reason it cannot.
-pub(super) fn run(program: &str, input: &Value) -> Result<Value, Refusal> {
-    let val = to_val(input)?;
-    let (names, vals) = variables(input)?;
-    let corrections = jaq_core::load::parse(JQ_STD_CORRECTIONS, |p| p.defs())
-        .ok_or_else(|| Refusal("internal: the jq std corrections do not parse".to_owned()))?;
-    let clock = jaq_core::load::parse(nika_cap::JQ_CLOCK_DEFS, |p| p.defs())
-        .ok_or_else(|| Refusal("internal: the jq clock definitions do not parse".to_owned()))?;
-    let defs = jaq_core::defs()
-        .chain(jaq_std::defs().filter(|d| nika_cap::install_jq_definition(d.name)))
-        .chain(jaq_json::defs())
-        .chain(corrections)
-        .chain(clock);
-    let funs = jaq_core::funs()
-        .chain(jaq_std::funs())
-        .chain(jaq_json::funs())
-        .filter(|f| nika_cap::install_jq_native(f.0));
-    let arena = Arena::default();
-    let modules = Loader::new(defs)
-        .load(
-            &arena,
-            File {
-                code: program,
-                path: (),
-            },
-        )
-        .map_err(|errs| {
-            Refusal(format!(
-                "the program does not parse: {}",
-                render_load(&errs)
-            ))
-        })?;
-    let filter = Compiler::default()
-        .with_funs(funs)
-        .with_global_vars(
-            std::iter::once(nika_cap::JQ_RUN_START_VAR).chain(names.iter().map(String::as_str)),
-        )
-        .compile(modules)
-        .map_err(|errs| {
-            Refusal(format!(
-                "the program does not compile: {}",
-                render_compile(&errs)
-            ))
-        })?;
-    let ctx = Ctx::<jaq_data::JustLut<Val>>::new(
-        &filter.lut,
-        Vars::new(std::iter::once(Val::from(1_700_000_000_isize)).chain(vals)),
-    );
-    let mut single: Option<Value> = None;
-    for result in filter.id.run((ctx, val)) {
-        let value = match result {
-            Ok(value) => value,
-            Err(exception) => {
-                return Err(Refusal(match exception.get_err() {
-                    Ok(error) => format!("the program fails on the example: {error}"),
-                    Err(_) => "the program uses process control the engine withholds".to_owned(),
-                }));
-            }
-        };
-        if single.is_some() {
-            return Err(Refusal(
-                "the program emits more than one value; a binding needs exactly one".to_owned(),
-            ));
-        }
-        let text = value.to_string();
-        if text.len() > MAX_OUTPUT_BYTES {
-            return Err(Refusal(
-                "the example output is larger than the verifier reads".to_owned(),
-            ));
-        }
-        single = Some(
-            serde_json::from_str(&text)
-                .map_err(|e| Refusal(format!("the program's output is not JSON: {e}")))?,
-        );
-    }
-    single.ok_or_else(|| {
-        Refusal("the program emits no value; a binding needs exactly one".to_owned())
-    })
-}
-
-fn to_val(value: &Value) -> Result<Val, Refusal> {
-    let bytes = serde_json::to_vec(value).map_err(|e| Refusal(e.to_string()))?;
-    read::parse_single(&bytes).map_err(|e| Refusal(format!("the input is not valid JSON: {e}")))
-}
-
-/// The variables an object input binds (`$records`, `$slots`), as the runtime binds them.
-fn variables(input: &Value) -> Result<(Vec<String>, Vec<Val>), Refusal> {
-    let mut names = Vec::new();
-    let mut vals = Vec::new();
-    for (key, value) in input.as_object().into_iter().flatten() {
-        let identifier = key
-            .chars()
-            .next()
-            .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
-            && key.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
-        let name = format!("${key}");
-        if name == nika_cap::JQ_RUN_START_VAR || !identifier {
-            continue;
-        }
-        names.push(name);
-        vals.push(to_val(value)?);
-    }
-    Ok((names, vals))
-}
-
-/// The runtime shadows, verbatim: global `scan` and exactly one value from `tonumber`.
-const JQ_STD_CORRECTIONS: &str = include_str!("transform/stdlib.jq");
-
-fn render_load(errs: &[(File<&str, ()>, LoadError<&str>)]) -> String {
-    let Some((_, first)) = errs.first() else {
-        return "does not parse".to_owned();
-    };
-    let near = |expected: &str, at: &str| {
-        let at = at.trim();
-        if at.is_empty() {
-            format!("expected {expected} (unexpected end of input)")
-        } else {
-            format!(
-                "expected {expected} near `{}`",
-                at.chars().take(24).collect::<String>()
-            )
-        }
-    };
-    match first {
-        LoadError::Io(v) => v
-            .first()
-            .map_or_else(|| "io error".to_owned(), |(_, m)| format!("io: {m}")),
-        LoadError::Lex(v) => v.first().map_or_else(
-            || "lexing error".to_owned(),
-            |(exp, at)| near(exp.as_str(), at),
-        ),
-        LoadError::Parse(v) => v.first().map_or_else(
-            || "parse error".to_owned(),
-            |(exp, at)| near(exp.as_str(), at),
-        ),
-    }
-}
-
-#[allow(clippy::type_complexity)] // the shape is jaq's `compile::Errors`, not ours
-fn render_compile<U>(errs: &[(File<&str, ()>, Vec<(&str, U)>)]) -> String {
-    errs.first().and_then(|(_, v)| v.first()).map_or_else(
-        || "compile error".to_owned(),
-        |(name, _)| {
-            nika_cap::withheld_jq_policy_reason(name)
-                .unwrap_or_else(|| format!("undefined filter or variable `{name}`"))
-        },
-    )
-}
-
 // ── the one bounded call and the laws that judge its answer ─────────────────────────────
 
 use super::{AuthoringPolicy, CompileOutcome, DiagnosticKind};
@@ -196,8 +39,10 @@ use nika_compile::surface::pending_transform::PendingTransform;
 use nika_kernel::ai::provider::{ContentBlock, Message, ProviderInferDyn, Role, StopReason};
 use serde_json::json;
 mod domain;
+mod engine;
 mod pending;
 mod spelling;
+use engine::run;
 pub(super) use pending::resume;
 
 /// The most transform calls one request may buy: two clauses the typed stages cannot state.

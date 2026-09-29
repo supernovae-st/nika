@@ -19,21 +19,16 @@
 //! `ascii_upcase`, the `@` formats, `tojson`, concatenation, arithmetic and every output a
 //! program builds.
 
-use super::super::{
-    JQ_STD_CORRECTIONS, MAX_OUTPUT_BYTES, Refusal, render_compile, render_load, to_val, variables,
-};
+use super::super::Refusal;
+use super::super::engine::{Data, run_with, to_val};
 use jaq_core::load::lex::StrPart;
 use jaq_core::load::parse::{BinaryOp, Pattern, Term};
-use jaq_core::load::{Arena, File, Loader};
 use jaq_core::ops::Cmp;
 use jaq_core::path::{Opt, Part, Path};
-use jaq_core::{Compiler, Ctx, Vars, data as jaq_data};
 use jaq_json::Val;
 use serde_json::Value;
 use std::fmt::Write as _;
 use unicode_normalization::UnicodeNormalization;
-
-type Data = jaq_data::JustLut<Val>;
 
 /// Relations of one argument: the input and the argument compared canonical.
 const ONE: &[&str] = &[
@@ -79,65 +74,11 @@ pub(super) fn copies(program: &str) -> Option<(String, String)> {
     Some((identity, canonical))
 }
 
-/// Run `program` over `input` as the verifier's runtime mirror runs a seat's program (the same
-/// stack, capability filter, variables and fixed clock), with the probe's two natives added,
-/// which only the canonical copy calls.
+/// Run `program` over `input` in the verifier's one jq language ([`run_with`]: the same stack,
+/// capability filter, runtime shadows, variables and fixed clock), with the probe's two natives
+/// added, which only the canonical copy calls.
 pub(super) fn run(program: &str, input: &Value) -> Result<Value, Refusal> {
-    let val = to_val(input)?;
-    let (names, vals) = variables(input)?;
-    let corrections = jaq_core::load::parse(JQ_STD_CORRECTIONS, |p| p.defs())
-        .ok_or_else(|| Refusal("internal: the jq std corrections do not parse".to_owned()))?;
-    let clock = jaq_core::load::parse(nika_cap::JQ_CLOCK_DEFS, |p| p.defs())
-        .ok_or_else(|| Refusal("internal: the jq clock definitions do not parse".to_owned()))?;
-    let defs = jaq_core::defs()
-        .chain(jaq_std::defs().filter(|d| nika_cap::install_jq_definition(d.name)))
-        .chain(jaq_json::defs())
-        .chain(corrections)
-        .chain(clock);
-    let funs = jaq_core::funs()
-        .chain(jaq_std::funs())
-        .chain(jaq_json::funs())
-        .filter(|f| nika_cap::install_jq_native(f.0))
-        .chain(natives());
-    let arena = Arena::default();
-    let file = File {
-        code: program,
-        path: (),
-    };
-    let modules = Loader::new(defs)
-        .load(&arena, file)
-        .map_err(|errs| Refusal(format!("the probe does not parse: {}", render_load(&errs))))?;
-    let filter = Compiler::default()
-        .with_funs(funs)
-        .with_global_vars(
-            std::iter::once(nika_cap::JQ_RUN_START_VAR).chain(names.iter().map(String::as_str)),
-        )
-        .compile(modules)
-        .map_err(|errs| {
-            Refusal(format!(
-                "the probe does not compile: {}",
-                render_compile(&errs)
-            ))
-        })?;
-    let ctx = Ctx::<Data>::new(
-        &filter.lut,
-        Vars::new(std::iter::once(Val::from(1_700_000_000_isize)).chain(vals)),
-    );
-    let mut single: Option<Value> = None;
-    for result in filter.id.run((ctx, val)) {
-        let value = result.map_err(|_| Refusal("the probe fails".to_owned()))?;
-        let text = value.to_string();
-        if single.is_some() || text.len() > MAX_OUTPUT_BYTES {
-            return Err(Refusal(
-                "the probe emits more than one bounded value".to_owned(),
-            ));
-        }
-        single = Some(
-            serde_json::from_str(&text)
-                .map_err(|e| Refusal(format!("the probe's output is not JSON: {e}")))?,
-        );
-    }
-    single.ok_or_else(|| Refusal("the probe emits no value".to_owned()))
+    run_with(program, input, natives())
 }
 
 /// The probe's natives: `__nika_canon` puts every string and key of its input in NFC;
@@ -436,5 +377,76 @@ impl Printer {
             };
         }
         Some(out)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{copies, run};
+    use serde_json::{Value, json};
+
+    /// The row a probe runs on: one record spelled as the clause states « livré ».
+    fn row() -> Value {
+        json!({"records": [{"id": "a1", "item": "x", "status": "livr\u{e9}", "qty": "40"}]})
+    }
+
+    /// The probe natives exist only in the private copy: the verifier's own runner refuses a
+    /// program naming one, which the probe runner evaluates.
+    #[test]
+    fn a_program_naming_a_probe_native_does_not_compile_in_the_verifier() {
+        for program in ["\"livre\u{301}\" | __nika_canon", "{} | __nika_canon_keys"] {
+            let refused = super::super::super::run(program, &row());
+            assert!(
+                refused.is_err_and(|r| r.0.contains("__nika_canon")),
+                "{program}"
+            );
+            assert!(run(program, &row()).is_ok(), "{program}");
+        }
+        let canonical = run("\"livre\u{301}\" | __nika_canon", &row());
+        assert_eq!(canonical.unwrap(), json!("livr\u{e9}"));
+    }
+
+    /// Every construct the printer knows round-trips: the identity copy answers exactly as the
+    /// program on the probed row, and the canonical copy runs.
+    #[test]
+    fn the_identity_copy_answers_as_the_program() {
+        let programs = [
+            ".records | map(select(.status == \"livr\u{e9}\") | .qty | tonumber) | add // 0",
+            ".records | map(\"livr\u{e9}\" as $l | select(.status == $l and ($l | length) == 5) | .qty | tonumber) | add // 0",
+            ".records | map(select(.status == (\"liv\" + \"r\u{e9}\")) | .qty | tonumber) | add // 0",
+            ".records | map({\"livr\u{e9}\": (.qty | tonumber)}[.status] // 0) | add // 0",
+            ".records | map(select(.status | test(\"livr\u{e9}\")) | .qty | tonumber) | add // 0",
+            ".records | map(select((.status | ltrimstr(\"livr\u{e9}\")) == \"\")) | length",
+            "reduce .records[] as $r (0; . + ($r.qty | tonumber))",
+            "[foreach .records[] as {qty: $q} (0; . + ($q | tonumber); .)]",
+            "label $out | .records[] | if .qty == \"40\" then .id, break $out else empty end",
+            "try (.records[0].qty | tonumber) catch 0",
+            "[.records[] | .status?, .missing?] | length",
+            "def twice(f): f | f; .records | map(.qty | tonumber | twice(. * 2)) | add",
+            "{id: .records[0].id, n: (.records | length), \"s\": .records[0].status, (.records[0].item): 1}",
+            "\"\\(.records[0].id)-\\(.records[0].qty)\" | @uri",
+            ".records[0].status | [.[0:4], .[-1:], explode[0]]",
+            ".records | [sort_by(.status)[].id, (group_by(.item) | length), (unique_by(.status) | length)]",
+            "-(.records | length) + 1",
+            ".records[0] | .qty |= tonumber",
+            "[.records[] | select(.status != \"x\")] | if length > 0 then \"some\" elif length == 0 then \"none\" else \"?\" end",
+            ".records | map(.status | ascii_downcase | @base64) | first",
+        ];
+        for program in programs {
+            let (identity, canonical) = copies(program).expect(program);
+            assert_eq!(
+                run(&identity, &row()),
+                run(program, &row()),
+                "{program}\n{identity}"
+            );
+            assert!(run(&canonical, &row()).is_ok(), "{program}\n{canonical}");
+        }
+    }
+
+    /// A definition shadowing a relation leaves no canonical copy: inconclusive, never a proof.
+    #[test]
+    fn a_definition_shadowing_a_relation_has_no_canonical_copy() {
+        let program = "def test(x): true; .records | map(select(.status | test(\"a\"))) | length";
+        assert!(copies(program).is_none());
     }
 }
