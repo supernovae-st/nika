@@ -26,6 +26,10 @@ fail() {
 # manifest it carries describes ITS index, never the caller's.
 git -C "$ROOT" archive --format=tar HEAD | tar -x -C "$COPY"
 git -C "$COPY" init -q
+# This throwaway index needs no background maintenance. With a large archived
+# tree, commit can detach a repack that races the EXIT cleanup and recreates
+# .git/objects/info/packs while rm removes the fixture. Keep real hooks enabled.
+git -C "$COPY" config maintenance.auto false
 # estate.py derives the repo slug from the origin remote; the copy names the real one.
 git -C "$COPY" remote add origin https://github.com/supernovae-st/nika.git
 git -C "$COPY" -c user.name=t -c user.email=t@t add -A
