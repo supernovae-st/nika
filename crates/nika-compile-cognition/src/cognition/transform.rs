@@ -1350,4 +1350,60 @@ mod tests {
         assert_eq!(kept(&compute, &rows), [pair("C", "5"), pair("A", "20")]);
         assert_eq!(kept(&compute, NONE_PAID), Vec::<(String, String)>::new());
     }
+
+    /// A stated sort states its direction with its superlative (R4 A11): « sort them by
+    /// `amount_usd`, most expensive first » asked how many rows to keep (`const.top_n`) and refused
+    /// the seat's descending program. The emitted program sorts every row, most expensive first,
+    /// on rows stated before the run.
+    #[tokio::test]
+    async fn a_stated_sort_runs_every_row_most_expensive_first() {
+        let stated = "sort them by amount_usd, most expensive first";
+        let write = "write them to ./out/result.json";
+        let intent = format!("read ./data/input.csv, {stated}, {write}");
+        let computation = json!({"present": true, "join": "and", "sort_by": "amount_usd", "order": "desc", "clauses": []});
+        let plan = json!({
+            "steps": [
+                {"op": "read", "detail": "./data/input.csv", "evidence": "read ./data/input.csv"},
+                {"op": "compute", "detail": stated, "evidence": stated, "computation": computation}
+            ],
+            "effects": [{"verb": "write", "target": "./out/result.json", "policy": "automatic", "evidence": write}],
+            "obligations": [], "constraints": [], "unknowns": [],
+            "regions": [
+                {"text": "read ./data/input.csv,", "role": "operation"},
+                {"text": format!("{stated},"), "role": "operation"},
+                {"text": write, "role": "effect"}
+            ],
+            "approval_bypass": {"present": false, "evidence": ""}
+        });
+        let observed = json!({"observed": [{"path": "./data/input.csv", "state": "observed", "complete": false, "kind": "csv", "columns": ["id", "amount_usd", "status"]}]});
+        let policy =
+            AuthoringPolicy::new("mock/authoring", 1024, std::time::Duration::from_secs(2));
+        let request = nika_compile::CompileRequest::create(&intent)
+            .with_knowledge(observed)
+            .with_hot_policy(nika_compile::HotPolicy::Off)
+            .with_authoring_policy(policy);
+        let out = crate::compile_with_provider(&request, &Planned(plan.to_string()))
+            .await
+            .unwrap();
+        assert!(
+            !out.questions.iter().any(|q| q.key == "const.top_n"),
+            "{out:#?}"
+        );
+        assert_eq!(out.status, nika_compile::CompileStatus::Ready, "{out:#?}");
+        let doc: Value = serde_yaml_bw::from_str(out.candidate.as_deref().unwrap()).unwrap();
+        let compute = doc["tasks"]["compute"]["invoke"]["args"]["expression"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        let rows = [
+            ("A", "20", "paid"),
+            ("B", "100", "open"),
+            ("C", "5", "paid"),
+        ];
+        let pair = |id: &str, amount: &str| (id.to_owned(), amount.to_owned());
+        assert_eq!(
+            kept(&compute, &rows),
+            [pair("B", "100"), pair("A", "20"), pair("C", "5")]
+        );
+    }
 }

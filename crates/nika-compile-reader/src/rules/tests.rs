@@ -683,3 +683,23 @@ fn a_later_step_reads_its_numbers_under_the_law() {
         bound.jq()
     );
 }
+
+/// A clause that orders every row states its direction with its superlative; a ranking keeps a
+/// subset whose count the request owes (R4 A11). « sort them by amount, most expensive first »
+/// asked how many rows to keep, and refused the program that sorts them all.
+#[test]
+fn a_stated_sort_is_no_ranking_without_its_count() {
+    let mut rule = synthesize("sort the rows by amount descending", &[]).expect("a rule");
+    for (text, ranking) in [
+        ("sort them by amount, most expensive first", false),
+        (
+            "trie les lignes par montant, les plus chers en premier",
+            false,
+        ),
+        ("the most expensive rows by amount", true),
+        ("sort them by amount and keep the most expensive", true),
+    ] {
+        rule.text = text.to_owned();
+        assert_eq!(rule.ranking_without_count(), ranking, "{text}");
+    }
+}

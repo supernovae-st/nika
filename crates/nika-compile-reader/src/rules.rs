@@ -608,12 +608,15 @@ impl Rule {
             .unwrap_or(&self.shape)
     }
     /// A ranking (« the top-selling », « les plus vendus », « die meistverkauften ») sorted
-    /// descending without the count of rows to keep: the count is asked, never assumed.
+    /// descending without the count of rows to keep: the count is asked, never assumed. A
+    /// clause that orders every row states its direction with the superlative (R4 A11).
     #[must_use]
     pub fn ranking_without_count(&self) -> bool {
+        let folded = super::rule_tokens::fold(&self.text);
         self.shape.limit.is_none()
             && self.shape.sort_by.as_ref().is_some_and(|(_, desc)| *desc)
             && super::aggregate::ranking_cue(&self.text)
+            && !super::stages::sorts_every_row(&folded.split_whitespace().collect::<Vec<_>>())
     }
     /// The same computation keeping the first `n` rows after its sort.
     #[must_use]

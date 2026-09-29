@@ -321,6 +321,15 @@ pub(crate) fn keep_lead(folded: &str) -> bool {
     KEEP_LEADS.contains(&folded)
 }
 
+/// Folded words that order every row (R4 A11): led by a sort verb, keeping no subset (no keep
+/// verb, no « only »), as in « sort them by `amount_usd`, most expensive first ».
+pub(crate) fn sorts_every_row(words: &[&str]) -> bool {
+    words.first().is_some_and(|word| SORT_VERBS.contains(word))
+        && !words
+            .iter()
+            .any(|w| KEEP_LEADS.contains(w) || ONLY_WORDS.contains(w))
+}
+
 /// One step a reading builds (R4 F5): a filter, then stages in the fixed per-step lowering
 /// order; the first becomes the rule's own filter and shape, every later one a `Then`.
 #[derive(Default)]
