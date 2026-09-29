@@ -141,7 +141,7 @@ fn effective_request(request: &crate::CompileRequest) -> Option<crate::CompileRe
         let value =
             crate::literal_answer(Some(&raw), "intent.clarification", &mut crate::initial())?;
         let text = value.as_str().filter(|text| !text.trim().is_empty())?;
-        effective.input = crate::types::Input::Create(crate::lexicon::fold_apostrophes(text));
+        effective = effective.with_replaced_input(crate::lexicon::fold_apostrophes(text));
     }
     Some(effective)
 }

@@ -132,6 +132,12 @@ A work request states money only in its directives (`money::directives`, R4 A6 �
 - the phrase that ends a segment and attaches to the work: a connector, its articles and a limit anchor (« … ./out.csv with a budget of $1 », « … avec un plafond de 3 dollars »), or the limit anchor alone (« hello budget 2 USD »), then the amount and its currency and nothing else.
 A phrase attaches to the work when its head, past the determiners, is a path or a file, a pronoun, a greeting or consent word, a skeleton name opening its segment, or a conjunction no relative clause governs. Everything else money-shaped is business data, by its role and never by a word or an observed field. That covers a predicate over records (« rows whose budget is 1500 USD », « rows where cost is under 5 USD », « rows with a budget of 1500 USD »), a business amount (« refund the cost of 50 USD »), a negative value, cost wherever it stands, quoted text and paths. Malformed, negative, non-finite and conflicting directives refuse. The French copula links a directive's words only in a sentence of its own. Run and gate lines keep the whole-line reading.
 
+A complete replacement keeps admitted monetary spans only when its input bytes are unchanged
+(`CompileRequest::with_replaced_input`). Different words clear the old ranges even when a new
+directive occupies the same offsets; the caller must admit the replacement on its own bytes.
+The cognition conflict path and source-basis replay share this rule. A stated-money door keeps
+its separate law of reading the operator's current directives.
+
 A caller that admitted directives as its own ceiling names their exact spans
 (`CompileRequest::with_admitted_money`). The deterministic door then reads the request with
 them blanked (same bytes, same offsets), never as business clauses; `decision.money` records

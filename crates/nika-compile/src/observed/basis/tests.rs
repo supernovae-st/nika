@@ -577,3 +577,79 @@ fn a_replacement_uses_its_own_columns_and_subsequent_question_round() {
         ));
     }
 }
+
+/// Admitted ranges belong to the exact words the caller accepted, not their byte offsets.
+#[test]
+fn a_basis_replacement_keeps_money_only_for_identical_input_bytes() {
+    let spans = |words: &str| {
+        crate::money::directives(words)
+            .expect("money reading")
+            .found
+            .into_iter()
+            .map(|directive| directive.span)
+            .collect::<Vec<_>>()
+    };
+    let old = format!("{ANSWER_INTENT}. Budget: 5 USD");
+    let replacement = format!("{ANSWER_INTENT}. Budget: 9 USD");
+    assert_eq!(
+        spans(&old),
+        spans(&replacement),
+        "same offsets, different grant"
+    );
+    let admitted = CompileRequest::create(&old).with_admitted_money(spans(&old));
+    for text in [
+        replacement.as_str(),
+        "Read a different source. Budget: 9 USD",
+    ] {
+        let request = admitted
+            .clone()
+            .answer("intent.clarification", json!(text).to_string());
+        let folded = effective_request(&request).expect("valid replacement");
+        assert!(folded.money.is_empty(), "{text}: {:?}", folded.money);
+        assert!(!folded.answers.contains_key("intent.clarification"));
+        assert!(matches!(&folded.input, crate::types::Input::Create(words) if words == text));
+    }
+    let unchanged = admitted.answer("intent.clarification", json!(old).to_string());
+    assert_eq!(
+        effective_request(&unchanged).expect("same bytes").money,
+        spans(&old)
+    );
+    let readmitted = CompileRequest::create(&replacement)
+        .with_admitted_money(spans(&replacement))
+        .answer("intent.clarification", json!(replacement).to_string());
+    assert_eq!(
+        effective_request(&readmitted)
+            .expect("fresh admission")
+            .money,
+        spans(&replacement)
+    );
+}
+
+/// A valid answered field must still replay after replacement. Old money ranges used to
+/// make this effect-free replay refuse on unrelated bytes, losing a real user assertion.
+#[test]
+fn old_money_spans_do_not_break_a_replacements_actual_field_answer() {
+    let (mut request, recorded) = answered_request();
+    let old = "Budget: 5 USD. Read ./old.json and write it to ./old-out.json";
+    let spans = crate::money::directives(old)
+        .expect("old money")
+        .found
+        .into_iter()
+        .map(|directive| directive.span)
+        .collect();
+    request.input = crate::types::Input::Create(old.to_owned());
+    request = request
+        .with_admitted_money(spans)
+        .answer("intent.clarification", json!(ANSWER_INTENT).to_string());
+    let fresh = unavailable("./orders.json", "absent");
+    assert_eq!(
+        basis_for(&request, Some(&recorded), Some(&fresh)),
+        Basis::Holds(1)
+    );
+    let mut forged = recorded;
+    forged["grounding"][0]["field"] = json!("invented");
+    assert!(matches!(
+        basis_for(&request, Some(&forged), Some(&fresh)),
+        Basis::Unjudged(_)
+    ));
+}
