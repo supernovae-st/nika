@@ -6,7 +6,7 @@
   `/status` says so. Any other word is refused. A route, a subscription seat or a
   reasoner that cannot carry the level refuses it before anything is sent. With no
   effort named, requests are sent as before.
-- **`/details` states each explicit effort as the receipt recorded it.** For every call,
+  **`/details` states each explicit effort as the receipt recorded it.** For every call,
   it shows the level asked, the keys read back from the body sent (`unobserved` when
   none was read back), the reported usage and model, and that the effort the provider
   spent internally is unknown.
