@@ -741,6 +741,60 @@ async fn a_part_the_judge_finds_missing_is_repaired_from_the_whole_state_then_na
     );
 }
 
+/// The judge and the repair read the request the human first stated (R4 A11): when the
+/// preserved original, the submitted text and the clarification that replaced it all differ,
+/// every verifier question and the repair show the effective request and the preserved
+/// original, the very text the binding holds, never the replaced submission; with no preserved
+/// original, the submitted text is the first statement, for both.
+#[tokio::test]
+async fn the_judge_and_the_repair_read_the_preserved_original() {
+    let sum = format!("{GENERATED} // 0");
+    let original = "read ./data/input.csv and total the shipped quantities";
+    let submitted = "read ./data/input.csv and sum qty where status is shipped";
+    let effective = intent(SUM);
+    for preserved in [Some(original), None] {
+        let seat = Scripted::new(vec![
+            plan(SUM).to_string(),
+            program(&sum),
+            plan(SUM).to_string(),
+            program(&sum),
+        ]);
+        let judge = Judging::new(&seat, refuse);
+        let observed = json!({"observed": [{"path": "./data/input.csv", "state": "observed", "complete": false, "kind": "csv", "columns": ["id", "item", "status", "qty"]}]});
+        let policy =
+            AuthoringPolicy::new("mock/authoring", 1024, Duration::from_secs(2)).with_repairs(1);
+        let mut request = CompileRequest::create(submitted)
+            .with_knowledge(observed)
+            .with_hot_policy(HotPolicy::Off)
+            .with_authoring_policy(policy);
+        if let Some(first) = preserved {
+            request = request.with_original_intent(first);
+        }
+        request
+            .answers
+            .insert("intent.clarification".into(), json!(effective).to_string());
+        let out = compile_with_provider(&request, &judge).await.unwrap();
+        let calls = authored(&out);
+        assert_eq!(
+            calls,
+            ["plan", "transform", "repair", "transform"],
+            "{out:#?}"
+        );
+        let repair = seat.said(2);
+        let (_, shown) = repair.split_once("the candidate's bytes):\n").unwrap();
+        let repaired: Value = serde_json::from_str(shown).unwrap();
+        let states = judge.states();
+        assert!(!states.is_empty());
+        let first = preserved.unwrap_or(submitted);
+        let bound = Binding::of(&effective, &request, &Plan::default(), "");
+        assert_eq!(bound.original, Some(nika_compile::surface::sha256(first)));
+        for state in states.iter().chain([&repaired]) {
+            assert_eq!(state["request"], json!(effective), "{state:#}");
+            assert_eq!(state["original_request"], json!(first), "{state:#}");
+        }
+    }
+}
+
 /// A judge that abstains settles nothing (R4 A11): no defect to repair from, no repair call,
 /// the request INCOMPLETE naming what the judge could not settle.
 #[tokio::test]

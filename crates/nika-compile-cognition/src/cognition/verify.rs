@@ -75,15 +75,17 @@ const WHOLE: &str = "Compare the WHOLE user request with the candidate workflow'
 const LOCATE: &str = "The candidate does not carry the whole request. Choose the part of the request it misses or does differently.";
 
 /// The state every question and every repair carries: the request as compiled and as first
-/// stated, its answers, the observed world and the candidate's bytes.
+/// stated, its answers, the observed world and the candidate's bytes. The first statement is
+/// the one the binding holds ([`Binding::of`]): the preserved original request, else the
+/// submitted text the compiled request was folded or clarified from.
 fn state(intent: &str, request: &CompileRequest, candidate: &str) -> Value {
-    let stated = match &request.input {
+    let submitted = match &request.input {
         crate::types::Input::Create(text) if text != intent => Some(text.clone()),
-        _ => request.original_intent.clone(),
+        _ => None,
     };
     json!({
         "request": intent,
-        "original_request": stated,
+        "original_request": request.original_intent.clone().or(submitted),
         "answers": request.answers,
         "observed": request.knowledge,
         "candidate_nika": candidate,
