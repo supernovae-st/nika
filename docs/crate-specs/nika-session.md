@@ -580,7 +580,10 @@ The chosen seat and aggregate account stay. Lexical budget spans stay only for i
 bytes; changed text carries only directives read from those exact replacement bytes.
 A replacement without a directive retains the account ceiling but carries no old spans.
 A restatement binds both original and added directives against the combined text and
-refuses conflicting amounts. A revision keeps its change and does not become a Create.
+refuses conflicting amounts. A clause restated in words also verifies that the budget
+in the rebuilt request agrees with the ceiling admitted for the answer; a changed
+clause cannot leave the account and compiled request naming different amounts.
+A revision keeps its change and does not become a Create.
 
 A gate restored at open is offered only as its journals stand (C7b §3.4,
 `nika_trace::lineage`): with no continuation it waits again; a continuation

@@ -19,7 +19,9 @@ use nika_onboard::compile::{CompileRequest, QuestionType, compile, intent_sha256
 use super::*;
 use crate::authoring::AuthoringRound;
 use crate::intelligence::{DataLocus, IntelligenceKind};
-use crate::reasoner::NoReasoner;
+use crate::reasoner::{NoReasoner, ProviderReasoner, test_transport};
+use crate::runtime::inference_tests::wire::{Peer, response};
+use crate::turn::{RoutingMethod, TurnAct, TurnClassifier, TurnContext, TurnDecision};
 
 /// The first line: free intent the compiler asks to replace, with the ceiling its gate admitted.
 const ORIGINAL: &str = "Sort the payments. Budget: $2.";
@@ -219,8 +221,10 @@ fn a_restatement_admits_its_added_directive_on_the_string_it_builds() {
     for (original, amount) in [("Sort the payments.", "3"), (ORIGINAL, "2")] {
         let dir = tempfile::tempdir().expect("root");
         let mut s = waiting(dir.path(), original);
-        let round = s.authoring.take().expect("a round waits");
         let line = format!("also the « réglés » ones, budget {amount} USD");
+        // The gate admits the line first, as every turn does before routing it.
+        assert!(s.admit_money(&format!("   {line}"), true).is_ok());
+        let round = s.authoring.take().expect("a round waits");
         let _ = s.restate_round(&round, &format!("   {line}"));
         let built = format!("{original}. {line}");
         let bound: Vec<String> = directives(&built)
@@ -307,4 +311,210 @@ fn money_free_answers_value_answers_and_revisions_keep_their_request() {
         "a revision never replaces its change"
     );
     assert!(revision.answers.contains_key(CLARIFICATION_KEY));
+}
+
+/// A door that reads every line at a question as new work, under an allowance or not.
+struct NewWork;
+
+impl TurnClassifier for NewWork {
+    fn classify_with_admission(
+        &mut self,
+        context: &TurnContext,
+        raw: &str,
+        _: &nika_providers::InferenceAdmission,
+    ) -> TurnDecision {
+        self.classify(context, raw)
+    }
+
+    fn classify(&mut self, _: &TurnContext, _: &str) -> TurnDecision {
+        TurnDecision::new(TurnAct::NewWork, RoutingMethod::Model)
+    }
+}
+
+/// The line was read again with the request: the restatement's own note in the history.
+fn restated(s: &SessionRuntime, line: &str) -> bool {
+    s.recent
+        .iter()
+        .any(|(said, noted)| said == line && noted == "(the request read again with these words)")
+}
+
+/// A session reasoning through a priced route (`DeepSeek`, redirected to the loopback peer by the
+/// cfg(test) transport: nothing leaves the machine), so an admitted budget opens its account.
+fn priced(root: &Path) -> SessionRuntime {
+    let model = "deepseek/deepseek-v4-pro";
+    let selected = ResolvedSessionIntelligence {
+        kind: IntelligenceKind::Api {
+            provider: "deepseek".into(),
+        },
+        model: Some(model.into()),
+        locus: DataLocus::Metered {
+            provider: "deepseek".into(),
+        },
+        ready: true,
+        why: None,
+    };
+    let reasoner = ProviderReasoner {
+        model: model.into(),
+        label: "DeepSeek".into(),
+    };
+    SessionRuntime::open(root, selected, Box::new(reasoner))
+}
+
+/// Routed end to end in the session: a door reads the line at a question as new work, the gate
+/// admits the line's budget to the account, and the restatement binds its span in the string it
+/// builds — the ceiling and the span together.
+#[test]
+fn a_routed_restatement_moves_the_ceiling_and_binds_its_span_together() {
+    let peer = Peer::start(vec![(200, response("{}"))]);
+    let _transport = test_transport::install(&peer.url);
+    let dir = tempfile::tempdir().expect("root");
+    let mut s = priced(dir.path());
+    // The route and the account are the priced intelligence's; the compile reads deterministically,
+    // so the core's own record says what request it was handed (nothing is asked of a seat).
+    s.seat = crate::authoring::AuthoringSeat::Deterministic { why: None };
+    assert!(
+        s.admit_money("budget 2 USD", false).is_ok(),
+        "an account at 2"
+    );
+    let asked = compile(&CompileRequest::create("bounded-batch"))
+        .expect("compiles")
+        .questions;
+    let mut round = AuthoringRound::new("Sort the payments.");
+    round.questions = vec![asked[0].clone()];
+    s.authoring = Some(round);
+    s.with_classifier(Box::new(NewWork));
+    assert!(!s.money_blocks_cognition(), "the door reads the line");
+    let line = "also the « réglés » ones, budget 3 USD";
+    let _ = s.turn(line);
+    assert!(restated(&s, line), "routed as new work: {:?}", s.recent);
+    assert_eq!(
+        ceiling(&s),
+        Some(3.0),
+        "the gate moved the account's ceiling"
+    );
+    let built = format!("Sort the payments.. {line}");
+    assert_eq!(
+        read_as_money(&s, &built),
+        (intent_sha256(&built), vec!["budget 3 USD".to_owned()])
+    );
+    assert!(
+        peer.bodies().is_empty(),
+        "no call, not even to the loopback"
+    );
+}
+
+/// The session waits on a rule the compiler could only ask as code, quoting `clause` of
+/// `request`, whose money the gate admitted as a fresh request's.
+fn at_a_syntax_question(root: &Path, request: &str, clause: &str) -> SessionRuntime {
+    let mut s = literal(root);
+    assert!(
+        s.admit_money(request, false).is_ok(),
+        "the request is admitted"
+    );
+    let asked = compile(&CompileRequest::create("bounded-batch"))
+        .expect("compiles")
+        .questions;
+    let mut rule = asked[0].clone();
+    rule.key = "const.rule_expression".to_owned();
+    rule.label = format!("How should Nika compute `{clause}` as a jq expression?");
+    rule.answer_type = QuestionType::Text;
+    let mut round = AuthoringRound::new(request);
+    round.money.clone_from(&s.money.admitted);
+    round.questions = vec![rule];
+    s.authoring = Some(round);
+    s
+}
+
+/// The clause asked in words: the words take its place, and the request's monetary directive is
+/// bound in the string that builds (moved by the words), never dropped as business text.
+#[test]
+fn a_syntax_restatement_binds_the_requests_money_in_the_string_it_builds() {
+    let dir = tempfile::tempdir().expect("root");
+    let request = "Write the paid total to ./total.txt. Budget: $2.";
+    let mut s = at_a_syntax_question(dir.path(), request, "the paid total");
+    let words = "the sum of the « montant » column of the paid rows";
+    let _ = s.turn(words);
+    let built = request.replacen("the paid total", words, 1);
+    assert_eq!(
+        read_as_money(&s, &built),
+        (intent_sha256(&built), vec!["Budget: $2".to_owned()])
+    );
+    assert_eq!(ceiling(&s), Some(2.0));
+}
+
+/// Controls of the words said for a clause: none of them names money and none is admitted; a
+/// business amount is data, never the ceiling; a malformed amount refuses, and a ceiling that
+/// conflicts with the request's refuses, nothing compiled either way.
+#[test]
+fn a_syntax_restatement_keeps_money_free_words_free_and_refuses_bad_money() {
+    let dir = tempfile::tempdir().expect("root");
+    let request = "Write the paid total to ./total.txt.";
+    let mut s = at_a_syntax_question(dir.path(), request, "the paid total");
+    let before = ceiling(&s);
+    let words = "the sum of the amount column";
+    let _ = s.turn(words);
+    let built = request.replacen("the paid total", words, 1);
+    assert_eq!(
+        read_as_money(&s, &built),
+        (intent_sha256(&built), Vec::new())
+    );
+    assert_eq!(ceiling(&s), before, "no money named, the ceiling unchanged");
+
+    let with_money = "Write the paid total to ./total.txt. Budget: $2.";
+    let mut s = at_a_syntax_question(dir.path(), with_money, "the paid total");
+    let words = "the sum of the rows whose price is under $5";
+    let _ = s.turn(words);
+    let built = with_money.replacen("the paid total", words, 1);
+    assert_eq!(
+        read_as_money(&s, &built),
+        (intent_sha256(&built), vec!["Budget: $2".to_owned()]),
+        "the business amount is data"
+    );
+    assert_eq!(ceiling(&s), Some(2.0), "never the ceiling");
+
+    for words in [
+        "the paid total, budget=0.5oopsUSD",
+        "the paid total, budget 3 USD",
+    ] {
+        let mut s = at_a_syntax_question(dir.path(), with_money, "the paid total");
+        let outcome = s.turn(words);
+        assert!(
+            matches!(outcome, TurnOutcome::Refusal(_)),
+            "{words}: {outcome:?}"
+        );
+        assert!(s.authoring.is_none() && s.last_outcome.is_none(), "{words}");
+    }
+}
+
+/// Root integration: a business price in routed new work never changes the account ceiling,
+/// whether the original request states a budget or only inherits the existing account.
+#[test]
+fn a_routed_business_price_keeps_the_admitted_ceiling_and_only_real_directives() {
+    let peer = Peer::start(vec![(200, response("{}"))]);
+    let _transport = test_transport::install(&peer.url);
+    for original in ["Sort the payments.", ORIGINAL] {
+        let dir = tempfile::tempdir().expect("root");
+        let mut s = priced(dir.path());
+        s.seat = crate::authoring::AuthoringSeat::Deterministic { why: None };
+        assert!(s.admit_money("budget 2 USD", false).is_ok());
+        let asked = compile(&CompileRequest::create("bounded-batch"))
+            .expect("compiles")
+            .questions;
+        let mut round = AuthoringRound::new(original);
+        round.money = directives(original);
+        round.questions = vec![asked[0].clone()];
+        s.authoring = Some(round);
+        s.with_classifier(Box::new(NewWork));
+        let line = "also rows whose price is under $5";
+        let _ = s.turn(line);
+        assert!(restated(&s, line), "the route restated the request");
+        let built = format!("{original}. {line}");
+        let words = directives(&built)
+            .into_iter()
+            .map(|span| built[span].to_owned())
+            .collect();
+        assert_eq!(read_as_money(&s, &built), (intent_sha256(&built), words));
+        assert_eq!(ceiling(&s), Some(2.0), "business price is not a ceiling");
+    }
+    assert!(peer.bodies().is_empty(), "zero transport bodies");
 }

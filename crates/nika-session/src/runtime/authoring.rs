@@ -677,7 +677,11 @@ impl SessionRuntime {
                 .current()
                 .and_then(|q| clause_of(&q.label))
                 .unwrap_or_default();
-            let restated = round.restate_clause(&clause, line.trim());
+            let mut restated = round.restate_clause(&clause, line.trim());
+            restated.money = match self.built_money(&restated.intent, line) {
+                Ok(money) => money,
+                Err(refusal) => return refusal,
+            };
             let asked = self.question_id_of(&round);
             self.questions.close(asked);
             self.remember(line, &format!("(restated « {clause} » in words)"));

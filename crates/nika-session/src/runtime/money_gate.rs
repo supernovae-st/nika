@@ -384,13 +384,21 @@ impl SessionRuntime {
 
     /// The monetary directives of request bytes Session built from the human's words (a
     /// replacement, a restatement), as spans of exactly those bytes, never offsets carried from
-    /// another text (C11); a malformed or conflicting amount refuses under the money law.
+    /// another text (C11). A malformed or conflicting amount refuses under the money law, and so
+    /// does a built request stating another ceiling than the account holds.
     pub(super) fn built_money(
         &mut self,
         text: &str,
         line: &str,
     ) -> Result<Vec<std::ops::Range<usize>>, TurnOutcome> {
         let found = money_parse::directives(text).map_err(|why| self.refuse_money(line, why))?;
+        let held = self.money.draft.as_ref().and_then(|d| d.effective_usd);
+        if (found.money.amount)
+            .is_some_and(|stated| held.is_none_or(|h| h.to_bits() != stated.to_bits()))
+        {
+            let why = "the request these words build states another ceiling than the one admitted — say the budget as its own sentence";
+            return Err(self.refuse_money(line, why));
+        }
         Ok(found.found.into_iter().map(|d| d.span).collect())
     }
 
