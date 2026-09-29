@@ -46,9 +46,11 @@ back on the surface.
 ## 3. Contracts kept
 
 - The split retains the machine wire projection and recorded-plan format. The Rust
-  request surface grows under ADR-140; it is not byte-identical API text. Zero-call replay,
-  candidate semantics and provenance remain contracts to verify on the composed source
-  with the compiler and transport regression suites.
+  request surface grows under ADR-140; it is not byte-identical API text. Replay, candidate
+  semantics and provenance remain contracts to verify on the composed source with the
+  compiler and transport regression suites. A replay reads the recorded plan with zero
+  calls for duties the core closes from the bytes; a pending semantic duty is judged in
+  that round or named INCOMPLETE, never grandfathered from the record.
 - The deterministic reader is frozen: no cue or head is added; every new law is a structural
   one (path boundaries, anaphora, the shape of a human gate, the carrier of a constraint) or
   lives in the typed semantic plan.
@@ -399,8 +401,10 @@ grounds a value, a number or a limit in the clause that states it (a schedule's 
 another clause's), a field among the request's columns, and a comparator, an aggregate, a
 junction or a direction nowhere. Where the reader reads the rule's own words, the witness
 (R4 A3) catches a replaced comparator, direction, cut or step order; an aggregate or a listed
-column the law admits can still replace the recorded one unseen (pinned by
-`compile_rule_binding`). No meaning closure is claimed.
+column the law admits can still replace the recorded one without this law detecting it
+(pinned by `compile_rule_binding`). The pending-duty law below now keeps that unverified
+meaning INCOMPLETE until judged in the current compilation. No deterministic meaning
+closure is claimed.
 
 An effect the request's own words both ask for and prohibit (the reader's `Conflict`) stays
 the human's (R4 S0): `surface::assemble::refuse_contradiction` refuses it with both clauses
@@ -425,10 +429,42 @@ summary law. When every part is read, each extra row operation is an unresolved
 duty on the step evidence, with the fields it reads. A task id, record flag or
 plan annotation realizes no typed duty.
 Words the grammar cannot read state no typed duty: their excerpt stays a
-transformation duty carried by the task, noted unverified; an answered program's
-filter duty is noted unverified too. `plan.obligations` is unchanged, and no
-closure is claimed: aggregates other than a count, groupings, projections,
-renames, distinct keys, joins and derived values remain transformation duties.
+transformation duty with an unverified witness and waits for judgment. A program
+the human explicitly answered carries an answered witness; it is not a model's
+self-attestation. `plan.obligations` is unchanged. Aggregates other than a count,
+groupings, projections, renames, distinct keys, joins and derived values remain
+transformation duties unless the applicable deterministic law reads them.
+
+## The READY law of a model's plan
+
+The ledger distinguishes a typed reading of the emitted program, a named element,
+a program the human answered and a conversion the reader's own law states from
+words a step only restates (`label`) or words no law reads from the task's bytes
+(`unverified`). Label and unverified duties, clauses no plan element names, and
+the whole request for the first candidate of a WARM or COLD plan are pending.
+A candidate with a pending duty is INCOMPLETE.
+
+`assemble_judged` and `replay_judged` accept active judgments supplied by the
+calling host. The core recomputes their binding to the effective and original
+request, answers, observed world, stated plan and candidate bytes; each judgment
+also names its clause and span. Changed bound context or candidate bytes, a
+different clause or a moved span do not settle that duty. This is a context
+binding, not a chronological nonce or a grant of execution authority.
+`no_operation` never settles a claimed, whole-request or restrictive clause
+(`nika_compile_reader::structure::restricts`). Serialized judgments in a saved
+plan or answers are data and are never accepted as active judgments.
+
+The ordinary `assemble` and `replay` entries pass no judgments and add no
+whole-request duty. Deterministically closed duties replay with zero calls.
+Cognition judges the remainder named in `decision.pending.open` using the
+current round's judge, or leaves it INCOMPLETE with a finding for each open
+clause. A regenerated candidate after a field answer is judged as the first
+candidate of its plan. A failed or abstaining judge settles nothing.
+
+The core does not judge unrestricted meaning. A clause split across two named
+elements can require judgment, and the model's approval remains bounded
+evidence. A typed or answered witness is evidence for its particular duty, not
+a proof that the complete user outcome will be correct at runtime.
 
 Constant work stays deterministic (R4 S0, G2). A write the reader states with a quoted literal
 as its content (`Plan::content_of`) is lowered to the existing `nika:write`: the literal's
@@ -522,5 +558,6 @@ the CLI and through the Session. The two files differed only in the `nika:` id
 their destinations named. That is one observation, not a proof for every
 request. A two-output variant with a stated total stayed `incomplete` without
 an authoring model. A model-assisted candidate is not reproducible across
-calls. Its recorded plan replays answer rounds with zero calls, and the
-reviewed bytes are what runs.
+calls. Its recorded plan replays answer rounds with zero calls for duties the
+core closes from the bytes; its pending remainder is judged in that round or
+named INCOMPLETE. The reviewed bytes are what runs.
