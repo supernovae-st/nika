@@ -14,7 +14,8 @@
 //! - a bare state edge `after: { ask: success }` — the refusal settles
 //!   `success`, the edge admits it, the exec fires;
 //! - a `when:` that never references the prompt's output — the answer
-//!   is decoration;
+//!   is decoration (one that reads nothing but caller inputs is proven
+//!   open for the walk, whatever the fragment decides · E39 N4);
 //! - a `when:` that references the output but stays TRUE on `false`
 //!   (`with.go == true || with.go == false`) — the refusal cannot block.
 //!
@@ -72,7 +73,7 @@ use nika_schema::raw::{RawAction, RawTask, RawWorkflow};
 // The refusal substitution itself (what a `when:` evaluates to once the
 // gate answered « no ») is substrate — `analyzer::gates`, descended at the
 // 15k wall. This lane keeps the verdicts.
-use crate::analyzer::gates::{Gate, gate_certain, gate_verdict};
+use crate::analyzer::gates::{Gate, gate_certain, gate_verdict, reads_inputs_only};
 use crate::analyzer::settle::{S_ALL, S_CANCELLED, S_SKIPPED, S_SUCCESS, Settled, fold_settled};
 use crate::analyzer::{Edge, SettledState};
 use crate::hints::Hint;
@@ -254,7 +255,12 @@ fn walk_refusal(
             }
             witnessed = world.sure.of(n) == REACHED;
         }
-        let verdict = gate_verdict(t, prompt);
+        // A gate that reads nothing but caller inputs never reads the answer: the refusal cannot
+        // close it (E39 N4), so an undecided verdict is open for this walk.
+        let verdict = match gate_verdict(t, prompt) {
+            Gate::Unclear if reads_inputs_only(t) => Gate::Open,
+            verdict => verdict,
+        };
         // A gate proven FALSE under the refusal (the affirmative
         // `when:` · `when: false`) SKIPS its task: every edge that
         // needs its success is cut, the edges that carry its value
@@ -1123,6 +1129,43 @@ mod tests {
         assert!(
             detail.contains("provably never gates on the answer") && !detail.contains("skips"),
             "{detail}"
+        );
+    }
+
+    /// E39 10C case F6-A08 (N4), its program verbatim: the gate's answer is bound (`with.ok`) and
+    /// never read, the `when:` reads an input instead, so a « no » closes nothing and the POST
+    /// fires whenever `inputs.go` holds (its own default). The canon row names this exact shape
+    /// (« a `when:` that never reads the answer »): a proven route refused NIKA-SEC-014, never
+    /// the undecidable gate's advisory.
+    const F6_A08: &str = "nika: \"e10c-f6-a08\"\ninputs:\n  go:\n    type: \"bool\"\n    required: false\n    default: true\npermits:\n  net:\n    http:\n      - \"127.0.0.1\"\n  tools:\n    - \"nika:fetch\"\n    - \"nika:prompt\"\ntasks:\n  gate:\n    invoke:\n      tool: \"nika:prompt\"\n      args:\n        message: \"Post order?\"\n  post:\n    with:\n      ok: \"${{ tasks.gate.output }}\"\n    when: \"${{ inputs.go == true }}\"\n    invoke:\n      tool: \"nika:fetch\"\n      args:\n        url: \"http://127.0.0.1:18770/c/F6-A08/orders\"\n        mode: \"raw\"\n        method: \"POST\"\n        body:\n          amount: 1\n";
+
+    #[test]
+    fn a_when_that_never_reads_the_answer_refuses_with_sec_014() {
+        let r = report(F6_A08);
+        assert!(!r.is_clean(), "the answer is decoration: {r:?}");
+        assert_eq!(r.consent_findings.len(), 1, "{:?}", r.consent_findings);
+        let f = &r.consent_findings[0];
+        assert_eq!((f.prompt.as_str(), f.sink.as_str()), ("gate", "post"));
+        assert!(
+            !r.hints.iter().any(|h| h.kind == "consent"),
+            "a proven route, not a plea: {:?}",
+            r.hints
+        );
+    }
+
+    /// The same input read beside a read of the answer is decided by the answer: `inputs.go ==
+    /// true && with.ok == true` is false on « no » whatever the input, so the route closes.
+    #[test]
+    fn a_when_that_reads_the_answer_beside_an_input_still_closes() {
+        let r = report(&F6_A08.replace(
+            "when: \"${{ inputs.go == true }}\"",
+            "when: \"${{ inputs.go == true && with.ok == true }}\"",
+        ));
+        assert!(r.is_clean(), "{r:?}");
+        assert!(
+            !r.hints.iter().any(|h| h.kind == "consent"),
+            "{:?}",
+            r.hints
         );
     }
 }

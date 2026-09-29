@@ -345,6 +345,7 @@ pub fn nika_check_analyzer::gates::gate_certain(task: &nika_schema::raw::task::R
 pub fn nika_check_analyzer::gates::gate_verdict(task: &nika_schema::raw::task::RawTask, prompt: &str) -> nika_check_analyzer::gates::Gate
 pub fn nika_check_analyzer::gates::human_confirm(task: &nika_schema::raw::task::RawTask) -> bool
 pub fn nika_check_analyzer::gates::parse_gate(src: &str) -> core::option::Option<nika_tmpl::expression::ast::Expr>
+pub fn nika_check_analyzer::gates::reads_inputs_only(task: &nika_schema::raw::task::RawTask) -> bool
 pub mod nika_check_analyzer::model_scope
 pub fn nika_check_analyzer::model_scope::scan(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
 pub mod nika_check_analyzer::native_first
