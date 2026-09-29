@@ -318,7 +318,7 @@ obligation). Grades: `declared` (a CSV/TSV header names the column), `observed_c
 presence, never absence, and the revision is the peek's hash, never the unread tail),
 `user_asserted` (the request's own column list, or an answer given in the context it was
 asked), `inferred` (anything else). A key is admissible only above `inferred` and bound by the
-request's own words, an answer or an approval: with nothing observed, a key the request merely
+request's own words, an answer, an approval or an observed value the request states (below): with nothing observed, a key the request merely
 names is asked for its exact spelling, never lowered, unless the request lists its columns. A
 word the observed keys do not hold is a closed choice over every observed key (the partial ones
 included); no synonym, spelling or similarity maps it. An answer counts only against the
@@ -341,6 +341,40 @@ Not covered: nested paths, joins and folders of several files, the keys of a nat
 candidate's own jq, and every value or operator meaning (units, types, dates, null comparisons:
 a key present with a null value is grounded, and a numeric comparison over the null fails the
 run: S2 and S3).
+
+A key the request never names is bound by the observation when the request states its value
+(F2-Q1; E39 PILOT14 DEV2-P4: « Sum integer amount_cents of paid rows by customer » names `paid`,
+never `status`, and the cold round asked which field `status` means). The binding holds only
+when all of the following hold:
+
+- The rule compares the key to a literal. That is a typed text equality or inequality, or a
+  verified program's literal comparison: `.F == "L"`, `.F != "L"` or `."F" == "L"`, or the
+  operands reversed. The comparison may have only whitespace inside it, and on each side a token
+  that binds more loosely, such as a bracket, a pipe, a comma, `;`, `//`, `and`, `or` or a
+  conditional's keyword. No jq is parsed.
+- The request states the literal with identifier boundaries.
+- The literal names no observed column.
+- The host recorded the literal among the key's categorical values, exactly or canonically
+  equivalent under the canonical-spelling law above, and among no other column's values.
+
+The grade is unchanged, `bound_by` is `observation`, and the entry carries the `witness`
+literal. When the round carries an answer for the key's question, the answer is read instead
+(R4 A6).
+
+Otherwise the question stays:
+
+- the literal is recorded in two columns;
+- no recorded sample shows the literal;
+- the host recorded no values for the column, for instance two sampled rows holding two
+  distinct values form no categorical set (DEV7-P3-EN);
+- the request never states the literal;
+- the literal also names a column;
+- the observation does not hold the key, which is never rebound to the witnessed column;
+- the comparison is a containment;
+- a program holds the literal anywhere but in that comparison.
+
+Not covered: a type the rule needs (an instant window, a number), which no recorded observation
+carries (DEV6-P3-FR); this is queued as F2-Q1b.
 
 A pending transformation preserves intent, plan and observed source identity,
 field choices and bounded attempt lineage across answer rounds. Record replay

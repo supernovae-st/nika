@@ -13,6 +13,10 @@
 //!   observed key the request never states (a seat's choice). Never admissible alone.
 //! - A key present in some sampled records only is grounded, but what a rule does with records
 //!   lacking it is an operator law (S3) the request must state: that obligation stays open.
+//! - A key the request never names is bound by the observation when the request states its value
+//!   ([`witness`], F2-Q1): a literal the rule compares the key to, recorded by the host among that
+//!   key's values and no other column's. A sample that never shows it proves nothing.
+use crate::rules::Rule;
 use serde_json::{Value, json};
 
 /// How strongly the source supports a key (closed).
@@ -129,9 +133,126 @@ pub(crate) fn stale(request: &crate::CompileRequest, path: &str) -> bool {
     row(asked, path) != row(now, path)
 }
 
+/// The literal that witnesses a seat's `field` the request never names (F2-Q1): the rule compares
+/// `field` to it (a typed text equality or inequality, or a verified program's literal comparison,
+/// [`compares`]), the request states it with identifier boundaries, it names no observed column,
+/// and the host recorded it, exactly or canonically equivalent (the one spelling law, R4 A5),
+/// among the values of `field` and of no other column. A sample that never shows it, or a column
+/// whose values the host did not record, proves nothing: no witness, and the question stays.
+pub(crate) fn witness(
+    rule: &Rule,
+    field: &str,
+    intent: &str,
+    row: Option<&Value>,
+    seen: &Seen,
+) -> Option<String> {
+    let recorded = row?.get("values")?.as_object()?;
+    let spellings = |values: &Value| -> Vec<String> {
+        let texts = values.as_array().into_iter().flatten();
+        texts.filter_map(Value::as_str).map(str::to_owned).collect()
+    };
+    let holds = |values: &Value, literal: &str| {
+        let observed = spellings(values);
+        observed.iter().any(|v| v == literal)
+            || !crate::surface::observed::equivalent_spellings(literal, &observed).is_empty()
+    };
+    let own = recorded.get(field)?;
+    let compared: Vec<String> = match rule.verified_program() {
+        Some(program) => (spellings(own).into_iter())
+            .filter(|value| compares(&program.jq, field, value))
+            .collect(),
+        None => (rule.text_equalities().into_iter())
+            .filter_map(|(key, literal)| (key == field).then_some(literal))
+            .collect(),
+    };
+    compared.into_iter().find(|literal| {
+        super::names_field(intent, literal)
+            && !seen.all.iter().any(|column| column == literal)
+            && holds(own, literal)
+            && (recorded.iter())
+                .filter(|(column, _)| column.as_str() != field)
+                .all(|(_, values)| !holds(values, literal))
+    })
+}
+
+/// Whether a program's text compares `field` to the string `literal` literally (F2-Q1): `.F` (a
+/// bare key) or `."F"`, then `==` or `!=`, then the literal as JSON, or the operands reversed,
+/// apart only by whitespace and set off on each side by a token that binds more loosely
+/// ([`looser`]). No jq is parsed: any other shape (a nested path, a longer key, a tighter
+/// operator, the literal elsewhere) is no comparison.
+fn compares(jq: &str, field: &str, literal: &str) -> bool {
+    let quoted = |text: &str| Value::String(text.to_owned()).to_string();
+    let bare = field
+        .chars()
+        .next()
+        .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+        && field.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
+    let mut keys = vec![format!(".{}", quoted(field))];
+    if bare {
+        keys.push(format!(".{field}"));
+    }
+    let value = quoted(literal);
+    keys.iter().any(|key| {
+        ["==", "!="].into_iter().any(|op| {
+            in_order(jq, [key.as_str(), op, value.as_str()])
+                || in_order(jq, [value.as_str(), op, key.as_str()])
+        })
+    })
+}
+
+/// Whether `text` holds the three tokens in order, apart only by whitespace, between tokens that
+/// bind more loosely than a comparison.
+fn in_order(text: &str, [left, op, right]: [&str; 3]) -> bool {
+    text.match_indices(left).any(|(at, _)| {
+        let rest = text[at + left.len()..].trim_start();
+        let Some(rest) = rest.strip_prefix(op) else {
+            return false;
+        };
+        let Some(rest) = rest.trim_start().strip_prefix(right) else {
+            return false;
+        };
+        looser(text[..at].trim_end(), false) && looser(rest.trim_start(), true)
+    })
+}
+
+/// Whether the jq beside a comparison binds more loosely than it: nothing, a bracket, a pipe, a
+/// comma, `;`, `//`, `and` or `or`, or a conditional's keyword (`after`: the text that follows it,
+/// else the text before it).
+fn looser(beside: &str, after: bool) -> bool {
+    let marks: &[&str] = if after {
+        &[")", "]", "}", ",", "|", ";", "//"]
+    } else {
+        &["(", "[", "{", ",", "|", ";", "//"]
+    };
+    let words: &[&str] = if after {
+        &["and", "or", "then", "elif", "else", "end"]
+    } else {
+        &["and", "or", "if", "elif", "then", "else"]
+    };
+    let word = |c: char| c.is_alphanumeric() || matches!(c, '_' | '.' | '$' | '@');
+    let bounded = |w: &&str| {
+        if after {
+            beside
+                .strip_prefix(*w)
+                .is_some_and(|r| !r.starts_with(word))
+        } else {
+            beside.strip_suffix(*w).is_some_and(|r| !r.ends_with(word))
+        }
+    };
+    beside.is_empty()
+        || marks.iter().any(|m| {
+            if after {
+                beside.starts_with(m)
+            } else {
+                beside.ends_with(m)
+            }
+        })
+        || words.iter().any(bounded)
+}
+
 /// One key's grounding as the decision carries it: admissible when graded above `inferred` and
-/// bound by the request's words, an answer or an approval; open when some sampled records lack
-/// the key.
+/// bound by the request's words, an answer, an approval or the observation of a value the request
+/// states ([`witness`]); open when some sampled records lack the key.
 pub(crate) struct Entry<'a> {
     pub rule: &'a str,
     pub key: &'a str,
