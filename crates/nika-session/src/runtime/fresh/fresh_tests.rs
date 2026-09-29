@@ -385,3 +385,154 @@ fn a_source_independent_proposal_lands_with_freshness_said_unjudged() {
         "{report}"
     );
 }
+
+/// C10 · a column the human mapped by answering the compiler's question is a genuine basis: the
+/// yes judges it for the exact request that compiled the proposal (its answer and the
+/// observation its round read) and lands; the same answer over a column renamed before the yes
+/// is withdrawn with nothing written. (The column is not money-shaped: an answer line naming
+/// `amount_usd` is read by the money gate on this tree, which is the money law's, not this pin's.)
+#[test]
+fn an_answered_column_holds_for_its_request_and_moves_with_its_source() {
+    let input = "id,price,status\nA001,10,paid\nA026,260,paid\nA027,270,open\n";
+    for renamed in [false, true] {
+        let root = project(input);
+        let (mut s, seen) = open(root.path());
+        let asked = s.turn(RESTATED);
+        assert!(
+            matches!(&asked, TurnOutcome::Question { question, .. } if question.contains("price")),
+            "{asked:?}"
+        );
+        proposal(s.turn("price"));
+        assert!(
+            pending_bytes(&s).contains(".price"),
+            "the answer is in the bytes"
+        );
+        if renamed {
+            std::fs::write(
+                root.path().join("data/input.csv"),
+                input.replace("price", "cost"),
+            )
+            .expect("renamed");
+            let why = refused(s.consent("yes"));
+            assert!(
+                why.text.contains("was withdrawn") && why.text.contains("price"),
+                "{}",
+                why.text
+            );
+            assert!(!root.path().join(LANDED).exists(), "nothing written");
+        } else {
+            let report = facts(s.consent("yes"));
+            assert!(
+                report.contains("applied") && report.contains("hold"),
+                "{report}"
+            );
+        }
+        assert!(seen.lock().expect("record").is_empty(), "no model");
+    }
+}
+
+/// C10 · an answer is the only evidence for a field of a file the project does not hold yet (the
+/// compiler's own construction): the yes recovers it from the exact request that compiled the
+/// proposal, kept with the observation that round read, never one made later, and lands while
+/// the file is still absent; once the file exists and its header lacks that field, the yes is
+/// withdrawn. (A JSONL source, or a JSON file too large to read whole, cannot move it this way:
+/// its sample is partial, and a bounded sample disproves nothing an answer asserted.)
+#[test]
+fn an_answer_over_an_absent_source_holds_only_for_the_request_that_compiled_it() {
+    let orders =
+        "read ./orders.csv, keep only the rows whose status is open and write them to ./out.json";
+    for arrived in [false, true] {
+        let root = tempfile::tempdir().expect("project");
+        let (mut s, seen) = open(root.path());
+        let asked = s.turn(orders);
+        assert!(
+            matches!(&asked, TurnOutcome::Question { question, .. } if question.contains("status")),
+            "{asked:?}"
+        );
+        proposal(s.turn("status"));
+        let kept = s.basis.as_ref().and_then(|b| b.request.knowledge.clone());
+        let rows = kept.as_ref().and_then(|world| world["observed"].as_array());
+        assert!(
+            rows.is_some_and(|rows| rows
+                .iter()
+                .any(|row| row["path"] == "./orders.csv" && row["state"] == "absent")),
+            "the round's own observation is kept: {kept:?}"
+        );
+        if arrived {
+            std::fs::write(root.path().join("orders.csv"), "id,state\n1,open\n").expect("arrived");
+            let why = refused(s.consent("yes"));
+            assert!(
+                why.text.contains("was withdrawn") && why.text.contains("`status`"),
+                "{}",
+                why.text
+            );
+            assert!(!root.path().join(LANDED).exists(), "nothing written");
+        } else {
+            let report = facts(s.consent("yes"));
+            assert!(
+                report.contains("applied") && report.contains("of `./orders.csv` hold"),
+                "{report}"
+            );
+        }
+        assert!(seen.lock().expect("record").is_empty(), "no model");
+    }
+}
+
+/// The state the observation `world` recorded for `path`.
+fn state_in(world: Option<&serde_json::Value>, path: &str) -> Option<serde_json::Value> {
+    let rows = world?["observed"].as_array()?;
+    let row = rows.iter().find(|row| row["path"] == path)?;
+    Some(row["state"].clone())
+}
+
+/// C10 · the observation an answer round was given stays apart from the one the round it
+/// continued recorded: the proposal keeps this round's world beside the continued plan's earlier
+/// one (neither replaces the other), the human's own answer, and the exact bytes and identity of
+/// that proposal; the yes replays the answer against this round's world and lands.
+#[test]
+fn an_answer_round_keeps_its_own_observation_apart_from_the_one_it_continued() {
+    let root = tempfile::tempdir().expect("project");
+    let (mut s, seen) = open(root.path());
+    let asked = s.turn(
+        "read ./orders.csv, keep only the rows whose status is open and write them to ./out.json",
+    );
+    assert!(matches!(&asked, TurnOutcome::Question { .. }), "{asked:?}");
+    // Between the question and its answer the destination appears: this round is given a world
+    // the plan it continues never saw.
+    std::fs::write(root.path().join("out.json"), "[]").expect("destination");
+    let (id, _) = proposal(s.turn("status"));
+    let bound = s.basis.as_ref().expect("bound at the proposal");
+    let continued = bound
+        .request
+        .plan
+        .as_ref()
+        .map(|plan| &plan["observed_world"]);
+    assert_eq!(
+        state_in(continued, "./out.json"),
+        Some("absent".into()),
+        "{continued:?}"
+    );
+    let given = bound.request.knowledge.as_ref();
+    assert_eq!(
+        state_in(given, "./out.json"),
+        Some("empty".into()),
+        "{given:?}"
+    );
+    assert!(
+        bound
+            .request
+            .answers
+            .values()
+            .any(|answer| answer == "\"status\""),
+        "{:?}",
+        bound.request.answers
+    );
+    let set = s.pending.as_ref().expect("the proposal waits");
+    assert!(
+        bound.id == id && bound.bytes == super::witnesses(set),
+        "its exact bytes"
+    );
+    let report = facts(s.consent("yes"));
+    assert!(report.contains("of `./orders.csv` hold"), "{report}");
+    assert!(seen.lock().expect("record").is_empty(), "no model");
+}

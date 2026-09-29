@@ -98,6 +98,8 @@ fn the_observed_record_counts_columns_and_never_carries_their_names() {
     assert_eq!(record["rows"][0]["columns"], 3);
     assert_eq!(record["rows"][1]["columns"], 0);
     assert!(!record.to_string().contains("customer"), "{record}");
+    // C10: the identity of the whole world attached, beside the names-free summary.
+    assert_eq!(record["world_sha256"], json!(world_sha256(&world)));
     // Nothing observed: the outcome's record is untouched.
     let untouched = outcome();
     let before = untouched.provenance.decision.clone();
@@ -118,4 +120,49 @@ fn a_pin_names_its_identity_in_words_and_refuses_what_is_no_snapshot() {
         refused.is_err(),
         "a directory that is no snapshot is never pinned"
     );
+}
+
+/// C10 · D-K · a pin names both identities when the snapshot moved under it: rows it did not
+/// read, a re-declared digest; the same snapshot has not moved.
+#[test]
+fn a_pin_says_when_its_snapshot_moved_under_it() {
+    let dir = tempfile::tempdir().expect("a snapshot");
+    let manifest = |digest: &str| {
+        json!({"knowledge_version": "k1", "digest": digest, "files": {}}).to_string()
+    };
+    std::fs::write(dir.path().join("manifest.json"), manifest("d1")).expect("manifest");
+    let pin = KnowledgePin::open(dir.path().to_path_buf(), None).expect("pinned");
+    let now = || Snapshot::open(dir.path()).expect("still a snapshot");
+    assert_eq!(pin.moved(&now()), None, "the same snapshot has not moved");
+    std::fs::write(dir.path().join("families.jsonl"), "{}\n").expect("a row file");
+    let (pinned, found) = pin.moved(&now()).expect("rows it did not read moved it");
+    assert!(pinned.starts_with("k1 (declared digest d1"), "{pinned}");
+    assert!(found.starts_with("k1 (declared digest d1"), "{found}");
+    assert_ne!(pinned, found, "the rows differ in words");
+    std::fs::remove_file(dir.path().join("families.jsonl")).expect("rows as pinned");
+    std::fs::write(dir.path().join("manifest.json"), manifest("d2")).expect("re-declared");
+    let (_, found) = pin.moved(&now()).expect("a re-declared digest moved it");
+    assert!(found.contains("declared digest d2"), "{found}");
+}
+
+/// C10 · the decision seat's receipt sits beside the compiler's own record of the same
+/// questions, created when there is none, and the session's later stamp keeps it.
+#[test]
+fn the_seat_receipt_is_stamped_beside_the_record_and_kept_by_the_stamp() {
+    let mut out = outcome();
+    out.provenance.decision = Some(json!({"kept": 1}));
+    stamp_seat(&mut out, json!({"model": "typesafe/jev"}));
+    stamp(&mut out, "escalate", "environment", None);
+    let decision = out.provenance.decision.expect("stamped");
+    assert_eq!(
+        decision["session"]["decision_seat"]["model"],
+        "typesafe/jev"
+    );
+    assert_eq!(decision["session"]["authoring"]["strategy"], "escalate");
+    assert_eq!(decision["kept"], 1, "the compiler's own record stays");
+    let mut bare = outcome();
+    bare.provenance.decision = None;
+    stamp_seat(&mut bare, json!({"model": "m"}));
+    let created = bare.provenance.decision.expect("created");
+    assert_eq!(created["session"]["decision_seat"]["model"], "m");
 }

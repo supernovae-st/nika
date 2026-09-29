@@ -11,7 +11,13 @@
 use std::fmt::Write as _;
 use std::path::PathBuf;
 
+use nika_onboard::compile::round::{change_money, compiled};
 use nika_onboard::compile::{CompileOutcome, CompileQuestion, CompileRequest, revise_intent};
+// The compiler's reasons in a human's words and its questions' own grammar live beside the
+// reading they refine (C10).
+use nika_onboard::compile::reading::clauses_understood;
+pub(crate) use nika_onboard::compile::reading::human_reasons;
+pub(super) use nika_onboard::compile::reading::{asks_for_syntax, clause_of};
 
 use super::{SessionRuntime, TurnOutcome, ceiling_in, named_files};
 use crate::activity::{Activity, Phase};
@@ -279,7 +285,7 @@ impl SessionRuntime {
 
     /// Propose the revised bytes and the Meaning delta while retaining the
     /// original request and the human's change as the source of truth.
-    fn propose_revision(&mut self, goal: &str, out: &CompileOutcome) -> TurnOutcome {
+    fn propose_revision(&mut self, round: &AuthoringRound, out: &CompileOutcome) -> TurnOutcome {
         let delta = self
             .last_outcome
             .as_ref()
@@ -291,7 +297,7 @@ impl SessionRuntime {
                     .and_then(|d| d.get("ledger").cloned()),
             )
             .and_then(|(before, after)| crate::meaning::delta(&before, &after));
-        match self.propose(goal, out) {
+        match self.propose(round, out) {
             TurnOutcome::Proposal { id, preview } => {
                 // The Meaning and details doors must describe the bytes now
                 // awaiting consent. Keep the earlier reading if proposal fails.
@@ -336,6 +342,8 @@ impl SessionRuntime {
         // knowledge is composed for that same request from the pinned snapshot.
         let mut round = AuthoringRound::new(goal.clone());
         round.edit = Some((base, change.trim().to_owned(), original));
+        // The line's own admitted directives, as the law reads the change the EDIT holds (B15).
+        round.money = change_money(change.trim(), !self.money.admitted.is_empty());
         let request = round.request();
         let revised = revise_intent(&request).unwrap_or_else(|| goal.clone());
         let out = match self.compile_request(&request, &revised) {
@@ -345,7 +353,7 @@ impl SessionRuntime {
         match Reading::of(out) {
             Reading::Ready(out) => {
                 self.remember(change, "(revised the saved workflow)");
-                self.propose(&goal, &out)
+                self.propose(&round, &out)
             }
             // What the revision asks waits in its round: the same EDIT, answered.
             reading if round.asks(&reading) => self.settle(round, reading),
@@ -411,7 +419,7 @@ impl SessionRuntime {
         match Reading::of(out) {
             Reading::Ready(out) => {
                 self.remember(change, "(revised the proposal)");
-                self.propose_revision(&goal, &out)
+                self.propose_revision(&round, &out)
             }
             // What the revision asks (a value, a clause's disposition) waits in its round; the
             // proposal it revises waits aside, never consentable meanwhile (`keep_revising`).
@@ -466,7 +474,7 @@ impl SessionRuntime {
     /// are named); a compiler failure is a refusal that names it; an
     /// authoring configuration that cannot be honored is refused before
     /// anything is sent — never authored without the knowledge it names.
-    fn machinery(&mut self, error: &AuthoringError) -> TurnOutcome {
+    pub(super) fn machinery(&mut self, error: &AuthoringError) -> TurnOutcome {
         match error {
             AuthoringError::Seat(_) => self.recovery(
                 Some(RefusalClass::IntelligenceRefused),
@@ -490,7 +498,7 @@ impl SessionRuntime {
 
     /// What a reading becomes for the human: a proposal, a question, an
     /// honest incomplete, a refusal.
-    fn settle(&mut self, mut round: AuthoringRound, reading: Reading) -> TurnOutcome {
+    pub(super) fn settle(&mut self, mut round: AuthoringRound, reading: Reading) -> TurnOutcome {
         // The compiler's reading is what `/meaning` shows, clause by clause.
         self.last_outcome = Some(reading.outcome().clone());
         // A revision left unsettled may still ask its clauses' dispositions (`absorb`).
@@ -502,9 +510,9 @@ impl SessionRuntime {
             // The revised proposal replaces the one it revises: the delta reads from that one.
             Reading::Ready(out) if self.revising.is_some() => {
                 self.last_outcome = self.revising.as_ref().and_then(|(_, base)| base.clone());
-                self.propose_revision(&round.intent, &out)
+                self.propose_revision(&round, &out)
             }
-            Reading::Ready(out) => self.propose(&round.intent, &out),
+            Reading::Ready(out) => self.propose(&round, &out),
             Reading::Questions(out) => {
                 round.absorb(&out);
                 let Some(question) = round.current() else {
@@ -590,19 +598,19 @@ impl SessionRuntime {
         }
     }
 
-    /// The Ready candidate as the proposal the consent line answers:
+    /// The Ready candidate of `round` as the proposal the consent line answers:
     /// exact bytes, a fresh destination, the same check facade.
-    fn propose(&mut self, goal: &str, out: &CompileOutcome) -> TurnOutcome {
-        match review::propose(&self.snapshot.root, goal, out) {
+    fn propose(&mut self, round: &AuthoringRound, out: &CompileOutcome) -> TurnOutcome {
+        match review::propose(&self.snapshot.root, &round.intent, out) {
             Ok(set) => {
                 let bytes = self.draft_preview(&set);
                 let id = ProposalId::of(&bytes);
                 // What the candidate records of its sources is bound before any yes (F4).
-                self.bind_basis(&id, &set, goal, out);
+                self.bind_basis(&id, &set, compiled(round.request(), out), out);
                 let preview = self.draft_review(&set, out, &bytes);
                 self.authoring = None;
                 self.intent.unresolved.clear();
-                self.remember(goal, &format!("(proposed {id})"));
+                self.remember(&round.intent, &format!("(proposed {id})"));
                 // The schedule the request asked for rides beside the set:
                 // « activate » declares it once the program is saved.
                 self.pending_trigger.clone_from(&out.requested_trigger);
@@ -1210,18 +1218,6 @@ pub(super) fn seat_offer(seat: &AuthoringSeat) -> Option<String> {
     Some(offer)
 }
 
-/// How many clauses the compiler's ledger holds for this reading —
-/// « understood N requirements » — `None` when the outcome carries no ledger.
-fn clauses_understood(out: &CompileOutcome) -> Option<usize> {
-    let ledger = out
-        .provenance
-        .decision
-        .as_ref()?
-        .get("ledger")?
-        .as_array()?;
-    (!ledger.is_empty()).then_some(ledger.len())
-}
-
 impl SessionRuntime {
     /// The authoring note: the model when the seat names one.
     fn authoring_note(&self) -> String {
@@ -1231,25 +1227,6 @@ impl SessionRuntime {
             AuthoringSeat::Deterministic { .. } => "authoring".to_owned(),
         }
     }
-}
-
-/// A question that asks the human for code (a jq or CEL expression, a
-/// `const.*_expression` value): a product defect when it reaches them.
-pub(super) fn asks_for_syntax(question: &CompileQuestion) -> bool {
-    let label = question.label.to_ascii_lowercase();
-    question.key.ends_with("_expression")
-        || label.contains("jq expression")
-        || label.contains(" jq ")
-        || label.contains("cel expression")
-}
-
-/// The clause the compiler quotes in its question (between backticks),
-/// as the request carries it.
-pub(super) fn clause_of(label: &str) -> Option<String> {
-    let start = label.find('`')? + 1;
-    let end = start + label[start..].find('`')?;
-    let clause = label[start..end].trim();
-    (!clause.is_empty()).then(|| clause.to_owned())
 }
 
 /// The clause asked in words — never a syntax — with what to say and
@@ -1307,89 +1284,6 @@ fn honest_incomplete(out: &CompileOutcome, why: Option<&str>) -> String {
         "say what to read, what to produce and where to write it, e.g. « read ./docs, draft a digest and write it to ./digest.md »",
     ));
     text
-}
-
-/// The compiler's reasons a human can act on: its machine sentences (the
-/// plan's own vocabulary, an unmapped part with nothing after the colon)
-/// dropped, duplicates folded, the rest verbatim.
-pub(crate) fn human_reasons(reasons: Vec<String>) -> Vec<String> {
-    let mut kept: Vec<String> = Vec::new();
-    for reason in reasons {
-        let r = reason.trim();
-        let machine = r.contains("semantic plan") || r.ends_with(": .") || r.ends_with(':');
-        if machine || r.is_empty() {
-            continue;
-        }
-        let said = human_reason(r);
-        if kept.contains(&said) {
-            continue;
-        }
-        kept.push(said);
-    }
-    kept
-}
-
-/// One compiler reason in the human's words — the compiler's fidelity
-/// grammar is a closed set (« Candidate N is not feasible: … », « dropped
-/// the recognized operation `x` (evidence) », « the path `p` is no longer
-/// carried … », « the literal `v` is not in the request »); any other line
-/// is kept as the compiler said it.
-fn human_reason(raw: &str) -> String {
-    let r = raw.trim().trim_end_matches('.');
-    // A cut answer is the seat's output limit, an internal cause: its command-line advice
-    // (`--authoring-max-tokens`) is no gesture a Session has, and the request is not at fault.
-    if r.contains("--authoring-max-tokens") {
-        let tokens: String = r
-            .chars()
-            .skip_while(|c| !c.is_ascii_digit())
-            .take_while(char::is_ascii_digit)
-            .collect();
-        let limit = if tokens.is_empty() {
-            "its output limit".to_owned()
-        } else {
-            format!("its {tokens}-token output limit")
-        };
-        return format!(
-            "the model's answer was cut at {limit} before it was complete — an internal limit of this attempt, not a problem with your request"
-        );
-    }
-    let r = match r.find("is not feasible: ") {
-        Some(at) if r.starts_with("Candidate ") => &r[at + "is not feasible: ".len()..],
-        _ => r,
-    };
-    let quoted = |s: &str| -> Option<(String, String)> {
-        let start = s.find('`')?;
-        let end = s[start + 1..].find('`')? + start + 1;
-        Some((s[start + 1..end].to_owned(), s[end + 1..].to_owned()))
-    };
-    if let Some(rest) = r.strip_prefix("dropped the recognized operation ")
-        && let Some((op, tail)) = quoted(rest)
-    {
-        let evidence = tail
-            .trim()
-            .trim_start_matches('(')
-            .trim_end_matches(')')
-            .trim_end_matches(',')
-            .trim();
-        return if evidence.is_empty() {
-            format!("the draft lost the « {op} » step")
-        } else {
-            format!("the draft lost « {evidence} » (the {op} step)")
-        };
-    }
-    if let Some(rest) = r.strip_prefix("the path ")
-        && let Some((path, tail)) = quoted(rest)
-        && tail.contains("no longer carried")
-    {
-        return format!("the draft dropped « {path} »: nothing reads or writes it any more");
-    }
-    if let Some(rest) = r.strip_prefix("the literal ")
-        && let Some((value, tail)) = quoted(rest)
-        && tail.contains("not in the request")
-    {
-        return format!("the draft invented a value (« {value} ») your request never gave");
-    }
-    r.to_owned()
 }
 
 /// The first word of an explicit run line (EN/FR). The French imperative

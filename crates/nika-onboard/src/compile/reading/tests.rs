@@ -92,3 +92,79 @@ fn the_reasons_are_the_compilers_own_findings() {
         "a Ready candidate states no reason"
     );
 }
+
+/// C10 · D-R · an answered `intent.clarification` replaces the request only with words: a
+/// string that is not blank, never another literal.
+#[test]
+fn a_clarification_gives_words_only_when_it_is_a_string_that_is_not_blank() {
+    let one = |literal: &str| {
+        std::collections::BTreeMap::from([(CLARIFICATION_KEY.to_owned(), literal.to_owned())])
+    };
+    assert_eq!(
+        clarified(&one("\"the whole request\"")).as_deref(),
+        Some("the whole request")
+    );
+    for literal in ["\"  \"", "42", "not json", "null"] {
+        assert_eq!(clarified(&one(literal)), None, "{literal}");
+    }
+    assert_eq!(clarified(&std::collections::BTreeMap::new()), None);
+}
+
+/// C10 · D-H · the compiler's fidelity grammar in a human's words, beside the reading it
+/// refines: machine sentences dropped, duplicates folded, each closed form said plainly, a cut
+/// answer named as an internal limit, anything else as the compiler said it.
+#[test]
+fn the_compilers_reasons_read_in_a_humans_words() {
+    let said = human_reasons(
+        [
+            "the semantic plan has no step",
+            "unmapped part: .",
+            "Candidate 2 is not feasible: dropped the recognized operation `sum` (the total of amount)",
+            "the path `./out.csv` is no longer carried by the candidate",
+            "the literal `42` is not in the request",
+            "the answer was cut: raise --authoring-max-tokens above 16384",
+            "a reason as the compiler said it.",
+            "a reason as the compiler said it",
+        ]
+        .map(str::to_owned)
+        .to_vec(),
+    );
+    assert_eq!(
+        said,
+        [
+            "the draft lost « the total of amount » (the sum step)",
+            "the draft dropped « ./out.csv »: nothing reads or writes it any more",
+            "the draft invented a value (« 42 ») your request never gave",
+            "the model's answer was cut at its 16384-token output limit before it was complete — an internal limit of this attempt, not a problem with your request",
+            "a reason as the compiler said it",
+        ]
+    );
+}
+
+/// C10 · D-H · a question's own grammar: the clause it quotes, whether it asks for code, and how
+/// many clauses the outcome's ledger holds.
+#[test]
+fn a_question_quotes_its_clause_and_says_when_it_asks_for_code() {
+    assert_eq!(
+        clause_of("How should `the total of amount` be computed?").as_deref(),
+        Some("the total of amount")
+    );
+    assert_eq!(clause_of("no quoted clause"), None);
+    assert_eq!(clause_of("an empty `  ` clause"), None);
+    let mut out = compile(&CompileRequest::create("bounded-batch")).expect("compiles");
+    let mut question = out.questions[0].clone();
+    assert!(!asks_for_syntax(&question), "{}", question.label);
+    question.key = "const.rule_expression".to_owned();
+    assert!(asks_for_syntax(&question), "a const expression is code");
+    question.key = "value".to_owned();
+    question.label = "Which jq expression keeps the rows?".to_owned();
+    assert!(asks_for_syntax(&question), "a jq expression is code");
+    out.provenance.decision = Some(serde_json::json!({"ledger": [{}, {}]}));
+    assert_eq!(clauses_understood(&out), Some(2));
+    out.provenance.decision = Some(serde_json::json!({"ledger": []}));
+    assert_eq!(
+        clauses_understood(&out),
+        None,
+        "an empty ledger says nothing"
+    );
+}

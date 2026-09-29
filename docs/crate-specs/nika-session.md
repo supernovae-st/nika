@@ -17,7 +17,7 @@
 
 ## What it must NOT own
 
-The workflow grammar · the builtin catalog · the model catalog · the error definitions · the check semantics · the runtime · the ARM semantics · the trace verification · what a run's trace proves · the project file grammar · the Meaning projection of the compiler's ledger. It queries those authorities (`nika_pack` · `nika_builtin` · `nika_catalog` · `nika_error` · `nika_cli_host::oracle` · `nika_dap::inventory` · `nika_vocab::project` · `nika_onboard::routing` · `nika_trace::run_view` · `nika_onboard::compile::meaning`).
+The workflow grammar · the builtin catalog · the model catalog · the error definitions · the check semantics · the runtime · the ARM semantics · the trace verification · what a run's trace proves · the project file grammar · the Meaning projection of the compiler's ledger · the round's pure law and its codec · the compiler's reasons in a human's words. It queries those authorities (`nika_pack` · `nika_builtin` · `nika_catalog` · `nika_error` · `nika_cli_host::oracle` · `nika_dap::inventory` · `nika_vocab::project` · `nika_onboard::routing` · `nika_trace::run_view` · `nika_onboard::compile::meaning` · `nika_onboard::compile::round` · `nika_onboard::compile::reading`).
 
 ## Run facts: read here, owned by the trace reader
 
@@ -65,8 +65,16 @@ bytes where it is proposed (`propose`, which a revision's proposal goes
 through too); a money-only amendment names the same bytes anew and keeps it.
 At the yes, before any write, consent record or money effect, the session
 observes exactly the recorded sources again through the host's one bounded
-observer and the compiler judges them (`nika_onboard::compile::basis`, the
-grounding law that admitted them). A moved basis (a column renamed or removed,
+observer and the compiler judges them for the request that compiled the bytes
+(`nika_onboard::compile::basis_for`, the grounding law that admitted them). The
+proposal keeps that exact request beside its bytes: its answers, the plan it
+continued with that plan's earlier observation, and apart from them the
+observation its own round was given (`compile::round::compiled`: the world the
+outcome's plan recorded when the session's record names that very observation by
+its identity, `world_sha256`; none when it was given none; no basis at all when
+an attached observation was not recorded or its record names no identity). A field the human named by answering is recovered by the
+compiler's zero-call replay of that request, never from a recorded label, and
+the observation made at the yes is only ever the fresh side (C10). A moved basis (a column renamed or removed,
 a source gone or unreadable, a key some sampled records now lack, a number
 field no longer all numbers) or one that cannot be judged withdraws the
 proposal: nothing lands, the reason names the changed dependency, the goal
@@ -78,7 +86,11 @@ of its request only when that gives its exact bytes; otherwise it is withdrawn
 when its workflow reads project files (the check facade's own permits), and
 lands with its freshness said unjudged when it reads none. A decision that
 records no source fact is said so when its workflow reads files, never
-presented as fresh. The run's own guards (`compute_admit`, the number policy)
+presented as fresh. A field an answer asserted over a JSONL source, or a JSON file the
+observer could not read whole, holds while nothing observed whole disproves it:
+such a sample is partial, and a bounded sample disproves nothing an answer
+asserted (a CSV header, or a JSON file read whole, does).
+The run's own guards (`compute_admit`, the number policy)
 stay the check at use: the observation is bounded, and nothing is atomic
 between the yes and the run.
 
@@ -214,10 +226,16 @@ amounts refuse before cognition. Explicit money replaces a project default; the
 default is not an independent cap. A stated default being replaced must match
 the observed default. Project discovery errors remain visible and refuse
 admission instead of silently becoming an absent default. The original intent
-reaches the compiler unchanged. A work request is read by its monetary
-directives only (R4 A6): a word inside a business clause, a field named
-`budget`, a quoted value or a path is never money and never refused as money;
-Run, gate and consent lines keep the whole-line reading. The directives the
+reaches the compiler unchanged. A work request, a consent line and an answer
+line are read by their monetary directives only (R4 A6 · B15): a word inside a
+business clause, a field named `budget`, a business amount, a negative value, a
+quoted value or a path is never money and never refused as money, whatever its
+currency. Run and gate lines keep the whole-line reading. A consent line
+changes money only when the whole line is a money amendment, which gets a fresh
+proposal identity; a business revision never changes money by a numeric
+coincidence. The unknown-cost review reads its zero and its default the same
+way. The seat of a metered round reads the request with its admitted directives
+blanked, never as work. The directives the
 gate admitted ride with the authoring round (`AuthoringRound::money`), so the
 compiler's deterministic door reads the rest of the request without them: « ….
 Budget: $0. » keeps the business round (READY or a field question, zero calls)
@@ -237,7 +255,9 @@ reader's reasons follows.
 Once attached currency is recognized, amount validation cannot fall back to
 filename handling: `budget=0.5oopsUSD` refuses, while `budget=0.txt` and quoted
 or explicit path data retain their data meaning.
-Compact anchors also open trailing currency directives (`… budget=0.5USD`).
+Compact anchors also open trailing currency directives attached to the work («
+… stars and budget=0.5USD »), never inside a relative clause: « … rows whose
+status is open and budget=1500USD » is data.
 An unanchored currency needs its own sentence or comma segment (`…, 2USD`);
 `and 2USD` or `et 2USD` could finish a business range and is never stripped as
 a ceiling. Currency inside a business predicate remains business data. A
@@ -493,3 +513,33 @@ answer, so a later unrelated run observation cannot persist expired questions
 as current. Opening rewrites neither store, calls no model and grants no
 consent. Paused trace gates and conservative monetary restrictions retain
 their existing restoration laws.
+
+The round's pure law lives beside its codec (C10): `AuthoringRound` keeps its
+path, fields, constructor and every method with its signature — `compile` and
+`compile_with_admission` stay inherent — and delegates the typed request, what
+an outcome settled, the questions it leaves, a re-anchored plan and a carried
+receipt to `nika_onboard::compile::round`. The codec also exposes read-only
+`RoundWords`; this consumer does not yet restore a pending authoring round across
+sessions.
+
+The preview's rows of a check report (the first findings and hints, the effect rows and
+the spend) are read from `nika_display::check_render::review` (C10): strings, order and
+limits are unchanged, and the change primitive keeps the verdict, the path and the audit's
+authority. A saved workflow's revision carries the monetary directives the gate admitted in
+the line that said the change, as the money law reads the change the EDIT holds
+(`compile::round::change_money`, B15); a revision said at the consent prompt carries none,
+and a money-only consent line keeps its fresh-proposal path.
+A complete replacement request (`intent.clarification`) drops what the earlier intent was
+answered and planned with, its plan's knowledge record and receipt included; the chosen seat and
+the gate's admitted money stay, and a revision never replaces its change.
+
+A gate restored at open is offered only as its journals stand (C7b §3.4,
+`nika_trace::lineage`): with no continuation it waits again; a continuation
+that settled, still runs or cannot be judged is said and nothing waits; one
+that paused again offers its own gate. The same standing is read again before
+any resume, and an answer to a gate a continuation overtook is not sent. Before
+any answer, the gate's question names the completed tasks a resume is sure to
+run again, live (`run_view::live_again`, judged by the resume's own fold);
+nothing is said when the fold's plan carries every completion, which promises
+nothing more: the run serves a carried completion only while its definition and
+inputs are unchanged (C10 · Q8).

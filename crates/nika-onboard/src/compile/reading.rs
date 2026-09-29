@@ -125,6 +125,17 @@ impl Reading {
     }
 }
 
+/// The words an answered `intent.clarification` gives, which replace the request (the
+/// compiler's own law): its answer's text, when that is a string that is not blank.
+#[must_use]
+pub fn clarified(answers: &std::collections::BTreeMap<String, String>) -> Option<String> {
+    answers
+        .get(CLARIFICATION_KEY)
+        .and_then(|literal| serde_json::from_str::<Value>(literal).ok())
+        .and_then(|value| value.as_str().map(str::to_owned))
+        .filter(|text| !text.trim().is_empty())
+}
+
 /// The compiler's own reasons in an outcome (unknown · missed · refused),
 /// for the human — never parsed back into state.
 #[must_use]
@@ -139,6 +150,125 @@ pub fn reasons(out: &CompileOutcome) -> Vec<String> {
         })
         .map(|d| d.message.clone())
         .collect()
+}
+
+/// The compiler's reasons a human can act on: its machine sentences (the
+/// plan's own vocabulary, an unmapped part with nothing after the colon)
+/// dropped, duplicates folded, the rest verbatim.
+#[must_use]
+pub fn human_reasons(reasons: Vec<String>) -> Vec<String> {
+    let mut kept: Vec<String> = Vec::new();
+    for reason in reasons {
+        let r = reason.trim();
+        let machine = r.contains("semantic plan") || r.ends_with(": .") || r.ends_with(':');
+        if machine || r.is_empty() {
+            continue;
+        }
+        let said = human_reason(r);
+        if kept.contains(&said) {
+            continue;
+        }
+        kept.push(said);
+    }
+    kept
+}
+
+/// One compiler reason in the human's words — the compiler's fidelity
+/// grammar is a closed set (« Candidate N is not feasible: … », « dropped
+/// the recognized operation `x` (evidence) », « the path `p` is no longer
+/// carried … », « the literal `v` is not in the request »); any other line
+/// is kept as the compiler said it.
+fn human_reason(raw: &str) -> String {
+    let r = raw.trim().trim_end_matches('.');
+    // A cut answer is the seat's output limit, an internal cause: its command-line advice
+    // (`--authoring-max-tokens`) is no gesture a conversation has, and the request is not at
+    // fault.
+    if r.contains("--authoring-max-tokens") {
+        let tokens: String = r
+            .chars()
+            .skip_while(|c| !c.is_ascii_digit())
+            .take_while(char::is_ascii_digit)
+            .collect();
+        let limit = if tokens.is_empty() {
+            "its output limit".to_owned()
+        } else {
+            format!("its {tokens}-token output limit")
+        };
+        return format!(
+            "the model's answer was cut at {limit} before it was complete — an internal limit of this attempt, not a problem with your request"
+        );
+    }
+    let r = match r.find("is not feasible: ") {
+        Some(at) if r.starts_with("Candidate ") => &r[at + "is not feasible: ".len()..],
+        _ => r,
+    };
+    let quoted = |s: &str| -> Option<(String, String)> {
+        let start = s.find('`')?;
+        let end = s[start + 1..].find('`')? + start + 1;
+        Some((s[start + 1..end].to_owned(), s[end + 1..].to_owned()))
+    };
+    if let Some(rest) = r.strip_prefix("dropped the recognized operation ")
+        && let Some((op, tail)) = quoted(rest)
+    {
+        let evidence = tail
+            .trim()
+            .trim_start_matches('(')
+            .trim_end_matches(')')
+            .trim_end_matches(',')
+            .trim();
+        return if evidence.is_empty() {
+            format!("the draft lost the « {op} » step")
+        } else {
+            format!("the draft lost « {evidence} » (the {op} step)")
+        };
+    }
+    if let Some(rest) = r.strip_prefix("the path ")
+        && let Some((path, tail)) = quoted(rest)
+        && tail.contains("no longer carried")
+    {
+        return format!("the draft dropped « {path} »: nothing reads or writes it any more");
+    }
+    if let Some(rest) = r.strip_prefix("the literal ")
+        && let Some((value, tail)) = quoted(rest)
+        && tail.contains("not in the request")
+    {
+        return format!("the draft invented a value (« {value} ») your request never gave");
+    }
+    r.to_owned()
+}
+
+/// How many clauses the compiler's ledger holds for this reading —
+/// « understood N requirements » — `None` when the outcome carries no ledger.
+#[must_use]
+pub fn clauses_understood(out: &CompileOutcome) -> Option<usize> {
+    let ledger = out
+        .provenance
+        .decision
+        .as_ref()?
+        .get("ledger")?
+        .as_array()?;
+    (!ledger.is_empty()).then_some(ledger.len())
+}
+
+/// A question that asks the human for code (a jq or CEL expression, a
+/// `const.*_expression` value): a product defect when it reaches them.
+#[must_use]
+pub fn asks_for_syntax(question: &CompileQuestion) -> bool {
+    let label = question.label.to_ascii_lowercase();
+    question.key.ends_with("_expression")
+        || label.contains("jq expression")
+        || label.contains(" jq ")
+        || label.contains("cel expression")
+}
+
+/// The clause the compiler quotes in its question (between backticks),
+/// as the request carries it.
+#[must_use]
+pub fn clause_of(label: &str) -> Option<String> {
+    let start = label.find('`')? + 1;
+    let end = start + label[start..].find('`')?;
+    let clause = label[start..end].trim();
+    (!clause.is_empty()).then(|| clause.to_owned())
 }
 
 #[cfg(test)]

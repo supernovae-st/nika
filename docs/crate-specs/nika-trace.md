@@ -74,6 +74,17 @@ Two reasons, one mechanism (the same two as every descent):
   owned fact beside `pause`, which the result and proof views keep reading as
   the last pause. `nika-session`'s `PendingGate::from_trace` reads it instead of
   parsing the journal a second time.
+- **What a resume runs again (C10 · Q8).** `run_view::resumed_live(trace)` names
+  the completed tasks a resume of a paused journal is sure to run again, live:
+  each completion the resume plan does not carry (no resume identity, or an
+  output that does not read back), judged by `nika_dap::resume::fold_plan`
+  itself, in journal order and once each. `live_again` is the host-neutral line
+  a host says before the answer that resumes, `None` when the plan carries every
+  completion; the gate view says it too. Silence promises nothing more: the run
+  serves a carried completion only while its definition and inputs are
+  unchanged, which the run judges, not the journal fold.
+- **The size formatter (C10).** `run_view::human_size` is public: the session's
+  produced-files line reads it instead of keeping an identical copy.
 
 ## 3 · Cost door (P4, 2026-09-28)
 
@@ -154,3 +165,14 @@ and an unverified resume are all out of sight.
 Neither atomicity nor exactly-once is claimed. The engine's resume admission
 (the approval ticket's single-use claim, per claim store and TTL) still
 decides a race, within its own scope.
+
+`Lineage::standing(paused, own_doubt_stands)` (C7) says, for a host that would
+offer the pause again, where it stands: it stands (no journal continued it),
+a single chain paused again at a named journal, a continuation settled (its
+state and journal file name), one has not settled (its liveness), or the
+journals cannot decide (every reason in words: `Undecided` implements
+`Display`). `own_doubt_stands` is for a host that observed the pause itself:
+when the only doubt is that pause's own journal (it names no run, or it is the
+one entry that could not be folded) or no trace store exists, nothing could be
+followed and it stands; any other doubt beside it decides nothing. The words
+name no host protocol; the host says where it stands and keeps its own way on.

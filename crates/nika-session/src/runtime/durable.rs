@@ -14,6 +14,7 @@ use super::inference::{
     DISPATCH_PREFIX, GATE_MONEY_PREFIX, OBSERVED_PREFIX, RECONFIRM, gate_money_marker,
     is_money_marker,
 };
+use nika_trace::lineage::{Standing, lineage_of};
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
@@ -257,11 +258,27 @@ impl SessionRuntime {
             ..
         }) = state.pending
         {
-            match PendingGate::from_trace(&workflow, &trace) {
-                Some(gate) => {
-                    let _ = write!(notice, "\n{}", gate.question());
+            // The pause is offered only where the journals beside it show no continuation that
+            // settled it, runs it or cannot be judged (C7b §3.4).
+            match PendingGate::from_trace(&workflow, &trace)
+                .map(|gate| self.gate_standing(gate, false))
+            {
+                Some(Ok(gate)) => {
+                    let seen = if gate.trace == trace {
+                        "no continuation of this run in .nika/traces"
+                    } else {
+                        "the run was continued outside this session and paused again here"
+                    };
+                    let _ = write!(
+                        notice,
+                        "\n{}\n  ({seen} · the engine's approval still judges your answer)",
+                        gate.question()
+                    );
                     self.last_workflow = Some(workflow);
                     self.pending_gate = Some(gate);
+                }
+                Some(Err(why)) => {
+                    let _ = write!(notice, "\n  {why}");
                 }
                 None => {
                     let _ = write!(
@@ -303,6 +320,63 @@ impl SessionRuntime {
             .iter()
             .any(|d| d == RECONFIRM || d.starts_with(DISPATCH_PREFIX));
         expired
+    }
+
+    /// Where the paused run of `gate` stands now, from the journals beside it (C7b §3.4): the
+    /// gate this session may offer — its own, or the one a continuation paused at again — or why
+    /// it offers none. One read of one directory: never an authorization, never atomic, never
+    /// exactly-once; the engine's approval still judges any answer. `observed` is a pause this
+    /// session saw itself: when the only doubt is that pause's own journal naming no run (not an
+    /// engine journal) or no trace store existing at all, no continuation can be followed and
+    /// it stands, as it did.
+    fn gate_standing(&self, gate: PendingGate, observed: bool) -> Result<PendingGate, String> {
+        let dir = self.snapshot.root.join(nika_dap::store::TRACE_DIR);
+        let paused = dir.join(gate.trace.file_name().unwrap_or_default());
+        let task = gate.task.clone();
+        match lineage_of(&dir, &paused).standing(&paused, observed) {
+            Standing::Stands => Ok(gate),
+            Standing::PausedAgain(trace) => PendingGate::from_trace(&gate.workflow, &trace)
+                .ok_or_else(|| {
+                    format!(
+                        "the run paused at `{task}` was continued outside this session and paused again, but that pause cannot be read (trace `{}`) · nothing is offered",
+                        trace.file_name().unwrap_or_default().to_string_lossy()
+                    )
+                }),
+            Standing::Settled { state, trace } => Err(format!(
+                "the run paused at `{task}` was continued outside this session and ended {} (trace `{trace}`) · nothing waits · nothing was replayed",
+                state.as_str()
+            )),
+            Standing::Running(liveness) => Err(format!(
+                "the run paused at `{task}` was continued outside this session and has not settled ({}) · nothing waits here · nothing was replayed",
+                liveness.map_or("liveness unknown", |l| l.as_str())
+            )),
+            Standing::Undecided(reasons) => Err(format!(
+                "the run paused at `{task}` cannot be judged from .nika/traces ({}) · nothing is offered · `nika trace ls`, then a deliberate `nika run … --resume`, which the engine's approval guards",
+                reasons.join(" · ")
+            )),
+            _ => Err(format!(
+                "the run paused at `{task}` has a lineage this engine cannot read · nothing is offered"
+            )),
+        }
+    }
+
+    /// Before any resume: the gate still stands as it was offered, or the answer is not sent —
+    /// a continuation the journals show (settled, running, paused again, several) or journals
+    /// that can no longer be read withhold it.
+    pub(super) fn stale_gate(&mut self, gate: &PendingGate) -> Option<TurnOutcome> {
+        match self.gate_standing(gate.clone(), true) {
+            Ok(now) if now.trace == gate.trace => None,
+            Ok(head) => {
+                let question = head.question();
+                self.pending_gate = Some(head);
+                Some(TurnOutcome::Facts(format!(
+                    "the run was continued outside this session and waits again at another pause · your answer was not sent\n{question}"
+                )))
+            }
+            Err(why) => Some(TurnOutcome::Facts(format!(
+                "{why} · your answer was not sent"
+            ))),
+        }
     }
 
     fn restore_money_guards(&mut self) {

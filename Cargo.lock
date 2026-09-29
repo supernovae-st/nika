@@ -4824,6 +4824,7 @@ version = "0.121.0"
 dependencies = [
  "annotate-snippets 0.12.16",
  "anstyle",
+ "nika-cap",
  "nika-catalog",
  "nika-check",
  "nika-dap",
@@ -5466,6 +5467,7 @@ dependencies = [
  "nika-check",
  "nika-cli-host",
  "nika-dap",
+ "nika-display",
  "nika-error",
  "nika-event",
  "nika-fs",

@@ -102,10 +102,21 @@ literal a human line is at one question's shape. It descended from
 `#[non_exhaustive]`: the session refuses a reading it does not know yet, never
 proposes it. Pure: nothing here calls, reads or decides for a host.
 
-`compile::{Basis, basis}` re-export the compiler's source basis law (C9 · F4,
-`nika_compile::basis`) at the path a host reads the compile unit from: a host
-judges a candidate's recorded source facts against a fresh observation of the
-same sources where a proposal is consented to.
+What a host says of the compiler's own grammar lives here too (C10 · D-H):
+`human_reasons` keeps the reasons a human can act on (machine sentences
+dropped, duplicates folded, the fidelity grammar's closed forms said plainly, a
+cut answer named as an internal limit), `clarified` gives the words an
+answered `intent.clarification` puts in place of the request, `asks_for_syntax`
+and `clause_of` read a question that would ask a human for code and the clause
+it quotes, and `clauses_understood` counts the outcome's ledger. They
+descended from `nika-session`, which re-exports the ones its runtime calls.
+
+`compile::{Basis, basis, basis_for}` re-export the compiler's source basis law
+(C9 · F4, `nika_compile::basis`) at the path a host reads the compile unit from:
+a host judges a candidate's recorded source facts against a fresh observation of
+the same sources where a proposal is consented to; `basis_for` judges them for
+the exact request that compiled the candidate, whose answers the compiler
+recovers by a zero-call replay (C10).
 
 ## The knowledge pin and its records (read by Session)
 
@@ -114,13 +125,17 @@ same sources where a proposal is consented to.
 bytes and of the rows as read, opened and compared through the snapshot door
 beside it) and the pure records a session stamps on a compile outcome: what it
 observed (`observed_in`: paths, states, kinds and column counts, never the
-names), composed (`composed_record`: the pinned identity, the pack digest, each
+names, and `world_sha256`, the identity of the whole observation attached), composed (`composed_record`: the pinned identity, the pack digest, each
 reference's bytes and sha256, whether the native door presented it and which
 calls carried it), carried (`carried_record`), presented (`presented_knowledge`)
 and the stamp beside the compiler's own record (`stamp`). It descended from
 `nika-session` on 2026-09-28 (C7 · D1); `nika_session::authoring::KnowledgePin`
 re-exports the same type. Nothing here reads the environment, calls a model or
 decides a policy: the session keeps its seat, its strategy and its consent.
+`KnowledgePin::moved` names both identities in words when the snapshot read
+now is no longer the one pinned (C10 · D-K); the session refuses it.
+`stamp_seat` places the decision seat's receipt beside the compiler's own record
+(`decision.session.decision_seat`), which `stamp` keeps (C10).
 
 ## The durable authoring round (kept by Session)
 
@@ -143,6 +158,30 @@ not kept at all. At most `MAX_ANSWERS` (64) answers. A record carries no
 account, admission, review, consent, question identity or monetary span: the
 host re-admits the request through its own gates, and the compiler judges the
 answers against the project as it is when the round continues.
+
+`RoundReading::{record, continuable, words}` read a kept value; `RoundWords` is
+the kept round in words (its summary, why its question was asked, why it
+cannot be continued) that a host adds its own way on to (C10 · D-V). Beside
+the codec lives the live round's own law, for the host's round to delegate to
+(C10 · D-R): `request` (the typed request a round is, the admitted monetary
+spans carried as data and never read again), `settled` (the continuation an
+outcome settled, with its knowledge record and a harness's receipt), `open`
+(the questions an outcome leaves and the reasons for them), `reanchored` and
+`carry_receipt`; `KeptEdit::texts` gives an EDIT back as a live round carries
+it.
+`change_money` gives the admitted spans of an EDIT's change exactly as the EDIT holds it:
+the money law's own directives of that change when the host's gate admitted money in the
+line it came from, none otherwise (B15 · C10).
+`compiled` gives the exact request a Ready outcome was compiled from, as a host keeps
+it beside the proposal's bytes for `basis_for`: the round's `request` (its answers and
+the plan it continued, with that plan's earlier observation, never replaced) and, apart
+from it, the observation this round was given: the one the compiler recorded in the
+outcome's plan (`observed_world`) when the host's record names that very observation by
+its identity (`decision.session.observed.world_sha256`, which `observed_in` stamps; the
+record's rows are a names-free summary for display, never an identity). A round given none
+keeps none; an attached observation the outcome did not record, or a record naming no
+identity (an older one), gives `None`, and a host keeps no basis rather than read another
+observation for it (C10).
 
 ## Compile foundation
 

@@ -77,6 +77,27 @@ impl KnowledgePin {
         )
     }
 
+    /// Whether `snapshot`, as read now, is no longer the one pinned — its manifest's own bytes,
+    /// its rows, its declared version or digest: both identities in words (pinned, found), or
+    /// `None` while it is the same.
+    #[must_use]
+    pub fn moved(&self, snapshot: &Snapshot) -> Option<(String, String)> {
+        let (version, digest, manifest, rows) = Self::of(snapshot);
+        let same = version == self.version.as_deref()
+            && digest == self.digest.as_deref()
+            && manifest == self.manifest_sha256
+            && rows == self.rows_sha256;
+        (!same).then(|| {
+            let pinned = Self::words(
+                self.version.as_deref(),
+                self.digest.as_deref(),
+                &self.manifest_sha256,
+                &self.rows_sha256,
+            );
+            (pinned, Self::words(version, digest, manifest, &rows))
+        })
+    }
+
     /// The identity in words: version · declared digest · manifest · rows (cut at twelve).
     #[must_use]
     pub fn words(
@@ -103,7 +124,9 @@ pub fn short(digest: &str) -> String {
 
 /// The outcome with the session's record of what it observed and presented, in brief
 /// (`decision.session.observed`): each named path, its state, its kind and how many columns or
-/// keys it holds (the names themselves ride the request, not the receipt).
+/// keys it holds (the names themselves ride the request, not the receipt), and the identity of
+/// the whole observation it attached (`world_sha256`): the rows are a summary for display, never
+/// that identity.
 #[must_use]
 pub fn observed_in(mut out: CompileOutcome, world: Option<&Value>) -> CompileOutcome {
     let presented = out.provenance.authoring.as_ref().is_some_and(|receipt| {
@@ -128,9 +151,14 @@ pub fn observed_in(mut out: CompileOutcome, world: Option<&Value>) -> CompileOut
             })
         })
         .collect();
-    record["session"]["observed"] =
-        json!({ "attached": true, "presented": presented, "under": "project root", "rows": rows });
+    record["session"]["observed"] = json!({ "attached": true, "presented": presented,
+        "under": "project root", "rows": rows, "world_sha256": world_sha256(world) });
     out
+}
+
+/// The identity of an observation as a host attached it: the sha256 of its bytes as held.
+pub(crate) fn world_sha256(world: &Value) -> String {
+    sha256_hex(world.to_string().as_bytes())
 }
 
 /// The session's record of the pack it attached to one call: the pinned
@@ -267,6 +295,21 @@ pub fn stamp(out: &mut CompileOutcome, strategy: &str, source: &str, knowledge: 
         map.insert("session".to_owned(), record);
     }
     out.provenance.decision = Some(decision);
+}
+
+/// The decision seat's receipt beside the compiler's own record of the same questions
+/// (`decision.session.decision_seat`): what the seat was asked, sent, answered or refused. The
+/// session's later [`stamp`] keeps it.
+pub fn stamp_seat(out: &mut CompileOutcome, receipt: Value) {
+    let record = out.provenance.decision.get_or_insert_with(|| json!({}));
+    if let Some(record) = record.as_object_mut()
+        && let Some(session) = record
+            .entry("session")
+            .or_insert_with(|| json!({}))
+            .as_object_mut()
+    {
+        session.insert("decision_seat".to_owned(), receipt);
+    }
 }
 
 #[cfg(test)]

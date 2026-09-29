@@ -70,6 +70,7 @@ pub mod shape    { bounded type-aware output summaries }
 pub mod snippet  { paint_span — rustc-grade span frames }
 pub mod vocab    { hint · arrow · at_least — the glyph/hint vocabulary }
 pub mod demo     { deterministic §3.3 storyboard streams (success · failure · …) }
+pub mod check_render::review { finding_rows · effect_rows — the rows a review shows of one report }
 ```
 
 ## 4. Invariants
@@ -87,3 +88,12 @@ The project verdict renderer accepts primitive fields from its caller. Its
 machine envelope uses JSON string escaping for paths, names and diagnostics,
 including control characters, while preserving the compact field order.
 It does not parse projects or choose the caller's exit code.
+
+`check_render::review` (C10) holds the rows a review shows of one `nika check` report,
+descended from `nika-session`'s change preview with their strings, order and limits
+unchanged: the first findings (`code · message`, at most eight) and hints (`kind ·
+advice`, at most four), one row per effect class the report's own permits and requirements
+name, and the spend a run can reach from the report's cost envelope (no model call spends
+nothing on inference, a model with no catalog price is unknown and never free, a missing
+token or iteration bound stays unbounded). Pure text over the report: the caller keeps the
+verdict, the path and every authority.

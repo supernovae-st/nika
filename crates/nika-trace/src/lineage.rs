@@ -119,6 +119,110 @@ pub enum Undecided {
     TooLong,
 }
 
+/// Where a paused run stands for a host that would offer its gate (C7): what
+/// one read of one directory holds, named by journal file — never an
+/// authorization, never atomic, never exactly-once. The host says it in its
+/// own words and keeps its own way on.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Standing {
+    /// No journal continued it: its own pause stands.
+    Stands,
+    /// A single chain of continuations paused again, at this journal.
+    PausedAgain(PathBuf),
+    /// A continuation settled: its state and its journal's file name.
+    Settled {
+        /// How it ended.
+        state: TraceState,
+        /// The file name of the journal that settled it.
+        trace: String,
+    },
+    /// A continuation has not settled: its liveness, when the lease names it.
+    Running(Option<Liveness>),
+    /// The journals cannot decide: every reason, in words.
+    Undecided(Vec<String>),
+}
+
+impl Lineage {
+    /// Where the paused run of `paused` stands. `own_doubt_stands` is for a
+    /// host that observed this pause itself: when the only doubt is that
+    /// pause's own journal (it names no run, it cannot be folded, or no trace
+    /// store exists), no continuation can be followed and the pause stands.
+    #[must_use]
+    pub fn standing(&self, paused: &Path, own_doubt_stands: bool) -> Standing {
+        match self {
+            Self::NoneObserved => Standing::Stands,
+            Self::Indeterminate(reasons)
+                if own_doubt_stands && reasons.iter().all(|r| r.concerns_only(paused)) =>
+            {
+                Standing::Stands
+            }
+            Self::Indeterminate(reasons) => {
+                Standing::Undecided(reasons.iter().map(ToString::to_string).collect())
+            }
+            Self::Chain { links, head } => match head {
+                Head::Paused { trace, .. } => Standing::PausedAgain(trace.clone()),
+                Head::Running(liveness) => Standing::Running(*liveness),
+                Head::Settled(state) => Standing::Settled {
+                    state: *state,
+                    trace: links.last().map(|l| file_name(l)).unwrap_or_default(),
+                },
+            },
+        }
+    }
+}
+
+impl Undecided {
+    /// Whether this doubt concerns only the paused journal itself: it names
+    /// no run, it is the one entry that could not be folded, or no trace
+    /// store exists at all.
+    fn concerns_only(&self, paused: &Path) -> bool {
+        match self {
+            Self::PausedUnidentified => true,
+            Self::Unsurveyed {
+                dir_errors,
+                skipped,
+            } => {
+                dir_errors.iter().all(|e| *e == ErrorKind::NotFound)
+                    && skipped.iter().all(|s| s.path == paused)
+            }
+            _ => false,
+        }
+    }
+}
+
+impl std::fmt::Display for Undecided {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Unsurveyed { .. } => f.write_str("some journals could not be read"),
+            Self::PausedUnidentified => f.write_str("the paused journal is not identified there"),
+            Self::NotPaused { state } => {
+                write!(f, "the paused journal now ends {}", state.as_str())
+            }
+            Self::Doubtful { path, .. } => {
+                write!(f, "journal `{}` may be incomplete", file_name(path))
+            }
+            Self::Duplicate { .. } => f.write_str("several journals carry one run identity"),
+            Self::Fork { successors, .. } => {
+                write!(f, "{} continuations of one run", successors.len())
+            }
+            Self::Cycle { .. } => {
+                f.write_str("a continuation names a journal already on the chain")
+            }
+            Self::Disagreement { path, field } => {
+                write!(f, "journal `{}` records another {field}", file_name(path))
+            }
+            Self::TooLong => f.write_str("the chain of continuations is too long"),
+        }
+    }
+}
+
+/// A journal's file name, as a host names it.
+fn file_name(path: &Path) -> String {
+    path.file_name()
+        .map_or_else(String::new, |n| n.to_string_lossy().into_owned())
+}
+
 /// Survey `dir` once and fold the lineage of `paused`, a journal inside it
 /// named as the survey names it (`dir` joined with its file name); any
 /// other spelling reads [`Undecided::PausedUnidentified`].

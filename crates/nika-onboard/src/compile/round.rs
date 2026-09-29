@@ -5,6 +5,9 @@
 //! after a quit, a TERM or a KILL, a person finds the request, the settled answers and the
 //! question that waited, and can continue the same round explicitly under the project as it
 //! is now. Pure: a round's parts in, a record value out; a record value in, a reading out.
+//! The live round's own law lives here too, for the host's round to delegate to (C10): the
+//! typed request it is, what an outcome settled, the questions it leaves, a re-anchored plan
+//! and the receipt a replay carries.
 //!
 //! Evidence, never authority. A record carries no account, admission, review, consent,
 //! question identity or monetary span: whatever continues it passes the host's current gates
@@ -31,7 +34,10 @@ use std::collections::BTreeMap;
 use nika_event::source_id::sha256_hex;
 use serde_json::{Map, Value, json};
 
-use super::{AuthoringReceipt, CompileQuestion, QuestionType};
+use super::reading::CLARIFICATION_KEY;
+use super::{
+    AuthoringReceipt, CompileOutcome, CompileQuestion, CompileRequest, DiagnosticKind, QuestionType,
+};
 
 /// The round schema this engine writes and reads.
 pub const ROUND_SCHEMA: u64 = 1;
@@ -94,6 +100,16 @@ pub struct KeptEdit {
 }
 
 impl KeptEdit {
+    /// The EDIT as a live round carries it: `(base, change, original)`, as kept.
+    #[must_use]
+    pub fn texts(&self) -> (String, String, Option<String>) {
+        (
+            self.base.text.clone(),
+            self.change.text.clone(),
+            self.original.as_ref().map(|o| o.text.clone()),
+        )
+    }
+
     fn is_exact(&self) -> bool {
         self.base.is_exact()
             && self.change.is_exact()
@@ -410,20 +426,25 @@ impl RoundRecord {
     }
 
     /// The subscription receipt of the call that authored the continuation, as the compiler's
-    /// type, when one was kept.
+    /// type, when one was kept as [`Capture`] writes it. Every key is read with its own type (a
+    /// count a whole number, the context a list); only the token counts and the backend may be
+    /// `null`, read as absent. A receipt with a key missing or of another type is refused
+    /// whole (`None`): nothing is ever read as zero, empty or absent that was not written so.
     #[must_use]
     pub fn authoring_receipt(&self) -> Option<AuthoringReceipt> {
-        let kept = self.authoring_receipt.as_ref()?;
-        let mut receipt = AuthoringReceipt::new(kept["model"].as_str()?);
-        receipt.calls = kept["calls"]
-            .as_u64()
-            .and_then(|n| u32::try_from(n).ok())
-            .unwrap_or(0);
-        receipt.input_tokens = kept["input_tokens"].as_u64();
-        receipt.output_tokens = kept["output_tokens"].as_u64();
-        receipt.elapsed_ms = kept["elapsed_ms"].as_u64().unwrap_or(0);
-        receipt.context = kept["context"].as_array().cloned().unwrap_or_default();
-        receipt.backend = kept.get("backend").filter(|b| !b.is_null()).cloned();
+        let kept = self.authoring_receipt.as_ref()?.as_object()?;
+        let count = |key: &str| kept.get(key)?.as_u64();
+        let nullable = |key: &str| match kept.get(key)? {
+            Value::Null => Some(None),
+            value => value.as_u64().map(Some),
+        };
+        let mut receipt = AuthoringReceipt::new(kept.get("model")?.as_str()?);
+        receipt.calls = u32::try_from(count("calls")?).ok()?;
+        receipt.input_tokens = nullable("input_tokens")?;
+        receipt.output_tokens = nullable("output_tokens")?;
+        receipt.elapsed_ms = count("elapsed_ms")?;
+        receipt.context.clone_from(kept.get("context")?.as_array()?);
+        receipt.backend = Some(kept.get("backend")?.clone()).filter(|b| !b.is_null());
         Some(receipt)
     }
 
@@ -621,6 +642,202 @@ impl RoundReading {
         match self {
             Self::Usable { raw, .. } | Self::Unreadable { raw, .. } => raw,
         }
+    }
+
+    /// The round, or why this engine cannot read it.
+    ///
+    /// # Errors
+    /// Why the kept value cannot be read.
+    pub fn record(&self) -> Result<&RoundRecord, &str> {
+        match self {
+            Self::Usable { record, .. } => Ok(record),
+            Self::Unreadable { why, .. } => Err(why),
+        }
+    }
+
+    /// The round, when this engine reads it and it can be continued.
+    #[must_use]
+    pub fn continuable(&self) -> Option<&RoundRecord> {
+        self.record()
+            .ok()
+            .filter(|record| record.continuable().is_ok())
+    }
+
+    /// The round in the words a host builds its read-only lines from.
+    ///
+    /// # Errors
+    /// Why the kept value cannot be read.
+    pub fn words(&self) -> Result<RoundWords, &str> {
+        let record = self.record()?;
+        Ok(RoundWords {
+            summary: record.summary(),
+            asked: record.pending().map(|q| q.why.clone()),
+            blocked: record.continuable().err().map(|why| why.to_string()),
+        })
+    }
+}
+
+/// A kept round in words, evidence that names no host's protocol (a host adds its own way on).
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct RoundWords {
+    /// [`RoundRecord::summary`].
+    pub summary: String,
+    /// Why the compiler asked the question that waited, when one waited.
+    pub asked: Option<String>,
+    /// Why it cannot be continued ([`RoundRecord::continuable`]), `None` when it can.
+    pub blocked: Option<String>,
+}
+
+/// The typed request a live round is: its EDIT (`(base, change, original)`, the request the
+/// base answered) or a CREATE of `intent`, every answer by key, the plan it replays once one
+/// settled, and the monetary directives the host's gate admitted — spans carried as data,
+/// never read again here.
+#[must_use]
+pub fn request(
+    intent: &str,
+    edit: Option<&(String, String, Option<String>)>,
+    answers: &BTreeMap<String, String>,
+    plan: Option<&Value>,
+    money: &[std::ops::Range<usize>],
+) -> CompileRequest {
+    let mut request = match edit {
+        Some((base, change, original)) => original.iter().fold(
+            CompileRequest::edit(base.clone(), change.clone()),
+            |edit, original| edit.with_original_intent(original.clone()),
+        ),
+        None => CompileRequest::create(intent.to_owned()),
+    };
+    for (key, literal) in answers {
+        request = request.answer(key.clone(), literal.clone());
+    }
+    if let Some(plan) = plan {
+        request = request.with_plan(plan.clone());
+    }
+    if !money.is_empty() {
+        request = request.with_admitted_money(money.to_vec());
+    }
+    request
+}
+
+/// The admitted spans of an EDIT's `change`, exactly as the EDIT holds it (B15): the money
+/// law's own directives of that change when the host's gate admitted money in the line it came
+/// from, none otherwise, so an earlier request's spans never ride along.
+#[must_use]
+pub fn change_money(change: &str, admitted: bool) -> Vec<std::ops::Range<usize>> {
+    super::money::directives(change)
+        .map(|found| found.found.into_iter().map(|d| d.span).collect())
+        .ok()
+        .filter(|_| admitted)
+        .unwrap_or_default()
+}
+
+/// The exact request a Ready outcome was compiled from, as a host keeps it beside the proposal's
+/// bytes: the round's own `request` (its answers and the plan it continued, never replaced) with
+/// the observation that round was given, the one the compiler recorded in the outcome's plan
+/// (`observed_world`) when the host's record names that very observation by its identity
+/// (`decision.session.observed`, `world_sha256`; its rows are a summary, never an identity). A
+/// round given none keeps none, whatever an earlier round left in its plan; `None` when an
+/// attached observation was not recorded, or its record names no identity (an older record):
+/// that round's request cannot be rebuilt, and a host keeps no basis rather than read another.
+#[must_use]
+pub fn compiled(request: CompileRequest, out: &CompileOutcome) -> Option<CompileRequest> {
+    let record = out
+        .provenance
+        .decision
+        .as_ref()
+        .map(|d| &d["session"]["observed"]);
+    let Some(attached) = record.filter(|record| record["attached"] == true) else {
+        return Some(request);
+    };
+    let world = out.provenance.plan.as_ref()?.get("observed_world")?;
+    (attached["world_sha256"].as_str()? == crate::knowledge::pin::world_sha256(world))
+        .then(|| request.with_knowledge(world.clone()))
+}
+
+/// What an outcome settled for a live round: the plan a strategy settled (a plan that still
+/// carries unknown work is never replayed), with the knowledge record of the call that
+/// authored it when the native door presented a pack, and that call's receipt when a
+/// subscription harness made it.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct Settled {
+    /// The compiler's continuation, replayed on every answer round.
+    pub plan: Value,
+    /// The knowledge record of the call that authored it.
+    pub knowledge: Option<Value>,
+    /// The subscription receipt of the call that authored it.
+    pub receipt: Option<AuthoringReceipt>,
+}
+
+/// The continuation `out` settled, when a strategy settled one.
+#[must_use]
+pub fn settled(out: &CompileOutcome) -> Option<Settled> {
+    out.provenance.strategy.as_ref()?;
+    Some(Settled {
+        plan: out.provenance.plan.clone()?,
+        knowledge: crate::knowledge::pin::presented_knowledge(out),
+        receipt: out
+            .provenance
+            .authoring
+            .as_ref()
+            .filter(|r| {
+                r.backend
+                    .as_ref()
+                    .is_some_and(|b| b["kind"] == "harness_infer")
+            })
+            .cloned(),
+    })
+}
+
+/// The questions `out` leaves a live round to ask, in the compiler's order, with the
+/// compiler's reasons for them (its unknown and missed diagnostics): the mandatory questions,
+/// and a revision's clause dispositions (`gap.N`) too — never a revision's
+/// `intent.clarification` (a replacement request would be a fresh CREATE, never its EDIT).
+#[must_use]
+pub fn open(out: &CompileOutcome, revision: bool) -> (Vec<CompileQuestion>, Vec<String>) {
+    let questions = out
+        .questions
+        .iter()
+        .filter(|q| q.mandatory || (revision && q.key.starts_with("gap.")))
+        .filter(|q| !(revision && q.key == CLARIFICATION_KEY))
+        .cloned()
+        .collect();
+    let reasons = out
+        .diagnostics
+        .iter()
+        .filter(|d| matches!(d.kind, DiagnosticKind::Unknown | DiagnosticKind::Missed))
+        .map(|d| d.message.clone())
+        .collect();
+    (questions, reasons)
+}
+
+/// The plan an answer round's outcome re-anchored to a changed source (its observation or the
+/// keys it asked again moved, R4 A6), when neither plan carries an approval: a verified or
+/// pending transform stays bound to the plan that authored it.
+#[must_use]
+pub fn reanchored(recorded: Option<&Value>, out: &CompileOutcome) -> Option<Value> {
+    let (recorded, plan) = (recorded?, out.provenance.plan.as_ref()?);
+    let moved = ["observed_world", "reasked"]
+        .iter()
+        .any(|k| recorded.get(*k) != plan.get(*k));
+    let approval = ["verified_transform", "pending_transform"]
+        .iter()
+        .any(|k| recorded.get(*k).is_some() || plan.get(*k).is_some());
+    (moved && !approval).then(|| plan.clone())
+}
+
+/// A replayed round's outcome names the subscription receipt of the round that authored its
+/// plan (`receipt`, marked `carried_from_authoring_round`), unless it names its own.
+pub fn carry_receipt(out: &mut CompileOutcome, receipt: Option<&AuthoringReceipt>) {
+    if out.provenance.authoring.is_some() {
+        return;
+    }
+    if let Some(mut receipt) = receipt.cloned() {
+        if let Some(backend) = receipt.backend.as_mut().and_then(Value::as_object_mut) {
+            backend.insert("carried_from_authoring_round".into(), Value::Bool(true));
+        }
+        out.provenance.authoring = Some(receipt);
     }
 }
 

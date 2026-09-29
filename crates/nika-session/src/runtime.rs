@@ -213,18 +213,6 @@ fn under(root: &Path, trace: &Path) -> PathBuf {
     }
 }
 
-/// A byte count a human reads (`1.2 KB`, `340 B`).
-#[allow(clippy::cast_precision_loss)] // display-only: a size shown to a human, never computed with
-fn human_size(bytes: u64) -> String {
-    if bytes < 1024 {
-        format!("{bytes} B")
-    } else if bytes < 1024 * 1024 {
-        format!("{:.1} KB", bytes as f64 / 1024.0)
-    } else {
-        format!("{:.1} MB", bytes as f64 / (1024.0 * 1024.0))
-    }
-}
-
 /// How a door builds the reasoner for a resolved choice (`Send`: a host may
 /// hold the runtime on a worker thread while its terminal stays live).
 pub type ReasonerFactory =
@@ -1243,6 +1231,9 @@ impl SessionRuntime {
             self.pending_gate = Some(gate);
             return TurnOutcome::Aside(text);
         }
+        if let Some(stale) = self.stale_gate(&gate) {
+            return stale;
+        }
         self.answered = Some(GateId::new(&gate.trace, &gate.task));
         let answer = gate.answer_arg(line);
         self.finish_gate_money();
@@ -1310,7 +1301,8 @@ impl SessionRuntime {
                 continue;
             };
             if meta.is_file() {
-                produced.push(format!("{path} ({})", human_size(meta.len())));
+                let size = crate::run_view::human_size(meta.len());
+                produced.push(format!("{path} ({size})"));
             }
         }
         (!produced.is_empty()).then(|| format!("produced · {}", produced.join(" · ")))

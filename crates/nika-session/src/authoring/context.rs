@@ -274,21 +274,8 @@ impl AuthoringContext {
             return Ok(None);
         };
         let snapshot = Snapshot::open(&pin.dir)?;
-        let (version, digest, manifest, rows) = KnowledgePin::of(&snapshot);
-        if version != pin.version.as_deref()
-            || digest != pin.digest.as_deref()
-            || manifest != pin.manifest_sha256
-            || rows != pin.rows_sha256
-        {
-            return Err(AuthoringContextError::Changed {
-                pinned: KnowledgePin::words(
-                    pin.version.as_deref(),
-                    pin.digest.as_deref(),
-                    &pin.manifest_sha256,
-                    &pin.rows_sha256,
-                ),
-                found: KnowledgePin::words(version, digest, manifest, &rows),
-            });
+        if let Some((pinned, found)) = pin.moved(&snapshot) {
+            return Err(AuthoringContextError::Changed { pinned, found });
         }
         Ok(Some(snapshot.pack(intent, pin.exclude_corpus.as_deref())?))
     }

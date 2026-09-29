@@ -36,13 +36,13 @@ use std::time::Duration;
 
 use nika_onboard::compile::{
     AuthoringPolicy, AuthoringReceipt, Cognition, CompileError, CompileOutcome, CompileQuestion,
-    CompileRequest, DiagnosticKind, NativeMode, compile, compile_with_cognition, revise_intent,
+    CompileRequest, NativeMode, compile, compile_with_cognition, revise_intent, round,
 };
 // The records a compile outcome carries live beside the snapshot door (C7 · D1).
 use nika_onboard::knowledge::pin::{
-    carried_record, composed_record, observed_in, presented_knowledge, stamp,
+    carried_record, composed_record, observed_in, stamp, stamp_seat,
 };
-use serde_json::{Value, json};
+use serde_json::Value;
 
 use crate::intelligence::{IntelligenceKind, ResolvedSessionIntelligence};
 use crate::reasoner::SessionReasoner;
@@ -53,7 +53,7 @@ mod harness;
 pub use context::{AuthoringContext, AuthoringContextError};
 pub use decision::{DECISION_ENV, DECISION_SCHEMA, DecisionSetup, MAX_DECISION_CALLS};
 // What an outcome means and the literal a line is live beside the compile unit (C7).
-use nika_onboard::compile::reading::CLARIFICATION_KEY;
+use nika_onboard::compile::reading::{CLARIFICATION_KEY, clarified};
 pub use nika_onboard::compile::reading::{Reading, literal_for, reasons};
 pub use nika_onboard::knowledge::pin::KnowledgePin;
 
@@ -345,15 +345,12 @@ impl AuthoringRound {
     /// the request (the compiler's own law), else the request as stated.
     #[must_use]
     pub fn effective_intent(&self) -> String {
-        if self.edit.is_some() {
-            return revise_intent(&self.request()).unwrap_or_else(|| self.intent.clone());
-        }
-        self.answers
-            .get(CLARIFICATION_KEY)
-            .and_then(|literal| serde_json::from_str::<Value>(literal).ok())
-            .and_then(|value| value.as_str().map(str::to_owned))
-            .filter(|text| !text.trim().is_empty())
-            .unwrap_or_else(|| self.intent.clone())
+        let read = if self.edit.is_some() {
+            revise_intent(&self.request())
+        } else {
+            clarified(&self.answers)
+        };
+        read.unwrap_or_else(|| self.intent.clone())
     }
 
     /// This round through the seat under the session's authoring context: a
@@ -375,31 +372,26 @@ impl AuthoringRound {
             Attach::Compose(&intent)
         };
         let mut out = compile_attached(seat, context, &self.request(), attach, None)?;
-        self.carry_subscription_receipt(&mut out);
+        round::carry_receipt(
+            &mut out,
+            self.continuation
+                .as_ref()
+                .and(self.authoring_receipt.as_ref()),
+        );
         Ok(out)
     }
 
-    /// The typed request this round is: the intent (a revision's EDIT), every
-    /// answer, the recorded plan when one settled.
+    /// The typed request this round is ([`round::request`]): the intent (a revision's EDIT),
+    /// every answer, the recorded plan when one settled, the admitted monetary directives.
     #[must_use]
     pub fn request(&self) -> CompileRequest {
-        let mut request = match &self.edit {
-            Some((base, change, original)) => original.iter().fold(
-                CompileRequest::edit(base.clone(), change.clone()),
-                |edit, original| edit.with_original_intent(original.clone()),
-            ),
-            None => CompileRequest::create(self.intent.clone()),
-        };
-        for (key, literal) in &self.answers {
-            request = request.answer(key.clone(), literal.clone());
-        }
-        if let Some(plan) = &self.continuation {
-            request = request.with_plan(plan.clone());
-        }
-        if !self.money.is_empty() {
-            request = request.with_admitted_money(self.money.clone());
-        }
-        request
+        round::request(
+            &self.intent,
+            self.edit.as_ref(),
+            &self.answers,
+            self.continuation.as_ref(),
+            &self.money,
+        )
     }
 
     /// Keep what the outcome settled: the plan once a strategy settled it
@@ -408,59 +400,23 @@ impl AuthoringRound {
     /// presented a pack, the mandatory questions in the compiler's order (a
     /// revision's clause dispositions too), its reasons.
     pub fn absorb(&mut self, out: &CompileOutcome) {
-        if let Some(plan) = reanchored(self.continuation.as_ref(), out) {
+        if let Some(plan) = round::reanchored(self.continuation.as_ref(), out) {
             // The compiler re-anchored the plan to a changed source (R4 A6): the next answer
             // binds against the observation its question showed; no approval rides along.
             self.continuation = Some(plan);
         }
-        if self.continuation.is_none() && out.provenance.strategy.is_some() {
-            self.continuation.clone_from(&out.provenance.plan);
-            if self.continuation.is_some() {
-                self.knowledge = presented_knowledge(out);
-                self.authoring_receipt = out
-                    .provenance
-                    .authoring
-                    .as_ref()
-                    .filter(|r| {
-                        r.backend
-                            .as_ref()
-                            .is_some_and(|b| b["kind"] == "harness_infer")
-                    })
-                    .cloned();
-            }
+        if self.continuation.is_none()
+            && let Some(settled) = round::settled(out)
+        {
+            self.continuation = Some(settled.plan);
+            self.knowledge = settled.knowledge;
+            self.authoring_receipt = settled.receipt;
         }
-        let revision = self.edit.is_some();
-        self.questions = out
-            .questions
-            .iter()
-            // A revision's Ready also waits on its clauses' dispositions (`gap.N`); a
-            // replacement request would be a fresh CREATE, never its EDIT.
-            .filter(|q| q.mandatory || (revision && q.key.starts_with("gap.")))
-            .filter(|q| !(revision && q.key == CLARIFICATION_KEY))
-            .cloned()
-            .collect();
-        self.reasons = out
-            .diagnostics
-            .iter()
-            .filter(|d| matches!(d.kind, DiagnosticKind::Unknown | DiagnosticKind::Missed))
-            .map(|d| d.message.clone())
-            .collect();
+        (self.questions, self.reasons) = round::open(out, self.edit.is_some());
         // An answer the compiler asks for again (stale, refused) is no answer (R4 A6).
         let asked = &self.questions;
         self.answers
             .retain(|key, _| !asked.iter().any(|q| &q.key == key));
-    }
-
-    fn carry_subscription_receipt(&self, out: &mut CompileOutcome) {
-        if self.continuation.is_none() || out.provenance.authoring.is_some() {
-            return;
-        }
-        if let Some(mut receipt) = self.authoring_receipt.clone() {
-            if let Some(backend) = receipt.backend.as_mut().and_then(Value::as_object_mut) {
-                backend.insert("carried_from_authoring_round".into(), Value::Bool(true));
-            }
-            out.provenance.authoring = Some(receipt);
-        }
     }
 
     /// The question the next line answers, when one is open.
@@ -504,11 +460,17 @@ impl AuthoringRound {
         next
     }
 
-    /// Answer the current question with the human's line, typed to the
-    /// question's shape; the key it answered.
+    /// Answer the current question with the human's line, typed to the question's shape; the key it
+    /// answered. A complete replacement (`intent.clarification`) drops what the earlier intent was
+    /// answered and planned with; the chosen seat and the gate's admitted money stay (never for a
+    /// revision, which keeps its change).
     pub fn answer_current(&mut self, line: &str) -> Option<String> {
         let question = self.questions.first()?.clone();
         let literal = literal_for(&question, line);
+        if question.key == CLARIFICATION_KEY && self.edit.is_none() {
+            self.answers.retain(|key, _| key == "model");
+            (self.continuation, self.knowledge, self.authoring_receipt) = (None, None, None);
+        }
         self.answers.insert(question.key.clone(), literal);
         self.questions.remove(0);
         Some(question.key)
@@ -801,20 +763,6 @@ fn compile_attached(
     Ok(observed_in(out, observed.as_ref()))
 }
 
-/// The plan an answer round's outcome re-anchored to a changed source (its observation or
-/// the keys it asked again moved, R4 A6), when neither plan carries an approval: a verified
-/// or pending transform stays bound to the plan that authored it.
-fn reanchored(recorded: Option<&Value>, out: &CompileOutcome) -> Option<Value> {
-    let (recorded, plan) = (recorded?, out.provenance.plan.as_ref()?);
-    let moved = ["observed_world", "reasked"]
-        .iter()
-        .any(|k| recorded.get(*k) != plan.get(*k));
-    let approval = ["verified_transform", "pending_transform"]
-        .iter()
-        .any(|k| recorded.get(*k).is_some() || plan.get(*k).is_some());
-    (moved && !approval).then(|| plan.clone())
-}
-
 /// One request on the provider seat the human chose: the provider plane's
 /// client (SSRF off · the transport ceiling), the registry over the ONE env
 /// boundary, the compiler's cognition with that provider.
@@ -855,18 +803,10 @@ fn seated(
                 .map(|seat| seat as &dyn nika_onboard::compile::decide::DecisionSeat),
         },
     )))?;
-    // What the seat was asked, sent, answered or refused (`decision.session.decision_seat`),
-    // beside the compiler's own record of the same questions.
+    // What the seat was asked, sent, answered or refused, beside the compiler's own record of
+    // the same questions.
     if let Some(receipt) = consulted.as_ref().and_then(decision::SessionSeat::receipt) {
-        let record = out.provenance.decision.get_or_insert_with(|| json!({}));
-        if let Some(record) = record.as_object_mut()
-            && let Some(session) = record
-                .entry("session")
-                .or_insert_with(|| json!({}))
-                .as_object_mut()
-        {
-            session.insert("decision_seat".to_owned(), receipt);
-        }
+        stamp_seat(&mut out, receipt);
     }
     // The receipt names its backend as the CLI's does, with the host the
     // calls really went to (an overridden base URL is a gateway: said).
@@ -883,6 +823,7 @@ fn seated(
 mod tests {
     use super::*;
     use nika_onboard::compile::{CompileStatus, Strategy};
+    use serde_json::json;
 
     #[test]
     fn host_diagnostics_never_include_userinfo_or_query_values() {
@@ -1032,6 +973,53 @@ mod tests {
         assert!(!is_greeting("hello.nika"), "a file is not a greeting");
     }
 
+    /// C10 · a replacement's proposal keeps its own round for the source basis: the replacing
+    /// words and the answer given after them, never an earlier request's answer or plan, with
+    /// the observation its compile round was given; the law folds the replacement and holds it.
+    #[test]
+    fn a_replacement_proposal_keeps_its_own_round_for_the_source_basis() {
+        let orders = "read ./orders.csv, keep only the rows whose status is open and write them to ./out.json";
+        let world =
+            json!({"observed": [{"path": "./orders.csv", "state": "absent", "complete": false}]});
+        let skeleton = compile_deterministic(&CompileRequest::create("bounded-batch"));
+        let mut clarify = skeleton.expect("compiles").questions[0].clone();
+        clarify.key = CLARIFICATION_KEY.to_owned();
+        clarify.answer_type = nika_onboard::compile::QuestionType::Text;
+        let mut round = AuthoringRound::new("make my project better");
+        round
+            .answers
+            .insert("const.rule_field_2".to_owned(), "\"amount\"".to_owned());
+        round.continuation = Some(json!({"strategy": "hot"}));
+        round.questions = vec![clarify];
+        round.answer_current(orders);
+        // The question round of the replacing words, as the cognition door folds them.
+        let folded = CompileRequest::create(orders).with_knowledge(world.clone());
+        round.absorb(&compile_deterministic(&folded).expect("asks"));
+        assert_eq!(
+            round.answer_current("status").as_deref(),
+            Some("const.rule_field_1")
+        );
+        let answered = CompileRequest::create(orders)
+            .with_plan(round.continuation.clone().expect("the question plan"))
+            .answer("const.rule_field_1", "\"status\"")
+            .with_knowledge(world.clone());
+        let out = compile_deterministic(&answered).expect("the answer round");
+        assert_eq!(out.status, CompileStatus::Ready, "{out:?}");
+        let out = observed_in(out, Some(&world));
+        let kept = nika_onboard::compile::round::compiled(round.request(), &out).expect("rebuilt");
+        assert_eq!(
+            kept.answers.keys().collect::<Vec<_>>(),
+            ["const.rule_field_1", CLARIFICATION_KEY],
+            "the earlier answer is gone"
+        );
+        assert_eq!(kept.knowledge.as_ref(), Some(&world));
+        let decision = out.provenance.decision.as_ref();
+        assert_eq!(
+            nika_onboard::compile::basis_for(&kept, decision, Some(&world)),
+            nika_onboard::compile::Basis::Holds(1)
+        );
+    }
+
     /// A round keeps the knowledge record of the call that authored its
     /// continuation only when the native door presented the pack; the
     /// record it carries says it was carried.
@@ -1083,5 +1071,85 @@ mod tests {
         .expect("compiles");
         assert!(out.provenance.authoring.is_none());
         assert!(matches!(Reading::of(out), Reading::NotWork(_)));
+    }
+
+    /// C10 · a complete replacement request (`intent.clarification`) drops what the earlier
+    /// intent was answered and planned with: an old column answer cannot ride into the new
+    /// request, while the chosen seat and the gate's admitted money stay and an answer given after
+    /// the replacement is kept. An ordinary answer keeps the round, and a revision never replaces
+    /// its change.
+    #[test]
+    fn a_replacement_request_starts_its_round_again_but_keeps_the_seat_and_the_money() {
+        let asked = compile_deterministic(&CompileRequest::create("bounded-batch"))
+            .expect("compiles")
+            .questions;
+        let ask = |key: &str| {
+            let mut question = asked[0].clone();
+            question.key = key.to_owned();
+            question.answer_type = nika_onboard::compile::QuestionType::Text;
+            question
+        };
+        let earlier = || {
+            let mut round = AuthoringRound::new("keep the rows of ./data/input.csv over 250");
+            round.money = std::slice::from_ref(&(0..4)).to_vec();
+            round
+                .answers
+                .insert("const.rule_field_1".to_owned(), "\"amount\"".to_owned());
+            round
+                .answers
+                .insert("model".to_owned(), "\"mock/echo\"".to_owned());
+            round.continuation = Some(json!({"strategy": "hot"}));
+            round.knowledge = Some(json!({"pack_sha256": "abc"}));
+            round.authoring_receipt = Some(AuthoringReceipt::new("claude-code/default"));
+            round
+        };
+        let mut round = earlier();
+        round.questions = vec![ask(CLARIFICATION_KEY), ask("const.rule_field_1")];
+        let replacement = "read ./other.csv and keep the rows whose price is over 3";
+        assert_eq!(
+            round.answer_current(replacement).as_deref(),
+            Some(CLARIFICATION_KEY)
+        );
+        assert_eq!(
+            round.answers.keys().collect::<Vec<_>>(),
+            [CLARIFICATION_KEY, "model"],
+            "the old column answer is gone, the chosen seat stays"
+        );
+        assert!(round.continuation.is_none() && round.knowledge.is_none());
+        assert!(round.authoring_receipt.is_none());
+        assert_eq!(
+            round.money,
+            earlier().money,
+            "the gate's admitted money stays"
+        );
+        assert_eq!(round.effective_intent(), replacement);
+        assert!(
+            round.request().plan.is_none(),
+            "no old plan rides the request"
+        );
+        round.answer_current("price");
+        assert_eq!(
+            round.answers["const.rule_field_1"], "\"price\"",
+            "a new answer is kept"
+        );
+
+        let mut ordinary = earlier();
+        ordinary.questions = vec![ask("const.limit")];
+        ordinary.answer_current("5");
+        assert_eq!(
+            ordinary.answers.len(),
+            3,
+            "an ordinary answer keeps the round"
+        );
+        assert!(ordinary.continuation.is_some() && ordinary.authoring_receipt.is_some());
+
+        let mut revision = earlier();
+        revision.edit = Some(("nika: base\n".to_owned(), "add a step".to_owned(), None));
+        revision.questions = vec![ask(CLARIFICATION_KEY)];
+        revision.answer_current("something else");
+        assert!(
+            revision.answers.contains_key("const.rule_field_1") && revision.continuation.is_some(),
+            "a revision never replaces its change"
+        );
     }
 }

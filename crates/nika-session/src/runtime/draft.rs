@@ -88,6 +88,14 @@ impl Restored {
             Self::Usable { raw, .. } | Self::Unreadable { raw, .. } => raw,
         }
     }
+
+    /// The draft, or why this engine cannot read it.
+    pub(super) fn read(&self) -> Result<&PendingDraft, &str> {
+        match self {
+            Self::Usable { draft, .. } => Ok(draft),
+            Self::Unreadable { why, .. } => Err(why),
+        }
+    }
 }
 
 /// The pending proposal as a kept draft record.
@@ -127,14 +135,13 @@ pub(super) fn capture(id: &ProposalId, set: &ProjectChangeSet) -> Option<Value> 
 
 /// The restore notice's line about a kept draft.
 pub(super) fn restored_line(restored: &Restored, inference_blocked: bool) -> String {
-    let Restored::Usable { draft, .. } = restored else {
-        let why = match restored {
-            Restored::Unreadable { why, .. } => why.as_str(),
-            Restored::Usable { .. } => "",
-        };
-        return format!(
-            "a proposal kept by another engine version cannot be read here ({why}); it stays kept unchanged and grants nothing"
-        );
+    let draft = match restored.read() {
+        Ok(draft) => draft,
+        Err(why) => {
+            return format!(
+                "a proposal kept by another engine version cannot be read here ({why}); it stays kept unchanged and grants nothing"
+            );
+        }
     };
     let files: Vec<String> = draft
         .files
@@ -176,12 +183,10 @@ impl SessionRuntime {
     /// bytes over the same base, not proof that they still mean what the request meant.
     #[must_use]
     pub fn restored_draft_id(&self) -> Option<&str> {
-        match &self.restored_draft {
-            Some(Restored::Usable { draft, .. }) if rebuild(&self.snapshot.root, draft).is_ok() => {
-                Some(draft.proposal.as_str())
-            }
-            _ => None,
-        }
+        let draft = self.restored_draft.as_ref()?.read().ok()?;
+        rebuild(&self.snapshot.root, draft)
+            .is_ok()
+            .then_some(draft.proposal.as_str())
     }
 
     /// Propose the kept draft again, deterministically and without a model call. Its exact
@@ -196,33 +201,10 @@ impl SessionRuntime {
     }
 
     fn repropose_unrecorded(&mut self) -> TurnOutcome {
-        if self.pending.is_some()
-            || self.pending_gate.is_some()
-            || self.authoring.is_some()
-            || self.waiting_cost_choice()
-        {
-            return refused(
-                RefusalClass::WrongState,
-                "something already waits for you; answer or discard it first · the kept draft stays kept"
-                    .to_owned(),
-            );
-        }
-        let draft = match &self.restored_draft {
-            Some(Restored::Usable { draft, .. }) => draft.clone(),
-            Some(Restored::Unreadable { why, .. }) => {
-                return refused(
-                    RefusalClass::NotAllowed,
-                    format!(
-                        "the kept draft cannot be used by this engine ({why}); it stays kept unchanged"
-                    ),
-                );
-            }
-            None => {
-                return refused(
-                    RefusalClass::WrongState,
-                    "no kept draft to propose again".to_owned(),
-                );
-            }
+        let kept = self.restored_draft.as_ref().map(Restored::read);
+        let draft = match self.kept_to_use(kept, "draft", "propose again") {
+            Ok(draft) => draft.clone(),
+            Err(refusal) => return refusal,
         };
         match rebuild(&self.snapshot.root, &draft) {
             Ok(set) => {
@@ -244,6 +226,38 @@ impl SessionRuntime {
                 ),
             ),
         }
+    }
+
+    /// The kept draft or round (`what`) a restore act uses now, or the act's refusal while
+    /// something else waits, when this engine cannot read the kept value, or when none is kept
+    /// (`act`: what the act does): the kept value stays kept either way.
+    pub(super) fn kept_to_use<'k, T>(
+        &self,
+        kept: Option<Result<&'k T, &'k str>>,
+        what: &str,
+        act: &str,
+    ) -> Result<&'k T, TurnOutcome> {
+        let waits = self.pending.is_some()
+            || self.pending_gate.is_some()
+            || self.authoring.is_some()
+            || self.waiting_cost_choice();
+        let (class, text) = match kept {
+            _ if waits => (
+                RefusalClass::WrongState,
+                format!(
+                    "something already waits for you; answer or discard it first · the kept {what} stays kept"
+                ),
+            ),
+            Some(Ok(value)) => return Ok(value),
+            Some(Err(why)) => (
+                RefusalClass::NotAllowed,
+                format!(
+                    "the kept {what} cannot be read by this engine ({why}); it stays kept unchanged"
+                ),
+            ),
+            None => (RefusalClass::WrongState, format!("no kept {what} to {act}")),
+        };
+        Err(refused(class, text))
     }
 }
 
@@ -300,6 +314,6 @@ fn rebuild(root: &Path, draft: &PendingDraft) -> Result<ProjectChangeSet, String
     Ok(set)
 }
 
-fn refused(class: RefusalClass, text: String) -> TurnOutcome {
+pub(super) fn refused(class: RefusalClass, text: String) -> TurnOutcome {
     TurnOutcome::Refusal(Refusal::new(class, text))
 }

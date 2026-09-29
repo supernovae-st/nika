@@ -12,7 +12,7 @@ use std::time::{Duration, SystemTime};
 
 use nika_dap::store::{DoubtWhy, SkipWhy, Survey, TraceMeta, TraceState, scan, survey};
 
-use crate::lineage::{Head, Lineage, MAX_LINKS, Undecided, fold, lineage_of};
+use crate::lineage::{Head, Lineage, MAX_LINKS, Standing, Undecided, fold, lineage_of};
 
 /// A fresh per-test trace directory under the cargo tmp root.
 fn store(name: &str) -> PathBuf {
@@ -684,6 +684,81 @@ fn a_paused_journal_without_identity_decides_nothing() {
     assert_eq!(
         reasons(&fold(&survey, Path::new("elsewhere"))),
         &[Undecided::PausedUnidentified]
+    );
+}
+
+// ── Standing · what a host may offer again (C7) ────────────────────────
+
+/// A pause stands only while no journal continued it; a settled, a re-paused or a forked
+/// continuation is said by journal name, never ranked.
+#[test]
+fn a_pause_stands_only_while_no_journal_continued_it() {
+    let dir = store("standing-alone");
+    let paths = stage(&dir, &[S1_PAUSED]);
+    let alone = lineage_of(&dir, &paths[0]);
+    assert_eq!(alone.standing(&paths[0], false), Standing::Stands);
+
+    let dir = store("standing-settled");
+    let paths = stage(&dir, &[S1_PAUSED, S1_COMPLETED]);
+    assert_eq!(
+        lineage_of(&dir, &paths[0]).standing(&paths[0], true),
+        Standing::Settled {
+            state: TraceState::Succeeded,
+            trace: S1_COMPLETED.0.to_owned(),
+        },
+        "a host that saw the pause is told it settled all the same"
+    );
+
+    let dir = store("standing-repaused");
+    let paths = stage(&dir, &[T1_PAUSED, T1_REPAUSED]);
+    assert_eq!(
+        lineage_of(&dir, &paths[0]).standing(&paths[0], false),
+        Standing::PausedAgain(paths[1].clone())
+    );
+
+    let dir = store("standing-fork");
+    let paths = stage(&dir, &[S1_PAUSED, S1_COMPLETED, S1_REFUSED]);
+    let forked = lineage_of(&dir, &paths[0]).standing(&paths[0], true);
+    assert!(
+        matches!(&forked, Standing::Undecided(words)
+            if words.iter().any(|w| w == "2 continuations of one run")),
+        "siblings are never ranked: {forked:?}"
+    );
+}
+
+/// A host that observed the pause itself lets it stand when the only doubt is that pause's
+/// own journal (it names no run) or the trace store does not exist; any other doubt beside it
+/// decides nothing, and a host that did not observe it is told why in words.
+#[test]
+fn only_the_pauses_own_doubt_lets_an_observed_pause_stand() {
+    let crafted =
+        "{\"kind\":\"workflow_paused\",\"fields\":[{\"key\":\"task\",\"value\":\"ask\"}]}\n";
+    let dir = store("standing-own");
+    let paths = stage(&dir, &[(S1_PAUSED.0, crafted)]);
+    let own = lineage_of(&dir, &paths[0]);
+    assert_eq!(own.standing(&paths[0], true), Standing::Stands);
+    let unobserved = own.standing(&paths[0], false);
+    assert!(
+        matches!(&unobserved, Standing::Undecided(words)
+            if words.iter().any(|w| w == "the paused journal is not identified there")),
+        "not observed: said, never offered: {unobserved:?}"
+    );
+
+    stage(&dir, &[("2026-09-28T13-00-00Z-torn.ndjson", "{\"id\":")]);
+    assert!(
+        matches!(
+            lineage_of(&dir, &paths[0]).standing(&paths[0], true),
+            Standing::Undecided(_)
+        ),
+        "another journal in doubt is never the pause's own doubt"
+    );
+
+    let missing = store("standing-missing").join("absent");
+    let paused = missing.join(S1_PAUSED.0);
+    assert_eq!(
+        lineage_of(&missing, &paused).standing(&paused, true),
+        Standing::Stands,
+        "no trace store at all: nothing could have continued it"
     );
 }
 

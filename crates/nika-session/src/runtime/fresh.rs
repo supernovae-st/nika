@@ -4,16 +4,17 @@
 //! The source basis of a proposal, bound where a compile outcome is proposed and judged again at
 //! its yes (C9 · F4). The compiler records the source facts a candidate's program relies on
 //! ([`Basis::sources`]); a yes observes exactly those sources again through the host's one
-//! bounded observer and the compiler judges them ([`basis`]). A moved or unjudgeable basis
-//! withdraws the proposal before any write, consent record or money effect: its bytes stay in the
-//! conversation as evidence, the goal stays, and saying the request again builds it over the
-//! project as it is. Rows added, removed or reordered never move it. A proposal no compile bound
-//! (a kept draft proposed again) takes its basis from a zero-call deterministic compile of its
-//! request only when that compile gives its exact bytes; otherwise a workflow that reads project
-//! files is withdrawn with the request to say it again. What is not judged is said, never
-//! presented as fresh.
+//! bounded observer and the compiler judges them for the request that compiled the bytes, kept
+//! with the observation its round read, never one made later ([`basis_for`]). A moved or
+//! unjudgeable basis withdraws the proposal before any write, consent record or money effect: its
+//! bytes stay in the conversation as evidence, the goal stays, and saying the request again
+//! builds it over the project as it is. Rows added, removed or reordered never move it. A
+//! proposal no compile bound (a kept draft proposed again) takes its basis from a zero-call
+//! deterministic compile of its request only when that compile gives its exact bytes; otherwise
+//! a workflow that reads project files is withdrawn with the request to say it again. What is not
+//! judged is said, never presented as fresh.
 
-use nika_onboard::compile::{Basis, CompileOutcome, CompileRequest, basis};
+use nika_onboard::compile::{Basis, CompileOutcome, CompileRequest, basis_for};
 use serde_json::{Map, Value, json};
 
 use super::authoring::DETERMINISTIC;
@@ -28,8 +29,8 @@ pub(super) struct ProposalBasis {
     id: ProposalId,
     /// The exact bytes it justifies (a money-only amendment names the same bytes anew).
     bytes: Vec<Witness>,
-    /// The request the compiler read, and its decision record (`None`: it recorded none).
-    intent: String,
+    /// The exact request its compile round read, and its decision record (`None`: none).
+    request: CompileRequest,
     decision: Option<Value>,
 }
 
@@ -42,18 +43,19 @@ fn witnesses(set: &ProjectChangeSet) -> Vec<Witness> {
 }
 
 impl SessionRuntime {
-    /// Bind what `out` records of its sources to the proposal `id` made of `set`, before any yes.
+    /// Bind what `out` records of its sources to the proposal `id` made of `set`, before any yes;
+    /// nothing when the request its round read cannot be rebuilt (the yes then finds none bound).
     pub(super) fn bind_basis(
         &mut self,
         id: &ProposalId,
         set: &ProjectChangeSet,
-        intent: &str,
+        request: Option<CompileRequest>,
         out: &CompileOutcome,
     ) {
-        self.basis = Some(ProposalBasis {
+        self.basis = request.map(|request| ProposalBasis {
             id: id.clone(),
             bytes: witnesses(set),
-            intent: intent.to_owned(),
+            request,
             decision: out.provenance.decision.clone(),
         });
     }
@@ -70,10 +72,10 @@ impl SessionRuntime {
             .take()
             .filter(|b| b.id == *id || b.bytes == witnesses(set));
         let reads = set.project_reads();
-        let (decision, intent, derived) = match bound {
-            Some(b) => (b.decision, b.intent, false),
+        let (decision, request, derived) = match bound {
+            Some(b) => (b.decision, b.request, false),
             None => match self.derive(set) {
-                Some(out) => (out.provenance.decision, set.goal.clone(), true),
+                Some((out, request)) => (out.provenance.decision, request, true),
                 None if reads.is_empty() => {
                     return Ok(Some(
                         "source freshness not judged: it reads no project file".to_owned(),
@@ -95,7 +97,7 @@ impl SessionRuntime {
         } else {
             "sources judged again before writing: "
         };
-        match self.judge(decision.as_ref(), &intent) {
+        match self.judge(decision.as_ref(), &request) {
             Basis::Holds(n) => Ok(Some(format!(
                 "{again}{n} recorded fact(s) of {} hold (rows added, removed or reordered never move them)",
                 quoted(&Basis::sources(decision.as_ref()))
@@ -128,10 +130,10 @@ impl SessionRuntime {
         }
     }
 
-    /// The compiler's judgement of a decision's recorded sources, observed again now.
-    fn judge(&self, decision: Option<&Value>, intent: &str) -> Basis {
+    /// The compiler's judgement of the request's recorded sources, observed again now.
+    fn judge(&self, decision: Option<&Value>, request: &CompileRequest) -> Basis {
         let fresh = self.observe_sources(&Basis::sources(decision));
-        basis(decision, fresh.as_ref(), intent)
+        basis_for(request, decision, fresh.as_ref())
     }
 
     /// Each source observed again, alone, by the host's one bounded observer under the root.
@@ -153,16 +155,16 @@ impl SessionRuntime {
         (!rows.is_empty()).then(|| json!({"observed": rows, "kinds": kinds}))
     }
 
-    /// A proposal no compile bound: its request compiled again without any provider, kept only
-    /// when it gives exactly the proposal's bytes.
-    fn derive(&self, set: &ProjectChangeSet) -> Option<CompileOutcome> {
+    /// A proposal no compile bound: its request compiled again without any provider, kept (with
+    /// that request) only when it gives exactly the proposal's bytes.
+    fn derive(&self, set: &ProjectChangeSet) -> Option<(CompileOutcome, CompileRequest)> {
         let request = CompileRequest::create(&set.goal);
         let out = compile_in(&DETERMINISTIC, &self.project_context(), &request, &set.goal).ok()?;
         let Reading::Ready(out) = Reading::of(out) else {
             return None;
         };
         let again = crate::review::propose(&self.snapshot.root, &set.goal, &out).ok()?;
-        (witnesses(&again) == witnesses(set)).then_some(out)
+        (witnesses(&again) == witnesses(set)).then_some((out, request))
     }
 
     /// Withdraw the proposal a yes answered, before any write, consent or money effect: why, in

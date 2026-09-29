@@ -1247,20 +1247,31 @@ fn the_project_record_is_written_at_the_consent_and_read_at_open() {
     );
 }
 
+/// The paused journal of the C7b `S1` public run (`2026-09-28T12-59-54Z-53b6.ndjson`): an
+/// engine journal names its run, so a fresh runtime can judge whether it was continued.
+pub(super) const S1_PAUSED: &str = r#"{"id":{"uuid":"01a0e819-b68b-7649-85b2-39277be74e66"},"timestamp":1790600394379000000,"kind":"workflow_started","execution":{"uuid":"01a0e819-b689-730e-ab21-40ea767e53b6"},"run":null,"correlation":null,"chain":"7466341540fd02fca9ec21937862176b7821a52495b86d81bb5f30d16c8462dc","fields":[{"key":"workflow","value":"gate-keyed"},{"key":"project_root_fingerprint","value":"68bc0fa6f93982fd69bcd7dc3b4074d55f54a57579461599d47765293bdbf7cd"}]}
+{"id":{"uuid":"01a0e819-b68c-726d-a8e3-3ef859c76d0f"},"timestamp":1790600394380000000,"kind":"task_scheduled","execution":{"uuid":"01a0e819-b689-730e-ab21-40ea767e53b6"},"run":null,"correlation":null,"chain":"527926e042b24c4415b65b50cca37f0f1f609ec9f52478191a9faf23491600c3","fields":[{"key":"task","value":"before"}]}
+{"id":{"uuid":"01a0e819-b68d-735a-9777-3c6706958b21"},"timestamp":1790600394381000000,"kind":"task_scheduled","execution":{"uuid":"01a0e819-b689-730e-ab21-40ea767e53b6"},"run":null,"correlation":null,"chain":"eee513cc41db18434eb38cbf51b55d48946fbea527dc0f80777a31deaff40551","fields":[{"key":"task","value":"ask"}]}
+{"id":{"uuid":"01a0e819-b68d-735a-9777-3c683f5bba50"},"timestamp":1790600394381000000,"kind":"task_scheduled","execution":{"uuid":"01a0e819-b689-730e-ab21-40ea767e53b6"},"run":null,"correlation":null,"chain":"0c76a73643ecc528974ba46ceb6025423d93139955cbd8807ee4549ed3be67f9","fields":[{"key":"task","value":"after_gate"}]}
+{"id":{"uuid":"01a0e819-b690-75e2-8832-255d6a8aeee0"},"timestamp":1790600394384000000,"kind":"task_started","execution":{"uuid":"01a0e819-b689-730e-ab21-40ea767e53b6"},"run":null,"correlation":null,"chain":"1ee9c3dc4a185833b486d65cc324a5022fc69a96f4f39707ff60d4f19e4493a2","fields":[{"key":"task","value":"before"}]}
+{"id":{"uuid":"01a0e819-b690-75e2-8832-255ea327f97a"},"timestamp":1790600394384000000,"kind":"permit_checked","execution":{"uuid":"01a0e819-b689-730e-ab21-40ea767e53b6"},"run":null,"correlation":null,"chain":"a7f5e04b1f6ddcd5ee13fa89aed3240f228b59b4ea4620fbb6c51bd442e8c5d8","fields":[{"key":"task","value":"before"},{"key":"decision","value":"allow"},{"key":"why","value":"permits.tools covers the id"}]}
+{"id":{"uuid":"01a0e819-b690-75e2-8832-255f93243257"},"timestamp":1790600394384000000,"kind":"task_completed","execution":{"uuid":"01a0e819-b689-730e-ab21-40ea767e53b6"},"run":null,"correlation":null,"chain":"1e89b99a6737b7686166dd97a346879fb2d829c2ca73b550ba2a9b00967273b7","fields":[{"key":"task","value":"before"}]}
+{"id":{"uuid":"01a0e819-b691-7011-a1fc-369f8aa8657f"},"timestamp":1790600394385000000,"kind":"workflow_paused","execution":{"uuid":"01a0e819-b689-730e-ab21-40ea767e53b6"},"run":null,"correlation":null,"chain":"33180c9c50ec797c947a4969df6319a91f404bad00f875bcfd7d44e02bdccba0","fields":[{"key":"workflow","value":"gate-keyed"},{"key":"task","value":"ask"},{"key":"mode","value":"confirm"},{"key":"message","value":"Ship it?"},{"key":"status","value":"paused"},{"key":"cause","value":"human_gate"}]}
+"#;
+
 /// #1464 · a run that paused leaves the gate it waits on in the record; a
 /// fresh runtime reads the record, waits on the engine's own paused trace
-/// again, and the answer that resumes is a decision of the record.
+/// again when no journal continued it, and the answer that resumes is a
+/// decision of the record. (Migrated with C7: the pause is the engine's real
+/// journal, whose run identity the lineage reads; the crafted one-line pause
+/// named no run and is no longer offered after a close.)
 #[test]
 fn a_paused_run_leaves_its_gate_in_the_record_and_a_fresh_runtime_waits_on_it() {
     let root = project();
     let traces = root.path().join(".nika/traces");
     std::fs::create_dir_all(&traces).expect("traces");
-    let trace = traces.join("compiled-workflow.ndjson");
-    std::fs::write(
-        &trace,
-        "{\"kind\":\"workflow_paused\",\"fields\":[{\"key\":\"task\",\"value\":\"approve\"},{\"key\":\"message\",\"value\":\"ship it?\"},{\"key\":\"mode\",\"value\":\"confirm\"}]}\n",
-    )
-    .expect("the paused trace");
+    let trace = traces.join("2026-09-28T12-59-54Z-53b6.ndjson");
+    std::fs::write(&trace, S1_PAUSED).expect("the paused trace");
     let (mut first, _) = open(root.path(), &[ANSWER]);
     let id = proposed(first.turn(COPY));
     assert!(matches!(
@@ -1274,7 +1285,7 @@ fn a_paused_run_leaves_its_gate_in_the_record_and_a_fresh_runtime_waits_on_it() 
     let TurnOutcome::GateAsk { id: gate, question } = first.observe_run(4, Some(&trace)) else {
         panic!("a pause with a gate asks");
     };
-    assert!(question.contains("ship it?"), "{question}");
+    assert!(question.contains("Ship it?"), "{question}");
     let state = crate::state::SessionState::load(root.path())
         .expect("readable")
         .expect("written at the observation");
@@ -1283,7 +1294,7 @@ fn a_paused_run_leaves_its_gate_in_the_record_and_a_fresh_runtime_waits_on_it() 
         Some(crate::state::Pending::Gate {
             workflow: PathBuf::from(LANDED),
             trace: trace.clone(),
-            task: "approve".to_owned(),
+            task: "ask".to_owned(),
             mode: "confirm".to_owned(),
         })
     );
@@ -1291,7 +1302,7 @@ fn a_paused_run_leaves_its_gate_in_the_record_and_a_fresh_runtime_waits_on_it() 
 
     let (mut resumed, _) = open(root.path(), &[]);
     let notice = resumed.restore_state().expect("a record restores");
-    assert!(notice.contains("ship it?"), "the gate asks again: {notice}");
+    assert!(notice.contains("Ship it?"), "the gate asks again: {notice}");
     assert_eq!(resumed.waiting_gate(), Some(gate.clone()));
     let TurnOutcome::ResumeRequested {
         workflow, answer, ..
@@ -1300,7 +1311,7 @@ fn a_paused_run_leaves_its_gate_in_the_record_and_a_fresh_runtime_waits_on_it() 
         panic!("the answer resumes");
     };
     assert_eq!(workflow, PathBuf::from(LANDED));
-    assert_eq!(answer, "approve=true");
+    assert_eq!(answer, "ask=true");
     let state = crate::state::SessionState::load(root.path())
         .expect("readable")
         .expect("written at the answer");
@@ -1309,7 +1320,7 @@ fn a_paused_run_leaves_its_gate_in_the_record_and_a_fresh_runtime_waits_on_it() 
         state
             .decisions
             .iter()
-            .any(|d| d.contains("answered the gate") && d.contains("approve=true")),
+            .any(|d| d.contains("answered the gate") && d.contains("ask=true")),
         "{:?}",
         state.decisions
     );

@@ -39,6 +39,7 @@ pub use nika_onboard::compile::TriggerRequirement
 pub use nika_onboard::compile::TriggerStatus
 pub use nika_onboard::compile::authority
 pub use nika_onboard::compile::basis
+pub use nika_onboard::compile::basis_for
 pub use nika_onboard::compile::compile
 pub use nika_onboard::compile::compile_with_cognition
 pub use nika_onboard::compile::compile_with_provider
@@ -215,6 +216,11 @@ impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::reading::
 impl<T> typenum::type_operators::Same for nika_onboard::compile::reading::Reading
 pub type nika_onboard::compile::reading::Reading::Output = T
 pub const nika_onboard::compile::reading::CLARIFICATION_KEY: &str
+pub fn nika_onboard::compile::reading::asks_for_syntax(question: &nika_compile::types::CompileQuestion) -> bool
+pub fn nika_onboard::compile::reading::clarified(answers: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> core::option::Option<alloc::string::String>
+pub fn nika_onboard::compile::reading::clause_of(label: &str) -> core::option::Option<alloc::string::String>
+pub fn nika_onboard::compile::reading::clauses_understood(out: &nika_compile::types::CompileOutcome) -> core::option::Option<usize>
+pub fn nika_onboard::compile::reading::human_reasons(reasons: alloc::vec::Vec<alloc::string::String>) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_onboard::compile::reading::literal_for(question: &nika_compile::types::CompileQuestion, line: &str) -> alloc::string::String
 pub fn nika_onboard::compile::reading::reasons(out: &nika_compile::types::CompileOutcome) -> alloc::vec::Vec<alloc::string::String>
 pub mod nika_onboard::compile::round
@@ -226,8 +232,11 @@ pub nika_onboard::compile::round::RoundReading::Usable
 pub nika_onboard::compile::round::RoundReading::Usable::raw: serde_json::value::Value
 pub nika_onboard::compile::round::RoundReading::Usable::record: alloc::boxed::Box<nika_onboard::compile::round::RoundRecord>
 impl nika_onboard::compile::round::RoundReading
+pub fn nika_onboard::compile::round::RoundReading::continuable(&self) -> core::option::Option<&nika_onboard::compile::round::RoundRecord>
 pub fn nika_onboard::compile::round::RoundReading::from_raw(raw: serde_json::value::Value) -> Self
 pub fn nika_onboard::compile::round::RoundReading::raw(&self) -> &serde_json::value::Value
+pub fn nika_onboard::compile::round::RoundReading::record(&self) -> core::result::Result<&nika_onboard::compile::round::RoundRecord, &str>
+pub fn nika_onboard::compile::round::RoundReading::words(&self) -> core::result::Result<nika_onboard::compile::round::RoundWords, &str>
 impl core::clone::Clone for nika_onboard::compile::round::RoundReading
 pub fn nika_onboard::compile::round::RoundReading::clone(&self) -> nika_onboard::compile::round::RoundReading
 impl core::cmp::Eq for nika_onboard::compile::round::RoundReading
@@ -425,6 +434,8 @@ pub nika_onboard::compile::round::KeptEdit::base: nika_onboard::compile::round::
 pub nika_onboard::compile::round::KeptEdit::change: nika_onboard::compile::round::KeptText
 pub nika_onboard::compile::round::KeptEdit::original: core::option::Option<nika_onboard::compile::round::KeptText>
 pub nika_onboard::compile::round::KeptEdit::path: core::option::Option<nika_onboard::compile::round::KeptText>
+impl nika_onboard::compile::round::KeptEdit
+pub fn nika_onboard::compile::round::KeptEdit::texts(&self) -> (alloc::string::String, alloc::string::String, core::option::Option<alloc::string::String>)
 impl core::clone::Clone for nika_onboard::compile::round::KeptEdit
 pub fn nika_onboard::compile::round::KeptEdit::clone(&self) -> nika_onboard::compile::round::KeptEdit
 impl core::cmp::Eq for nika_onboard::compile::round::KeptEdit
@@ -740,9 +751,111 @@ impl<T> tracing::instrument::Instrument for nika_onboard::compile::round::RoundR
 impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::round::RoundRecord
 impl<T> typenum::type_operators::Same for nika_onboard::compile::round::RoundRecord
 pub type nika_onboard::compile::round::RoundRecord::Output = T
+#[non_exhaustive] pub struct nika_onboard::compile::round::RoundWords
+pub nika_onboard::compile::round::RoundWords::asked: core::option::Option<alloc::string::String>
+pub nika_onboard::compile::round::RoundWords::blocked: core::option::Option<alloc::string::String>
+pub nika_onboard::compile::round::RoundWords::summary: alloc::string::String
+impl core::clone::Clone for nika_onboard::compile::round::RoundWords
+pub fn nika_onboard::compile::round::RoundWords::clone(&self) -> nika_onboard::compile::round::RoundWords
+impl core::cmp::Eq for nika_onboard::compile::round::RoundWords
+impl core::cmp::PartialEq for nika_onboard::compile::round::RoundWords
+pub fn nika_onboard::compile::round::RoundWords::eq(&self, other: &nika_onboard::compile::round::RoundWords) -> bool
+impl core::fmt::Debug for nika_onboard::compile::round::RoundWords
+pub fn nika_onboard::compile::round::RoundWords::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_onboard::compile::round::RoundWords
+impl<D> owo_colors::OwoColorize for nika_onboard::compile::round::RoundWords
+impl<Q, K> equivalent::Equivalent<K> for nika_onboard::compile::round::RoundWords where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile::round::RoundWords::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_onboard::compile::round::RoundWords where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile::round::RoundWords::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_onboard::compile::round::RoundWords where U: core::convert::From<T>
+pub fn nika_onboard::compile::round::RoundWords::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::round::RoundWords where U: core::convert::Into<T>
+pub type nika_onboard::compile::round::RoundWords::Error = core::convert::Infallible
+pub fn nika_onboard::compile::round::RoundWords::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::round::RoundWords where U: core::convert::TryFrom<T>
+pub type nika_onboard::compile::round::RoundWords::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::compile::round::RoundWords::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_onboard::compile::round::RoundWords where T: core::clone::Clone
+pub type nika_onboard::compile::round::RoundWords::Owned = T
+pub fn nika_onboard::compile::round::RoundWords::clone_into(&self, target: &mut T)
+pub fn nika_onboard::compile::round::RoundWords::to_owned(&self) -> T
+impl<T> core::any::Any for nika_onboard::compile::round::RoundWords where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::compile::round::RoundWords::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::compile::round::RoundWords where T: ?core::marker::Sized
+pub fn nika_onboard::compile::round::RoundWords::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::compile::round::RoundWords where T: ?core::marker::Sized
+pub fn nika_onboard::compile::round::RoundWords::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_onboard::compile::round::RoundWords where T: core::clone::Clone
+pub unsafe fn nika_onboard::compile::round::RoundWords::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_onboard::compile::round::RoundWords
+pub fn nika_onboard::compile::round::RoundWords::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_onboard::compile::round::RoundWords where T: core::clone::Clone
+pub fn nika_onboard::compile::round::RoundWords::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_onboard::compile::round::RoundWords where T: 'static
+pub fn nika_onboard::compile::round::RoundWords::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::compile::round::RoundWords where T: ?core::marker::Sized
+pub fn nika_onboard::compile::round::RoundWords::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::compile::round::RoundWords::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::compile::round::RoundWords
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::round::RoundWords
+impl<T> typenum::type_operators::Same for nika_onboard::compile::round::RoundWords
+pub type nika_onboard::compile::round::RoundWords::Output = T
+#[non_exhaustive] pub struct nika_onboard::compile::round::Settled
+pub nika_onboard::compile::round::Settled::knowledge: core::option::Option<serde_json::value::Value>
+pub nika_onboard::compile::round::Settled::plan: serde_json::value::Value
+pub nika_onboard::compile::round::Settled::receipt: core::option::Option<nika_compile::types::AuthoringReceipt>
+impl core::clone::Clone for nika_onboard::compile::round::Settled
+pub fn nika_onboard::compile::round::Settled::clone(&self) -> nika_onboard::compile::round::Settled
+impl core::cmp::PartialEq for nika_onboard::compile::round::Settled
+pub fn nika_onboard::compile::round::Settled::eq(&self, other: &nika_onboard::compile::round::Settled) -> bool
+impl core::fmt::Debug for nika_onboard::compile::round::Settled
+pub fn nika_onboard::compile::round::Settled::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_onboard::compile::round::Settled
+impl<D> owo_colors::OwoColorize for nika_onboard::compile::round::Settled
+impl<T, U> core::convert::Into<U> for nika_onboard::compile::round::Settled where U: core::convert::From<T>
+pub fn nika_onboard::compile::round::Settled::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::round::Settled where U: core::convert::Into<T>
+pub type nika_onboard::compile::round::Settled::Error = core::convert::Infallible
+pub fn nika_onboard::compile::round::Settled::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::round::Settled where U: core::convert::TryFrom<T>
+pub type nika_onboard::compile::round::Settled::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::compile::round::Settled::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_onboard::compile::round::Settled where T: core::clone::Clone
+pub type nika_onboard::compile::round::Settled::Owned = T
+pub fn nika_onboard::compile::round::Settled::clone_into(&self, target: &mut T)
+pub fn nika_onboard::compile::round::Settled::to_owned(&self) -> T
+impl<T> core::any::Any for nika_onboard::compile::round::Settled where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::compile::round::Settled::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::compile::round::Settled where T: ?core::marker::Sized
+pub fn nika_onboard::compile::round::Settled::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::compile::round::Settled where T: ?core::marker::Sized
+pub fn nika_onboard::compile::round::Settled::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_onboard::compile::round::Settled where T: core::clone::Clone
+pub unsafe fn nika_onboard::compile::round::Settled::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_onboard::compile::round::Settled
+pub fn nika_onboard::compile::round::Settled::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_onboard::compile::round::Settled where T: core::clone::Clone
+pub fn nika_onboard::compile::round::Settled::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_onboard::compile::round::Settled where T: 'static
+pub fn nika_onboard::compile::round::Settled::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::compile::round::Settled where T: ?core::marker::Sized
+pub fn nika_onboard::compile::round::Settled::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::compile::round::Settled::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::compile::round::Settled
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::round::Settled
+impl<T> typenum::type_operators::Same for nika_onboard::compile::round::Settled
+pub type nika_onboard::compile::round::Settled::Output = T
 pub const nika_onboard::compile::round::MAX_ANSWERS: usize
 pub const nika_onboard::compile::round::ROUND_LIMIT: usize
 pub const nika_onboard::compile::round::ROUND_SCHEMA: u64
+pub fn nika_onboard::compile::round::carry_receipt(out: &mut nika_compile::types::CompileOutcome, receipt: core::option::Option<&nika_compile::types::AuthoringReceipt>)
+pub fn nika_onboard::compile::round::change_money(change: &str, admitted: bool) -> alloc::vec::Vec<core::ops::range::Range<usize>>
+pub fn nika_onboard::compile::round::compiled(request: nika_compile::types::CompileRequest, out: &nika_compile::types::CompileOutcome) -> core::option::Option<nika_compile::types::CompileRequest>
+pub fn nika_onboard::compile::round::open(out: &nika_compile::types::CompileOutcome, revision: bool) -> (alloc::vec::Vec<nika_compile::types::CompileQuestion>, alloc::vec::Vec<alloc::string::String>)
+pub fn nika_onboard::compile::round::reanchored(recorded: core::option::Option<&serde_json::value::Value>, out: &nika_compile::types::CompileOutcome) -> core::option::Option<serde_json::value::Value>
+pub fn nika_onboard::compile::round::request(intent: &str, edit: core::option::Option<&(alloc::string::String, alloc::string::String, core::option::Option<alloc::string::String>)>, answers: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>, plan: core::option::Option<&serde_json::value::Value>, money: &[core::ops::range::Range<usize>]) -> nika_compile::types::CompileRequest
+pub fn nika_onboard::compile::round::settled(out: &nika_compile::types::CompileOutcome) -> core::option::Option<nika_onboard::compile::round::Settled>
 pub mod nika_onboard::compile_config
 #[non_exhaustive] pub enum nika_onboard::compile_config::ConfigError
 pub nika_onboard::compile_config::ConfigError::ExclusionWithoutSnapshot
@@ -1049,6 +1162,7 @@ pub nika_onboard::knowledge::pin::KnowledgePin::manifest_sha256: alloc::string::
 pub nika_onboard::knowledge::pin::KnowledgePin::rows_sha256: alloc::string::String
 pub nika_onboard::knowledge::pin::KnowledgePin::version: core::option::Option<alloc::string::String>
 impl nika_onboard::knowledge::pin::KnowledgePin
+pub fn nika_onboard::knowledge::pin::KnowledgePin::moved(&self, snapshot: &nika_onboard::knowledge::Snapshot) -> core::option::Option<(alloc::string::String, alloc::string::String)>
 pub fn nika_onboard::knowledge::pin::KnowledgePin::of(snapshot: &nika_onboard::knowledge::Snapshot) -> (core::option::Option<&str>, core::option::Option<&str>, &str, alloc::string::String)
 pub fn nika_onboard::knowledge::pin::KnowledgePin::open(dir: std::path::PathBuf, exclude_corpus: core::option::Option<alloc::string::String>) -> core::result::Result<Self, nika_onboard::knowledge::KnowledgeError>
 pub fn nika_onboard::knowledge::pin::KnowledgePin::record(&self) -> serde_json::value::Value
@@ -1106,6 +1220,7 @@ pub fn nika_onboard::knowledge::pin::presented_knowledge(out: &nika_compile::typ
 pub fn nika_onboard::knowledge::pin::reads_knowledge(call: &str) -> bool
 pub fn nika_onboard::knowledge::pin::short(digest: &str) -> alloc::string::String
 pub fn nika_onboard::knowledge::pin::stamp(out: &mut nika_compile::types::CompileOutcome, strategy: &str, source: &str, knowledge: core::option::Option<&serde_json::value::Value>)
+pub fn nika_onboard::knowledge::pin::stamp_seat(out: &mut nika_compile::types::CompileOutcome, receipt: serde_json::value::Value)
 #[non_exhaustive] pub enum nika_onboard::knowledge::KnowledgeError
 pub nika_onboard::knowledge::KnowledgeError::NotAPack
 pub nika_onboard::knowledge::KnowledgeError::NotAPack::file: std::path::PathBuf
