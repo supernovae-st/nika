@@ -58,7 +58,9 @@ fn install_fixture(dir: &Path, scenario: &str) {
         answer
     };
     let second = common::native_answer(&common::candidate("openai/gpt-4.1-mini", true));
-    // The third call of a READY revision is its judgment (native step 1): answered explicitly.
+    // The second call is the judge of the answer round that finishes the native record (native
+    // step 2, the seat permitted as its judge); the fourth is the judgment of the READY revision
+    // (native step 1). Both are answered explicitly.
     for (name, text) in [
         ("one", answer),
         ("two", second),
@@ -83,7 +85,7 @@ if [ -f {observed}/count ]; then n=$(/bin/cat {observed}/count); fi
 printf '%s' "$((n+1))" > {observed}/count
 printf '%s\n' "$@" > {observed}/argv-$n
 /bin/cat > {observed}/prompt-$n
-if [ "$n" = 0 ] || [ {bad} = yes ]; then /bin/cat {one}; elif [ "$n" = 2 ]; then /bin/cat {three}; else /bin/cat {two}; fi
+if [ "$n" = 0 ] || [ {bad} = yes ]; then /bin/cat {one}; elif [ "$n" = 1 ] || [ "$n" = 3 ]; then /bin/cat {three}; else /bin/cat {two}; fi
 "#,
         observed = shell(&observed),
         one = shell(&dir.join("one")),
@@ -324,8 +326,14 @@ fn child() {
 fn subscription_authors_then_answers_and_revises_through_the_same_native_compiler() {
     let out = run("route");
     assert_eq!(
-        out["calls"], 3,
-        "question round, revision, judgment; the answer continuation makes no new call: {out:#}"
+        out["calls"], 4,
+        "question round, its answer round's judge, revision, judgment: {out:#}"
+    );
+    let judged = |n: usize| out["prompts"][n].as_str().unwrap().contains("unfaithful");
+    assert!(
+        !judged(0) && judged(1) && !judged(2) && judged(3),
+        "{:#}",
+        out["prompts"]
     );
     assert_eq!(out["steps"][1]["kind"], "proposal");
     assert_eq!(out["steps"][2]["kind"], "proposal");
@@ -392,18 +400,18 @@ fn missing_capability_refuses_and_no_intelligence_stays_deterministic() {
 fn replay_retains_subscription_receipt_without_optional_knowledge() {
     let out = run("no-knowledge");
     assert_eq!(
-        out["calls"], 3,
-        "question round, revision, judgment; replay adds no call: {out:#}"
+        out["calls"], 4,
+        "question round, its answer round's judge, revision, judgment: {out:#}"
     );
+    // The answer round's receipt is its own now: its one call is the judge the subscription
+    // seat is permitted as (native step 2), never a receipt carried as if nothing was sent.
     for text in [
         out["details_answer"].as_str().unwrap(),
         out["meaning_answer"]["text"].as_str().unwrap(),
     ] {
         assert!(text.contains("subscription claude-code"), "{text}");
-        assert!(
-            text.contains("this clarification replay made zero calls"),
-            "{text}"
-        );
+        assert!(text.contains(" · 1 compiler calls · "), "{text}");
+        assert!(!text.contains("made zero calls"), "{text}");
         assert!(text.contains("subscription invoice unknown"), "{text}");
     }
     assert_eq!(out["old_consent_rejected"], true);

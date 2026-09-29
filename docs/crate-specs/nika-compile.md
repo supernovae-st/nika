@@ -509,11 +509,27 @@ binding, not a chronological nonce or a grant of execution authority.
 plan or answers are data and are never accepted as active judgments.
 
 The ordinary `assemble` and `replay` entries pass no judgments and add no
-whole-request duty. Deterministically closed duties replay with zero calls.
+whole-request duty to a plan (a native record always carries one, below).
+Deterministically closed duties replay with zero calls.
 Cognition judges the remainder named in `decision.pending.open` using the
 current round's judge, or leaves it INCOMPLETE with a finding for each open
 clause. A regenerated candidate after a field answer is judged as the first
 candidate of its plan. A failed or abstaining judge settles nothing.
+
+A native record (strategy `native`, written by the native and sketch doors) is
+no plan (R4 A11, step 2). Its replay bakes the round's answers into the
+recorded source with zero calls (`native_replay`, then `native_apply`), and no
+law reads the seat's program. A finish the laws admit (READY) therefore carries
+a pending whole-request duty: `decision.pending.open` names the whole request
+at its whole span. The duty is bound by `Binding::of` over the reader's plan of
+the request, with its stated rules promoted, and over the candidate's exact
+bytes. Only a `Carried` whole-request judgment made in this compile under that
+binding settles it; `replay_judged` passes its judgments to the native door.
+Otherwise the round is INCOMPLETE, the candidate stays the preview, and a
+`semantic_verification` finding names the judge a round can permit. A finish
+the laws keep from READY (a question open, a check refusal) is returned as it
+is, and no judge is asked of it. A record never carries a judgment, so the
+round that finishes the bytes judges them.
 
 The core does not judge unrestricted meaning. A clause split across two named
 elements can require judgment, and the model's approval remains bounded

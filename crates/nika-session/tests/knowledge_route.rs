@@ -31,9 +31,17 @@ use nika_onboard::compile::revise_intent;
 use serde_json::{Value, json};
 
 /// The verifier's closed choice, approved (native step 1, R4 A11): the explicit answer scripted at
-/// the judge's position, after a candidate READY in its authoring round. The judge's call is a
-/// real call, counted like any other.
+/// the judge's position, after a candidate READY in its authoring round, and after an answer round
+/// that finishes a native record READY (native step 2, the seat permitted as its judge). The
+/// judge's call is a real call, counted like any other.
 const JUDGE_APPROVES: &str = r#"{"choice":"faithful"}"#;
+
+/// Whether a request the seat received is the judge's closed choice: its schema asks a `choice`
+/// between faithful and unfaithful, never a candidate.
+fn judged(body: &Value) -> bool {
+    let schema = &body["response_format"]["json_schema"]["schema"]["properties"];
+    schema["choice"]["enum"].to_string().contains("unfaithful") && schema["candidate"].is_null()
+}
 
 /// One scenario's world: the project, the home, the snapshot, the seat, the report.
 struct World {
@@ -164,16 +172,19 @@ fn assert_first_round(world: &World, body: &Value, details: &str, port: u16) {
         "{details}"
     );
     // The proposal came from the answer round, which replayed the native record: it carries the
-    // knowledge of the round that authored the candidate, and called no one.
+    // knowledge of the round that authored the candidate, presented the pack to no call, and its
+    // own receipt is its one call, the judge the seat is permitted as (native step 2).
     assert!(
         details.contains(
-            "presented to the seat in 1 call of the round that authored this candidate (this answer round replayed it · zero calls)"
+            "presented to the seat in 1 call of the round that authored this candidate (this answer round replayed it and presented the pack to no call)"
         ),
         "{details}"
     );
     assert!(
-        details.contains("authoring backend: none"),
-        "the answer round itself made no call: {details}"
+        details.contains(&format!("authoring backend: {SEAT_MODEL} · 1 call · "))
+            && details.contains("verify: judged (authoring_provider)")
+            && !details.contains("zero calls"),
+        "the answer round's own receipt is its judge's call: {details}"
     );
     assert!(
         details.contains("knowledge: knowledge-s03 · declared digest digest-s03-a · manifest "),
@@ -252,6 +263,7 @@ fn the_public_turn_presents_the_pinned_pack_and_the_receipt_names_the_bytes_the_
     let world = world();
     let seat = LoopbackSeat::start(vec![
         native_answer(&candidate("mock/echo", false)),
+        JUDGE_APPROVES.to_owned(),
         native_answer(&candidate(SEAT_MODEL, true)),
         JUDGE_APPROVES.to_owned(),
     ]);
@@ -278,10 +290,13 @@ fn the_public_turn_presents_the_pinned_pack_and_the_receipt_names_the_bytes_the_
         ["question", "proposal", "proposal"],
         "the model question, the proposal, the revised proposal: {report:#}"
     );
-    // Three calls: two native, then the judgment of the READY revision (native step 1).
-    // `only` opens the native door at once; the answer round replays (zero calls, unjudged);
-    // no label call reached the seat (the door's classifier is the host's).
-    assert_eq!(bodies.len(), 3, "{bodies:#?}");
+    // Four calls: the native question round, the judge of the answer round that finishes it
+    // (native step 2: the round replays, its one call the judge the seat is permitted as), the
+    // native revision, then the judgment of the READY revision (native step 1). `only` opens the
+    // native door at once; no label call reached the seat (the door's classifier is the host's).
+    assert_eq!(bodies.len(), 4, "{bodies:#?}");
+    let judges: Vec<bool> = bodies.iter().map(judged).collect();
+    assert_eq!(judges, [false, true, false, true], "{bodies:#?}");
     for body in &bodies {
         assert_eq!(
             body["model"], "s03-seat",
@@ -300,7 +315,7 @@ fn the_public_turn_presents_the_pinned_pack_and_the_receipt_names_the_bytes_the_
     );
     assert_revision(
         &world,
-        &bodies[1],
+        &bodies[2],
         report["details_second"].as_str().unwrap(),
         seat.port,
     );
@@ -340,17 +355,21 @@ fn the_default_strategy_escalates_and_only_the_native_door_reads_the_pack() {
     // With a pinned pack attached, the default escalation (the CLI's) gives the first open
     // generation the native card and the selected references at once: there is no preliminary
     // private-plan call, which could not read the pack. The native door is the pack's only
-    // reader and the only call.
-    let seat = LoopbackSeat::start(vec![native_answer(&candidate("mock/echo", false))]);
+    // reader and the only authoring call; the answer round's one call is its judge (step 2).
+    let seat = LoopbackSeat::start(vec![
+        native_answer(&candidate("mock/echo", false)),
+        JUDGE_APPROVES.to_owned(),
+    ]);
     let snapshot = world.foundry.snapshot.display().to_string();
     let report = run_child(&world, "escalate", &seat, &[("NIKA_KNOWLEDGE", &snapshot)]);
     seat.shutdown();
     let bodies = seat.bodies();
     assert_eq!(
         bodies.len(),
-        1,
-        "one native call, no private plan: {bodies:#?}"
+        2,
+        "one native call, no private plan, then the answer round's judge: {bodies:#?}"
     );
+    assert!(!judged(&bodies[0]) && judged(&bodies[1]), "{bodies:#?}");
     assert!(
         bodies[0]["response_format"]["json_schema"]["schema"]["properties"]["candidate"]
             .is_object(),
@@ -377,7 +396,10 @@ fn the_default_strategy_escalates_and_only_the_native_door_reads_the_pack() {
 #[test]
 fn a_snapshot_that_goes_stale_under_the_session_refuses_the_revision_and_the_proposal_waits() {
     let world = world();
-    let seat = LoopbackSeat::start(vec![native_answer(&candidate("mock/echo", false))]);
+    let seat = LoopbackSeat::start(vec![
+        native_answer(&candidate("mock/echo", false)),
+        JUDGE_APPROVES.to_owned(),
+    ]);
     let snapshot = world.foundry.snapshot.display().to_string();
     let report = run_child(
         &world,
@@ -389,11 +411,14 @@ fn a_snapshot_that_goes_stale_under_the_session_refuses_the_revision_and_the_pro
         ],
     );
     seat.shutdown();
+    let bodies = seat.bodies();
+    // The question round, then its answer round's judge (native step 2), before the revision.
     assert_eq!(
-        seat.bodies().len(),
-        1,
-        "the refused revision sent nothing to the seat"
+        bodies.len(),
+        2,
+        "the refused revision sent nothing to the seat: {bodies:#?}"
     );
+    assert!(!judged(&bodies[0]) && judged(&bodies[1]), "{bodies:#?}");
     let steps = report["steps"].as_array().unwrap();
     let last = steps.last().unwrap();
     assert_eq!(last["kind"], "refusal", "{report:#}");

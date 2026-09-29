@@ -3,7 +3,8 @@
 //! The native strategy (treatment D): a seat writes the `.nika` candidate from the authoring
 //! workspace's knowledge; the compiler judges it (parser · Check · fidelity laws against the
 //! original request), sends structured diagnostics back for a bounded repair, asks the business
-//! questions the seat declared, bakes the answers in and replays the record with zero calls.
+//! questions the seat declared, bakes the answers in and replays the record with zero calls. A
+//! replayed finish waits for its round's judge (R4 A11, step 2): a keyless round holds it.
 //! The reality check of 2026-09-22 (CASE A): « prends ce fichier ./data/paiements.csv, garde
 //! uniquement les paiements payés, calcule le total et fais-moi un petit rapport dans
 //! ./out/rapport.md » must end in a candidate, never a jq question.
@@ -14,7 +15,7 @@ use serde_json::{Value, json};
 use std::time::Duration;
 
 mod common;
-use common::{Judged, Rotating, keys};
+use common::{Judged, Rotating, held_for_its_judge, keys};
 
 #[path = "compile_native/response_recovery.rs"]
 mod response_recovery;
@@ -136,7 +137,8 @@ async fn a_native_candidate_is_judged_repaired_asked_and_replayed() {
     assert_eq!(receipt.context[0]["call"], "native");
     assert_eq!(receipt.context[1]["call"], "native-repair");
     assert_eq!(out.provenance.strategy.map(Strategy::word), Some("native"));
-    // The answer round replays the record: zero calls, the model baked in, READY and checked.
+    // The answer round replays the record: zero calls, the model baked in and checked, then
+    // held for the round's judge (R4 A11, step 2): this keyless round permits none.
     let record = out.provenance.plan.clone().unwrap();
     assert_eq!(record["strategy"], "native");
     let replayed = compile(
@@ -145,7 +147,7 @@ async fn a_native_candidate_is_judged_repaired_asked_and_replayed() {
             .answer("model", r#""openai/gpt-5.2""#),
     )
     .unwrap();
-    assert_eq!(replayed.status, CompileStatus::Ready, "{replayed:#?}");
+    assert!(held_for_its_judge(&replayed, CASE_A), "{replayed:#?}");
     let source = replayed.candidate.as_deref().unwrap();
     assert!(source.contains("model: openai/gpt-5.2"), "{source}");
     assert!(source.contains("nika:convert"), "{source}");
@@ -221,7 +223,8 @@ tasks:
             ),
     )
     .unwrap();
-    assert_eq!(replayed.status, CompileStatus::Ready, "{replayed:#?}");
+    // Baked in, held for the round's judge (R4 A11, step 2): this keyless round permits none.
+    assert!(held_for_its_judge(&replayed, intent), "{replayed:#?}");
     let source = replayed.candidate.as_deref().unwrap();
     assert!(
         source.contains("send_endpoint: \"https://hooks.example.invalid/recap\""),
@@ -496,6 +499,9 @@ async fn a_notify_target_placeholder_is_tolerated_and_its_answered_host_is_grant
     );
     assert!(keys(&out).contains(&"const.send_endpoint"), "{out:#?}");
     let record = out.provenance.plan.clone().unwrap();
+    // The answer round permits its judge (R4 A11, step 2): the explicit approving double judges
+    // the finished bytes; this test reads the emitted workflow.
+    let judge = Judged::approving(&provider);
     let replayed = compile_with_provider(
         &CompileRequest::create(RECAP_INTENT)
             .with_authoring_policy(policy(NativeMode::Only, 1))
@@ -505,7 +511,7 @@ async fn a_notify_target_placeholder_is_tolerated_and_its_answered_host_is_grant
                 "const.send_endpoint",
                 r#""http://hooks.example.invalid/recap""#,
             ),
-        &provider,
+        &judge,
     )
     .await
     .unwrap();
@@ -519,7 +525,12 @@ async fn a_notify_target_placeholder_is_tolerated_and_its_answered_host_is_grant
     assert_eq!(
         provider.calls.load(std::sync::atomic::Ordering::SeqCst),
         1,
-        "zero calls at replay"
+        "no seat call at replay"
+    );
+    assert_eq!(
+        judge.judged.load(std::sync::atomic::Ordering::SeqCst),
+        1,
+        "one judgment at replay"
     );
 }
 
@@ -637,19 +648,19 @@ async fn a_change_in_words_revises_the_base_under_the_seat_and_states_the_delta(
         .await
         .unwrap();
     // The answer round of the same revision replays the record with zero calls (the CLI keys
-    // it by the revision's intent), READY with the answer baked in.
+    // it by the revision's intent), the answer baked in, then
+    // held for the round's judge (R4 A11, step 2): this keyless round permits none.
     let record = out.provenance.plan.clone().expect("the revision's record");
-    let replayed = compile(
-        &CompileRequest::edit(
-            accepted.clone(),
-            "write the recap to ./out/recap.md instead of sending it",
-        )
-        .with_original_intent(RECAP_INTENT)
-        .with_plan(record)
-        .answer("model", r#""mock/echo""#),
+    let answered = CompileRequest::edit(
+        accepted.clone(),
+        "write the recap to ./out/recap.md instead of sending it",
     )
-    .unwrap();
-    assert_eq!(replayed.status, CompileStatus::Ready, "{replayed:#?}");
+    .with_original_intent(RECAP_INTENT)
+    .with_plan(record)
+    .answer("model", r#""mock/echo""#);
+    let replayed = compile(&answered).unwrap();
+    let revised = nika_compile::revise_intent(&answered).unwrap();
+    assert!(held_for_its_judge(&replayed, &revised), "{replayed:#?}");
     assert!(
         replayed
             .candidate
@@ -732,6 +743,9 @@ async fn a_gap_the_seat_reports_never_vanishes_and_the_human_disposes_of_it() {
     );
     let record = out.provenance.plan.clone().unwrap();
     assert_eq!(record["gaps"], json!(["et archive-le dans Notion"]));
+    // The answer round permits its judge (R4 A11, step 2): the explicit approving double judges
+    // the finished bytes, the disposition recorded beside them.
+    let judge = Judged::approving(&provider);
     let replayed = compile_with_provider(
         &CompileRequest::create(RECAP_INTENT)
             .with_authoring_policy(policy(NativeMode::Only, 1))
@@ -742,11 +756,12 @@ async fn a_gap_the_seat_reports_never_vanishes_and_the_human_disposes_of_it() {
                 r#""http://hooks.example.invalid/recap""#,
             )
             .answer("gap.1", r#""drop""#),
-        &provider,
+        &judge,
     )
     .await
     .unwrap();
     assert_eq!(replayed.status, CompileStatus::Ready, "{replayed:#?}");
+    assert_eq!(judge.judged.load(std::sync::atomic::Ordering::SeqCst), 1);
     assert!(!keys(&replayed).contains(&"gap.1"), "{replayed:#?}");
     let dispositions = replayed.provenance.decision.as_ref().unwrap()["gap_dispositions"].clone();
     assert_eq!(
@@ -839,14 +854,15 @@ async fn a_sketch_is_judged_structurally_then_filled_and_emitted() {
         "{source}"
     );
     assert!(!source.contains("nika:fetch"), "{source}");
-    // The answer round replays the record with zero calls: READY and checked.
+    // The answer round replays the record with zero calls, checked, then
+    // held for the round's judge (R4 A11, step 2): this keyless round permits none.
     let replayed = compile(
         &CompileRequest::create(intent)
             .with_plan(record)
             .answer("model", r#""mock/echo""#),
     )
     .unwrap();
-    assert_eq!(replayed.status, CompileStatus::Ready, "{replayed:#?}");
+    assert!(held_for_its_judge(&replayed, intent), "{replayed:#?}");
     let candidate = replayed.candidate.as_deref().unwrap();
     assert!(
         candidate.contains("model: mock/echo") && candidate.contains("nika:jq"),
@@ -885,10 +901,11 @@ async fn a_candidate_answered_in_lines_is_judged_and_replayed_without_a_call() {
         let replay = CompileRequest::create(CASE_A)
             .with_plan(record)
             .answer("model", r#""mock/echo""#);
-        let ready = compile(&replay).unwrap();
-        assert_eq!(ready.status, CompileStatus::Ready, "{ready:#?}");
+        let replayed = compile(&replay).unwrap();
+        // Held for the round's judge (R4 A11, step 2): this keyless round permits none.
+        assert!(held_for_its_judge(&replayed, CASE_A), "{replayed:#?}");
         assert!(
-            ready.provenance.authoring.is_none(),
+            replayed.provenance.authoring.is_none(),
             "replay uses no provider"
         );
     }
@@ -1035,15 +1052,16 @@ async fn lines_keep_fidelity_refusal_and_bounded_repair() {
     assert!(first.contains("UNREALIZED PATH"), "{first}");
     assert!(first.contains("INVENTED LITERAL"), "{first}");
     assert_eq!(out.provenance.plan.as_ref().unwrap()["source"], right);
-    let ready = compile(
+    let replayed = compile(
         &CompileRequest::create(CASE_A)
             .with_plan(out.provenance.plan.unwrap())
             .answer("model", r#""mock/echo""#),
     )
     .unwrap();
-    assert_eq!(ready.status, CompileStatus::Ready, "{ready:#?}");
-    assert!(ready.provenance.authoring.is_none());
-    assert!(ready.check_preview.unwrap().report.is_clean());
+    // Held for the round's judge (R4 A11, step 2): this keyless round permits none.
+    assert!(held_for_its_judge(&replayed, CASE_A), "{replayed:#?}");
+    assert!(replayed.provenance.authoring.is_none());
+    assert!(replayed.check_preview.unwrap().report.is_clean());
 }
 
 #[tokio::test]
@@ -1102,7 +1120,9 @@ tasks:
     let replay =
         compile(&CompileRequest::create(intent).with_plan(outcome.provenance.plan.unwrap()))
             .unwrap();
-    assert_eq!(replay.status, CompileStatus::Ready, "{replay:#?}");
+    // The same bytes, held for the round's judge (R4 A11, step 2): this keyless round permits
+    // none.
+    assert!(held_for_its_judge(&replay, intent), "{replay:#?}");
     assert_eq!(replay.candidate.as_deref(), Some(source));
     assert!(replay.provenance.authoring.is_none());
 }

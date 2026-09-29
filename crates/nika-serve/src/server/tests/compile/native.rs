@@ -457,6 +457,24 @@ pub(super) fn token_of(response: &WireResponse) -> String {
     token
 }
 
+/// A native finish a deterministicOnly answer round held for its judge (native step 2): the
+/// whole request still open and the finding naming the judge a round can permit.
+fn assert_held(document: &Value) {
+    let open = &document["provenance"]["decision"]["pending"]["open"];
+    assert!(
+        open.as_array().is_some_and(|open| !open.is_empty()),
+        "{document:#}"
+    );
+    assert!(
+        document["diagnostics"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .any(|d| d.to_string().contains("semantic_verification")),
+        "{document:#}"
+    );
+}
+
 /// The text of the first message of a role in a body the seat received.
 fn message(body: &Value, role: &str) -> String {
     body["messages"]
@@ -594,7 +612,8 @@ async fn a_native_round_reads_the_pinned_pack_under_the_operators_seat_and_its_a
     assert_first_round(&foundry, &world, &seat.bodies()[0], &document);
 
     // The answer round: the kept plan, this round's answers, zero calls — the same plan the
-    // paid round produced, now baked.
+    // paid round produced, now baked and held: a deterministicOnly round permits no judge
+    // (native step 2), so the finish stays INCOMPLETE, its candidate kept as the preview.
     let answers = json!({"answers": {"model": RUN_MODEL}});
     let second = server
         .request(&compile_request(&replay(&token, &answers)))
@@ -607,7 +626,8 @@ async fn a_native_round_reads_the_pinned_pack_under_the_operators_seat_and_its_a
     assert_eq!(second.header("cache-control"), Some("no-store"));
     let replayed = second.json();
     assert_eq!(replayed["compile_version"], 1, "no call, no receipt");
-    assert_eq!(replayed["status"], "ready", "{replayed:#}");
+    assert_eq!(replayed["status"], "incomplete", "{replayed:#}");
+    assert_held(&replayed);
     assert!(
         replayed["candidate"]
             .as_str()
@@ -691,8 +711,11 @@ async fn a_revision_in_words_reads_its_base_beside_the_original_intent_and_repla
         .request(&compile_request(&edit("deterministicOnly", &replay_fields)))
         .await;
     assert_eq!(second.status, 200, "{}", second.body);
+    // Held for its judge (native step 2): deterministicOnly permits none, so the replayed
+    // revision stays INCOMPLETE with its candidate kept as the preview, still zero calls.
     let replayed = second.json();
-    assert_eq!(replayed["status"], "ready", "{replayed:#}");
+    assert_eq!(replayed["status"], "incomplete", "{replayed:#}");
+    assert_held(&replayed);
     let candidate_text = replayed["candidate"].as_str().expect("candidate");
     assert!(candidate_text.contains("./c.md") && candidate_text.contains(RUN_MODEL));
 

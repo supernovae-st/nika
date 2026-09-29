@@ -3,8 +3,9 @@
 //! A revision that asks: the change names the old destination beside the new one, so the
 //! compiler proves the substitution structural but leaves the old path's disposition to the
 //! human (`gap.1`). The question is answered through the Session's authoring round — the same
-//! EDIT (exact base, change, original request) replayed from its recorded plan with zero calls —
-//! into the revised proposal; a cancel restores the proposal it revised, exactly. While the
+//! EDIT (exact base, change, original request) replayed from its recorded plan, its one call the
+//! judge the seat is permitted as when the round finishes (native step 2) — into the revised
+//! proposal; a cancel restores the proposal it revised, exactly. While the
 //! question waits no consent reaches either proposal. Loopback seat only; nothing runs.
 use super::*;
 use crate::turn::RoutingMethod;
@@ -21,14 +22,21 @@ fn revised() -> String {
     reply.to_string()
 }
 
-/// The loopback seat: the original candidate, the judge's approval of it (native step 1),
-/// then the seat's revision. Any further request would be counted.
+/// The loopback seat: the original candidate, the judge's approval of it (native step 1), the
+/// seat's revision, then the judge's approval of the answer round that finishes it (native step
+/// 2: the seat permitted as that round's judge). Any further request would be counted.
 fn seat(revision: &str) -> Peer {
     Peer::start(vec![
         (200, response(&native())),
         (200, response(JUDGE_APPROVES)),
         (200, response(revision)),
+        (200, response(JUDGE_APPROVES)),
     ])
+}
+
+/// Whether a request the seat received is the judge's closed choice (faithful · unfaithful).
+fn judged(body: &Value) -> bool {
+    body.to_string().contains("unfaithful")
 }
 
 /// The door's classifier: the change is a MODIFY wherever it is said; any other line is an
@@ -165,7 +173,13 @@ fn a_revision_question_is_answered_into_the_revised_proposal_saved_only() {
         panic!("the revised proposal: {out:?}");
     };
     assert_ne!(*id, was.id);
-    assert_eq!(peer.bodies().len(), 3, "an answer replays: no call");
+    let bodies = peer.bodies();
+    assert_eq!(
+        bodies.len(),
+        4,
+        "an answer replays: its one call is the round's judge"
+    );
+    assert!(judged(&bodies[3]) && !judged(&bodies[2]), "{:#}", bodies[3]);
     assert!(s.pending_question().is_none());
     let revision = s.pending.clone().expect("the revised proposal waits");
     let bytes = bytes_of(&revision);
@@ -185,7 +199,7 @@ fn a_revision_question_is_answered_into_the_revised_proposal_saved_only() {
     assert_eq!(saved.expect("saved"), bytes);
     assert!(!dir.path().join("revised.txt").exists());
     assert!(!dir.path().join("sortie.txt").exists());
-    assert_eq!(peer.bodies().len(), 3);
+    assert_eq!(peer.bodies().len(), 4);
 }
 
 #[test]
@@ -289,8 +303,8 @@ fn every_disposition_and_a_change_at_the_question_stay_in_the_revision() {
     assert!(bytes.contains("./revised.txt"), "{bytes}");
     assert_eq!(
         peer.bodies().len(),
-        3,
-        "answers replay: nothing read afresh"
+        4,
+        "answers replay: nothing read afresh, the finishing round's judge alone"
     );
 }
 
@@ -321,7 +335,7 @@ fn a_saved_workflows_revision_question_is_answered_through_its_edit() {
     assert!(bytes.contains("./revised.txt"), "{bytes}");
     let now = std::fs::read_to_string(dir.path().join(&saved)).expect("still saved");
     assert_eq!(now, base, "nothing written before a consent");
-    assert_eq!(peer.bodies().len(), 3);
+    assert_eq!(peer.bodies().len(), 4);
 }
 
 /// A refused spending line at the question expires what waits, the set-aside proposal with it:

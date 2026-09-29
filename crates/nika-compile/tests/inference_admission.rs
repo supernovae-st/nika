@@ -91,7 +91,7 @@ impl Drop for Metered {
 mod common;
 
 mod native {
-    use super::common::{Judged, keys};
+    use super::common::{Judged, held_for_its_judge, keys};
     use super::{MODEL, Metered as Rotating};
     use nika_compile::{
         AuthoringPolicy, CompileRequest, CompileStatus, NativeMode, Strategy, compile,
@@ -277,7 +277,8 @@ outputs:
         assert_eq!(receipt.context[0]["call"], "native");
         assert_eq!(receipt.context[1]["call"], "native-repair");
         assert_eq!(out.provenance.strategy.map(Strategy::word), Some("native"));
-        // The answer round replays the record: zero calls, the model baked in, READY and checked.
+        // The answer round replays the record: zero calls, the model baked in and checked, then
+        // held for the round's judge (R4 A11, step 2): this keyless round permits none.
         let record = out.provenance.plan.clone().unwrap();
         assert_eq!(record["strategy"], "native");
         let replayed = compile(
@@ -286,7 +287,7 @@ outputs:
                 .answer("model", r#""openai/gpt-5.2""#),
         )
         .unwrap();
-        assert_eq!(replayed.status, CompileStatus::Ready, "{replayed:#?}");
+        assert!(held_for_its_judge(&replayed, CASE_A), "{replayed:#?}");
         let source = replayed.candidate.as_deref().unwrap();
         assert!(source.contains("model: openai/gpt-5.2"), "{source}");
         assert!(source.contains("nika:convert"), "{source}");
@@ -373,14 +374,15 @@ outputs:
             "{source}"
         );
         assert!(!source.contains("nika:fetch"), "{source}");
-        // The answer round replays the record with zero calls: READY and checked.
+        // The answer round replays the record with zero calls, checked, then
+        // held for the round's judge (R4 A11, step 2): this keyless round permits none.
         let replayed = compile(
             &CompileRequest::create(intent)
                 .with_plan(record)
                 .answer("model", r#""mock/echo""#),
         )
         .unwrap();
-        assert_eq!(replayed.status, CompileStatus::Ready, "{replayed:#?}");
+        assert!(held_for_its_judge(&replayed, intent), "{replayed:#?}");
         let candidate = replayed.candidate.as_deref().unwrap();
         assert!(
             candidate.contains("model: mock/echo") && candidate.contains("nika:jq"),
@@ -491,19 +493,19 @@ outputs:
             .await
             .unwrap();
         // The answer round of the same revision replays the record with zero calls (the CLI keys
-        // it by the revision's intent), READY with the answer baked in.
+        // it by the revision's intent), the answer baked in, then
+        // held for the round's judge (R4 A11, step 2): this keyless round permits none.
         let record = out.provenance.plan.clone().expect("the revision's record");
-        let replayed = compile(
-            &CompileRequest::edit(
-                accepted.clone(),
-                "write the recap to ./out/recap.md instead of sending it",
-            )
-            .with_original_intent(RECAP_INTENT)
-            .with_plan(record)
-            .answer("model", r#""mock/echo""#),
+        let answered = CompileRequest::edit(
+            accepted.clone(),
+            "write the recap to ./out/recap.md instead of sending it",
         )
-        .unwrap();
-        assert_eq!(replayed.status, CompileStatus::Ready, "{replayed:#?}");
+        .with_original_intent(RECAP_INTENT)
+        .with_plan(record)
+        .answer("model", r#""mock/echo""#);
+        let replayed = compile(&answered).unwrap();
+        let revised = nika_compile::revise_intent(&answered).unwrap();
+        assert!(held_for_its_judge(&replayed, &revised), "{replayed:#?}");
         assert!(
             replayed
                 .candidate

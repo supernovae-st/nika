@@ -224,7 +224,7 @@ pub fn composed_record(
         _ => "the native door did not present the pack to the seat".to_owned(),
     });
     // What authored with the pack — the round's receipt in brief — kept with the record, so a
-    // candidate an answer round replays (zero calls) still names its model, host and usage.
+    // candidate an answer round replays (presenting no pack) still names its model, host and usage.
     let seat = out
         .provenance
         .authoring
@@ -386,7 +386,7 @@ pub fn knowledge_lines(record: &Value, text: &mut String) {
             calls.len(),
             if calls.len() == 1 { "" } else { "s" },
             if carried {
-                " of the round that authored this candidate (this answer round replayed it · zero calls)"
+                " of the round that authored this candidate (this answer round replayed it and presented the pack to no call)"
             } else {
                 ""
             }

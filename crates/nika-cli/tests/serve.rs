@@ -697,8 +697,29 @@ fn an_invalid_native_seat_refuses_before_binding() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
+/// A native finish a deterministicOnly answer round held for its judge (native step 2): the
+/// whole request still open, the finding naming the judge to permit, and the answer baked into
+/// the candidate kept as the preview.
+#[cfg(unix)]
+fn assert_held(replayed: &serde_json::Value, answer: &str) {
+    assert_eq!(replayed["status"], "incomplete", "{replayed:#}");
+    let open = &replayed["provenance"]["decision"]["pending"]["open"];
+    assert!(
+        open.as_array().is_some_and(|o| !o.is_empty()),
+        "{replayed:#}"
+    );
+    let findings = replayed["diagnostics"].to_string();
+    assert!(findings.contains("semantic_verification"), "{replayed:#}");
+    let preview = replayed["candidate"].as_str().unwrap_or_default();
+    assert!(
+        preview.contains(answer),
+        "the answer baked into the preview: {replayed:#}"
+    );
+}
+
 /// The real binary, a real Bearer, a controlled seat: the operator's flag seats it, a caller
-/// opts in, the kept round replays with zero calls, and nothing is run or written.
+/// opts in, the kept round replays with zero calls (held for a judge it did not permit), and
+/// nothing is run or written.
 #[cfg(unix)]
 #[test]
 fn serve_authors_natively_over_http_only_for_an_explicit_caller() {
@@ -769,7 +790,8 @@ fn serve_authors_natively_over_http_only_for_an_explicit_caller() {
         assert_eq!(received[0]["model"], "s06-seat");
         assert_eq!(received[0]["max_tokens"].as_u64(), Some(2048));
     }
-    // The answer round: the kept plan, zero calls.
+    // The answer round: the kept plan, zero calls. A deterministicOnly caller permits no judge,
+    // so the finish is held for one (native step 2): INCOMPLETE, the candidate its preview.
     let replay = serde_json::json!({
         "compile_version": 2, "mode": "create", "cognition": "deterministicOnly",
         "replay_token": token_line, "intent": NATIVE_INTENT,
@@ -779,7 +801,7 @@ fn serve_authors_natively_over_http_only_for_an_explicit_caller() {
     let (status, _, body) = compile_post(&address, token_value, &replay);
     assert_eq!(status, 200, "{body}");
     let replayed: serde_json::Value = serde_json::from_str(&body).expect("replayed");
-    assert_eq!(replayed["status"], "ready", "{replayed:#}");
+    assert_held(&replayed, "mistral/mistral-small-latest");
     assert_eq!(bodies.lock().expect("bodies").len(), 1, "zero calls");
     assert!(!dir.join("b.md").exists() && !dir.join(".nika/traces").exists());
     assert!(

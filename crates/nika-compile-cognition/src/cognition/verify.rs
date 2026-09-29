@@ -949,7 +949,9 @@ pub(super) async fn judged_cold<P: ProviderInferDyn>(
 /// finds missing or cannot settle, keeps the outcome INCOMPLETE naming it: an answer round
 /// makes no proposal, so nothing is repaired here, and nothing a record carries is read as a
 /// judgment. With `whole` (the first candidate of a model's plan) the whole request is part
-/// of the remainder.
+/// of the remainder. A native record (the native and the sketch doors write one) is no plan: its
+/// whole request is always the remainder, bound to the reader's plan of the request as the core
+/// binds it (step 2). The route states the verdict after the replay it settles.
 pub(super) async fn replayed<P: ProviderInferDyn>(
     intent: &str,
     saved: &Value,
@@ -974,7 +976,12 @@ pub(super) async fn replayed<P: ProviderInferDyn>(
         (None, Some((policy, provider))) => Judge::Provider(policy, provider),
         (None, None) => return Ok(out),
     };
-    let Ok(plan) = Plan::from_json(saved) else {
+    let native = saved.get("strategy").and_then(Value::as_str) == Some(Strategy::Native.word());
+    let plan = if native {
+        crate::lexicon::read(intent).plan
+    } else if let Ok(plan) = Plan::from_json(saved) {
+        plan
+    } else {
         return Ok(out);
     };
     if out.candidate.is_none() || !open {
@@ -984,12 +991,12 @@ pub(super) async fn replayed<P: ProviderInferDyn>(
     let verdict = verdict_on(intent, request, &plan, &out, &judge, &mut pre).await;
     record(&mut pre, &judge, &verdict, 0);
     if verdict.defects.is_empty() && verdict.unknown.is_empty() {
-        route(&mut pre, &format!("verify: judged ({})", judge.kind()));
         crate::replay_judged(intent, saved, request, &verdict.judgments, whole, &mut pre)?;
+        route(&mut pre, &format!("verify: judged ({})", judge.kind()));
         return Ok(pre);
     }
-    route(&mut pre, "verify: not ready");
     crate::replay_judged(intent, saved, request, &[], whole, &mut pre)?;
+    route(&mut pre, "verify: not ready");
     blocked(&mut pre, &verdict, 0);
     Ok(pre)
 }

@@ -446,7 +446,11 @@ tasks:
                 &CompileRequest::create(INTENT).with_plan(out.provenance.plan.clone().unwrap()),
             )
             .unwrap();
-            assert_eq!(replay.status, CompileStatus::Ready, "{replay:#?}");
+            // Held for the round's judge (R4 A11, step 2): this keyless replay permits none.
+            assert_eq!(replay.status, CompileStatus::Incomplete, "{replay:#?}");
+            let whole = json!([{"clause": INTENT, "witness": null, "spans": [[0, INTENT.len()]]}]);
+            let pending = &replay.provenance.decision.as_ref().unwrap()["pending"]["open"];
+            assert_eq!(pending, &whole, "{replay:#?}");
             assert_eq!(replay.candidate.as_deref(), Some(SOURCE));
             assert!(
                 replay.provenance.authoring.is_none(),

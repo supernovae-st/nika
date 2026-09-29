@@ -265,9 +265,27 @@ caller permits does not judge a native candidate. A candidate found unfaithful, 
 (an abstention, a failed call, a call the ceiling refuses), is withdrawn with its questions, its
 requested boundary and its replayable record, and the request stays INCOMPLETE naming the part;
 no repair round follows the judgment. A native outcome that is not READY in its authoring round
-(a business question or the `model` placeholder open) is not judged there, and an answer round
-that finishes a recorded native candidate (`native_replay`, then `native_apply`) is READY with no
-call and no judge: that door is not judged yet.
+(a business question or the `model` placeholder open) is not judged there: the answer round that
+finishes it is.
+
+The answer round of a native record is judged too (R4 A11, step 2). The native and the sketch
+doors both record strategy `native`. The core's `native_replay` bakes the round's answers into
+the recorded source with zero calls and keeps the whole request pending on a finish the laws
+admit (`decision.pending`); a finish they refuse is returned as it is, and no judge is asked of
+it. `verify::replayed` binds such a record to the reader's plan of the request,
+as the core does. It then asks the round's judge the whole-request question, at most
+`WHOLE_QUESTIONS` requests: a decision seat the caller permits, else the authoring provider
+through the journaled call when the round's policy is bounded.
+- A faithful verdict under the recomputed binding is READY, and the route says
+  `verify: judged (<kind>)` after the replay.
+- An unfaithful or unsettled verdict stays INCOMPLETE naming the part, with the candidate kept as
+  the preview. Nothing is repaired in an answer round.
+- With no judge permitted, the round is INCOMPLETE and the core's finding names the judge to
+  permit.
+
+A native revision's answer round (`revise`) takes the same door. A judgment is never read from a
+record, so a transport whose native answer rounds made no call now permits a judge in them (one
+request for a faithful verdict, two for an unfaithful one) or gets INCOMPLETE.
 
 The authority's worst case (`authority::worst_case`, R4 A11, nv1b) counts every request a
 configuration can send, the verifier's included, so the review a caller signs bounds them all.
