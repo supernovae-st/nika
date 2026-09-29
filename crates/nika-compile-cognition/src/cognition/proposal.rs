@@ -20,6 +20,7 @@ use serde::Deserialize;
 
 mod effects;
 mod material;
+mod seat_rules;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -1141,7 +1142,7 @@ pub(super) fn merge(
                 &proposal.unknowns,
                 &reading.columns,
             )
-            && !plan.rules.iter().any(|r| r.text() == rule.text())
+            && seat_rules::join(&mut plan, rule, out)
         {
             for slot in slots {
                 if plan.slots.iter().any(|s| s.key == slot.key) {
@@ -1159,7 +1160,6 @@ pub(super) fn merge(
                 slotted.push(slot.label.clone());
                 plan.slots.push(slot);
             }
-            plan.rules.push(rule);
         }
         plan.push_step(Step::new(op, evidence, step.detail, step.categories));
     }

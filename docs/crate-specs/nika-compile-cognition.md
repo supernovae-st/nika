@@ -24,6 +24,17 @@ native record application and replay stay in core and are shared by accepted can
 and answer rounds. Candidate, fidelity and sketch laws come from `nika-compile-fidelity`
 (ADR-141); no Reader implementation is duplicated.
 
+A seat's admitted typed rule joins the reader's reading of the same clause
+(`proposal::seat_rules`, E38). A clause the reader holds no rule of takes it. A seat rule that
+adds stages (a projection, numbers, an order, a limit, a grouping) over the reader's plain filter
+with the same clauses, junction and lines replaces it, and an Applied finding says so. A seat rule
+that adds stages over a plain reader filter whose clauses, junction or lines differ keeps the
+reader's rule and records the disagreement as work no model settles, so the request is
+incomplete. A reader rule that already carries stages binds unchanged (R4 A3), and a seat rule
+with no stage of its own changes nothing. Before, stages a
+seat stated over a clause the reader also read were dropped with no finding, leaving only the
+judge between an incomplete workflow and READY.
+
 A revision in words is judged against the original request and its change together, so a
 path the original states and the change leaves behind (« Copie entree.txt dans a.txt. »,
 then « Finalement, utilise b.txt. ») must not refuse every faithful revision, nor vanish
