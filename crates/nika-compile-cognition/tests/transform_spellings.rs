@@ -1134,6 +1134,83 @@ async fn a_line_format_in_a_program_clause_goes_to_the_judges() {
     );
 }
 
+/// The request of `clause` writing `what`, and the seat's plan of it (treatment B).
+fn writing(clause: &str, what: &str) -> (String, String) {
+    let write = format!("write {what} to ./out/result.json");
+    let text = format!("read ./data/input.csv, {clause}, {write}");
+    let mut proposal = request_of(clause).1;
+    proposal["effects"][0]["evidence"] = json!(write);
+    proposal["regions"][2]["text"] = json!(write);
+    (text, proposal.to_string())
+}
+
+/// B23 R2 (R4 A11): every status's code-point length, as the file spells it. On a file holding
+/// « annulé » (6 code points) beside e + U+0301 (6), the observed stand-in's output equals the
+/// observed spelling's, while U+2400 gives 1: the program's treatment of values the clause does
+/// not state follows the value itself, so an equal output proves no dropped spelling. The law
+/// refuses nothing; the spellings treated apart are recorded (`unmatched_varies`) for the
+/// judges, and the program is due [6, 6, 6] on such a file. The control over « en attente » is the
+/// same. Before, the collision was refused as a drop: INCOMPLETE with the right program.
+#[tokio::test]
+async fn a_length_colliding_with_the_observed_stand_in_is_no_drop() {
+    let clause = format!(
+        "list the code-point length of every status as the file spells it, {LIVRE_NFC} included"
+    );
+    let (text, proposal) = writing(&clause, "the lengths");
+    let jq = ".records | map(.status | length)";
+    let example = json!([
+        {"id": "a1", "item": "x", "status": LIVRE_NFC, "qty": "40"},
+        {"id": "a2", "item": "y", "status": "en attente", "qty": "15"}
+    ]);
+    let answer = json!({"jq": jq, "columns_read": ["status"], "example_input": example, "expected_output": [5, 10]})
+        .to_string();
+    let annule = "annul\u{e9}";
+    for stand_in in [annule, "en attente"] {
+        let seat = Seat::new(vec![proposal.clone(), answer.clone()]);
+        let world = spelled(&[LIVRE_NFD, stand_in], &["x", "y"]);
+        let out = compiled_text(&seat, &text, world, 0).await;
+        assert_eq!(out.status, CompileStatus::Ready, "{stand_in}: {out:#?}");
+        let record = &out.provenance.decision.as_ref().unwrap()["transforms"][0];
+        assert_eq!(
+            record["unjudged"][0]["reason"],
+            json!("unmatched_varies"),
+            "{record:#}"
+        );
+        let rows = json!({"records": [
+            {"id": "r1", "item": "x", "status": LIVRE_NFD, "qty": "40"},
+            {"id": "r2", "item": "y", "status": annule, "qty": "15"},
+            {"id": "r3", "item": "z", "status": LIVRE_NFD, "qty": "2"}
+        ]});
+        assert_eq!(run(&compute(&out), &rows), json!([6, 6, 6]), "{stand_in}");
+    }
+}
+
+/// Guard (R4 A11, B23 F3): the program names the probe text as a jq escape (`"\u2400"`) rather
+/// than as it stands. The literal law reads the escape as a word the request does not state and
+/// refuses the program before the spelling law (a refusal the repair allowance does not take):
+/// it is never emitted and the computation stays asked, so no escaped special case slips past
+/// the rule that a probe text a program names reads no treatment.
+#[tokio::test]
+async fn a_program_naming_the_probe_text_escaped_is_never_emitted() {
+    let jq = format!(
+        ".records | map(if .status == {} then (.qty | tonumber) elif .status == \"\\u2400\" then 1 else 0 end) | add // 0",
+        json!(LIVRE_NFC)
+    );
+    let seat = Seat::new(vec![
+        request_of(&livre()).1.to_string(),
+        program_on(&jq, [LIVRE_NFC, "pr\u{ea}t"], &json!(40)),
+    ]);
+    let world = spelled(&[LIVRE_NFD, "en attente"], &["x", "y"]);
+    let out = compiled(&seat, &livre(), world, 1).await;
+    assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
+    assert!(out.candidate.is_none(), "{out:#?}");
+    let refused = out
+        .diagnostics
+        .iter()
+        .any(|d| d.target == "authoring_transform" && d.message.contains("is not in the request"));
+    assert!(refused, "{out:#?}");
+}
+
 /// The binding and the law, as the core states them: a literal at exact token boundaries only,
 /// never inside another word nor a column name, never a byte-identical spelling, and no case or
 /// compatibility (NFKC) folding.

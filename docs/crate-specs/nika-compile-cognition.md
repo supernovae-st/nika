@@ -135,6 +135,16 @@ neither: the note records the program with its own reason, `treated_apart`, apar
 `every_probe_errs`, and goes to the judges the same way, so the third way the law leaves to the
 verifier is no longer silent.
 
+A drop is shown only by a treatment the answered texts agree on: a text the program names as a
+string of its own is its special case and reads none (F3 names `"␀"`, so the observed value
+reads it), and when the answered texts disagree the program's output follows the value itself,
+where an output equal to one of them proves nothing. B23 R2, every status's code-point length,
+was refused because « annulé » counts 6 code points like the decomposed « livré » while U+2400
+counts 1; it is now admitted, due [6, 6, 6] on such a file, its spellings treated apart
+recorded as `unmatched_varies` (`probe_named` when only a named text answered). The cost is
+named: a byte comparison hidden behind a value-following treatment of unstated values is not
+refused by this law; it reaches the judges with that note.
+
 A candidate a model's plan shaped is judged against the whole request before READY
 (`cognition::verify`, R4 A11). The core names what no law reads from the bytes: a duty a
 step's words only restate (a label), a task carrying words no law reads (unverified), a clause

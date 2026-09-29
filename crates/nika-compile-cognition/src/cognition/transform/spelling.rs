@@ -40,13 +40,20 @@
 //! as a special case still escapes: the observed value is a stand-in, not a proof.
 //!
 //! Every text tried that the program answers is compared, the observed value too when U+2400 is
-//! answered (B23 F3: a program answering U+2400 itself stopped the law there, READY summing 0
-//! where 42 was due); one showing exactly one spelling treated as it is a drop, refused. When no
-//! answered text shows a drop yet the program treats the two spellings apart, the law cannot
-//! tell whether the request means that difference (a requested transformation of the value
-//! does; B23 F2, a program answering the observed value with neither spelling's output, does
-//! not): it refuses nothing, and the same note records it with its own reason
-//! (`treated_apart`), apart from a program erring on every text tried (`every_probe_errs`).
+//! answered; a text the program names as a string of its own is its special case and reads no
+//! treatment (B23 F3: a program answering `"␀"` itself stopped the law there, READY summing 0
+//! where 42 was due; it is now read from the observed value and refused). When the answered texts
+//! agree on one treatment, a spelling treated as it is a drop, refused. When they disagree, the
+//! program's output follows the value itself (B23 R2: a code-point length, where « annulé » and
+//! the decomposed « livré » both count 6), so an equal output proves no drop and nothing is
+//! refused on it. When no drop is shown yet the program treats the two spellings apart, the law
+//! cannot tell whether the request means that difference (a requested transformation of the
+//! value does; B23 F2, a program answering the observed value with neither spelling's output,
+//! does not): it refuses nothing, and the same note records it with its own reason
+//! (`treated_apart`, or `unmatched_varies` when the texts tried disagree), apart from a program
+//! erring on every text tried (`every_probe_errs`) or naming the only one that answered
+//! (`probe_named`). A program whose treatment of unstated values follows the value can thus
+//! hide a byte comparison from this law: it reaches the judges with that note.
 //!
 //! A bounded law over the seat's own example rows and the host's bounded sample, never a proof
 //! that two programs mean the same: a spelling the sample did not show, a column without
@@ -197,15 +204,30 @@ impl Spelled {
                 let how = match (probe(&bound.stated), probe(&bound.observed)) {
                     (Ok(stated), Ok(observed)) => {
                         let tried = bound.tried();
-                        let answered: Vec<Value> =
-                            tried.iter().filter_map(|text| probe(text).ok()).collect();
-                        let drop = answered
+                        // A probe text the program names is its own special case, never a value
+                        // it treats as one the clause does not state (B23 F3 named U+2400).
+                        let named = tried.iter().any(|text| names(program, text));
+                        let answered: Vec<Value> = tried
                             .iter()
-                            .find_map(|none| dropped(stated != *none, observed != *none));
-                        let why = match (drop, answered.is_empty()) {
-                            (Some(_), _) => None,
-                            (None, true) => Some(Unjudged::EveryProbeErrs),
-                            (None, false) => (stated != observed).then_some(Unjudged::TreatedApart),
+                            .filter(|text| !names(program, text))
+                            .filter_map(|text| probe(text).ok())
+                            .collect();
+                        // One treatment of values the clause does not state, when every answered
+                        // text agrees on it. Texts treated apart from one another show an output
+                        // that follows the value itself, where an equal output proves no drop
+                        // (B23 R2: a code-point length).
+                        let agreed = answered.windows(2).all(|pair| pair[0] == pair[1]);
+                        let drop = answered
+                            .first()
+                            .filter(|_| agreed)
+                            .and_then(|none| dropped(stated != *none, observed != *none));
+                        let apart = stated != observed;
+                        let why = match (drop, answered.is_empty(), agreed) {
+                            (Some(_), _, _) => None,
+                            (None, true, _) if named => Some(Unjudged::ProbeNamed),
+                            (None, true, _) => Some(Unjudged::EveryProbeErrs),
+                            (None, false, true) => apart.then_some(Unjudged::TreatedApart),
+                            (None, false, false) => apart.then_some(Unjudged::UnmatchedVaries),
                         };
                         if let Some(why) = why
                             && !unjudged
@@ -238,6 +260,13 @@ fn dropped(kept: bool, spelled: bool) -> Option<&'static str> {
         (false, true) => Some(DROPS_STATED),
         _ => None,
     }
+}
+
+/// Whether `program` names `text` as a string literal of its own: a probe text the program names
+/// is its own special case (B23 F3 answered `"␀"`), never a value it treats as one the clause does
+/// not state. An escaped form is a word the literal law refuses before this law.
+fn names(program: &str, text: &str) -> bool {
+    program.contains(&format!("\"{text}\""))
 }
 
 /// The first value `held` in a column (as the host observed it) that the clause does not state
@@ -283,6 +312,11 @@ const FAILS_STATED: &str =
 const EVERY_PROBE_ERRS: &str = "the program stops with an error on every text the law tried that the clause does not state, so the spelling law could not compare its treatment of the observed spelling with its treatment of the stated one; the judges settle the clause";
 /// Why the law could not judge a program over a binding: the spellings treated apart (B23 F2).
 const TREATED_APART: &str = "the program treats the observed spelling otherwise than the stated one, and neither as it treats any text the law tried that the clause does not state, so the spelling law cannot tell whether the request means that difference (a requested transformation of the value does, a byte comparison does not); the judges settle the clause";
+/// Why the law could not judge a program over a binding: its treatment of values the clause does
+/// not state follows the value itself (B23 R2).
+const UNMATCHED_VARIES: &str = "the program treats the texts the law tried that the clause does not state apart from one another (its output follows the value itself), so an output equal to one of them proves no dropped spelling; it treats the observed spelling otherwise than the stated one, and the judges settle the clause";
+/// Why the law could not judge a program over a binding: it names the probe text itself.
+const PROBE_NAMED: &str = "the program names the text the law tried as a value the clause does not state and stops with an error on every other text tried, or the host observed none, so no treatment of such a value is left to compare; the judges settle the clause";
 
 /// Why the law could not judge a program over a binding, named in its note and finding.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -292,6 +326,11 @@ enum Unjudged {
     /// The program treats the two spellings apart, and neither as it treats any answered text
     /// tried: no drop to refuse, and no way to tell whether the difference is meant.
     TreatedApart,
+    /// The answered texts tried disagree with one another: the output follows the value, and an
+    /// equal output proves no drop; the two spellings are treated apart.
+    UnmatchedVaries,
+    /// The program names the probe text itself, and no other text tried answered.
+    ProbeNamed,
 }
 
 impl Unjudged {
@@ -300,6 +339,8 @@ impl Unjudged {
         match self {
             Self::EveryProbeErrs => "every_probe_errs",
             Self::TreatedApart => "treated_apart",
+            Self::UnmatchedVaries => "unmatched_varies",
+            Self::ProbeNamed => "probe_named",
         }
     }
     /// The reason in words.
@@ -307,6 +348,8 @@ impl Unjudged {
         match self {
             Self::EveryProbeErrs => EVERY_PROBE_ERRS,
             Self::TreatedApart => TREATED_APART,
+            Self::UnmatchedVaries => UNMATCHED_VARIES,
+            Self::ProbeNamed => PROBE_NAMED,
         }
     }
 }
