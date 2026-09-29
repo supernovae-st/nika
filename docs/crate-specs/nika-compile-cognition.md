@@ -216,10 +216,12 @@ refused call included), `served: unknown` (the provider's internal effort is not
 here), `reasoning_tokens` (null when unreported) and `response_model`. The read-back is the
 adapter's own observation of its serialized request, not an independent network capture.
 
-The COLD plan call and its repair send `opening(intent)` only (the instructions and the
-request text); the observed world, the answers already given, knowledge references and an
-edit's original request reach the native opening alone. That gap is recorded for the
-semantic-context slice, not closed by the effort.
+The COLD plan and its evidence-citation repair send `opening(intent)` (the instructions
+and the request text). The semantic verifier's repair also carries the bound observed world,
+answers, original request and candidate in its untrusted state, and the compiler-owned
+reference in its system message, as described above. The native opening carries the observed
+world, answers, knowledge references and an edit's original request. Reasoning effort alone
+does not add context to any of these calls; the COLD plan's context gap remains open.
 
 ### Response identity evidence
 
