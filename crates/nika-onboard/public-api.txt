@@ -1097,6 +1097,9 @@ impl<T> tracing::instrument::Instrument for nika_onboard::compile_config::Author
 impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile_config::AuthoringSettings
 impl<T> typenum::type_operators::Same for nika_onboard::compile_config::AuthoringSettings
 pub type nika_onboard::compile_config::AuthoringSettings::Output = T
+impl<T> zvariant::optional::NoneValue for nika_onboard::compile_config::AuthoringSettings where T: core::default::Default
+pub type nika_onboard::compile_config::AuthoringSettings::NoneType = T
+pub fn nika_onboard::compile_config::AuthoringSettings::null_value() -> T
 pub const nika_onboard::compile_config::DEFAULT_CALL_TIMEOUT: core::time::Duration
 pub const nika_onboard::compile_config::DEFAULT_MAX_TOKENS: u32
 pub const nika_onboard::compile_config::DEFAULT_REPAIRS: u32

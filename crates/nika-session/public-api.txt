@@ -367,6 +367,9 @@ impl<T> tracing::instrument::Instrument for nika_session::authoring::AuthoringCo
 impl<T> tracing::instrument::WithSubscriber for nika_session::authoring::AuthoringContext
 impl<T> typenum::type_operators::Same for nika_session::authoring::AuthoringContext
 pub type nika_session::authoring::AuthoringContext::Output = T
+impl<T> zvariant::optional::NoneValue for nika_session::authoring::AuthoringContext where T: core::default::Default
+pub type nika_session::authoring::AuthoringContext::NoneType = T
+pub fn nika_session::authoring::AuthoringContext::null_value() -> T
 pub struct nika_session::authoring::AuthoringRound
 pub nika_session::authoring::AuthoringRound::answers: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
 pub nika_session::authoring::AuthoringRound::authoring_receipt: core::option::Option<nika_compile::types::AuthoringReceipt>
@@ -1724,6 +1727,9 @@ impl<T> tracing::instrument::Instrument for nika_session::lifecycle::RunFact
 impl<T> tracing::instrument::WithSubscriber for nika_session::lifecycle::RunFact
 impl<T> typenum::type_operators::Same for nika_session::lifecycle::RunFact
 pub type nika_session::lifecycle::RunFact::Output = T
+impl<T> zvariant::optional::NoneValue for nika_session::lifecycle::RunFact where T: core::default::Default
+pub type nika_session::lifecycle::RunFact::NoneType = T
+pub fn nika_session::lifecycle::RunFact::null_value() -> T
 #[non_exhaustive] pub enum nika_session::lifecycle::Stage
 pub nika_session::lifecycle::Stage::Attention
 pub nika_session::lifecycle::Stage::Declared
@@ -1901,6 +1907,9 @@ impl<T> tracing::instrument::Instrument for nika_session::lifecycle::LifecycleFa
 impl<T> tracing::instrument::WithSubscriber for nika_session::lifecycle::LifecycleFacts
 impl<T> typenum::type_operators::Same for nika_session::lifecycle::LifecycleFacts
 pub type nika_session::lifecycle::LifecycleFacts::Output = T
+impl<T> zvariant::optional::NoneValue for nika_session::lifecycle::LifecycleFacts where T: core::default::Default
+pub type nika_session::lifecycle::LifecycleFacts::NoneType = T
+pub fn nika_session::lifecycle::LifecycleFacts::null_value() -> T
 pub mod nika_session::money
 #[non_exhaustive] pub enum nika_session::money::CapKnowledge
 pub nika_session::money::CapKnowledge::Unknown
@@ -2897,6 +2906,9 @@ impl<T> tracing::instrument::Instrument for nika_session::runtime::IntentDraft
 impl<T> tracing::instrument::WithSubscriber for nika_session::runtime::IntentDraft
 impl<T> typenum::type_operators::Same for nika_session::runtime::IntentDraft
 pub type nika_session::runtime::IntentDraft::Output = T
+impl<T> zvariant::optional::NoneValue for nika_session::runtime::IntentDraft where T: core::default::Default
+pub type nika_session::runtime::IntentDraft::NoneType = T
+pub fn nika_session::runtime::IntentDraft::null_value() -> T
 pub struct nika_session::runtime::SessionRuntime
 pub nika_session::runtime::SessionRuntime::intelligence: nika_session::intelligence::ResolvedSessionIntelligence
 pub nika_session::runtime::SessionRuntime::intent: nika_session::runtime::IntentDraft
@@ -3441,6 +3453,9 @@ impl<T> tracing::instrument::Instrument for nika_session::turn::ConservativeFall
 impl<T> tracing::instrument::WithSubscriber for nika_session::turn::ConservativeFallback
 impl<T> typenum::type_operators::Same for nika_session::turn::ConservativeFallback
 pub type nika_session::turn::ConservativeFallback::Output = T
+impl<T> zvariant::optional::NoneValue for nika_session::turn::ConservativeFallback where T: core::default::Default
+pub type nika_session::turn::ConservativeFallback::NoneType = T
+pub fn nika_session::turn::ConservativeFallback::null_value() -> T
 pub struct nika_session::turn::ReasonerClassifier
 impl nika_session::turn::ReasonerClassifier
 pub fn nika_session::turn::ReasonerClassifier::asking(self, effort: core::option::Option<nika_compile::types::AuthoringReasoning>) -> Self
@@ -4265,6 +4280,9 @@ impl<T> tracing::instrument::Instrument for nika_session::lifecycle::RunFact
 impl<T> tracing::instrument::WithSubscriber for nika_session::lifecycle::RunFact
 impl<T> typenum::type_operators::Same for nika_session::lifecycle::RunFact
 pub type nika_session::lifecycle::RunFact::Output = T
+impl<T> zvariant::optional::NoneValue for nika_session::lifecycle::RunFact where T: core::default::Default
+pub type nika_session::lifecycle::RunFact::NoneType = T
+pub fn nika_session::lifecycle::RunFact::null_value() -> T
 #[non_exhaustive] pub enum nika_session::Stage
 pub nika_session::Stage::Attention
 pub nika_session::Stage::Declared
@@ -4963,6 +4981,9 @@ impl<T> tracing::instrument::Instrument for nika_session::lifecycle::LifecycleFa
 impl<T> tracing::instrument::WithSubscriber for nika_session::lifecycle::LifecycleFacts
 impl<T> typenum::type_operators::Same for nika_session::lifecycle::LifecycleFacts
 pub type nika_session::lifecycle::LifecycleFacts::Output = T
+impl<T> zvariant::optional::NoneValue for nika_session::lifecycle::LifecycleFacts where T: core::default::Default
+pub type nika_session::lifecycle::LifecycleFacts::NoneType = T
+pub fn nika_session::lifecycle::LifecycleFacts::null_value() -> T
 pub struct nika_session::PendingGate
 pub nika_session::PendingGate::message: alloc::string::String
 pub nika_session::PendingGate::mode: alloc::string::String
