@@ -1,0 +1,15 @@
+# The cost-ceiling asset · ACT 1 — a cloud workflow with no output limit.
+# `nika check` prices it offline from the embedded catalog and names the
+# gap: the model has a price but the task has no `max_tokens`, so its
+# spend has no ceiling (UNBOUNDED), and the check prints the fix.
+nika: weekly-update
+model: anthropic/claude-sonnet-4-6
+permits: {}
+
+tasks:
+  update:
+    infer:
+      prompt: "Write this week's team update."
+
+outputs:
+  update: ${{ tasks.update.output }}

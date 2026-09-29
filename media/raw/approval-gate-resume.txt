@@ -1,0 +1,13 @@
+  🦋 nika · gated-ship · 3 tasks
+     permits ✓ declared boundary · exec outside the fs bounds
+
+  ↷  build    cache hit (resume)
+  ✔  approve  invoke · nika:prompt  0ms
+  ✔  ship     exec · printf · untrusted input from ship  11ms
+  3 tasks · 3 waves · 0 retries
+  ── 3/3 done · unmetered · elapsed 0.0s ─────────────────────────
+    wrote .nika/traces
+  explore: nika run gated-ship.nika --json > run.ndjson · nika trace outputs run.ndjson
+    trace: .nika/traces/2026-09-28T21-15-02Z-5b91.ndjson · 14 events · chain 253d6440538ea80089bcf425a2a31c3be00c5ebcc1be6eb34c3d540723296e3b
+
+  resumed · 1 skipped (cache hit) · 2 ran live

@@ -1,0 +1,26 @@
+{
+ "package": {
+  "name": "@supernovae-st/nika",
+  "version": "0.120.3"
+ },
+ "engine": {
+  "source": "bundled",
+  "version": "0.120.3",
+  "build": "578352a31",
+  "run_journal_says": "0.120.3",
+  "payload": {
+   "name": "@supernovae-st/nika-linux-x64",
+   "version": "0.120.3",
+   "sha256": "f545cb83ce05504999d40559ade374acb5326c1773468bc73adb743678d93272",
+   "sha256_matches_integrity": true,
+   "release": {
+    "tag": "v0.120.3",
+    "commit": "578352a31254ff04025ac6207bcf6f40d3911613"
+   }
+  }
+ },
+ "node": "v22.22.2",
+ "typescript": "5.9.3",
+ "command": "node demo.mts",
+ "signing_key": "nika key init in a scratch HOME (NIKA_KEYCHAIN=off: file custody)"
+}

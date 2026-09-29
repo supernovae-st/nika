@@ -1,19 +1,20 @@
-nika check · broken-pr-review.nika.yaml
+nika check · broken-pr-review.nika
  ✖ CONFORM  [NIKA-DAG-002] unknown dependency: task `comment` depends on `asses`, which does not exist — did you mean `assess`?
    fix: nika explain NIKA-DAG-002 · https://nika.sh/language/errors/NIKA-DAG-002
-   ╭▸ scripts/media/fixtures/broken-pr-review.nika.yaml:28:13
+   ╭▸ scripts/media/fixtures/broken-pr-review.nika:28:13
    │
 28 │       risk: ${{ tasks.asses.output.risk }}
    ╰╴            ━
  ✖ CONFORM  [NIKA-VAR-021] task `assess` a verb field references `tasks.diff` — outside the boundary; hoist it into `with:` and read `${{ with.<name> }}` (`nika check --fix` applies it)
    fix: nika explain NIKA-VAR-021 · https://nika.sh/language/errors/NIKA-VAR-021
-   ╭▸ scripts/media/fixtures/broken-pr-review.nika.yaml:18:9
+   ╭▸ scripts/media/fixtures/broken-pr-review.nika:18:9
    │
 18 │         Risk-assess this diff. Be terse.
    ╰╴        ━
  PLAN     (skipped — no valid DAG order while conformance fails)
- ✔ MODELS   1 model resolves in this binary · local servers not probed (nika doctor --ping)
- ⚠  COST     bounded portion $0.0000 no total ceiling · 1 uncapped task · prompts, exec + mcp unpriced · prices 2026-07-28
+ ✔ MODELS   1 model resolves in this binary · local servers not probed (nika doctor --ping) · this machine's paths on the ACCESS line
+ ✔ ACCESS   ollama/llama3.1 → ollama (local · local · declared) · present · liveness judged at run
+ ⚠  COST     bounded portion $0.0000 no total ceiling · 1 uncapped task · prompts, exec + mcp unpriced · prices 2026-09-23
    assess  ollama/llama3.1  UNBOUNDED — no max_tokens declared
  ⚠  ENERGY   no total energy ceiling · 0 of 1 tasks measured · 1 uncapped · never 0 Wh (NEP-0018)
  ○ SECRETS  (skipped — no valid DAG order while conformance fails)
@@ -22,12 +23,17 @@ nika check · broken-pr-review.nika.yaml
  ✔ ARGS     every builtin invoke arg key is declared + required args present
  ✔ SCHEMA   no known-unsatisfiable form in an authored schema: · $ref opaque
  ○ GATES    (skipped — no valid DAG order while conformance fails)
- ✔ WRITES   no two unordered tasks write the same static path · computed paths at run
+ ✔ WRITES   no two unordered tasks write the same static path · computed paths at run · engine writes .nika/traces
  ✔ EXEC     no literal argv the exec floor refuses at run · a templated argv is the RUN's verdict
+ ✔ RETRY    no `retry:` on a keyless mutating `nika:fetch` · a templated method/headers is the RUN's verdict
+ ○ ORDER    (skipped — no valid DAG order while conformance fails)
  ✖ PERMITS  [NIKA-AUTH-006 · exec] task `diff` · exec task under a boundary that forbids shells · fix: add "git" to permits.exec
  ✖ PERMITS  [NIKA-AUTH-006 · fs] task `comment` · invoke `nika:write` with a literal path under an absent `permits:` block · fix: add "nika:write" to permits.tools and the path to permits.fs
- ✔ JOURNEY internal · 0 sources · 2 destinations · 3 model endpoints · no secret reaches a cloud destination
+ ✔ JOURNEY internal · 0 sources · 2 destinations · 1 model endpoint · no secret reaches an external destination
  ↳ HINT     [cost] declare `max_tokens` on `assess` — the cost report becomes a hard ceiling instead of UNBOUNDED
  ↳ HINT     [strictness] `assess`'s schema admits undeclared keys — close its object nodes with `additionalProperties: false` for a deterministic output shape across providers
  ↳ HINT     [swallowed-exit] `capture: structured` on `diff` makes a non-zero exit DATA, not a failure — the task reports success whatever the command returns, and nothing in this workflow reads `exit_code`. A command that fails here is invisible until something downstream chokes on its empty output. Read the branch (`${{ tasks.diff.output.exit_code }}`, or a `nika:assert` on it), or use a text capture mode so a non-zero exit fails the task as NIKA-EXEC-001
- ✖ findings above
+ ✖ findings above · 0 tasks · 0 waves · permits none · est unbounded · 1 uncapped task · 3 hints · risk unbounded — declare max_tokens/ceilings, or cap it on the run: `nika run <file> --max-cost-usd <usd>`
+ ↳ NEXT     run `nika check --fix scripts/media/fixtures/broken-pr-review.nika` to apply safe repairs, then re-check · see `nika explain` for coded findings
+
+ note · the file is `broken-pr-review` and its name is `pr-risk-review` — traces, journal events and errors will all say `pr-risk-review`. Deliberate is fine; a forgotten header after a copy is not.

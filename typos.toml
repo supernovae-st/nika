@@ -28,7 +28,11 @@ extend-ignore-identifiers-re = [
 # The frozen reader's multilingual cue literals in nika-compile (Spanish `columnas`,
 # French `limite` and `seconde`): quoted tokens only, so the English prose around
 # them stays checked.
-extend-ignore-re = ["« [^»]* »", "\"highlihgts\"", "\"chek\"", "view: recods", "classe le problème", "datos del cliente", "\"columnas\"", "\"limite\"", "\"limite \"", "pas de seconde action", "größer als", "o / oder", "\"falso\"", "`falso`", "Copie entree", "Copie\\ \\./data/input\\.csv\\ vers\\ \\./out/copy\\.csv\\.\\ Le\\ budget\\ est\\ de\\ 2\\ dollars\\.", "la copie", "copie-2\\.md", "copie\\.csv", "pas maintenant", "\"quantite\"", "colonne quantite", "\"remplace\"", "remplace explicitement", "salaire_confidentiel", "aout\\.csv"]
+# The film's fixed names from other formats: the OpenType width axis tag
+# `"wdth"` (quoted, beside `"wght"`) in its font build, and the per-plane
+# thresholds `1thr=`/`2thr=`/`3thr=` of ffmpeg's deband filter in its encode.
+# Only those shapes are ignored; the same letters elsewhere stay checked.
+extend-ignore-re = ["« [^»]* »", "\"highlihgts\"", "\"chek\"", "view: recods", "classe le problème", "datos del cliente", "\"columnas\"", "\"limite\"", "\"limite \"", "pas de seconde action", "größer als", "o / oder", "\"falso\"", "`falso`", "Copie entree", "Copie\\ \\./data/input\\.csv\\ vers\\ \\./out/copy\\.csv\\.\\ Le\\ budget\\ est\\ de\\ 2\\ dollars\\.", "la copie", "copie-2\\.md", "copie\\.csv", "pas maintenant", "\"quantite\"", "colonne quantite", "\"remplace\"", "remplace explicitement", "salaire_confidentiel", "aout\\.csv", "\"wdth\"", "[123]thr="]
 
 [default.extend-words]
 # Speaches is a real project (speaches.ai · OpenAI-compat speech server), not a typo of "Speeches".
@@ -56,7 +60,6 @@ objet      = "objet"
 sumary     = "sumary"
 sumamry    = "sumamry"
 wrte       = "wrte"
-digets     = "digets"   # full-loop tape fixture (broken-release-notes · the did-you-mean rung)
 temperture = "temperture"
 nmae       = "nmae"
 strng      = "strng"

@@ -1,0 +1,5 @@
+order_id,customer,status,amount
+1001,Juniper Books,paid,18.00
+1002,Kestrel Cafe,pending,9.50
+1003,Linden Studio,paid,13.50
+1004,Moss Supply,refunded,6.00

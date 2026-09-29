@@ -1,0 +1,27 @@
+{
+  "plan": "invoice-payments",
+  "note": "The semantic plan drawn in the intent-to-proof film. An illustration of the private plan's content, not the compiler's internal format.",
+  "intent": [
+    "Read my invoices.",
+    "Ignore rejected ones.",
+    "Sum by customer.",
+    "Pay only after I approve."
+  ],
+  "sources": [{ "path": "./invoices.json", "observed": true, "records": 4 }],
+  "fields": [
+    { "name": "customer_id", "type": "String", "observed": true },
+    { "name": "status", "type": "Enum", "values": ["approved", "pending", "rejected"], "observed": true },
+    { "name": "amount_cents", "type": "Integer", "unit": "Money<EUR, cents>", "unit_source": "answer", "observed": true },
+    { "name": "sku", "type": "String", "observed": true }
+  ],
+  "operations": [
+    { "op": "read", "source": "./invoices.json" },
+    { "op": "filter", "rule": "status != \"rejected\"" },
+    { "op": "group", "key": "customer_id" },
+    { "op": "sum", "field": "amount_cents" },
+    { "op": "gate", "authority": "human", "before": "effect" },
+    { "op": "pay", "effect": "POST", "destination": "payments.example.invalid" }
+  ],
+  "unknowns": [{ "slot": "currency", "question": "EUR or USD?", "answer": "EUR" }],
+  "effects": 1
+}

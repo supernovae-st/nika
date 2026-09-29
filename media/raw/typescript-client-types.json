@@ -1,0 +1,45 @@
+{
+ "typescript": "5.9.3",
+ "options": "target ES2022 · module NodeNext · strict · types node",
+ "diagnostics": [],
+ "inlayHints": [
+  {
+   "line": 6,
+   "column": 10,
+   "kind": "Type",
+   "text": ": NikaRun<{ greeting: string; }>"
+  },
+  {
+   "line": 7,
+   "column": 13,
+   "kind": "Type",
+   "text": ": NikaRunResult<{ greeting: string; }>"
+  },
+  {
+   "line": 17,
+   "column": 12,
+   "kind": "Type",
+   "text": ": NikaTraceVerifyResult"
+  }
+ ],
+ "hovers": [
+  {
+   "line": 7,
+   "column": 7,
+   "word": "result",
+   "quickInfo": "const result: NikaRunResult<{\n    greeting: string;\n}>"
+  },
+  {
+   "line": 14,
+   "column": 29,
+   "word": "greeting",
+   "quickInfo": "(property) greeting: string | undefined"
+  },
+  {
+   "line": 17,
+   "column": 26,
+   "word": "traceVerify",
+   "quickInfo": "(method) Nika.traceVerify(receipt: NikaReceipt, options?: NikaTraceVerifyOptions): Promise<NikaTraceVerifyResult>"
+  }
+ ]
+}

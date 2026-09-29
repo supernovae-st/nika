@@ -1,0 +1,26 @@
+nika check · weekly-update.nika
+ ✔ PLAN     1 wave · 1 task · max parallelism 1
+      wave 1 update (infer · anthropic/claude-sonnet-4-6)
+ ✔ MODELS   1 model resolves in this binary · this machine's paths on the ACCESS line
+ ✖ ACCESS   anthropic/claude-sonnet-4-6 → no path on this machine · anthropic · not_configured (access layer) · ANTHROPIC_API_KEY unset in process env · claude-code · not_configured (access layer) · not installed · Claude Code is not installed. Install it or pick Nika local / Nika Cloud.
+ ⚠  COST     bounded portion $0.0000 no total ceiling · 1 uncapped task · prompts, exec + mcp unpriced · prices 2026-09-23
+   update  anthropic/claude-sonnet-4-6  UNBOUNDED — no max_tokens declared
+ ⚠  ENERGY   no total energy ceiling · 0 of 1 tasks measured · 1 uncapped · never 0 Wh (NEP-0018)
+ ✔ SECRETS  no declared secret reaches an effect · model echo untracked
+ ✔ TYPES    deep references fit the shapes tasks declare · builtin output has none
+ ✔ TOOLS    every named nika: tool is canonical · globs + mcp: not checked
+ ✔ ARGS     every builtin invoke arg key is declared + required args present
+ ✔ SCHEMA   no known-unsatisfiable form in an authored schema: · $ref opaque
+ ✔ GATES    no task proven dead · status literals in vocabulary
+ ✔ WRITES   no two unordered tasks write the same static path · computed paths at run · engine writes .nika/traces
+ ✔ EXEC     no literal argv the exec floor refuses at run · a templated argv is the RUN's verdict
+ ✔ RETRY    no `retry:` on a keyless mutating `nika:fetch` · a templated method/headers is the RUN's verdict
+ ✔ ORDER    no exec: sits downstream of a net-effecting task · unauthored content never reaches a shell
+ ✔ PERMITS  literal + const: args fit the boundary · computed programs, paths + symlinks are the RUN's verdict
+ ✔ TRIFECTA no lethal trifecta over the declared permits: without a human gate
+ ✔ JOURNEY internal · 0 sources · 0 destinations · 1 model endpoint · no secret reaches an external destination
+ ✔ JOURNEY cloud endpoint anthropic · task data leaves this machine · retention 30 · training no
+ ↳ HINT     [cost] declare `max_tokens` on `update` — the cost report becomes a hard ceiling instead of UNBOUNDED
+ ⚠ audited · 1 task · 1 wave · permits {} · est unbounded · 1 uncapped task · 1 hint · risk unbounded — declare max_tokens/ceilings, or cap it on the run: `nika run <file> --max-cost-usd <usd>`
+ layers · valid ✔ · access ready ✖ · capacity fit ✔ · run ready ✖ · access: anthropic/claude-sonnet-4-6 → no path on this machine · anthropic · not_configured (access layer) · ANTHROPIC_API_KEY unset in process env · claude-code · not_configured (access layer) · not installed · Claude Code is not installed. Install it or pick Nika local / Nika Cloud.
+ ↳ NEXT     see `nika explain` for coded findings — nothing here is a typed rename, so these are yours to place

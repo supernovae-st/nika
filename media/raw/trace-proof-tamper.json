@@ -1,0 +1,12 @@
+{
+  "file": "tampered.ndjson",
+  "line": 4,
+  "kind": "task_completed",
+  "key": "tokens",
+  "byte": 4773,
+  "column": 297,
+  "from": "1",
+  "to": "9",
+  "value_from": "10",
+  "value_to": "90"
+}

@@ -1,0 +1,23 @@
+nika check · hello.nika
+ ✔ PLAN     1 wave · 1 task · max parallelism 1
+      wave 1 greeting (infer · mock/echo)
+ ✔ MODELS   1 model resolves in this binary · this machine's paths on the ACCESS line
+ ✔ ACCESS   mock/echo → mock (mock · local · observed) · mock · never dials · nothing to judge
+ ✔ COST     $0.0000 – $0.0000 worst-case output ceiling · prompts, exec + mcp unpriced · prices 2026-07-28
+   greeting  mock/echo  ≤32 tk  $0.0000
+ ○ ENERGY   unpriced — no sourced Wh figure for any task model · never 0 Wh (NEP-0018)
+ ✔ SECRETS  no declared secret reaches an effect · model echo untracked
+ ✔ TYPES    deep references fit the shapes tasks declare · builtin output has none
+ ✔ TOOLS    every named nika: tool is canonical · globs + mcp: not checked
+ ✔ ARGS     every builtin invoke arg key is declared + required args present
+ ✔ SCHEMA   no known-unsatisfiable form in an authored schema: · $ref opaque
+ ✔ GATES    no task proven dead · status literals in vocabulary
+ ✔ WRITES   no two unordered tasks write the same static path · computed paths at run · engine writes .nika/traces
+ ✔ EXEC     no literal argv the exec floor refuses at run · a templated argv is the RUN's verdict
+ ✔ RETRY    no `retry:` on a keyless mutating `nika:fetch` · a templated method/headers is the RUN's verdict
+ ✔ ORDER    no exec: sits downstream of a net-effecting task · unauthored content never reaches a shell
+ ✔ PERMITS  literal + const: args fit the boundary · computed programs, paths + symlinks are the RUN's verdict
+ ✔ TRIFECTA no lethal trifecta over the declared permits: without a human gate
+ ✔ JOURNEY internal · 0 sources · 0 destinations · 1 model endpoint · no secret reaches an external destination
+ ✔ audited · 1 task · 1 wave · permits {} · est out ≤$0.0000 · 0 hints · risk low
+ layers · valid ✔ · access ready ✔ · capacity fit ✔ · run ready ✔

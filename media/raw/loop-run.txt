@@ -1,0 +1,13 @@
+rehearsal: mock/echo answers by echoing the prompt — not a real answer · a real one: `--model <provider/model>` with its key, or `--access <seat>` (nika doctor lists them)
+  🦋 nika · hello · 1 task
+     permits ✓ declared boundary · default-deny
+
+  ✔  greet  infer · mock/echo  0ms
+  1 task · 1 wave · 0 retries · 10 tok
+  ── 1/1 done · unpriced (1 call) · elapsed 0.0s ─────────────────
+    wrote .nika/traces
+    said "mock(echo) · Say hello in French, in one sh…"
+    see it whole: nika trace outputs
+    rehearsal · a mock model echoed the prompt — not a real answer
+  explore: nika run hello.nika --json > run.ndjson · nika trace outputs run.ndjson
+    trace: .nika/traces/2026-09-28T15-40-33Z-85f5.ndjson · 5 events · chain c8e85d1799355c7e70543bb41e37133240b00409c1186e6315cd6b56f178f782

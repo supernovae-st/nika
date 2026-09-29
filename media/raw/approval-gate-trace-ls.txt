@@ -1,0 +1,4 @@
+  trace                             age    size  workflow    state
+  2026-09-28T21-15-02Z-5b91.ndjson   0s  11.2KB  gated-ship  succeeded ★
+  2026-09-28T21-15-02Z-d309.ndjson   0s   8.3KB  gated-ship  paused
+  2 trace(s) · 19.6KB · 1 paused · .nika/traces

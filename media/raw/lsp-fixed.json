@@ -1,0 +1,17 @@
+[
+ {
+  "message": "[swallowed-exit] diff: `capture: structured` on `diff` makes a non-zero exit DATA, not a failure — the task reports success whatever the command returns, and nothing in this workflow reads `exit_code`. A command that fails here is invisible until something downstream chokes on its empty output. Read the branch (`${{ tasks.diff.output.exit_code }}`, or a `nika:assert` on it), or use a text capture mode so a non-zero exit fails the task as NIKA-EXEC-001",
+  "range": {
+   "end": {
+    "character": 6,
+    "line": 8
+   },
+   "start": {
+    "character": 2,
+    "line": 8
+   }
+  },
+  "severity": 4,
+  "source": "nika"
+ }
+]

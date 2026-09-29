@@ -1,0 +1,6 @@
+[
+  { "customer_id": "ACME",   "status": "approved", "amount_cents": 12000, "sku": "A120" },
+  { "customer_id": "BRAVO",  "status": "approved", "amount_cents": 10000, "sku": "B200" },
+  { "customer_id": "BRAVO",  "status": "pending",  "amount_cents": 800,   "sku": "B310" },
+  { "customer_id": "CIRRUS", "status": "rejected", "amount_cents": 9500,  "sku": "C045" }
+]

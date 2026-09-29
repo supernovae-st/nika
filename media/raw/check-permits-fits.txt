@@ -1,11 +1,12 @@
-nika check · permits-fits.nika.yaml
+nika check · permits-fits.nika
  ✔ PLAN     3 waves · 4 tasks · max parallelism 2
       wave 1 release (invoke · nika:fetch) · changelog_page (invoke · nika:fetch)
       wave 2 brief (infer · ollama/llama3.2:3b)
       wave 3 save (invoke · nika:write)
- ✔ MODELS   1 model resolves in this binary · local servers not probed (nika doctor --ping)
- ⚠  COST     bounded portion $0.0000 no total ceiling · 1 unpriced task · prompts, exec + mcp unpriced · prices 2026-07-28
-   brief  ollama/llama3.2:3b  UNBOUNDED — no catalog price (local/unknown model)
+ ✔ MODELS   1 model resolves in this binary · local servers not probed (nika doctor --ping) · this machine's paths on the ACCESS line
+ ✔ ACCESS   ollama/llama3.2:3b → ollama (local · local · declared) · present · liveness judged at run
+ ⚠  COST     bounded portion $0.0000 no total ceiling · 1 unpriced task · prompts, exec + mcp unpriced · prices 2026-09-23
+   brief  ollama/llama3.2:3b  UNBOUNDED — no catalog price (local model; spend not metered)
  ○ ENERGY   unpriced — no sourced Wh figure for any task model · a local model draws your watts · never 0 Wh (NEP-0018)
  ✔ SECRETS  no declared secret reaches an effect · model echo untracked
  ✔ TYPES    deep references fit the shapes tasks declare · builtin output has none
@@ -13,9 +14,16 @@ nika check · permits-fits.nika.yaml
  ✔ ARGS     every builtin invoke arg key is declared + required args present
  ✔ SCHEMA   no known-unsatisfiable form in an authored schema: · $ref opaque
  ✔ GATES    no task proven dead · status literals in vocabulary
- ✔ WRITES   no two unordered tasks write the same static path · computed paths at run
+ ✔ WRITES   no two unordered tasks write the same static path · computed paths at run · engine writes .nika/traces
  ✔ EXEC     no literal argv the exec floor refuses at run · a templated argv is the RUN's verdict
- ✔ PERMITS  literal + const: args fit the boundary · computed paths + symlinks are the RUN's verdict
+ ✔ RETRY    no `retry:` on a keyless mutating `nika:fetch` · a templated method/headers is the RUN's verdict
+ ✔ ORDER    no exec: sits downstream of a net-effecting task · unauthored content never reaches a shell
+ ✔ PERMITS  literal + const: args fit the boundary · computed programs, paths + symlinks are the RUN's verdict
  ✔ TRIFECTA no lethal trifecta over the declared permits: without a human gate
- ✔ JOURNEY internal · 0 sources · 3 destinations · 4 model endpoints · no secret reaches a cloud destination
- ⚠ audited · 4 tasks · 3 waves · permits declared · est unbounded · 1 unpriced task · 0 hints · risk unbounded — no dollar meter for a local/unknown model · cap a cloud seat on the run: `nika run <file> --max-cost-usd <usd>`
+ ✔ JOURNEY internal · 0 sources · 3 destinations · 1 model endpoint · no secret reaches an external destination
+ ↳ HINT     [permits] `permits.fs.write` is wider than the body needs — the tightest boundary this file can run under is `write: ["out/brief.md"]`, derived from every literal path it reaches. `nika check --infer-permits` writes the whole block; the run enforces whatever you keep
+ ⚠ audited · 4 tasks · 3 waves · permits tools:nika:fetch,nika:write write:./out/** http:api.github.com,nika.sh · est unbounded · 1 unpriced task · 1 hint · risk unbounded — no dollar meter for a local/unknown model · cap a cloud seat on the run: `nika run <file> --max-cost-usd <usd>` · no ceiling on the grant: fs.write ./out/** · narrow it to what the body reaches (`nika check --infer-permits <file>` derives that boundary)
+ layers · valid ✔ · access ready ✔ · capacity fit ✔ · run ready ✔
+ ↳ NEXT     see `nika explain` for coded findings — nothing here is a typed rename, so these are yours to place
+
+ note · the file is `permits-fits` and its name is `release-brief` — traces, journal events and errors will all say `release-brief`. Deliberate is fine; a forgotten header after a copy is not.

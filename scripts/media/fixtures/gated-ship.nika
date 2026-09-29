@@ -1,0 +1,26 @@
+# Build, ask a human, ship only on yes.
+nika: gated-ship
+
+permits:
+  exec: ["printf"]                     # build + ship · the argv form is the provable one
+  tools: ["nika:prompt"]               # the human gate · default-deny once permits: is present
+
+tasks:
+  build:
+    exec:
+      command: ["printf", "build ok"]
+
+  approve:
+    after:
+      build: success
+    invoke:
+      tool: "nika:prompt"
+      args:
+        message: "Ship this build to production?"
+
+  ship:
+    with:
+      approved: ${{ tasks.approve.output }}
+    when: "${{ with.approved == true }}"
+    exec:
+      command: ["printf", "shipped"]

@@ -3,8 +3,11 @@
 #
 # 1. Every workflow shown in a media asset passes (or fails) `nika check`
 #    exactly as the asset claims.
-# 2. Every required export exists.
+# 2. Every required export exists, including the four exports of every
+#    clip in motion/intent-to-proof/clips/.
 # 3. README GIFs stay under the 8 MB budget; posters under 1 MB.
+# 4. No export predates what it is drawn from: an HTML scene's GIF by commit
+#    time, a clip's media by the source recorded in media/clip-sources.json.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -30,16 +33,17 @@ else
   say "✔ permits-escape fixture fails check (as shown)"
 fi
 
-if nika check "$FIX/broken-release-notes.nika" >/dev/null 2>&1; then
-  say "✖ broken-release-notes fixture PASSES check — the full-loop asset lies"
+if nika check "$FIX/release-notes-draft.nika" >/dev/null 2>&1; then
+  say "✖ release-notes-draft fixture PASSES check — the agent-plugin asset lies"
   fail=1
 else
-  say "✔ broken-release-notes fixture fails check (as shown)"
+  say "✔ release-notes-draft fixture fails check (as shown)"
 fi
 
 for wf in "$FIX/fixed-pr-review.nika" "$FIX/meeting-actions.nika" \
   "$FIX/permits-fits.nika" "$FIX/recover-fallback.nika" \
-  "$FIX/fixed-release-notes.nika" \
+  "$FIX/invoice-payments.nika" "$FIX/release-notes.nika" "$FIX/ship-notes.nika" \
+  "$FIX/cost-unbounded.nika" "$FIX/cost-ceiling.nika" "$FIX/gated-ship.nika" \
   "crates/nika-pack/pack/examples/pr-review-fanout.nika"; do
   if nika check "$wf" >/dev/null 2>&1; then
     say "✔ $(basename "$wf") clean (as shown)"
@@ -58,44 +62,49 @@ required=(
   scripts/media/motion/intent-to-impact/README.md
   media/brand/nika-logomark.svg
   media/gifs/intent-dag-proof.optimized.gif
-  media/gifs/full-loop.optimized.gif
-  media/gifs/static-check-fix.optimized.gif
-  media/gifs/chat-to-workflow.optimized.gif
-  media/gifs/dag-execution.optimized.gif
-  media/gifs/editor-diagnostics.optimized.gif
-  media/gifs/permits-audit.optimized.gif
-  media/gifs/on-error-recover.optimized.gif
-  media/videos/static-check-fix.mp4
-  media/videos/chat-to-workflow.mp4
-  media/videos/dag-execution.mp4
-  media/videos/permits-audit.mp4
-  media/videos/on-error-recover.mp4
-  media/videos/static-check-fix.webm
-  media/videos/chat-to-workflow.webm
-  media/videos/dag-execution.webm
-  media/videos/editor-diagnostics.mp4
-  media/videos/editor-diagnostics.webm
-  media/videos/permits-audit.webm
-  media/videos/on-error-recover.webm
   media/videos/intent-dag-proof.mp4
   media/videos/intent-dag-proof.webm
   media/posters/intent-dag-proof.png
-  media/posters/static-check-fix.png
-  media/posters/chat-to-workflow.png
-  media/posters/dag-execution.png
-  media/posters/editor-diagnostics.png
-  media/posters/permits-audit.png
-  media/posters/on-error-recover.png
   media/storyboards/intent-dag-proof.png
   media/raw/transcripts.json
   scripts/media/motion/intent-dag-proof.storyboard.md
+  media/videos/intent-to-proof.mp4
+  media/gifs/intent-to-proof.optimized.gif
+  media/nika-hero.gif
+  media/clip-sources.json
+  media/social/github-social-preview-1280x640.png
+  media/social/og-card-1600x900.png
+  media/social/check-before-run-1600x900.png
+  media/social/chat-vs-keeping-1600x900.png
+  media/posters/intent-to-proof.png
+  media/storyboards/intent-to-proof.png
+  scripts/media/motion/intent-to-proof/README.md
 )
+# Every clip (motion/intent-to-proof/clips/<name>.mjs) ships four exports:
+# the README GIF, the MP4 and WebM, and the poster. The list follows the
+# clips, so a new clip cannot forget one.
+for clip_file in scripts/media/motion/intent-to-proof/clips/*.mjs; do
+  clip="$(basename "$clip_file" .mjs)"
+  [ "$clip" = kit ] && continue
+  required+=("media/gifs/$clip.optimized.gif" "media/videos/$clip.mp4"
+    "media/videos/$clip.webm" "media/posters/$clip.png")
+done
 for f in "${required[@]}"; do
   if [ -f "$f" ]; then say "✔ $f"; else
     say "✖ missing $f"
     fail=1
   fi
 done
+
+# Other repositories embed media/nika-hero.gif by URL (the name is the
+# API); it is the nika-hero clip's GIF, copied by the renderer, never a
+# second painting that can drift.
+if cmp -s media/nika-hero.gif media/gifs/nika-hero.optimized.gif; then
+  say "✔ hotlinked media/nika-hero.gif is the nika-hero clip"
+else
+  say "✖ media/nika-hero.gif differs from media/gifs/nika-hero.optimized.gif"
+  fail=1
+fi
 
 # Product-film claims are tested as an illustration, not as a live workflow.
 if node --test scripts/media/motion/intent-to-impact/commerce-model.test.js; then
@@ -110,6 +119,14 @@ else
   say "✖ product film duration must be 60 seconds (ffprobe required)"
   fail=1
 fi
+# The architecture film is cut to one 120 BPM clock: exactly 15 bars.
+if command -v ffprobe >/dev/null 2>&1 \
+  && [ "$(ffprobe -v error -show_entries format=duration -of csv=p=0 media/videos/intent-to-proof.mp4)" = "30.000000" ]; then
+  say "✔ architecture film MP4 is exactly 30 seconds"
+else
+  say "✖ architecture film duration must be 30 seconds (ffprobe required)"
+  fail=1
+fi
 
 # ── drawn-YAML honesty (the scenes may not speak a dead grammar) ────────
 # The motion scenes hand-draw YAML in span markup; this is where media
@@ -119,6 +136,8 @@ fi
 # the WHOLE text, every markup class: the editor scene draws its code in
 # `.buf`, not `.yaml`, and a class-scoped scan let it lie for weeks.
 if python3 - <<'PY'; then
+import hashlib
+import json
 import pathlib
 import re
 import subprocess
@@ -200,16 +219,13 @@ if re.search(r"\bnika try\b", readme):
     print(" x README.md: showroom `nika try` leaked into the ownership path")
     bad = 1
 
-# The gallery's count claims derive from the released pack, never typed
-# free-hand: "N ... business jobs" must equal the showcase family count.
-gal = pathlib.Path("scripts/media/motion/workflow-gallery.html").read_text(encoding="utf-8")
-claims = {int(n) for n in re.findall(r"(\d+)\s+(?:embedded\s+)?business jobs", gal)}
-listing = subprocess.run(["nika", "examples", "list"], capture_output=True, text=True)
-real = len(re.findall(r"showcase/", listing.stdout)) or len(
-    [ln for ln in listing.stdout.splitlines() if re.match(r"\s*│\s+t\d-", ln)]
-)
-if real and claims and claims != {real}:
-    print(f" x workflow-gallery.html: claims {sorted(claims)} jobs · released pack has {real}")
+# The gallery clip draws and counts what the captured `nika try` listing
+# says (never typed free-hand), so the capture must still be what this
+# binary prints.
+listing = subprocess.run(["nika", "try", "--color", "never"], capture_output=True, text=True)
+captured = pathlib.Path("media/raw/try-gallery.txt").read_text(encoding="utf-8")
+if listing.returncode != 0 or listing.stdout != captured:
+    print(" x media/raw/try-gallery.txt differs from `nika try` — recapture, then re-render workflow-gallery")
     bad = 1
 
 # Freshness: a scene edit without a re-render is how a fixed source keeps
@@ -236,14 +252,19 @@ for p in sorted(pathlib.Path("scripts/media/motion").glob("*.html")):
     if gif_t is not None and gif_t < scene_t:
         print(f" x {gif.name}: older than its scene {p.name} — re-render owed")
         bad = 1
-for tape in sorted(pathlib.Path("scripts/media/tapes").glob("*.tape")):
-    tape_t = last_commit(str(tape))
-    gif = pathlib.Path("media/gifs") / (tape.stem + ".optimized.gif")
-    if tape_t is None or not gif.exists() or dirty(str(gif)):
+# A clip (motion/intent-to-proof/clips/<name>.mjs) renders the media of the
+# same name, and the renderer records the sha256 of the clip file it drew
+# them from in media/clip-sources.json. Judged by content, not commit time:
+# a re-render that changes no pixel commits no media, but it still records
+# the source it was drawn from. Code the clips share (the kit, the engine)
+# changes renders too; whoever changes it re-renders the clips it touches.
+record = pathlib.Path("media/clip-sources.json")
+drawn = json.loads(record.read_text(encoding="utf-8")) if record.exists() else {}
+for p in sorted(pathlib.Path("scripts/media/motion/intent-to-proof/clips").glob("*.mjs")):
+    if p.stem == "kit":
         continue
-    gif_t = last_commit(str(gif))
-    if gif_t is not None and gif_t < tape_t:
-        print(f" x {gif.name}: older than its tape {tape.name} — re-render owed")
+    if drawn.get(p.stem) != "sha256:" + hashlib.sha256(p.read_bytes()).hexdigest():
+        print(f" x {p.stem}: its media were not rendered from {p.name} as it reads now — re-render owed")
         bad = 1
 sys.exit(bad)
 PY
@@ -255,7 +276,7 @@ fi
 
 # ── budgets ─────────────────────────────────────────────────────────────
 max_gif=$((8 * 1024 * 1024))
-for gif in media/gifs/*.gif; do
+for gif in media/gifs/*.gif media/nika-hero.gif; do
   size=$(wc -c <"$gif")
   if [ "$size" -gt "$max_gif" ]; then
     say "✖ GIF over 8MB: $gif ($((size / 1024 / 1024))MB)"

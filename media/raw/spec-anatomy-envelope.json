@@ -1,0 +1,45 @@
+{
+ "source": "nika spec --schema",
+ "required": [
+  "nika",
+  "tasks"
+ ],
+ "keys": [
+  {
+   "key": "nika",
+   "description": "The file's NAME · kebab-case · and the mark that says « this is a nika file ». One word, one meaning across both document types: `nika.yaml` carries the PROJECT name, a `*.nika` carries the WORKFLOW name. The document TYPE is read from `tasks:` — present means workflow, absent means project — so it survives a blob, a paste or an HTTP body where the filename does not travel. This key held the literal `v1` until the envelope nuke; it carried zero bits as a version (there is no `nika: v2` — ever) and now carries the file's most necessary field instead."
+  },
+  {
+   "key": "model",
+   "description": "Default model · `<provider>/<name>` (e.g. ollama/qwen3.5:9b · anthropic/claude-sonnet-4-6 · mock/echo)."
+  },
+  {
+   "key": "inputs",
+   "description": "Typed workflow inputs · `${{ inputs.X }}` · the parameters an author declares and a caller supplies. Each entry is a typed declaration whose `type:` speaks the full TypeExpr of 09-types (R3b · LAW-GRAMMAR-0211 · the flat 6-enum is dead · LAW-SURFACE-0211). The typed half of the dead `vars:` block (R3a · LAW-SURFACE-0201) · a `required: true` value lands here per the E-split total rule."
+  },
+  {
+   "key": "const",
+   "description": "Named constants · `${{ const.X }}` · a fixed value baked into the workflow. Either a bare literal, or a `{ type, value }` typed constant whose `value:` MUST conform to `type:`. The literal half of the dead `vars:` block (R3a · LAW-SURFACE-0201) · everything that is not `required: true` lands here per the E-split total rule."
+  },
+  {
+   "key": "secrets",
+   "description": "Vault-backed masked references · `${{ secrets.X }}` · never inline literals."
+  },
+  {
+   "key": "permits",
+   "description": "The declared capability boundary · once present every category is default-deny unless listed (spec/01-envelope.md §permits · NIKA-SEC-004)."
+  },
+  {
+   "key": "run",
+   "description": "The run's entropy and clock declaration · every source of randomness and of time is declared, never ambient. The two dimensions couple: only `ambient × system` (the status quo) and `none | seeded × virtual` (the deterministic states) are legal, and a declared contradiction refuses at parse (NEP-0010)."
+  },
+  {
+   "key": "tasks",
+   "description": "The task map · the KEY is the task's identity (snake_case · CEL-safe). Source order is presentation only — the graph alone schedules."
+  },
+  {
+   "key": "outputs",
+   "description": "The workflow's return value · symmetric to inputs. Each entry is a `${{ tasks.X.output }}` reference (untyped form · string) OR a typed declaration { value · type · description }. Powers `nika run` result + the output half of the callable-workflow schema."
+  }
+ ]
+}

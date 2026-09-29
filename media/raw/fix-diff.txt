@@ -1,5 +1,5 @@
---- scripts/media/fixtures/broken-pr-review.nika.yaml	2026-08-19 03:11:28
-+++ scripts/media/fixtures/fixed-pr-review.nika.yaml	2026-08-19 03:11:28
+--- scripts/media/fixtures/broken-pr-review.nika	2026-09-28 09:19:50.927348554 +0000
++++ scripts/media/fixtures/fixed-pr-review.nika	2026-09-28 09:19:50.927412230 +0000
 @@ -1,8 +1,7 @@
  # SPDX-License-Identifier: Apache-2.0
 -# media fixture · deliberately BROKEN — the static-check-fix demo "before".

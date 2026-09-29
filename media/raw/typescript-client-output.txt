@@ -1,0 +1,2 @@
+mock(echo) · Say hello from the Nika SDK.
+receipt verified

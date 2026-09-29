@@ -1,0 +1,22 @@
+{
+  "name": "nika-film-intent-to-proof",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Nika · From intent to proof — a 30-second code-generated architecture film (Skia canvas, procedural score, ffmpeg)",
+  "dependencies": {
+    "@napi-rs/canvas": "^1.0.9"
+  },
+  "scripts": {
+    "fonts": "python3 tools/build-fonts.py && python3 tools/glyph-paths.py .cache/fonts/Geist-800.ttf invoices.json .cache/glyphs/geist800.json",
+    "hashes": "python3 tools/hashes.py",
+    "stills": "node render.mjs stills",
+    "preview": "node render.mjs video --scale 0.5 --fps 30",
+    "master": "node render.mjs master",
+    "exports": "node render.mjs exports",
+    "readability": "node tools/readability.mjs",
+    "clip": "node render.mjs clip",
+    "clip-stills": "node render.mjs clip-stills"
+  },
+  "license": "AGPL-3.0-or-later"
+}

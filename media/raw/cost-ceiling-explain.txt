@@ -1,0 +1,25 @@
+weekly-update
+  1 task · 1 wave · checks clean
+
+the story
+  wave 1
+    update — asks anthropic/claude-sonnet-4-6
+
+cost before a token is spent
+  ≤ $0.0614 worst case · ≥ $0.0614 cheapest path
+
+what it touches
+  models   anthropic/claude-sonnet-4-6 (1 task)
+  permits  declared boundary (default-deny beyond it)
+
+access (this machine)
+  anthropic/claude-sonnet-4-6 → no access path on this machine
+    ✗ anthropic · not_configured (access layer) · ANTHROPIC_API_KEY unset in process env
+    ✗ claude-code · not_configured (access layer) · not installed · Claude Code is not installed. Install it or pick Nika local / Nika Cloud.
+
+run it
+  nika run weekly-update.nika
+  nika run weekly-update.nika --model mock/echo   # offline rehearsal · zero keys
+
+flight recorder
+  no runs recorded here yet — every run writes a tamper-evident, hash-chained trace to .nika/traces/

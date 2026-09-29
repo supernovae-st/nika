@@ -1,0 +1,3 @@
+OK — 26 events · chain intact · head f9cefea1b68e19a74c5257cd845dfaebb0ec549f00cdf485ed8d0356040403e2
+  internally consistent (tamper-evident, not tamper-proof) — compare the head
+  against the one the run printed to close the loop

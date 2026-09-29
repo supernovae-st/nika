@@ -1,0 +1,5 @@
+NIKA-EXEC-001 · process_error · transient: false
+
+  non-zero exit code (default capture modes)
+
+full docs: https://nika.sh/language/errors/NIKA-EXEC-001 — `nika check` refuses a LITERAL argv the exec floor would refuse; a templated program name and a non-zero exit status are the RUN's verdict — an exit status can never be a check-time finding.

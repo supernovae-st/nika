@@ -1,0 +1,6 @@
+{
+ "program_sha256": "5af32ec28fa3e1e968ed4fa3cb96ddca83a76880b2f9deb6245731640e3e466b",
+ "plan_sha256": "8a37067f2d39c683778474cad9f0f229df703f85fe8d25ee38de05169b93e87e",
+ "proposal_blake3": "c722d6eb668deb7a0e86d0fcd17654b27e887b1196df28d1b74c1ef9442782a2",
+ "proposal_preview": "1 payment · ACME €120.00 · BRAVO €108.00 · total €228.00 · POST payments.example.invalid · rev 7"
+}
