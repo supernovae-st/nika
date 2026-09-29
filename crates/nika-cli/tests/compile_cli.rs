@@ -392,6 +392,8 @@ fn the_default_authority_sends_one_request_and_states_the_refusal() {
     let doc = result(&json_out);
     assert_eq!(seat.bodies().len(), 1, "one request left: {doc}");
     assert_eq!(doc["status"], "incomplete");
+    // A stop on the call ceiling is an unfinished outcome, the class the help names (2).
+    assert_eq!(json_out.status.code(), Some(2), "{doc}");
     let authoring = &doc["provenance"]["authoring"];
     let authority = &authoring["backend"]["authority"];
     assert_eq!(authority["max_calls"], 1, "{doc}");
@@ -458,7 +460,10 @@ fn a_redirecting_seat_receives_only_the_counted_requests() {
         if let Some(calls) = calls {
             cmd.args(["--authoring-max-calls", calls]);
         }
-        let doc = result(&cmd.output().expect("CLI"));
+        let out = cmd.output().expect("CLI");
+        let doc = result(&out);
+        // A failed provider call leaves the outcome unfinished: exit 2, as the help states.
+        assert_eq!(out.status.code(), Some(2), "{status}: {doc}");
         let authority = &doc["provenance"]["authoring"]["backend"]["authority"];
         let counted = authority["http_requests"]["sent"]
             .as_u64()

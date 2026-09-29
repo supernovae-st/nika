@@ -318,6 +318,13 @@ fn skeletons_and_edits_record_nothing_and_a_missing_parent_is_created() {
     let help = call(room.path(), &["compile", "--help"]);
     let text = String::from_utf8_lossy(&help.stdout);
     assert!(text.contains("exit codes · 0 READY"), "{text}");
+    // A stop on the call ceiling or on a failed provider call is an unfinished outcome (2),
+    // named by its diagnostics and receipt; the help never promises it the environment's 3.
+    assert!(
+        text.contains("an authoring stop on the call ceiling or on a failed provider call"),
+        "{text}"
+    );
+    assert!(!text.contains("provider/limit failure"), "{text}");
     assert!(text.contains("--fresh"), "{text}");
     assert!(text.contains("-o, --output"), "{text}");
 }
