@@ -715,7 +715,16 @@ async fn a_program_treating_the_spellings_apart_with_no_drop_goes_to_the_judges(
     let record = &out.provenance.decision.as_ref().unwrap()["transforms"][0];
     let note = record["unjudged"][0].clone();
     assert_eq!(note["reason"], json!("treated_apart"), "{record:#}");
-    assert_eq!(note["tried"], json!(["\u{2400}", "en attente"]), "{note:#}");
+    assert_eq!(
+        note["tried"],
+        json!([
+            "\u{2400}",
+            "\u{2400}\u{2400}",
+            "en attente",
+            "en attenteen attente"
+        ]),
+        "{note:#}"
+    );
     let judged = approving.judged();
     assert!(!judged.is_empty(), "{out:#?}");
     for state in &judged {
@@ -807,7 +816,16 @@ async fn a_program_the_law_cannot_judge_goes_to_the_judges_with_its_record() {
     assert_eq!(note["column"], json!("status"), "{record:#}");
     assert_eq!(note["stated_code_points"], json!(points(LIVRE_NFC)));
     assert_eq!(note["observed_code_points"], json!(points(LIVRE_NFD)));
-    assert_eq!(note["tried"], json!(["\u{2400}", "en attente"]), "{note:#}");
+    assert_eq!(
+        note["tried"],
+        json!([
+            "\u{2400}",
+            "\u{2400}\u{2400}",
+            "en attente",
+            "en attenteen attente"
+        ]),
+        "{note:#}"
+    );
     assert_eq!(note["reason"], json!("every_probe_errs"), "{note:#}");
     let finding = out
         .diagnostics
@@ -834,7 +852,7 @@ async fn a_program_the_law_cannot_judge_goes_to_the_judges_with_its_record() {
     let record = &out.provenance.decision.as_ref().unwrap()["transforms"][0];
     assert_eq!(
         record["unjudged"][0]["tried"],
-        json!(["\u{2400}"]),
+        json!(["\u{2400}", "\u{2400}\u{2400}"]),
         "{record:#}"
     );
 }
@@ -1148,7 +1166,8 @@ fn writing(clause: &str, what: &str) -> (String, String) {
 /// « annulé » (6 code points) beside e + U+0301 (6), the observed stand-in's output equals the
 /// observed spelling's, while U+2400 gives 1: the program's treatment of values the clause does
 /// not state follows the value itself, so an equal output proves no dropped spelling. The law
-/// refuses nothing; the spellings treated apart are recorded (`unmatched_varies`) for the
+/// refuses nothing; neither spelling is a literal of this value-only program, which is recorded
+/// (`unmatched_varies`) for the
 /// judges, and the program is due [6, 6, 6] on such a file. The control over « en attente » is the
 /// same. Before, the collision was refused as a drop: INCOMPLETE with the right program.
 #[tokio::test]
@@ -1209,6 +1228,182 @@ async fn a_program_naming_the_probe_text_escaped_is_never_emitted() {
         .iter()
         .any(|d| d.target == "authoring_transform" && d.message.contains("is not in the request"));
     assert!(refused, "{out:#?}");
+}
+
+/// A probe singled out by a property must not hide a byte comparison from the observed
+/// stand-in. The two properties are independent of any quoted probe text. Before, each made
+/// the unmatched outputs disagree and the wrong program was admitted, summing zero.
+#[tokio::test]
+async fn a_property_special_case_does_not_hide_an_observed_spelling_drop() {
+    for condition in [NO_ASCII_LETTER, "(.status | length) < 2"] {
+        let jq = format!(
+            ".records | map(if .status == {} then (.qty | tonumber) elif {condition} then 1 else 0 end) | add // 0",
+            json!(LIVRE_NFC)
+        );
+        let seat = Seat::new(vec![
+            request_of(&livre()).1.to_string(),
+            program(&jq, &["status", "qty"], &json!(40)),
+            summing(&[LIVRE_NFC, LIVRE_NFD]),
+        ]);
+        let world = spelled(&[LIVRE_NFD, "en attente"], &["x", "y"]);
+        let out = compiled(&seat, &livre(), world, 1).await;
+        let computed = compute(&out);
+        assert_eq!(
+            run(&computed, &delivered(LIVRE_NFD)),
+            json!(42),
+            "{condition}: {computed}"
+        );
+        assert_eq!(authored(&out), ["plan", "transform", "transform_repair"]);
+        let refusal = told(&seat, 2);
+        for point_list in [points(LIVRE_NFC), points(LIVRE_NFD)] {
+            assert!(refusal.contains(&point_list), "{refusal}");
+        }
+    }
+}
+
+/// A one-code-point canonical literal can collide with the synthetic probe itself. Treating
+/// that single probe as decisive would reject a legitimate length transform; both unmatched
+/// probe families need the same protection against an accidental output collision.
+#[tokio::test]
+async fn a_short_literal_length_is_no_synthetic_probe_drop() {
+    let stated = "\u{e9}";
+    let observed = "e\u{301}";
+    let clause = format!(
+        "list the code-point length of every status as the file spells it, {stated} included"
+    );
+    let (text, proposal) = writing(&clause, "the lengths");
+    let jq = ".records | map(.status | length)";
+    let mut answer: Value =
+        serde_json::from_str(&program_on(jq, [stated, "xx"], &json!([1, 2]))).unwrap();
+    answer["columns_read"] = json!(["status"]);
+    let seat = Seat::new(vec![proposal, answer.to_string()]);
+    let world = spelled(&[observed, "xx"], &["x", "y"]);
+    let out = compiled_text(&seat, &text, world, 0).await;
+    let rows = json!({"records": [{"status": observed}, {"status": "xx"}, {"status": observed}]});
+    assert_eq!(run(&compute(&out), &rows), json!([2, 2, 2]));
+    assert_eq!(authored(&out), ["plan", "transform"]);
+}
+
+/// Two neighboring lengths can collide after a requested transformation too. An unchanged
+/// unmatched pair is not evidence of categorical selection in a program that only transforms
+/// every value. Keep this counterexample separate from the ordinary length control.
+#[tokio::test]
+async fn a_requested_rounded_length_is_not_a_categorical_drop() {
+    let clause = format!(
+        "list the code-point length of every status divided by 2 and rounded down, as the file spells it, {LIVRE_NFC} included"
+    );
+    let (text, proposal) = writing(&clause, "the lengths");
+    let jq = ".records | map(.status | length / 2 | floor)";
+    let mut answer: Value =
+        serde_json::from_str(&program_on(jq, [LIVRE_NFC, "en attente"], &json!([2, 5]))).unwrap();
+    answer["columns_read"] = json!(["status"]);
+    let seat = Seat::new(vec![proposal, answer.to_string()]);
+    let world = spelled(&[LIVRE_NFD, "annul\u{e9}"], &["x", "y"]);
+    let out = compiled_text(&seat, &text, world, 0).await;
+    let rows = json!({"records": [
+        {"status": LIVRE_NFD}, {"status": "annul\u{e9}"}, {"status": LIVRE_NFD}
+    ]});
+    assert_eq!(run(&compute(&out), &rows), json!([3, 3, 3]));
+    assert_eq!(authored(&out), ["plan", "transform"]);
+}
+
+/// A literal used as an output label is not a categorical comparison either. Its presence
+/// must not turn the rounded-length collision into a refusal.
+#[tokio::test]
+async fn a_literal_output_label_does_not_make_a_value_transform_a_selection() {
+    let clause = format!(
+        "list each status's code-point length divided by 2 and rounded down as length, with the constant label {LIVRE_NFC}"
+    );
+    let (text, proposal) = writing(&clause, "the labelled lengths");
+    let jq = format!(
+        ".records | map({{label: {}, length: (.status | length / 2 | floor)}})",
+        json!(LIVRE_NFC)
+    );
+    let expected = json!([
+        {"label": LIVRE_NFC, "length": 2}, {"label": LIVRE_NFC, "length": 5}
+    ]);
+    let mut answer: Value =
+        serde_json::from_str(&program_on(&jq, [LIVRE_NFC, "en attente"], &expected)).unwrap();
+    answer["columns_read"] = json!(["status"]);
+    let seat = Seat::new(vec![proposal, answer.to_string()]);
+    let world = spelled(&[LIVRE_NFD, "annul\u{e9}"], &["x", "y"]);
+    let out = compiled_text(&seat, &text, world, 0).await;
+    let rows = json!({"records": [{"status": LIVRE_NFD}, {"status": "annul\u{e9}"}]});
+    assert_eq!(
+        run(&compute(&out), &rows),
+        json!([{"label": LIVRE_NFC, "length": 3}, {"label": LIVRE_NFC, "length": 3}])
+    );
+}
+
+/// The source's byte comparison can be expressed through a pipe, a binding, a string
+/// operation or a lookup table. Each still needs canonical spelling repair; syntax alone
+/// cannot decide whether the literal controls selection.
+#[tokio::test]
+async fn indirect_literal_selection_preserves_spelling_repair() {
+    let literal = json!(LIVRE_NFC);
+    let programs = [
+        format!(".records | map(select(.status | . == {literal}) | .qty | tonumber) | add // 0"),
+        format!(
+            ".records | map(.status as $s | select($s == {literal}) | .qty | tonumber) | add // 0"
+        ),
+        format!(
+            ".records | map(select((.status | ltrimstr({literal})) == \"\") | .qty | tonumber) | add // 0"
+        ),
+        format!(".records | map({{{literal}: (.qty | tonumber)}}[.status] // 0) | add // 0"),
+        ".records | map(select(.status == (\"liv\" + \"ré\")) | .qty | tonumber) | add // 0".into(),
+        ".records | map(select(.status == ((\"li\" + \"v\") + (\"ré\"))) | .qty | tonumber) | add // 0".into(),
+        format!(
+            ".records | map(select(.status == {literal} and ({literal} | length) == 5) | .qty | tonumber) | add // 0"
+        ),
+    ];
+    for jq in programs {
+        let seat = Seat::new(vec![
+            request_of(&livre()).1.to_string(),
+            program(&jq, &["status", "qty"], &json!(40)),
+            summing(&[LIVRE_NFC, LIVRE_NFD]),
+        ]);
+        let world = spelled(&[LIVRE_NFD, "en attente"], &["x", "y"]);
+        let out = compiled(&seat, &livre(), world, 1).await;
+        assert_eq!(
+            run(&compute(&out), &delivered(LIVRE_NFD)),
+            json!(42),
+            "{jq}"
+        );
+        assert_eq!(
+            authored(&out),
+            ["plan", "transform", "transform_repair"],
+            "{jq}"
+        );
+    }
+}
+
+/// A comparison whose branches do the same requested value transformation does not make that
+/// transformation categorical selection. Exchanging its literal changes no output.
+#[tokio::test]
+async fn an_irrelevant_comparison_does_not_refuse_a_requested_length_bit() {
+    let clause = format!(
+        "for every status as the file spells it, say whether it holds more than 5 code points, {LIVRE_NFC} included"
+    );
+    let (text, proposal) = writing(&clause, "the answers");
+    let jq = format!(
+        ".records | map(if .status == {} then (.status | length > 5) else (.status | length > 5) end)",
+        json!(LIVRE_NFC)
+    );
+    let mut answer: Value = serde_json::from_str(&program_on(
+        &jq,
+        [LIVRE_NFC, "en attente"],
+        &json!([false, true]),
+    ))
+    .unwrap();
+    answer["columns_read"] = json!(["status"]);
+    let seat = Seat::new(vec![proposal, answer.to_string()]);
+    let world = spelled(&[LIVRE_NFD, "en attente"], &["x", "y"]);
+    let out = compiled_text(&seat, &text, world, 0).await;
+    assert_eq!(
+        run(&compute(&out), &delivered(LIVRE_NFD)),
+        json!([true, true, true])
+    );
+    assert_eq!(authored(&out), ["plan", "transform"]);
 }
 
 /// The binding and the law, as the core states them: a literal at exact token boundaries only,

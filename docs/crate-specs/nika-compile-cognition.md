@@ -135,15 +135,45 @@ neither: the note records the program with its own reason, `treated_apart`, apar
 `every_probe_errs`, and goes to the judges the same way, so the third way the law leaves to the
 verifier is no longer silent.
 
-A drop is shown only by a treatment the answered texts agree on: a text the program names as a
-string of its own is its special case and reads none (F3 names `"␀"`, so the observed value
-reads it), and when the answered texts disagree the program's output follows the value itself,
-where an output equal to one of them proves nothing. B23 R2, every status's code-point length,
-was refused because « annulé » counts 6 code points like the decomposed « livré » while U+2400
-counts 1; it is now admitted, due [6, 6, 6] on such a file, its spellings treated apart
-recorded as `unmatched_varies` (`probe_named` when only a named text answered). The cost is
-named: a byte comparison hidden behind a value-following treatment of unstated values is not
-refused by this law; it reaches the judges with that note.
+Each unmatched text is paired with that text repeated twice. The synthetic U+2400 probe is
+paired too: a one-character literal's requested length can collide with that probe. A spelling
+is treated as dropped only when both members of a pair answer alike, exactly one spelling
+shares their output, and exchanging the two canonical string constants in a private probe
+program reverses which spelling matches a confirmed unmatched pair. The execution lexer's
+complete strings and parenthesized pure constant-string additions are recognized, including
+nested parentheses. The constants are exchanged together, then each occurrence separately;
+a separate literal self-guard must not hide the comparison. Only private probes change: the
+emitted program keeps its bytes.
+
+This observed reversal covers direct comparisons, pipes, variables, string operations and
+lookup tables without relying on a direct field-equality syntax. Exact spelling-valued keys
+and values read back to one placeholder in the counterfactual comparison, so a constant label
+alone does not establish selection. Kept rows may transform their values; membership reversal
+does not require their complete outputs to exchange. A dead comparison whose branches perform
+the same value transformation establishes no reversal.
+
+Agreement across unrelated pairs is not required: a special case of the synthetic probe must
+not hide a drop exposed by the observed stand-in and its companion. A text named by the program
+as a string of its own remains a special case, excluded from that comparison. Repeating the
+stand-in also avoids putting the same synthetic marker in every companion. B24 S3's two property
+cases and the original D1 and F3 controls remain regression obligations.
+
+B23 R2, every status's code-point length, was refused because « annulé » counts 6 code points
+like the decomposed « livré ». A requested rounded length can collide on both members of a pair
+too. Without a confirming literal intervention these programs are left to the judges, with
+`unmatched_varies` or `literal_unconfirmed` as observed; a constant output label does not change
+that judgment. The ordinary length program is due [6, 6, 6], and the rounded length is due
+[3, 3, 3]. These are distinct user intents, not evidence that arbitrary byte comparisons are safe.
+
+The record names every text actually tried. A singleton answer whose companion fails or is
+excluded cannot establish a drop (`probe_unconfirmed`); `probe_named`, `every_probe_errs`,
+`unmatched_varies` and `treated_apart` retain their separate reasons. These finite observations
+do not prove semantic equivalence. A shared variable can couple selection with inspection of
+the literal's own bytes; an expression can compute a literal outside the recognized constant
+forms; a program can special-case both companions. An unconfirmed intervention is explicitly
+`literal_unconfirmed`, shown to the whole-request judges, never a pass from the spelling law.
+Such counterexamples remain subject to independent challenge; the law neither forbids
+legitimate literal transformations nor rewrites the requested literal.
 
 A candidate a model's plan shaped is judged against the whole request before READY
 (`cognition::verify`, R4 A11). The core names what no law reads from the bytes: a duty a
