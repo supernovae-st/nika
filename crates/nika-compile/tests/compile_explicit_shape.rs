@@ -405,3 +405,141 @@ async fn a_tie_rule_or_a_number_column_that_cannot_hold_is_no_rule() {
         );
     }
 }
+
+// V6.1: the same mechanisms in compositions E38 never stated. A tie rule over an ascending order
+// on another column, two filter clauses, two number columns and a rename; a total written alone
+// that is an average, and a count, not the sum C1 states.
+const STOCK: (&str, &[&str]) = (
+    "./data/orders.csv",
+    &["id", "region", "amount", "item", "qty"],
+);
+
+#[tokio::test]
+async fn a_new_composition_carries_the_tie_rule_and_the_number_columns() {
+    let computed = "keep only the rows whose region is south and whose item is bolts, order them by qty from lowest to highest, keeping the rows with the same qty in the order of the file, then keep the first 3 rows";
+    let write = "write them to ./out/low.json with id as text and qty and amount as JSON numbers, renaming qty to quantity";
+    let intent = format!("read ./data/orders.csv, {computed} and {write}");
+    let stages = json!({
+        "clauses": [
+            {"field": "region", "op": "eq", "value": "south", "value_field": ""},
+            {"field": "item", "op": "eq", "value": "bolts", "value_field": ""}
+        ],
+        "sort_by": "qty", "order": "asc", "ties": "first_in_file", "limit": "3",
+        "columns": ["id", "qty", "amount"], "numbers": ["qty", "amount"],
+        "renames": [{"from": "qty", "to": "quantity"}]
+    });
+    let provider = Provider::new(ranked(&intent, computed, write, &stages));
+    let request = CompileRequest::create(&intent)
+        .with_authoring_policy(policy())
+        .with_knowledge(common::observed(&[STOCK]));
+    let out = compile_with_provider(&request, &Judged::approving(&provider))
+        .await
+        .unwrap();
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert_eq!(
+        rule_of(&out),
+        "[.records[] | select(.region == \"south\" and .item == \"bolts\")] | sort_by((.qty | num) | dkey) | .[:3] | map({\"id\": .id, \"qty\": (.qty | num), \"amount\": (.amount | num)}) | map(with_entries(if .key == \"qty\" then .key = \"quantity\" else . end))"
+    );
+    let record = out.provenance.plan.clone().unwrap();
+    let shape = &record["rules"][0]["shape"];
+    assert_eq!(shape["ties"], "first_in_file", "{record:#}");
+    assert_eq!(shape["numbers"], json!(["qty", "amount"]), "{record:#}");
+    // The same request without the tie clause is another program: the cut through a tie of
+    // distinct records stops the run instead of keeping the file order.
+    let mut unstated = stages;
+    unstated["ties"] = json!("");
+    let plain_intent = intent.replace(
+        ", keeping the rows with the same qty in the order of the file",
+        "",
+    );
+    let plain_computed = computed.replace(
+        ", keeping the rows with the same qty in the order of the file",
+        "",
+    );
+    let provider = Provider::new(ranked(&plain_intent, &plain_computed, write, &unstated));
+    let request = CompileRequest::create(&plain_intent)
+        .with_authoring_policy(policy())
+        .with_knowledge(common::observed(&[STOCK]));
+    let plain = compile_with_provider(&request, &Judged::approving(&provider))
+        .await
+        .unwrap();
+    assert_eq!(plain.status, CompileStatus::Ready, "{plain:#?}");
+    assert!(
+        rule_of(&plain).contains("| dtie(3; "),
+        "{}",
+        rule_of(&plain)
+    );
+    assert_ne!(rule_of(&plain), rule_of(&out));
+}
+
+// A controlled semantic plan: the seat double states the plan, so this pins the law for the
+// plan's `alone` over the same words, not a seat's reading of them (the natural-language
+// neighbour is `a_request_naming_the_object_keeps_it_for_an_average_or_a_count`).
+#[tokio::test]
+async fn an_average_or_a_count_written_alone_is_its_value() {
+    for (computed, total, name) in [
+        (
+            "the average of qty over the rows where status is shipped",
+            json!([{"field": "qty", "op": "avg", "as": "average", "round": ""}]),
+            "average",
+        ),
+        (
+            "count the rows where status is shipped",
+            json!([{"field": "", "op": "count", "as": "count", "round": ""}]),
+            "count",
+        ),
+    ] {
+        let write = "write only that number to ./out/result.json";
+        let intent = format!("read ./data/input.csv, {computed}, {write}");
+        let out = cold(
+            &intent,
+            &proposal(&intent, computed, &total, write, Some(true)),
+        )
+        .await;
+        assert_eq!(out.status, CompileStatus::Ready, "{name}: {out:#?}");
+        assert_eq!(
+            written(&out),
+            json!(format!("${{{{ tasks.compute.output.{name} }}}}")),
+            "{name}"
+        );
+        // The neighbour without alone keeps the object naming the total.
+        let object = cold(&intent, &proposal(&intent, computed, &total, write, None)).await;
+        assert_eq!(object.status, CompileStatus::Ready, "{name}: {object:#?}");
+        assert_eq!(
+            written(&object),
+            json!("${{ tasks.compute.output }}"),
+            "{name}"
+        );
+    }
+}
+
+// A valid natural-language neighbour (V6.1): a request that names the object and its field keeps
+// the object, with a plan that states no `alone`.
+#[tokio::test]
+async fn a_request_naming_the_object_keeps_it_for_an_average_or_a_count() {
+    for (computed, total, name) in [
+        (
+            "the average of qty over the rows where status is shipped",
+            json!([{"field": "qty", "op": "avg", "as": "average", "round": ""}]),
+            "average",
+        ),
+        (
+            "count the rows where status is shipped",
+            json!([{"field": "", "op": "count", "as": "count", "round": ""}]),
+            "count",
+        ),
+    ] {
+        let write =
+            format!("write it as a JSON object with one field named {name} to ./out/result.json");
+        let intent = format!("read ./data/input.csv, {computed}, {write}");
+        let out = cold(&intent, &proposal(&intent, computed, &total, &write, None)).await;
+        assert_eq!(out.status, CompileStatus::Ready, "{name}: {out:#?}");
+        assert_eq!(
+            written(&out),
+            json!("${{ tasks.compute.output }}"),
+            "{name}"
+        );
+        let record = out.provenance.plan.clone().unwrap();
+        assert!(record["effects"][0].get("alone").is_none(), "{record:#}");
+    }
+}
