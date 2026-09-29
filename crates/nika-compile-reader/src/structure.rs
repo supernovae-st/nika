@@ -123,6 +123,38 @@ pub fn selection_demand(text: &str) -> bool {
         && hit_lines(&padded, MATERIAL)
 }
 
+/// Whether a clause restricts the material or conditions an operation (R4 A11): a keep or an
+/// exclusion lead, a negation (its pronouns and determiners too), « only », an exception, a
+/// condition, or a structure law (« nothing else », « no other file », a single request). It
+/// never asks for nothing. A path or a URL is a literal, never a word of the clause (the `out`
+/// of `./out/result.json` is no exclusion).
+#[must_use]
+pub fn restricts(text: &str) -> bool {
+    let words: Vec<&str> = text
+        .split_whitespace()
+        .filter(|token| !token.contains(['/', '\\']))
+        .collect();
+    !laws(text).is_empty()
+        || super::rule_tokens::fold(&words.join(" "))
+            .split(|c: char| !c.is_alphanumeric())
+            .any(|w| {
+                super::stages::restriction_word(w)
+                    || super::stages::keep_lead(w)
+                    || super::rules::exclusion_lead(w)
+            })
+}
+
+/// Whether a text's words are function words around one computation head the reader reads
+/// (« then compute », « calcule »): the head of a clause whose object the grammar read (R4 A11).
+#[must_use]
+pub fn only_a_compute_head(text: &str) -> bool {
+    let content: Vec<&str> = text
+        .split(|c: char| !(c.is_alphanumeric() || c == '\''))
+        .filter(|word| !word.is_empty() && !super::paths::function_word(word))
+        .collect();
+    !content.is_empty() && super::lexicon::compute_head(&content.join(" "))
+}
+
 /// Whether every word of a text is a function word of the reader's closed table (an article,
 /// a preposition, a connective such as « then », « et », « und »): words that state no operation
 /// of their own. An empty text has none.
@@ -143,6 +175,29 @@ pub fn binds_no_operation(text: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A clause that restricts is never one a judge may call asking for nothing (R4 A11).
+    #[test]
+    fn a_restriction_is_read_in_its_words_and_its_structure_laws() {
+        for text in [
+            "Once the brief is read, nothing else runs",
+            "keep only the rows whose status is a",
+            "ignore the cancelled rows",
+            "sans les lignes annulées",
+            "ninguna fila cancelada",
+            "keine stornierten Zeilen",
+            "write it to ./out.md and nothing else",
+        ] {
+            assert!(restricts(text), "{text}");
+        }
+        for text in [
+            "write the sum to ./out/result.json",
+            "read ./data/input.csv",
+            "thanks",
+        ] {
+            assert!(!restricts(text), "{text}");
+        }
+    }
 
     #[test]
     fn structure_laws_are_read_in_six_languages() {

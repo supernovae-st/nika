@@ -336,6 +336,20 @@ while `nika-compile` stood at its wall; they ascended to `nika-compile-fidelity`
   proposal joins, so a recorded plan keeps its identity, and the deterministic ledger names
   the clause once. `structure::only_function_words` (the reader's closed function
   words) tells the compile witness which words between two read clauses state nothing.
+- **A restriction is never a clause that asks for nothing (V9 A11).** The compile core lets a
+  judge settle a clause no element of a seat's plan names as asking for no operation, except
+  where `structure::restricts` holds: a keep or an exclusion lead of the grammar, a structure
+  law of this module (« nothing else », « no other file », no model, a single request), or a
+  word of `[restriction_words]` in `assets/stage_words.txt` (75 folded words over the six
+  languages: negations with their pronouns and determiners, « only », exceptions and
+  conditions), pinned with the other tables by `stages::tests::tables_are_the_frozen_lists`.
+  A path or a URL is a literal, never a word of the clause, so the `out` of
+  `./out/result.json` is no exclusion lead. `structure::only_a_compute_head` (the words around
+  one computation head, « then compute », « calcule », function words aside) lets the compile
+  witness keep such a head beside the object the grammar read instead of filing it as an
+  unread part; `lexicon::compute_head` is its crate-private reading. Limits: closed word
+  lists; a restriction phrased with none of these words reads as no restriction, and the
+  judge's `no_operation` stays admissible for it.
 - The 12 ADR-003 gates were passed by `nika-onboard` at its admission; this member inherits
   them as the third member of the same unit (the ADR-115 and ADR-137 precedent). Mutation
   and property attestations for the reader are owed as pending evidence, tracked with the

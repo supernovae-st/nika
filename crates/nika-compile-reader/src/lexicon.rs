@@ -307,6 +307,13 @@ fn head_of(lower: &str) -> Option<(&'static str, &'static Head)> {
     None
 }
 
+/// Whether a phrase is exactly a head the reader reads as a computation (« compute »).
+pub(crate) fn compute_head(phrase: &str) -> bool {
+    let lower = phrase.to_lowercase();
+    head_of_exact(&lower)
+        .is_some_and(|(p, head)| p.len() == lower.len() && matches!(head, Head::Op(Op::Compute)))
+}
+
 pub(crate) fn head_of_exact(lower: &str) -> Option<(&'static str, &'static Head)> {
     let mut best: Option<(&'static str, &'static Head)> = None;
     for (phrase, head) in heads::TABLES.iter().flat_map(|table| table.iter()) {

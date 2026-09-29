@@ -156,6 +156,13 @@ static JOIN_VERBS: LazyLock<Vec<&str>> = LazyLock::new(|| table("join_verbs"));
 /// What a join may name before its column: the sources, never a third thing.
 static JOIN_OBJECTS: LazyLock<Vec<&str>> = LazyLock::new(|| table("join_objects"));
 static ON_WORDS: LazyLock<Vec<&str>> = LazyLock::new(|| table("on_words"));
+/// A negation, « only », an exception or a condition (R4 A11).
+static RESTRICTION_WORDS: LazyLock<Vec<&str>> = LazyLock::new(|| table("restriction_words"));
+
+/// A folded word that restricts the material or conditions an operation (R4 A11).
+pub(crate) fn restriction_word(folded: &str) -> bool {
+    RESTRICTION_WORDS.contains(&folded)
+}
 
 fn folded(words: &[Word], at: usize) -> Option<&str> {
     words.get(at).map(|w| w.folded.as_str())
@@ -914,11 +921,15 @@ mod tests {
             "on sur by par por su per secondo nach uber using via",
         ),
         ("measure_leads", "by par por per nach selon según segun"),
+        (
+            "restriction_words",
+            "not no never without except unless only if when but pas jamais sans sauf excepte seulement uniquement si quand lorsque nunca sin excepto salvo solo solamente cuando non mai senza tranne eccetto soltanto quando nicht nie ohne ausser nur wenn falls nao sem exceto apenas nothing none nobody neither nor rien aucun aucune ni nada ninguno ninguna ningun nadie niente nulla nessuno nessuna nichts kein keine keinen keinem keiner keines weder nenhum nenhuma ninguem nem",
+        ),
     ];
 
     #[test]
     fn tables_are_the_frozen_lists() {
-        let statics: [(&str, &[&str]); 30] = [
+        let statics: [(&str, &[&str]); 31] = [
             ("hyphenated_pronouns", &HYPHENATED_PRONOUNS),
             ("determiners", &DETERMINERS),
             ("each", &EACH),
@@ -949,6 +960,7 @@ mod tests {
             ("join_objects", &JOIN_OBJECTS),
             ("on_words", &ON_WORDS),
             ("measure_leads", &MEASURE_LEADS),
+            ("restriction_words", &RESTRICTION_WORDS),
         ];
         for ((name, words), (read, held)) in FROZEN.iter().zip(statics) {
             let frozen: Vec<&str> = words.split(' ').collect();
