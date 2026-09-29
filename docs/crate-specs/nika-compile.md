@@ -456,6 +456,14 @@ words a step only restates (`label`) or words no law reads from the task's bytes
 the whole request for the first candidate of a WARM or COLD plan are pending.
 A candidate with a pending duty is INCOMPLETE.
 
+A cardinality stated in the clause of a seat's verified program is claimed by
+`compute` with an unverified witness (`realize::stated_by_program`). Checking the
+program on its example does not prove that bound. The candidate must be judged
+against the clause before READY; a bound stated as a separate constraint keeps
+its existing realization law. When several pending duties share the same clause
+and statement spans, one judgment covers them together. A claimed duty prevents
+`no_operation` from settling that clause.
+
 `assemble_judged` and `replay_judged` accept active judgments supplied by the
 calling host. The core recomputes their binding to the effective and original
 request, answers, observed world, stated plan and candidate bytes; each judgment
