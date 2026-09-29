@@ -22,6 +22,7 @@ use super::*;
 use crate::DataLocus;
 use crate::authoring::AuthoringContext;
 use crate::reasoner::{ProviderReasoner, ReasonError, Reply, test_transport};
+use crate::runtime::inference_tests::JUDGE_APPROVES;
 use crate::runtime::inference_tests::wire::{Peer, response};
 use crate::turn::{
     ConservativeFallback, ReasonerClassifier, RoutingMethod, SessionPhase, TurnAct, TurnClassifier,
@@ -260,7 +261,10 @@ fn native() -> String {
 #[test]
 fn details_says_the_named_effort_as_the_receipt_recorded_it_and_nothing_without_one() {
     for word in [Some("max"), None] {
-        let peer = Peer::start(vec![(200, response(&native()))]);
+        let peer = Peer::start(vec![
+            (200, response(&native())),
+            (200, response(JUDGE_APPROVES)),
+        ]);
         let _transport = test_transport::install(&peer.url);
         let dir = tempfile::tempdir().expect("root");
         std::fs::write(dir.path().join("entree.txt"), "A\n").expect("input");
@@ -277,7 +281,7 @@ fn details_says_the_named_effort_as_the_receipt_recorded_it_and_nothing_without_
         let out = s.turn(&format!("{WORK} budget 2 USD."));
         assert!(matches!(out, TurnOutcome::Proposal { .. }), "{out:?}");
         let bodies = peer.bodies();
-        assert_eq!(bodies.len(), 1, "one native call");
+        assert_eq!(bodies.len(), 2, "one native call, then the judge's");
         let details = s.details();
         if word.is_some() {
             asks_max(&bodies[0]);

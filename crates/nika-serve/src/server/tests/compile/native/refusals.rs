@@ -21,7 +21,9 @@ const WITHHELD: &str = "sk-withheld-S06-0123456789abcdef";
 pub(super) fn operator(seat: &Seat) -> NativeAuthoring {
     NativeAuthoring::new(SEAT, seat.providers())
         .with_max_tokens(4096)
-        .with_max_calls(2)
+        // 3 + repairs (nv1b): the candidate, its repair and the judge's two whole-request
+        // questions.
+        .with_max_calls(4)
         .with_repairs(1)
 }
 
@@ -418,22 +420,24 @@ async fn provider_failures_reach_the_document_as_fixed_reasons_and_a_withheld_va
 async fn explicit_repair_preferences_run_within_the_grant_and_a_caller_can_narrow_them() {
     let broken = native_answer("nika: broken\ntasks: {}\n");
     let fixed = native_answer(&candidate(RUN_MODEL, false));
-    // The operator's one repair: the refused candidate, then the repaired one — two calls.
+    // The operator's one repair: the refused candidate, the repaired one, then its judgment
+    // (native step 1) — three calls.
     let world = TestWorld::new();
     let seat = Seat::start(vec![
         Reply::Text(broken.clone()),
         Reply::Text(fixed.clone()),
+        Reply::Text(JUDGE_APPROVES.to_owned()),
     ]);
     let (server, _backend) = start_native(&world, compile_limits(), operator(&seat)).await;
     let response = server.request(&compile_request(&fresh(&json!({})))).await;
     assert_eq!(response.status, 200, "{}", response.body);
     let document = response.json();
     assert_eq!(
-        document["provenance"]["authoring"]["calls"], 2,
+        document["provenance"]["authoring"]["calls"], 3,
         "{document:#}"
     );
     assert_eq!(document["status"], "ready", "{document:#}");
-    assert_eq!(seat.calls(), 2);
+    assert_eq!(seat.calls(), 3);
     server.stop().await.expect("clean stop");
     // The caller narrows to zero repairs: one call, the refused candidate stays refused.
     let world = TestWorld::new();

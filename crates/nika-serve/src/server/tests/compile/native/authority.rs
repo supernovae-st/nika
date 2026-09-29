@@ -43,21 +43,29 @@ async fn unidentified_responses_remain_visible_beside_named_responses() {
     let seat = Seat::start(vec![
         Reply::Status(200, named.to_string()),
         Reply::Text(native_answer(&candidate(RUN_MODEL, false))),
+        Reply::Text(JUDGE_APPROVES.to_owned()),
     ]);
     let operator = NativeAuthoring::new(SEAT, seat.providers())
-        .with_max_calls(2)
+        // 3 + repairs (nv1b): the candidate, its repair and the judge's two whole-request
+        // questions.
+        .with_max_calls(4)
         .with_repairs(1);
     let (server, _) = start_native(&world, compile_limits(), operator).await;
     let response = server.request(&compile_request(&fresh(&json!({})))).await;
     let document = response.json();
     assert_eq!(document["status"], "ready", "{document:#}");
-    assert_eq!(seat.calls(), 2);
+    assert_eq!(
+        seat.calls(),
+        3,
+        "the named answer, its repair, then the judgment"
+    );
     let backend = &document["provenance"]["authoring"]["backend"];
     assert_eq!(
         backend["observed_models"],
         json!(["observed-first-response"])
     );
-    assert_eq!(backend["unreported_models"], 1);
+    // The repaired answer and the judge's (native step 1) name no model.
+    assert_eq!(backend["unreported_models"], 2);
     server.stop().await.expect("clean stop");
 }
 
@@ -80,20 +88,24 @@ async fn absent_authority_never_hides_a_transport_retry() {
 #[tokio::test(flavor = "multi_thread")]
 async fn explicit_authority_repairs_and_a_caller_can_narrow_but_never_widen_it() {
     for (limits, expected_calls, ready) in [
-        (json!({}), 2, true),
+        // The operator's grant: the broken answer, its repair, then the judgment (native step 1).
+        (json!({}), 3, true),
         (json!({"max_calls": 1, "repairs": 0}), 1, false),
     ] {
         let world = TestWorld::new();
         let seat = Seat::start(vec![
             Reply::Text(native_answer("nika: broken\ntasks: {}\n")),
             Reply::Text(native_answer(&candidate(RUN_MODEL, false))),
+            Reply::Text(JUDGE_APPROVES.to_owned()),
         ]);
         let operator = NativeAuthoring::new(SEAT, seat.providers())
-            .with_max_calls(2)
+            // 3 + repairs (nv1b): the candidate, its repair and the judge's two whole-request
+            // questions.
+            .with_max_calls(4)
             .with_repairs(1);
         let (server, _) = start_native(&world, compile_limits(), operator).await;
         for refused in [
-            json!({"max_calls": 3}),
+            json!({"max_calls": 5}),
             json!({"max_calls": 0}),
             json!({"max_calls": 1}),
         ] {

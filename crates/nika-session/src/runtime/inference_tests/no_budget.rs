@@ -154,6 +154,9 @@ fn every_dispatch_site_rides_the_one_no_budget_observation() {
         (200, response("Hello")),
         (200, response("ANSWER")),
         (200, response(&native())),
+        (200, response(JUDGE_APPROVES)),
+        (200, response(&native())),
+        (200, response(JUDGE_APPROVES)),
     ]);
     let _transport = test_transport::install(&peer.url);
     let dir = tempfile::tempdir().unwrap();
@@ -167,17 +170,18 @@ fn every_dispatch_site_rides_the_one_no_budget_observation() {
     // A revision rides the same bracket (S102 left this site unrecorded).
     s.compile_request(&round.request(), WORK).expect("revision");
     let r = s.money.observed.snapshot().unwrap();
-    assert_eq!(r.attempts.len(), 5);
+    // Two of the seven are the judge's (native step 1): the round's and the revision's.
+    assert_eq!(r.attempts.len(), 7);
     assert!(
         r.attempts.iter().all(|a| a.sent && a.estimated.is_some()),
         "{r:?}"
     );
-    assert_eq!(peer.bodies().len(), 5);
+    assert_eq!(peer.bodies().len(), 7);
     assert!(s.inference_receipt().unwrap().is_none());
     let kept = crate::SessionState::load(dir.path()).unwrap().unwrap();
     assert_eq!(kept.inference_observations.len(), 1);
     let attempts = kept.inference_observations[0]["attempts"].as_array();
-    assert_eq!(attempts.map(Vec::len), Some(5));
+    assert_eq!(attempts.map(Vec::len), Some(7));
 }
 
 #[test]

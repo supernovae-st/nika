@@ -34,6 +34,10 @@ pub(super) const SEAT: &str = "vllm/s06-seat";
 /// The model the candidate's own infer runs with — candidate data, never the seat.
 pub(super) const RUN_MODEL: &str = "mistral/mistral-small-latest";
 const VERSION: &str = "knowledge-s06";
+/// The verifier's closed choice, approved (native step 1, R4 A11): the explicit answer
+/// scripted at the judge's position, after a candidate READY in its authoring round. The
+/// judge's call is a real request, counted like any other.
+pub(super) const JUDGE_APPROVES: &str = r#"{"choice":"faithful"}"#;
 
 /// What the controlled seat answers one request with.
 #[derive(Clone)]
@@ -554,7 +558,9 @@ async fn a_native_round_reads_the_pinned_pack_under_the_operators_seat_and_its_a
     let authoring = NativeAuthoring::new(SEAT, seat.providers())
         .with_knowledge(&foundry.snapshot, None)
         .with_max_tokens(4096)
-        .with_max_calls(2)
+        // 3 + repairs (nv1b): the candidate, its repair and the judge's two whole-request
+        // questions.
+        .with_max_calls(4)
         .with_repairs(1);
     let (server, backend) = start_native(&world, compile_limits(), authoring).await;
     let health = server

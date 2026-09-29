@@ -74,6 +74,7 @@ fn native_compiler_candidate_requires_separate_save_review() {
     let peer = Peer::start(vec![
         (200, unpriced_response("NEW_WORK")),
         (200, unpriced_response(&native())),
+        (200, unpriced_response(JUDGE_APPROVES)),
     ]);
     let _transport = test_transport::install(&peer.url);
     let dir = tempfile::tempdir().unwrap();
@@ -84,11 +85,11 @@ fn native_compiler_candidate_requires_separate_save_review() {
     let TurnOutcome::Proposal { id, .. } = out else {
         panic!("native Compiler: {out:?}");
     };
-    assert_eq!(peer.bodies().len(), 2);
+    assert_eq!(peer.bodies().len(), 3);
     assert!(!dir.path().join("sortie.txt").exists());
     assert_eq!(s.pending_proposal(), Some(id.clone()));
     assert!(matches!(s.consent_to(&id, "yes"), TurnOutcome::Facts(_)));
-    assert_eq!(peer.bodies().len(), 2);
+    assert_eq!(peer.bodies().len(), 3);
 }
 #[test]
 fn defaults_need_explicit_override_and_hard_or_unknown_caps_never_send() {
@@ -272,6 +273,7 @@ fn revision_has_a_new_cost_question_and_cannot_apply_old_candidate_identity() {
     let peer = Peer::start(vec![
         (200, unpriced_response("NEW_WORK")),
         (200, unpriced_response(&native())),
+        (200, unpriced_response(JUDGE_APPROVES)),
     ]);
     let _transport = test_transport::install(&peer.url);
     let dir = tempfile::tempdir().unwrap();
@@ -304,8 +306,10 @@ fn confirmed_revision_produces_new_candidate_and_new_save_review() {
     let peer = Peer::start(vec![
         (200, unpriced_response("NEW_WORK")),
         (200, unpriced_response(&native())),
+        (200, unpriced_response(JUDGE_APPROVES)),
         (200, unpriced_response("MODIFY")),
         (200, unpriced_response(&revised)),
+        (200, unpriced_response(JUDGE_APPROVES)),
     ]);
     let _transport = test_transport::install(&peer.url);
     let dir = tempfile::tempdir().unwrap();
@@ -315,14 +319,14 @@ fn confirmed_revision_produces_new_candidate_and_new_save_review() {
         panic!("initial candidate");
     };
     asked(&s.consent("Change the destination to ./revised.txt"));
-    assert_eq!(peer.bodies().len(), 2);
+    assert_eq!(peer.bodies().len(), 3);
     assert!(matches!(s.consent_to(&old, "yes"), TurnOutcome::Refusal(_)));
     let out = s.turn("yes");
     let TurnOutcome::Proposal { id: revised_id, .. } = out else {
         panic!("revised candidate: {out:?}");
     };
     assert_ne!(old, revised_id);
-    assert_eq!(peer.bodies().len(), 4);
+    assert_eq!(peer.bodies().len(), 6);
     assert!(matches!(s.consent_to(&old, "yes"), TurnOutcome::Refusal(_)));
     assert!(matches!(
         s.consent_to(&revised_id, "yes"),

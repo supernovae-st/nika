@@ -30,6 +30,11 @@ use nika_cli_host::compile::knowledge::Snapshot;
 use nika_onboard::compile::revise_intent;
 use serde_json::{Value, json};
 
+/// The verifier's closed choice, approved (native step 1, R4 A11): the explicit answer scripted at
+/// the judge's position, after a candidate READY in its authoring round. The judge's call is a
+/// real call, counted like any other.
+const JUDGE_APPROVES: &str = r#"{"choice":"faithful"}"#;
+
 /// One scenario's world: the project, the home, the snapshot, the seat, the report.
 struct World {
     _dir: tempfile::TempDir,
@@ -248,6 +253,7 @@ fn the_public_turn_presents_the_pinned_pack_and_the_receipt_names_the_bytes_the_
     let seat = LoopbackSeat::start(vec![
         native_answer(&candidate("mock/echo", false)),
         native_answer(&candidate(SEAT_MODEL, true)),
+        JUDGE_APPROVES.to_owned(),
     ]);
     let snapshot = world.foundry.snapshot.display().to_string();
     let report = run_child(
@@ -272,9 +278,10 @@ fn the_public_turn_presents_the_pinned_pack_and_the_receipt_names_the_bytes_the_
         ["question", "proposal", "proposal"],
         "the model question, the proposal, the revised proposal: {report:#}"
     );
-    // Two calls, both native: `only` opens the native door at once; the answer round replays
-    // (zero calls); no label call reached the seat (the door's classifier is the host's).
-    assert_eq!(bodies.len(), 2, "{bodies:#?}");
+    // Three calls: two native, then the judgment of the READY revision (native step 1).
+    // `only` opens the native door at once; the answer round replays (zero calls, unjudged);
+    // no label call reached the seat (the door's classifier is the host's).
+    assert_eq!(bodies.len(), 3, "{bodies:#?}");
     for body in &bodies {
         assert_eq!(
             body["model"], "s03-seat",
@@ -282,7 +289,7 @@ fn the_public_turn_presents_the_pinned_pack_and_the_receipt_names_the_bytes_the_
         );
         assert!(
             body["response_format"].is_object(),
-            "the native answer schema"
+            "a structured answer schema"
         );
     }
     assert_first_round(

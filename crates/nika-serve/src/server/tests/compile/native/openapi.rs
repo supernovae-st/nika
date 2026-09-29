@@ -372,8 +372,8 @@ fn the_published_ceilings_are_the_ones_a_seat_is_validated_against() {
     let repairs = u32::try_from(max("repairs")).expect("u32");
     let tokens = u32::try_from(max("max_tokens")).expect("u32");
     assert!(
-        seated(at().with_max_calls(repairs + 1).with_repairs(repairs))
-            && !seated(at().with_max_calls(repairs + 2).with_repairs(repairs + 1))
+        seated(at().with_max_calls(repairs + 3).with_repairs(repairs))
+            && !seated(at().with_max_calls(repairs + 4).with_repairs(repairs + 1))
     );
     assert!(seated(at().with_max_tokens(tokens)) && !seated(at().with_max_tokens(tokens + 1)));
     let call = max("call_timeout_ms");

@@ -366,7 +366,10 @@ fn a_money_blocked_deterministic_round_still_observes_the_project() {
 /// names, and the session's context keeps that root.
 #[test]
 fn a_seated_session_round_is_told_the_project_under_its_own_root() {
-    let peer = Peer::start(vec![(200, response(&native()))]);
+    let peer = Peer::start(vec![
+        (200, response(&native())),
+        (200, response(JUDGE_APPROVES)),
+    ]);
     let _transport = test_transport::install(&peer.url);
     let dir = tempfile::tempdir().unwrap();
     let mut s = open(dir.path());

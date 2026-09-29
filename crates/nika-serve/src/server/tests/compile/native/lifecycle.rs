@@ -143,6 +143,7 @@ async fn an_authorized_503_resend_is_counted_as_a_second_physical_request() {
     let seat = Seat::start(vec![
         Reply::Busy,
         Reply::Text(native_answer(&candidate(RUN_MODEL, false))),
+        Reply::Text(JUDGE_APPROVES.to_owned()),
     ]);
     let (server, _backend) =
         start_native(&world, compile_limits(), operator(&seat).with_repairs(0)).await;
@@ -150,19 +151,20 @@ async fn an_authorized_503_resend_is_counted_as_a_second_physical_request() {
     assert_eq!(response.status, 200, "{}", response.body);
     let document = response.json();
     assert_eq!(document["status"], "ready", "{document:#}");
-    assert_eq!(document["provenance"]["authoring"]["calls"], 1);
+    // The candidate and its judgment (native step 1): two journaled calls.
+    assert_eq!(document["provenance"]["authoring"]["calls"], 2);
     assert_eq!(
         seat.bodies().len(),
-        2,
-        "the explicit grant covers the resend"
+        3,
+        "the explicit grant covers the resend and the judgment"
     );
     assert_eq!(
         document["provenance"]["authoring"]["backend"]["authority"]["http_requests"]["sent"],
-        2
+        3
     );
     assert_eq!(
         document["provenance"]["authoring"]["backend"]["authority"]["invocations"]["sent"],
-        1
+        2
     );
     server.stop().await.expect("clean stop");
 }

@@ -46,6 +46,10 @@ fn native() -> String {
     json!({"candidate":candidate,"questions":[],"gaps":[],"notes":"copy the exact bytes"})
         .to_string()
 }
+/// The verifier's closed choice, approved (native step 1, R4 A11): the explicit answer a test
+/// scripts at the judge's position, after a native candidate READY in its authoring round. The
+/// judge's call is a real request, counted and journaled like any other.
+pub(crate) const JUDGE_APPROVES: &str = r#"{"choice":"faithful"}"#;
 fn open(root: &Path) -> SessionRuntime {
     std::fs::write(root.join("entree.txt"), "A\n").expect("input");
     let selected = ResolvedSessionIntelligence {
@@ -83,7 +87,10 @@ fn open(root: &Path) -> SessionRuntime {
 fn positive_authoring_amendment_and_save_share_one_account() {
     // This wording enters authoring directly. Classifier/conversation/compiler
     // aggregation is exercised separately below through those real consumers.
-    let peer = Peer::start(vec![(200, response(&native()))]);
+    let peer = Peer::start(vec![
+        (200, response(&native())),
+        (200, response(JUDGE_APPROVES)),
+    ]);
     let _transport = test_transport::install(&peer.url);
     let dir = tempfile::tempdir().expect("root");
     let mut s = open(dir.path());
@@ -93,7 +100,7 @@ fn positive_authoring_amendment_and_save_share_one_account() {
         panic!("positive authoring: {out:?}");
     };
     let before = s.inference_receipt().expect("receipt").expect("account");
-    assert_eq!(before.attempts.len(), 1);
+    assert_eq!(before.attempts.len(), 2, "the native call and the judge's");
     assert!(before.estimated.nano_usd > 0);
     assert_eq!(before.billed, None);
     assert_eq!(s.monetary_decision().expect("money").original_intent, input);
@@ -118,7 +125,7 @@ fn positive_authoring_amendment_and_save_share_one_account() {
         panic!("amend: {out:?}");
     };
     assert_ne!(old, id);
-    assert_eq!(peer.bodies().len(), 1);
+    assert_eq!(peer.bodies().len(), 2);
     assert_eq!(
         s.inference_receipt().unwrap().unwrap().estimated,
         before.estimated
@@ -128,7 +135,7 @@ fn positive_authoring_amendment_and_save_share_one_account() {
     assert!(
         matches!(s.turn("run it"),TurnOutcome::RunRequested{ref run,..} if run.max_cost_usd.to_bits() == 3.0_f64.to_bits())
     );
-    assert_eq!(peer.bodies().len(), 1);
+    assert_eq!(peer.bodies().len(), 2);
 }
 #[test]
 fn fresh_classifier_conversation_and_compiler_do_not_reset_exposure() {
@@ -136,6 +143,7 @@ fn fresh_classifier_conversation_and_compiler_do_not_reset_exposure() {
         (200, response("NEW_WORK")),
         (200, response("Hello")),
         (200, response(&native())),
+        (200, response(JUDGE_APPROVES)),
     ]);
     let _transport = test_transport::install(&peer.url);
     let dir = tempfile::tempdir().unwrap();
@@ -147,8 +155,12 @@ fn fresh_classifier_conversation_and_compiler_do_not_reset_exposure() {
     let round = AuthoringRound::new(WORK);
     s.compile_round(&round, &s.seat).expect("compile");
     let r = s.inference_receipt().unwrap().unwrap();
-    assert_eq!(r.attempts.len(), 3);
-    assert_eq!(peer.bodies().len(), 3);
+    assert_eq!(
+        r.attempts.len(),
+        4,
+        "classifier, conversation, native, judge"
+    );
+    assert_eq!(peer.bodies().len(), 4);
     assert_eq!(peer.bodies()[0]["max_tokens"], 4096);
     assert_eq!(peer.bodies()[1]["max_tokens"], 8192);
     s.admit_money("budget 2 USD", true, false).unwrap();
@@ -163,7 +175,7 @@ fn fresh_classifier_conversation_and_compiler_do_not_reset_exposure() {
         .amend(r.estimated)
         .unwrap();
     assert!(s.reason_with_money("another", false).is_err());
-    assert_eq!(peer.bodies().len(), 3);
+    assert_eq!(peer.bodies().len(), 4);
 }
 #[test]
 fn zero_invalid_and_unknown_charge_remain_guarded_across_questions() {
