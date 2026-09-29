@@ -382,6 +382,18 @@ impl SessionRuntime {
         Ok(())
     }
 
+    /// The monetary directives of request bytes Session built from the human's words (a
+    /// replacement, a restatement), as spans of exactly those bytes, never offsets carried from
+    /// another text (C11); a malformed or conflicting amount refuses under the money law.
+    pub(super) fn built_money(
+        &mut self,
+        text: &str,
+        line: &str,
+    ) -> Result<Vec<std::ops::Range<usize>>, TurnOutcome> {
+        let found = money_parse::directives(text).map_err(|why| self.refuse_money(line, why))?;
+        Ok(found.found.into_iter().map(|d| d.span).collect())
+    }
+
     /// Called at every cognition seam. Deterministic reading stays available;
     /// the selected intelligence is never substituted by a monetary decision.
     pub(super) fn money_blocks_cognition(&self) -> bool {

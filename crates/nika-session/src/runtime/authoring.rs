@@ -268,12 +268,16 @@ impl SessionRuntime {
     /// A change, a mixed line or new work said at a question: the request
     /// is read again with the human's own words (the round is dropped, the
     /// plan read a different request). Never a paraphrase.
-    fn restate_round(&mut self, round: &AuthoringRound, line: &str) -> TurnOutcome {
+    pub(super) fn restate_round(&mut self, round: &AuthoringRound, line: &str) -> TurnOutcome {
         let intent = format!("{}. {}", round.intent, line.trim());
+        // Its directives, the request's own and the added ones, are spans of this very string (C11).
+        let money = match self.built_money(&intent, line) {
+            Ok(money) => money,
+            Err(refusal) => return refusal,
+        };
         self.remember(line, "(the request read again with these words)");
         let mut again = AuthoringRound::new(intent);
-        // The request stays in front: its admitted directives keep their offsets.
-        again.money.clone_from(&round.money);
+        again.money = money;
         match self.compile_request(&again.request(), &again.intent) {
             Ok(out) => {
                 let reading = Reading::of(out);

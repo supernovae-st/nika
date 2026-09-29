@@ -437,19 +437,38 @@ impl AuthoringRound {
     }
 
     /// Answer the current question with the human's line, typed to the question's shape; the key it
-    /// answered. A complete replacement (`intent.clarification`) drops what the earlier intent was
-    /// answered and planned with; the chosen seat and the gate's admitted money stay (never for a
-    /// revision, which keeps its change).
+    /// answered. An explicit Create clarification makes its answer the request (C11): what the
+    /// earlier intent was answered and planned with is dropped, the chosen seat stays, and its
+    /// lexical money spans stay only on identical bytes (the caller installs the spans admitted
+    /// for new ones). A revision keeps its change.
     pub fn answer_current(&mut self, line: &str) -> Option<String> {
         let question = self.questions.first()?.clone();
         let literal = literal_for(&question, line);
         if question.key == CLARIFICATION_KEY && self.edit.is_none() {
             self.answers.retain(|key, _| key == "model");
             (self.continuation, self.knowledge, self.authoring_receipt) = (None, None, None);
+            if let Some(text) = self.replacement(line) {
+                if text != self.intent {
+                    self.money.clear();
+                }
+                self.intent = text;
+                self.questions.remove(0);
+                return Some(question.key);
+            }
         }
         self.answers.insert(question.key.clone(), literal);
         self.questions.remove(0);
         Some(question.key)
+    }
+
+    /// The Create text an answer at an explicit Create clarification makes the request, as the
+    /// compiler reads that answer; `None` at any other question, in a revision, or when blank.
+    pub(crate) fn replacement(&self, line: &str) -> Option<String> {
+        let question = (self.questions.first()).filter(|q| q.key == CLARIFICATION_KEY)?;
+        let literal = literal_for(question, line);
+        (self.edit.is_none())
+            .then(|| clarified(&BTreeMap::from([(CLARIFICATION_KEY.to_owned(), literal)])))
+            .flatten()
     }
     /// Compile this same round under the aggregate account (replay stays free).
     /// # Errors
@@ -992,9 +1011,10 @@ mod tests {
         assert_eq!(out.status, CompileStatus::Ready, "{out:?}");
         let out = observed_in(out, Some(&world));
         let kept = nika_onboard::compile::round::compiled(round.request(), &out).expect("rebuilt");
+        // C11: the replacement is the request itself, never an answer riding the old text.
         assert_eq!(
             kept.answers.keys().collect::<Vec<_>>(),
-            ["const.rule_field_1", CLARIFICATION_KEY],
+            ["const.rule_field_1"],
             "the earlier answer is gone"
         );
         assert_eq!(kept.knowledge.as_ref(), Some(&world));
@@ -1060,9 +1080,10 @@ mod tests {
 
     /// C10 · a complete replacement request (`intent.clarification`) drops what the earlier
     /// intent was answered and planned with: an old column answer cannot ride into the new
-    /// request, while the chosen seat and the gate's admitted money stay and an answer given after
-    /// the replacement is kept. An ordinary answer keeps the round, and a revision never replaces
-    /// its change.
+    /// request, while the chosen seat stays and an answer given after the replacement is kept.
+    /// C11: the replacement is the request's Create text, and the old lexical money spans do not
+    /// ride its changed bytes (the account's ceiling is Session's, apart). An ordinary answer
+    /// keeps the round, and a revision never replaces its change.
     #[test]
     fn a_replacement_request_starts_its_round_again_but_keeps_the_seat_and_the_money() {
         let asked = compile_deterministic(&CompileRequest::create("bounded-batch"))
@@ -1097,17 +1118,16 @@ mod tests {
         );
         assert_eq!(
             round.answers.keys().collect::<Vec<_>>(),
-            [CLARIFICATION_KEY, "model"],
+            ["model"],
             "the old column answer is gone, the chosen seat stays"
         );
         assert!(round.continuation.is_none() && round.knowledge.is_none());
         assert!(round.authoring_receipt.is_none());
+        assert!(round.money.is_empty(), "no old offsets ride the new bytes");
         assert_eq!(
-            round.money,
-            earlier().money,
-            "the gate's admitted money stays"
+            (round.intent.as_str(), round.effective_intent()),
+            (replacement, replacement.to_owned())
         );
-        assert_eq!(round.effective_intent(), replacement);
         assert!(
             round.request().plan.is_none(),
             "no old plan rides the request"

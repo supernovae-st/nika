@@ -356,6 +356,15 @@ impl SessionRuntime {
             AnswerReading::Part(value) => value,
             AnswerReading::Waits(why) => return self.answer_waits(round, &why),
         };
+        // An explicit Create clarification makes its answer the request (C11): new bytes carry
+        // only the spans admitted for them; identical bytes keep their own.
+        let fresh = round
+            .replacement(&value)
+            .filter(|text| *text != round.intent);
+        let money = match fresh.map(|text| self.built_money(&text, line)).transpose() {
+            Ok(money) => money,
+            Err(refusal) => return refusal,
+        };
         let asked = self.question_id_of(&round);
         let Some(key) = round.answer_current(&value) else {
             return TurnOutcome::Refusal(Refusal::new(
@@ -363,6 +372,9 @@ impl SessionRuntime {
                 "no authoring question waits",
             ));
         };
+        if let Some(spans) = money {
+            round.money = spans;
+        }
         self.questions.close(asked);
         if value == line {
             self.remember(line, &format!("(answered {key})"));

@@ -574,9 +574,13 @@ authority. A saved workflow's revision carries the monetary directives the gate 
 the line that said the change, as the money law reads the change the EDIT holds
 (`compile::round::change_money`, B15); a revision said at the consent prompt carries none,
 and a money-only consent line keeps its fresh-proposal path.
-A complete replacement request (`intent.clarification`) drops what the earlier intent was
-answered and planned with, its plan's knowledge record and receipt included; the chosen seat and
-the gate's admitted money stay, and a revision never replaces its change.
+A complete Create replacement (`intent.clarification`) becomes the request text and drops
+what the earlier intent was answered and planned with, including its knowledge and receipt.
+The chosen seat and aggregate account stay. Lexical budget spans stay only for identical
+bytes; changed text carries only directives read from those exact replacement bytes.
+A replacement without a directive retains the account ceiling but carries no old spans.
+A restatement binds both original and added directives against the combined text and
+refuses conflicting amounts. A revision keeps its change and does not become a Create.
 
 A gate restored at open is offered only as its journals stand (C7b §3.4,
 `nika_trace::lineage`): with no continuation it waits again; a continuation
