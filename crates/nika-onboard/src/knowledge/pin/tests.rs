@@ -184,3 +184,70 @@ fn a_pin_says_its_identity_as_the_status_line_reads_it() {
         )
     );
 }
+
+/// C11 · B19 · the `/details` words of the knowledge record, descended here from the session byte
+/// for byte: each branch (none attached, fields absent, presented with its calls and a direct
+/// seat, carried with usage unreported, a subscription seat, no seat, not presented with and
+/// without its reason) reads exactly what the session's own lines read before the move, as
+/// captured from the pre-descent code.
+#[test]
+fn the_knowledge_lines_read_each_branch_as_the_session_read_it() {
+    const CASES: [(&str, &str, &str); 10] = [
+        (
+            "none_attached",
+            r#"{"strategy": "escalate", "source": "default", "knowledge": null}"#,
+            "\n  authoring strategy: escalate (default)\n  knowledge: none attached",
+        ),
+        (
+            "record_without_fields",
+            "{}",
+            "\n  authoring strategy: unknown (unknown)\n  knowledge: none attached",
+        ),
+        (
+            "presented_direct_usage_reported",
+            r#"{"strategy": "native", "source": "host", "knowledge": {"identity": {"version": "v1.2", "digest": "sha256:abcdef0123456789", "manifest_sha256": "0123456789abcdef0123", "rows_sha256": "fedcba9876543210fedc"}, "pack_builder": "nika-pack@1", "pack_sha256": "aaaabbbbccccddddeeeeffff0000111122223333444455556666777788889999", "references": [{"kind": "pattern", "id": "p-1", "bytes": 120, "sha256": "1111222233334444aaaa"}, {"kind": "example", "id": "e-2", "bytes": 30, "sha256": "5555666677778888bbbb"}], "repairs": 1, "presented": true, "why": null, "calls": [{"call": "native", "instruction_sha256": "9999aaaa"}, {"call": "native-repair-1", "instruction_sha256": "8888bbbb"}], "seat": {"model": "deepseek/deepseek-v4-pro", "calls": 2, "input_tokens": 300, "output_tokens": 90, "elapsed_ms": 1500, "backend": {"kind": "direct_api", "provider": "deepseek", "host": "api.deepseek.com"}}, "carried": false}}"#,
+            "\n  authoring strategy: native (host)\n  knowledge: v1.2 · declared digest sha256:abcde · manifest 0123456789ab · rows fedcba987654 · 2 references · 150 B · nika-pack@1\n  pack sha256 aaaabbbbccccddddeeeeffff0000111122223333444455556666777788889999\n    pattern p-1 · 120 B · sha256 111122223333\n    example e-2 · 30 B · sha256 555566667777\n  presented to the seat in 2 calls\n    native · instruction sha256 9999aaaa\n    native-repair-1 · instruction sha256 8888bbbb\n    by deepseek/deepseek-v4-pro · host api.deepseek.com · 2 calls in that round · 300 in / 90 out tokens · 1500 ms",
+        ),
+        (
+            "carried_one_call_usage_unreported",
+            r#"{"strategy": "native", "source": "environment", "knowledge": {"identity": {"version": "v2", "digest": "d", "manifest_sha256": "m", "rows_sha256": "r"}, "pack_builder": "nika-pack@1", "pack_sha256": "p", "references": [{"kind": "block", "id": "b-9", "bytes": 7, "sha256": "0000"}], "presented": true, "why": null, "calls": [{"call": "sketch", "instruction_sha256": "7777"}], "seat": {"model": "mistral/mistral-large-latest", "calls": 1, "input_tokens": null, "output_tokens": null, "elapsed_ms": 42, "backend": {"kind": "direct_api", "host": "api.mistral.ai"}}, "carried": true}}"#,
+            "\n  authoring strategy: native (environment)\n  knowledge: v2 · declared digest d · manifest m · rows r · 1 reference · 7 B · nika-pack@1\n  pack sha256 p\n    block b-9 · 7 B · sha256 0000\n  presented to the seat in 1 call of the round that authored this candidate (this answer round replayed it · zero calls)\n    sketch · instruction sha256 7777\n    by mistral/mistral-large-latest · host api.mistral.ai · 1 call in that round · usage not reported by the provider · 42 ms",
+        ),
+        (
+            "presented_subscription_seat",
+            r#"{"strategy": "native", "source": "default", "knowledge": {"identity": {"version": "v3"}, "pack_builder": "nika-pack@1", "pack_sha256": "q", "references": [], "presented": true, "calls": [{"call": "fill-1", "instruction_sha256": null}], "seat": {"calls": 3, "backend": {"kind": "harness_infer", "adapter": "claude-code"}}, "carried": false}}"#,
+            "\n  authoring strategy: native (default)\n  knowledge: v3 · declared digest none · manifest none · rows none · 0 references · 0 B · nika-pack@1\n  pack sha256 q\n  presented to the seat in 1 call\n    fill-1 · instruction sha256 none\n    by subscription claude-code · 3 call(s) · responding identities in backend receipt · cost unknown",
+        ),
+        (
+            "presented_no_seat_no_calls",
+            r#"{"strategy": "native", "source": "default", "knowledge": {"identity": {}, "presented": true, "seat": null}}"#,
+            "\n  authoring strategy: native (default)\n  knowledge: unversioned · declared digest none · manifest none · rows none · 0 references · 0 B · unknown builder\n  pack sha256 none\n  presented to the seat in 0 calls",
+        ),
+        (
+            "not_presented_with_why",
+            r#"{"strategy": "escalate", "source": "host", "knowledge": {"identity": {"version": "v1.2", "digest": "sha256:abcdef0123456789", "manifest_sha256": "0123456789abcdef0123", "rows_sha256": "fedcba9876543210fedc"}, "pack_builder": "nika-pack@1", "pack_sha256": "abc", "references": [{"kind": "skill", "id": "s-1", "bytes": 2048, "sha256": "cafe"}], "presented": false, "why": "the request settled on the recipe path; only the native door reads knowledge", "calls": [], "seat": null, "carried": false}}"#,
+            "\n  authoring strategy: escalate (host)\n  knowledge: v1.2 · declared digest sha256:abcde · manifest 0123456789ab · rows fedcba987654 · 1 reference · 2048 B · nika-pack@1\n  pack sha256 abc\n    skill s-1 · 2048 B · sha256 cafe\n  not presented: the request settled on the recipe path; only the native door reads knowledge",
+        ),
+        (
+            "not_presented_without_fields",
+            r#"{"strategy": "native", "source": "default", "knowledge": {"references": [{}], "presented": false}}"#,
+            "\n  authoring strategy: native (default)\n  knowledge: unversioned · declared digest none · manifest none · rows none · 1 reference · 0 B · unknown builder\n  pack sha256 none\n    ? ? · 0 B · sha256 none\n  not presented: the native door did not read it",
+        ),
+        (
+            "direct_seat_without_fields",
+            r#"{"strategy": "native", "source": "default", "knowledge": {"identity": {"digest": 42}, "presented": true, "calls": [{}], "seat": {"backend": {"kind": "direct_api"}}}}"#,
+            "\n  authoring strategy: native (default)\n  knowledge: unversioned · declared digest none · manifest none · rows none · 0 references · 0 B · unknown builder\n  pack sha256 none\n  presented to the seat in 1 call\n    ? · instruction sha256 none\n    by unknown model · host unknown · 0 calls in that round · usage not reported by the provider · 0 ms",
+        ),
+        (
+            "presented_absent",
+            r#"{"strategy": "native", "source": "default", "knowledge": {"identity": {"version": "v4", "digest": "e", "manifest_sha256": "n", "rows_sha256": "s"}, "pack_builder": "nika-pack@1", "pack_sha256": "t", "references": [{"kind": "pattern", "id": "p-4", "bytes": 3, "sha256": "abcd"}], "calls": [{"call": "native", "instruction_sha256": "1234"}], "seat": {"model": "deepseek/deepseek-v4-pro", "calls": 1, "input_tokens": 1, "output_tokens": 2, "elapsed_ms": 3, "backend": {"host": "api.deepseek.com"}}}}"#,
+            "\n  authoring strategy: native (default)\n  knowledge: v4 · declared digest e · manifest n · rows s · 1 reference · 3 B · nika-pack@1\n  pack sha256 t\n    pattern p-4 · 3 B · sha256 abcd\n  not presented: the native door did not read it",
+        ),
+    ];
+    for (name, record, words) in CASES {
+        let record: Value = serde_json::from_str(record).expect(name);
+        let mut text = String::new();
+        knowledge_lines(&record, &mut text);
+        assert_eq!(text, words, "{name}");
+    }
+}

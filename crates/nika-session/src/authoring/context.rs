@@ -277,8 +277,16 @@ impl AuthoringContext {
                 self.source
             );
         }
+        // Scoped to the LLM calls: the TypeSafe decision seat is a separate backend (B19).
         let effort = self.reasoning().map_or_else(String::new, |r| {
-            format!(" · reasoning effort {} asked", r.word())
+            let seat = (self.decision.is_some()).then_some(
+                "; the TypeSafe decision seat is a separate backend: no effort is sent to it",
+            );
+            let seat = seat.unwrap_or_default();
+            format!(
+                " · reasoning effort {} asked of every LLM call{seat}",
+                r.word()
+            )
         });
         format!("{}{effort}{decision}", self.base_line())
     }

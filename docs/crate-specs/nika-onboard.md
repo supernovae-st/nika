@@ -122,6 +122,20 @@ where the calls went, and the cost basis. The host passes its own words for wher
 cost is read. `reasoning_words` gives one explicit-effort call's facts, each apart:
 configured, the keys read back from the sent body (`unobserved` when none was), served
 unknown, the tokens, usage and model reported. A call naming no level adds nothing.
+The headline counts only what each call's record shows (B19), never a subtraction:
+- A call is answered only when its record holds the provider's response (`stop_reason`),
+  whether usage was reported or not.
+- `admission_refused` was refused before sending; `provider_error` and `timeout` may have been
+  sent.
+- Anything else is unobserved: no result, a failure this reader does not know, or a counted
+  call with no record.
+
+When every counted call has one answered record, it reads as before. Otherwise it gives the calls
+attempted, answered, without an answer, refused before sending and unobserved. It also says when
+the receipt records another number of calls than it counts. The destination line then reads
+`nothing was sent to` when nothing was sent (every attempt refused locally, or no call made), and
+`possibly sent to` when none was answered and one may have been sent. A call that asked a level
+and holds no result says `result unobserved` on its own line.
 `compile::seat` (C11, from `nika-session`) holds what the catalog says of a named model or
 an offered seat:
 - `unpriced_cloud`: a cloud model the catalog does not price, which a run under a spending
@@ -157,7 +171,12 @@ decides a policy: the session keeps its seat, its strategy and its consent.
 `KnowledgePin::moved` names both identities in words when the snapshot read
 now is no longer the one pinned (C10 · D-K); the session refuses it.
 `stamp_seat` places the decision seat's receipt beside the compiler's own record
-(`decision.session.decision_seat`), which `stamp` keeps (C10).
+(`decision.session.decision_seat`), which `stamp` keeps (C10). `knowledge_lines` gives the
+session's record (`decision.session.authoring`) in the words `/details` shows (C11 · B19). It
+descended from `nika-session`'s `runtime/details.rs` with its bytes unchanged: the strategy
+and its source, then the pack's identity, digests and references. The pack is presented (with
+the calls that carried it and the seat that authored), attached but never read (and why), or
+carried from the round that authored a replayed candidate.
 
 ## The durable authoring round (kept by Session)
 

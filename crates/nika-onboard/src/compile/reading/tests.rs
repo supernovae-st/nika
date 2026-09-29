@@ -221,8 +221,9 @@ fn a_receipt_says_each_explicit_effort_fact_apart_and_nothing_for_none() {
     receipt.elapsed_ms = 1500;
     receipt.backend = Some(json!({"kind": "direct_api", "provider": "deepseek",
         "host": "api.deepseek.com", "base_url_overridden": false}));
-    let unnamed = json!({"call": "plan", "result": {"usage_reported": true, "input_tokens": 100,
-        "output_tokens": 30}, "reasoning": {"configured": null, "transmitted": {"thinking": null,
+    let unnamed = json!({"call": "plan", "result": {"stop_reason": "EndTurn",
+        "usage_reported": true, "input_tokens": 100, "output_tokens": 30}, "reasoning": {
+        "configured": null, "transmitted": {"thinking": null,
         "effort": "low"}, "served": "unknown", "reasoning_tokens": null,
         "response_model": "deepseek-v4-pro"}});
     receipt.context = vec![unnamed.clone(), unnamed];
@@ -233,14 +234,16 @@ fn a_receipt_says_each_explicit_effort_fact_apart_and_nothing_for_none() {
         format!("{head}{tail}")
     );
     receipt.context = vec![
-        json!({"call": "plan", "result": {"usage_reported": true, "input_tokens": 100,
-            "output_tokens": 30}, "reasoning": {"configured": "max", "transmitted":
+        json!({"call": "plan", "result": {"stop_reason": "EndTurn", "usage_reported": true,
+            "input_tokens": 100, "output_tokens": 30}, "reasoning": {"configured": "max", "transmitted":
             {"thinking": "enabled", "effort": "max"}, "served": "unknown",
             "reasoning_tokens": 812, "response_model": "deepseek-v4-pro"}}),
         json!({"call": "repair", "result": {"failure_kind": "admission_refused"}, "reasoning":
             {"configured": "max", "transmitted": "unobserved", "served": "unknown",
             "reasoning_tokens": null, "response_model": null}}),
     ];
+    // B19 F3: the refused repair is attempted, never counted as sent.
+    let head = "\n  authoring backend: deepseek/deepseek-v4-pro · 2 calls attempted · 1 answered · 0 without an answer, may have been sent · 1 refused before sending · 1500 ms · 300 in / 90 out tokens\n  sent to: deepseek · host api.deepseek.com";
     assert_eq!(
         receipt_words(&receipt, "the host's own words"),
         format!(
@@ -263,5 +266,128 @@ fn a_receipt_says_each_explicit_effort_fact_apart_and_nothing_for_none() {
     assert_eq!(
         receipt_words(&subscription, "the host's own words"),
         "\n  authoring backend: subscription claude-code · requested harness default · 1 compiler calls · 20 ms\n    receipt carried from the authoring round; this clarification replay made zero calls\n    responding model: opus · usage marker true\n  cost: subscription invoice unknown · no numeric token meter reported · no paid provider fallback"
+    );
+}
+
+/// B19 F3 · the headline counts only what the receipt shows: the calls attempted, those answered,
+/// those without an answer (a provider error or a timeout: they may have been sent) and those
+/// refused before sending. When every attempt was refused locally, nothing was sent, and the
+/// destination line says so; when none was answered, it says the calls may have been sent.
+#[test]
+fn a_receipt_never_counts_a_call_refused_before_sending_as_sent() {
+    use serde_json::json;
+    let mut receipt = AuthoringReceipt::new("vllm/reasoning-wire");
+    receipt.calls = 1;
+    receipt.elapsed_ms = 3;
+    receipt.backend = Some(json!({"kind": "direct_api", "provider": "vllm",
+        "host": "127.0.0.1", "base_url_overridden": true}));
+    let failed = |call: &str, kind: &str| json!({"call": call, "result": {"failure_kind": kind}});
+    receipt.context = vec![failed("native", "admission_refused")];
+    assert_eq!(
+        receipt_words(&receipt, "run"),
+        "\n  authoring backend: vllm/reasoning-wire · 1 call attempted · 0 answered · 0 without an answer, may have been sent · 1 refused before sending · 3 ms\n  nothing was sent to: vllm · host 127.0.0.1 (base URL overridden: a gateway or a local server, not the provider's own API)\n  cost: the compiler meters tokens, not money · run"
+    );
+    receipt.calls = 3;
+    receipt.context = vec![
+        failed("plan", "timeout"),
+        failed("native", "provider_error"),
+        failed("repair", "admission_refused"),
+    ];
+    let words = receipt_words(&receipt, "run");
+    assert!(
+        words.contains(" · 3 calls attempted · 0 answered · 2 without an answer, may have been sent · 1 refused before sending · 3 ms"),
+        "{words}"
+    );
+    assert!(
+        words.contains("\n  possibly sent to: vllm · host 127.0.0.1"),
+        "{words}"
+    );
+}
+
+/// B19 review · a call is answered only when its record holds the provider's response
+/// (`stop_reason`), never by subtracting the failures from the count. A counted call with no
+/// record, a record with no result, and a failure this reader does not know are unobserved, and
+/// the destination then says the calls may have been sent. A response that reported no usage is
+/// still an answer. A receipt listing another number of records than it counts says so.
+#[test]
+fn a_receipt_counts_an_answer_only_from_a_recorded_response() {
+    use serde_json::json;
+    let mut receipt = AuthoringReceipt::new("deepseek/deepseek-v4-pro");
+    receipt.elapsed_ms = 3;
+    receipt.backend = Some(json!({"kind": "direct_api", "provider": "deepseek",
+        "host": "api.deepseek.com", "base_url_overridden": false}));
+    let answered = json!({"call": "plan", "result": {"stop_reason": "EndTurn",
+        "usage_reported": false}});
+    // A response without usage is an answer: the words are as before.
+    receipt.calls = 1;
+    receipt.context = vec![answered.clone()];
+    assert_eq!(
+        receipt_words(&receipt, "run"),
+        "\n  authoring backend: deepseek/deepseek-v4-pro · 1 call · 3 ms\n  sent to: deepseek · host api.deepseek.com\n  cost: the compiler meters tokens, not money · run"
+    );
+    let unobserved = " · 1 call attempted · 0 answered · 0 without an answer, may have been sent · 0 refused before sending · 1 unobserved";
+    let possibly = " · 3 ms\n  possibly sent to: deepseek · host api.deepseek.com";
+    for (records, note) in [
+        (vec![], " · the receipt records 0 calls"),
+        (vec![json!({"call": "plan"})], ""),
+        (
+            vec![json!({"call": "plan", "result": {"failure_kind": "quota_exceeded"}})],
+            "",
+        ),
+        (
+            vec![json!({"call": "plan", "result": {"usage_reported": true}})],
+            "",
+        ),
+    ] {
+        receipt.context = records;
+        let got = receipt_words(&receipt, "run");
+        assert!(
+            got.contains(&format!("{unobserved}{note}{possibly}")),
+            "{got}"
+        );
+    }
+    // Two counted, one recorded and answered: the other is unobserved, never answered.
+    receipt.calls = 2;
+    receipt.context = vec![answered.clone()];
+    let got = receipt_words(&receipt, "run");
+    assert!(
+        got.contains(" · 2 calls attempted · 1 answered · 0 without an answer, may have been sent · 0 refused before sending · 1 unobserved · the receipt records 1 call · 3 ms\n  sent to: deepseek"),
+        "{got}"
+    );
+    // More records than counted calls: the receipt's own inconsistency is said, not resolved.
+    receipt.calls = 1;
+    receipt.context = vec![answered.clone(), answered];
+    let got = receipt_words(&receipt, "run");
+    assert!(
+        got.contains(" · 1 call attempted · 2 answered · 0 without an answer, may have been sent · 0 refused before sending · the receipt records 2 calls · 3 ms"),
+        "{got}"
+    );
+    // A call that asked a level and holds no result says so on its own line.
+    receipt.context = vec![json!({"call": "plan", "reasoning": {"configured": "max",
+        "transmitted": "unobserved", "served": "unknown", "reasoning_tokens": null,
+        "response_model": null}})];
+    let got = receipt_words(&receipt, "run");
+    assert!(
+        got.contains(
+            " · reasoning tokens not reported · result unobserved · response model not reported"
+        ),
+        "{got}"
+    );
+}
+
+/// B19 review · a receipt that counts no call and records none names where calls would have
+/// gone, never that anything was sent there: « nothing was sent to », with the words before it
+/// unchanged.
+#[test]
+fn a_receipt_with_no_call_says_nothing_was_sent() {
+    use serde_json::json;
+    let mut receipt = AuthoringReceipt::new("deepseek/deepseek-v4-pro");
+    receipt.elapsed_ms = 3;
+    receipt.backend = Some(json!({"kind": "direct_api", "provider": "deepseek",
+        "host": "api.deepseek.com", "base_url_overridden": false}));
+    assert_eq!((receipt.calls, receipt.context.len()), (0, 0));
+    assert_eq!(
+        receipt_words(&receipt, "run"),
+        "\n  authoring backend: deepseek/deepseek-v4-pro · 0 calls · 3 ms\n  nothing was sent to: deepseek · host api.deepseek.com\n  cost: the compiler meters tokens, not money · run"
     );
 }

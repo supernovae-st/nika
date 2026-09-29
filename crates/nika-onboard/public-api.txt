@@ -1242,6 +1242,7 @@ impl<T> typenum::type_operators::Same for nika_onboard::knowledge::pin::Knowledg
 pub type nika_onboard::knowledge::pin::KnowledgePin::Output = T
 pub fn nika_onboard::knowledge::pin::carried_record(record: &serde_json::value::Value) -> serde_json::value::Value
 pub fn nika_onboard::knowledge::pin::composed_record(pin: &nika_onboard::knowledge::pin::KnowledgePin, pack: &nika_compile::types::AuthoringKnowledge, out: &nika_compile::types::CompileOutcome) -> serde_json::value::Value
+pub fn nika_onboard::knowledge::pin::knowledge_lines(record: &serde_json::value::Value, text: &mut alloc::string::String)
 pub fn nika_onboard::knowledge::pin::observed_in(out: nika_compile::types::CompileOutcome, world: core::option::Option<&serde_json::value::Value>) -> nika_compile::types::CompileOutcome
 pub fn nika_onboard::knowledge::pin::presented_knowledge(out: &nika_compile::types::CompileOutcome) -> core::option::Option<serde_json::value::Value>
 pub fn nika_onboard::knowledge::pin::reads_knowledge(call: &str) -> bool

@@ -495,7 +495,8 @@ refuses it before any reasoner, dispatch record or byte: a refused word is never
 as no level. `AuthoringContext::reasoning()` keeps the level. Its Debug appends it only
 when one is named, so every question identity and unknown-cost binding hashed without
 one keeps its bytes, and a named level binds them. `/status` says « reasoning effort
-<w> asked ».
+<w> asked of every LLM call ». With the operator-selected decision seat, it adds that this
+TypeSafe seat is a separate backend and no effort is sent to it (B19).
 
 On a provider seat every authoring call asks it through the one policy
 (`AuthoringPolicy::with_reasoning`): the plan, its evidence repair, the native
@@ -505,13 +506,23 @@ enabled and `reasoning_effort` only on a direct route whose catalog lists the le
 provider, a gateway, a base-URL override). The caps stay the policy's: an effort never
 changes a cap and a cap never chooses an effort. A subscription seat refuses a named
 level before any call, since its adapter cannot carry it. The TypeSafe/Jev decision
-seat is untouched. The receipt records, per call, the level configured, the keys read
-back from the bytes sent, and `served: unknown`: what the provider spent internally
-is not observable here.
+seat is a separate backend, outside the level's scope (B19). Its contract carries no
+reasoning effort, so none is sent to it or claimed for it. With a named level, its receipt
+(`decision.session.decision_seat`) says `reasoning_effort: not applicable …`. The receipt
+records, per call, the level configured, the keys read back from the bytes sent, and
+`served: unknown`: what the provider spent internally is not observable here.
 
-The conversation's own calls ask it too: every turn-routing label (from the fresh
-reasoner the factory builds for each routed turn, `ReasonerClassifier::asking`) and every
-conversational turn. Each call reads the level the session holds when it is made, so a
+The conversation's own calls ask it too: every turn-routing label and every
+conversational turn. A label asks the level through the classifier that sends it
+(`TurnClassifier::carry_effort`, B19):
+- the fresh `ReasonerClassifier` the factory builds for each routed turn carries it
+  (`asking` is its builder form), and so does a door's classifier (`with_classifier`) that can;
+- the trait's default refuses a named level with the reasoner's typed `ReasonError` (never a
+  bare string), so a classifier that cannot carry it is never called with it;
+- the no-call `ConservativeFallback` accepts it.
+
+A refused word, or a level the classifier cannot carry, fails the route before any record or
+byte. Each call reads the level the session holds when it is made, so a
 host's `set_authoring_context` after open takes effect at the next call. They go through
 `SessionReasoner::reason_effort`. `ProviderReasoner` makes the same call it makes
 without a level, with the same ceiling, temperature and words, and carries the level
@@ -525,7 +536,12 @@ fact apart. The line gives the level configured and the keys read back from the 
 sent (`unobserved` when none was read back, never assumed from the level). It also says
 the served effort is unknown, and gives the reasoning tokens, the usage reported (or why
 no answer came) and the model the response named. A call that asked no level adds
-nothing, and the subscription lines are unchanged.
+nothing, and the subscription lines are unchanged. The headline counts only what the
+receipt shows (B19): a call refused before sending is never said to be sent, and a call whose
+record shows no response is unobserved, never answered. When every attempt was refused, it reads
+« nothing was sent to ». The knowledge-record lines of
+`/details` come from Onboard's `pin::knowledge_lines` (B19, descended with their bytes
+unchanged).
 
 ## Persisted state and version compatibility
 

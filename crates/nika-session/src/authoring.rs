@@ -808,8 +808,18 @@ fn seated(
         },
     )))?;
     // What the seat was asked, sent, answered or refused, beside the compiler's own record of
-    // the same questions.
-    if let Some(receipt) = consulted.as_ref().and_then(decision::SessionSeat::receipt) {
+    // the same questions. A separate backend: a named level is never sent to it nor claimed (B19).
+    if let Some(mut receipt) = consulted.as_ref().and_then(decision::SessionSeat::receipt) {
+        if let Some(level) = request
+            .authoring
+            .as_ref()
+            .and_then(|policy| policy.reasoning)
+        {
+            receipt["reasoning_effort"] = Value::from(format!(
+                "not applicable · the named level `{}` rides the LLM calls only; the TypeSafe request carries no effort",
+                level.word()
+            ));
+        }
         stamp_seat(&mut out, receipt);
     }
     // The receipt names its backend as the CLI's does, with the host the

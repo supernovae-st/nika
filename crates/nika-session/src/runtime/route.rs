@@ -71,66 +71,65 @@ impl SessionRuntime {
     pub(super) fn classify(&mut self, phase: SessionPhase, raw: &str) -> TurnDecision {
         let context = self.turn_context(phase);
         let blocked = self.money_blocks_cognition();
+        let reads = self.reads_answers();
+        let mut door = self.classifier.take();
+        let routed = door.is_none();
+        let asks = !blocked && (!routed || reads);
+        let asked = self.authoring_context.reasoning_asked();
         // The chosen intelligence routes through the same factory the
         // conversation's reasoner came from (a fresh one: the route never
         // consumes the conversation's own turn), so its route is observable.
         // A door's classifier names no route: without money it keeps its path.
-        let reads = self.reads_answers();
-        let routes = !blocked && self.classifier.is_none() && reads;
-        // A named level the session cannot ask refuses the label before any reasoner, record or
-        // byte: it is never read as no level (R4 B16).
-        let effort = self.authoring_context.reasoning_asked();
-        let refused = routes && effort.is_err();
-        let fresh = self
-            .factory
-            .as_ref()
-            .filter(|_| routes && !refused)
+        let fresh = (self.factory.as_ref())
+            .filter(|_| asks && routed && asked.is_ok())
             .map(|factory| factory(&self.intelligence));
-        let model = fresh
-            .as_ref()
+        let model = (fresh.as_ref())
             .filter(|reasoner| reasoner.supports_admission())
             .and_then(|reasoner| reasoner.authoring_model());
+        let mut fresh = fresh.map(crate::turn::ReasonerClassifier::new);
+        let mut classifier = match door.as_deref_mut() {
+            Some(door) => Some(door),
+            None => fresh.as_mut().map(|fresh| fresh as &mut dyn TurnClassifier),
+        };
+        // Every label asks the session's named level through the classifier that sends it, a
+        // door's included (B19 F2). A word the session cannot ask, or a level that classifier
+        // cannot carry, refuses the label before any record or byte (R4 B16).
+        let effort = match (asked, classifier.as_mut()) {
+            (Err(why), _) => Err(format!("nothing was sent · {why}")),
+            // The classifier's typed refusal, said in its own words (display only).
+            (Ok(level), Some(classifier)) => classifier
+                .carry_effort(level)
+                .map_err(|why| why.to_string()),
+            (Ok(_), None) => Ok(()),
+        };
         // A paid label request may leave only after the record says it might.
-        let entered = if blocked || refused {
+        let entered = if blocked || effort.is_err() {
             Ok((None, false))
         } else {
             self.enter_dispatch(model.as_deref())
         };
-        let account = entered
-            .as_ref()
-            .ok()
-            .and_then(|(account, _)| account.clone());
-        let decision = if blocked {
+        let account = (entered.as_ref().ok()).and_then(|(account, _)| account.clone());
+        let decision = if !asks {
             TurnDecision::new(TurnAct::Unknown, RoutingMethod::Fallback)
         } else if let Err(error) = &entered {
             TurnDecision::failed(&format!(
                 "the paid-dispatch boundary was not recorded ({error}); nothing was sent"
             ))
-        } else if let Some(classifier) = self.classifier.as_mut() {
-            match &account {
-                Some(a) => classifier.classify_with_admission(&context, raw, a),
-                None => classifier.classify(&context, raw),
-            }
-        } else if reads {
-            self.activity(&crate::activity::Activity::now(
-                crate::activity::Phase::Understanding,
-                "reading your line",
-            ));
-            match (fresh, effort) {
-                (_, Err(why)) => TurnDecision::failed(&format!("nothing was sent · {why}")),
-                (Some(reasoner), Ok(effort)) => {
-                    let mut classifier =
-                        crate::turn::ReasonerClassifier::new(reasoner).asking(effort);
-                    match &account {
-                        Some(a) => classifier.classify_with_admission(&context, raw, a),
-                        None => classifier.classify(&context, raw),
-                    }
-                }
-                (None, Ok(_)) => TurnDecision::new(TurnAct::Unknown, RoutingMethod::Fallback),
-            }
         } else {
-            TurnDecision::new(TurnAct::Unknown, RoutingMethod::Fallback)
+            if routed {
+                self.activity(&crate::activity::Activity::now(
+                    crate::activity::Phase::Understanding,
+                    "reading your line",
+                ));
+            }
+            match (effort, classifier, &account) {
+                (Err(why), ..) => TurnDecision::failed(&why),
+                (Ok(()), Some(c), Some(a)) => c.classify_with_admission(&context, raw, a),
+                (Ok(()), Some(c), None) => c.classify(&context, raw),
+                (Ok(()), None, _) => TurnDecision::new(TurnAct::Unknown, RoutingMethod::Fallback),
+            }
         };
+        self.classifier = door;
         self.leave_paid_dispatch(entered.is_ok_and(|(_, written)| written));
         self.routes.push(RouteRecord::new(phase, raw, &decision));
         decision

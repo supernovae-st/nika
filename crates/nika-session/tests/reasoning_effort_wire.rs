@@ -132,6 +132,16 @@ fn child() {
         .map(|receipt| receipt.context.clone())
         .unwrap_or_default();
     assert!(!calls.is_empty(), "the seat was asked: {out:?}");
+    // B19 F3: a call the route refused before sending is never said to be sent.
+    let words = nika_onboard::compile::reading::receipt_words(
+        out.provenance.authoring.as_ref().expect("the receipt"),
+        "",
+    );
+    assert_eq!(
+        words.contains("\n  nothing was sent to: vllm · host 127.0.0.1"),
+        expected.is_some(),
+        "{words}"
+    );
     for call in &calls {
         let reasoning = &call["reasoning"];
         match expected {

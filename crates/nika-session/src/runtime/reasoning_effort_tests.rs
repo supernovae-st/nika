@@ -23,7 +23,10 @@ use crate::DataLocus;
 use crate::authoring::AuthoringContext;
 use crate::reasoner::{ProviderReasoner, ReasonError, Reply, test_transport};
 use crate::runtime::inference_tests::wire::{Peer, response};
-use crate::turn::{ReasonerClassifier, RoutingMethod, SessionPhase, TurnClassifier, TurnContext};
+use crate::turn::{
+    ConservativeFallback, ReasonerClassifier, RoutingMethod, SessionPhase, TurnAct, TurnClassifier,
+    TurnContext, TurnDecision,
+};
 
 /// The one route whose catalog lists the three levels.
 const QUALIFIED: &str = "deepseek/deepseek-v4-pro";
@@ -375,4 +378,188 @@ fn another_refused_setting_never_drops_a_valid_named_level() {
     let bodies = peer.bodies();
     assert_eq!(bodies.len(), 2, "one label and one turn");
     bodies.iter().for_each(asks_max);
+}
+
+/// A door's own classifier with no reasoning hook, counting every label it would send.
+struct Door(Arc<AtomicUsize>);
+
+impl TurnClassifier for Door {
+    fn classify_with_admission(
+        &mut self,
+        context: &TurnContext,
+        raw: &str,
+        _: &InferenceAdmission,
+    ) -> TurnDecision {
+        self.classify(context, raw)
+    }
+
+    fn classify(&mut self, _: &TurnContext, _: &str) -> TurnDecision {
+        self.0.fetch_add(1, Ordering::SeqCst);
+        TurnDecision::new(TurnAct::Discuss, RoutingMethod::Model)
+    }
+}
+
+/// A paid session on the qualified route whose door installed `classifier`.
+fn door(
+    root: &Path,
+    built: &Arc<AtomicUsize>,
+    classifier: Box<dyn TurnClassifier>,
+) -> SessionRuntime {
+    let mut s = open(root, built);
+    s.admit_money("budget 2 USD", false).expect("admit");
+    s.with_classifier(classifier);
+    s
+}
+
+/// The label a line at rest gets.
+fn label(s: &mut SessionRuntime) -> TurnDecision {
+    s.classify(SessionPhase::Idle, "tell me more about it")
+}
+
+/// B19 F2 · the session's own classifier installed by a door asks the level the session holds on
+/// every label, then none when none is named, as the routed one does.
+#[test]
+fn a_door_classifier_asks_the_level_the_session_holds_on_every_label() {
+    let peer = Peer::start(vec![(200, response("DISCUSS")), (200, response("DISCUSS"))]);
+    let _transport = test_transport::install(&peer.url);
+    let dir = tempfile::tempdir().expect("root");
+    let built = Arc::new(AtomicUsize::new(0));
+    let classifier = ReasonerClassifier::new(Box::new(seat(QUALIFIED)));
+    let mut s = door(dir.path(), &built, Box::new(classifier));
+    s.set_authoring_context(named("max"));
+    assert_eq!(label(&mut s).method, RoutingMethod::Model);
+    s.set_authoring_context(AuthoringContext::default());
+    assert_eq!(label(&mut s).method, RoutingMethod::Model);
+    let bodies = peer.bodies();
+    assert_eq!(bodies.len(), 2, "two labels");
+    asks_max(&bodies[0]);
+    asks_none(&bodies[1]);
+    assert_eq!(
+        built.load(Ordering::SeqCst),
+        0,
+        "the door's classifier, no fresh reasoner"
+    );
+}
+
+/// B19 F2 · a word the session cannot ask never reaches a door's classifier, and a level its route
+/// cannot carry is refused by the provider: nothing is sent either way, and the route says why.
+#[test]
+fn a_door_classifier_sends_nothing_for_a_word_or_a_route_that_cannot_carry_the_level() {
+    let peer = Peer::start(vec![(200, response("DISCUSS"))]);
+    let _transport = test_transport::install(&peer.url);
+    let dir = tempfile::tempdir().expect("root");
+    let classifier = ReasonerClassifier::new(Box::new(seat(QUALIFIED)));
+    let mut s = door(
+        dir.path(),
+        &Arc::new(AtomicUsize::new(0)),
+        Box::new(classifier),
+    );
+    s.set_authoring_context(named("maximum"));
+    let refused = label(&mut s);
+    assert_eq!(refused.method, RoutingMethod::Failed, "{refused:?}");
+    assert!(
+        refused.note.as_deref().is_some_and(|note| {
+            note.contains("`maximum` is not a reasoning effort")
+                && note.contains("nothing was sent")
+        }),
+        "{refused:?}"
+    );
+    s.with_classifier(Box::new(ReasonerClassifier::new(Box::new(seat(UNLISTED)))));
+    s.set_authoring_context(named("max"));
+    assert_eq!(label(&mut s).method, RoutingMethod::Failed);
+    assert!(peer.bodies().is_empty(), "{:?}", peer.bodies());
+    let receipt = s.inference_receipt().expect("receipt").expect("account");
+    assert!(receipt.attempts.is_empty(), "the allowance is untouched");
+}
+
+/// B19 F2 · a door's classifier with no way to carry a level is never called with one: the label
+/// refuses before its call, and naming none calls it as before. The fallback makes no call, so it
+/// has nothing to carry: it accepts the level.
+#[test]
+fn a_door_classifier_that_cannot_carry_the_level_is_never_called_with_it() {
+    let dir = tempfile::tempdir().expect("root");
+    let calls = Arc::new(AtomicUsize::new(0));
+    let classifier = Door(Arc::clone(&calls));
+    let mut s = door(
+        dir.path(),
+        &Arc::new(AtomicUsize::new(0)),
+        Box::new(classifier),
+    );
+    s.set_authoring_context(named("max"));
+    let refused = label(&mut s);
+    assert_eq!(refused.method, RoutingMethod::Failed, "{refused:?}");
+    assert!(
+        refused.note.as_deref().is_some_and(|note| {
+            note.contains("cannot carry the explicit reasoning effort `max`")
+                && note.contains("nothing was sent")
+        }),
+        "{refused:?}"
+    );
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        0,
+        "never called with the level"
+    );
+    s.set_authoring_context(AuthoringContext::default());
+    assert_eq!(label(&mut s).method, RoutingMethod::Model);
+    assert_eq!(calls.load(Ordering::SeqCst), 1, "called as before");
+    // The refusal is the reasoner's typed error, never a bare string (FCI-019 · B19 review).
+    let refused = Door(Arc::clone(&calls)).carry_effort(Some(AuthoringReasoning::Max));
+    assert!(
+        matches!(&refused, Err(ReasonError::Provider(why))
+            if why.contains("cannot carry the explicit reasoning effort `max`")),
+        "{refused:?}"
+    );
+    assert!(
+        Door(calls).carry_effort(None).is_ok(),
+        "no level: nothing to carry"
+    );
+    let mut fallback = ConservativeFallback;
+    assert!(fallback.carry_effort(Some(AuthoringReasoning::Max)).is_ok());
+}
+
+/// B19 · the operator-selected `TypeSafe` decision seat (`Jev`) is a separate backend: a named
+/// level rides the LLM calls only. The seat's request carries no effort (none is invented for
+/// it), its receipt says the level does not apply, and `/status` scopes the level to the LLM
+/// calls.
+#[test]
+fn the_decision_seat_is_a_separate_backend_the_named_level_never_reaches() {
+    use crate::authoring::DecisionSetup;
+    use crate::authoring::decision::tests::{KEY, Peer as SystemOne, Reply, SEAT, TICKETS, answer};
+    let deepseek = Peer::start(vec![(200, response("unused"))]);
+    let _transport = test_transport::install(&deepseek.url);
+    let dir = tempfile::tempdir().expect("root");
+    let tickets =
+        r#"[{"id": "41", "title": "synthetic one"}, {"id": "42", "title": "synthetic two"}]"#;
+    std::fs::write(dir.path().join("tickets.json"), tickets).expect("fixture");
+    let jev = SystemOne::start(vec![Reply::Json(200, answer("lookup"))]);
+    let mut s = open(dir.path(), &Arc::new(AtomicUsize::new(0)));
+    let seat = DecisionSetup::with_key(SEAT, Some(KEY.to_owned()), Some(&jev.base));
+    s.set_authoring_context(named("max").with_decision(Some(seat)));
+    let out = s.turn(TICKETS);
+    assert!(matches!(&out, TurnOutcome::Question { .. }), "{out:?}");
+    let requests = jev.requests();
+    assert_eq!(requests.len(), 1, "one decision call");
+    let body = &requests[0].2;
+    for key in ["thinking", "reasoning_effort", "reasoning", "effort"] {
+        assert!(body.get(key).is_none(), "{key}: {body}");
+    }
+    assert!(!body.to_string().contains("\"max\""), "{body}");
+    assert!(deepseek.bodies().is_empty(), "WARM settled it: no LLM call");
+    let outcome = s.last_outcome.as_ref().expect("the reading");
+    let decision = outcome
+        .provenance
+        .decision
+        .as_ref()
+        .expect("the decision record");
+    assert_eq!(
+        decision["session"]["decision_seat"]["reasoning_effort"],
+        "not applicable · the named level `max` rides the LLM calls only; the TypeSafe request carries no effort",
+        "{decision}"
+    );
+    let status = s.status();
+    assert!(
+        status.contains(" · reasoning effort max asked of every LLM call; the TypeSafe decision seat is a separate backend: no effort is sent to it"),
+        "{status}"
+    );
 }

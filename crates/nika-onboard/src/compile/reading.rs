@@ -324,6 +324,83 @@ pub fn clause_of(label: &str) -> Option<String> {
     (!clause.is_empty()).then(|| clause.to_owned())
 }
 
+/// What one call's record shows of its fate (B19): answered only when the provider's response
+/// is recorded (`stop_reason`), refused before sending, sent without an answer (a provider error
+/// or a timeout), or unobserved (no result, or one this reader does not know).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Fate {
+    Answered,
+    Refused,
+    Unsure,
+    Unobserved,
+}
+
+fn fate(call: &Value) -> Fate {
+    let result = &call["result"];
+    match (
+        result["failure_kind"].as_str(),
+        result["stop_reason"].is_string(),
+    ) {
+        (Some("admission_refused"), _) => Fate::Refused,
+        (Some("provider_error" | "timeout"), _) => Fate::Unsure,
+        (None, true) => Fate::Answered,
+        // No result, or a failure this reader does not know.
+        _ => Fate::Unobserved,
+    }
+}
+
+/// The direct receipt's headline as its records show it (B19 F3): the model, the calls, the time
+/// and the tokens. It returns what the destination line reads: the calls answered, those that may
+/// have been sent (without an answer, or unobserved), and those refused before sending.
+fn headline(receipt: &AuthoringReceipt, text: &mut String) -> (usize, usize, usize) {
+    // Each call reads as its own record shows it (B19 F3): answered only on a recorded response,
+    // never by subtraction. A counted call with no record, or none this reader knows, is
+    // unobserved. When every counted call has one answered record, the words are as before.
+    let count = |f: Fate| {
+        receipt
+            .context
+            .iter()
+            .filter(|call| fate(call) == f)
+            .count()
+    };
+    let (answered, refused, unsure) = (
+        count(Fate::Answered),
+        count(Fate::Refused),
+        count(Fate::Unsure),
+    );
+    let (records, counted) = (
+        receipt.context.len(),
+        usize::try_from(receipt.calls).unwrap_or(usize::MAX),
+    );
+    let unobserved = count(Fate::Unobserved) + counted.saturating_sub(records);
+    let calls = format!(
+        "{} call{}",
+        receipt.calls,
+        if receipt.calls == 1 { "" } else { "s" }
+    );
+    let _ = if records == counted && answered == records {
+        write!(text, "\n  authoring backend: {} · {calls}", receipt.model)
+    } else {
+        write!(
+            text,
+            "\n  authoring backend: {} · {calls} attempted · {answered} answered · {unsure} without an answer, may have been sent · {refused} refused before sending",
+            receipt.model
+        )
+    };
+    if unobserved > 0 {
+        let _ = write!(text, " · {unobserved} unobserved");
+    }
+    if records != counted {
+        let plural = if records == 1 { "" } else { "s" };
+        let _ = write!(text, " · the receipt records {records} call{plural}");
+    }
+    let _ = write!(text, " · {} ms", receipt.elapsed_ms);
+    if let (Some(i), Some(o)) = (receipt.input_tokens, receipt.output_tokens) {
+        let _ = write!(text, " · {i} in / {o} out tokens");
+    }
+    (answered, unsure + unobserved, refused)
+}
+
 /// The authoring receipt as a human reads it (descended from `nika-session`'s `/details`, C11):
 /// the backend and model, the calls, tokens and time, where the calls really went (the
 /// provider's own API, or the gateway its base URL is overridden to) and the cost basis the
@@ -365,21 +442,17 @@ pub fn receipt_words(receipt: &AuthoringReceipt, run_cost: &str) -> String {
         return text;
     }
 
-    let _ = write!(
-        text,
-        "\n  authoring backend: {} · {} call{} · {} ms",
-        receipt.model,
-        receipt.calls,
-        if receipt.calls == 1 { "" } else { "s" },
-        receipt.elapsed_ms
-    );
-    if let (Some(i), Some(o)) = (receipt.input_tokens, receipt.output_tokens) {
-        let _ = write!(text, " · {i} in / {o} out tokens");
-    }
+    let (answered, unknown, refused) = headline(receipt, &mut text);
     if let Some(backend) = &receipt.backend {
         let _ = write!(
             text,
-            "\n  sent to: {} · host {}{}",
+            "\n  {}: {} · host {}{}",
+            match (answered, unknown, refused) {
+                // Every call refused before sending, or none made (B19 review).
+                (0, 0, _) => "nothing was sent to",
+                (0, 1.., _) => "possibly sent to",
+                _ => "sent to",
+            },
             backend["provider"].as_str().unwrap_or("unknown provider"),
             backend["host"].as_str().unwrap_or("unknown"),
             if backend["base_url_overridden"].as_bool() == Some(true) {
@@ -430,6 +503,7 @@ pub fn reasoning_words(call: &Value) -> Option<String> {
     let result = &call["result"];
     let answer = match result["failure_kind"].as_str() {
         Some(kind) => format!("no answer ({kind})"),
+        None if !result["stop_reason"].is_string() => "result unobserved".to_owned(),
         None if result["usage_reported"] == true => format!(
             "usage {} in / {} out tokens",
             reported(&result["input_tokens"]),

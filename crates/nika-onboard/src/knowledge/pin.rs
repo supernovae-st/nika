@@ -9,6 +9,7 @@
 //! nothing here reads the environment, calls a model, or decides a policy (the session keeps
 //! its seat, its choices and its consent).
 
+use std::fmt::Write as _;
 use std::path::PathBuf;
 
 use nika_event::source_id::sha256_hex;
@@ -323,6 +324,124 @@ pub fn stamp_seat(out: &mut CompileOutcome, receipt: Value) {
     {
         session.insert("decision_seat".to_owned(), receipt);
     }
+}
+
+/// The knowledge lines of the session's record (`decision.session.authoring`), as `/details`
+/// shows them (descended from `nika-session`'s `runtime/details.rs`, C11 · B19): the strategy
+/// the policy carried, then the pack — presented to the seat (with the calls that carried it),
+/// attached but never read (and why), or carried from the round that authored a replayed
+/// candidate. Each line is appended to `text`, starting on a new line.
+pub fn knowledge_lines(record: &Value, text: &mut String) {
+    // A digest the record states, first twelve characters; any other value reads "none".
+    let digest = |value: &Value| short(value.as_str().unwrap_or("none"));
+    let _ = write!(
+        text,
+        "\n  authoring strategy: {} ({})",
+        record["strategy"].as_str().unwrap_or("unknown"),
+        record["source"].as_str().unwrap_or("unknown")
+    );
+    let knowledge = &record["knowledge"];
+    if knowledge.is_null() {
+        text.push_str("\n  knowledge: none attached");
+        return;
+    }
+    let identity = &knowledge["identity"];
+    let references = knowledge["references"]
+        .as_array()
+        .map_or(&[][..], Vec::as_slice);
+    let bytes: u64 = references.iter().filter_map(|r| r["bytes"].as_u64()).sum();
+    // The pack's and the calls' digests are printed whole: they are what an
+    // auditor compares to the bytes a seat received.
+    // The digest is the manifest's own claim; the manifest and rows digests are computed.
+    let _ = write!(
+        text,
+        "\n  knowledge: {} · declared digest {} · manifest {} · rows {} · {} reference{} · {bytes} B · {}\n  pack sha256 {}",
+        identity["version"].as_str().unwrap_or("unversioned"),
+        digest(&identity["digest"]),
+        digest(&identity["manifest_sha256"]),
+        digest(&identity["rows_sha256"]),
+        references.len(),
+        if references.len() == 1 { "" } else { "s" },
+        knowledge["pack_builder"]
+            .as_str()
+            .unwrap_or("unknown builder"),
+        knowledge["pack_sha256"].as_str().unwrap_or("none")
+    );
+    for reference in references {
+        let _ = write!(
+            text,
+            "\n    {} {} · {} B · sha256 {}",
+            reference["kind"].as_str().unwrap_or("?"),
+            reference["id"].as_str().unwrap_or("?"),
+            reference["bytes"].as_u64().unwrap_or(0),
+            digest(&reference["sha256"])
+        );
+    }
+    let carried = knowledge["carried"].as_bool().unwrap_or(false);
+    if knowledge["presented"].as_bool().unwrap_or(false) {
+        let calls = knowledge["calls"].as_array().map_or(&[][..], Vec::as_slice);
+        let _ = write!(
+            text,
+            "\n  presented to the seat in {} call{}{}",
+            calls.len(),
+            if calls.len() == 1 { "" } else { "s" },
+            if carried {
+                " of the round that authored this candidate (this answer round replayed it · zero calls)"
+            } else {
+                ""
+            }
+        );
+        for call in calls {
+            let _ = write!(
+                text,
+                "\n    {} · instruction sha256 {}",
+                call["call"].as_str().unwrap_or("?"),
+                call["instruction_sha256"].as_str().unwrap_or("none")
+            );
+        }
+        seat_line(&knowledge["seat"], text);
+    } else {
+        let _ = write!(
+            text,
+            "\n  not presented: {}",
+            knowledge["why"]
+                .as_str()
+                .unwrap_or("the native door did not read it")
+        );
+    }
+}
+
+/// What authored with the pack, in brief (kept with the knowledge record, so a replayed candidate
+/// still names it): the model, where its calls went, how many, the usage the provider reported.
+fn seat_line(seat: &Value, text: &mut String) {
+    if !seat.is_object() {
+        return;
+    }
+    if seat["backend"]["kind"] == "harness_infer" {
+        let _ = write!(
+            text,
+            "\n    by subscription {} · {} call(s) · responding identities in backend receipt · cost unknown",
+            seat["backend"]["adapter"].as_str().unwrap_or("unknown"),
+            seat["calls"]
+        );
+        return;
+    }
+    let usage = match (
+        seat["input_tokens"].as_u64(),
+        seat["output_tokens"].as_u64(),
+    ) {
+        (Some(i), Some(o)) => format!("{i} in / {o} out tokens"),
+        _ => "usage not reported by the provider".to_owned(),
+    };
+    let calls = seat["calls"].as_u64().unwrap_or(0);
+    let _ = write!(
+        text,
+        "\n    by {} · host {} · {calls} call{} in that round · {usage} · {} ms",
+        seat["model"].as_str().unwrap_or("unknown model"),
+        seat["backend"]["host"].as_str().unwrap_or("unknown"),
+        if calls == 1 { "" } else { "s" },
+        seat["elapsed_ms"].as_u64().unwrap_or(0)
+    );
 }
 
 #[cfg(test)]

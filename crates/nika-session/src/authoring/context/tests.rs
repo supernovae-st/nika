@@ -122,8 +122,12 @@ fn the_named_effort_is_resolved_once_by_the_shared_parser_and_said_at_status() {
         (named.reasoning(), named.source()),
         (Some(AuthoringReasoning::Max), "host")
     );
+    // Scoped to the LLM calls (B19); with no decision seat named, no word of one.
     assert!(
-        named.line().contains(" · reasoning effort max asked"),
+        named
+            .line()
+            .contains(" · reasoning effort max asked of every LLM call")
+            && !named.line().contains("TypeSafe"),
         "{}",
         named.line()
     );

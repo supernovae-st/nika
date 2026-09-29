@@ -3410,6 +3410,7 @@ pub fn nika_session::turn::ConservativeFallback::default() -> nika_session::turn
 impl core::fmt::Debug for nika_session::turn::ConservativeFallback
 pub fn nika_session::turn::ConservativeFallback::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl nika_session::turn::TurnClassifier for nika_session::turn::ConservativeFallback
+pub fn nika_session::turn::ConservativeFallback::carry_effort(&mut self, _: core::option::Option<nika_compile::types::AuthoringReasoning>) -> core::result::Result<(), nika_session::reasoner::ReasonError>
 pub fn nika_session::turn::ConservativeFallback::classify(&mut self, _context: &nika_session::turn::TurnContext, _raw: &str) -> nika_session::turn::TurnDecision
 pub fn nika_session::turn::ConservativeFallback::classify_with_admission(&mut self, _context: &nika_session::turn::TurnContext, _raw: &str, _account: &nika_providers::admission::InferenceAdmission) -> nika_session::turn::TurnDecision
 impl<D> owo_colors::OwoColorize for nika_session::turn::ConservativeFallback
@@ -3443,6 +3444,7 @@ impl nika_session::turn::ReasonerClassifier
 pub fn nika_session::turn::ReasonerClassifier::asking(self, effort: core::option::Option<nika_compile::types::AuthoringReasoning>) -> Self
 pub fn nika_session::turn::ReasonerClassifier::new(reasoner: alloc::boxed::Box<dyn nika_session::reasoner::SessionReasoner>) -> Self
 impl nika_session::turn::TurnClassifier for nika_session::turn::ReasonerClassifier
+pub fn nika_session::turn::ReasonerClassifier::carry_effort(&mut self, effort: core::option::Option<nika_compile::types::AuthoringReasoning>) -> core::result::Result<(), nika_session::reasoner::ReasonError>
 pub fn nika_session::turn::ReasonerClassifier::classify(&mut self, context: &nika_session::turn::TurnContext, raw: &str) -> nika_session::turn::TurnDecision
 pub fn nika_session::turn::ReasonerClassifier::classify_with_admission(&mut self, context: &nika_session::turn::TurnContext, raw: &str, account: &nika_providers::admission::InferenceAdmission) -> nika_session::turn::TurnDecision
 impl<D> owo_colors::OwoColorize for nika_session::turn::ReasonerClassifier
@@ -3631,12 +3633,15 @@ impl<T> tracing::instrument::WithSubscriber for nika_session::turn::TurnDecision
 impl<T> typenum::type_operators::Same for nika_session::turn::TurnDecision
 pub type nika_session::turn::TurnDecision::Output = T
 pub trait nika_session::turn::TurnClassifier: core::marker::Send
+pub fn nika_session::turn::TurnClassifier::carry_effort(&mut self, effort: core::option::Option<nika_compile::types::AuthoringReasoning>) -> core::result::Result<(), nika_session::reasoner::ReasonError>
 pub fn nika_session::turn::TurnClassifier::classify(&mut self, context: &nika_session::turn::TurnContext, raw: &str) -> nika_session::turn::TurnDecision
 pub fn nika_session::turn::TurnClassifier::classify_with_admission(&mut self, _context: &nika_session::turn::TurnContext, _raw: &str, _account: &nika_providers::admission::InferenceAdmission) -> nika_session::turn::TurnDecision
 impl nika_session::turn::TurnClassifier for nika_session::turn::ConservativeFallback
+pub fn nika_session::turn::ConservativeFallback::carry_effort(&mut self, _: core::option::Option<nika_compile::types::AuthoringReasoning>) -> core::result::Result<(), nika_session::reasoner::ReasonError>
 pub fn nika_session::turn::ConservativeFallback::classify(&mut self, _context: &nika_session::turn::TurnContext, _raw: &str) -> nika_session::turn::TurnDecision
 pub fn nika_session::turn::ConservativeFallback::classify_with_admission(&mut self, _context: &nika_session::turn::TurnContext, _raw: &str, _account: &nika_providers::admission::InferenceAdmission) -> nika_session::turn::TurnDecision
 impl nika_session::turn::TurnClassifier for nika_session::turn::ReasonerClassifier
+pub fn nika_session::turn::ReasonerClassifier::carry_effort(&mut self, effort: core::option::Option<nika_compile::types::AuthoringReasoning>) -> core::result::Result<(), nika_session::reasoner::ReasonError>
 pub fn nika_session::turn::ReasonerClassifier::classify(&mut self, context: &nika_session::turn::TurnContext, raw: &str) -> nika_session::turn::TurnDecision
 pub fn nika_session::turn::ReasonerClassifier::classify_with_admission(&mut self, context: &nika_session::turn::TurnContext, raw: &str, account: &nika_providers::admission::InferenceAdmission) -> nika_session::turn::TurnDecision
 pub fn nika_session::turn::routing_prompt(context: &nika_session::turn::TurnContext, raw: &str) -> alloc::string::String

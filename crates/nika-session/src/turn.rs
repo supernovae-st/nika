@@ -15,6 +15,10 @@
 
 use std::fmt::{self, Write as _};
 
+use nika_onboard::compile::AuthoringReasoning;
+
+use crate::reasoner::ReasonError;
+
 /// The bounded set of conversational acts (small on purpose: a routing
 /// decision, not an intent ontology).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -210,6 +214,24 @@ pub trait TurnClassifier: Send {
 
     /// The act of `raw` in `context`; UNKNOWN when it cannot tell.
     fn classify(&mut self, context: &TurnContext, raw: &str) -> TurnDecision;
+
+    /// Carry the explicit reasoning effort the session names (R4 B16) on every label sent from
+    /// now on, `None` for none. A classifier that cannot carry a named level refuses it (the
+    /// default), and the session refuses the label before calling it: a label is never sent
+    /// without the level. One that makes no model call, or whose backend has no reasoning effort
+    /// (a typed decision service), has nothing to carry: it accepts and never claims the level.
+    ///
+    /// # Errors
+    /// This classifier cannot carry the named level: the reasoner's typed refusal, as
+    /// [`crate::reasoner::SessionReasoner::reason_effort`]'s default gives it.
+    fn carry_effort(&mut self, effort: Option<AuthoringReasoning>) -> Result<(), ReasonError> {
+        effort.map_or(Ok(()), |level| {
+            Err(ReasonError::Provider(format!(
+                "this classifier cannot carry the explicit reasoning effort `{}` · nothing was sent",
+                level.word()
+            )))
+        })
+    }
 }
 
 /// No intelligence: every open line is UNKNOWN, and the runtime keeps
@@ -220,6 +242,11 @@ pub struct ConservativeFallback;
 impl TurnClassifier for ConservativeFallback {
     fn classify(&mut self, _context: &TurnContext, _raw: &str) -> TurnDecision {
         TurnDecision::new(TurnAct::Unknown, RoutingMethod::Fallback)
+    }
+
+    /// No model call: nothing to carry.
+    fn carry_effort(&mut self, _: Option<AuthoringReasoning>) -> Result<(), ReasonError> {
+        Ok(())
     }
 }
 
@@ -251,7 +278,7 @@ impl ReasonerClassifier {
 }
 
 /// A label's reply as the route it decides; a path that cannot answer is the fallback.
-fn decided(reply: Result<crate::reasoner::Reply, crate::reasoner::ReasonError>) -> TurnDecision {
+fn decided(reply: Result<crate::reasoner::Reply, ReasonError>) -> TurnDecision {
     match reply {
         Ok(reply) => TurnDecision::new(TurnAct::parse(&reply.text), RoutingMethod::Model),
         Err(e) => TurnDecision::failed(&e.to_string()),
@@ -278,6 +305,12 @@ impl TurnClassifier for ReasonerClassifier {
             Some(effort) => self.reasoner.reason_effort(&prompt, true, None, effort),
             None => self.reasoner.reason_label(&prompt),
         })
+    }
+
+    /// The level rides every label from now on ([`Self::asking`], as a hook).
+    fn carry_effort(&mut self, effort: Option<AuthoringReasoning>) -> Result<(), ReasonError> {
+        self.effort = effort;
+        Ok(())
     }
 }
 
