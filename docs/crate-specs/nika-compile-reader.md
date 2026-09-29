@@ -233,10 +233,25 @@ while `nika-compile` stood at its wall; they ascended to `nika-compile-fidelity`
   - A ranking sorts by `<law> | dkey`. Descending is still the ascending order reversed, so
     equal values keep their documented order: source order ascending, reverse source order
     descending.
-  - A ranking that keeps n rows passes through `dtie` before its own `.[:n]`. When rows n and
-    n+1 tie and the tie holds distinct records as written (after any projection), input order
-    would choose, so the run stops. JSON-equal copies, and ties the cut does not separate,
-    pass.
+  - A tie rule the request states (`Shape::ties_first_in_file`, the plan's `ties:
+    first_in_file`, E38) keeps source order both ways: a descending sort orders the reversed
+    rows stably and reverses them back (`reverse | sort_by(K) | reverse`), an ascending one is
+    the stable sort itself, and no `dtie` cut follows, since the request chose among the tied
+    rows. It holds only over a sort of rows still in file order: with no sort, a grouping or
+    a join, the shape is refused, read back or merged. Unstated, the lowering is byte for byte
+    as before.
+  - A ranking that keeps n rows passes through `dtie` before its own `.[:n]`, unless the
+    request states the tie rule. When rows n and n+1 tie and the tie holds distinct records as
+    written (after any projection), input order would choose, so the run stops. JSON-equal
+    copies, and ties the cut does not separate, pass.
+  - A projected column the request writes as a JSON number (`Shape::numbers`, E38) is read
+    through the number law with FAIL: a value that is no number stops the run naming its
+    column, never SKIP, which would drop rows no filter states. Each is a column the rows are
+    projected on, named once, never over totals, or the shape is refused. Its exactness is the
+    JSON transport's: a text with more digits than an f64 carries is altered between tasks.
+    The A8 exact output law is required for that and is not claimed here.
+  - `ties` and `numbers` are recorded only when stated, so a record written before them reads
+    and replays as it did.
   - A plain sort bound over observed numbers sorts by the key too.
   - Unbound reads render as before, byte for byte, so every plan record keeps its canonical
     `jq` and replays under the strict check. This covers a rule with no stated policy, a sort

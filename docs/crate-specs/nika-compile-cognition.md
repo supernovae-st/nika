@@ -280,7 +280,11 @@ number law instead of a seat's program outside it. Several totals, a total no te
 or a csv, yaml or toml destination are refused with a finding and a clarification; `alone`
 changes nothing where no object names the value (rows, a prose file, a seat's program), and it is
 read on a write only. It is a plan claim like the others: the whole-request judge still reads
-the candidate's bytes, and nothing reads it from the request's words.
+the candidate's bytes, and nothing reads it from the request's words. The typed computation
+states, the same way, a tie rule (`ties: first_in_file`: rows with equal sort keys keep their
+file order) and the output columns written as JSON numbers (`numbers`), in its strict schema
+and the seat's instruction (E38 C3); `nika-compile-fidelity` admits them only where they hold
+and the reader lowers them (a stable order, the number law).
 
 ### Explicit reasoning effort (R4 B16)
 

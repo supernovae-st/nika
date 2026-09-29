@@ -51,6 +51,14 @@ is asked (option 2, measured: with the seat's citation as the scope one legitima
 broke, a threshold stated in the same clause just outside the citation; with the clause, none).
 Output names stay words of the whole request and fields stay among its columns.
 
+Two stages E38 needed are admitted beside the walk (`with_order`, one line in it: the walk
+measures 272 lines, its documented hard ceiling, never above): a tie rule (`ties`, `first_in_file` or empty) settles a
+stated sort over rows still in file order, never a grouping; the output columns written as JSON
+numbers (`numbers`) are projected columns, each named once, never over totals. Any other word,
+or either where it cannot hold, is no rule. `meaning_of` reads both back (absent as unstated), so `rederives` holds a rule
+that states them. Neither is grounded in the request's words: a seat that states a tie rule
+the request never states is a claim the judges read, as for a direction.
+
 The fidelity move preserves the existing onboarding facade entry points. Direct Rust
 imports of `nika_compile_reader::{candidate, fidelity, sketch}` must instead name
 `nika_compile_fidelity`; these reader paths are removed. Nothing of this crate is

@@ -25,7 +25,9 @@ struct ProposedComputation {
     aggregations: Vec<ProposedAggregation>,
     sort_by: String,
     order: String,
+    ties: String,
     columns: Vec<String>,
+    numbers: Vec<String>,
     derived: Vec<ProposedDerived>,
     limit: String,
     renames: Vec<ProposedRename>,
@@ -94,7 +96,9 @@ impl ProposedComputation {
             "aggregations",
             "sort_by",
             "order",
+            "ties",
             "columns",
+            "numbers",
             "derived",
             "limit",
             "renames",
@@ -145,7 +149,9 @@ impl ProposedComputation {
             aggregations: f.list("aggregations", aggregation)?,
             sort_by: f.text("sort_by")?,
             order: f.text("order")?,
+            ties: f.text("ties")?,
             columns: f.list("columns", word)?,
+            numbers: f.list("numbers", word)?,
             derived: f.list("derived", derived)?,
             limit: f.text("limit")?,
             renames: f.list("renames", rename)?,
@@ -531,10 +537,37 @@ fn typed(
     shape.derived = derived;
     shape.limit = limit;
     shape.renames = renames;
+    let shape = with_order(computation, shape)?;
     if clauses.is_empty() && shape == Shape::default() {
         return None;
     }
     Some((Rule::typed(evidence, clauses, junction, shape), slots))
+}
+
+/// The shape with the tie rule and the output columns written as JSON numbers the computation
+/// states (E38), each admitted only where it can hold: the tie rule settles a sort over rows still
+/// in file order (never a grouping), and a number column is a projected column, named once, never
+/// over totals. Any other word, or either where it cannot hold, is `None`: no rule.
+fn with_order(computation: &ProposedComputation, mut shape: Shape) -> Option<Shape> {
+    shape.ties_first_in_file = match computation.ties.trim() {
+        "" => false,
+        "first_in_file" if shape.sort_by.is_some() && shape.group_by.is_none() => true,
+        _ => return None,
+    };
+    let totals = shape.group_by.is_none() && !shape.aggregations.is_empty();
+    for column in computation
+        .numbers
+        .iter()
+        .map(|c| c.trim())
+        .filter(|c| !c.is_empty())
+    {
+        let projected = shape.columns.iter().any(|c| c == column);
+        if totals || !projected || shape.numbers.iter().any(|n| n == column) {
+            return None;
+        }
+        shape.numbers.push(column.to_owned());
+    }
+    Some(shape)
 }
 
 /// Whether a recorded typed rule is exactly what this law admits for its own meaning over its
@@ -640,7 +673,9 @@ fn meaning_of(record: &Value, intent: &str, slots: &[plan::Slot]) -> Option<Prop
         aggregations: aggregations.collect::<Option<_>>()?,
         sort_by: word(shape.get("sort_by")).unwrap_or_default(),
         order: if descending { "desc" } else { "asc" }.to_owned(),
+        ties: word(shape.get("ties")).unwrap_or_default(),
         columns: words("columns")?,
+        numbers: words("numbers").unwrap_or_default(),
         derived: derived.collect::<Option<_>>()?,
         limit: shape
             .get("limit")
@@ -748,5 +783,56 @@ mod tests {
         assert!(!rule.with_limit(3).ranking_without_count());
         let plain = typed(intent, "sorted by units, descending", &ranked).expect("a rule");
         assert!(!plain.ranking_without_count());
+    }
+
+    // E38 V2 C3: a stated tie rule and output columns written as numbers are typed stages of
+    // the computation; each is admitted only where it can hold, and a rule re-derives with them.
+    #[test]
+    fn a_stated_tie_rule_and_number_columns_are_typed_where_they_hold() {
+        let intent = "Read ./shop/orders.csv, order the rows by amount from highest to lowest, the first in the file first on equal amounts, keep the first 2 rows and write id and amount as a number to ./out/top.json";
+        let evidence = "order the rows by amount from highest to lowest, the first in the file first on equal amounts, keep the first 2 rows";
+        let proposed = |extra: &Value| {
+            let mut computation = json!({"present": true, "polarity": "keep", "join": "and",
+                "clauses": [], "group_by": "", "aggregations": [], "sort_by": "amount",
+                "order": "desc", "columns": ["id", "amount"], "derived": [], "limit": "2"});
+            for (key, value) in extra.as_object().expect("an object") {
+                computation[key] = value.clone();
+            }
+            computation
+        };
+        let stated = proposed(&json!({"ties": "first_in_file", "numbers": ["amount"]}));
+        let rule = typed(intent, evidence, &stated).expect("a rule");
+        let record = rule.to_json();
+        assert_eq!(record["shape"]["ties"], "first_in_file");
+        assert_eq!(record["shape"]["numbers"], json!(["amount"]));
+        assert!(rule.jq().contains(" | reverse | sort_by("), "{}", rule.jq());
+        assert!(!rule.jq().contains("dtie("), "{}", rule.jq());
+        assert!(super::rederives(&rule, intent, &[], &[]));
+        // Unstated, the record says nothing of either, as before.
+        let plain = typed(intent, evidence, &proposed(&json!({}))).expect("a rule");
+        let shape = &plain.to_json()["shape"];
+        assert!(shape.get("ties").is_none() && shape.get("numbers").is_none());
+        // Grouped rows are ordered by their key, not the file: a tie rule there is no rule.
+        let grouped = json!({"group_by": "id", "aggregations": [{"field": "amount", "op": "sum", "as": "amount", "round": ""}]});
+        assert!(typed(intent, evidence, &proposed(&grouped)).is_some());
+        let mut tied = grouped;
+        tied["ties"] = json!("first_in_file");
+        assert!(typed(intent, evidence, &proposed(&tied)).is_none());
+        // Over no sort, a word the law does not know, a column the rows are not projected on,
+        // one named twice, or totals: no rule.
+        let totals = json!({"aggregations": [{"field": "amount", "op": "sum", "as": "amount", "round": ""}],
+            "sort_by": "", "order": "", "limit": "", "numbers": ["amount"]});
+        for extra in [
+            json!({"ties": "first_in_file", "sort_by": "", "order": ""}),
+            json!({"ties": "last_in_file"}),
+            json!({"numbers": ["region"]}),
+            json!({"numbers": ["amount", "amount"]}),
+            totals,
+        ] {
+            assert!(
+                typed(intent, evidence, &proposed(&extra)).is_none(),
+                "{extra}"
+            );
+        }
     }
 }

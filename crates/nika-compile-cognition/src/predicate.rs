@@ -33,7 +33,11 @@ pub(super) struct ProposedComputation {
     #[serde(default, deserialize_with = "nullable_default")]
     pub(super) order: String,
     #[serde(default, deserialize_with = "nullable_default")]
+    pub(super) ties: String,
+    #[serde(default, deserialize_with = "nullable_default")]
     pub(super) columns: Vec<String>,
+    #[serde(default, deserialize_with = "nullable_default")]
+    pub(super) numbers: Vec<String>,
     #[serde(default, deserialize_with = "nullable_default")]
     pub(super) derived: Vec<ProposedDerived>,
     #[serde(default, deserialize_with = "nullable_default")]
