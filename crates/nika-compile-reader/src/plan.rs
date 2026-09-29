@@ -260,10 +260,13 @@ pub struct Effect {
     pub policy: EffectPolicy,
     /// Verbatim policy data found in the intent (caps, eligibility), if any.
     pub policy_literal: Option<String>,
+    /// The plan states the write holds one computed value alone (« a bare JSON number »), not the
+    /// object naming it (E38); never read from the evidence's words.
+    pub alone: bool,
 }
 
 impl Effect {
-    /// One external effect with its policy and no policy literal yet.
+    /// One external effect with its policy, no policy literal yet, and no stated value alone.
     #[must_use]
     pub fn new(
         verb: EffectVerb,
@@ -277,6 +280,7 @@ impl Effect {
             evidence: evidence.into(),
             policy,
             policy_literal: None,
+            alone: false,
         }
     }
 }
@@ -462,10 +466,15 @@ impl Plan {
                 "op": s.op.word(), "detail": s.detail, "evidence": s.evidence,
                 "categories": s.categories,
             })).collect::<Vec<_>>(),
-            "effects": self.effects.iter().map(|e| json!({
-                "verb": e.verb.word(), "target": e.target, "policy": e.policy.word(),
-                "evidence": e.evidence, "policy_literal": e.policy_literal,
-            })).collect::<Vec<_>>(),
+            "effects": self.effects.iter().map(|e| {
+                let mut effect = json!({
+                    "verb": e.verb.word(), "target": e.target, "policy": e.policy.word(),
+                    "evidence": e.evidence, "policy_literal": e.policy_literal,
+                });
+                // `alone` only when stated: a plan recorded before it reads as it did.
+                if e.alone { effect["alone"] = json!(true); }
+                effect
+            }).collect::<Vec<_>>(),
             "obligations": self.obligations.iter().map(|o| json!({
                 "kind": o.kind.word(),
                 "value": match o.kind { ObligationKind::RetryBound(n) => Some(n), _ => None },
@@ -627,6 +636,8 @@ fn effect_from(item: &Value, path: &str) -> Result<Effect, String> {
         evidence: excerpt(item, path)?,
         policy,
         policy_literal: optional_text(item, path, "policy_literal")?,
+        // Recorded `true` or absent; from_json's owned_fields check rejects other values.
+        alone: item.get("alone") == Some(&Value::Bool(true)),
     })
 }
 
@@ -666,6 +677,40 @@ mod tests {
     use super::*;
 
     #[test]
+    fn a_recorded_scalar_choice_is_preserved_or_refused_never_dropped() {
+        let mut effect = Effect::new(
+            EffectVerb::Write,
+            "./out.json",
+            "write the total alone to ./out.json",
+            EffectPolicy::Automatic,
+        );
+        effect.alone = true;
+        let mut plan = Plan::default();
+        plan.effects.push(effect);
+        let record = plan.to_json();
+        assert_eq!(Plan::from_json(&record).expect("scalar round trip"), plan);
+        for value in [
+            json!(false),
+            json!(1),
+            json!("true"),
+            json!(null),
+            json!([]),
+            json!({}),
+        ] {
+            let mut malformed = record.clone();
+            malformed["effects"][0]["alone"] = value;
+            let error = Plan::from_json(&malformed).expect_err("no scalar choice is dropped");
+            assert!(error.contains("effects[0].alone"), "{error}");
+        }
+        let mut old = record;
+        old["effects"][0]
+            .as_object_mut()
+            .expect("effect object")
+            .remove("alone");
+        assert!(!Plan::from_json(&old).expect("legacy absent field").effects[0].alone);
+    }
+
+    #[test]
     fn a_full_plan_round_trips_through_its_record() {
         let plan = Plan {
             steps: vec![
@@ -688,6 +733,7 @@ mod tests {
                 evidence: "avant le remboursement".to_owned(),
                 policy: EffectPolicy::HumanFirst,
                 policy_literal: Some("100 EUR max".to_owned()),
+                alone: false,
             }],
             obligations: vec![
                 Obligation {

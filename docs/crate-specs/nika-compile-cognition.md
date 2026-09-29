@@ -273,7 +273,14 @@ apply (no scalar conversion is promised). A shape the request names
 overrides both as an obligation, and no other wrapper, key or field is added; the deterministic
 compile does not read an explicit bare-number request (« write only the number »), which stays
 INCOMPLETE, never claimed. Tests pin the text against the candidates the compiler emits, typed
-and synthesized.
+and synthesized. A plan states a bare value itself (E38): a write effect's optional `alone`
+(the plan schema and the seat's instruction) writes the one total the engine types to a json file
+as its value alone (`${{ tasks.compute.output.<name> }}`), the computation staying typed under the
+number law instead of a seat's program outside it. Several totals, a total no template selects,
+or a csv, yaml or toml destination are refused with a finding and a clarification; `alone`
+changes nothing where no object names the value (rows, a prose file, a seat's program), and it is
+read on a write only. It is a plan claim like the others: the whole-request judge still reads
+the candidate's bytes, and nothing reads it from the request's words.
 
 ### Explicit reasoning effort (R4 B16)
 

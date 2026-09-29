@@ -762,6 +762,7 @@ pub unsafe fn nika_compile_reader::plan::Binding::clone_to_uninit(&self, dest: *
 impl<T> core::convert::From<T> for nika_compile_reader::plan::Binding
 pub fn nika_compile_reader::plan::Binding::from(t: T) -> T
 #[non_exhaustive] pub struct nika_compile_reader::plan::Effect
+pub nika_compile_reader::plan::Effect::alone: bool
 pub nika_compile_reader::plan::Effect::evidence: alloc::string::String
 pub nika_compile_reader::plan::Effect::policy: nika_compile_reader::plan::EffectPolicy
 pub nika_compile_reader::plan::Effect::policy_literal: core::option::Option<alloc::string::String>

@@ -183,6 +183,10 @@ while `nika-compile` stood at its wall; they ascended to `nika-compile-fidelity`
   numeric syntax and must match whole numeric tokens in the request, including sign.
   A program cannot override typed clauses or shape stages; produced names are unique.
   Slots require declared `const.<identifier>` keys and an explicit numeric flag.
+  An effect's `alone` (E38: the plan states a write holds one computed value by itself) is
+  recorded only when true, so a plan recorded before it replays unchanged; a recorded
+  `false` or any other value is refused as a field no record writes. No reading of the
+  request sets it: only a plan states it.
   Required original rule fields (value kind, summary, shape, multi-clause junction)
   cannot default; absent lines/program remain compatible with their historical windows.
   A closed-grammar rule is anchored by its own words: the request states them, runs of

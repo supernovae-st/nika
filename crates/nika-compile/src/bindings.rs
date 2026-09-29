@@ -134,6 +134,8 @@ pub(super) struct WriteEffect {
     /// The exact text the write's clause states as a quoted literal (« write 'hello' to
     /// ./a.txt »): a constant of the workflow, never drafted.
     pub content: Option<String>,
+    /// The plan states the file holds one computed value alone, not the object naming it (E38).
+    pub alone: bool,
 }
 
 /// The settled bindings of one plan.
@@ -1188,6 +1190,7 @@ fn bind_effects(
             taken.insert(path.clone());
             if let Some(existing) = b.writes.iter_mut().find(|w| w.path == path) {
                 existing.gated |= gated;
+                existing.alone |= effect.alone;
                 existing.evidences.push(effect.evidence.clone());
                 continue;
             }
@@ -1217,6 +1220,7 @@ fn bind_effects(
                 category,
                 facet,
                 content: plan.content_of(effect).and_then(text::quoted_literal),
+                alone: effect.alone,
             });
             continue;
         }
@@ -1382,6 +1386,7 @@ fn bind_named_outputs(
                 category: None,
                 facet: None,
                 content: None,
+                alone: false,
             }),
             Some(Value::Bool(false)) => super::finding(
                 out,

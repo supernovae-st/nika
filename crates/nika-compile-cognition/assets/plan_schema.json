@@ -88,6 +88,9 @@
           "evidence": {
             "type": "string",
             "minLength": 1
+          },
+          "alone": {
+            "type": "boolean"
           }
         }
       }

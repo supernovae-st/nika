@@ -349,10 +349,67 @@ fn payload_expression(d: &Doc, keys: &[String]) -> Result<String, String> {
     }
 }
 
+/// Whether every write the plan states holds one computed value alone can hold it (E38), checked
+/// before any write is emitted; the first that cannot records why, with the clarification.
+pub(super) fn alone_holds(d: &Doc, writes: &[WriteEffect], out: &mut CompileOutcome) -> bool {
+    !writes.iter().any(|effect| {
+        effect.alone
+            && effect.content.is_none()
+            && d.content_fact(&effect.path)
+                .is_some_and(|f| f.name == "computed")
+            && alone_refused(d, effect, out)
+    })
+}
+
+/// Whether a write the plan states holds one value alone cannot (E38), the finding and the
+/// clarification recorded: the typed computation states several totals, or one whose name no
+/// template selects, or the file is a CSV, YAML or TOML document, which holds the object naming
+/// its totals (a bare value is written to JSON or prose). False where it can, and where no object
+/// names the value (rows, a seat's program): there `alone` changes nothing.
+fn alone_refused(d: &Doc, effect: &WriteEffect, out: &mut CompileOutcome) -> bool {
+    let path = &effect.path;
+    let head = format!("`{path}` is to hold one value alone, but");
+    let why = match (d.stated_totals.as_slice(), Structured::of(path)) {
+        ([], _) => None,
+        (_, Some(format @ (Structured::Csv | Structured::Yaml | Structured::Toml))) => {
+            Some(format!(
+                "{head} a {} file holds the object naming its totals: one value alone is written to a JSON or a prose file.",
+                format.word().to_uppercase()
+            ))
+        }
+        ([_], _) if d.totals.len() == 1 => None,
+        ([only], _) => Some(format!(
+            "{head} its total `{only}` has no name the workflow can select by itself."
+        )),
+        (several, _) => Some(format!(
+            "{head} the computation states {} totals ({}): one value alone is one total.",
+            several.len(),
+            several
+                .iter()
+                .map(|name| format!("`{name}`"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        )),
+    };
+    let Some(why) = why else {
+        return false;
+    };
+    let target = format!("write_{}", effect.stem);
+    super::finding(out, DiagnosticKind::Unknown, &target, why);
+    super::question(
+        out,
+        "intent.clarification",
+        "Supply a complete replacement request that names the one value each file holds by itself, or the shape it holds. It explicitly replaces the earlier intent.",
+        QuestionType::Text,
+    );
+    true
+}
+
 /// The content a write carries, from the nearest upstream fact: a facet of a
 /// fetched page is the fetch's own mode; one total over every row written to a
-/// prose file is the value itself (a structured destination and several totals
-/// keep the object); after a per-record classification a write naming a
+/// prose file, or to a JSON file the plan states holds it alone (E38), is the
+/// value itself (another structured destination and several totals keep the
+/// object); after a per-record classification a write naming a
 /// category carries the records routed to it, a write of the records carries
 /// every record with its category. A literal the request states is its own constant.
 fn written_content(
@@ -376,7 +433,7 @@ fn written_content(
         content = super::network::facet_content(d, facet);
     }
     if name == "computed"
-        && Structured::of(&effect.path).is_none()
+        && (Structured::of(&effect.path).is_none() || effect.alone)
         && let [only] = d.totals.as_slice()
     {
         content = format!("${{{{ tasks.compute.output.{only} }}}}");

@@ -9,7 +9,7 @@
 use super::backstops::{gate_finds_its_effect, reconcile_refund_backstop};
 use super::{backstop, plan_record, record_ledger};
 use crate::gates::starts_with_prohibition;
-use crate::plan::{Effect, EffectPolicy, EffectVerb, Obligation, ObligationKind, Op, Plan, Step};
+use crate::plan::{EffectPolicy, EffectVerb, Obligation, ObligationKind, Op, Plan, Step};
 use crate::words::{
     CONVERSION_WORDS, LANGUAGE_WORDS, content_words, fold_words, only_format_words,
     serialization_draft,
@@ -18,6 +18,7 @@ use crate::{CompileOutcome, DiagnosticKind, QuestionType, lexicon::Reading};
 use nika_kernel::ai::provider::{ContentBlock, InferResponse, StopReason};
 use serde::Deserialize;
 
+mod effects;
 mod material;
 
 #[derive(Deserialize)]
@@ -51,7 +52,11 @@ pub(super) struct ProposedEffect {
     target: String,
     policy: String,
     evidence: String,
+    /// A write of one computed value alone (E38): read on a write only, absent reads as false.
+    #[serde(default)]
+    alone: bool,
 }
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct ProposedObligation {
@@ -1213,31 +1218,7 @@ pub(super) fn merge(
             );
             return None;
         };
-        if let Some(existing) = plan
-            .effects
-            .iter_mut()
-            .find(|e| e.verb == verb && same_write(verb, &e.target, &effect.target))
-        {
-            // The deterministic policy is the floor: a model may only strengthen a plain
-            // request. Any other disagreement about a recognized effect is a human question.
-            if !effect.target.trim().is_empty() {
-                existing.target.clone_from(&effect.target);
-                existing.evidence.clone_from(&evidence);
-            }
-            if existing.policy == EffectPolicy::Automatic && policy != EffectPolicy::Automatic {
-                existing.policy = policy;
-            } else if existing.policy != policy {
-                plan.unknowns.push(format!(
-                    "The proposal reads `{}` as {} while the request's explicit wording reads {}; the disagreement is not settled by a model.",
-                    verb.word(),
-                    policy.word(),
-                    existing.policy.word()
-                ));
-            }
-        } else {
-            plan.effects
-                .push(Effect::new(verb, effect.target, evidence, policy));
-        }
+        effects::merge(&mut plan, effect, verb, evidence, policy);
     }
     gate_finds_its_effect(&mut plan);
     for obligation in proposal.obligations {

@@ -35,7 +35,7 @@ use super::realize::{
 };
 use super::shape;
 use super::support::invoke;
-use super::writes::emit_writes;
+use super::writes::{alone_holds, emit_writes};
 use super::{CompileError, CompileOutcome, CompileRequest, DiagnosticKind, QuestionType};
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
@@ -85,6 +85,9 @@ pub(super) struct Doc {
     /// The names a typed computation produces as totals over every row (`tickets`,
     /// `total_cents`): the keys an outbound payload may name.
     pub(super) totals: Vec<String>,
+    /// Every total the typed computation states, a name a template selects or not: a write of
+    /// one value alone needs exactly one (E38).
+    pub(super) stated_totals: Vec<String>,
     /// Which emitted element carries which stated duty: (kind, evidence, task id).
     pub(super) carriers: Vec<(DutyKind, String, String)>,
     /// The stated bounds a run-time law over the drafted body verifies: (constraint, task).
@@ -124,6 +127,7 @@ impl Doc {
             computed_columns: None,
             renames: Vec::new(),
             totals: Vec::new(),
+            stated_totals: Vec::new(),
             carriers: Vec::new(),
             verified_bounds: Vec::new(),
             shared_review: None,
@@ -421,7 +425,10 @@ pub fn assemble_judged(
     // every gated effect waits for that answer, instead of one prompt per effect.
     d.gated_actions = gated_actions(&b);
     d.share_gates = d.gated_actions.len() >= 2 && shared_approval(intent, plan);
-    if !emit_writes(&mut d, &b.writes, out) || !super::network::emit_endpoints(&mut d, &b, out) {
+    if !alone_holds(&d, &b.writes, out)
+        || !emit_writes(&mut d, &b.writes, out)
+        || !super::network::emit_endpoints(&mut d, &b, out)
+    {
         return Ok(());
     }
     if b.dedup.bound().is_some() {
@@ -1054,6 +1061,7 @@ fn emit_synthesized_rule(d: &mut Doc, plan: &Plan, rule: &super::rules::Rule) {
     d.computed_columns = rule.output_columns();
     d.renames = rule.renames().to_vec();
     d.totals = rule.totals_names();
+    d.stated_totals.clone_from(&d.totals);
     emit_computed(d, plan, rule.summary());
     // Totals over every row are the outputs the request named, one by one.
     d.totals = rule
