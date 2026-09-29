@@ -182,18 +182,21 @@ fn observe(root: &Path, stated: &str) -> Option<(Value, Option<Value>)> {
             None,
         ));
     };
-    let (kind, sample) = match ext.as_str() {
+    let (kind, sample, complete) = match ext.as_str() {
         // A header describes names, not the shape of all data rows.
-        "csv" | "tsv" => ("csv", observation::csv(&head, ext == "tsv")),
-        // Conservatively partial: json_rows can fall back to a bounded head.
-        "json" => (
-            "json",
-            observation::records(&json_rows(&full, &head, meta.len())),
+        "csv" | "tsv" => ("csv", observation::csv(&head, ext == "tsv"), false),
+        "json" => {
+            let (rows, complete) = json_rows(&full, &head, meta.len());
+            ("json", observation::records(&rows), complete)
+        }
+        "jsonl" | "ndjson" => (
+            "jsonl",
+            observation::records(&observation::jsonl(&head)),
+            false,
         ),
-        "jsonl" | "ndjson" => ("jsonl", observation::records(&observation::jsonl(&head))),
         _ => return None,
     };
-    if sample.columns.is_empty() {
+    if sample.columns.is_empty() && !complete {
         let empty = head.trim().is_empty() || matches!(head.trim(), "[]" | "{}");
         return Some((
             json!({"path": stated, "kind": kind,
@@ -204,7 +207,7 @@ fn observe(root: &Path, stated: &str) -> Option<(Value, Option<Value>)> {
     let mut row = json!({
         "path": stated,
         "state": "observed",
-        "complete": false,
+        "complete": complete,
         "kind": kind,
         "columns": sample.columns,
         "bytes": meta.len(),
@@ -240,18 +243,18 @@ fn peek(path: &Path) -> Option<String> {
     })
 }
 
-/// A JSON file's rows: a top-level array, or the one top-level object. A file past
-/// the whole-read bound is judged on its head when that head parses.
-fn json_rows(path: &Path, head: &str, len: u64) -> Vec<Value> {
-    let text = if len <= WHOLE_JSON_BYTES {
-        std::fs::read_to_string(path).unwrap_or_else(|_| head.to_owned())
-    } else {
-        head.to_owned()
-    };
-    match serde_json::from_str::<Value>(&text) {
-        Ok(Value::Array(items)) => items,
-        Ok(object @ Value::Object(_)) => vec![object],
-        _ => Vec::new(),
+/// JSON keys are complete only after a successful whole read and parse. A bounded head or a
+/// failed whole read remains partial, even when the head itself is valid JSON.
+fn json_rows(path: &Path, head: &str, len: u64) -> (Vec<Value>, bool) {
+    let whole = (len <= WHOLE_JSON_BYTES)
+        .then(|| std::fs::read_to_string(path).ok())
+        .flatten()
+        .filter(|text| text.len() as u64 <= WHOLE_JSON_BYTES);
+    let complete = whole.is_some();
+    match serde_json::from_str::<Value>(whole.as_deref().unwrap_or(head)) {
+        Ok(Value::Array(items)) if !items.is_empty() => (items, complete),
+        Ok(object @ Value::Object(_)) => (vec![object], complete),
+        _ => (Vec::new(), false),
     }
 }
 
@@ -270,11 +273,10 @@ fn sha256_hex(bytes: &[u8]) -> String {
 mod tests {
     use super::*;
 
-    /// The observation descended to the compile unit keeps every row byte-identical (R4 A5): the
-    /// frozen A4 CLI observed this very file as exactly this row (root's F7 real-host capture), and
-    /// the kinds ride beside the rows, never inside one, counts only.
+    /// A whole JSON read records complete key evidence; kinds remain bounded counts beside the
+    /// row. This supersedes the historical A4 partial-row pin without changing its other facts.
     #[test]
-    fn a_descended_observation_keeps_the_recorded_row_and_puts_the_kinds_beside_it() {
+    fn a_whole_json_observation_records_complete_keys_and_separate_kinds() {
         let dir = tempfile::tempdir().unwrap();
         std::fs::create_dir_all(dir.path().join("data")).unwrap();
         let people = r#"[{"id": 1, "address": "a@x.org", "status": "active"}, {"id": 2, "address": "b@x.org", "status": "active"}, {"id": 3, "address": "c@y.org", "status": "inactive"}]"#;
@@ -283,7 +285,7 @@ mod tests {
         assert_eq!(
             seen["observed"][0],
             json!({"bytes": 162, "columns": ["address", "id", "status"],
-                "common_columns": ["address", "id", "status"], "complete": false, "kind": "json",
+                "common_columns": ["address", "id", "status"], "complete": true, "kind": "json",
                 "path": "./data/people.json",
                 "peek_sha256": "4cc35dc1fbdb9665a603d9d6e94efdce7ba1019aae984c61ef91b171a76a6be9",
                 "state": "observed", "values": {"status": ["active", "inactive"]}})
@@ -476,5 +478,85 @@ mod tests {
         );
         assert!(super::world(dir.path(), "read ../etc/passwd.csv").is_none());
         assert!(super::world(dir.path(), "read ./notes.md").is_none());
+    }
+
+    #[test]
+    fn whole_json_keys_can_disprove_an_assertion_without_refusing_present_keys() {
+        use nika_onboard::compile::{CompileRequest, CompileStatus, compile};
+        let dir = tempfile::tempdir().unwrap();
+        let intent = "Read ./orders.json (columns id, status), keep only the rows whose status is open and write them to ./out.json";
+        for (data, ready) in [
+            (json!([{"id": 1, "state": "open"}]), false),
+            (json!([{}]), false),
+            (json!({}), false),
+            (json!([{"id": 1, "status": "open"}]), true),
+        ] {
+            std::fs::write(dir.path().join("orders.json"), data.to_string()).unwrap();
+            let mut request = CompileRequest::create(intent);
+            request.knowledge = world(dir.path(), intent);
+            let out = compile(&request).unwrap();
+            assert_eq!(out.status == CompileStatus::Ready, ready, "{data}: {out:?}");
+        }
+    }
+
+    #[test]
+    fn a_whole_json_contradiction_moves_the_previously_asserted_basis() {
+        use nika_onboard::compile::{Basis, CompileRequest, CompileStatus, basis, compile};
+        let dir = tempfile::tempdir().unwrap();
+        let intent = "Read ./orders.json (columns id, status), keep only the rows whose status is open and write them to ./out.json";
+        let mut request = CompileRequest::create(intent);
+        request.knowledge = world(dir.path(), intent);
+        let out = compile(&request).unwrap();
+        assert_eq!(out.status, CompileStatus::Ready);
+        for (data, holds) in [
+            (json!([{"id": 1, "state": "open"}]), false),
+            (json!([{}]), false),
+            (json!([{"id": 1, "status": "open"}]), true),
+        ] {
+            std::fs::write(dir.path().join("orders.json"), data.to_string()).unwrap();
+            let fresh = world(dir.path(), intent);
+            let verdict = basis(out.provenance.decision.as_ref(), fresh.as_ref(), intent);
+            if holds {
+                assert!(matches!(verdict, Basis::Holds(1)), "{verdict:?}");
+            } else {
+                assert!(matches!(verdict, Basis::Moved(_)), "{verdict:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn valid_json_from_a_bounded_or_fallback_head_is_not_complete() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("missing.json");
+        let head = r#"[{"id":1}]"#;
+        for len in [head.len() as u64, WHOLE_JSON_BYTES + 1] {
+            let (rows, complete) = json_rows(&path, head, len);
+            assert_eq!(rows, vec![json!({"id": 1})]);
+            assert!(!complete);
+        }
+    }
+
+    #[test]
+    fn malformed_whole_json_and_bounded_jsonl_cannot_claim_complete_keys() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("broken.json"), "[{\"id\":1}").unwrap();
+        std::fs::write(dir.path().join("records.jsonl"), "{\"id\":1}\n").unwrap();
+        for source in ["./broken.json", "./records.jsonl"] {
+            let seen = world(dir.path(), &format!("read {source}")).unwrap();
+            assert_eq!(seen["observed"][0]["complete"], false);
+        }
+    }
+
+    #[test]
+    fn complete_keys_cover_records_beyond_the_bounded_kind_sample() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut rows = vec![json!({"id": 1}); 200];
+        rows.push(json!({"id": 201, "tail_key": true}));
+        std::fs::write(dir.path().join("rows.json"), json!(rows).to_string()).unwrap();
+        let seen = world(dir.path(), "read ./rows.json").unwrap();
+        assert_eq!(seen["observed"][0]["complete"], true);
+        assert_eq!(seen["observed"][0]["columns"], json!(["id", "tail_key"]));
+        assert_eq!(seen["observed"][0]["common_columns"], json!(["id"]));
+        assert_eq!(seen["kinds"]["./rows.json"]["sampled"], 200);
     }
 }
