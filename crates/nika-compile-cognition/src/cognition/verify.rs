@@ -114,6 +114,28 @@ const LANGUAGE: &str = "# The language in one page";
 /// The embedded stdlib page the contracts are cut from.
 const STDLIB: &str = "stdlib/builtins-v0.1.md";
 
+/// The decision key under which the spelling law keeps its notes on the programs it could not
+/// judge (`transform::spelling`, B21 T1); the notes on the plan's programs ride the state of every
+/// question ([`unjudged`]).
+pub(super) const UNJUDGED_SPELLINGS: &str = "unjudged_spellings";
+
+/// The spelling law's notes on the programs of `plan` it could not judge (R4 A11, B21 T1): those
+/// of the decision's [`UNJUDGED_SPELLINGS`] whose program is one of the plan's rules, so a note on
+/// a program a repair replaced is never shown. `None` when there is none.
+fn unjudged(settled: &CompileOutcome, plan: &Plan) -> Option<Value> {
+    let notes: Vec<Value> = settled
+        .provenance
+        .decision
+        .as_ref()
+        .and_then(|decision| decision[UNJUDGED_SPELLINGS].as_array())
+        .into_iter()
+        .flatten()
+        .filter(|note| plan.rules.iter().any(|rule| note["program"] == rule.jq()))
+        .cloned()
+        .collect();
+    (!notes.is_empty()).then(|| json!(notes))
+}
+
 /// The compiler-owned reference of a verdict's questions and of its repair (R4 A11, E36): the
 /// text exactly as each sends it, apart from the untrusted state, and what records it.
 struct Grounding {
@@ -394,7 +416,8 @@ fn usage<P: ProviderInferDyn>(judge: &Judge<'_, P>, verdict: &Verdict, calls: &[
 
 /// Judge every pending clause of the candidate the core named, the whole request among them,
 /// under the binding of the plan the core assembled (its stated rules promoted). A provider's
-/// calls are journaled into `out`.
+/// calls are journaled into `out`. Each question's state also carries the spelling law's notes on
+/// the plan's programs it could not judge ([`unjudged`], B21 T1).
 async fn verdict_on<P: ProviderInferDyn>(
     intent: &str,
     request: &CompileRequest,
@@ -422,7 +445,10 @@ async fn verdict_on<P: ProviderInferDyn>(
         .iter()
         .filter_map(Open::read)
         .collect();
-    let base = state(intent, request, candidate);
+    let mut base = state(intent, request, candidate);
+    if let Some(notes) = unjudged(settled, plan) {
+        base[UNJUDGED_SPELLINGS] = notes;
+    }
     let grounding = grounding(Some(candidate));
     verdict.reference = grounding.record;
     for (k, open) in open.iter().enumerate() {

@@ -29,10 +29,13 @@ const LIVRE_NFC: &str = "livr\u{e9}";
 const LIVRE_NFD: &str = "livre\u{301}";
 
 /// An injected seat: its authoring calls are answered in order and their last message kept;
-/// every verifier question gets the approving verdict (the explicit approving double).
+/// every verifier question gets the approving verdict (the explicit approving double), or the
+/// refusing one when the test names it, and the STATE it showed is kept.
 struct Seat {
     answers: Vec<String>,
     said: Mutex<Vec<String>>,
+    judged: Mutex<Vec<Value>>,
+    refuses: bool,
 }
 
 impl Seat {
@@ -40,12 +43,40 @@ impl Seat {
         Self {
             answers,
             said: Mutex::new(Vec::new()),
+            judged: Mutex::new(Vec::new()),
+            refuses: false,
+        }
+    }
+    /// The same double refusing every verifier question: each clause missing, the request
+    /// unfaithful, no part located.
+    fn refusing(answers: Vec<String>) -> Self {
+        Self {
+            refuses: true,
+            ..Self::new(answers)
         }
     }
     /// The last message of the authoring call `at`.
     fn said(&self, at: usize) -> String {
         self.said.lock().unwrap()[at].clone()
     }
+    /// The STATE each verifier question showed the judge, in order.
+    fn judged(&self) -> Vec<Value> {
+        self.judged.lock().unwrap().clone()
+    }
+}
+
+/// The text of a request's last message.
+fn last_text(request: &InferRequest) -> String {
+    request
+        .messages
+        .last()
+        .and_then(|message| {
+            message.content.iter().find_map(|block| match block {
+                ContentBlock::Text { text } => Some(text.clone()),
+                _ => None,
+            })
+        })
+        .unwrap_or_default()
 }
 
 impl ProviderInferDyn for Seat {
@@ -61,23 +92,27 @@ impl ProviderInferDyn for Seat {
                 .unwrap_or_default(),
             _ => Vec::new(),
         };
-        let text = if keys.iter().any(|k| k == "faithful") {
-            json!({"choice": "faithful"}).to_string()
-        } else if keys.iter().any(|k| k == "carried") {
-            json!({"choice": "carried"}).to_string()
+        let offers = |key: &str| keys.iter().any(|k| k == key);
+        let verifier = offers("faithful") || offers("carried") || offers("another_part");
+        let text = if verifier {
+            let said = last_text(&request);
+            let state = said
+                .strip_prefix("STATE:\n")
+                .and_then(|rest| rest.split("\n\nOPTIONS:").next())
+                .and_then(|json| serde_json::from_str(json).ok())
+                .unwrap_or(Value::Null);
+            self.judged.lock().unwrap().push(state);
+            let choice = match (self.refuses, offers("faithful"), offers("carried")) {
+                (false, true, _) => "faithful",
+                (false, false, true) => "carried",
+                (true, true, _) => "unfaithful",
+                (true, false, true) => "missing",
+                _ => "another_part",
+            };
+            json!({"choice": choice}).to_string()
         } else {
-            let last = request
-                .messages
-                .last()
-                .and_then(|message| {
-                    message.content.iter().find_map(|block| match block {
-                        ContentBlock::Text { text } => Some(text.clone()),
-                        _ => None,
-                    })
-                })
-                .unwrap_or_default();
             let mut said = self.said.lock().unwrap();
-            said.push(last);
+            said.push(last_text(&request));
             self.answers[(said.len() - 1).min(self.answers.len() - 1)].clone()
         };
         Ok(InferResponse::new(
@@ -491,6 +526,255 @@ async fn a_row_failing_whatever_the_spelling_is_no_spelling_difference() {
     let program = compute(&out);
     assert_eq!(authored(&out), ["plan", "transform"], "{out:#?}");
     assert_eq!(run(&program, &delivered(LIVRE_NFD)), json!(42), "{program}");
+}
+
+/// A transform answer like [`program`] over the seat's own example rows, spelled `statuses`
+/// (qty 40, then 15).
+fn program_on(jq: &str, statuses: [&str; 2], expected: &Value) -> String {
+    let example = json!([
+        {"id": "a1", "item": "x", "status": statuses[0], "qty": "40"},
+        {"id": "a2", "item": "y", "status": statuses[1], "qty": "15"}
+    ]);
+    json!({"jq": jq, "columns_read": ["status", "qty"], "example_input": example, "expected_output": expected})
+        .to_string()
+}
+
+/// A program summing qty over the rows whose status is exactly `stated`, which stops with an error
+/// on a row `condition` selects: the adversarial shape of B21 D1, which erred on its unmatched
+/// probe.
+fn erring(condition: &str, stated: &str) -> String {
+    format!(
+        ".records | map(if {condition} then error(\"?\") elif .status == {} then (.qty | tonumber) else 0 end) | add // 0",
+        json!(stated)
+    )
+}
+
+/// B21 D1's condition, byte for byte: a status holding no ASCII letter, as U+2400 is.
+const NO_ASCII_LETTER: &str = "(.status | ascii_downcase) == (.status | ascii_upcase)";
+
+/// The refusal the repair was told in the authoring call `at`.
+fn told(seat: &Seat, at: usize) -> String {
+    let told: Value = serde_json::from_str(&seat.said(at)).unwrap();
+    told["verifier"]["refused"]
+        .as_str()
+        .unwrap_or_default()
+        .to_owned()
+}
+
+/// B21 D1, retained (R4 A11, B21 T1): a program that stops with an error on the unmatched probe
+/// text and otherwise compares the stated bytes was READY and summed 0 on rows the source spells
+/// e + U+0301, where 42 is due: the error left the law nothing to compare. The law now reads the
+/// program's treatment of a value the clause does not state from a value the host observed in
+/// the bound column (« en attente »): the observed spelling is treated as that value, not as the
+/// stated one. The program is refused naming both spellings, repaired, and sums 42.
+#[tokio::test]
+async fn an_error_on_the_unmatched_probe_does_not_silence_the_law() {
+    let seat = Seat::new(vec![
+        request_of(&livre()).1.to_string(),
+        program(
+            &erring(NO_ASCII_LETTER, LIVRE_NFC),
+            &["status", "qty"],
+            &json!(40),
+        ),
+        summing(&[LIVRE_NFC, LIVRE_NFD]),
+    ]);
+    let world = spelled(&[LIVRE_NFD, "en attente"], &["x", "y"]);
+    let out = compiled(&seat, &livre(), world, 1).await;
+    let program = compute(&out);
+    let sum = run(&program, &delivered(LIVRE_NFD));
+    assert_eq!(
+        authored(&out),
+        ["plan", "transform", "transform_repair"],
+        "READY with `{program}`, summing {sum} on rows spelled e + U+0301"
+    );
+    let refused = told(&seat, 2);
+    for part in ["`status`", &points(LIVRE_NFC), &points(LIVRE_NFD)] {
+        assert!(refused.contains(part), "{part}: {refused}");
+    }
+    assert_eq!(sum, json!(42), "{program}");
+}
+
+/// A fresh erring shape (R4 A11, B21 T1): the program stops with an error on a status shorter
+/// than two characters, as U+2400 is, and compares the stated bytes otherwise. The observed
+/// value probes its treatment of a value the clause does not state all the same: refused,
+/// repaired, 42.
+#[tokio::test]
+async fn an_unmatched_probe_error_of_another_shape_is_probed_with_an_observed_value() {
+    let seat = Seat::new(vec![
+        request_of(&livre()).1.to_string(),
+        program(
+            &erring("(.status | length) < 2", LIVRE_NFC),
+            &["status", "qty"],
+            &json!(40),
+        ),
+        summing(&[LIVRE_NFC, LIVRE_NFD]),
+    ]);
+    let world = spelled(&[LIVRE_NFD, "en attente"], &["x", "y"]);
+    let out = compiled(&seat, &livre(), world, 1).await;
+    assert_eq!(
+        authored(&out),
+        ["plan", "transform", "transform_repair"],
+        "{out:#?}"
+    );
+    let program = compute(&out);
+    assert_eq!(run(&program, &delivered(LIVRE_NFD)), json!(42), "{program}");
+}
+
+/// « Chờ » as a request may state it, fully decomposed (o, then the horn U+031B and the grave
+/// U+0300, two marks), and as a file may spell it, composed (U+1EDD): canonically equivalent.
+const CHO_STATED: &str = "Cho\u{31b}\u{300}";
+const CHO_OBSERVED: &str = "Ch\u{1edd}";
+
+/// A fresh composition behind the same error (R4 A11, B21 T1): the clause states « Chờ » with two
+/// combining marks, the file spells it composed, and the program stops with an error on its
+/// unmatched probe. The observed value « en attente » reads its treatment of a value the clause
+/// does not state: refused naming both spellings, repaired, 42.
+#[tokio::test]
+async fn a_decomposed_literal_behind_an_unmatched_probe_error_is_refused() {
+    let clause = format!("sum qty over the rows where status is {CHO_STATED}");
+    let both = format!(
+        ".records | map(select(.status == {} or .status == {}) | .qty | tonumber) | add // 0",
+        json!(CHO_STATED),
+        json!(CHO_OBSERVED)
+    );
+    let example = [CHO_STATED, "en attente"];
+    let seat = Seat::new(vec![
+        request_of(&clause).1.to_string(),
+        program_on(&erring(NO_ASCII_LETTER, CHO_STATED), example, &json!(40)),
+        program_on(&both, example, &json!(40)),
+    ]);
+    let world = spelled(&[CHO_OBSERVED, "en attente"], &["x", "y"]);
+    let out = compiled(&seat, &clause, world, 1).await;
+    assert_eq!(
+        authored(&out),
+        ["plan", "transform", "transform_repair"],
+        "{out:#?}"
+    );
+    let refused = told(&seat, 2);
+    for part in [&points(CHO_STATED), &points(CHO_OBSERVED)] {
+        assert!(refused.contains(part.as_str()), "{part}: {refused}");
+    }
+    let program = compute(&out);
+    assert_eq!(
+        run(&program, &delivered(CHO_OBSERVED)),
+        json!(42),
+        "{program}"
+    );
+}
+
+/// A program stopping with an error on U+2400 and on every value the host observed that the clause
+/// does not state (a status holding a space, as « en attente » does), never on its own example.
+fn unjudgeable() -> String {
+    let jq = erring(
+        &format!("{NO_ASCII_LETTER} or (.status | split(\" \") | length) > 1"),
+        LIVRE_NFC,
+    );
+    program_on(&jq, [LIVRE_NFC, "pr\u{ea}t"], &json!(40))
+}
+
+/// The notes a verifier question carried in its STATE on a program the law could not judge.
+fn notes(state: &Value) -> Vec<Value> {
+    state["unjudged_spellings"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+}
+
+/// A program whose treatment of every value the clause does not state is an error cannot be judged
+/// by the spelling law (R4 A11, B21 T1): it is not refused on that ground alone, and it is not
+/// READY silently. Its record and an applied finding say the law could not judge it, naming the
+/// column, both spellings and their code points; the note rides the STATE of every verifier
+/// question, so the clause and the whole request go to the judges with it. The approving double
+/// makes it READY (a double certifies nothing); the refusing double keeps it INCOMPLETE. With no
+/// observed value the clause does not state, U+2400 alone was tried, and the note says so.
+#[tokio::test]
+async fn a_program_the_law_cannot_judge_goes_to_the_judges_with_its_record() {
+    let world = spelled(&[LIVRE_NFD, "en attente"], &["x", "y"]);
+    let approving = Seat::new(vec![request_of(&livre()).1.to_string(), unjudgeable()]);
+    let out = compiled(&approving, &livre(), world.clone(), 1).await;
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert_eq!(authored(&out), ["plan", "transform"], "{out:#?}");
+    let decision = out.provenance.decision.clone().unwrap();
+    let record = &decision["transforms"][0];
+    assert_eq!(record["accepted"], json!(true), "{record:#}");
+    let note = record["unjudged"][0].clone();
+    assert_eq!(note["column"], json!("status"), "{record:#}");
+    assert_eq!(note["stated_code_points"], json!(points(LIVRE_NFC)));
+    assert_eq!(note["observed_code_points"], json!(points(LIVRE_NFD)));
+    assert_eq!(note["tried"], json!(["\u{2400}", "en attente"]), "{note:#}");
+    let finding = out
+        .diagnostics
+        .iter()
+        .find(|d| d.target == "authoring_transform" && d.message.contains("could not judge"));
+    assert!(finding.is_some(), "{out:#?}");
+    let judged = approving.judged();
+    assert!(judged.len() >= 2, "{judged:#?}");
+    for state in &judged {
+        assert_eq!(notes(state), std::slice::from_ref(&note), "{state:#}");
+    }
+    let refusing = Seat::refusing(vec![request_of(&livre()).1.to_string(), unjudgeable()]);
+    let refused = compiled(&refusing, &livre(), world, 0).await;
+    assert_eq!(refused.status, CompileStatus::Incomplete, "{refused:#?}");
+    assert!(
+        refusing
+            .judged()
+            .iter()
+            .all(|state| !notes(state).is_empty())
+    );
+    let alone = Seat::new(vec![request_of(&livre()).1.to_string(), unjudgeable()]);
+    let only = spelled(&[LIVRE_NFD], &["x", "y"]);
+    let out = compiled(&alone, &livre(), only, 1).await;
+    let record = &out.provenance.decision.as_ref().unwrap()["transforms"][0];
+    assert_eq!(
+        record["unjudged"][0]["tried"],
+        json!(["\u{2400}"]),
+        "{record:#}"
+    );
+}
+
+/// The field-answer regeneration is held to the same law and the same record (R4 A11, B21 T1): the
+/// program regenerated once the human answered `qty` cannot be judged by the spelling law, so its
+/// note rides the regeneration record and the STATE of the judges of its first candidate.
+#[tokio::test]
+async fn a_regenerated_program_the_law_cannot_judge_goes_to_the_judges_with_its_record() {
+    let unread = format!(
+        ".records | map(select(.status == {}) | .quantity | tonumber) | add // 0",
+        json!(LIVRE_NFC)
+    );
+    let world = spelled(&[LIVRE_NFD, "en attente"], &["x", "y"]);
+    let first = Seat::new(vec![
+        request_of(&livre()).1.to_string(),
+        program(&unread, &["status", "quantity"], &json!(40)),
+    ]);
+    let pending = compiled(&first, &livre(), world.clone(), 1).await;
+    let record = pending.provenance.plan.clone().unwrap();
+    let key = pending
+        .questions
+        .iter()
+        .find(|q| q.key.starts_with("const.rule_field"))
+        .map(|q| q.key.clone())
+        .unwrap();
+    let seat = Seat::new(vec![unjudgeable()]);
+    let policy =
+        AuthoringPolicy::new("mock/authoring", 1024, Duration::from_secs(2)).with_repairs(1);
+    let request = CompileRequest::create(request_of(&livre()).0)
+        .with_plan(record)
+        .with_knowledge(world)
+        .with_authoring_policy(policy)
+        .answer(&key, "\"qty\"");
+    let out = compile_with_provider(&request, &seat).await.unwrap();
+    let regeneration = &out.provenance.decision.as_ref().unwrap()["transform_regeneration"];
+    assert_eq!(regeneration["accepted"], json!(true), "{out:#?}");
+    assert_eq!(
+        regeneration["unjudged"][0]["column"],
+        json!("status"),
+        "{regeneration:#}"
+    );
+    let judged = seat.judged();
+    assert!(!judged.is_empty(), "{out:#?}");
+    for state in &judged {
+        assert_eq!(notes(state).len(), 1, "{state:#}");
+    }
 }
 
 /// The request of the sum with each kept status also transformed as `suffix` states, compiled with

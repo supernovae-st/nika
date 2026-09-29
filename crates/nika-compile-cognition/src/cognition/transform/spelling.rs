@@ -25,13 +25,26 @@
 //! program's bytes are never rewritten; the observed spelling of a stated literal is no invented
 //! literal.
 //!
+//! A program that stops with an error on the unmatched text shows no treatment of it to compare
+//! (B21 D1: an error on U+2400 left the law silent and a byte comparison READY, summing 0 where
+//! 42 was due). The law then reads that treatment from a value the host observed in the bound
+//! column that the clause does not state ([`Bound::unstated`]), probed the same way. When the
+//! program stops with an error on that value too, or the host observed none, the law cannot
+//! judge the program: it refuses nothing on that ground, and the program's record, an applied
+//! finding and the decision's `unjudged_spellings` say so, naming the column, both spellings,
+//! their code points and every text tried ([`Spelled::qualify`]). The verifier shows those notes
+//! to the judges of the candidate running that program, so the clause and the whole request are
+//! settled by a judge that reads them, never silently. A program that treats the chosen value
+//! as a special case still escapes: the observed value is a stand-in, not a proof.
+//!
 //! A bounded law over the seat's own example rows and the host's bounded sample, never a proof
 //! that two programs mean the same: a spelling the sample did not show, a column without
 //! categorical values, a literal the clause does not state, case and compatibility forms bind
 //! nothing, and a program treating the observed spelling some third way (neither as the stated
 //! one nor as unmatched) is left to the verifier.
 
-use super::{ProposedTransform, Refusal, run};
+use super::super::verify::UNJUDGED_SPELLINGS as UNJUDGED_KEY;
+use super::{CompileOutcome, DiagnosticKind, ProposedTransform, Refusal, run};
 use nika_compile::surface::observed::{for_intent, stated_spellings};
 use serde_json::{Map, Value, json};
 
@@ -44,6 +57,10 @@ struct Bound {
     column: String,
     stated: String,
     observed: String,
+    /// The first value the host observed in `column` that the clause does not state
+    /// ([`unstated`]): the column's own stand-in for a value the clause does not state, probed
+    /// when the program stops with an error on [`UNMATCHED`] (B21 T1).
+    unstated: Option<String>,
 }
 
 /// The host-observed categorical values of the request's one stated source, and the literals one
@@ -51,6 +68,8 @@ struct Bound {
 pub(in crate::cognition) struct Spelled {
     values: Map<String, Value>,
     bound: Vec<Bound>,
+    /// The clause's own words, which the note on a program the law cannot judge names.
+    clause: String,
 }
 
 impl Spelled {
@@ -60,23 +79,31 @@ impl Spelled {
         let columns = for_intent(world, intent).unwrap_or_default();
         let mut bound = Vec::new();
         for (column, spellings) in &values {
-            let observed: Vec<String> = spellings
+            let held: Vec<String> = spellings
                 .as_array()
                 .into_iter()
                 .flatten()
                 .filter_map(Value::as_str)
                 .map(str::to_owned)
                 .collect();
-            for (stated, observed) in stated_spellings(clause, &observed, &columns) {
+            let pairs = stated_spellings(clause, &held, &columns);
+            let unstated = unstated(clause, &held, &columns, &pairs);
+            for (stated, observed) in pairs {
                 let column = column.clone();
                 bound.push(Bound {
                     column,
                     stated,
                     observed,
+                    unstated: unstated.clone(),
                 });
             }
         }
-        Self { values, bound }
+        let clause = clause.to_owned();
+        Self {
+            values,
+            bound,
+            clause,
+        }
     }
 
     /// Show the seat the categorical values the host observed, when it observed any: the text
@@ -96,11 +123,56 @@ impl Spelled {
     /// The law over `proposed`: every binding, whatever columns it declares, on each one-row
     /// source of its own example (the module's law).
     pub(super) fn honored(&self, proposed: &ProposedTransform) -> Result<(), Refusal> {
+        self.judge(proposed).map(|_| ())
+    }
+
+    /// What the law could not judge of an accepted program (B21 T1), each binding once: a note
+    /// naming the clause, the program, the column, both spellings, their code points and every
+    /// text tried, told in an applied finding and kept, once, in the decision's
+    /// `unjudged_spellings` for the judges of the candidate running that program. It refuses
+    /// nothing; the notes are returned for the program's own record.
+    pub(super) fn qualify(
+        &self,
+        proposed: &ProposedTransform,
+        out: &mut CompileOutcome,
+    ) -> Vec<Value> {
+        let program = proposed.jq.trim();
+        let unjudged = self.judge(proposed).unwrap_or_default();
+        let notes: Vec<Value> = unjudged
+            .iter()
+            .map(|(bound, tried)| bound.note(&self.clause, program, tried))
+            .collect();
+        for (bound, _) in &unjudged {
+            let told = bound.unjudged(&self.clause);
+            crate::finding(out, DiagnosticKind::Applied, "authoring_transform", told);
+        }
+        if !notes.is_empty() {
+            let mut decision = out.provenance.decision.take().unwrap_or_else(|| json!({}));
+            let mut kept = decision[UNJUDGED_KEY]
+                .as_array()
+                .cloned()
+                .unwrap_or_default();
+            for note in &notes {
+                if !kept.contains(note) {
+                    kept.push(note.clone());
+                }
+            }
+            decision[UNJUDGED_KEY] = json!(kept);
+            out.provenance.decision = Some(decision);
+        }
+        notes
+    }
+
+    /// The law over `proposed` on each one-row source of its own example: a refusal, or each
+    /// binding whose treatment of a value the clause does not state the program shows none of
+    /// (an error on every text [`Bound::tried`] offers), once, with the texts tried.
+    fn judge(&self, proposed: &ProposedTransform) -> Result<Vec<(&Bound, Vec<String>)>, Refusal> {
         let program = proposed.jq.trim();
         let example = proposed
             .example_input
             .as_array()
             .map_or(&[][..], Vec::as_slice);
+        let mut unjudged: Vec<(&Bound, Vec<String>)> = Vec::new();
         for bound in &self.bound {
             for row in example.iter().filter(|row| row.is_object()) {
                 let probe = |text: &str| {
@@ -109,16 +181,18 @@ impl Spelled {
                     let output = run(program, &json!({"records": [row]}));
                     output.map(|value| read_back(value, text))
                 };
-                let unmatched = probe(UNMATCHED).ok();
                 let how = match (probe(&bound.stated), probe(&bound.observed)) {
-                    (Ok(stated), Ok(observed)) => unmatched.and_then(|none| {
-                        let (kept, spelled) = (stated != none, observed != none);
-                        match (kept, spelled) {
-                            (true, false) => Some(DROPS_OBSERVED),
-                            (false, true) => Some(DROPS_STATED),
-                            _ => None,
+                    (Ok(stated), Ok(observed)) => {
+                        let tried = bound.tried();
+                        if let Some(none) = tried.iter().find_map(|text| probe(text).ok()) {
+                            dropped(stated != none, observed != none)
+                        } else {
+                            if !unjudged.iter().any(|(b, _)| std::ptr::eq(*b, bound)) {
+                                unjudged.push((bound, tried));
+                            }
+                            None
                         }
-                    }),
+                    }
                     (Ok(_), Err(_)) => Some(FAILS_OBSERVED),
                     (Err(_), Ok(_)) => Some(FAILS_STATED),
                     (Err(_), Err(_)) => None,
@@ -128,8 +202,43 @@ impl Spelled {
                 }
             }
         }
-        Ok(())
+        Ok(unjudged)
     }
+}
+
+/// How a program treating one spelling as it treats a value the clause does not state tells the
+/// two apart: `kept` when the stated spelling is treated otherwise, `spelled` when the observed
+/// one is.
+fn dropped(kept: bool, spelled: bool) -> Option<&'static str> {
+    match (kept, spelled) {
+        (true, false) => Some(DROPS_OBSERVED),
+        (false, true) => Some(DROPS_STATED),
+        _ => None,
+    }
+}
+
+/// The first value `held` in a column (as the host observed it) that the clause does not state
+/// (B21 T1): not within the clause's own text, case aside; no canonical spelling of it stated at
+/// token boundaries; and not, case aside, either spelling of a literal the clause binds there.
+/// An empty value is within every text, so it is never chosen. `None` when there is none.
+fn unstated(
+    clause: &str,
+    held: &[String],
+    columns: &[String],
+    pairs: &[(String, String)],
+) -> Option<String> {
+    let lower = clause.to_lowercase();
+    held.iter()
+        .find(|value| {
+            let lowered = value.to_lowercase();
+            let spells = |text: &String| text.to_lowercase() == lowered;
+            !lower.contains(&lowered)
+                && !pairs
+                    .iter()
+                    .any(|(stated, observed)| spells(stated) || spells(observed))
+                && stated_spellings(clause, std::slice::from_ref(*value), columns).is_empty()
+        })
+        .cloned()
 }
 
 /// The probe text neither spelling is: what the program does with a value the clause does not
@@ -145,8 +254,47 @@ const FAILS_OBSERVED: &str =
 /// What the program does with the other spelling: an error on the stated one.
 const FAILS_STATED: &str =
     "the program fails on the stated spelling where it returns a value on the observed one";
+/// Why the law could not judge a program over a binding (B21 T1).
+const UNJUDGED: &str = "the program stops with an error on every text the law tried that the clause does not state, so the spelling law could not compare its treatment of the observed spelling with its treatment of the stated one; the judges settle the clause";
 
 impl Bound {
+    /// The texts whose treatment stands for a value the clause does not state: [`UNMATCHED`],
+    /// then the column's own [`Bound::unstated`] value when the host observed one.
+    fn tried(&self) -> Vec<String> {
+        std::iter::once(UNMATCHED.to_owned())
+            .chain(self.unstated.clone())
+            .collect()
+    }
+
+    /// The note on `program`, which the law could not judge over this binding after trying
+    /// `tried`: kept in the program's record and shown to the judges of its candidate.
+    fn note(&self, clause: &str, program: &str, tried: &[String]) -> Value {
+        json!({
+            "clause": clause,
+            "program": program,
+            "column": self.column,
+            "stated": self.stated,
+            "stated_code_points": points(&self.stated),
+            "observed": self.observed,
+            "observed_code_points": points(&self.observed),
+            "tried": tried,
+            "why": UNJUDGED,
+        })
+    }
+
+    /// The applied finding on a program the law could not judge over this binding.
+    fn unjudged(&self, clause: &str) -> String {
+        format!(
+            "The spelling law could not judge the seat's program for `{}`: in `{}` the clause states `{}` ({}) and the source holds `{}` ({}); {UNJUDGED}.",
+            clause.trim(),
+            self.column,
+            self.stated,
+            points(&self.stated),
+            self.observed,
+            points(&self.observed)
+        )
+    }
+
     /// The concrete defect the repair is told: the column, both spellings and their code points,
     /// and `how` the program told them apart.
     fn refusal(&self, how: &str) -> String {

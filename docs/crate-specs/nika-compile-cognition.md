@@ -105,6 +105,23 @@ without categorical values and a literal the clause does not state bind nothing,
 treating the observed spelling some third way (neither as the stated one nor as unmatched) is
 left to the verifier, and passing it proves no equivalence of meaning.
 
+A program that stops with an error on U+2400 shows no treatment of an unmatched text to compare
+(B21 D1, a labelled adversarial double: it erred on every status holding no ASCII letter and
+compared the stated bytes otherwise, and was READY summing 0 where 42 was due). The law then
+reads that treatment from the first value the host observed in the bound column that the clause
+does not state (never within the clause's text, case aside, never a canonical spelling the clause
+states at token boundaries, never either spelling of a literal bound there), probed the same way:
+D1 is refused naming both spellings, repaired, and sums 42. When the program errs on that value
+too, or the host observed none, the law cannot judge the program and refuses nothing on that
+ground: the transform record (`unjudged`), an applied `authoring_transform` finding and the
+decision's `unjudged_spellings` name the clause, the program, the column, both spellings, their
+code points and every text tried, and the verifier puts the notes on the plan's own programs in
+the state of every question (`unjudged_spellings`), so the clause and the whole request are
+settled by judges that read them, never READY silently; a field answer's regeneration records
+the same (`transform_regeneration.unjudged`). A note on a program a repair replaced is not shown.
+The observed value is a stand-in, not a sentinel that solves the case: a program that treats the
+chosen value specially still escapes, and a judge's approval stays bounded evidence.
+
 A candidate a model's plan shaped is judged against the whole request before READY
 (`cognition::verify`, R4 A11). The core names what no law reads from the bytes: a duty a
 step's words only restate (a label), a task carrying words no law reads (unverified), a clause

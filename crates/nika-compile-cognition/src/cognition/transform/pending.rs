@@ -49,6 +49,8 @@ pub(crate) async fn resume<P: ProviderInferDyn>(
     };
     match verdict {
         Ok(proposed) => {
+            // What the spelling law could not judge rides the record and the judges' state.
+            let unjudged = spelled.qualify(&proposed, &mut out);
             let rule = crate::rules::Rule::program(
                 pending.detail(),
                 proposed.jq.trim(),
@@ -72,6 +74,9 @@ pub(crate) async fn resume<P: ProviderInferDyn>(
             let regeneration = kept_or_refused(&mut out, &verified);
             let mut decision = out.provenance.decision.take().unwrap_or_else(|| json!({}));
             decision["transform_regeneration"] = regeneration;
+            if !unjudged.is_empty() {
+                decision["transform_regeneration"]["unjudged"] = json!(unjudged);
+            }
             out.provenance.decision = Some(decision);
         }
         Err(Refusal(why)) => {

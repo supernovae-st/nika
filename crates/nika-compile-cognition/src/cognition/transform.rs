@@ -307,7 +307,8 @@ pub(super) async fn synthesize<P: ProviderInferDyn>(
                         step.evidence.trim()
                     ),
                 );
-                records.push(json!({"clause": step.evidence, "accepted": true, "jq": proposed.jq, "columns": proposed.columns_read}));
+                let unjudged = spelled.qualify(&proposed, out);
+                records.push(json!({"clause": step.evidence, "accepted": true, "jq": proposed.jq, "columns": proposed.columns_read, "unjudged": unjudged}));
                 plan.rules.push(crate::rules::Rule::program(
                     step.detail.trim(),
                     proposed.jq.trim(),
