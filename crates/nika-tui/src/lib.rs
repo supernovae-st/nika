@@ -37,7 +37,9 @@
 //!
 //! Every colour and glyph comes through [`visual`]: the engine's theme roles
 //! resolved at paint time, the workspace icons with their ASCII twins, and the
-//! butterfly sampled from the repository's own logomark.
+//! butterfly sampled from the repository's own logomark. The full-terminal
+//! workspace screen ([`workspace`]) is being built on fixtures: its geometry
+//! and header exist, and nothing opens it yet.
 
 pub mod app;
 pub mod composer;
@@ -47,3 +49,4 @@ pub mod render;
 pub mod session;
 pub mod terminal;
 pub mod visual;
+pub mod workspace;

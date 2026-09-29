@@ -1384,3 +1384,129 @@ pub fn nika_tui::visual::logomark::revealing(elapsed: core::time::Duration, redu
 pub mod nika_tui::visual::role
 pub fn nika_tui::visual::role::style(role: nika_display::theme::Role, color: bool) -> ratatui_core::style::Style
 pub fn nika_tui::visual::role::verb(word: &str, color: bool) -> ratatui_core::style::Style
+pub mod nika_tui::workspace
+pub mod nika_tui::workspace::geometry
+#[non_exhaustive] pub struct nika_tui::workspace::geometry::Geometry
+pub nika_tui::workspace::geometry::Geometry::aside: core::option::Option<ratatui_core::layout::rect::Rect>
+pub nika_tui::workspace::geometry::Geometry::conversation: ratatui_core::layout::rect::Rect
+pub nika_tui::workspace::geometry::Geometry::header: ratatui_core::layout::rect::Rect
+pub nika_tui::workspace::geometry::Geometry::object: ratatui_core::layout::rect::Rect
+pub nika_tui::workspace::geometry::Geometry::pinned: core::option::Option<ratatui_core::layout::rect::Rect>
+pub nika_tui::workspace::geometry::Geometry::stacked: bool
+impl nika_tui::workspace::geometry::Geometry
+pub fn nika_tui::workspace::geometry::Geometry::of(area: ratatui_core::layout::rect::Rect, pinned: bool) -> core::option::Option<Self>
+pub fn nika_tui::workspace::geometry::Geometry::regions(&self) -> alloc::vec::Vec<ratatui_core::layout::rect::Rect>
+impl core::clone::Clone for nika_tui::workspace::geometry::Geometry
+pub fn nika_tui::workspace::geometry::Geometry::clone(&self) -> nika_tui::workspace::geometry::Geometry
+impl core::cmp::Eq for nika_tui::workspace::geometry::Geometry
+impl core::cmp::PartialEq for nika_tui::workspace::geometry::Geometry
+pub fn nika_tui::workspace::geometry::Geometry::eq(&self, other: &nika_tui::workspace::geometry::Geometry) -> bool
+impl core::fmt::Debug for nika_tui::workspace::geometry::Geometry
+pub fn nika_tui::workspace::geometry::Geometry::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_tui::workspace::geometry::Geometry
+impl core::marker::StructuralPartialEq for nika_tui::workspace::geometry::Geometry
+impl<D> owo_colors::OwoColorize for nika_tui::workspace::geometry::Geometry
+impl<Q, K> equivalent::Equivalent<K> for nika_tui::workspace::geometry::Geometry where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_tui::workspace::geometry::Geometry::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_tui::workspace::geometry::Geometry where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_tui::workspace::geometry::Geometry::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_tui::workspace::geometry::Geometry where U: core::convert::From<T>
+pub fn nika_tui::workspace::geometry::Geometry::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui::workspace::geometry::Geometry where U: core::convert::Into<T>
+pub type nika_tui::workspace::geometry::Geometry::Error = core::convert::Infallible
+pub fn nika_tui::workspace::geometry::Geometry::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui::workspace::geometry::Geometry where U: core::convert::TryFrom<T>
+pub type nika_tui::workspace::geometry::Geometry::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui::workspace::geometry::Geometry::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tui::workspace::geometry::Geometry where T: core::clone::Clone
+pub type nika_tui::workspace::geometry::Geometry::Owned = T
+pub fn nika_tui::workspace::geometry::Geometry::clone_into(&self, target: &mut T)
+pub fn nika_tui::workspace::geometry::Geometry::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tui::workspace::geometry::Geometry where T: 'static + ?core::marker::Sized
+pub fn nika_tui::workspace::geometry::Geometry::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui::workspace::geometry::Geometry where T: ?core::marker::Sized
+pub fn nika_tui::workspace::geometry::Geometry::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui::workspace::geometry::Geometry where T: ?core::marker::Sized
+pub fn nika_tui::workspace::geometry::Geometry::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tui::workspace::geometry::Geometry where T: core::clone::Clone
+pub unsafe fn nika_tui::workspace::geometry::Geometry::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tui::workspace::geometry::Geometry
+pub fn nika_tui::workspace::geometry::Geometry::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_tui::workspace::geometry::Geometry where T: core::clone::Clone
+pub fn nika_tui::workspace::geometry::Geometry::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> either::into_either::IntoEither for nika_tui::workspace::geometry::Geometry
+impl<T> nika_error::traits::AsAny for nika_tui::workspace::geometry::Geometry where T: 'static
+pub fn nika_tui::workspace::geometry::Geometry::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_tui::workspace::geometry::Geometry where T: core::marker::Copy
+pub fn nika_tui::workspace::geometry::Geometry::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_tui::workspace::geometry::Geometry where T: ?core::marker::Sized
+pub fn nika_tui::workspace::geometry::Geometry::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_tui::workspace::geometry::Geometry::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_tui::workspace::geometry::Geometry
+impl<T> tracing::instrument::WithSubscriber for nika_tui::workspace::geometry::Geometry
+impl<T> typenum::type_operators::Same for nika_tui::workspace::geometry::Geometry
+pub type nika_tui::workspace::geometry::Geometry::Output = T
+pub const nika_tui::workspace::geometry::ASIDE_MIN_WIDTH: u16
+pub const nika_tui::workspace::geometry::MIN_SIZE: (u16, u16)
+pub const nika_tui::workspace::geometry::SIDE_BY_SIDE_MIN_WIDTH: u16
+pub const nika_tui::workspace::geometry::TALL_HEADER_MIN_HEIGHT: u16
+pub mod nika_tui::workspace::header
+#[non_exhaustive] pub struct nika_tui::workspace::header::Place
+pub nika_tui::workspace::header::Place::git: core::option::Option<bool>
+pub nika_tui::workspace::header::Place::host: alloc::string::String
+pub nika_tui::workspace::header::Place::location: core::option::Option<alloc::string::String>
+pub nika_tui::workspace::header::Place::manifest: core::option::Option<bool>
+pub nika_tui::workspace::header::Place::project: core::option::Option<alloc::string::String>
+impl nika_tui::workspace::header::Place
+pub fn nika_tui::workspace::header::Place::observed(self, git: bool, manifest: bool) -> Self
+pub fn nika_tui::workspace::header::Place::on(host: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_tui::workspace::header::Place::with_project(self, project: impl core::convert::Into<alloc::string::String>, location: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_tui::workspace::header::Place
+pub fn nika_tui::workspace::header::Place::clone(&self) -> nika_tui::workspace::header::Place
+impl core::cmp::Eq for nika_tui::workspace::header::Place
+impl core::cmp::PartialEq for nika_tui::workspace::header::Place
+pub fn nika_tui::workspace::header::Place::eq(&self, other: &nika_tui::workspace::header::Place) -> bool
+impl core::fmt::Debug for nika_tui::workspace::header::Place
+pub fn nika_tui::workspace::header::Place::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_tui::workspace::header::Place
+impl<D> owo_colors::OwoColorize for nika_tui::workspace::header::Place
+impl<Q, K> equivalent::Equivalent<K> for nika_tui::workspace::header::Place where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_tui::workspace::header::Place::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_tui::workspace::header::Place where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_tui::workspace::header::Place::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_tui::workspace::header::Place where U: core::convert::From<T>
+pub fn nika_tui::workspace::header::Place::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui::workspace::header::Place where U: core::convert::Into<T>
+pub type nika_tui::workspace::header::Place::Error = core::convert::Infallible
+pub fn nika_tui::workspace::header::Place::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui::workspace::header::Place where U: core::convert::TryFrom<T>
+pub type nika_tui::workspace::header::Place::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui::workspace::header::Place::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tui::workspace::header::Place where T: core::clone::Clone
+pub type nika_tui::workspace::header::Place::Owned = T
+pub fn nika_tui::workspace::header::Place::clone_into(&self, target: &mut T)
+pub fn nika_tui::workspace::header::Place::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tui::workspace::header::Place where T: 'static + ?core::marker::Sized
+pub fn nika_tui::workspace::header::Place::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui::workspace::header::Place where T: ?core::marker::Sized
+pub fn nika_tui::workspace::header::Place::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui::workspace::header::Place where T: ?core::marker::Sized
+pub fn nika_tui::workspace::header::Place::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tui::workspace::header::Place where T: core::clone::Clone
+pub unsafe fn nika_tui::workspace::header::Place::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tui::workspace::header::Place
+pub fn nika_tui::workspace::header::Place::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_tui::workspace::header::Place where T: core::clone::Clone
+pub fn nika_tui::workspace::header::Place::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> either::into_either::IntoEither for nika_tui::workspace::header::Place
+impl<T> nika_error::traits::AsAny for nika_tui::workspace::header::Place where T: 'static
+pub fn nika_tui::workspace::header::Place::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_tui::workspace::header::Place where T: ?core::marker::Sized
+pub fn nika_tui::workspace::header::Place::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_tui::workspace::header::Place::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_tui::workspace::header::Place
+impl<T> tracing::instrument::WithSubscriber for nika_tui::workspace::header::Place
+impl<T> typenum::type_operators::Same for nika_tui::workspace::header::Place
+pub type nika_tui::workspace::header::Place::Output = T
+pub fn nika_tui::workspace::header::lines(place: &nika_tui::workspace::header::Place, width: u16, rows: u16, ascii: bool, color: bool) -> alloc::vec::Vec<ratatui_core::text::line::Line<'static>>
+pub fn nika_tui::workspace::header::render(place: &nika_tui::workspace::header::Place, area: ratatui_core::layout::rect::Rect, buf: &mut ratatui_core::buffer::buffer::Buffer, ascii: bool, color: bool)

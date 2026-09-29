@@ -73,6 +73,27 @@ Nothing in `visual` reads the clock, the environment or a file; the caller
 passes the elapsed time, the colour and ASCII choices and reduced motion. Where
 the layout places the mark and the icons is UI-LAYOUT's work.
 
+### The workspace screen (T-nika-tui-layout · in progress)
+
+`workspace` builds the full-terminal screen on fixtures; nothing opens it yet,
+and the inline presentation and the plain loop are unchanged.
+
+- `workspace::geometry::Geometry::of` places the header, the project aside,
+  the object in view, the conversation with its composer and the pinned
+  activity row. The composer and the object come first: below 100 columns the
+  conversation sits under the object and keeps at least half the rows; from 100
+  columns it stands beside the object (36 to 56 columns); from 120 columns the
+  project aside appears (20 to 32 columns); from 30 rows the header takes a
+  second row. Below 60×16 there is no workspace and the caller keeps the inline
+  presentation. The regions cover the screen exactly without overlap at 80×24,
+  100×32, 120×40 and 160×48, with and without a pinned row.
+- `workspace::header` paints where the human stands from a `Place` the Session
+  projects: the active project (icon, name, chevron), its location, the host,
+  then the observed facts (git or no git, `nika.yaml` or no `nika.yaml`); an
+  unobserved fact is not written, a missing project reads `no project`. A narrow
+  row cuts the location from its start, never the project name; the ASCII column
+  replaces glyphs, separators and the ellipsis.
+
 ## 3. What is ported as is (the map, §5 · planned)
 
 - `sweepOver` is NOT `fx::sweep_in`. Zero opacity ahead of the front is
