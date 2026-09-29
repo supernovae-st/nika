@@ -188,6 +188,11 @@ its output conventions. They describe compiler fidelity and prompt behavior,
 not normative language rules; syncing the canonical Spec pack must not delete
 them. Native-call receipts keep the actual card SHA-256 alongside the distinct
 Spec pin and pack version. A missing card is a build error, never empty text.
+The output conventions state the compiler's written-total law (R4 A11, E36): a total over every
+row goes to a structured file (json, csv, yaml, toml) as the compute's object and to a prose file
+as its value alone when it is the only total, several totals keeping the object; a shape the
+request names overrides both, and no other wrapper, key or field is added. A test pins the text
+against the candidates the compiler emits.
 
 ### Explicit reasoning effort (R4 B16)
 
