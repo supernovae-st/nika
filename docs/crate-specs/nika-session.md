@@ -556,6 +556,13 @@ unchanged).
 | `<root>/.nika/session-state.json` | the project's structured record (#1464) |
 | `<root>/.nika/consents.ndjson` | the consent journal (#1465): which files Save wrote |
 
+The record's `inference_observations` keep each new account observation in its
+durable form (`InferenceReceipt::durable_observation`,
+`nika/inference-cost-observation@2`, E35): origins replace endpoints, and the
+accounting fields its restore reads keep their meaning. The in-flight line names
+the route by its origin. An entry recorded earlier is carried as written, never
+rewritten or migrated. The live account keeps its exact route and authority.
+
 Since `4c728c980`, a closed Run request is journaled as its own `run`
 operation, apart from a conversation turn, so its ceiling never amends Session
 inference. This reader accepts earlier histories and keeps their legacy

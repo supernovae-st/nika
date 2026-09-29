@@ -521,9 +521,10 @@ by origin (W11). `UnknownCostChoice::origin`, `AttemptReceipt::origin` and
 
 The claim is the bounded one above, on this schema: a lone path segment that is
 not the whole tail, and values copied by design, are their producer's. Runtime's
-terminal receipt and the Host's new Run-journal observations use this projection.
-Historical rows, their derived observations and reconciliations, and Session's
-durable observations remain separate migrations; no old record is rewritten.
+terminal receipt, the Host's new Run-journal observations and Session's new record
+entries use this projection. Historical rows, their derived observations and
+reconciliations, and Session entries recorded earlier remain separate migrations;
+no old record is rewritten.
 
 ### Canonical unknown-cost route (E35)
 
@@ -541,9 +542,10 @@ unchanged: `BillingRoute::new`, `InferenceTariff::new` and the snapshot estimate
 keep the exact endpoint, and a default catalog route is canonical already.
 
 The runtime's trace writers call `durable_calls`, `durable_pricing` and
-`route_label` (E32). The terminal account receipt and new Host Run-journal rows
-use `project_observation`; retry, wire, legacy cost rows and Session keep their
-current projections until later slices replace them. Exact in-memory identity
+`route_label` (E32). The terminal account receipt, new Host Run-journal rows and
+Session's new record entries use `project_observation`, and Session's in-flight line
+names the route's origin; retry, wire and legacy cost rows keep their current
+projections until later slices replace them. Exact in-memory identity
 is unchanged: pricing, route checks, consent and witnesses keep the full
 endpoint. `InferenceCall` and `InferenceRoute` keep their serde. The origin-only
 display follows the root decisions on the E29 tradeoffs: same-origin aggregation

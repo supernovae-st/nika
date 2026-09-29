@@ -21,6 +21,7 @@ const UNPRICED: &str = "deepseek/s81-unpriced-fixture";
 const UNPRICED_WIRE: &str = "s81-unpriced-fixture";
 const WAIT: Duration = Duration::from_secs(60);
 const RECORD: &str = ".nika/session-state.json";
+const CANARY: &str = "private-route-canary";
 
 /// A loopback provider that holds its first request open: `wait_received`
 /// is the start gate (a request is in transport), then `answer` or `hang_up`
@@ -507,6 +508,7 @@ fn a_contradicted_or_failed_no_budget_call_is_never_retried_or_priced() {
         assert_eq!(last["unbudgeted"], true, "{status}");
         assert_eq!(last["state"], "Uncertain", "{status}");
         assert_eq!(last["unknown_calls"], 1, "{status}");
+        assert_eq!(last["schema"], DURABLE, "{status}: the durable form (E35)");
         let estimated = &last["attempts"][0]["estimated_nano_usd"];
         assert_eq!(estimated, &Value::Null, "{status}: never an invented price");
         assert_eq!(last_history_event(home.path())["effect"], "unknown");
@@ -521,6 +523,8 @@ fn a_contradicted_or_failed_no_budget_call_is_never_retried_or_priced() {
         assert_eq!(effect, "no_uncertainty_reported", "{status}");
         let kept = crate::SessionState::load(dir.path()).unwrap().unwrap();
         assert_eq!(kept.inference_observations.len(), 2, "{status}");
+        let durable = |o: &Value| o["schema"] == DURABLE;
+        assert!(kept.inference_observations.iter().all(durable), "{status}");
     }
 }
 
@@ -544,4 +548,107 @@ fn an_unknown_priced_route_keeps_its_review_and_is_never_observed_instead() {
     );
     let observations = s.cost_observations();
     assert!(observations.iter().all(|o| o["unbudgeted"] != true));
+}
+
+const DURABLE: &str = "nika/inference-cost-observation@2";
+
+/// An unknown-cost account over a canonical route whose path carries a private segment.
+fn private_account() -> nika_providers::InferenceAdmission {
+    let base = format!("https://example.test/{CANARY}/v1");
+    let config = nika_providers::ProvidersConfig::new().with_base_url("deepseek", &base);
+    let route = nika_runtime::cost_choice::CostRoute::observe(MODEL, config).unwrap();
+    nika_runtime::cost_choice::CostReview::new(
+        "candidate".into(),
+        "session".into(),
+        route.clone(),
+        CostHostEvidence::unmanaged_interactive_local(),
+        None,
+        None,
+    )
+    .unwrap()
+    .for_session()
+    .confirm("candidate", &route)
+    .unwrap()
+}
+
+/// E35: at the dispatch boundary the record names a private route by its origin (`@2`), never
+/// its path; the live account keeps its exact endpoint, a restart reads the record with the same
+/// meaning, and an entry recorded earlier is carried as written (no migration here).
+#[test]
+fn a_private_route_is_recorded_by_its_origin_at_the_dispatch_boundary() {
+    let dir = tempfile::tempdir().unwrap();
+    let earlier = json!({"schema": "nika/inference-cost-observation@1", "state": "Closed",
+        "note": format!("recorded earlier at https://example.test/{CANARY}-earlier/v1")});
+    let mut record = crate::SessionState::new("2026-09-28T00:00:00Z".to_owned());
+    record.inference_observations.push(earlier.clone());
+    record.save(dir.path()).unwrap();
+    let mut s = open(dir.path());
+    assert!(s.restore_state().is_some());
+    let account = private_account();
+    s.money.account = Some(account.clone());
+    s.unknown_cost.active = true;
+    s.save_dispatch_boundary().unwrap();
+    let record = crate::SessionState::load(dir.path()).unwrap().unwrap();
+    let line = in_flight(&record.decisions);
+    assert_eq!(line.len(), 1, "{:?}", record.decisions);
+    assert!(!line[0].contains(CANARY), "{}", line[0]);
+    let origin = format!("{MODEL} at https://example.test:443");
+    assert!(line[0].contains(&origin), "{}", line[0]);
+    assert_eq!(
+        record.inference_observations[0], earlier,
+        "carried as written"
+    );
+    let observation = &record.inference_observations[1];
+    assert!(!observation.to_string().contains(CANARY), "{observation}");
+    assert_eq!(observation["schema"], DURABLE);
+    assert_eq!(
+        observation["unknown_cost"]["origin"],
+        "https://example.test:443"
+    );
+    let exact = account.snapshot().unwrap().observation().to_string();
+    assert!(
+        exact.contains(CANARY),
+        "the live account keeps its exact route"
+    );
+    drop(s);
+    let mut resumed = open(dir.path());
+    let notice = resumed.restore_state().unwrap();
+    assert!(notice.contains(DISPATCH_PREFIX), "{notice}");
+    assert!(notice.contains("nothing was replayed"), "{notice}");
+    assert!(!notice.contains(CANARY), "{notice}");
+    assert!(
+        resumed.money.reconfirm,
+        "a paid observation still restricts"
+    );
+    let status = resumed.status();
+    assert!(
+        status.contains("1 paid dispatch(es) left without a recorded settlement"),
+        "{status}"
+    );
+}
+
+/// E35: a private-route account that a fresh one-time review supersedes is kept by its origin,
+/// while the account itself keeps its exact endpoint.
+#[test]
+fn a_superseded_private_account_is_kept_by_its_origin() {
+    let mut body = response("Hello");
+    body["model"] = json!(UNPRICED_WIRE);
+    let peer = Peer::start(vec![(200, body)]);
+    let _transport = test_transport::install(&peer.url);
+    let dir = tempfile::tempdir().unwrap();
+    let mut s = open_unpriced(dir.path());
+    let superseded = private_account();
+    s.money.account = Some(superseded.clone());
+    asked_cost(&s.turn("hello"));
+    let out = s.turn("yes");
+    assert!(matches!(out, TurnOutcome::Reply(_)), "{out:?}");
+    assert_eq!(peer.bodies().len(), 1);
+    let record = crate::SessionState::load(dir.path()).unwrap().unwrap();
+    let text = serde_json::to_string(&record.inference_observations).unwrap();
+    assert!(!text.contains(CANARY), "{text}");
+    let kept = &record.inference_observations[0];
+    assert_eq!(kept["schema"], DURABLE);
+    assert_eq!(kept["unknown_cost"]["origin"], "https://example.test:443");
+    let exact = superseded.snapshot().unwrap().observation().to_string();
+    assert!(exact.contains(CANARY), "the account keeps its exact route");
 }

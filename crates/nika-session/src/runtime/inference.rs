@@ -289,7 +289,7 @@ impl SessionRuntime {
                         "{}/{} at {}",
                         choice.provider(),
                         choice.model(),
-                        choice.endpoint()
+                        choice.origin().unwrap_or_else(|| "unknown origin".into())
                     ),
                     serde_json::to_value(choice)
                         .ok()
@@ -401,7 +401,8 @@ impl SessionRuntime {
         if let Ok(receipt) = receipt
             && !receipt.attempts.is_empty()
         {
-            self.unknown_cost.observations.push(receipt.observation());
+            let kept = receipt.durable_observation();
+            self.unknown_cost.observations.push(kept);
         }
         self.money.observed = InferenceAdmission::unbudgeted();
     }

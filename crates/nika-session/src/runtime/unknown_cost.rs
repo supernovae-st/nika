@@ -58,12 +58,12 @@ impl SessionRuntime {
     pub fn cost_observations(&self) -> Vec<serde_json::Value> {
         let mut observations = self.unknown_cost.observations.clone();
         if let Ok(Some(receipt)) = self.inference_receipt() {
-            observations.push(receipt.observation());
+            observations.push(receipt.durable_observation());
         }
         if let Ok(receipt) = self.money.observed.snapshot()
             && !receipt.attempts.is_empty()
         {
-            observations.push(receipt.observation());
+            observations.push(receipt.durable_observation());
         }
         if let Some(setup) = self.authoring_context.decision() {
             observations.extend(setup.observations());
@@ -336,8 +336,8 @@ impl SessionRuntime {
             Err(e) => return cost_refusal(e),
         };
         if let Some(old) = self.money.account.take() {
-            if let Ok(receipt) = old.snapshot() {
-                self.unknown_cost.observations.push(receipt.observation());
+            if let Ok(kept) = old.snapshot().map(|r| r.durable_observation()) {
+                self.unknown_cost.observations.push(kept);
             }
             let _ = old.close("superseded by a freshly reviewed invocation");
         }

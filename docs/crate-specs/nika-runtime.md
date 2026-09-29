@@ -570,8 +570,8 @@ the key is presentation, each call is still debited by its own known estimate,
 and the totals and counters are unchanged. The exact endpoints stay in memory
 for pricing and identity. The terminal `inference_admission` projection does
 not change that account, its counters or its authority. `workflow_started`
-carries no route-identity declaration; legacy journals and Session's durable
-observations are separate migrations.
+carries no route-identity declaration; legacy journals and the Session entries
+recorded before its projection are separate migrations.
 
 `resolve_model_expr` (C4 · 2026-09-28; its body descended to
 `nika-check-analyzer`'s `rendered` module in B9, re-exported here at the same
