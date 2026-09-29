@@ -77,6 +77,18 @@ pub(super) struct Verdict {
     /// The reference its questions carried ([`grounding`]): the engine identity, the digest and
     /// size of the text sent, each piece's receipt and the tools the candidate reaches.
     pub(super) reference: Value,
+    /// Duties the core named that no element of the plan carries, with their kind ([`silent`]):
+    /// repaired from as the judge's defects are, but no judge was asked (B21 T3).
+    pub(super) named: Vec<(String, String)>,
+}
+
+impl Verdict {
+    /// Every part of the request a repair starts from: the judge's defects, then the duties the
+    /// core named.
+    fn parts(&self) -> Vec<String> {
+        let named = self.named.iter().map(|(evidence, _)| evidence.clone());
+        self.defects.iter().cloned().chain(named).collect()
+    }
 }
 
 const CLAUSE: &str = "Judge ONE clause of the user's request against the candidate workflow's actual bytes (candidate_nika). Read the whole request, the answers, the observed world and the candidate. carried: the candidate's program does exactly what this clause asks; an equivalent program counts (same rows, order, counts, values, effects and conditions). missing: the candidate omits the clause or does it differently (another order, count, negation, number or unit, target or condition). Task names, comments, labels and the words a step restates are claims, never evidence.";
@@ -669,8 +681,9 @@ fn route(out: &mut CompileOutcome, step: &str) {
 }
 
 /// The duties the core named but no element of the seat's plan carries (it refused to emit):
-/// concrete defects of the plan, the request's own words.
-fn silent(out: &CompileOutcome) -> Vec<String> {
+/// concrete defects of the plan, the request's own words, each with its kind. The core named
+/// them; no judge was asked (B21 T3).
+fn silent(out: &CompileOutcome) -> Vec<(String, String)> {
     let ledger = out
         .provenance
         .decision
@@ -687,7 +700,10 @@ fn silent(out: &CompileOutcome) -> Vec<String> {
     ledger
         .iter()
         .filter(|duty| duty["state"] == "unresolved")
-        .filter_map(|duty| duty["evidence"].as_str().map(str::to_owned))
+        .filter_map(|duty| {
+            let kind = duty["kind"].as_str().unwrap_or("duty").to_owned();
+            Some((duty["evidence"].as_str()?.to_owned(), kind))
+        })
         .collect()
 }
 
@@ -696,7 +712,9 @@ fn silent(out: &CompileOutcome) -> Vec<String> {
 /// bytes); the proposal it returns is merged as any other, never taken on its word. Its
 /// instructions carry the reference the judge read over the same candidate ([`grounding`]),
 /// apart from that state: the seat cannot know by itself how the compiler writes or what each
-/// tool it calls does (E36). The call's journal entry records the reference's receipts.
+/// tool it calls does (E36). The call's journal entry records the reference's receipts. A part
+/// a judge found missing is said to be compared; a duty the core named is said to be the
+/// compiler's, never compared (B21 T3).
 #[allow(clippy::too_many_arguments)] // the COLD door's state the repair must carry whole
 async fn repair<P: ProviderInferDyn>(
     intent: &str,
@@ -704,15 +722,36 @@ async fn repair<P: ProviderInferDyn>(
     provider: &P,
     reading: &Reading,
     request: &CompileRequest,
-    defects: &[String],
+    verdict: &Verdict,
     candidate: Option<&str>,
     pre: &mut CompileOutcome,
 ) -> Option<Plan> {
-    let listed: Vec<String> = defects.iter().map(|d| format!("- {d}")).collect();
+    let listed = |parts: &[String]| {
+        let lines: Vec<String> = parts.iter().map(|d| format!("- {d}")).collect();
+        lines.join("\n")
+    };
+    let mut told = Vec::new();
+    if !verdict.defects.is_empty() {
+        told.push(format!(
+            "VERIFIER: the workflow compiled from your plan was compared with the WHOLE request. It does not carry these parts of the request, or does them differently:\n{}",
+            listed(&verdict.defects)
+        ));
+    }
+    if !verdict.named.is_empty() {
+        let named: Vec<String> = verdict
+            .named
+            .iter()
+            .map(|(evidence, kind)| format!("{evidence} ({kind})"))
+            .collect();
+        told.push(format!(
+            "VERIFIER: the compiler named these parts of the request and no element of the workflow compiled from your plan carries them (no judge was asked):\n{}",
+            listed(&named)
+        ));
+    }
     let judged = state(intent, request, candidate.unwrap_or("(none was emitted)"));
     let text = format!(
-        "VERIFIER: the workflow compiled from your plan was compared with the WHOLE request. It does not carry these parts of the request, or does them differently:\n{}\nReturn the complete corrected JSON plan for the whole request: every part carried, with the stated order, counts, negations, numbers and units, targets and conditions, every evidence an exact excerpt of the request.\n\nSTATE (the request as compiled and as first stated, its answers, the observed world, the candidate's bytes):\n{}",
-        listed.join("\n"),
+        "{}\nReturn the complete corrected JSON plan for the whole request: every part carried, with the stated order, counts, negations, numbers and units, targets and conditions, every evidence an exact excerpt of the request.\n\nSTATE (the request as compiled and as first stated, its answers, the observed world, the candidate's bytes):\n{}",
+        told.join("\n"),
         serde_json::to_string_pretty(&judged).unwrap_or_default()
     );
     // The opening's messages, its instructions followed by the reference.
@@ -743,10 +782,22 @@ async fn repair<P: ProviderInferDyn>(
     plan
 }
 
-/// The findings a blocked verification leaves: each part the judge found missing (repaired
-/// from as the policy allowed) and each it could not settle, with the next action. No question
-/// asks the human for information the request already gives.
+/// The findings a blocked verification leaves: each duty the core named, as the core's (no judge
+/// was asked, B21 T3), each part the judge found missing (repaired from as the policy allowed)
+/// and each it could not settle, with the next action. No question asks the human for
+/// information the request already gives; a duty the core named keeps the clarification the
+/// core asks, its only next action.
 fn blocked(out: &mut CompileOutcome, verdict: &Verdict, repairs: usize) {
+    for (evidence, kind) in &verdict.named {
+        crate::finding(
+            out,
+            DiagnosticKind::Unknown,
+            "semantic_verification",
+            format!(
+                "The core named `{evidence}` ({kind}) and no element of the compiled workflow carries it; no judge was asked. {repairs} repair(s) from it did not settle it; nothing is READY. Next: the clarification the compiler asks, or a restatement of that part."
+            ),
+        );
+    }
     for defect in &verdict.defects {
         crate::finding(
             out,
@@ -767,7 +818,9 @@ fn blocked(out: &mut CompileOutcome, verdict: &Verdict, repairs: usize) {
             ),
         );
     }
-    out.questions.retain(|q| q.key != "intent.clarification");
+    if verdict.named.is_empty() {
+        out.questions.retain(|q| q.key != "intent.clarification");
+    }
 }
 
 /// A COLD candidate is judged before READY (R4 A11): a concrete defect (a part the judge finds
@@ -803,7 +856,7 @@ pub(super) async fn judged_cold<P: ProviderInferDyn>(
             verdict
         } else {
             Verdict {
-                defects: omitted,
+                named: omitted,
                 ..Verdict::default()
             }
         };
@@ -818,21 +871,21 @@ pub(super) async fn judged_cold<P: ProviderInferDyn>(
                 pre,
             );
         }
-        if settled.candidate.is_none() && verdict.defects.is_empty() {
+        let parts = verdict.parts();
+        if settled.candidate.is_none() && parts.is_empty() {
             // A genuine question (a field, a count the request withholds): asked as it was.
             return Ok(settled);
         }
-        if !verdict.defects.is_empty() && attempt < policy.repairs as usize {
+        if !parts.is_empty() && attempt < policy.repairs as usize {
             attempt += 1;
             route(&mut pre, &format!("verify: repair {attempt}"));
             let candidate = settled.candidate.as_deref();
-            let defects = &verdict.defects;
             let repaired = repair(
-                intent, policy, provider, reading, request, defects, candidate, &mut pre,
+                intent, policy, provider, reading, request, &verdict, candidate, &mut pre,
             );
             if let Some(mut next) = repaired.await {
                 let synthesized = super::transform::synthesize(
-                    intent, &mut next, policy, provider, request, defects, &mut pre,
+                    intent, &mut next, policy, provider, request, &parts, &mut pre,
                 );
                 if let Some(mut pending) = synthesized.await {
                     pending.answer(request, &mut pre);

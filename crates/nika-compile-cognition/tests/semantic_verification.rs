@@ -1127,6 +1127,89 @@ async fn an_abstaining_judge_keeps_the_request_incomplete() {
     );
 }
 
+/// B21 A2's wording over `shipped` (R4 A11, B21 T3): « as one line » after the synthesized rule's
+/// clause is a cardinality no element of the workflow carries, so the core emits no candidate and
+/// names the duty itself; no judge is asked.
+const LINES: (&str, &str) = (
+    "for the rows where status is shipped, return each item with its status as one line",
+    "write the lines to ./out/result.json",
+);
+
+/// The seat's label program for [`LINES`] over its own example rows.
+fn label() -> String {
+    let example = json!([
+        {"id": "a1", "item": "x", "status": "shipped", "qty": "40"},
+        {"id": "a2", "item": "y", "status": "pending", "qty": "15"}
+    ]);
+    let jq = ".records | map(select(.status == \"shipped\") | .item + \": \" + .status)";
+    json!({"jq": jq, "columns_read": ["status", "item"], "example_input": example, "expected_output": ["x: shipped"]})
+        .to_string()
+}
+
+/// The verifier's findings on an outcome.
+fn verifier_said(out: &CompileOutcome) -> Vec<String> {
+    out.diagnostics
+        .iter()
+        .filter(|d| d.target == "semantic_verification")
+        .map(|d| d.message.clone())
+        .collect()
+}
+
+/// A duty the core names is told as the core's (R4 A11, B21 T3): with no candidate and no judge
+/// call, no finding says a judge compared anything. It names the core, the duty and its kind,
+/// and says no judge was asked; the clarification the core asks stays the next action.
+#[tokio::test]
+async fn a_duty_the_core_names_is_told_as_the_core_s_and_keeps_its_question() {
+    let seat = Scripted::new(vec![plan(LINES).to_string(), label()]);
+    let out = compiled_as(&seat, LINES, 0).await;
+    assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
+    assert_eq!(roles(&out), ["plan", "transform"], "{out:#?}");
+    let told = verifier_said(&out);
+    let named = told.iter().any(|m| {
+        m.contains("The core named") && m.contains("no judge was asked") && m.contains(LINES.0)
+    });
+    assert!(named, "{told:?}");
+    assert!(told.iter().all(|m| !m.contains("compared")), "{told:?}");
+    assert!(
+        out.questions
+            .iter()
+            .any(|q| q.key == "intent.clarification"),
+        "{out:#?}"
+    );
+}
+
+/// A repair from a duty the core names is never told a judge compared the workflow (R4 A11, B21
+/// T3): it names the duty and says no judge compared anything. The repaired plan still leaves
+/// the duty uncarried: INCOMPLETE, told as the core's, with its question.
+#[tokio::test]
+async fn a_repair_from_a_duty_the_core_names_is_not_told_a_judge_compared() {
+    let seat = Scripted::new(vec![
+        plan(LINES).to_string(),
+        label(),
+        plan(LINES).to_string(),
+        label(),
+    ]);
+    let out = compiled_as(&seat, LINES, 1).await;
+    assert_eq!(
+        authored(&out),
+        ["plan", "transform", "repair", "transform"],
+        "{out:#?}"
+    );
+    let repair = seat.said(2);
+    assert!(repair.starts_with("VERIFIER:"), "{repair}");
+    assert!(!repair.contains("compared"), "{repair}");
+    assert!(repair.contains("no judge"), "{repair}");
+    assert!(repair.contains(&format!("\n- {}", LINES.0)), "{repair}");
+    assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
+    assert!(verifier_said(&out).iter().all(|m| !m.contains("compared")));
+    assert!(
+        out.questions
+            .iter()
+            .any(|q| q.key == "intent.clarification"),
+        "{out:#?}"
+    );
+}
+
 /// The READY record of the live request and its candidate, judged in its first compile by the
 /// explicit approving double.
 async fn judged_record() -> (Value, String) {

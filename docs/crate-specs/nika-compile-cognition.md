@@ -163,7 +163,11 @@ the judge's reference (below), and a repaired plan's
 computations go through the transform seat again with the judge's defects, so no program of the
 plan it replaced survives; WARM makes no proposal and stays INCOMPLETE. An abstention, a failed
 judge or exhausted repairs leave the request INCOMPLETE naming the clause and the next action,
-never a question for what the request already says. An answer round replays its record through
+never a question for what the request already says. A duty the core names that no element of
+the plan carries (no candidate is emitted and no judge is asked) is told as the core's: its
+finding names the duty and its kind and says no judge was asked, the clarification the core
+asks stays its next action, and a repair from it is told the compiler named it, never that a
+judge compared the workflow (B21 T3). An answer round replays its record through
 `replay_judged`: deterministically closed duties replay as they are, with no call; the remainder
 the core names is judged by the round's judge, or stays INCOMPLETE when the round has none; a
 field answer's regeneration is the first candidate of its plan and is judged whole. Nothing a
