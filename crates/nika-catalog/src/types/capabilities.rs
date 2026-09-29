@@ -162,6 +162,59 @@ impl CapPatch {
     /// asserts are zero-cost in prod.
     #[must_use]
     pub(crate) fn materialize(self, defaults: &Self) -> ModelCapabilities {
+        self.debug_assert_complete(defaults);
+        ModelCapabilities {
+            token_limit_param: self
+                .token_limit_param
+                .or(defaults.token_limit_param)
+                .unwrap_or(TokenLimitParam::MaxTokens),
+            supports_temperature: self
+                .supports_temperature
+                .or(defaults.supports_temperature)
+                .unwrap_or(true),
+            supports_stop_sequences: self
+                .supports_stop_sequences
+                .or(defaults.supports_stop_sequences)
+                .unwrap_or(true),
+            reasoning: self.reasoning.or(defaults.reasoning).unwrap_or(false),
+            input_modalities: self
+                .input_modalities
+                .or(defaults.input_modalities)
+                .unwrap_or(&[Modality::Text, Modality::Image]),
+            output_modalities: self
+                .output_modalities
+                .or(defaults.output_modalities)
+                .unwrap_or(&[Modality::Text]),
+            // tokenizer: ModelCapabilities.tokenizer is already Option<T>,
+            // so a missing patch+defaults collapse to None naturally.
+            tokenizer: self.tokenizer.or(defaults.tokenizer),
+            supported_parameters: self
+                .supported_parameters
+                .or(defaults.supported_parameters)
+                .unwrap_or(&[]),
+            supports_system_messages: self
+                .supports_system_messages
+                .or(defaults.supports_system_messages)
+                .unwrap_or(true),
+            // context_window_tokens / max_output_tokens: like tokenizer,
+            // these use `.or()` with NO `unwrap_or` fallback. None means
+            // "not specified by the capability rule" — the caller should
+            // look up the provider's model entry for per-model values.
+            context_window_tokens: self
+                .context_window_tokens
+                .or(defaults.context_window_tokens),
+            max_output_tokens: self.max_output_tokens.or(defaults.max_output_tokens),
+            json_mode: self.json_mode.or(defaults.json_mode),
+            reasoning_efforts: self
+                .reasoning_efforts
+                .or(defaults.reasoning_efforts)
+                .unwrap_or(&[]),
+        }
+    }
+
+    /// The debug-mode invariants of [`Self::materialize`]: every field it unwraps is set by
+    /// this patch or by the defaults. A no-op in release builds.
+    fn debug_assert_complete(&self, defaults: &Self) {
         debug_assert!(
             self.token_limit_param
                 .or(defaults.token_limit_param)
@@ -214,53 +267,6 @@ impl CapPatch {
                 .is_some(),
             "[defaults].reasoning_efforts missing",
         );
-        ModelCapabilities {
-            token_limit_param: self
-                .token_limit_param
-                .or(defaults.token_limit_param)
-                .unwrap_or(TokenLimitParam::MaxTokens),
-            supports_temperature: self
-                .supports_temperature
-                .or(defaults.supports_temperature)
-                .unwrap_or(true),
-            supports_stop_sequences: self
-                .supports_stop_sequences
-                .or(defaults.supports_stop_sequences)
-                .unwrap_or(true),
-            reasoning: self.reasoning.or(defaults.reasoning).unwrap_or(false),
-            input_modalities: self
-                .input_modalities
-                .or(defaults.input_modalities)
-                .unwrap_or(&[Modality::Text, Modality::Image]),
-            output_modalities: self
-                .output_modalities
-                .or(defaults.output_modalities)
-                .unwrap_or(&[Modality::Text]),
-            // tokenizer: ModelCapabilities.tokenizer is already Option<T>,
-            // so a missing patch+defaults collapse to None naturally.
-            tokenizer: self.tokenizer.or(defaults.tokenizer),
-            supported_parameters: self
-                .supported_parameters
-                .or(defaults.supported_parameters)
-                .unwrap_or(&[]),
-            supports_system_messages: self
-                .supports_system_messages
-                .or(defaults.supports_system_messages)
-                .unwrap_or(true),
-            // context_window_tokens / max_output_tokens: like tokenizer,
-            // these use `.or()` with NO `unwrap_or` fallback. None means
-            // "not specified by the capability rule" — the caller should
-            // look up the provider's model entry for per-model values.
-            context_window_tokens: self
-                .context_window_tokens
-                .or(defaults.context_window_tokens),
-            max_output_tokens: self.max_output_tokens.or(defaults.max_output_tokens),
-            json_mode: self.json_mode.or(defaults.json_mode),
-            reasoning_efforts: self
-                .reasoning_efforts
-                .or(defaults.reasoning_efforts)
-                .unwrap_or(&[]),
-        }
     }
 }
 
