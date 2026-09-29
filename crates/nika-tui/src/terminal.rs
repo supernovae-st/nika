@@ -49,7 +49,10 @@ static ALT: AtomicBool = AtomicBool::new(false);
 static TITLE: AtomicBool = AtomicBool::new(false);
 
 /// Name the terminal window for this session, keeping the previous title
-/// on the terminal's stack so [`restore_everything`] gives it back.
+/// on the terminal's stack so [`restore_everything`] gives it back. No
+/// control character reaches the terminal: the title comes from a directory
+/// name, and an ESC or BEL in it would close the title sequence and start
+/// one of its own (an OSC 52 clipboard write under tmux, for one).
 ///
 /// # Errors
 ///
@@ -60,8 +63,13 @@ pub fn set_title(title: &str) -> io::Result<()> {
     if !TITLE.swap(true, Ordering::SeqCst) {
         write!(out, "\x1b[22;0t")?;
     }
-    crossterm::execute!(out, crossterm::terminal::SetTitle(title))?;
+    crossterm::execute!(out, crossterm::terminal::SetTitle(printable(title)))?;
     out.flush()
+}
+
+/// `text` without its control characters: C0, DEL and C1.
+fn printable(text: &str) -> String {
+    text.chars().filter(|ch| !ch.is_control()).collect()
 }
 
 /// The inline viewport height the shell asks for at entry: the live area
@@ -312,6 +320,18 @@ mod tests {
         ));
         assert!(probe(Some("dumb")).is_err());
         assert!(!NotATerminal::Dumb.to_string().is_empty());
+    }
+
+    /// A title keeps no control byte: ESC, BEL, DEL and the C1 range would
+    /// let a directory name end the title sequence and write its own (an
+    /// OSC 52 clipboard write, a CSI colour); every other character stays.
+    #[test]
+    fn a_title_keeps_no_control_byte() {
+        let hostile = "proj\x1b]52;c;ZXZpbA==\x07\x1b\\\u{9b}31m\u{9d}0;x\u{7f}ect";
+        let clean = printable(hostile);
+        assert_eq!(clean, "proj]52;c;ZXZpbA==\\31m0;xect");
+        assert!(!clean.chars().any(char::is_control), "{clean:?}");
+        assert_eq!(printable("nika · démo 日本 🦋"), "nika · démo 日本 🦋");
     }
 
     #[test]
