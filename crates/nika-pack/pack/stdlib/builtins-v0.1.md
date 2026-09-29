@@ -580,11 +580,16 @@ infer.
 
 ### `nika:chart` · deterministic chart artifacts (§Media graduate #4)
 
+The task binds the rows produced by `metrics` before invoking the chart.
+`period` values are Unix epoch milliseconds when their semantic is `timestamp`.
+
 ```yaml
+with:
+  metrics: "${{ tasks.metrics.output }}"
 invoke:
   tool: "nika:chart"
   args:
-    data: "${{ steps.metrics.output }}"   # rows · array of flat objects (strings + numbers) · or { path: <json file> }
+    data: "${{ with.metrics }}"   # rows · array of flat objects (strings + numbers) · or { path: <json file> }
     semantics: { period: timestamp, cost: usd, provider: category }
     chart:
       type: line                          # bar | line | area_band | scatter | heatmap (closed)
