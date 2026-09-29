@@ -96,7 +96,7 @@ fn a_stated_aggregate_over_a_csv_column_is_the_code_the_workflow_runs() {
     let (out, doc) = ready(intent);
     assert_eq!(
         expression(&doc, "compute"),
-        ".records | {\"total\": (map((.amount | num)) | add // 0)}"
+        ".records | {\"total\": (map((.amount | num)) | dsum_out(\"`total`\"))}"
     );
     assert_eq!(rule_jq(&out), expression(&doc, "compute"));
     assert_eq!(
@@ -117,7 +117,7 @@ fn a_stated_aggregate_over_a_csv_column_is_the_code_the_workflow_runs() {
     let (_, doc) = ready(intent);
     assert_eq!(
         expression(&doc, "compute"),
-        ".records | {\"average\": (map((.amount | num)) | if length == 0 then error(\"no `amount` is a number: its average cannot be stated\") else add / length end)}"
+        ".records | {\"average\": (map((.amount | num)) | if length == 0 then error(\"no `amount` is a number: its average cannot be stated\") else davg_out(\"`average`\") end)}"
     );
     assert_eq!(
         doc["tasks"]["write_output"]["with"]["content"],
@@ -155,7 +155,7 @@ fn a_filter_and_a_total_in_one_request_run_as_one_computation() {
     let (_, doc) = ready(intent);
     assert_eq!(
         expression(&doc, "compute"),
-        "[.records[] | select(.client == \"acme\")] | {\"total\": (map((.amount | num)) | add // 0)}"
+        "[.records[] | select(.client == \"acme\")] | {\"total\": (map((.amount | num)) | dsum_out(\"`total`\"))}"
     );
     assert_eq!(
         doc["tasks"]["write_output"]["with"]["content"],

@@ -247,12 +247,19 @@ while `nika-compile` stood at its wall; they ascended to `nika-compile-fidelity`
   - A projected column the request writes as a JSON number (`Shape::numbers`, E38) is read
     through the number law with FAIL: a value that is no number stops the run naming its
     column, never SKIP, which would drop rows no filter states. Each is a column the rows are
-    projected on, named once, never over totals, or the shape is refused. Its exactness is the
-    JSON transport's: a text with more digits than an f64 carries is altered between tasks.
-    The A8 exact output law is required for that and is not claimed here.
+    projected on, named once, never over totals, or the shape is refused. It is then written
+    through the exact output law (`dnum_out`, R4 A8): the value itself where a JSON number
+    carries it exactly, else the run stops naming the column and what the value would have
+    become (`0.12345678901234567891`, an integer past 2^64), never a rounded number.
   - `ties` and `numbers` are recorded only when stated, so a record written before them reads
     and replays as it did.
   - A plain sort bound over observed numbers sorts by the key too.
+  - An aggregate over a bound number (a sum, an average, a minimum, a maximum, with the
+    rounding the request states) is lowered through the exact arithmetic laws
+    (`dsum_out`, `davg_out`, `dmin_out`, `dmax_out`, `laws/arithmetic.jq` in `nika-compile`):
+    the result is exact within a 1000-digit bound, an average with no finite expansion asks
+    for a rounding, and a result no JSON number carries stops the run naming it. A count is
+    unchanged.
   - Unbound reads render as before, byte for byte, so every plan record keeps its canonical
     `jq` and replays under the strict check. This covers a rule with no stated policy, a sort
     with no policy, and a ranking over a produced value (a count or a total per group). Such

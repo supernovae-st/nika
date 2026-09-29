@@ -102,6 +102,20 @@ impl Aggregation {
         let or_stop = |v: &str, why: &Value, op: &str| {
             format!("({v} | if length == 0 then error({why}) else {op} end)")
         };
+        // A bound number aggregates exactly (R4 A8): rounded only as the request states it, half
+        // away from zero, or the run stops naming what no JSON number carries.
+        if let (Some(v), Some(why)) = (&values, &empty) {
+            let what = json!(format!("`{}`", self.name));
+            let round = self.round.map_or_else(String::new, |n| format!("; {n}"));
+            let law = |name: &str| format!("{name}({what}{round})");
+            match self.op {
+                AggOp::Sum => return format!("({v} | {})", law("dsum_out")),
+                AggOp::Avg => return or_stop(v, why, &law("davg_out")),
+                AggOp::Min => return or_stop(v, why, &law("dmin_out")),
+                AggOp::Max => return or_stop(v, why, &law("dmax_out")),
+                AggOp::Count => {}
+            }
+        }
         let core = match (self.op, values, empty) {
             (AggOp::Sum, Some(v), _) => format!("({v} | add // 0)"),
             (AggOp::Avg, Some(v), Some(why)) => or_stop(&v, &why, "add / length"),
@@ -610,8 +624,13 @@ impl Shape {
                 .columns
                 .iter()
                 .map(|c| {
-                    // A column the request writes as a number is read under the law (E38).
-                    let read = self.numbers.contains(c).then(|| number(&key(c), c));
+                    // A column the request writes as a number is read under the law, and written
+                    // only where a JSON number carries it exactly (E38, R4 A8).
+                    let what = json!(format!("`{c}`"));
+                    let read = self
+                        .numbers
+                        .contains(c)
+                        .then(|| format!("({} | dnum_out({what}))", number(&key(c), c)));
                     format!("{}: {}", json!(c), read.unwrap_or_else(|| key(c)))
                 })
                 .collect();
@@ -1116,7 +1135,7 @@ mod tests {
         shape.ties_first_in_file = true;
         shape.numbers = vec!["amount".to_owned()];
         let written = format!(
-            "{{\"id\": .id, \"amount\": {}}}",
+            "{{\"id\": .id, \"amount\": ({} | dnum_out(\"`amount`\"))}}",
             number(".amount", "amount")
         );
         assert_eq!(

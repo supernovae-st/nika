@@ -331,7 +331,14 @@ async fn a_stated_tie_rule_and_a_number_column_are_lowered_as_the_request_states
     // cut keeps it too (no tie refusal), and amount is written as a number under the law.
     assert_eq!(
         rule_of(&out),
-        "[.records[] | select(.region == \"north\")] | reverse | sort_by((.amount | num) | dkey) | reverse | .[:2] | map({\"id\": .id, \"amount\": (.amount | num)})"
+        "[.records[] | select(.region == \"north\")] | reverse | sort_by((.amount | num) | dkey) | reverse | .[:2] | map({\"id\": .id, \"amount\": ((.amount | num) | dnum_out(\"`amount`\"))})"
+    );
+    // The number column is written only where a JSON number carries it exactly: its rule
+    // carries the exact decimal laws in front of it (R4 A8).
+    let expression = common::compute(out.candidate.as_deref().unwrap());
+    assert!(
+        expression.contains("def dout(") && expression.contains("def dnum_out("),
+        "{expression}"
     );
     // The record states both, and replays to the same bytes: INCOMPLETE until judged, READY
     // under the judge.
@@ -365,7 +372,7 @@ async fn an_ascending_order_with_the_stated_tie_rule_is_the_stable_sort_alone() 
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     assert_eq!(
         rule_of(&out),
-        "[.records[] | select(.region == \"north\")] | sort_by((.amount | num) | dkey) | .[:2] | map({\"id\": .id, \"amount\": (.amount | num)})"
+        "[.records[] | select(.region == \"north\")] | sort_by((.amount | num) | dkey) | .[:2] | map({\"id\": .id, \"amount\": ((.amount | num) | dnum_out(\"`amount`\"))})"
     );
 }
 
@@ -438,7 +445,7 @@ async fn a_new_composition_carries_the_tie_rule_and_the_number_columns() {
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     assert_eq!(
         rule_of(&out),
-        "[.records[] | select(.region == \"south\" and .item == \"bolts\")] | sort_by((.qty | num) | dkey) | .[:3] | map({\"id\": .id, \"qty\": (.qty | num), \"amount\": (.amount | num)}) | map(with_entries(if .key == \"qty\" then .key = \"quantity\" else . end))"
+        "[.records[] | select(.region == \"south\" and .item == \"bolts\")] | sort_by((.qty | num) | dkey) | .[:3] | map({\"id\": .id, \"qty\": ((.qty | num) | dnum_out(\"`qty`\")), \"amount\": ((.amount | num) | dnum_out(\"`amount`\"))}) | map(with_entries(if .key == \"qty\" then .key = \"quantity\" else . end))"
     );
     let record = out.provenance.plan.clone().unwrap();
     let shape = &record["rules"][0]["shape"];

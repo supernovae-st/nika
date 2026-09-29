@@ -66,6 +66,11 @@ pub const SELECT_BY_FIELD: &str = r#". as $l | ($l.directory | fromjson) | if ty
 /// rank cut and the transport guard (`laws/order.jq`, readable, counted with this crate).
 pub(super) const ORDER: &str = include_str!("laws/order.jq");
 
+/// The exact decimal arithmetic laws (R4 A8), after [`ORDER`]: bounded exact sums, averages and
+/// stated roundings, and the output rule that writes a result only where a JSON number carries it
+/// (`laws/arithmetic.jq`, readable, counted with this crate).
+pub(super) const ARITHMETIC: &str = include_str!("laws/arithmetic.jq");
+
 /// The decode of a JSON source, guarded: every number the next task may read or write (all of
 /// them, or those under the named record fields) keeps its exact value through the JSON transport
 /// between tasks, or the run stops before any effect naming it (R4 A8).
@@ -76,7 +81,9 @@ pub(super) fn guarded_parse(fields: Option<&[String]>) -> String {
 
 /// A rule's jq with the decimal laws it calls in front of it (unchanged when it calls none).
 pub(super) fn with_decimal(jq: &str) -> String {
-    if ["dkey", "dtie("].iter().any(|law| jq.contains(law)) {
+    if jq.contains("_out(") {
+        format!("{ORDER}\n{ARITHMETIC}\n{jq}")
+    } else if ["dkey", "dtie("].iter().any(|law| jq.contains(law)) {
         format!("{ORDER}\n{jq}")
     } else {
         jq.to_owned()

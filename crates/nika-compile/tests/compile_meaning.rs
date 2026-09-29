@@ -266,7 +266,7 @@ async fn a_typed_grouping_is_lowered_with_its_aggregates_and_output_columns() {
     assert_eq!(rules[0]["shape"]["group_by"], "filiale");
     let candidate = out.candidate.as_deref().unwrap_or_default();
     assert!(
-        common::compute(candidate).contains(".records | group_by(.filiale) | map({\"filiale\": (.[0] | .filiale), \"summe_cents\": (map((.betrag_cents | num)) | add // 0), \"anzahl\": length}) | sort_by(.filiale) | map({\"filiale\": .filiale, \"summe_cents\": .summe_cents, \"anzahl\": .anzahl})"),
+        common::compute(candidate).contains(".records | group_by(.filiale) | map({\"filiale\": (.[0] | .filiale), \"summe_cents\": (map((.betrag_cents | num)) | dsum_out(\"`summe_cents`\")), \"anzahl\": length}) | sort_by(.filiale) | map({\"filiale\": .filiale, \"summe_cents\": .summe_cents, \"anzahl\": .anzahl})"),
         "{candidate}"
     );
     assert!(
@@ -316,7 +316,7 @@ async fn typed_totals_become_named_outputs() {
     assert!(!keys(&out).contains(&"const.rule_expression"), "{out:#?}");
     let candidate = out.candidate.as_deref().unwrap_or_default();
     assert!(
-        common::compute(candidate).contains(".records | {\"respuestas\": length, \"nota_media\": (((map((.nota | num)) | if length == 0 then error(\"no `nota` is a number: its nota_media cannot be stated\") else add / length end) * 10 | round) / 10)}"),
+        common::compute(candidate).contains(".records | {\"respuestas\": length, \"nota_media\": (map((.nota | num)) | if length == 0 then error(\"no `nota` is a number: its nota_media cannot be stated\") else davg_out(\"`nota_media`\"; 1) end)}"),
         "{candidate}"
     );
     assert!(

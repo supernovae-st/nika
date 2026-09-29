@@ -333,14 +333,14 @@ mod tests {
             .expect("numeric");
         assert_eq!(
             short(&strict.jq()),
-            ".records | {\"total\": (map((.amount | num)) | add // 0)}"
+            ".records | {\"total\": (map((.amount | num)) | dsum_out(\"`total`\"))}"
         );
         let skip = total
             .with_number_policy("amount", NumberPolicy::Skip)
             .expect("numeric");
         assert_eq!(
             short(&skip.jq()),
-            ".records | {\"total\": (((length as $all | map(select((.amount | isnum))) | if length == 0 and $all > 0 then error(\"no `amount` is a number: its total cannot be stated\") else . end) | map((.amount | num))) | add // 0)}"
+            ".records | {\"total\": (((length as $all | map(select((.amount | isnum))) | if length == 0 and $all > 0 then error(\"no `amount` is a number: its total cannot be stated\") else . end) | map((.amount | num))) | dsum_out(\"`total`\"))}"
         );
         // An average, minimum or maximum over no number is no value: it stops, from an empty
         // input too, and an average divides by the numbers it kept, never by every row.
@@ -352,7 +352,7 @@ mod tests {
         assert_eq!(
             short(&skip.jq()),
             format!(
-                ".records | {{\"average\": (((length as $all | map(select((.amount | isnum))) | if length == 0 and true then {stop} else . end) | map((.amount | num))) | if length == 0 then {stop} else add / length end)}}"
+                ".records | {{\"average\": (((length as $all | map(select((.amount | isnum))) | if length == 0 and true then {stop} else . end) | map((.amount | num))) | if length == 0 then {stop} else davg_out(\"`average`\") end)}}"
             )
         );
         let strict = average
@@ -361,7 +361,7 @@ mod tests {
         assert_eq!(
             short(&strict.jq()),
             format!(
-                ".records | {{\"average\": (map((.amount | num)) | if length == 0 then {stop} else add / length end)}}"
+                ".records | {{\"average\": (map((.amount | num)) | if length == 0 then {stop} else davg_out(\"`average`\") end)}}"
             )
         );
         let least = rule("the minimum of the amount column")
@@ -369,7 +369,7 @@ mod tests {
             .expect("numeric");
         assert_eq!(
             short(&least.jq()),
-            ".records | {\"minimum\": (map((.amount | num)) | if length == 0 then error(\"no `amount` is a number: its minimum cannot be stated\") else min end)}"
+            ".records | {\"minimum\": (map((.amount | num)) | if length == 0 then error(\"no `amount` is a number: its minimum cannot be stated\") else dmin_out(\"`minimum`\") end)}"
         );
     }
 
