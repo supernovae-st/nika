@@ -124,6 +124,17 @@ the same (`transform_regeneration.unjudged`). A note on a program a repair repla
 The observed value is a stand-in, not a sentinel that solves the case: a program that treats the
 chosen value specially still escapes, and a judge's approval stays bounded evidence.
 
+Every text tried that the program answers is compared, the observed value too when U+2400 is
+answered: B23 F3, a program answering `.status == "␀"` itself and comparing the stated bytes
+otherwise, was READY summing 0 where 42 was due; it is now refused on the observed value, then
+repaired. When no answered text shows either spelling treated as it, yet the program treats the
+two spellings apart, the law cannot tell whether the request means that difference: a requested
+transformation of the value (a label, a case, a length, an encoding) does, B23 F2 (erring on
+U+2400, answering the observed value with neither spelling's output) does not. It refuses
+neither: the note records the program with its own reason, `treated_apart`, apart from
+`every_probe_errs`, and goes to the judges the same way, so the third way the law leaves to the
+verifier is no longer silent.
+
 A candidate a model's plan shaped is judged against the whole request before READY
 (`cognition::verify`, R4 A11). The core names what no law reads from the bytes: a duty a
 step's words only restate (a label), a task carrying words no law reads (unverified), a clause

@@ -21,7 +21,8 @@
 //! that error. What the program makes of the value itself may differ between the two spellings
 //! (a label, a case, a code-point length, an encoding answer differently by their very
 //! definition): that is the request's to ask and the whole-request verifier's to judge, never
-//! this law's to refuse. A refused program is named with the column, both spellings and their
+//! this law's to refuse; the law records it for the judges (treated apart, below). A refused
+//! program is named with the column, both spellings and their
 //! code points, for the request's one repair allowance. The literal stays the request's and the
 //! program's bytes are never rewritten; the observed spelling of a stated literal is no invented
 //! literal.
@@ -38,11 +39,20 @@
 //! settled by a judge that reads them, never silently. A program that treats the chosen value
 //! as a special case still escapes: the observed value is a stand-in, not a proof.
 //!
+//! Every text tried that the program answers is compared, the observed value too when U+2400 is
+//! answered (B23 F3: a program answering U+2400 itself stopped the law there, READY summing 0
+//! where 42 was due); one showing exactly one spelling treated as it is a drop, refused. When no
+//! answered text shows a drop yet the program treats the two spellings apart, the law cannot
+//! tell whether the request means that difference (a requested transformation of the value
+//! does; B23 F2, a program answering the observed value with neither spelling's output, does
+//! not): it refuses nothing, and the same note records it with its own reason
+//! (`treated_apart`), apart from a program erring on every text tried (`every_probe_errs`).
+//!
 //! A bounded law over the seat's own example rows and the host's bounded sample, never a proof
 //! that two programs mean the same: a spelling the sample did not show, a column without
 //! categorical values, a literal the clause does not state, case and compatibility forms bind
 //! nothing, and a program treating the observed spelling some third way (neither as the stated
-//! one nor as unmatched) is left to the verifier.
+//! one nor as unmatched) is left to the verifier, with the note that says so.
 
 use super::super::verify::UNJUDGED_SPELLINGS as UNJUDGED_KEY;
 use super::{CompileOutcome, DiagnosticKind, ProposedTransform, Refusal, run};
@@ -127,9 +137,10 @@ impl Spelled {
         self.judge(proposed).map(|_| ())
     }
 
-    /// What the law could not judge of an accepted program (B21 T1), each binding once: a note
-    /// naming the clause, the program, the column, both spellings, their code points and every
-    /// text tried, told in an applied finding and kept, once, in the decision's
+    /// What the law could not judge of an accepted program (B21 T1), each binding once per reason
+    /// ([`Unjudged`]): a note naming the clause, the program, the column, both spellings, their
+    /// code points, every text tried and why, told in an applied finding and kept, once, in the
+    /// decision's
     /// `unjudged_spellings` for the judges of the candidate running that program. It refuses
     /// nothing; the notes are returned for the program's own record.
     pub(super) fn qualify(
@@ -141,10 +152,10 @@ impl Spelled {
         let unjudged = self.judge(proposed).unwrap_or_default();
         let notes: Vec<Value> = unjudged
             .iter()
-            .map(|(bound, tried)| bound.note(&self.clause, program, tried))
+            .map(|(bound, tried, why)| bound.note(&self.clause, program, tried, *why))
             .collect();
-        for (bound, _) in &unjudged {
-            let told = bound.unjudged(&self.clause);
+        for (bound, _, why) in &unjudged {
+            let told = bound.unjudged(&self.clause, *why);
             crate::finding(out, DiagnosticKind::Applied, "authoring_transform", told);
         }
         if !notes.is_empty() {
@@ -165,15 +176,16 @@ impl Spelled {
     }
 
     /// The law over `proposed` on each one-row source of its own example: a refusal, or each
-    /// binding whose treatment of a value the clause does not state the program shows none of
-    /// (an error on every text [`Bound::tried`] offers), once, with the texts tried.
-    fn judge(&self, proposed: &ProposedTransform) -> Result<Vec<(&Bound, Vec<String>)>, Refusal> {
+    /// binding the law could not judge, once per reason, with the texts tried: every answered
+    /// text [`Bound::tried`] offers is compared, and one showing either spelling treated as it is
+    /// a drop (B23 F3: a program answering U+2400 itself is still held to the observed value).
+    fn judge(&self, proposed: &ProposedTransform) -> Result<Vec<Unheld<'_>>, Refusal> {
         let program = proposed.jq.trim();
         let example = proposed
             .example_input
             .as_array()
             .map_or(&[][..], Vec::as_slice);
-        let mut unjudged: Vec<(&Bound, Vec<String>)> = Vec::new();
+        let mut unjudged: Vec<Unheld<'_>> = Vec::new();
         for bound in &self.bound {
             for row in example.iter().filter(|row| row.is_object()) {
                 let probe = |text: &str| {
@@ -185,14 +197,24 @@ impl Spelled {
                 let how = match (probe(&bound.stated), probe(&bound.observed)) {
                     (Ok(stated), Ok(observed)) => {
                         let tried = bound.tried();
-                        if let Some(none) = tried.iter().find_map(|text| probe(text).ok()) {
-                            dropped(stated != none, observed != none)
-                        } else {
-                            if !unjudged.iter().any(|(b, _)| std::ptr::eq(*b, bound)) {
-                                unjudged.push((bound, tried));
-                            }
-                            None
+                        let answered: Vec<Value> =
+                            tried.iter().filter_map(|text| probe(text).ok()).collect();
+                        let drop = answered
+                            .iter()
+                            .find_map(|none| dropped(stated != *none, observed != *none));
+                        let why = match (drop, answered.is_empty()) {
+                            (Some(_), _) => None,
+                            (None, true) => Some(Unjudged::EveryProbeErrs),
+                            (None, false) => (stated != observed).then_some(Unjudged::TreatedApart),
+                        };
+                        if let Some(why) = why
+                            && !unjudged
+                                .iter()
+                                .any(|(b, _, w)| std::ptr::eq(*b, bound) && *w == why)
+                        {
+                            unjudged.push((bound, tried, why));
                         }
+                        drop
                     }
                     (Ok(_), Err(_)) => Some(FAILS_OBSERVED),
                     (Err(_), Ok(_)) => Some(FAILS_STATED),
@@ -257,8 +279,40 @@ const FAILS_OBSERVED: &str =
 /// What the program does with the other spelling: an error on the stated one.
 const FAILS_STATED: &str =
     "the program fails on the stated spelling where it returns a value on the observed one";
-/// Why the law could not judge a program over a binding (B21 T1).
-const UNJUDGED: &str = "the program stops with an error on every text the law tried that the clause does not state, so the spelling law could not compare its treatment of the observed spelling with its treatment of the stated one; the judges settle the clause";
+/// Why the law could not judge a program over a binding: every text tried errs (B21 T1).
+const EVERY_PROBE_ERRS: &str = "the program stops with an error on every text the law tried that the clause does not state, so the spelling law could not compare its treatment of the observed spelling with its treatment of the stated one; the judges settle the clause";
+/// Why the law could not judge a program over a binding: the spellings treated apart (B23 F2).
+const TREATED_APART: &str = "the program treats the observed spelling otherwise than the stated one, and neither as it treats any text the law tried that the clause does not state, so the spelling law cannot tell whether the request means that difference (a requested transformation of the value does, a byte comparison does not); the judges settle the clause";
+
+/// Why the law could not judge a program over a binding, named in its note and finding.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Unjudged {
+    /// The program stops with an error on every text tried that the clause does not state.
+    EveryProbeErrs,
+    /// The program treats the two spellings apart, and neither as it treats any answered text
+    /// tried: no drop to refuse, and no way to tell whether the difference is meant.
+    TreatedApart,
+}
+
+impl Unjudged {
+    /// The reason's code in the note.
+    fn code(self) -> &'static str {
+        match self {
+            Self::EveryProbeErrs => "every_probe_errs",
+            Self::TreatedApart => "treated_apart",
+        }
+    }
+    /// The reason in words.
+    fn words(self) -> &'static str {
+        match self {
+            Self::EveryProbeErrs => EVERY_PROBE_ERRS,
+            Self::TreatedApart => TREATED_APART,
+        }
+    }
+}
+
+/// A binding the law could not judge, with the texts it tried and why.
+type Unheld<'a> = (&'a Bound, Vec<String>, Unjudged);
 
 impl Bound {
     /// The texts whose treatment stands for a value the clause does not state: [`UNMATCHED`],
@@ -270,8 +324,8 @@ impl Bound {
     }
 
     /// The note on `program`, which the law could not judge over this binding after trying
-    /// `tried`: kept in the program's record and shown to the judges of its candidate.
-    fn note(&self, clause: &str, program: &str, tried: &[String]) -> Value {
+    /// `tried`, and `why`: kept in the program's record and shown to the judges of its candidate.
+    fn note(&self, clause: &str, program: &str, tried: &[String], why: Unjudged) -> Value {
         json!({
             "clause": clause,
             "program": program,
@@ -281,20 +335,22 @@ impl Bound {
             "observed": self.observed,
             "observed_code_points": points(&self.observed),
             "tried": tried,
-            "why": UNJUDGED,
+            "reason": why.code(),
+            "why": why.words(),
         })
     }
 
     /// The applied finding on a program the law could not judge over this binding.
-    fn unjudged(&self, clause: &str) -> String {
+    fn unjudged(&self, clause: &str, why: Unjudged) -> String {
         format!(
-            "The spelling law could not judge the seat's program for `{}`: in `{}` the clause states `{}` ({}) and the source holds `{}` ({}); {UNJUDGED}.",
+            "The spelling law could not judge the seat's program for `{}`: in `{}` the clause states `{}` ({}) and the source holds `{}` ({}); {}.",
             clause.trim(),
             self.column,
             self.stated,
             points(&self.stated),
             self.observed,
-            points(&self.observed)
+            points(&self.observed),
+            why.words()
         )
     }
 

@@ -665,6 +665,67 @@ async fn an_unmatched_probe_error_of_another_shape_is_probed_with_an_observed_va
     assert_eq!(run(&program, &delivered(LIVRE_NFD)), json!(42), "{program}");
 }
 
+/// B23 F3, its program byte for byte (R4 A11, B21 T1): the program answers the unmatched probe
+/// text itself (`.status == "␀"` gives 1) and compares the stated bytes otherwise, so U+2400 shows
+/// no drop and, answered, stopped the law there: READY, summing 0 where 42 is due. Every answered
+/// probe is compared: on « en attente » the observed spelling is treated as that value, not as the
+/// stated one. Refused, repaired, 42.
+#[tokio::test]
+async fn a_program_answering_the_probe_text_itself_is_compared_on_the_observed_value_too() {
+    let jq = format!(
+        ".records | map(if .status == {} then (.qty | tonumber) elif .status == {} then 1 else 0 end) | add // 0",
+        json!(LIVRE_NFC),
+        json!("\u{2400}")
+    );
+    let seat = Seat::new(vec![
+        request_of(&livre()).1.to_string(),
+        program_on(&jq, [LIVRE_NFC, "pr\u{ea}t"], &json!(40)),
+        summing(&[LIVRE_NFC, LIVRE_NFD]),
+    ]);
+    let world = spelled(&[LIVRE_NFD, "en attente"], &["x", "y"]);
+    let out = compiled(&seat, &livre(), world, 1).await;
+    let program = compute(&out);
+    let sum = run(&program, &delivered(LIVRE_NFD));
+    assert_eq!(
+        authored(&out),
+        ["plan", "transform", "transform_repair"],
+        "READY with `{program}`, summing {sum} on rows spelled e + U+0301"
+    );
+    assert_eq!(sum, json!(42), "{program}");
+}
+
+/// B23 F2, its program byte for byte (R4 A11, B21 T1): the program stops with an error on U+2400,
+/// answers 1 on « en attente » (neither the stated 40 nor the observed 0) and compares the stated
+/// bytes otherwise. No answered probe shows a drop, yet the two spellings are treated apart, and
+/// the law cannot tell whether the request means that difference (a requested transformation of
+/// the value does): it refuses nothing, and the record, an applied finding and every judge's state
+/// say why (`treated_apart`, apart from `every_probe_errs`). The approving double makes it READY,
+/// certifying nothing (it sums 1 where 42 is due); the refusing double keeps it INCOMPLETE.
+#[tokio::test]
+async fn a_program_treating_the_spellings_apart_with_no_drop_goes_to_the_judges() {
+    let jq = format!(
+        ".records | map(if {NO_ASCII_LETTER} then error(\"?\") elif .status == {} then (.qty | tonumber) elif (.status | split(\" \") | length) > 1 then 1 else 0 end) | add // 0",
+        json!(LIVRE_NFC)
+    );
+    let answer = program_on(&jq, [LIVRE_NFC, "pr\u{ea}t"], &json!(40));
+    let world = spelled(&[LIVRE_NFD, "en attente"], &["x", "y"]);
+    let approving = Seat::new(vec![request_of(&livre()).1.to_string(), answer.clone()]);
+    let out = compiled(&approving, &livre(), world.clone(), 1).await;
+    assert_eq!(authored(&out), ["plan", "transform"], "{out:#?}");
+    let record = &out.provenance.decision.as_ref().unwrap()["transforms"][0];
+    let note = record["unjudged"][0].clone();
+    assert_eq!(note["reason"], json!("treated_apart"), "{record:#}");
+    assert_eq!(note["tried"], json!(["\u{2400}", "en attente"]), "{note:#}");
+    let judged = approving.judged();
+    assert!(!judged.is_empty(), "{out:#?}");
+    for state in &judged {
+        assert_eq!(notes(state), std::slice::from_ref(&note), "{state:#}");
+    }
+    let refusing = Seat::refusing(vec![request_of(&livre()).1.to_string(), answer]);
+    let refused = compiled(&refusing, &livre(), world, 0).await;
+    assert_eq!(refused.status, CompileStatus::Incomplete, "{refused:#?}");
+}
+
 /// « Chờ » as a request may state it, fully decomposed (o, then the horn U+031B and the grave
 /// U+0300, two marks), and as a file may spell it, composed (U+1EDD): canonically equivalent.
 const CHO_STATED: &str = "Cho\u{31b}\u{300}";
@@ -747,6 +808,7 @@ async fn a_program_the_law_cannot_judge_goes_to_the_judges_with_its_record() {
     assert_eq!(note["stated_code_points"], json!(points(LIVRE_NFC)));
     assert_eq!(note["observed_code_points"], json!(points(LIVRE_NFD)));
     assert_eq!(note["tried"], json!(["\u{2400}", "en attente"]), "{note:#}");
+    assert_eq!(note["reason"], json!("every_probe_errs"), "{note:#}");
     let finding = out
         .diagnostics
         .iter()
@@ -905,6 +967,10 @@ async fn a_requested_transformation_of_the_value_is_admitted() {
             continue;
         }
         assert_eq!(authored(&out), ["plan", "transform"], "{suffix}");
+        // The law cannot tell whether the request means the difference: recorded, never refused.
+        let record = &out.provenance.decision.as_ref().unwrap()["transforms"][0];
+        let reason = &record["unjudged"][0]["reason"];
+        assert_eq!(reason, &json!("treated_apart"), "{suffix}: {record:#}");
         let program = compute(&out);
         let result = run(&program, &delivered(LIVRE_NFD));
         assert_eq!(result["total"], json!(42), "{suffix}: {program}");
