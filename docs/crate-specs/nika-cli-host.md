@@ -328,6 +328,23 @@ carries the kinds beside the rows (`kinds`, keyed by path: counts only, never a
 value); a row keeps exactly the bytes it had, so a plan or a verified transform
 bound to a recorded row stays bound to it.
 
+`--authoring-reasoning low|high|max` (else `NIKA_AUTHORING_REASONING`, read only
+when a seat is named) is the reasoning effort every authoring and decision call
+asks; the flag needs `--authoring-model`, `--decision-model` or both (one clap
+group). The shared Onboard producer (`compile_config`) judges the word for every
+door: the flag outranks the environment and never falls back to it, and any
+other word refuses the configuration (exit 3) before any request. It also owns
+the per-call caps (`call_bounds`: the operator's, else 8192 tokens and 120 s,
+300 s for a harness) and the policy (`AuthoringConfig::policy`), which Serve's
+native seat builds from too; the effort never moves a cap. With a level, the
+decision seat asks it under the declared authoring cap; without one it keeps its
+256-token request. `nika serve --authoring-reasoning` (`NativeAuthoringArgs`,
+requires `--authoring-model`) reads the flag, else the environment, once when
+the seat is named; an unknown word refuses the seat before the listener binds.
+The provider adapter sends a level only on a catalog-qualified route and refuses
+a gateway or base-URL override before a byte leaves; the receipt separates the
+configured level from the keys read back from the dispatched body.
+
 `compile::sidecar` records the plan an answer round replays. A replay whose outcome
 re-anchors the plan to a changed source (its observation or the keys asked again moved, R4 A6)
 replaces the record atomically once the compile succeeded, so the next `--answer` binds against

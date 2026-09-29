@@ -95,6 +95,32 @@ not normative language rules; syncing the canonical Spec pack must not delete
 them. Native-call receipts keep the actual card SHA-256 alongside the distinct
 Spec pin and pack version. A missing card is a build error, never empty text.
 
+### Explicit reasoning effort (R4 B16)
+
+A policy that names a reasoning effort (`AuthoringPolicy::with_reasoning`, the closed core
+word `AuthoringReasoning`: low · high · max) is asked by every call this member makes through
+`receipt::authoring_request`: the COLD plan and its evidence repair, the native candidate and
+its repairs, the sketch and the transform. The word maps to the kernel's `ReasoningEffort` of
+the same spelling; a word the kernel does not know sends nothing and leaves an
+`authoring_provider` finding. The output cap and the timeout are the policy's own and never
+move with the effort; a truncated answer stays a failure. `ProviderChoice::with_reasoning`
+asks the decision call the same level under the declared authoring cap; without it the
+decision call keeps its 256-token request. Whether a route carries a level at all is the
+provider adapter's decision: a route the catalog does not qualify refuses before any byte,
+recorded as `admission_refused`.
+
+Each call's receipt entry, and each decision answer, records `reasoning` as separate facts:
+`configured` (the policy's word, else null), `transmitted` (the reasoning keys the adapter
+read back from the body it dispatched, or `unobserved` when no response carried them, a
+refused call included), `served: unknown` (the provider's internal effort is not observable
+here), `reasoning_tokens` (null when unreported) and `response_model`. The read-back is the
+adapter's own observation of its serialized request, not an independent network capture.
+
+The COLD plan call and its repair send `opening(intent)` only (the instructions and the
+request text); the observed world, the answers already given, knowledge references and an
+edit's original request reach the native opening alone. That gap is recorded for the
+semantic-context slice, not closed by the effort.
+
 ### Response identity evidence
 
 The shared authoring `Seat` counts an absent, empty or whitespace-only provider
