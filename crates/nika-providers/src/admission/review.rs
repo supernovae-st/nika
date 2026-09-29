@@ -490,15 +490,16 @@ impl CostReview {
         )
     }
     /// Exact review identity and evidence for a details surface, not a credential.
-    /// The route is named by its origin, never its path.
+    /// The route is named by its origin, never its path; the host evidence by its
+    /// public view (each layer's class, origin and cap), never a debug dump.
     #[must_use]
     pub fn details(&self) -> String {
         format!(
-            "candidate {} · invocation {} · origin {} · host {:?}",
+            "candidate {} · invocation {} · origin {} · host {}",
             self.candidate,
             self.invocation,
             self.route.origin(),
-            self.evidence
+            self.evidence.view()
         )
     }
     /// Consume the review after the host receives explicit confirmation and
@@ -774,6 +775,9 @@ mod tests {
             "{details}"
         );
         assert!(!details.contains(SENTINEL), "{details}");
+        // The host evidence reads as its public view, never a Rust debug dump.
+        assert!(details.contains(r#"host {"allowed":true,"#), "{details}");
+        assert!(!details.contains("CostHostEvidence"), "{details}");
         let pending = PendingCostReview::new(review, "s".into(), "i".into());
         let challenge = pending.challenge();
         for screen in [challenge.display(), challenge.details()] {

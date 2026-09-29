@@ -234,10 +234,12 @@ fn the_first_screen_reads_as_one_decision_and_keeps_identities_on_details() {
         "Invocation: inv-7f3a\n".into(),
         "Native currency: price and invoice unknown\n".into(),
         "Host and cap evidence: candidate cand-7f3a".into(),
-        "NotApplicable".into(),
+        // Each layer reads as its public view, never a debug dump.
+        r#""class":"not_applicable""#.into(),
     ] {
         assert!(details.contains(&evidence), "{evidence}: {details}");
     }
+    assert!(!details.contains("NotApplicable"), "{details}");
     assert!(details.ends_with("\nContinue once? yes / no"), "{details}");
 }
 
