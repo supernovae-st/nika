@@ -5554,9 +5554,11 @@ dependencies = [
  "crossterm",
  "expectrl",
  "nika-cli-host",
+ "nika-display",
  "nika-session",
  "ratatui",
  "ratatui-textarea",
+ "sha2 0.10.9",
  "tokio",
  "unicode-width 0.2.2",
 ]

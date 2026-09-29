@@ -989,7 +989,7 @@ pub fn nika_tui::session::Live::perform(&mut self, handoff: &nika_tui::model::Ha
 pub fn nika_tui::session::Live::submit(&mut self, line: &str) -> nika_tui::model::Turn
 pub fn nika_tui::session::Live::submit_with(&mut self, line: &str, busy: &std::sync::mpsc::Sender<alloc::string::String>) -> nika_tui::model::Turn
 pub mod nika_tui::render
-pub const nika_tui::render::SPINNER: [char; 10]
+pub use nika_tui::render::SPINNER
 pub fn nika_tui::render::block_lines(block: &nika_tui::model::Committed, color: bool) -> alloc::vec::Vec<ratatui_core::text::line::Line<'static>>
 pub fn nika_tui::render::draw_focus(frame: &mut ratatui_core::terminal::frame::Frame<'_>, state: &nika_tui::model::UiState, composer: &nika_tui::composer::Composer)
 pub fn nika_tui::render::draw_inline(frame: &mut ratatui_core::terminal::frame::Frame<'_>, state: &nika_tui::model::UiState, composer: &nika_tui::composer::Composer)
@@ -1236,3 +1236,151 @@ pub fn nika_tui::terminal::restore_everything() -> core::io::error::Result<()>
 pub fn nika_tui::terminal::set_alternate_screen(on: bool) -> core::io::error::Result<()>
 pub fn nika_tui::terminal::set_title(title: &str) -> core::io::error::Result<()>
 pub type nika_tui::terminal::Screen = ratatui_core::terminal::Terminal<ratatui_crossterm::CrosstermBackend<std::io::stdio::Stdout>>
+pub mod nika_tui::visual
+pub mod nika_tui::visual::icon
+#[non_exhaustive] pub enum nika_tui::visual::icon::Icon
+pub nika_tui::visual::icon::Icon::Activation
+pub nika_tui::visual::icon::Icon::Choice
+pub nika_tui::visual::icon::Icon::Connection
+pub nika_tui::visual::icon::Icon::Conversation
+pub nika_tui::visual::icon::Icon::File
+pub nika_tui::visual::icon::Icon::Memory
+pub nika_tui::visual::icon::Icon::Pinned
+pub nika_tui::visual::icon::Icon::Project
+pub nika_tui::visual::icon::Icon::Run
+pub nika_tui::visual::icon::Icon::Search
+pub nika_tui::visual::icon::Icon::Settings
+pub nika_tui::visual::icon::Icon::Workflow
+impl nika_tui::visual::icon::Icon
+pub const nika_tui::visual::icon::Icon::ALL: [Self; 12]
+pub const fn nika_tui::visual::icon::Icon::ascii(self) -> &'static str
+pub fn nika_tui::visual::icon::Icon::glyph(self, ascii: bool) -> &'static str
+pub const fn nika_tui::visual::icon::Icon::label(self) -> &'static str
+pub const fn nika_tui::visual::icon::Icon::unicode(self) -> &'static str
+impl core::clone::Clone for nika_tui::visual::icon::Icon
+pub fn nika_tui::visual::icon::Icon::clone(&self) -> nika_tui::visual::icon::Icon
+impl core::cmp::Eq for nika_tui::visual::icon::Icon
+impl core::cmp::PartialEq for nika_tui::visual::icon::Icon
+pub fn nika_tui::visual::icon::Icon::eq(&self, other: &nika_tui::visual::icon::Icon) -> bool
+impl core::fmt::Debug for nika_tui::visual::icon::Icon
+pub fn nika_tui::visual::icon::Icon::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_tui::visual::icon::Icon
+pub fn nika_tui::visual::icon::Icon::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_tui::visual::icon::Icon
+impl core::marker::StructuralPartialEq for nika_tui::visual::icon::Icon
+impl<D> owo_colors::OwoColorize for nika_tui::visual::icon::Icon
+impl<Q, K> equivalent::Equivalent<K> for nika_tui::visual::icon::Icon where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_tui::visual::icon::Icon::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_tui::visual::icon::Icon where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_tui::visual::icon::Icon::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_tui::visual::icon::Icon where U: core::convert::From<T>
+pub fn nika_tui::visual::icon::Icon::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui::visual::icon::Icon where U: core::convert::Into<T>
+pub type nika_tui::visual::icon::Icon::Error = core::convert::Infallible
+pub fn nika_tui::visual::icon::Icon::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui::visual::icon::Icon where U: core::convert::TryFrom<T>
+pub type nika_tui::visual::icon::Icon::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui::visual::icon::Icon::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tui::visual::icon::Icon where T: core::clone::Clone
+pub type nika_tui::visual::icon::Icon::Owned = T
+pub fn nika_tui::visual::icon::Icon::clone_into(&self, target: &mut T)
+pub fn nika_tui::visual::icon::Icon::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tui::visual::icon::Icon where T: 'static + ?core::marker::Sized
+pub fn nika_tui::visual::icon::Icon::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui::visual::icon::Icon where T: ?core::marker::Sized
+pub fn nika_tui::visual::icon::Icon::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui::visual::icon::Icon where T: ?core::marker::Sized
+pub fn nika_tui::visual::icon::Icon::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tui::visual::icon::Icon where T: core::clone::Clone
+pub unsafe fn nika_tui::visual::icon::Icon::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tui::visual::icon::Icon
+pub fn nika_tui::visual::icon::Icon::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_tui::visual::icon::Icon where T: core::clone::Clone
+pub fn nika_tui::visual::icon::Icon::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> either::into_either::IntoEither for nika_tui::visual::icon::Icon
+impl<T> nika_error::traits::AsAny for nika_tui::visual::icon::Icon where T: 'static
+pub fn nika_tui::visual::icon::Icon::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_tui::visual::icon::Icon where T: core::marker::Copy
+pub fn nika_tui::visual::icon::Icon::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_tui::visual::icon::Icon where T: ?core::marker::Sized
+pub fn nika_tui::visual::icon::Icon::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_tui::visual::icon::Icon::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_tui::visual::icon::Icon
+impl<T> tracing::instrument::WithSubscriber for nika_tui::visual::icon::Icon
+impl<T> typenum::type_operators::Same for nika_tui::visual::icon::Icon
+pub type nika_tui::visual::icon::Icon::Output = T
+pub mod nika_tui::visual::logomark
+#[non_exhaustive] pub enum nika_tui::visual::logomark::Size
+pub nika_tui::visual::logomark::Size::Board
+pub nika_tui::visual::logomark::Size::Compact
+pub nika_tui::visual::logomark::Size::Launch
+pub nika_tui::visual::logomark::Size::Picker
+pub nika_tui::visual::logomark::Size::Tiny
+impl nika_tui::visual::logomark::Size
+pub const nika_tui::visual::logomark::Size::ALL: [Self; 5]
+pub fn nika_tui::visual::logomark::Size::at(self, elapsed: core::time::Duration, reduced_motion: bool) -> alloc::vec::Vec<&'static str>
+pub const fn nika_tui::visual::logomark::Size::columns(self) -> u16
+pub fn nika_tui::visual::logomark::Size::frame(self, index: usize) -> alloc::vec::Vec<&'static str>
+pub fn nika_tui::visual::logomark::Size::largest_within(columns: u16, rows: u16) -> core::option::Option<Self>
+pub fn nika_tui::visual::logomark::Size::lines(self) -> alloc::vec::Vec<&'static str>
+pub const fn nika_tui::visual::logomark::Size::rows(self) -> u16
+impl core::clone::Clone for nika_tui::visual::logomark::Size
+pub fn nika_tui::visual::logomark::Size::clone(&self) -> nika_tui::visual::logomark::Size
+impl core::cmp::Eq for nika_tui::visual::logomark::Size
+impl core::cmp::PartialEq for nika_tui::visual::logomark::Size
+pub fn nika_tui::visual::logomark::Size::eq(&self, other: &nika_tui::visual::logomark::Size) -> bool
+impl core::fmt::Debug for nika_tui::visual::logomark::Size
+pub fn nika_tui::visual::logomark::Size::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_tui::visual::logomark::Size
+pub fn nika_tui::visual::logomark::Size::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_tui::visual::logomark::Size
+impl core::marker::StructuralPartialEq for nika_tui::visual::logomark::Size
+impl<D> owo_colors::OwoColorize for nika_tui::visual::logomark::Size
+impl<Q, K> equivalent::Equivalent<K> for nika_tui::visual::logomark::Size where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_tui::visual::logomark::Size::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_tui::visual::logomark::Size where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_tui::visual::logomark::Size::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_tui::visual::logomark::Size where U: core::convert::From<T>
+pub fn nika_tui::visual::logomark::Size::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui::visual::logomark::Size where U: core::convert::Into<T>
+pub type nika_tui::visual::logomark::Size::Error = core::convert::Infallible
+pub fn nika_tui::visual::logomark::Size::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui::visual::logomark::Size where U: core::convert::TryFrom<T>
+pub type nika_tui::visual::logomark::Size::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui::visual::logomark::Size::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tui::visual::logomark::Size where T: core::clone::Clone
+pub type nika_tui::visual::logomark::Size::Owned = T
+pub fn nika_tui::visual::logomark::Size::clone_into(&self, target: &mut T)
+pub fn nika_tui::visual::logomark::Size::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tui::visual::logomark::Size where T: 'static + ?core::marker::Sized
+pub fn nika_tui::visual::logomark::Size::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui::visual::logomark::Size where T: ?core::marker::Sized
+pub fn nika_tui::visual::logomark::Size::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui::visual::logomark::Size where T: ?core::marker::Sized
+pub fn nika_tui::visual::logomark::Size::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tui::visual::logomark::Size where T: core::clone::Clone
+pub unsafe fn nika_tui::visual::logomark::Size::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tui::visual::logomark::Size
+pub fn nika_tui::visual::logomark::Size::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_tui::visual::logomark::Size where T: core::clone::Clone
+pub fn nika_tui::visual::logomark::Size::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> either::into_either::IntoEither for nika_tui::visual::logomark::Size
+impl<T> nika_error::traits::AsAny for nika_tui::visual::logomark::Size where T: 'static
+pub fn nika_tui::visual::logomark::Size::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_tui::visual::logomark::Size where T: core::marker::Copy
+pub fn nika_tui::visual::logomark::Size::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_tui::visual::logomark::Size where T: ?core::marker::Sized
+pub fn nika_tui::visual::logomark::Size::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_tui::visual::logomark::Size::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_tui::visual::logomark::Size
+impl<T> tracing::instrument::WithSubscriber for nika_tui::visual::logomark::Size
+impl<T> typenum::type_operators::Same for nika_tui::visual::logomark::Size
+pub type nika_tui::visual::logomark::Size::Output = T
+pub const nika_tui::visual::logomark::REVEAL_AT: [core::time::Duration; 5]
+pub const nika_tui::visual::logomark::REVEAL_ENDS: core::time::Duration
+pub const nika_tui::visual::logomark::SOURCE_PATH: &str
+pub const nika_tui::visual::logomark::SOURCE_SHA256: &str
+pub fn nika_tui::visual::logomark::revealing(elapsed: core::time::Duration, reduced_motion: bool) -> bool
+pub mod nika_tui::visual::role
+pub fn nika_tui::visual::role::style(role: nika_display::theme::Role, color: bool) -> ratatui_core::style::Style
+pub fn nika_tui::visual::role::verb(word: &str, color: bool) -> ratatui_core::style::Style

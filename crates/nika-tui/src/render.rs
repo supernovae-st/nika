@@ -4,41 +4,47 @@
 //! Painting. Pure functions from the state to a frame: the same block draws
 //! the same way whether it is committed to the scrollback (inline) or listed
 //! on the alternate screen (focus). Chrome is dimmer than the workflow text;
-//! colour carries a meaning or is absent (the theme decides, never here):
-//! blue for the prompt marker when computation is active, yellow for a gate,
-//! a permission, a cost or a boundary; the default foreground for everything
-//! the human reads.
+//! colour carries a meaning or is absent, always through a theme role resolved
+//! here at paint time ([`crate::visual::role`]), never a hue named in a widget:
+//! the accent for the prompt marker while computation is active, the warning
+//! slot for a gate, a permission, a cost or a boundary, the failure slot for a
+//! refusal; the default foreground for everything the human reads.
 
+use nika_display::theme::Role;
 use ratatui::Frame;
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Layout, Rect};
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Widget, Wrap};
 
 use crate::composer::Composer;
 use crate::model::{Committed, Kind, Presentation, UiState, Waiting};
+use crate::visual::role;
 
 /// The glyph and the style of one kind of block.
 fn face(kind: Kind, color: bool) -> (&'static str, Style) {
-    let dim = Style::default().add_modifier(Modifier::DIM);
-    let strong = Style::default().add_modifier(Modifier::BOLD);
-    let paint = |c: Color| {
-        if color {
-            Style::default().fg(c)
-        } else {
-            Style::default()
-        }
-    };
+    let dim = role::style(Role::Dim, color);
+    let strong = role::style(Role::Strong, color);
     match kind {
         Kind::Banner | Kind::Notice => ("", dim),
         Kind::Human => ("› ", strong),
         Kind::Reply | Kind::Proposal | Kind::Report => ("", Style::default()),
         Kind::Question => ("? ", Style::default()),
         Kind::Run => ("  ", Style::default()),
-        Kind::Gate => ("⏸ ", paint(Color::Yellow)),
+        Kind::Gate => ("⏸ ", role::style(Role::Warn, color)),
         Kind::Result => ("", strong),
-        Kind::Refusal => ("✖ ", paint(Color::Red)),
+        Kind::Refusal => ("✖ ", role::style(Role::Bad, color)),
+    }
+}
+
+/// The accent a live marker wears: the theme's accent slot, or bold when
+/// colour is off (a weight, never a hue, marks it then).
+fn accent(color: bool) -> Style {
+    if color {
+        role::style(Role::Accent, color)
+    } else {
+        role::style(Role::Strong, color)
     }
 }
 
@@ -95,8 +101,9 @@ pub fn live_rows(state: &UiState, composer: &Composer, width: u16, height: u16) 
     rows.clamp(3, height.saturating_div(2).max(3))
 }
 
-/// The loader's frames (braille dots, the usual terminal spinner).
-pub const SPINNER: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+/// The loader's frames: the theme seam's own braille orbit, one motion for the
+/// renderer and the run frames.
+pub use nika_display::theme::SPINNER;
 
 /// The lifecycle rail, dim like the chrome: five facts, never one badge.
 fn rail_line(state: &UiState) -> Line<'static> {
@@ -107,12 +114,8 @@ fn rail_line(state: &UiState) -> Line<'static> {
 }
 
 fn status_line(state: &UiState) -> Line<'static> {
-    let dim = Style::default().add_modifier(Modifier::DIM);
-    let accent = if state.color {
-        Style::default().fg(Color::Blue)
-    } else {
-        Style::default().add_modifier(Modifier::BOLD)
-    };
+    let dim = role::style(Role::Dim, state.color);
+    let accent = accent(state.color);
     if state.interrupt_armed {
         return Line::from(Span::styled(
             "interrupted · Ctrl+C again leaves · any key stays",
@@ -177,9 +180,9 @@ fn render_live(frame: &mut Frame<'_>, state: &UiState, composer: &Composer, area
     let [marker, editor] =
         Layout::horizontal([Constraint::Length(prompt_width), Constraint::Min(8)]).areas(input);
     let marker_style = match state.waiting {
-        Waiting::Gate | Waiting::Proposal if state.color => Style::default().fg(Color::Yellow),
-        _ if state.busy.is_some() && state.color => Style::default().fg(Color::Blue),
-        _ => Style::default().add_modifier(Modifier::BOLD),
+        Waiting::Gate | Waiting::Proposal if state.color => role::style(Role::Warn, true),
+        _ if state.busy.is_some() => accent(state.color),
+        _ => role::style(Role::Strong, state.color),
     };
     frame.render_widget(
         Paragraph::new(Line::from(Span::styled(prompt.to_owned(), marker_style))),

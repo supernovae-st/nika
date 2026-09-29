@@ -12,7 +12,7 @@
 | License | `AGPL-3.0-or-later` |
 | Edition | 2024 (workspace-inherited) |
 | Publish | `false` |
-| Dependencies | **read from `Cargo.toml`, which is authoritative** · `ratatui` 0.30 (features `scrolling-regions` · `unstable-rendered-line-info`) · `crossterm` 0.29 (`event-stream` · `bracketed-paste`) · `ratatui-textarea` 0.9 · `tokio` · `unicode-width` · lateral L4 `nika-session` (the live conversation) and `nika-cli-host` (the one-use Run child, no admission authority) · dev: `expectrl` (the PTY proof). `tachyonfx` and `nika-tui-core` are not dependencies yet; ADR-139 §Consequences leaves tachyonfx and the web-studio port out of the first product. |
+| Dependencies | **read from `Cargo.toml`, which is authoritative** · `ratatui` 0.30 (features `scrolling-regions` · `unstable-rendered-line-info`) · `crossterm` 0.29 (`event-stream` · `bracketed-paste`) · `ratatui-textarea` 0.9 · `tokio` · `unicode-width` · lateral L4 `nika-session` (the live conversation), `nika-cli-host` (the one-use Run child, no admission authority) and `nika-display` (the theme seam: roles, verb and state glyphs, motion frames; already under the other two) · dev: `expectrl` (the PTY proof), `sha2` (the logomark provenance proof). `tachyonfx` and `nika-tui-core` are not dependencies yet; ADR-139 §Consequences leaves tachyonfx and the web-studio port out of the first product. |
 | NIKA codes | none owed — the renderer refuses nothing · it displays the refusal the engine rendered |
 | Depends on | **T28 admitted** (`nika-tui-core` out of wip, done 2026-08-14) · ADR-139 proposed (confirmed or overturned by the two UX-1 prototypes on the same fixtures) |
 
@@ -38,19 +38,40 @@ Today the crate renders the live Session: `nika-session` turn outcomes
 become typed beats, and the CLI door injects the runners. The
 `nika-tui-core` board law and the tachyonfx effects are not wired yet.
 
-## 2. The semantic layer becomes enforceable here (planned)
+## 2. The semantic layer becomes enforceable here
 
-The known hole in the porting map (§4) closes in this crate:
+The known hole in the porting map (§4) closes in this crate, without a second
+palette: the roles are the engine's closed set, `nika_display::theme::Role`
+(the accent, the three verdicts, dim, strong and the four verb chips), and
+`visual::role::style` resolves each at paint time to the Ratatui colour of the
+same ANSI-16 slot the CLI frames paint (a test pins the ten slots to the
+theme's own SGR codes). Hues stay the user's terminal theme's; without colour
+no role carries a hue, and dim and strong remain weights. The renderer's block
+faces, status marker and prompt marker ask for a role, never a colour: the busy
+marker wears the accent (cyan), a gate or a proposal the warning slot, a
+refusal the failure slot. The studio's palette-extent gate and the board roles
+(`BarWork`, `BarIdle`, `BarCritical`) arrive with the board.
 
-```rust
-pub enum Role { BarWork, BarIdle, BarCritical, /* … */ }
-impl Role { pub fn color(self, theme: &Theme) -> Color { /* the table */ } }
-```
+The rest of the visual vocabulary (`visual`, task T-nika-tui-assets) is the
+same kind of borrowing:
 
-A `Role` resolved at paint time makes the semantic layer enforceable:
-citing a palette primitive in a widget becomes a type error. The studio's
-palette-extent gate then measures what it claims to measure. `Role` is not
-implemented yet.
+- `visual::icon` names the workspace objects a screen shows (project,
+  workflow, conversation, run, activation, file, memory, connection,
+  settings, pinned, search, choose) with a label that is always drawn, a
+  Unicode glyph drawn only when it takes one cell in both the narrow and the
+  CJK width tables (three proposals, the run, file and memory glyphs, fall
+  back for that reason), and an ASCII twin. Verbs and task states are not
+  icons: their glyphs are the theme seam's `◇ ▷ ◆ ✦` and state column.
+- `visual::logomark` holds the Supernovae butterfly, the only brand mark:
+  five renditions (12×6 to 48×20) sampled from `media/brand/nika-logomark.svg`
+  (a test pins its sha256, so a changed mark flags stale renditions), chosen
+  whole by `Size::largest_within`, revealed once through five ordered-dither
+  frames between 0 and 600 ms and final at 760 ms, shown final at once under
+  reduced motion. It never loops and never stands for work in progress.
+
+Nothing in `visual` reads the clock, the environment or a file; the caller
+passes the elapsed time, the colour and ASCII choices and reduced motion. Where
+the layout places the mark and the icons is UI-LAYOUT's work.
 
 ## 3. What is ported as is (the map, §5 · planned)
 

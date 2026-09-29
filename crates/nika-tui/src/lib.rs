@@ -34,6 +34,10 @@
 //! driven by the `nika-tui-proto` binary in both presentations; the real
 //! session runtime is wired in the next wave through the same
 //! [`model::Beat`] vocabulary.
+//!
+//! Every colour and glyph comes through [`visual`]: the engine's theme roles
+//! resolved at paint time, the workspace icons with their ASCII twins, and the
+//! butterfly sampled from the repository's own logomark.
 
 pub mod app;
 pub mod composer;
@@ -42,3 +46,4 @@ pub mod model;
 pub mod render;
 pub mod session;
 pub mod terminal;
+pub mod visual;
