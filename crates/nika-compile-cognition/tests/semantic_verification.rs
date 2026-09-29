@@ -20,13 +20,16 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 /// An injected seat that answers its calls in order and keeps the last message each call sent
-/// (a double: it scripts a provider, and optionally the admission layer's call ceiling).
+/// (a double: it scripts a provider, and optionally the admission layer's call ceiling or a
+/// provider failure).
 struct Scripted {
     answers: Vec<String>,
     calls: AtomicUsize,
     asked: Mutex<Vec<String>>,
     /// The first call the double's ceiling refuses before any transport; none by default.
     refused_from: usize,
+    /// The first call the double's provider fails with no answer; none by default.
+    failed_from: usize,
 }
 
 impl Scripted {
@@ -36,6 +39,7 @@ impl Scripted {
             calls: AtomicUsize::new(0),
             asked: Mutex::new(Vec::new()),
             refused_from: usize::MAX,
+            failed_from: usize::MAX,
         }
     }
     /// The same double behind a ceiling of `ceiling` calls: each later call is refused as the
@@ -43,6 +47,14 @@ impl Scripted {
     fn ceiling(answers: Vec<String>, ceiling: usize) -> Self {
         Self {
             refused_from: ceiling,
+            ..Self::new(answers)
+        }
+    }
+    /// The same double whose provider fails each call from `from` on with no answer, as a
+    /// provider may before or after any transport (the receipt cannot tell which).
+    fn failing(answers: Vec<String>, from: usize) -> Self {
+        Self {
+            failed_from: from,
             ..Self::new(answers)
         }
     }
@@ -75,6 +87,11 @@ impl ProviderInferDyn for Scripted {
                     "the authoring call ceiling of {} calls is reached",
                     self.refused_from
                 ),
+            });
+        }
+        if at >= self.failed_from {
+            return Err(ProviderError::Other {
+                reason: "the provider failed with no answer".to_owned(),
             });
         }
         let text = self.answers[at.min(self.answers.len() - 1)].clone();
@@ -323,6 +340,36 @@ async fn a_repair_the_call_ceiling_refuses_is_requested_never_sent() {
         "{told:?}"
     );
     assert!(!told.iter().any(|m| m.contains("was sent")), "{told:?}");
+}
+
+/// A repair whose provider call failed is told as failed, its transport unobserved, never as
+/// sent (R4 A11, a labelled negative): the double's provider fails the third call with no
+/// answer. The attempt keeps the receipt's failure kind and nothing is READY.
+#[tokio::test]
+async fn a_repair_whose_provider_call_failed_is_never_told_as_sent() {
+    let seat = Scripted::failing(vec![plan(SUM).to_string(), program(GENERATED)], 2);
+    let out = compiled(&seat).await;
+    assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
+    let receipt = out.provenance.authoring.as_ref().unwrap();
+    let failed = &receipt.context[2]["result"]["failure_kind"];
+    assert_eq!(failed, &json!("provider_error"));
+    let decision = out.provenance.decision.as_ref().unwrap();
+    assert_eq!(
+        decision["transform_repairs"][0]["call"],
+        json!("provider_error")
+    );
+    let told: Vec<&str> = out
+        .diagnostics
+        .iter()
+        .filter(|d| d.target == "authoring_transform")
+        .map(|d| d.message.as_str())
+        .collect();
+    assert!(
+        told.iter()
+            .any(|m| m.contains("its provider call failed, its transport unobserved")),
+        "{told:?}"
+    );
+    assert!(!told.iter().any(|m| m.contains("sent")), "{told:?}");
 }
 
 /// A policy granting no repair is obeyed (R4 A11): the refused program buys no second

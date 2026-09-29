@@ -139,14 +139,22 @@ impl Repairs {
         asked["verifier"] = json!({"your_program": program, "refused": why});
         let answer = super::propose_as(policy, provider, "transform_repair", asked, out).await;
         let call = transport(&journal(out)[journaled.min(journal(out).len())..]);
+        // Only an answer shows a call went out: a provider may fail, and a timeout may fire,
+        // before any transport, so those say what they are and leave the transport unobserved.
         let (kind, told) = match call {
-            "answered" => (DiagnosticKind::Applied, "its call was sent and answered"),
+            "answered" => (DiagnosticKind::Applied, "its call returned an answer"),
             "admission_refused" => (
                 DiagnosticKind::Unknown,
                 "the call ceiling refused its call before any transport",
             ),
-            "timeout" => (DiagnosticKind::Unknown, "its call was sent and timed out"),
-            "provider_error" => (DiagnosticKind::Unknown, "its call was sent and failed"),
+            "timeout" => (
+                DiagnosticKind::Unknown,
+                "its call timed out, its transport unobserved",
+            ),
+            "provider_error" => (
+                DiagnosticKind::Unknown,
+                "its provider call failed, its transport unobserved",
+            ),
             _ => (DiagnosticKind::Unknown, "no request was sent"),
         };
         crate::finding(
@@ -184,7 +192,8 @@ fn journal(out: &CompileOutcome) -> &[Value] {
 
 /// What became of the last call the receipt journaled in `after`, the entries a repair added
 /// (`answered`, `admission_refused`, `timeout`, `provider_error`), or `not_sent` when it added
-/// none: the receipt, never the request, says whether a call left.
+/// none: the receipt, never the request, says what became of the call, and only an answer
+/// shows that it left.
 fn transport(after: &[Value]) -> &'static str {
     let Some(result) = after.last().map(|entry| &entry["result"]) else {
         return "not_sent";
