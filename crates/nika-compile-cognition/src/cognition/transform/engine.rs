@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! The verifier's one jq language: the runtime mirror of `nika:jq` (jaq core, the
-//! capability-filtered std, jaq-json, the runtime shadows of `stdlib.jq`, the fixed run-start
-//! clock and the input-bound variables), assembled once. [`run`] judges a seat's program;
-//! [`run_with`] runs the same language with natives only a private probe copy may call.
+//! capability-filtered std, jaq-json, the runtime's std shadows `nika_cap::JQ_STD_SHADOWS`, the
+//! fixed run-start clock and the input-bound variables), assembled once. [`run`] judges a seat's
+//! program; [`run_with`] runs the same language with natives only a private probe copy may call.
 
 use super::Refusal;
 use jaq_core::load::{Arena, Error as LoadError, File, Loader};
@@ -33,7 +33,7 @@ pub(super) fn run_with(
 ) -> Result<Value, Refusal> {
     let val = to_val(input)?;
     let (names, vals) = variables(input)?;
-    let corrections = jaq_core::load::parse(JQ_STD_CORRECTIONS, |p| p.defs())
+    let corrections = jaq_core::load::parse(nika_cap::JQ_STD_SHADOWS, |p| p.defs())
         .ok_or_else(|| Refusal("internal: the jq std corrections do not parse".to_owned()))?;
     let clock = jaq_core::load::parse(nika_cap::JQ_CLOCK_DEFS, |p| p.defs())
         .ok_or_else(|| Refusal("internal: the jq clock definitions do not parse".to_owned()))?;
@@ -134,9 +134,6 @@ fn variables(input: &Value) -> Result<(Vec<String>, Vec<Val>), Refusal> {
     }
     Ok((names, vals))
 }
-
-/// The runtime shadows, verbatim: global `scan` and exactly one value from `tonumber`.
-const JQ_STD_CORRECTIONS: &str = include_str!("stdlib.jq");
 
 fn render_load(errs: &[(File<&str, ()>, LoadError<&str>)]) -> String {
     let Some((_, first)) = errs.first() else {

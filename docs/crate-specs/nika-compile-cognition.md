@@ -174,10 +174,14 @@ combining accent ») stay refused under the law's premise: canonical equivalents
 unless the request says otherwise.
 
 The verifier and its probes share one jq language (`transform/engine.rs`): the runtime mirror
-of `nika:jq` (jaq core, the capability-filtered std, jaq-json, the runtime shadows of
-`transform/stdlib.jq`, the fixed run-start clock and the input-bound variables), assembled
-once. The probe adds two private natives through `run_with`; they are never installed for an
-emitted program, and a program that names one does not compile in the verifier.
+of `nika:jq` (jaq core, the capability-filtered std, jaq-json, the runtime's std shadows
+`nika_cap::JQ_STD_SHADOWS`, the fixed run-start clock and the input-bound variables), assembled
+once. The shadows are the builtin's own text, not a copy: the global `scan`, and a `tonumber`
+that emits one finite number and refuses NaN and the infinities by name before a predicate,
+sort or aggregate reads them. The verifier runs the shared probe set
+`nika_cap::JQ_STD_SHADOW_PROBES` with the builtin, output bindings and the checker. The probe
+adds two private natives through `run_with`; they are never installed for an emitted program,
+and a program that names one does not compile in the verifier.
 
 Agreement across unrelated pairs is not required: a special case of the synthetic probe must
 not hide a drop exposed by the observed stand-in and its companion. A text named by the program

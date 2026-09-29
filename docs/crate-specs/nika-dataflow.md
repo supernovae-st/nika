@@ -175,11 +175,15 @@ enumerate this effect surface and drive the real rendered-size ceiling.
 
 ## Numeric conversion cardinality
 
-Named output bindings install the same numeric conversion definition as the runtime builtin.
+Named output bindings install the runtime builtin's own std shadows,
+`nika_cap::JQ_STD_SHADOWS` (nika-cap spec §3.4): the same `tonumber` and the global `scan`, which
+bindings lacked before. Their tests run the shared probe set `nika_cap::JQ_STD_SHADOW_PROBES`.
 
-`tonumber` preserves a numeric input or parses one numeric value from a text input.
-Empty or whitespace-only text, several JSON values in one text, and non-numeric values fail;
-an enclosing aggregate cannot silently omit or double-count that operand. An explicitly
-authored `try` or `?` still controls error handling. `fromjson` retains its stream semantics.
-This cardinality correction does not promise arbitrary decimal arithmetic or a field name in
-the generic error; typed numeric laws remain responsible for those contracts.
+`tonumber` preserves a finite numeric input or parses one finite numeric value from a text
+input. Empty or whitespace-only text, several JSON values in one text, non-numeric values, NaN
+and the infinities (an overflowing text such as `1e400` included) fail with a named error; an
+enclosing aggregate cannot silently omit or double-count that operand, and no predicate,
+comparison or sort reads a non-finite one. An explicitly authored `try` or `?` still controls
+error handling. `fromjson` retains its stream semantics and still reads non-finite values.
+This correction does not promise arbitrary decimal arithmetic or a field name in the generic
+error; typed numeric laws remain responsible for those contracts.

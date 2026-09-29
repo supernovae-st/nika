@@ -60,10 +60,10 @@ pub use env::{
 // function set the compiler receives rather than a sentence in a document.
 // NOT a permit route: `env` above governs a CHILD PROCESS, never an expression.
 pub use expr::{
-    JQ_CAPABILITY_POLICY, JQ_CLOCK_DEFS, JQ_RUN_START_VAR, JqCapability, JqCapabilityRule, JqClock,
-    JqDisposition, JqSymbolKind, WITHHELD_JQ_NATIVES, WithheldNative, install_jq_definition,
-    install_jq_native, is_withheld_jq_native, jq_capability_rule, withheld_jq_native,
-    withheld_jq_policy_reason, withheld_jq_reason,
+    JQ_CAPABILITY_POLICY, JQ_CLOCK_DEFS, JQ_RUN_START_VAR, JQ_STD_SHADOW_PROBES, JQ_STD_SHADOWS,
+    JqCapability, JqCapabilityRule, JqClock, JqDisposition, JqSymbolKind, WITHHELD_JQ_NATIVES,
+    WithheldNative, install_jq_definition, install_jq_native, is_withheld_jq_native,
+    jq_capability_rule, withheld_jq_native, withheld_jq_policy_reason, withheld_jq_reason,
 };
 pub use file_plumbing::{
     FILE_PLUMBING_PROGRAMS, file_plumbing_computed_operand, file_plumbing_computed_shell,

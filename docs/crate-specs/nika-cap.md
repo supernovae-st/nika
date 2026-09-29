@@ -208,6 +208,36 @@ reservations this codebase already carries for `InferRequest`/`CatalogEntry`.
 Wiring either into `nika-policy` is explicitly **out of scope** for this
 admission.
 
+### 3.4 The jq std shadows and their probe set (`expr.rs`)
+
+`JQ_STD_SHADOWS` (`src/jq_std_shadows.jq`) is the one text every jq consumer
+chains after jaq-json, beside `JQ_CLOCK_DEFS`: the `nika:jq` builtin, output
+bindings, the static checker and the compile verifier. It holds the
+runtime's corrections to jaq's std:
+
+- `scan(re; flags)` and `scan(re)` are global, as jq defines them (jaq-std
+  3.0.x yields the first match only).
+- `tonumber` emits exactly one finite number. A number operand is kept; a
+  text is read with `fromjson` and must hold one JSON number. Empty or
+  whitespace-only text, several values, non-numbers, NaN, `Infinity`,
+  `-Infinity` and an overflowing text such as `1e400` fail. A non-finite
+  value fails with `tonumber: not a finite number` before any predicate,
+  comparison, sort, minimum, maximum or aggregate reads it, and the message
+  prints no cell text. An explicit `try` or `?` still owns its skip policy.
+
+Named limits: `fromjson` is unchanged and still reads NaN, the infinities and
+overflowing decimals, and values a program computes (`infinite`, `1 / 0`,
+`pow(10; 400)`) are not guarded. A text that is not JSON fails with the
+reader's own message, which quotes the text; naming the field or column
+belongs to the programs the typed compiler emits.
+
+`JQ_STD_SHADOW_PROBES` (`src/jq_std_shadows_probes.json`) is data, not
+behaviour: `shadows` lists each definition the text defines (`name/arity`),
+and each probe holds a program, its input and either its one output or an
+error text the consumer's refusal contains. The three evaluators run every
+probe; the checker compiles every program and loads every shadow. Both are
+additive constants, and the crate keeps no jaq dependency.
+
 ---
 
 ## 4. Module structure with LOC estimates

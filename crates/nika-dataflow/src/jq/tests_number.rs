@@ -82,3 +82,29 @@ fn tonumber_does_not_change_the_fromjson_stream() {
         serde_json::json!([1, 2])
     );
 }
+
+/// The shared conformance probes hold in output bindings: each program emits its one expected
+/// value, or a refusal naming the expected fault.
+#[test]
+fn the_shared_shadow_probes_hold_in_output_bindings() {
+    let set: serde_json::Value =
+        serde_json::from_str(nika_cap::JQ_STD_SHADOW_PROBES).expect("the probe set is JSON");
+    let failed: Vec<String> = set["probes"]
+        .as_array()
+        .expect("probes")
+        .iter()
+        .filter_map(|probe| {
+            let program = probe["program"].as_str().expect("a program");
+            let result = evaluate(program, &probe["input"]);
+            let held = match probe["error"].as_str() {
+                Some(fault) => result.as_ref().is_err_and(|failure| {
+                    matches!(failure, super::DataflowError::OutputBinding { message, .. }
+                        if message.contains(fault))
+                }),
+                None => result.as_ref().ok() == Some(&probe["output"]),
+            };
+            (!held).then(|| format!("{}: {result:?}", probe["name"]))
+        })
+        .collect();
+    assert!(failed.is_empty(), "{failed:#?}");
+}

@@ -357,3 +357,46 @@ async fn a_value_used_as_a_proxy_for_equality_reaches_the_judges() {
     let refused = compiled(&refusing, &livre(), 1).await;
     assert_eq!(refused.status, CompileStatus::Incomplete, "{refused:#?}");
 }
+
+/// Each reason the relation probe records reaches every verifier question the judges read, not
+/// only the decision: a proxy value the canonical relations leave in place
+/// (`relation_unconfirmed`) and a definition shadowing a relation, which leaves no canonical
+/// copy (`relation_inconclusive`). No question and no decision carries the retired reason.
+#[tokio::test]
+async fn every_relation_reason_reaches_the_judges() {
+    let stated = json!(LIVRE_NFC);
+    let cases = [
+        (
+            format!(
+                ".records | map(select((.status | length) == ({stated} | length)) | .qty | tonumber) | add // 0"
+            ),
+            "relation_unconfirmed",
+        ),
+        (
+            format!(
+                "def test(x): . == x; .records | map(select(.status | test({stated})) | .qty | tonumber) | add // 0"
+            ),
+            "relation_inconclusive",
+        ),
+    ];
+    for (jq, why) in cases {
+        let seat = Seat::new(vec![
+            request_of(&livre()).1.to_string(),
+            program(&jq, &["status", "qty"], &json!(40)),
+        ]);
+        let out = compiled(&seat, &livre(), 1).await;
+        assert_eq!(authored(&out), ["plan", "transform"], "{jq}: {out:#?}");
+        assert_eq!(reason(&out), json!(why), "{jq}: {out:#?}");
+        let judged = seat.judged();
+        assert!(!judged.is_empty(), "{jq}");
+        for state in &judged {
+            let reasons: Vec<&Value> = state["unjudged_spellings"]
+                .as_array()
+                .map(|notes| notes.iter().map(|note| &note["reason"]).collect())
+                .unwrap_or_default();
+            assert!(reasons.contains(&&json!(why)), "{jq}: {state:#}");
+        }
+        let told = format!("{judged:?} {:?}", out.provenance.decision);
+        assert!(!told.contains("literal_unconfirmed"), "{jq}");
+    }
+}

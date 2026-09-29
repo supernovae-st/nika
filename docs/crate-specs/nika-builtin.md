@@ -218,11 +218,15 @@ not establish that an input file exists or that rendering will succeed.
 
 ## Numeric conversion cardinality
 
-The runtime jq builtin and fetch jq mode share this evaluator.
+The runtime jq builtin and fetch jq mode share this evaluator. Its `tonumber` and `scan` are
+the shared `nika_cap::JQ_STD_SHADOWS` (nika-cap spec §3.4), and its tests run the shared probe
+set `nika_cap::JQ_STD_SHADOW_PROBES`.
 
-`tonumber` preserves a numeric input or parses one numeric value from a text input.
-Empty or whitespace-only text, several JSON values in one text, and non-numeric values fail;
-an enclosing aggregate cannot silently omit or double-count that operand. An explicitly
-authored `try` or `?` still controls error handling. `fromjson` retains its stream semantics.
-This cardinality correction does not promise arbitrary decimal arithmetic or a field name in
-the generic error; typed numeric laws remain responsible for those contracts.
+`tonumber` preserves a finite numeric input or parses one finite numeric value from a text
+input. Empty or whitespace-only text, several JSON values in one text, non-numeric values, NaN
+and the infinities (an overflowing text such as `1e400` included) fail with a named error; an
+enclosing aggregate cannot silently omit or double-count that operand, and no predicate,
+comparison or sort reads a non-finite one. An explicitly authored `try` or `?` still controls
+error handling. `fromjson` retains its stream semantics and still reads non-finite values.
+This correction does not promise arbitrary decimal arithmetic or a field name in the generic
+error; typed numeric laws remain responsible for those contracts.

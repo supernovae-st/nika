@@ -35,14 +35,12 @@ use nika_schema::raw::{RawAction, RawWorkflow};
 pub(super) fn jq_compiles(program: &str) -> Result<(), String> {
     let clock_defs = jaq_core::load::parse(nika_cap::JQ_CLOCK_DEFS, |parser| parser.defs())
         .ok_or_else(|| "internal: canonical jq clock definitions do not parse".to_owned())?;
-    let numbers = jaq_core::load::parse(include_str!("jq_lint/number.jq"), |parser| parser.defs())
-        .ok_or_else(|| "internal: jq number definitions do not parse".to_owned())?;
     let defs = jaq_core::defs()
         .chain(
             jaq_std::defs().filter(|definition| nika_cap::install_jq_definition(definition.name)),
         )
         .chain(jaq_json::defs())
-        .chain(numbers)
+        .chain(std_shadows()?)
         .chain(clock_defs);
     // One typed policy decides every effect-bearing native/definition. Clock
     // forms compile against the run-start variable; execution supplies its
@@ -67,6 +65,13 @@ pub(super) fn jq_compiles(program: &str) -> Result<(), String> {
         .compile(modules)
         .map(|_| ())
         .map_err(|errs| render_compile(&errs))
+}
+
+/// The std shadows the runtime chains after jaq-json ([`nika_cap::JQ_STD_SHADOWS`]), parsed as
+/// every jq consumer parses them.
+fn std_shadows() -> Result<Vec<jaq_core::load::parse::Def<&'static str>>, String> {
+    jaq_core::load::parse(nika_cap::JQ_STD_SHADOWS, |parser| parser.defs())
+        .ok_or_else(|| "internal: the jq std shadows do not parse".to_owned())
 }
 
 /// Render a jaq LOAD error set (lex/parse/io) as one clean line.
@@ -464,5 +469,39 @@ mod tests_number {
         ] {
             assert!(super::jq_compiles(program).is_ok(), "{program}");
         }
+    }
+
+    fn probe_set() -> serde_json::Value {
+        serde_json::from_str(nika_cap::JQ_STD_SHADOW_PROBES).expect("the probe set is JSON")
+    }
+
+    /// Every program of the shared conformance probes compiles in the checker, as it runs in
+    /// the runtime's evaluators.
+    #[test]
+    fn every_shared_shadow_probe_compiles() {
+        for probe in probe_set()["probes"].as_array().expect("probes") {
+            let program = probe["program"].as_str().expect("a program");
+            assert!(super::jq_compiles(program).is_ok(), "{}", probe["name"]);
+        }
+    }
+
+    /// The checker loads every shadow the runtime defines: a program is compiled against the
+    /// runtime's own `scan` and `tonumber`, never jaq's.
+    #[test]
+    fn the_checker_loads_every_shared_shadow() {
+        let set = probe_set();
+        let expected: std::collections::BTreeSet<&str> = set["shadows"]
+            .as_array()
+            .expect("shadows")
+            .iter()
+            .filter_map(serde_json::Value::as_str)
+            .collect();
+        let loaded: Vec<String> = super::std_shadows()
+            .expect("the shadows parse")
+            .iter()
+            .map(|definition| format!("{}/{}", definition.name, definition.args.len()))
+            .collect();
+        let loaded: std::collections::BTreeSet<&str> = loaded.iter().map(String::as_str).collect();
+        assert_eq!(loaded, expected);
     }
 }

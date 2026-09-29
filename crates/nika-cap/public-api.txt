@@ -999,6 +999,8 @@ pub const nika_cap::HUMAN_GATE_TOOL: &str
 pub const nika_cap::JQ_CAPABILITY_POLICY: &[nika_cap::JqCapabilityRule]
 pub const nika_cap::JQ_CLOCK_DEFS: &str
 pub const nika_cap::JQ_RUN_START_VAR: &str
+pub const nika_cap::JQ_STD_SHADOWS: &str
+pub const nika_cap::JQ_STD_SHADOW_PROBES: &str
 pub const nika_cap::PURE_INTERNAL_TOOLS: &[&str]
 pub const nika_cap::RUNNER_FLOOR_ENV_VARS: &[&str]
 pub const nika_cap::WITHHELD_JQ_NATIVES: &[nika_cap::WithheldNative]

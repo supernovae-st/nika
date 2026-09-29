@@ -168,6 +168,21 @@ def localtime: gmtime;
 def strflocaltime($format): strftime($format);
 ";
 
+/// The runtime's corrections to jaq's std, chained after jaq-json by every jq consumer (the
+/// `nika:jq` builtin, output bindings, the static checker and the compile verifier): the global
+/// `scan` jq defines, and a `tonumber` that emits exactly one finite number or refuses by name
+/// (`tonumber: not a finite number`) before any predicate, comparison, sort or aggregate reads
+/// the value. `fromjson` and program-computed values stay unguarded, a named limit.
+pub const JQ_STD_SHADOWS: &str = include_str!("jq_std_shadows.jq");
+
+/// The conformance probe set every jq consumer runs against [`JQ_STD_SHADOWS`]: data, not
+/// behaviour. One JSON object: `shadows` names each definition the shadows define
+/// (`name/arity`), and each of `probes` holds a `name`, a `program`, the `input` it runs over
+/// and either the one `output` it emits or an `error` text the consumer's refusal contains.
+/// The runtime builtin, output bindings and the verifier evaluate every probe; the static
+/// checker compiles every program and loads every shadow. One set, so no consumer drifts.
+pub const JQ_STD_SHADOW_PROBES: &str = include_str!("jq_std_shadows_probes.json");
+
 /// Canonical policy for every upstream jq symbol that is not input-only.
 ///
 /// Symbols absent from this table are ordinary input-dependent compute and
@@ -410,5 +425,35 @@ sees only its input; pass the value in — `inputs:` (the caller), `const:` (the
             assert!(withheld_jq_reason(name).is_none(), "{name}");
         }
         assert!(is_withheld_jq_native("env"));
+    }
+
+    #[test]
+    fn the_shadow_probe_set_is_well_formed() {
+        let set: serde_json::Value =
+            serde_json::from_str(JQ_STD_SHADOW_PROBES).expect("the probe set is JSON");
+        let shadows = set["shadows"].as_array().expect("shadows");
+        assert!(!shadows.is_empty());
+        for shadow in shadows {
+            let (name, arity) = shadow
+                .as_str()
+                .and_then(|s| s.split_once('/'))
+                .expect("name/arity");
+            assert!(
+                !name.is_empty() && arity.parse::<usize>().is_ok(),
+                "{shadow}"
+            );
+        }
+        let mut names = std::collections::BTreeSet::new();
+        for probe in set["probes"].as_array().expect("probes") {
+            let name = probe["name"].as_str().expect("a named probe");
+            assert!(names.insert(name), "duplicate {name}");
+            assert!(
+                probe["program"].as_str().is_some_and(|p| !p.is_empty()),
+                "{name}"
+            );
+            assert!(probe.get("input").is_some(), "{name}");
+            let expects_error = probe.get("error").is_some_and(serde_json::Value::is_string);
+            assert_ne!(probe.get("output").is_some(), expects_error, "{name}");
+        }
     }
 }
